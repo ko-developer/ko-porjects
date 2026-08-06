@@ -5406,6 +5406,28 @@ function ringPts(z, spacingPx, count) {
   return pts;
 }
 /* הצבת הפריטים שכבר משויכים לאזור בהצעת המחיר — לפי הכמויות שלהם, סביב ההיקף */
+/* פס אישור לא-חוסם לבניית מערכת — confirm() חסום בדפדפנים משובצים ומחזיר false,
+   מה שגרם למחיקה מיידית של כל מה שנבנה. ברירת המחדל עכשיו: המערכת נשארת. */
+function zoneBuildBar(msg, onUndo) {
+  const old = document.getElementById('zbBar'); if (old) old.remove();
+  const bar = document.createElement('div');
+  bar.id = 'zbBar';
+  bar.style.cssText = 'position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#1a1e28;color:#fff;padding:10px 14px;border-radius:12px;z-index:130;box-shadow:0 8px 30px rgba(0,0,0,.45);display:flex;gap:10px;align-items:center;max-width:92vw;font-size:13px';
+  const txt = document.createElement('span');
+  txt.style.cssText = 'white-space:pre-line;line-height:1.45';
+  txt.textContent = msg;
+  const okB = document.createElement('button');
+  okB.textContent = '✓ אישור';
+  okB.style.cssText = 'background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px';
+  okB.onclick = () => bar.remove();
+  const unB = document.createElement('button');
+  unB.textContent = '↩ בטל והסר';
+  unB.style.cssText = 'background:#f3d9d2;color:#8c2f16;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px';
+  unB.onclick = () => { bar.remove(); onUndo(); };
+  bar.append(txt, okB, unB);
+  document.body.appendChild(bar);
+  setTimeout(() => { if (bar.isConnected) bar.remove(); }, 25000);
+}
 function buildZoneFromItems(zid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   const isSub = nm => /סאב|\bsub\b|NOMOS|TILL\s?1[58]P?\s?SUB|SB-?\d|F118|BR\s?118/i.test(nm);
@@ -5463,12 +5485,12 @@ function buildZoneFromItems(zid) {
     }
   }
   P.showCoverage = true; z._sysOpen = false; render(); save();
-  if (!confirm(`📋 הוצבו פריטי האזור "${z.name}" לפי הכמויות בהצעה:\n${nS}× רמקולים סביב ההיקף${nSub ? '\n' + nSub + '× סאבים בפינות' : ''}${nRack ? '\n' + nRack + '× ציוד ראק → ריכוז המגברים' : ''}\n\nלאשר? (ביטול יסיר)`)) {
+  zoneBuildBar(`📋 הוצבו פריטי האזור "${z.name}" לפי הכמויות בהצעה: ${nS}× רמקולים סביב ההיקף${nSub ? ' · ' + nSub + '× סאבים בפינות' : ''}${nRack ? ' · ' + nRack + '× ציוד ראק' : ''}`, () => {
     P.nodes = P.nodes.filter(n2 => !created.includes(n2.id));
     P.cables = P.cables.filter(c2 => byId(c2.from) && byId(c2.to));
     zi.forEach(it => { it.placed = Math.max(0, (it.placed || 0) - (it.zones[z.name] || 0)); });
     render(); save();
-  }
+  });
 }
 /* מצב SPL לכל רמקולי האזור: max = מקס מלא, design = מקס−20 */
 function zoneSplMode(zid, mode) {
@@ -5525,7 +5547,7 @@ function buildZoneSystem(zid) {
     let subC = '';
     if (z._sub) { const sit = { on: true, qty: 2, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i'), zones: { [z.name]: 2 }, added: true, placed: 2 }; autoPrice(sit); impItems.push(sit); P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (1)', sub: 'סאב · ' + z.name, x: 2200 - (cx0 - inM) - 20, y: cy0 - 24, srcIid: sit.iid, mini: true, disp: 360, spl: guessSpl(z._sub) }, { id: uid('n'), kind: 'point', name: z._sub + ' (2)', sub: 'סאב · ' + z.name, x: 2200 - (cx0 + inM) - 20, y: cy0 - 24, srcIid: sit.iid, mini: true, disp: 360, spl: guessSpl(z._sub) }); subC = ' + 2 סאבים במרכז'; }
     P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
-    if (!confirm(`נבנתה מערכת ל"${z.name}" (4 פינות · Funktion-One):\n4× ${spk}${subC}\n\nלאשר את ההצבה? (ביטול יסיר הכל)`)) undoZoneBuild(z);
+    zoneBuildBar(`נבנתה מערכת ל"${z.name}" (4 פינות · Funktion-One): 4× ${spk}${subC}`, () => undoZoneBuild(z));
     return;
   }
   if (mode === 'live') {
@@ -5567,7 +5589,7 @@ function buildZoneSystem(zid) {
       dlyMsg = '\n2× דיליי (עומק ' + depthM.toFixed(0) + ' מ׳ > 18 מ׳)';
     }
     P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
-    if (!confirm(`נבנתה מערכת הופעה חיה ל"${z.name}":\n2× ${spk} (מיינים L/R על קיר הבמה)${subMsg2}${dlyMsg}\n\nלאשר את ההצבה? (ביטול יסיר הכל)`)) undoZoneBuild(z);
+    zoneBuildBar(`נבנתה מערכת הופעה חיה ל"${z.name}": 2× ${spk} (מיינים L/R)${subMsg2}${dlyMsg}`, () => undoZoneBuild(z));
     return;
   }
   if (mode === 'ring') {
@@ -5589,7 +5611,7 @@ function buildZoneSystem(zid) {
       subMsg3 = '\n' + nSub + '× ' + z._sub + ' (פינות — צימוד)';
     }
     P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
-    if (!confirm(`נבנתה מערכת היקפית ל"${z.name}":\n${pts.length}× ${spk} סביב הקירות (מרווח ~${spacingM.toFixed(1)} מ׳)${subMsg3}\n\nלאשר את ההצבה? (ביטול יסיר הכל)`)) undoZoneBuild(z);
+    zoneBuildBar(`נבנתה מערכת היקפית ל"${z.name}": ${pts.length}× ${spk} סביב הקירות (מרווח ~${spacingM.toFixed(1)} מ׳)${subMsg3}`, () => undoZoneBuild(z));
     return;
   }
   let spacingM, place;
@@ -5617,10 +5639,7 @@ function buildZoneSystem(zid) {
   }
   const densName = { edge: 'edge-to-edge', min: 'חפיפה מינימלית', full: 'חפיפה מלאה', sparse: 'רופף' }[z._dens || 'edge'];
   P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
-  /* אישור/ביטול — ביטול מסיר את כל מה שהוצב */
-  if (!confirm(`נבנתה מערכת ל"${z.name}" (${wall ? 'קיר — מכוונים לחלל' : 'תקרה'}):\n${nSpk}× ${spk}${subMsg}\n(שטח ${area.toFixed(0)} מ"ר · מרווח ~${spacingM.toFixed(1)} מ׳ · ${densName})\n\nלאשר את ההצבה? (ביטול יסיר הכל)`)) {
-    undoZoneBuild(z);
-  }
+  zoneBuildBar(`נבנתה מערכת ל"${z.name}" (${wall ? 'קיר — מכוונים לחלל' : 'תקרה'}): ${nSpk}× ${spk}${subMsg} · שטח ${area.toFixed(0)} מ"ר · מרווח ~${spacingM.toFixed(1)} מ׳ · ${densName}`, () => undoZoneBuild(z));
 }
 /* הסרת מערכת אוטומטית שנבנתה לאזור — מוקדים + פריטי הצעה */
 /* הארת קיר בתכנית בעת ריחוף על הכפתור */
@@ -5697,7 +5716,7 @@ async function autoLayoutAI(zid) {
     it.qty = it.placed = nS; it.zones = { [z.name]: nS }; it.added = true;
     if (sit) { sit.qty = sit.placed = nSub; sit.zones = { [z.name]: nSub }; sit.added = nSub > 0; }
     P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
-    if (!confirm('🤖 הפריסה החכמה מיקמה ' + nS + ' רמקולים' + (nSub ? ' + ' + nSub + ' סאבים' : '') + ' לפי ניתוח התכנית (' + (spread === 'surround' ? 'היקפי' : 'כיווני') + ').\nריחוף על רמקול מציג את הנימוק.\n\nלאשר? (ביטול יסיר הכל)')) undoZoneBuild(z);
+    zoneBuildBar('🤖 הפריסה החכמה מיקמה ' + nS + ' רמקולים' + (nSub ? ' + ' + nSub + ' סאבים' : '') + ' לפי ניתוח התכנית (' + (spread === 'surround' ? 'היקפי' : 'כיווני') + '). ריחוף על רמקול מציג את הנימוק.', () => undoZoneBuild(z));
   } catch (err) {
     if (/401|invalid|authentication/i.test(String(err.message))) { try { localStorage.removeItem('koflow_apikey'); } catch (e) {} }
     alert('הפריסה החכמה נכשלה: ' + err.message);
