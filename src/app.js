@@ -3133,12 +3133,12 @@ function renderCoverage() {
     /* רמת המקור לצביעה — נחתכת לתקרת הסקאלה כדי לשמור על מדרג הצבעים המלא */
     const spl = Math.min(effSpl(n), COV_TOP);
     const aim = (n.aim ?? 0) * Math.PI / 180;
-    /* קודקוד הקונוס מוזז קדימה בעומק הרמקול + המתקן (~25 ס"מ) */
-    const depthPx = (n.depth ?? 0.25) * pxPerM;
+    /* קודקוד הקונוס בגב האייקון — כל האייקון בתוך הקונוס, הפיזור "יוצא" מהרמקול */
+    const backPx = 22; /* חצי רוחב האייקון + שוליים, בקואורדינטות קנבס */
     const cx0 = 2200 - n.x - 20, cy0 = n.y + 24;
     const isOmni = disp >= 300;
-    const cx = isOmni ? cx0 : cx0 + depthPx * Math.cos(aim);
-    const cy = isOmni ? cy0 : cy0 + depthPx * Math.sin(aim);
+    const cx = isOmni ? cx0 : cx0 - backPx * Math.cos(aim);
+    const cy = isOmni ? cy0 : cy0 - backPx * Math.sin(aim);
     /* חיתוך לפי גבולות האזור */
     let clip = '';
     const zc = zoneAt({ x: cx0, y: cy0 });
@@ -4650,9 +4650,25 @@ function wireFromItem(iid) {
   render();
 }
 /* מילוי מחיר אוטומטי מהמחירון (ERP) לפי מק"ט */
+/* מידע חי מהקטלוג — מחיר ומלאי לפי מק"ט (ERP_ITEMS: [key, name, price, qty]) */
+let ERP_INFO = null;
+function erpInfo(key) {
+  if (!ERP_INFO) {
+    ERP_INFO = new Map();
+    if (typeof ERP_ITEMS !== 'undefined') for (const it of ERP_ITEMS) ERP_INFO.set(it[0], { price: +it[2] || 0, qty: +it[3] || 0 });
+  }
+  return key ? ERP_INFO.get(key) : null;
+}
+function stockBadge(key) {
+  const inf = erpInfo(key);
+  if (!inf) return '';
+  const st = inf.qty > 0 ? `<span style="color:#0a7a4b">מלאי: ${inf.qty}</span>` : '<span style="color:#a32222">אין מלאי</span>';
+  return `<span style="font-size:10.5px;white-space:nowrap">${st}${inf.price ? ' · ₪' + inf.price.toLocaleString() : ''}</span>`;
+}
 function autoPrice(it) {
   if ((it.price == null || it.price === '') && it.key && typeof ERP_PRICES !== 'undefined' && ERP_PRICES[it.key] != null)
     it.price = ERP_PRICES[it.key];
+  if ((it.price == null || it.price === '') && it.key) { const inf = erpInfo(it.key); if (inf && inf.price) it.price = inf.price; }
 }
 /* חיפוש מאוחד: קיטים + פריטי ERP — הוספה ונעיצה בקליק */
 function dockSearchResults(q) {
@@ -5008,7 +5024,7 @@ function renderImp() {
     <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` +
     (results.length ? results.map(r => r.type === 'kit'
       ? `<div class="crow" onclick="pickKitInline(${r.i})"><span class="badge" style="background:#534ab7">${r.n}</span><span class="txt"><b>🧰 ${esc(r.name)}</b> · קיט מלא</span></div>`
-      : `<div class="crow" onclick="pickSearchItem('${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span><span class="txt">${esc(r.name)}</span></div>`
+      : `<div class="crow" onclick="pickSearchItem('${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span><span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`
     ).join('') + '<div style="border-bottom:1px solid #eee;margin:8px 0"></div>' : '') +
     body;
 }
@@ -5620,6 +5636,7 @@ function zoneSpkPicker(zid) {
     listEl.innerHTML = f.slice(0, 80).map(r => `
       <div data-i="${rows.indexOf(r)}" style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;cursor:pointer">
         <b style="flex:1;font-size:12.5px">${esc(r.name.slice(0, 60))}</b>
+        ${stockBadge(r.key)}
         <span class="muted" style="font-size:10.5px;white-space:nowrap">${r.sub ? 'סאב' : r.d.h + '°×' + r.d.v + '°'} · ${r.d.max}dB ${r.d.ok ? '<span style="color:#0a7a4b">✓</span>' : '<span style="color:#a32222">לא מאומת</span>'}</span>
       </div>`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
     listEl.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
