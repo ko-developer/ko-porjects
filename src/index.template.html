@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KO Projects — מתכנן הקמות וחיווט</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%231f2430"/><text x="32" y="42" font-family="Arial" font-weight="900" font-size="26" fill="%23ff8a50" text-anchor="middle">KO</text></svg>'>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Segoe UI", "Heebo", Arial, sans-serif; }
+  body { background: #f4f3ef; color: #222; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  header { background: linear-gradient(105deg, #1a1e28, #262d3d 55%, #33261f); color: #fff; padding: 10px 18px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+  .logo { display: flex; align-items: center; gap: 10px; margin-inline-end: 10px; }
+  .logo .mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, #ff8a50, #c96f4a); color: #1a1e28; font-weight: 900; font-size: 15px; display: flex; align-items: center; justify-content: center; letter-spacing: -0.5px; box-shadow: 0 2px 8px rgba(255,138,80,.35); }
+  .logo b { font-size: 17px; font-weight: 700; letter-spacing: .3px; }
+  .logo small { display: block; font-size: 11px; color: #9aa3b5; font-weight: 400; }
+  header button { transition: transform .12s, filter .12s; }
+  #tidyBtn.on, #autoBtn.on, #wireBtn.on { background: #ff8a50; color: #1a1e28; font-weight: 700; }
+  body.wiring #canvas, body.wiring .node, body.wiring .unit { cursor: crosshair !important; }
+  .unit.picked { outline: 3px solid #ffb35c; outline-offset: -3px; }
+  .node.wsrc { outline: 3px dashed #ff8a50; outline-offset: 2px; }
+  .dd { position: relative; }
+  .ddm { display: none; position: absolute; top: calc(100% + 6px); right: 0; background: #2d3444; border: 1px solid #444d61; border-radius: 8px; padding: 6px; z-index: 120; min-width: 185px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .dd.open .ddm { display: flex; flex-direction: column; gap: 4px; }
+  .ddm button { width: 100%; text-align: right; background: transparent; color: #fff; }
+  .ddm button:hover { background: #3a4258; }
+  header button:hover { transform: translateY(-1px); }
+  .node { transition: box-shadow .15s; }
+  .node:hover { box-shadow: 0 4px 14px rgba(0,0,0,.14); }
+  select#projSel { background:#2d3444; border:1px solid #444d61; color:#fff; border-radius:6px; padding:5px 10px; font-size:14px; max-width:240px; }
+  header input#projName { background:#2d3444; border:1px solid #444d61; color:#fff; border-radius:6px; padding:4px 10px; font-size:14px; width:180px; }
+  header .spacer { flex: 1; }
+  button { cursor: pointer; border: none; border-radius: 6px; padding: 6px 12px; font-size: 13px; background: #e3e1da; }
+  button:hover { filter: brightness(0.95); }
+  button.primary { background: #c96f4a; color: #fff; }
+  main { flex: 1; display: flex; overflow: hidden; }
+  #side { width: 330px; background: #fff; border-inline-start: 1px solid #ddd; display: flex; flex-direction: column; overflow-y: auto; }
+  #tabs { display: flex; border-bottom: 1px solid #ddd; }
+  #tabs button { flex: 1; border-radius: 0; background: #f0efe9; padding: 10px; font-size: 14px; }
+  #tabs button.active { background: #fff; font-weight: 700; border-bottom: 2px solid #c96f4a; }
+  #panel { padding: 14px; font-size: 13px; }
+  .fld { margin-bottom: 8px; }
+  .fld label { display: block; font-size: 12px; color: #666; margin-bottom: 2px; }
+  .fld input, .fld select { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; background:#fff; }
+  .row2 { display: flex; gap: 8px; } .row2 > div { flex: 1; }
+  #canvasWrap { flex: 1; position: relative; overflow: auto; }
+  #zoomer { overflow: hidden; }
+  .zctl { display: flex; align-items: center; gap: 4px; background: #2d3444; border-radius: 8px; padding: 3px 6px; }
+  .zctl button { padding: 3px 9px; background: transparent; color: #fff; font-size: 15px; }
+  .zctl button:hover { background: #3a4258; }
+  .zctl input { width: 52px; background: #1f2430; border: 1px solid #444d61; color: #cfd5e1; border-radius: 5px; font-size: 12px; text-align: center; padding: 3px 2px; }
+  #canvas { position: relative; width: 2200px; height: 1400px; transform-origin: top right;
+    background-image: linear-gradient(#e9e7e0 1px, transparent 1px), linear-gradient(90deg, #e9e7e0 1px, transparent 1px);
+    background-size: 24px 24px; }
+  svg#wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+  .node { position: absolute; background: #fff; border: 1.5px solid #b9b5aa; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.08); width: 172px; user-select: none; z-index: 1; }
+  #dock { width: 480px; flex: none; background: #fff; border-inline-start: 1px solid #ddd; overflow-y: auto; padding: 12px; font-size: 13px; }
+  #dock .cablelist input, #dock .cablelist select { padding: 2px 4px; border: 1px solid #ccc; border-radius: 5px; font-size: 11px; }
+  #impOv { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 98; }
+  .ibox { background: #fff; border-radius: 12px; padding: 18px; width: 760px; max-width: 94vw; max-height: 84vh; overflow: auto; }
+  .ibox h3 { font-size: 16px; margin-bottom: 10px; }
+  .ibox input, .ibox select { padding: 3px 5px; border: 1px solid #ccc; border-radius: 5px; font-size: 12px; }
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 99; }
+  #modal .mbox { background: #fff; border-radius: 12px; padding: 20px; width: 320px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  #modal .mbox p { font-size: 14px; margin-bottom: 14px; }
+  #modal .mbox button { width: 100%; margin-bottom: 8px; padding: 9px; font-size: 14px; }
+  .node.sel { border-color: #c96f4a; box-shadow: 0 0 0 3px rgba(201,111,74,.25); }
+  .node .hd { padding: 6px 8px; font-size: 13px; font-weight: 700; background: #f4f2ec; border-radius: 9px 9px 0 0; cursor: grab; display:flex; justify-content:space-between; align-items:center; }
+  .node .hd small { font-weight: 400; color: #888; }
+  .rackbody { padding: 8px 10px; }
+  .rails { position: relative; border: 2px solid #3a3d44; border-radius: 5px; background: repeating-linear-gradient(180deg, #2b2e34 0 13px, #26292f 13px 15px); overflow: hidden; }
+  .rails::before, .rails::after { content: ''; position: absolute; top: 0; bottom: 0; width: 11px; z-index: 1;
+    background: #383c44 radial-gradient(circle at 5.5px 7.5px, #1d1f23 2px, transparent 2.6px); background-size: 11px 15px; }
+  .rails::before { right: 0; } .rails::after { left: 0; }
+  .unit { position: absolute; left: 12px; right: 12px; border-block: 1px solid rgba(0,0,0,.35); padding: 0 10px; font-size: 11px; display: flex; align-items: center; justify-content: space-between; color: #fff; overflow: hidden; white-space: nowrap; z-index: 2; cursor: grab; box-shadow: inset 0 1px 0 rgba(255,255,255,.15), inset 0 -2px 3px rgba(0,0,0,.2);
+    background-image: radial-gradient(circle at 5px 50%, rgba(0,0,0,.45) 1.6px, transparent 2.2px), radial-gradient(circle at calc(100% - 5px) 50%, rgba(0,0,0,.45) 1.6px, transparent 2.2px); }
+  .node.droptgt { border-color: #2e7d32; box-shadow: 0 0 0 3px rgba(46,125,50,.35); }
+  .zone { position: absolute; z-index: 0; border: 2.5px dashed; border-radius: 10px; }
+  .zone .zlbl { position: absolute; top: 6px; right: 8px; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 6px; color: #fff; cursor: grab; user-select: none; white-space: nowrap; }
+  .zone .zsz { position: absolute; bottom: 3px; left: 3px; width: 14px; height: 14px; border-radius: 4px; cursor: nesw-resize; opacity: .8; }
+  #ughost { position: fixed; z-index: 999; pointer-events: none; background: #1f2430; color: #fff; padding: 5px 12px; border-radius: 6px; font-size: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.35); opacity: .92; }
+  .unit b { font-weight: 600; text-overflow: ellipsis; overflow: hidden; }
+  .unit span { font-size: 10px; opacity: .85; }
+  .node.rear { width: 520px; }
+  /* גב אמיתי: תווית מוצר מימין, פאנל מחברים כהה */
+  .rails.rear { direction: ltr; }
+  .runit { position: absolute; left: 8px; border-block: 1px solid rgba(0,0,0,.4); display: flex; direction: ltr; z-index: 2; }
+  .runit.picked { outline: 3px solid #ffb35c; outline-offset: -3px; z-index: 3; }
+  .runit-lbl { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; padding: 2px 4px; border-radius: 0 6px 6px 0; overflow: hidden; }
+  .runit-lbl b { font-size: 11px; text-align: center; line-height: 1.15; max-height: 3em; overflow: hidden; }
+  .runit-lbl small { font-size: 9px; opacity: .8; }
+  .rearbody { background: #0c0e12; border-radius: 10px; padding: 8px 10px; }
+  .rearchassis { background: #14171d; border-radius: 8px; }
+  .runit-panel { position: relative; background: #16191f; border-radius: 6px 0 0 6px; cursor: pointer; box-shadow: inset 0 2px 6px rgba(0,0,0,.5); }
+  .runit-edit { position: absolute; left: 4px; bottom: 3px; font-size: 9px; padding: 1px 6px; background: #2d3444; color: #cbd2e0; border: 1px solid #40485a; border-radius: 5px; cursor: pointer; }
+  .node.rear .hd { background: #2d3444; color: #fff; }
+  .node.rear .rails { background: repeating-linear-gradient(180deg, #3a3f4a 0 13px, #333842 13px 15px); border-color: #222; }
+  .node.rear .unit { cursor: pointer; opacity: .92; }
+  .node.rear .unit.picked { outline: 3px solid #ffb35c; outline-offset: -3px; }
+  .hd .flip { padding: 1px 7px; font-size: 12px; background: rgba(255,255,255,.25); border-radius: 5px; cursor: pointer; }
+  .rearhint { font-size: 11px; color: #999; margin-top: 4px; }
+  .pointbody { padding: 12px 10px; font-size: 12px; color: #555; text-align: center; }
+  /* מוקד ממוזער — סמן קטן עם מספר */
+  .node.mini { width: 40px; min-width: 0; background: transparent; border: none; box-shadow: none; z-index: 2; text-align: center; }
+  .node.mini .mnum { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 10px; background: #c9502e; color: #fff; font-size: 12px; font-weight: 800; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .node.mini .mic { width: 30px; height: 30px; margin: 1px auto 0; border-radius: 8px; background: #fff; border: 2px solid #c9502e; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.25); cursor: grab; }
+  .node.mini.sel .mic { outline: 3px solid #ff8a50; }
+  #sideMinBtn { align-self: flex-start; margin: 6px 6px 0; padding: 2px 9px; font-size: 13px; border: 1px solid #ccc; border-radius: 6px; background: #f4f2ec; cursor: pointer; }
+  body.smin #side { width: 34px; min-width: 34px; overflow: hidden; }
+  body.smin #side #tabs, body.smin #side #panel { display: none; }
+  .cablelist { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .cablelist th, .cablelist td { border: 1px solid #ddd; padding: 4px 6px; text-align: right; }
+  .cablelist th { background: #f4f2ec; }
+  .badge { display:inline-flex; width:20px; height:20px; border-radius:50%; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:700; }
+  .ulist { list-style: none; }
+  .ulist li { display: flex; align-items: center; gap: 5px; padding: 4px 6px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
+  .ulist li.selu { border-color: #c96f4a; background: #fdf4f0; }
+  .ulist li .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .ulist li b { flex: 1; font-weight: 600; }
+  .ulist li button { padding: 2px 7px; font-size: 12px; background: #f0efe9; }
+  .ulist li input.posin { width: 42px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; text-align: center; }
+  .crow { display:flex; gap:6px; align-items:center; margin-bottom:4px; font-size:12px; padding:4px 6px; border:1px solid #eee; border-radius:6px; cursor:pointer; }
+  .crow.selc { border-color:#c96f4a; background:#fdf4f0; }
+  .crow span.txt { flex:1; }
+  .muted { color: #999; font-size: 12px; }
+  .pnl { padding: 8px; display: flex; flex-wrap: wrap; gap: 5px; background: #fafaf8; border-radius: 0 0 9px 9px; direction: ltr; }
+  .hole { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #666; font-size: 9px; display: flex; align-items: center; justify-content: center; background: #fff; cursor: pointer; user-select: none; color: #444; flex: none; }
+  .hole.sq { border-radius: 4px; }
+  .hole.fill { color: #fff; }
+  .hcell { display: flex; flex-direction: column; align-items: center; gap: 0; flex: none; width: 24px; }
+  .hole.gph { border: none; background: transparent; width: 22px; height: 24px; padding: 0; }
+  .hnum { font-size: 8px; color: #777; line-height: 1.1; user-select: none; }
+  .face .hnum { color: #a9b2c1; }
+  .brush button svg { vertical-align: middle; margin-inline-start: 2px; }
+  .hlbl { font-size: 8px; color: #555; max-width: 26px; text-align: center; line-height: 1.1; overflow: hidden; white-space: nowrap; }
+  .face { background: #23262c; border-radius: 6px; padding: 8px 18px; }
+  .face .hlbl { color: #c9d1de; }
+  .brush { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+  .brush button { font-size: 12px; padding: 4px 8px; }
+  .vd { padding: 7px 8px; border-radius: 6px; font-size: 12px; background: #f0efe9; color: #666; }
+  .vd.ok { background: #e1f5ee; color: #085041; font-weight: 600; }
+  .vd.warn { background: #faeeda; color: #633806; font-weight: 600; }
+  .vd.bad { background: #fcebeb; color: #791f13; font-weight: 600; }
+  h3.sec { font-size: 13px; margin: 12px 0 6px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  #legend { background: #fff; border-top: 1px solid #ddd; max-height: 200px; overflow: auto; padding: 10px 16px; }
+  #legend h3 { font-size: 14px; margin-bottom: 6px; }
+  #report { display: none; }
+  .rp-cover { display: flex; gap: 16px; align-items: center; border-bottom: 3px solid #c96f4a; padding-bottom: 14px; margin-bottom: 22px; }
+  .rp-logo { width: 54px; height: 54px; border-radius: 12px; background: #1f2430; color: #ff8a50; font-weight: 900; font-size: 22px; display: flex; align-items: center; justify-content: center; }
+  .rp-cover h1 { font-size: 20px; margin-bottom: 2px; }
+  .rp-cover h2 { font-size: 16px; color: #c96f4a; margin-bottom: 4px; }
+  .rp-cover p { color: #666; font-size: 13px; }
+  .rp-sec { margin-bottom: 26px; page-break-inside: avoid; }
+  .rp-sec h3 { font-size: 15px; border-bottom: 1px solid #ddd; margin-bottom: 10px; padding-bottom: 4px; }
+  .rp-flex { display: flex; gap: 16px; align-items: flex-start; }
+  .rp-rails { width: 230px; flex: none; }
+  @media print {
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    header, #side { display: none !important; }
+    body { overflow: visible; height: auto; }
+    main { overflow: visible; }
+    #canvasWrap { overflow: visible; }
+    #legend { max-height: none; }
+    body.printing main, body.printing #legend, body.printing #modal { display: none !important; }
+    body.printing #report { display: block; padding: 10px; background: #fff; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><div class="mark">KO</div><div><b>KO Projects</b><small>מתכנן הקמות וחיווט</small></div></div>
+  <select id="projSel" onchange="switchProj(this.value)"></select>
+  <button onclick="newProj()">+ פרויקט</button>
+  <button onclick="dupProj()">שכפול</button>
+  <button onclick="delProj()">מחיקה</button>
+  <input id="projName" onchange="renameProj(this.value)">
+  <div class="spacer"></div>
+  <button onclick="addNode('rack')">+ ארון</button>
+  <button onclick="addNode('point')">+ מוקד</button>
+  <button onclick="addNode('panel')">+ פאנל/מולטי</button>
+  <button class="primary" onclick="ui.tab='cable';selCable=null;wireMode={from:null};render()">+ כבל</button>
+  <button onclick="openPlanSettings()" title="תכנית רקע, כיול, אזורים ופרטי חלל">🗺 הגדרות תכנית</button>
+  <div class="dd">
+    <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()" title="הצגה/הסתרה של מוצרים מהתכנית — כולל הכבלים שלהם">👁 תצוגה ▾</button>
+    <div class="ddm" id="viewMenu"></div>
+  </div>
+  <button id="btnUndo" onclick="undo()" title="בטל (Ctrl+Z)" style="padding:6px 10px;font-size:15px">↶</button>
+  <button id="btnRedo" onclick="redo()" title="בצע שוב (Ctrl+Shift+Z)" style="padding:6px 10px;font-size:15px">↷</button>
+  <div class="dd">
+    <button id="actBtn" onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">⚡ פעולות ▾</button>
+    <div class="ddm" id="actionsMenu"></div>
+  </div>
+  <div class="zctl" title="זום (גם Ctrl+גלגלת)">
+    <button onclick="zoomBy(1/1.2)">−</button>
+    <input id="zlab" value="100" title="הקלד אחוז זום ולחץ Enter" onchange="setZoomPct(this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+    <button onclick="zoomBy(1.2)">+</button>
+    <button onclick="fitView()" title="הצג את כל התכנית">⤢</button>
+  </div>
+  <div class="dd">
+    <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייצוא ▾</button>
+    <div class="ddm">
+      <button onclick="exportJSON();this.closest('.dd').classList.remove('open')">💾 ייצוא פרויקט (JSON)</button>
+      <button onclick="exportPDF();this.closest('.dd').classList.remove('open')">📑 דוח PDF</button>
+    </div>
+  </div>
+  <div class="dd">
+    <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייבוא ▾</button>
+    <div class="ddm">
+      <button onclick="importJSON();this.closest('.dd').classList.remove('open')">📄 ייבוא פרויקט (JSON)</button>
+      <button onclick="$('#bgIn').click();this.closest('.dd').classList.remove('open')">🖼 תכנית רקע</button>
+      <button onclick="$('#specIn').click();this.closest('.dd').classList.remove('open')">📋 ייבוא מפרט / הצעת מחיר</button>
+      <button onclick="showErp();this.closest('.dd').classList.remove('open')">🗂 פרויקטים מאושרים (ERP)</button>
+      <button onclick="showKits();this.closest('.dd').classList.remove('open')">🧰 קיטים מוכנים (ERP)</button>
+      <button onclick="$('#itemsIn').click();this.closest('.dd').classList.remove('open')">📦 ייבוא פריטים מ-ERP (JSON)</button>
+    </div>
+  </div>
+  <button onclick="window.print()">הדפסה</button>
+</header>
+<main>
+  <div id="canvasWrap">
+    <div id="zoomer">
+    <div id="canvas">
+      <img id="bgimg" style="position:absolute;top:0;right:0;z-index:0;pointer-events:none;display:none">
+      <div id="zonesc"></div>
+      <svg id="coverage" style="position:absolute;inset:0;width:2200px;height:1400px;pointer-events:none;overflow:visible;z-index:0"></svg>
+      <svg id="wires"></svg>
+      <div id="nodes"></div>
+    </div>
+    </div>
+    <input type="file" id="fileIn" accept=".json" style="display:none">
+    <input type="file" id="bgIn" accept="image/*,.pdf,.dxf,.dwg" style="display:none" onchange="uploadBg(this)">
+    <input type="file" id="specIn" multiple accept=".pdf,.xlsx,.xls,.csv,.docx,.jpg,.jpeg,.png" style="display:none" onchange="importSpec(this)">
+    <input type="file" id="itemsIn" multiple accept=".json" style="display:none" onchange="importItemsJSON(this)">
+    <input type="file" id="spkDataIn" accept=".csv,.json" style="display:none" onchange="importSpkData(this)">
+    <input type="file" id="rearLibIn" accept=".json" style="display:none" onchange="rearLibImport(this)">
+  </div>
+  <aside id="side">
+    <button id="sideMinBtn" onclick="toggleSide()" title="צמצם / הרחב פאנל">⮞</button>
+    <div id="tabs">
+      <button id="tabNode" onclick="ui.tab='node';render()">מוקד נבחר</button>
+      <button id="tabCable" onclick="ui.tab='cable';render()">כבלים</button>
+    </div>
+    <div id="panel"></div>
+  </aside>
+  <aside id="dock" style="display:none"></aside>
+</main>
+<div id="legend"></div>
+<div id="cablekey" style="display:none;position:fixed;left:14px;bottom:14px;z-index:40;background:rgba(255,255,255,.92);border:1px solid rgba(150,150,150,.35);border-radius:9px;padding:8px 10px;direction:rtl;font-size:11px;box-shadow:0 2px 10px rgba(0,0,0,.12)"></div>
+<div id="covbar" style="display:none;position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:40;background:rgba(255,255,255,.35);border:1px solid rgba(150,150,150,.25);border-radius:8px;padding:8px 8px 6px;direction:rtl;pointer-events:none"></div>
+<div id="report"></div>
+<div id="impOv"><div class="ibox">
+  <div style="display:flex;justify-content:flex-end"><button onclick="document.getElementById('impOv').style.display='none'">✕ סגור</button></div>
+  <div id="impList"></div>
+</div></div>
+<div id="modal"><div class="mbox">
+  <p id="mtxt"></p>
+  <button class="primary" onclick="modalPick('move')">העבר את החיבור לכאן</button>
+  <button onclick="modalPick('chain')">שרשר — הוסף קו חדש מהיעד הקודם</button>
+  <button onclick="modalPick(null)">ביטול</button>
+</div></div>
+
+<script>/*__APP__*/</script>
+</body>
+</html>
