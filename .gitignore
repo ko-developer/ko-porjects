@@ -7,3 +7,6 @@ restore.json
 data/projects.sqlite
 .svelte-kit/
 build/
+.env
+.env.*
+!.env.example

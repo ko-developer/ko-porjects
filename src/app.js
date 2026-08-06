@@ -4702,10 +4702,19 @@ function sendOffer() {
       <button class="primary" style="flex:1" onclick="ofCopy(this)">📋 העתק מטען ל-Claude</button>
       <button style="flex:1" onclick="ofCopy(null,true)">💾 הורד JSON</button>
     </div>
+    <div id="ofSrvW" style="display:none;margin-top:6px">
+      <button class="primary" style="width:100%;background:#2e7d32" onclick="ofCreateSrv(this)">🚀 צור הצעה ב-ERP עכשיו · Create in ERP</button>
+      <div id="ofSrvOut" style="font-size:12px;line-height:1.6;margin-top:6px"></div>
+    </div>
   </div>`;
   document.body.appendChild(ov);
 
-  window.ofCopy = (btn, dl) => {
+  /* אם לשרת יש חיבור ERP (MCP) — מציגים יצירה ישירה, בלי העתק-הדבק */
+  fetch('/api/erp/status').then(r => r.json()).then(s => {
+    if (s && s.ok) { const w = document.getElementById('ofSrvW'); if (w) w.style.display = ''; }
+  }).catch(() => {});
+
+  window.ofPayload = () => {
     const payload = {
       action: 'create_project_offer_via_erp_mcp',
       instructions: 'אתר את הפרויקט לפי project_name (list_projects), קרא get_offer_options עם project_id, וצור הצעה עם create_offer. החזר קוד הזמנה וקישור אישור.',
@@ -4725,6 +4734,38 @@ function sendOffer() {
       items_without_key: impItems.filter(it => it.on !== false && (+it.qty || 0) > 0 && it.dest !== 'ignore' && !it.key).map(it => ({ name: it.name, qty: +it.qty || 1 })),
       estimated_total_ex_vat: Math.round(impItems.filter(it => it.on !== false && it.key).reduce((s2, it) => s2 + (+it.price || 0) * (+it.qty || 0), 0))
     };
+    return payload;
+  };
+
+  /* יצירה ישירה דרך שרת האפליקציה → MCP של ה-ERP */
+  window.ofCreateSrv = async (btn) => {
+    const payload = ofPayload();
+    if (!payload.offer_name) { alert('שם ההצעה חובה בהצעת פרויקט.'); return; }
+    const out = document.getElementById('ofSrvOut');
+    btn.disabled = true; btn.textContent = '⏳ יוצר הצעה ב-ERP…';
+    try {
+      const r = await fetch('/api/erp/offer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const j = await r.json();
+      if (j.ok) {
+        const res = j.result || {};
+        const code = res.order_code || res.code || res.order?.code || '';
+        const url = res.confirmation_url || res.customer_confirmation_url || res.order?.confirmation_url || '';
+        out.innerHTML = '✅ ההצעה נוצרה ב-ERP' + (code ? ' — הזמנה <b>' + esc(code) + '</b>' : '') +
+          (url ? '<br><a href="' + esc(url) + '" target="_blank" rel="noopener">🔗 קישור אישור ללקוח</a>' : '') +
+          (j.skipped_without_key && j.skipped_without_key.length ? '<br>⚠️ ' + j.skipped_without_key.length + ' פריטים ללא מק"ט לא נכללו' : '');
+        btn.textContent = '✓ נוצרה';
+      } else {
+        out.innerHTML = '❌ ' + (j.errors || ['שגיאה לא ידועה']).map(esc).join('<br>');
+        btn.disabled = false; btn.textContent = '🚀 צור הצעה ב-ERP עכשיו · Create in ERP';
+      }
+    } catch (e) {
+      out.textContent = '❌ ' + e.message;
+      btn.disabled = false; btn.textContent = '🚀 צור הצעה ב-ERP עכשיו · Create in ERP';
+    }
+  };
+
+  window.ofCopy = (btn, dl) => {
+    const payload = ofPayload();
     if (!payload.offer_name) { alert('שם ההצעה חובה בהצעת פרויקט.'); return; }
     const txt = JSON.stringify(payload, null, 1);
     if (dl) {
