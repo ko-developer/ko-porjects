@@ -1,6 +1,14 @@
 // יצירת הצעת פרויקט ב-ERP: איתור הפרויקט → create_offer, ישירות מול ה-MCP
 import { json } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import { callTool } from '$lib/server/erp.js';
+
+// כתובת דף הפרויקט באפליקציית ה-ERP — תבנית עם {id}; ברירת מחדל: origin של ה-MCP + /projects/{id}
+function projectWebUrl(id) {
+  const tpl = env.ERP_WEB_PROJECT_URL;
+  if (tpl) return tpl.replace('{id}', id);
+  try { return new URL(env.ERP_MCP_URL).origin + '/projects/' + id; } catch { return ''; }
+}
 
 export async function POST({ request }) {
   const p = await request.json();
@@ -36,7 +44,7 @@ export async function POST({ request }) {
     if (p.shipping_address) args.shipping_address = p.shipping_address;
 
     const result = await callTool('create_offer', args);
-    return json({ ok: true, result, skipped_without_key: p.items_without_key || [] });
+    return json({ ok: true, result, project_web_url: projectWebUrl(args.project_id), skipped_without_key: p.items_without_key || [] });
   } catch (e) {
     return json({ ok: false, errors: [String(e.message)] }, { status: 502 });
   }

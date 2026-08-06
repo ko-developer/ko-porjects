@@ -4693,26 +4693,20 @@ function sendOffer() {
       <option value="pickup_now">🤝 איסוף מיידי</option>
     </select></div>
     <div class="fld" id="ofAddrW" style="display:none"><label>כתובת למשלוח</label><input id="ofAddr" value="${esc(P.customer || '')}" placeholder="רחוב, עיר"></div>
-    <ol style="font-size:12px;line-height:1.6;padding-right:18px;margin:8px 0">
-      <li><b>העתק</b> — המטען נבנה מהשדות למעלה</li>
-      <li>הדבק בצ׳אט עם Claude</li>
-      <li>Claude מאתר את הפרויקט, מאמת מיקומי התקנה, יוצר את ההצעה ב-ERP ומחזיר קוד הזמנה + קישור אישור לקוח</li>
-    </ol>
-    <div style="display:flex;gap:6px">
-      <button class="primary" style="flex:1" onclick="ofCopy(this)">📋 העתק מטען ל-Claude</button>
-      <button style="flex:1" onclick="ofCopy(null,true)">💾 הורד JSON</button>
-    </div>
-    <div id="ofSrvW" style="display:none;margin-top:6px">
-      <button class="primary" style="width:100%;background:#2e7d32" onclick="ofCreateSrv(this)">🚀 צור הצעה ב-ERP עכשיו · Create in ERP</button>
+    <div id="ofSrvW" style="margin-top:8px">
+      <button class="primary" style="width:100%;background:#2e7d32" onclick="ofCreateSrv(this)">🚀 צור הצעה ופתח את הפרויקט ב-ERP</button>
       <div id="ofSrvOut" style="font-size:12px;line-height:1.6;margin-top:6px"></div>
+    </div>
+    <div id="ofNoSrvW" style="display:none;margin-top:8px;font-size:12px">
+      אין חיבור ERP משרת האפליקציה. <button onclick="ofCopy(null,true)">💾 הורד JSON</button> ושלח ל-Claude ליצירה ידנית.
     </div>
   </div>`;
   document.body.appendChild(ov);
 
-  /* אם לשרת יש חיבור ERP (MCP) — מציגים יצירה ישירה, בלי העתק-הדבק */
+  /* יצירה ישירה דרך השרת; אם אין חיבור (פריסה סטטית) — נשאר מסלול קובץ ידני */
   fetch('/api/erp/status').then(r => r.json()).then(s => {
-    if (s && s.ok) { const w = document.getElementById('ofSrvW'); if (w) w.style.display = ''; }
-  }).catch(() => {});
+    if (!s || !s.ok) { document.getElementById('ofSrvW').style.display = 'none'; document.getElementById('ofNoSrvW').style.display = ''; }
+  }).catch(() => { document.getElementById('ofSrvW').style.display = 'none'; document.getElementById('ofNoSrvW').style.display = ''; });
 
   window.ofPayload = () => {
     const payload = {
@@ -4749,18 +4743,21 @@ function sendOffer() {
       if (j.ok) {
         const res = j.result || {};
         const code = res.order_code || res.code || res.order?.code || '';
-        const url = res.confirmation_url || res.customer_confirmation_url || res.order?.confirmation_url || '';
+        const confirmUrl = res.confirmation_url || res.customer_confirmation_url || res.order?.confirmation_url || '';
+        const projUrl = j.project_web_url || '';
         out.innerHTML = '✅ ההצעה נוצרה ב-ERP' + (code ? ' — הזמנה <b>' + esc(code) + '</b>' : '') +
-          (url ? '<br><a href="' + esc(url) + '" target="_blank" rel="noopener">🔗 קישור אישור ללקוח</a>' : '') +
+          (projUrl ? '<br><a href="' + esc(projUrl) + '" target="_blank" rel="noopener">📂 פתח את הפרויקט ב-ERP</a>' : '') +
+          (confirmUrl ? '<br><a href="' + esc(confirmUrl) + '" target="_blank" rel="noopener">🔗 קישור אישור ללקוח</a>' : '') +
           (j.skipped_without_key && j.skipped_without_key.length ? '<br>⚠️ ' + j.skipped_without_key.length + ' פריטים ללא מק"ט לא נכללו' : '');
-        btn.textContent = '✓ נוצרה';
+        btn.textContent = '✓ נוצרה — נפתח ב-ERP';
+        if (projUrl) window.open(projUrl, '_blank', 'noopener'); /* ניווט אוטומטי אל הפרויקט */
       } else {
         out.innerHTML = '❌ ' + (j.errors || ['שגיאה לא ידועה']).map(esc).join('<br>');
-        btn.disabled = false; btn.textContent = '🚀 צור הצעה ב-ERP עכשיו · Create in ERP';
+        btn.disabled = false; btn.textContent = '🚀 צור הצעה ופתח את הפרויקט ב-ERP';
       }
     } catch (e) {
       out.textContent = '❌ ' + e.message;
-      btn.disabled = false; btn.textContent = '🚀 צור הצעה ב-ERP עכשיו · Create in ERP';
+      btn.disabled = false; btn.textContent = '🚀 צור הצעה ופתח את הפרויקט ב-ERP';
     }
   };
 
