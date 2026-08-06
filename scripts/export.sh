@@ -3,7 +3,7 @@
 set -e
 OUT=/sessions/adoring-blissful-hamilton/mnt/outputs
 cd ~/ko-projects
-git bundle create /tmp/ko.bundle --all -q
+git bundle create /tmp/ko.bundle --all 2>/dev/null
 cat /tmp/ko.bundle > "$OUT/ko-projects.bundle"
 mkdir -p "$OUT/ko-projects-src"
 for f in $(git ls-files); do mkdir -p "$OUT/ko-projects-src/$(dirname $f)"; cat "$f" > "$OUT/ko-projects-src/$f"; done
