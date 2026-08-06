@@ -237,9 +237,9 @@ function uid(pre) { return pre + Date.now().toString(36) + (++cnt); }
 
 function newProj() { const p = { id: uid('p'), name: 'פרויקט חדש', nodes: [], cables: [], route: 'ortho' }; ensureStock(p); store.projects.push(p); P = p; sel = selCable = null; impItems = []; render(); }
 function dupProj() { const p = JSON.parse(JSON.stringify(P)); p.id = uid('p'); p.name = P.name + ' (עותק)'; store.projects.push(p); P = p; sel = selCable = null; render(); }
-function delProj() {
+async function delProj() {
   if (store.projects.length === 1) { alert('חייב להישאר לפחות פרויקט אחד'); return; }
-  if (!confirm('למחוק את הפרויקט "' + P.name + '"?')) return;
+  if (!(await uiConfirm('למחוק את הפרויקט "' + P.name + '"?'))) return;
   store.projects = store.projects.filter(p => p.id !== P.id);
   P = store.projects[0]; sel = selCable = null; impItems = P.impSaved || []; render();
 }
@@ -259,8 +259,8 @@ function addNode(kind) {
     : { id, kind, name:'מוקד חדש', sub:'', x:150, y:150 });
   sel = id; ui.tab = 'node'; render();
 }
-function delNode(id) {
-  if (!confirm('למחוק את המוקד וכל הכבלים שלו?')) return;
+async function delNode(id) {
+  if (!(await uiConfirm('למחוק את המוקד וכל הכבלים שלו?'))) return;
   const n = byId(id);
   if (n) {
     if (n.srcIid) unplace(n.srcIid); /* מחיקה מחזירה את הפריט לרשימה למשיכה חוזרת */
@@ -559,10 +559,10 @@ function resetView100() {
   w.scrollTop = 0;
   w.scrollLeft = 0;
 }
-function removeBg() {
+async function removeBg() {
   delete P.bg;
   delete P.calLine;
-  if ((P.zones || []).length && confirm('להסיר גם את ' + P.zones.length + ' האזורים המסומנים על הרקע?')) P.zones = [];
+  if ((P.zones || []).length && await uiConfirm('להסיר גם את ' + P.zones.length + ' האזורים המסומנים על הרקע?')) P.zones = [];
   render();
 }
 function rotateBg() {
@@ -928,10 +928,10 @@ function rearAddItem() {
   rearEdRender();
 }
 /* העתקת פריסת גב ממוצר אחר לתוך הטיוטה הנוכחית */
-function rearCopyFrom(srcName) {
+async function rearCopyFrom(srcName) {
   const src = rearLayout(srcName);
   if (!src || !src.length) { alert('לא נמצאה פריסה למקור.'); return; }
-  if (window.__rearDraft.filter(x => x.t).length && !confirm('להחליף את פריסת הגב הנוכחית בפריסה של "' + srcName + '"?')) return;
+  if (window.__rearDraft.filter(x => x.t).length && !(await uiConfirm('להחליף את פריסת הגב הנוכחית בפריסה של "' + srcName + '"?'))) return;
   window.__rearDraft = JSON.parse(JSON.stringify(src));
   window.__rearSel = window.__rearDraft.length ? 0 : -1;
   rearEdRender();
@@ -964,7 +964,7 @@ function rearLibManager() {
       <button onclick="document.getElementById('rearLibOv').remove()">✕</button></div>
     <p class="muted" style="margin:0 0 8px;font-size:11px">✎ = עריכת פריסת הגב (נשמר כמותאם) · דגם מובנה שנערך הופך למותאם וגובר עליו.</p>
     <div style="display:flex;gap:6px;margin-bottom:8px">
-      <button style="flex:1" onclick="const nm=prompt('שם הדגם החדש (כפי שמופיע בשם המוצר):');if(nm){document.getElementById('rearLibOv').remove();rearEditorByName(nm.trim());}">+ דגם חדש</button>
+      <button style="flex:1" onclick="uiPrompt('שם הדגם החדש (כפי שמופיע בשם המוצר):').then(nm=>{if(nm){document.getElementById('rearLibOv').remove();rearEditorByName(nm.trim());}})">+ דגם חדש</button>
       <button style="flex:1" onclick="rearLibExport()">💾 ייצוא JSON</button>
       <button style="flex:1" onclick="$('#rearLibIn').click()">📥 ייבוא JSON</button>
     </div>
@@ -972,7 +972,7 @@ function rearLibManager() {
       <b style="flex:1;font-size:12px">${esc(r.name)}</b>
       <span class="muted" style="font-size:10px">${r.n} מחברים · ${r.src}</span>
       <button style="padding:1px 8px" onclick="document.getElementById('rearLibOv').remove();rearEditorByName('${esc(r.name).replace(/'/g, '&#39;')}')">✎</button>
-      ${r.custom ? `<button style="padding:1px 8px;background:#f3d9d2" onclick="if(confirm('למחוק את הדגם המותאם?')){delete store.rearLib['${esc(r.name).replace(/'/g, '&#39;')}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}">✕</button>` : ''}
+      ${r.custom ? `<button style="padding:1px 8px;background:#f3d9d2" onclick="uiConfirm('למחוק את הדגם המותאם?').then(ok=>{if(ok){delete store.rearLib['${esc(r.name).replace(/'/g, '&#39;')}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}})">✕</button>` : ''}
     </div>`).join('')}</div>`;
   document.body.appendChild(ov);
 }
@@ -1325,8 +1325,11 @@ function holeTap(nid, ui, idx, h) {
   if (selHole && !(selHole.nid === nid && selHole.ui === ui && selHole.idx === idx)) {
     if (selHole.nid !== nid || selHole.ui !== ui) { connectHoles(selHole, { nid, ui, idx, h }); return; }
   }
-  /* חור מחובר — הצע ניתוק */
-  if (!selHole && ui < 0 && holeConnOf(nid, idx)) { if (disconnectHole(nid, idx)) return; }
+  /* חור מחובר — הצע ניתוק; דחייה = בחירת החור (התחלת חיבור חדש) */
+  if (!selHole && ui < 0 && holeConnOf(nid, idx)) {
+    disconnectHole(nid, idx).then(done => { if (!done) { selHole = { nid, ui, idx, conn: h.conn }; render(); } });
+    return;
+  }
   selHole = (selHole && selHole.nid === nid && selHole.ui === ui && selHole.idx === idx) ? null : { nid, ui, idx, conn: h.conn };
   render();
 }
@@ -1365,7 +1368,7 @@ function multiView(nid) {
     ${rows}</div>`;
   document.body.appendChild(ov);
 }
-function connectHoles(a, b) {
+async function connectHoles(a, b) {
   const unitIdOf = (nid, ui) => { const n = byId(nid); return (ui >= 0 && n && n.units && n.units[ui]) ? n.units[ui].id : undefined; };
   const typeOf = k => /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber|אופטי/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /pwr/.test(k) ? 'pwr' : 'xlr';
   /* מולטי נושא סוג אחד בלבד — כבל מולטי XLR לא מכיל רשת/HDMI/אופטי.
@@ -1373,7 +1376,7 @@ function connectHoles(a, b) {
   const isXlr = k => /^xlr/i.test(k || '');
   if (!isXlr(a.conn) !== !isXlr(b.h.conn)) {
     const nm = k => (CONNS[k] && CONNS[k].n) || k || 'ריק';
-    if (!confirm(`חיבור בין סוגים שונים: ${nm(a.conn)} ↔ ${nm(b.h.conn)}.\nלרוב זו טעות — כבל מחבר שני מחברים מאותו סוג.\n\nלהמשיך בכל זאת?`)) { selHole = null; render(); return; }
+    if (!(await uiConfirm(`חיבור בין סוגים שונים: ${nm(a.conn)} ↔ ${nm(b.h.conn)}.\nלרוב זו טעות — כבל מחבר שני מחברים מאותו סוג.\n\nלהמשיך בכל זאת?`))) { selHole = null; render(); return; }
   }
   const existing = isXlr(a.conn) && isXlr(b.h.conn) && P.cables.find(c => c.type === 'multi' &&
     ((c.from === a.nid && c.to === b.nid) || (c.from === b.nid && c.to === a.nid)));
@@ -1394,7 +1397,7 @@ function connectHoles(a, b) {
             if (!existing.chans.some(x => x.a === i + 1 && x.b === i + 1)) cand.push(i + 1);
           }
         }
-        if (cand.length >= 2 && confirm(`לחבר אוטומטית את כל ${cand.length} חורי ה-XLR התואמים (מספר-למספר) דרך המולטי?`))
+        if (cand.length >= 2 && await uiConfirm(`לחבר אוטומטית את כל ${cand.length} חורי ה-XLR התואמים (מספר-למספר) דרך המולטי?`))
           cand.forEach(i => existing.chans.push({ a: i, b: i }));
       }
     }
@@ -1412,7 +1415,7 @@ function connectHoles(a, b) {
       for (let i = 0; i < Math.min(pa.holes.length, pb.holes.length); i++)
         if (isXlr(pa.holes[i].conn) && isXlr(pb.holes[i].conn)) pairs.push(i + 1);
       if (pairs.length >= 2) {
-        const asMulti = confirm(`בשני הפאנלים יש ${pairs.length} חורי XLR תואמים.\n\nאישור = כבל מולטי אחד שנושא את כל ${pairs.length} הליבות (מספר אחד במפתח).\nביטול = רק החיבור הבודד שסימנת (חור ${a.idx + 1} ↔ חור ${b.idx + 1}).`);
+        const asMulti = await uiConfirm(`בשני הפאנלים יש ${pairs.length} חורי XLR תואמים.\n\nמולטי אחד = כבל שנושא את כל ${pairs.length} הליבות (מספר אחד במפתח).`, { okText: 'מולטי אחד לכולם', cancelText: 'רק החיבור הבודד' });
         if (asMulti) {
           const cm = { id: uid('c'), from: a.nid, fromUnit: unitIdOf(a.nid, a.ui), to: b.nid, toUnit: unitIdOf(b.nid, b.ui),
             type: 'multi', qty: '1', spec: '', note: 'מולטי ' + pairs.length + '× XLR', conn: 'xlrm', conn2: 'xlrf',
@@ -1450,14 +1453,14 @@ function holeConnOf(nid, idx) {
   }
   return null;
 }
-function disconnectHole(nid, idx) {
+async function disconnectHole(nid, idx) {
   const f = holeConnOf(nid, idx);
   if (!f) return false;
   const LBL = cableLabels();
   if (f.kind === 'direct') {
-    if (confirm(`לנתק את כבל ${LBL[f.c.id]} מחור ${idx + 1}? (הכבל יימחק)`)) { delCable(f.c.id); return true; }
+    if (await uiConfirm(`לנתק את כבל ${LBL[f.c.id]} מחור ${idx + 1}? (הכבל יימחק)`)) { delCable(f.c.id); return true; }
   } else {
-    if (confirm(`לנתק את ליבה ${idx + 1} מהמולטי (כבל ${LBL[f.c.id]})? (המולטי עצמו נשאר)`)) {
+    if (await uiConfirm(`לנתק את ליבה ${idx + 1} מהמולטי (כבל ${LBL[f.c.id]})? (המולטי עצמו נשאר)`)) {
       f.c.chans = f.c.chans.filter(x => f.side === 'a' ? x.a !== idx + 1 : x.b !== idx + 1);
       render(); save(); return true;
     }
@@ -1523,11 +1526,12 @@ function offerCableLink(c) {
   const it = impItems.find(x => x.dest === 'reel' && (x.type || 'nl4') === c.type)
     || impItems.find(x => x.dest === 'cable' && (x.type || 'multi') === c.type);
   if (it) {
-    if (confirm(`📏 הכבל נמדד: ${L || '?'} מ׳ (${CTYPES[c.type].n}).\nלשייך לפריט הקיים בהצעה ולהוסיף את המטרים?\n"${it.name.slice(0, 50)}"`)) {
+    uiConfirm(`📏 הכבל נמדד: ${L || '?'} מ׳ (${CTYPES[c.type].n}).\nלשייך לפריט הקיים בהצעה ולהוסיף את המטרים?\n"${it.name.slice(0, 50)}"`).then(ok => {
+      if (!ok) return;
       const st = ensureStockItem(it);
       applyStockRef((it.dest === 'reel' ? 'reel|' : 'cable|') + st.id, '', c);
       render(); save();
-    }
+    });
     return;
   }
   offerCablePick(c);
@@ -1590,7 +1594,7 @@ const CONN_SEARCH = {
   speakon: /ספיקון|speakon|NL4/i, xlrf: /XLR/i, xlrm: /XLR/i,
   rj45: /keystone|קיסטון|RJ ?45/i, hdmi: /HDMI/i, bnc: /BNC/i, fiber: /אופטי|LC |SC /i, pwr: /פאוור|powercon/i
 };
-function autoConnectors(c) {
+async function autoConnectors(c) {
   const kind = c.conn || connFor(c.type);
   if (kind === 'empty') return;
   const re = CONN_SEARCH[kind] || /מחבר/i;
@@ -1608,7 +1612,7 @@ function autoConnectors(c) {
   }
   if (!it) {
     const nm = 'מחבר ' + ((CONNS[kind] && CONNS[kind].n) || kind);
-    if (!confirm('לחיבור זה דרושים 2× ' + nm + ' ואין כזה ברשימת הפריטים.\nלהוסיף אותו להצעת המחיר ולצרוך 2 יחידות?')) return;
+    if (!(await uiConfirm('לחיבור זה דרושים 2× ' + nm + ' ואין כזה ברשימת הפריטים.\nלהוסיף אותו להצעת המחיר ולצרוך 2 יחידות?'))) return;
     it = { on: true, qty: 0, name: nm, src: 'אוטומטי — חיבור כבל', dest: 'conn', kind, cat: 'other', u: 1, iid: uid('i') };
     impItems.push(it);
     autoPrice(it);
@@ -1641,12 +1645,13 @@ document.addEventListener('keydown', e => {
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     if (selMulti.size) {
-      if (confirm('למחוק ' + selMulti.size + ' רמקולים/מוקדים מסומנים?')) {
+      uiConfirm('למחוק ' + selMulti.size + ' רמקולים/מוקדים מסומנים?').then(ok => {
+        if (!ok) return;
         [...selMulti].forEach(id => { const n = byId(id); if (n && n.srcIid) unplace(n.srcIid); });
         P.nodes = P.nodes.filter(n => !selMulti.has(n.id));
         P.cables = P.cables.filter(c => byId(c.from) && byId(c.to));
         selMulti.clear(); sel = null; render(); save();
-      }
+      });
       e.preventDefault(); return;
     }
     if (selCable) { delCable(selCable); e.preventDefault(); return; }
@@ -2430,12 +2435,12 @@ function showMultiBar() {
   bar.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:70;background:#1a1e28;color:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 6px 24px rgba(0,0,0,.4);display:flex;gap:10px;align-items:center;direction:rtl';
   bar.innerHTML = `<b style="font-size:13px">${selMulti.size} מסומנים</b>
     ${spk.length >= 2 ? `<button style="background:#0f6e56;color:#fff;font-weight:700;padding:6px 12px;border-radius:8px" onclick="chainSelectedToAmp()">🔗 שרשר ${spk.length} רמקולים למגבר</button>` : ''}
-    <button style="background:#f3d9d2;color:#8c2f16;padding:6px 12px;border-radius:8px" onclick="if(confirm('למחוק ${selMulti.size} מסומנים?')){[...selMulti].forEach(id=>{const n=byId(id);if(n&&n.srcIid)unplace(n.srcIid)});P.nodes=P.nodes.filter(n=>!selMulti.has(n.id));P.cables=P.cables.filter(c=>byId(c.from)&&byId(c.to));selMulti.clear();render();save();document.getElementById('multiBar').remove();}">🗑 מחק</button>
+    <button style="background:#f3d9d2;color:#8c2f16;padding:6px 12px;border-radius:8px" onclick="uiConfirm('למחוק ${selMulti.size} מסומנים?').then(ok=>{if(!ok)return;[...selMulti].forEach(id=>{const n=byId(id);if(n&&n.srcIid)unplace(n.srcIid)});P.nodes=P.nodes.filter(n=>!selMulti.has(n.id));P.cables=P.cables.filter(c=>byId(c.from)&&byId(c.to));selMulti.clear();render();save();document.getElementById('multiBar').remove();})">🗑 מחק</button>
     <button style="background:#3a4152;color:#fff;padding:6px 10px;border-radius:8px" onclick="selMulti.clear();render();document.getElementById('multiBar').remove()">✕</button>`;
   document.body.appendChild(bar);
 }
 /* שרשור הרמקולים המסומנים (בחירת ריבוע) לערוצי מגבר */
-function chainSelectedToAmp() {
+async function chainSelectedToAmp() {
   const spk = [...selMulti].map(byId).filter(n => n && n.kind === 'point' && !/סאב|\bsub\b/i.test(n.name));
   if (spk.length < 2) return;
   /* בחירת מגבר */
@@ -2444,7 +2449,7 @@ function chainSelectedToAmp() {
   let amp = amps[0];
   if (amps.length > 1) {
     const list = amps.map((a, i) => `${i + 1}. ${a.u.name.slice(0, 30)}`).join('\n');
-    const pick = prompt('לאיזה מגבר לחבר?\n' + list + '\n\nהקלד מספר:', '1');
+    const pick = await uiPrompt('לאיזה מגבר לחבר?\n' + list + '\n\nהקלד מספר:', '1', { type: 'number' });
     if (pick === null) return; amp = amps[(+pick || 1) - 1] || amps[0];
   }
   const minOhm = amp ? ampMinOhm(amp.u.name) : 4;
@@ -2459,7 +2464,7 @@ function chainSelectedToAmp() {
     chains.push({ seg, head, count: cnt, z: 1 / invZ });
   }
   const desc = chains.map((c, i) => `ערוץ ${i + 1}: ${c.count} רמקולים · ${c.z.toFixed(1)}Ω`).join('\n');
-  if (!confirm(`${amp ? esc(amp.u.name.slice(0, 28)) + ' · ' : ''}${chCount} ערוצים · מינ׳ ${minOhm}Ω\n\n${desc}${avail.length ? '\n\n⚠ נשארו ' + avail.length + ' ללא ערוץ' : ''}\n\nלחבר?`)) return;
+  if (!(await uiConfirm(`${amp ? amp.u.name.slice(0, 28) + ' · ' : ''}${chCount} ערוצים · מינ׳ ${minOhm}Ω\n\n${desc}${avail.length ? '\n\n⚠ נשארו ' + avail.length + ' ללא ערוץ' : ''}\n\nלחבר?`, { okText: '🔗 חבר' }))) return;
   chains.forEach((c, i) => {
     if (amp) { const cc = { id: uid('c'), from: amp.rk.id, fromUnit: amp.u.id, to: c.head.id, type: 'nl4', qty: '1', spec: '', note: 'ערוץ ' + (i + 1), conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + (i + 1) }; if (P.scale) cc.len = +(dist(amp.rk, c.head) * P.scale).toFixed(1); P.cables.push(cc); }
     c.seg.forEach(s => { const cb = { id: uid('c'), from: s.from.id, to: s.to.id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' }; if (P.scale) cb.len = +(dist(s.from, s.to) * P.scale).toFixed(1); P.cables.push(cb); });
@@ -2472,7 +2477,7 @@ const PREMIUM_RE = /FUNKTION|F1[02]1|F1201|\bF8[18]\b|\bF55\b|\bF5\b|RES\s?\d|EV
 /* 🔌 חיווט חכם — מחבר את כל רמקולי האזור למגבר לפי הכללים:
    פרימיום (F-One/K&F/Lambda) = קו נפרד לכל רמקול · סאב = תמיד קו נפרד ·
    רמקולי רקע (KT/Unicorn) = שרשור לפי קרבה עד מינימום העומס של המגבר */
-function smartWire(zid) {
+async function smartWire(zid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   const inZone = n => (n.sub || '').includes(z.name);
   const fed = new Set(); P.cables.forEach(c => { if (c.type === 'nl4' && c.to) fed.add(c.to); });
@@ -2522,7 +2527,7 @@ function smartWire(zid) {
   /* עדיין חסר? מציעים להוסיף מגבר נוסף (כמו האחרון) להצעה ולריכוז */
   while ((singles.length || bg.length)) {
     const tmpl = amps[amps.length - 1];
-    if (!confirm(`⚠ נגמרו הערוצים ונשארו ${singles.length + bg.length} רמקולים.\nלהוסיף עוד מגבר "${tmpl.u.name.slice(0, 28)}" לריכוז ולהצעת המחיר?`)) break;
+    if (!(await uiConfirm(`⚠ נגמרו הערוצים ונשארו ${singles.length + bg.length} רמקולים.\nלהוסיף עוד מגבר "${tmpl.u.name.slice(0, 28)}" לריכוז ולהצעת המחיר?`))) break;
     const nu = { id: uid('u'), name: tmpl.u.name, u: tmpl.u.u || 2, cat: tmpl.u.cat || 'amp', pos: (tmpl.rk.units || []).reduce((s2, x) => Math.max(s2, x.pos + x.u), 0) };
     tmpl.rk.units.push(nu);
     let it = impItems.find(x => x.name === tmpl.u.name && x.dest === 'unit');
@@ -2533,7 +2538,7 @@ function smartWire(zid) {
   }
   if (!lines.length) { alert('לא הוקצו קווים.'); return; }
   const desc = lines.map(l => `${l.amp.u.name.slice(0, 16)}… OUT ${l.ch}: ${l.label} · ${l.z.toFixed(1)}Ω (מינ׳ ${l.amp.minOhm}Ω)`).join('\n');
-  if (!confirm(`🔌 חיווט חכם — ${amps.length} מגברים:\n\n${desc}${(singles.length + bg.length) ? '\n\n⚠ נשארו ' + (singles.length + bg.length) + ' רמקולים ללא ערוץ' : ''}\n\nלחבר?`)) return;
+  if (!(await uiConfirm(`🔌 חיווט חכם — ${amps.length} מגברים:\n\n${desc}${(singles.length + bg.length) ? '\n\n⚠ נשארו ' + (singles.length + bg.length) + ' רמקולים ללא ערוץ' : ''}\n\nלחבר?`, { okText: '🔌 חבר' }))) return;
   lines.forEach(l => {
     const cc = { id: uid('c'), from: l.amp.rk.id, fromUnit: l.amp.u.id, to: l.head.id, type: 'nl4', qty: '1', spec: '', note: l.label, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + l.ch };
     if (P.scale) cc.len = +(dist(l.amp.rk, l.head) * P.scale).toFixed(1);
@@ -2549,7 +2554,7 @@ function ampChCount(uname) {
   return (custom && custom[1].ch) || (src && src.ch) || 2;
 }
 /* שרשור אוטומטי — מפזר את כל רמקולי הקבוצה על ערוצי המגבר, כל ערוץ עד מינימום העומס */
-function autoChainFrom(nid) {
+async function autoChainFrom(nid) {
   const start = byId(nid); if (!start || start.kind !== 'point') return;
   const groupKey = n => start.srcIid ? n.srcIid === start.srcIid : (n.sub || '').split('·').pop() === (start.sub || '').split('·').pop();
   const isSpk = n => n.kind === 'point' && !/סאב|\bsub\b/i.test(n.name);
@@ -2591,7 +2596,7 @@ function autoChainFrom(nid) {
   const chDesc = chains.map((c, i) => `ערוץ ${i + 1}: ${c.count} רמקולים · ${c.z.toFixed(1)}Ω`).join('\n');
   const msg = `${ampUnit ? esc(ampUnit.name.slice(0, 30)) + ' — ' : ''}${chCount} ערוצים · מינ׳ ${minOhm}Ω\n\n${chDesc}` +
     (left ? `\n\n⚠ נשארו ${left} רמקולים ללא ערוץ — צריך מגבר נוסף.` : '');
-  if (!confirm(msg + '\n\nלחבר?')) return;
+  if (!(await uiConfirm(msg + '\n\nלחבר?', { okText: '🔗 חבר' }))) return;
 
   chains.forEach((c, i) => {
     /* חיבור מיציאת המגבר לראש השרשרת */
@@ -2962,16 +2967,16 @@ function specSheet(tab, name) {
   </div>`;
   document.body.appendChild(ov);
 }
-function spkDbAddModel(tab) {
-  const nm = prompt('שם הדגם החדש:'); if (!nm) return;
+async function spkDbAddModel(tab) {
+  const nm = await uiPrompt('שם הדגם החדש:'); if (!nm) return;
   if (tab === 'spk') { store.spkLib = store.spkLib || {}; store.spkLib[rearKey(nm.trim())] = { re: null, h: 90, v: 50, sens: 99, max: 126, ok: false }; }
   else { store.ampLib = store.ampLib || {}; store.ampLib[rearKey(nm.trim())] = { re: null, kind: tab === 'amp' ? 'amp' : 'proc', ch: tab === 'amp' ? 2 : undefined, io: tab === 'proc' ? '2×4' : undefined, w: '', ok: false }; }
   save(); spkDataManager(tab);
 }
-function editAmpLink(libKey, bi) {
+async function editAmpLink(libKey, bi) {
   const cur = libKey === null ? (store.ampLib && store.ampLib[rearKey(prettyRe(AMP_DATA[bi].re))] || AMP_DATA[bi]) : ((store.ampLib || {})[libKey] || {});
-  const url = prompt('קישור לדף המוצר:', cur.url || ''); if (url === null) return;
-  const pdf = prompt('קישור למפרט PDF:', cur.pdf || ''); if (pdf === null) return;
+  const url = await uiPrompt('קישור לדף המוצר:', cur.url || ''); if (url === null) return;
+  const pdf = await uiPrompt('קישור למפרט PDF:', cur.pdf || ''); if (pdf === null) return;
   if (libKey === null) { editAmpDb(null, bi, 'url', url); editAmpDb(null, bi, 'pdf', pdf); }
   else { editAmpDb(libKey, 'url', url); editAmpDb(libKey, 'pdf', pdf); }
 }
@@ -2988,11 +2993,11 @@ function editAmpDb(libKey, biOrField, arg3, arg4) {
 }
 /* עריכת ערך — דגם מובנה נשמר לספריית spkLib (מותאם), דגם מיובא מתעדכן במקום */
 /* עריכת קישור לדף המוצר + מפרט PDF */
-function editSpkLink(libKey, bi) {
+async function editSpkLink(libKey, bi) {
   const cur = libKey === null ? (store.spkLib[rearKey(prettyRe(SPEAKER_DATA[bi].re))] || SPEAKER_DATA[bi]) : (store.spkLib[libKey] || {});
-  const url = prompt('קישור לדף המוצר באתר היצרן:', cur.url || '');
+  const url = await uiPrompt('קישור לדף המוצר באתר היצרן:', cur.url || '');
   if (url === null) return;
-  const pdf = prompt('קישור למפרט/מדריך PDF:', cur.pdf || '');
+  const pdf = await uiPrompt('קישור למפרט/מדריך PDF:', cur.pdf || '');
   if (pdf === null) return;
   if (libKey === null) editSpkDb(null, bi, 'url', url), editSpkDb(null, bi, 'pdf', pdf);
   else editSpkDb(libKey, 'url', url), editSpkDb(libKey, 'pdf', pdf);
@@ -3560,6 +3565,67 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.dd')) document.querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
 });
 let dragK = null, dragH = null, pendingU = null, dragU = null, uGhost = null;
+/* ===== דיאלוגים בתוך הדף =====
+   חלונות מערכת (alert/confirm/prompt) חסומים בשקט בדפדפנים משובצים —
+   confirm מחזיר false, prompt מחזיר null, alert נבלע. כאן תחליפים מלאים. */
+function uiToast(msg) {
+  let host = document.getElementById('toastHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'toastHost';
+    host.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:140;display:flex;flex-direction:column;gap:8px;max-width:min(440px,92vw)';
+    document.body.appendChild(host);
+  }
+  const t = document.createElement('div');
+  t.style.cssText = 'background:#1a1e28;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.45);font-size:13px;line-height:1.5;white-space:pre-line;cursor:pointer';
+  t.textContent = String(msg ?? '');
+  t.onclick = () => t.remove();
+  host.appendChild(t);
+  setTimeout(() => { if (t.isConnected) t.remove(); }, 7000);
+}
+window.alert = uiToast; /* כל 48 קריאות alert() באפליקציה עוברות לטוסט */
+
+function uiModal(inner) { /* בסיס משותף: מחזיר {ov, box} */
+  const ov = document.createElement('div');
+  ov.className = 'uiDlgOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.45);z-index:135;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:380px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.4)">${inner}</div>`;
+  document.body.appendChild(ov);
+  return ov;
+}
+function uiConfirm(msg, opts = {}) {
+  return new Promise(res => {
+    const ov = uiModal(`
+      <p style="font-size:13.5px;margin:0 0 12px;line-height:1.55;white-space:pre-line">${esc(msg)}</p>
+      <div style="display:flex;gap:6px">
+        <button class="primary" data-ok style="flex:1">${esc(opts.okText || 'אישור')}</button>
+        <button data-cancel style="flex:1">${esc(opts.cancelText || 'ביטול')}</button>
+      </div>`);
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelector('[data-ok]').onclick = () => done(true);
+    ov.querySelector('[data-cancel]').onclick = () => done(false);
+    ov.addEventListener('click', e => { if (e.target === ov) done(false); });
+  });
+}
+function uiPrompt(msg, def = '', opts = {}) {
+  return new Promise(res => {
+    const ov = uiModal(`
+      <p style="font-size:13.5px;margin:0 0 10px;line-height:1.55;white-space:pre-line">${esc(msg)}</p>
+      <input data-in style="width:100%;font-size:16px;padding:8px;box-sizing:border-box" type="${opts.type || 'text'}">
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="primary" data-ok style="flex:1">אישור</button>
+        <button data-cancel style="flex:1">ביטול</button>
+      </div>`);
+    const inp = ov.querySelector('[data-in]');
+    inp.value = def ?? '';
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelector('[data-ok]').onclick = () => done(inp.value);
+    ov.querySelector('[data-cancel]').onclick = () => done(null);
+    ov.addEventListener('click', e => { if (e.target === ov) done(null); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(inp.value); if (e.key === 'Escape') done(null); });
+    setTimeout(() => inp.focus(), 50);
+  });
+}
 /* דיאלוג הזנת המרחק לכיול — שדה בתוך הדף במקום prompt() (חסום בדפדפנים משובצים) */
 function showCalDialog(px, p1, p2) {
   const old = document.getElementById('calOv');
@@ -3789,9 +3855,10 @@ document.addEventListener('pointerdown', e => {
     const h = p && p.holes[+idxS];
     if (!h) return;
     if (labelMode) {
-      const v = prompt('שם לחור ' + (+idxS + 1) + ' (למשל Main L):', h.label || '');
-      if (v !== null) h.label = v.trim() || undefined;
-      render();
+      uiPrompt('שם לחור ' + (+idxS + 1) + ' (למשל Main L):', h.label || '').then(v => {
+        if (v !== null) h.label = v.trim() || undefined;
+        render();
+      });
       return;
     }
     if (p.mode === 'free') {
@@ -4104,12 +4171,12 @@ function importBackup() {
   const f = $('#fileIn');
   f.onchange = () => {
     const r = new FileReader();
-    r.onload = () => {
+    r.onload = async () => {
       try {
         const b = JSON.parse(r.result);
         const s = b && b.kind === 'full-backup' ? b.store : b; // גם store גולמי מה-console מתקבל
         if (!s || !Array.isArray(s.projects) || !s.projects.length) { alert('קובץ לא תקין — לא נמצאו פרויקטים'); return; }
-        const replace = confirm('שחזור מגיבוי (' + s.projects.length + ' פרויקטים):\nOK — החלפת כל מה שקיים כאן בתוכן הגיבוי\nביטול — הוספת פרויקטי הגיבוי לצד הקיימים');
+        const replace = await uiConfirm('שחזור מגיבוי (' + s.projects.length + ' פרויקטים) — איך לשחזר?', { okText: 'החלף את הכל', cancelText: 'הוסף לצד הקיימים' });
         if (replace) store = s;
         else {
           for (const p of s.projects) { p.id = uid('p'); store.projects.push(p); }
@@ -4330,10 +4397,10 @@ function renderKitNew() {
     ${d.items.length ? `<button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>` : ''}`;
 }
 /* יצירת קיט חדש מהשורות המסומנות ✓ בהצעת המחיר */
-function kitFromOffer() {
+async function kitFromOffer() {
   const marked = impItems.filter(it => it.on);
   if (!marked.length) { alert('סמן ✓ שורות בהצעת המחיר שיהיו הקיט'); return; }
-  const nm = prompt('שם הקיט החדש (' + marked.length + ' פריטים):'); if (!nm) return;
+  const nm = await uiPrompt('שם הקיט החדש (' + marked.length + ' פריטים):'); if (!nm) return;
   store.userKits = store.userKits || [];
   store.userKits.push({ name: nm.trim(), cat: 'audio', sys: 'קיט שלי', items: marked.map(it => ({ name: it.name, qty: it.qty || 1, key: it.key || undefined })) });
   save();
@@ -4679,10 +4746,10 @@ function pickKitForZone(zoneName, i) {
   render();
 }
 /* מחיקת כל השורות המסומנות ✓ בהצעת המחיר */
-function deleteMarked() {
+async function deleteMarked() {
   const marked = impItems.filter(it => it.on);
   if (!marked.length) { alert('סמן שורות ✓ למחיקה'); return; }
-  if (!confirm(`למחוק ${marked.length} שורות מסומנות מהצעת המחיר?\n(מוקדים שהוצבו מהן בתכנית לא יימחקו)`)) return;
+  if (!(await uiConfirm(`למחוק ${marked.length} שורות מסומנות מהצעת המחיר?\n(מוקדים שהוצבו מהן בתכנית לא יימחקו)`))) return;
   impItems = impItems.filter(it => !it.on);
   render(); save();
 }
@@ -5112,7 +5179,7 @@ async function autoZones() {
   let key = '';
   try { key = localStorage.getItem('koflow_apikey') || ''; } catch (e) {}
   if (!key) {
-    key = prompt('חד-פעמי: הדבק מפתח API של Claude (נשמר רק בדפדפן שלך, נשלח רק ל-Anthropic).\nמשיגים בחינם יחסית ב: console.anthropic.com → API Keys\n\nביטול = מסלול ידני דרך הצ׳אט.');
+    key = await uiPrompt('חד-פעמי: הדבק מפתח API של Claude (נשמר רק בדפדפן שלך, נשלח רק ל-Anthropic).\nמשיגים ב: console.anthropic.com → API Keys\n\nביטול = מסלול ידני דרך הצ׳אט.');
     if (!key) { autoZonesHint(); return; }
     key = key.trim();
     try { localStorage.setItem('koflow_apikey', key); } catch (e) {}
@@ -5522,13 +5589,56 @@ function zoneKitConfirm(zname, idx) {
   const k = allKits()[idx];
   if (!k) return;
   const lines = k.items.slice(0, 14).map(x => '  • ' + (x.qty || 1) + '× ' + x.name.slice(0, 44)).join('\n');
-  if (confirm('🧰 ' + k.name + ' — ' + k.items.length + ' פריטים:\n' + lines + (k.items.length > 14 ? '\n  …' : '') + '\n\nלהוסיף את הקיט לאזור "' + zname + '"?'))
-    pickKitForZone(zname, idx);
+  uiConfirm('🧰 ' + k.name + ' — ' + k.items.length + ' פריטים:\n' + lines + (k.items.length > 14 ? '\n  …' : '') + '\n\nלהוסיף את הקיט לאזור "' + zname + '"?', { okText: '➕ הוסף לאזור' })
+    .then(ok => { if (ok) pickKitForZone(zname, idx); });
+}
+/* בחירת רמקול אמיתי מהקטלוג לבניית מערכת — במקום "רמקול התקנה" גנרי.
+   מציג רק מוצרי ERP שמזוהים בבסיס הנתונים האקוסטי (פיזור/SPL ידועים). */
+function zoneSpkPicker(zid) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  const db = (typeof SPEAKER_DATA !== 'undefined' ? SPEAKER_DATA : []);
+  const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
+  const seen = new Set(); const rows = [];
+  for (const it of items) {
+    const key = it[0], name = it[1];
+    if (!name || seen.has(name)) continue;
+    const d = db.find(x => x.re && x.re.test(name));
+    if (!d) continue;
+    seen.add(name);
+    rows.push({ key, name, d, sub: /סאב|\bsub\b/i.test(name) });
+  }
+  rows.sort((a, b) => (b.d.ok === true) - (a.d.ok === true) || a.name.localeCompare(b.name, 'he'));
+  if (!rows.length) { alert('לא נמצאו רמקולים מוכרים בקטלוג — בחר רמקול דרך החיפוש בפאנל האזור.'); return; }
+  const ov = uiModal(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">🔊 בחר רמקול לאזור "${esc(z.name)}"</b><button data-x>✕</button></div>
+    <p class="muted" style="font-size:11px;margin:0 0 8px">מוצרים מהקטלוג עם נתונים אקוסטיים. ✓ = מאומת · המחיר נכנס להצעה אוטומטית · לחיצה על סאב מוסיפה אותו כסאב האזור.</p>
+    <input data-q placeholder="🔍 סינון…" style="width:100%;padding:6px;font-size:14px;box-sizing:border-box;margin-bottom:8px">
+    <div data-list style="max-height:46vh;overflow-y:auto"></div>`);
+  const listEl = ov.querySelector('[data-list]');
+  const paint = q => {
+    const f = rows.filter(r => !q || r.name.toLowerCase().includes(q.toLowerCase()));
+    listEl.innerHTML = f.slice(0, 80).map(r => `
+      <div data-i="${rows.indexOf(r)}" style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;cursor:pointer">
+        <b style="flex:1;font-size:12.5px">${esc(r.name.slice(0, 60))}</b>
+        <span class="muted" style="font-size:10.5px;white-space:nowrap">${r.sub ? 'סאב' : r.d.h + '°×' + r.d.v + '°'} · ${r.d.max}dB ${r.d.ok ? '<span style="color:#0a7a4b">✓</span>' : '<span style="color:#a32222">לא מאומת</span>'}</span>
+      </div>`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
+    listEl.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
+      const r = rows[+el.dataset.i];
+      pickZoneSpk(zid, r.name, r.key, r.sub);
+      if (!r.sub) { ov.remove(); buildZoneSystem(zid); } /* רמקול ראשי נבחר — ממשיכים לבנייה */
+      else { uiToast('✓ ' + r.name.slice(0, 40) + ' נקבע כסאב האזור'); paint(ov.querySelector('[data-q]').value); }
+    });
+  };
+  paint('');
+  ov.querySelector('[data-q]').oninput = e => paint(e.target.value);
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
 function buildZoneSystem(zid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   const area = zoneAreaM(z);
   if (!area) { alert('כייל את התכנית כדי לחשב לפי שטח.'); return; }
+  if (!z._spk) { zoneSpkPicker(zid); return; } /* בלי רמקול נבחר — בוחרים מוצר אמיתי, לא ממציאים */
   const mPerPx = P.scale, pxPerM = 1 / mPerPx;
   const spk = z._spk || 'רמקול התקנה', disp = guessDisp(spk), spl = (guessSpl(spk) || 120) - 20 /* רמת תכנון התחלתית: מקס−20dB */;
   const ceil = z.ceil ?? P.room?.ceil ?? 3, ear = 1.2;
@@ -5667,7 +5777,7 @@ async function autoLayoutAI(zid) {
   let key = '';
   try { key = localStorage.getItem('koflow_apikey') || ''; } catch (e) {}
   if (!key) {
-    key = prompt('חד-פעמי: הדבק מפתח API של Claude (נשמר רק בדפדפן שלך).');
+    key = await uiPrompt('חד-פעמי: הדבק מפתח API של Claude (נשמר רק בדפדפן שלך).');
     if (!key) return;
     key = key.trim();
     try { localStorage.setItem('koflow_apikey', key); } catch (e) {}
