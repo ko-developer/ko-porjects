@@ -20,3 +20,22 @@ AV installation planner (Hebrew RTL, single-page app). Deployed by dragging `dis
 5. The mounted outputs folder cannot host `.git` (no unlink permitted) — the live repo must stay in `~`.
 6. Pushing to GitHub happens from the user's Mac (sandbox has no GitHub access):
    `cd <outputs>/ko-projects-src && git clone ko-projects.bundle ko && cd ko && git push origin main`
+
+## Current product state (handoff from Cowork sessions, Aug 2026)
+Single-page AV planner, Hebrew RTL. Core flows working: plan upload+calibration, sound zones
+(venue presets, ring/corners/stage placement, SPL coverage with wall reflections), racks with
+measured rear-panel wiring, multicore panels, ohm-law chaining across amp channels, offer
+building from the plan, ERP offer payload (create_offer via MCP), undo/redo, per-category
+cable filtering and print report with per-discipline drawings.
+
+Verified equipment DB inside app.js: 38 amps / 12 processors (XTA, K&F IPX, KT, SAE PQM,
+DigiSynthetic) with power-vs-impedance tables; ~45 speakers. Data policy: never invent specs —
+unverified entries are flagged red in the UI.
+
+Roadmap (docs/ + user's words): lighting module (fixtures, lux, DMX universes, breaker load),
+video module (throw/resolution, signal chain), multi-discipline switch, real DB (sqlite committed
+here is the seed), ERP write-back. Use .claude/skills/spec-harvester when adding manufacturer data.
+
+## Next-step candidates for the web-app evolution
+1. Vite first (module splitting of app.js, keep vanilla) — cheap, immediate maintainability.
+2. Framework (SvelteKit) only when server needs appear (auth, shared projects, live DB).

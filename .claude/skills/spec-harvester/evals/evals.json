@@ -1,0 +1,26 @@
+{
+  "skill_name": "spec-harvester",
+  "evals": [
+    {
+      "id": 0,
+      "name": "kt-shopify-amps",
+      "prompt": "Pull the specs for all the amplifiers at https://www.kt-audio.com/collections/amplifiers — I need channel count, power at each impedance, and minimum load impedance for each one, as a JSON file I can import into my planning tool.",
+      "expected_output": "JSON with all 4 KT amps (MX3-700, MX3-200, Dynamiq 750, Dynamiq 450), power keyed by impedance, verified flags",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "xta-power-matrix",
+      "prompt": "Get me the full power table for the XTA DNA and DPA amplifier range from https://xta.co.uk/portfolio/delta-dpa-dna-legacy/ — I specifically need what each model does at 8, 4, 2.7 and 2 ohms because I'm working out how many speakers I can hang off each channel.",
+      "expected_output": "All 9 models with complete 4-impedance power matrix, min_ohm=2, bridge figures",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "image-pdf-extraction",
+      "prompt": "This SAE datasheet is a scanned PDF with no text in it. Get the power specs for both amplifier models out of it and give me a JSON summary.",
+      "expected_output": "PQM8 and PQM13 with 8/4/2 ohm stereo + 8/4 ohm bridge figures extracted from page images",
+      "files": ["SAE-PQM-datasheet-en (1).pdf"]
+    }
+  ]
+}
