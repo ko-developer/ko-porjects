@@ -5,6 +5,18 @@ import { execFileSync } from 'node:child_process';
 
 const PORT = process.env.PORT || 4177;
 createServer((req, res) => {
+  // restore.json (בשורש הריפו, מחוץ ל-git) — משמש לשחזור גיבוי מקומי דרך הדפדפן
+  if (req.url === '/restore.json') {
+    try {
+      const b = readFileSync('restore.json');
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(b);
+    } catch {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('no restore.json in repo root');
+    }
+    return;
+  }
   try {
     execFileSync(process.execPath, ['scripts/build.js'], { stdio: 'pipe' });
     const html = readFileSync('dist/index.html');
