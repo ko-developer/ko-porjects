@@ -4032,6 +4032,41 @@ function importJSON() {
   };
   f.click();
 }
+/* ---- גיבוי/שחזור מלא — כל ה-store (פרויקטים + ספריות) בקובץ אחד, למעבר בין דפדפנים/דומיינים ---- */
+function exportBackup() {
+  const payload = { app: 'ko-projects', kind: 'full-backup', v: 1, savedAt: new Date().toISOString(), store };
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ko-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+}
+function importBackup() {
+  const f = $('#fileIn');
+  f.onchange = () => {
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const b = JSON.parse(r.result);
+        const s = b && b.kind === 'full-backup' ? b.store : b; // גם store גולמי מה-console מתקבל
+        if (!s || !Array.isArray(s.projects) || !s.projects.length) { alert('קובץ לא תקין — לא נמצאו פרויקטים'); return; }
+        const replace = confirm('שחזור מגיבוי (' + s.projects.length + ' פרויקטים):\nOK — החלפת כל מה שקיים כאן בתוכן הגיבוי\nביטול — הוספת פרויקטי הגיבוי לצד הקיימים');
+        if (replace) store = s;
+        else {
+          for (const p of s.projects) { p.id = uid('p'); store.projects.push(p); }
+          if (s.spkLib && !store.spkLib) store.spkLib = s.spkLib;
+        }
+        P = store.projects.find(p => p.id === store.cur) || store.projects[0];
+        sel = null; selCable = null; selMulti.clear(); normalizeAll(); impItems = P.impSaved || [];
+        render(); save();
+        alert('✓ שוחזרו ' + s.projects.length + ' פרויקטים');
+      } catch { alert('קובץ לא תקין'); }
+    };
+    r.readAsText(f.files[0]);
+    f.value = '';
+  };
+  f.click();
+}
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m])); }
 
 /* ---- ייבוא מפרט / הצעת מחיר ---- */

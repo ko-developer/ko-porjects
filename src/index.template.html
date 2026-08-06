@@ -199,6 +199,7 @@
     <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייצוא ▾</button>
     <div class="ddm">
       <button onclick="exportJSON();this.closest('.dd').classList.remove('open')">💾 ייצוא פרויקט (JSON)</button>
+      <button onclick="exportBackup();this.closest('.dd').classList.remove('open')">🗄 גיבוי מלא — כל הפרויקטים</button>
       <button onclick="exportPDF();this.closest('.dd').classList.remove('open')">📑 דוח PDF</button>
     </div>
   </div>
@@ -206,6 +207,7 @@
     <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייבוא ▾</button>
     <div class="ddm">
       <button onclick="importJSON();this.closest('.dd').classList.remove('open')">📄 ייבוא פרויקט (JSON)</button>
+      <button onclick="importBackup();this.closest('.dd').classList.remove('open')">🗄 שחזור מגיבוי מלא</button>
       <button onclick="$('#bgIn').click();this.closest('.dd').classList.remove('open')">🖼 תכנית רקע</button>
       <button onclick="$('#specIn').click();this.closest('.dd').classList.remove('open')">📋 ייבוא מפרט / הצעת מחיר</button>
       <button onclick="showErp();this.closest('.dd').classList.remove('open')">🗂 פרויקטים מאושרים (ERP)</button>
