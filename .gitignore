@@ -5,3 +5,5 @@ dist/
 .claude/launch.json
 restore.json
 data/projects.sqlite
+.svelte-kit/
+build/

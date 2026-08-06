@@ -1,25 +1,31 @@
 # KO Projects — repo workflow
 
-AV installation planner (Hebrew RTL, single-page app). Deployed by dragging `dist/index.html` (or a zip of it) to Netlify.
+AV installation planner (Hebrew RTL). Now a SvelteKit app (strangler migration in progress); the legacy single-file build is still produced for Netlify drag-and-drop deploys.
 
 ## Layout
-- `src/index.template.html` — HTML shell + CSS, with `/*__APP__*/` marker
-- `src/app.js` — all application JS, with `/*__DATA:NAME__*/` markers
-- `data/*.json` — flat data files (ERP items/prices/kits/catalog). Authoritative for data.
-- `data/ko.sqlite` — same data as SQLite (committed; becomes a real DB later)
-- `scripts/build.js` — assembles `dist/index.html` (single self-contained file)
+- `src/app.js` — legacy application JS (all logic), with `/*__DATA:NAME__*/` markers
+- `src/index.template.html` — legacy HTML shell + CSS, with `/*__APP__*/` marker
+- `src/routes/` — SvelteKit: `+page.svelte` wraps the legacy app (CSS+body from the template, `/app.js` injected on mount); `api/store/+server.js` = projects DB API; `app.js/+server.js` serves the assembled legacy JS
+- `scripts/assemble.js` — shared assembly (app JS + data injection, template slicing) used by both builds
+- `data/*.json` — ERP data (items/prices/kits/catalog). Authoritative for ERP data.
+- `data/ko.sqlite` — ERP data as SQLite (committed; seed for the future DB)
+- `data/projects.sqlite` — user planner projects (gitignored — user data). API: GET/POST `/api/store`. Seed/restore: `npm run import-backup [file]`
+- `scripts/build.js` — assembles `dist/index.html` (single self-contained file, Netlify)
 - `scripts/validate.js` — syntax-check assembled JS + data JSON. Run before every commit.
-- `scripts/dev-server.js` — `npm run dev` → http://localhost:4177, rebuilds per request
+
+## Commands
+- `npm run dev` — SvelteKit dev server → http://localhost:4177 (loads/saves projects via SQLite)
+- `npm run dev:legacy` — old per-request-rebuild server (same port, also serves `/api/store`)
+- `npm run build` — legacy single-file `dist/index.html` (keep this working — Netlify deploy)
+- `npm run build:kit` / `preview:kit` — SvelteKit production build (adapter-node)
 
 ## Rules for Claude sessions
 1. Edit `src/` and `data/` — never `dist/`.
-2. After every meaningful change: `npm run validate && npm run build`, then commit with a conventional message. Do NOT ask the user about commits — just commit.
-3. After every commit run `bash scripts/export.sh` — it syncs a git bundle + snapshot to the user's persistent folder (the sandbox home is wiped between sessions).
-4. Session restore (start of a new session):
-   `git clone "/sessions/<session>/mnt/outputs/ko-projects.bundle" ~/ko-projects && cd ~/ko-projects && git remote set-url origin https://github.com/ko-developer/ko-porjects.git`
-5. The mounted outputs folder cannot host `.git` (no unlink permitted) — the live repo must stay in `~`.
-6. Pushing to GitHub happens from the user's Mac (sandbox has no GitHub access):
-   `cd <outputs>/ko-projects-src && git clone ko-projects.bundle ko && cd ko && git push origin main`
+2. After every meaningful change: `npm run validate && npm run build`, then commit with a conventional message in the background. Do NOT ask the user about commits — just commit.
+3. Git: single branch (`main`) only; always rebase, never merge commits (`pull.rebase=true` is set). When origin/main has new commits, offer the user to pull (rebase) and run the app.
+4. Push to GitHub (`origin main`) after commits once credentials are available on this Mac.
+5. The app runs client-side from globals in `app.js` — migration to Svelte components should be incremental (carve pieces into `src/lib/`), keeping the legacy build green at every step.
+6. Storage model: with a server (dev/adapter-node) projects live in `data/projects.sqlite` via `/api/store`, mirrored to localStorage; on static deploys (Netlify) localStorage only, with 🗄 Full Backup / Restore in the ייצוא/ייבוא menus for moving data.
 
 ## Current product state (handoff from Cowork sessions, Aug 2026)
 Single-page AV planner, Hebrew RTL. Core flows working: plan upload+calibration, sound zones

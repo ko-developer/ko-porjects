@@ -4,10 +4,19 @@
   "description": "KO Projects - AV installation planner: sound/lighting/video design on venue plans with automatic offer building",
   "type": "module",
   "scripts": {
+    "dev": "vite dev --port 4177",
+    "dev:legacy": "node scripts/dev-server.js",
     "build": "node scripts/build.js",
-    "dev": "node scripts/dev-server.js",
+    "build:kit": "vite build",
+    "preview:kit": "vite preview",
     "validate": "node scripts/validate.js",
     "import-backup": "node scripts/import-backup.js"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@sveltejs/adapter-node": "^5.5.7",
+    "@sveltejs/kit": "^2.70.2",
+    "svelte": "^5.56.8",
+    "vite": "^8.2.0"
+  }
 }
