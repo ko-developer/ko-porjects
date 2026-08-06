@@ -104,6 +104,36 @@ let sel = null, selCable = null, ui = { tab: 'node' }, drag = null, cnt = 1000;
 let marq = null; const selMulti = new Set();
 normalizeAll();
 
+/* ===== מצב שרת (dev) — DB אמיתי ב-data/projects.sqlite =====
+   כשהשרת רץ (localhost) ה-store נטען מ-/api/store ונשמר אליו אוטומטית;
+   בפריסה סטטית (Netlify) ה-fetch נכשל וממשיכים עם localStorage כרגיל. */
+let SRV = false, srvT = null;
+(async () => {
+  try {
+    const r = await fetch('/api/store', { cache: 'no-store' });
+    if (!r.ok) return;
+    const s = await r.json();
+    SRV = true;
+    if (s && Array.isArray(s.projects) && s.projects.length) {
+      store = s;
+      P = store.projects.find(p => p.id === store.cur) || store.projects[0];
+      sel = null; selCable = null; selMulti.clear(); normalizeAll();
+      if (typeof impItems !== 'undefined') impItems = P.impSaved || [];
+      try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
+      render();
+    } else {
+      pushSrv(); // DB ריק — זרע אותו ממה שיש בדפדפן
+    }
+  } catch (e) {}
+})();
+function pushSrv() {
+  if (!SRV) return;
+  clearTimeout(srvT);
+  srvT = setTimeout(() => {
+    fetch('/api/store', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(store) }).catch(() => {});
+  }, 800);
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(LSKEY);
@@ -159,6 +189,7 @@ function save() {
   store.cur = P.id;
   if (typeof impItems !== 'undefined') P.impSaved = impItems;
   try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
+  pushSrv();
   pushHistory();
 }
 function normalizeAll() {
