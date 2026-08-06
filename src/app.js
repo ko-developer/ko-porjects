@@ -3560,6 +3560,43 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.dd')) document.querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
 });
 let dragK = null, dragH = null, pendingU = null, dragU = null, uGhost = null;
+/* דיאלוג הזנת המרחק לכיול — שדה בתוך הדף במקום prompt() (חסום בדפדפנים משובצים) */
+function showCalDialog(px, p1, p2) {
+  const old = document.getElementById('calOv');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'calOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.45);z-index:120;display:flex;align-items:center;justify-content:center';
+  ov.addEventListener('click', e => { if (e.target === ov) { ov.remove(); render(); } });
+  ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:360px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.4)">
+    <b style="font-size:15px">📏 כיול קנה מידה</b>
+    <p style="font-size:12.5px;margin:8px 0;line-height:1.5">נמדדו <b>${Math.round(px)}px</b> בין שתי הנקודות.<br>מה המרחק האמיתי? מטרים (למשל 16) או ישר מהמידה בתכנית במ״מ (16000) — אזהה לבד.</p>
+    <input id="calMIn" type="number" step="any" min="0" inputmode="decimal" placeholder="מרחק" style="width:100%;font-size:17px;padding:8px;box-sizing:border-box" value="${P.scale ? (px * P.scale).toFixed(1) : ''}">
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button class="primary" id="calOkBtn" style="flex:1">✓ קבע קנה מידה</button>
+      <button style="flex:1" onclick="document.getElementById('calOv').remove()">ביטול</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const inp = ov.querySelector('#calMIn');
+  const ok = () => {
+    let m = parseFloat(inp.value);
+    ov.remove();
+    if (m > 0 && px > 2) {
+      /* תכניות בנייה בד"כ במ״מ: 16000 = 16 מ׳; 100-999 = ס״מ */
+      if (m >= 1000) m = m / 1000;
+      else if (m >= 100) m = m / 100;
+      P.scale = m / px;
+      P.calLine = { p1, p2 }; /* קו הכיול נשאר על התכנית */
+      recalcCableLengths();
+      save();
+    }
+    render();
+  };
+  ov.querySelector('#calOkBtn').onclick = ok;
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') ok(); if (ev.key === 'Escape') { ov.remove(); render(); } });
+  setTimeout(() => inp.focus(), 50);
+}
 document.addEventListener('pointerdown', e => {
   /* גרירת/שינוי גודל אזור סאונד */
   const zd = e.target.closest('[data-zdrag]');
@@ -3592,16 +3629,7 @@ document.addEventListener('pointerdown', e => {
       const [p1, p2] = calMode.pts;
       const px = Math.hypot(p1.x - p2.x, p1.y - p2.y);
       calMode = null;
-      let m = parseFloat(prompt('מה המרחק בין שתי הנקודות?\nאפשר להזין במטרים (16) או ישר מהמידה בתכנית במ״מ (16000) — אזהה לבד.', P.scale ? (px * P.scale).toFixed(1) : ''));
-      if (m > 0 && px > 2) {
-        /* תכניות בנייה בד"כ במ״מ: 16000 = 16 מ׳; 100-999 = ס״מ */
-        if (m >= 1000) m = m / 1000;
-        else if (m >= 100) m = m / 100;
-        P.scale = m / px;
-        P.calLine = { p1, p2 }; /* קו הכיול נשאר על התכנית */
-        recalcCableLengths();
-        alert('קנה מידה נקבע ✓  ' + m + ' מ׳ = ' + Math.round(px) + 'px. קו הכיול יישאר מוצג על התכנית. אורכי הכבלים חושבו מחדש.');
-      }
+      showCalDialog(px, p1, p2); /* דיאלוג בתוך הדף — prompt() חסום בדפדפנים משובצים */
       render();
     }
     e.preventDefault();
