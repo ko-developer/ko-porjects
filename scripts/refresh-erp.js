@@ -43,7 +43,7 @@ let page = 1, pages = 1;
 do {
   const r = await call('list_items', { page, limit: 1000 });
   pages = r.total_pages || 1;
-  for (const it of r.items || []) items.push([it.ItemKey, it.ItemName, it.Price ?? 0, it.Quantity ?? 0]);
+  for (const it of r.items || []) if (it.ItemKey && it.ItemName) items.push([it.ItemKey, it.ItemName, it.Price ?? 0, it.Quantity ?? 0]);
   console.log(`page ${page}/${pages} — ${items.length} items`);
   page++;
 } while (page <= pages);

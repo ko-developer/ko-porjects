@@ -1305,14 +1305,17 @@ function drawPanelCables(n, d) {
   /* הצד הפנוי = הצד הרחוק ממרכז הכובד של המחברים; שם עובר עמוד השדרה */
   const avgX = ents.reduce((s, e) => s + e.hx, 0) / ents.length;
   const freeRight = avgX < W / 2;
+  const LBLc = cableLabels();
   ents.forEach((e, k) => {
     const col = CTYPES[e.c.type].c;
     const laneY = H - 4 - (k % 4) * 4; /* תעלה תחתונה */
     const trunkX = freeRight ? (W - 8 - (k % 6) * 4) : (8 + (k % 6) * 4); /* טראנק נפרד לכל כבל */
-    const rowY = e.hy + 13 + (k % 3) * 2.5; /* חציה מתחת לשורת המחברים (השמות למעלה — האזור פנוי) */
+    const rowY = e.hy + 14 + (k % 3) * 2.5; /* חציה מתחת לשורת המחברים (השמות למעלה — האזור פנוי) */
     const inX = e.hx + (freeRight ? 3 : -3);
     out += `<path d="M ${freeRight ? W : 0} ${laneY} L ${trunkX} ${laneY} L ${trunkX} ${rowY} L ${inX} ${rowY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>`;
-    out += `<circle cx="${inX}" cy="${rowY}" r="2.4" fill="${col}"/>`;
+    /* מספר הכבל בנקודת החיבור עצמה — פעם אחת, למטה, בלי לתפוס מקום מעל המחבר */
+    const lb = LBLc[e.c.id];
+    out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${inX}" cy="${rowY}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${inX}" y="${rowY + 2.6}" text-anchor="middle" font-size="${String(lb).length > 2 ? 5.5 : 7}" font-weight="800" fill="${col}">${lb}</text></g>`;
   });
   if (!out) return;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1619,8 +1622,9 @@ function ocpSearch(q, cid) {
   if (typeof ERP_ITEMS !== 'undefined')
     for (const [k, n] of ERP_ITEMS) {
       if (hits.length >= 12) break;
-      /* חייב להיות כבל/גליל באמת — שם שרק מזכיר "חיבור כבלים" (נורות...) לא נכנס */
-      if (!/^כבל|^גליל|^\s*כבל|cable/i.test(n.trim()) && !/גליל/i.test(n)) continue;
+      if (!n) continue; /* פריטים בלי שם בקטלוג */
+      /* חייב להיות כבל/גליל באמת — שם שרק מזכיר משהו אחר לא נכנס */
+      if (!/כבל|גליל|cable|מולטי/i.test(n)) continue;
       if (mode === 'reel' && !isReel(n)) continue;
       if (mode === 'ready' && isReel(n)) continue;
       const l = n.toLowerCase();
@@ -1741,16 +1745,10 @@ function holeCell(p, h, idx, nid, ui, ro, noPos) {
   const hole = `<div class="hole gph" ${ro ? '' : `data-hole="${nid}|${ui}|${idx}"`} style="position:relative;${selStyle}" title="${t.n}${h.label ? ' · ' + esc(h.label) : ''}${hc ? ' · מחובר (כבל)' : ''}${isSel ? ' · נבחר — לחץ על חור בפאנל אחר לחיבור' : ''}">${connGlyph(h.conn)}${selBadge}</div>`;
   const num = `<span class="hnum">${idx + 1}</span>`;
   const lbl = h.label ? `<span class="hlbl">${esc(h.label)}</span>` : '';
-  /* מספר הכבל על המחבר — כמו בגבי המכשירים בארון */
-  let cblB = '';
-  if (hc) {
-    const LBLC = cableLabels();
-    const cl = CTYPES[hc.type].c;
-    cblB = `<span onclick="event.stopPropagation();pickCable('${hc.id}')" style="position:absolute;top:-8px;left:-8px;background:#fff;border:2px solid ${cl};color:${cl};border-radius:50%;min-width:16px;height:16px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:2;cursor:pointer;padding:0 2px" title="כבל ${LBLC[hc.id]}">${LBLC[hc.id]}</span>`;
-  }
+  /* מספר הכבל מצויר בנקודת החיבור למטה (drawPanelCables) — לא תג נוסף מעל המחבר */
   const pos = (p.mode === 'free' && !noPos) ? ` style="position:absolute;left:${h.x ?? 8 + (idx % 8) * 27}px;top:${h.y ?? 8 + Math.floor(idx / 8) * 27}px"` : '';
   /* מספר החור והשם מעל המחבר — קריאים תמיד, לא מוסתרים ע"י קווי הניתוב */
-  return `<div class="hcell"${pos || ' style="position:relative"'}>${cblB}${num}${lbl}${hole}</div>`;
+  return `<div class="hcell"${pos || ' style="position:relative"'}>${num}${lbl}${hole}</div>`;
 }
 let rgFrom = null, rgTo = null, rgCtx = null;
 function applyRange(nid, ui, from, to) {
@@ -1777,7 +1775,7 @@ function holesMatrixHTML(p, nid, ui, ro) {
   let out = '';
   for (let r = 0; r < (p.rows || 1); r++) {
     const cells = p.holes.slice(r * cpr, (r + 1) * cpr).map((h, j) => holeCell(p, h, r * cpr + j, nid, ui, ro, true)).join('');
-    out += `<div style="display:flex;gap:5px;direction:ltr">${cells}</div>`;
+    out += `<div style="display:flex;gap:5px;direction:ltr;margin-bottom:16px">${cells}</div>`;
   }
   return out;
 }
@@ -2098,8 +2096,9 @@ function renderWires() {
       dpath = `M${pa.x} ${pa.y} Q ${cx} ${cy} ${pb.x} ${pb.y}`;
     }
     const instDash = c.inst === 'exist' ? '7 5' : c.inst === 'pull' ? '14 6' : null;
-    /* קצה שמחובר למכשיר בארון — הקו נכנס ישר, בלי חץ ובלי עיגול */
-    const aUnit = !!unitOf(c.from, c.fromUnit), bUnit = !!unitOf(c.to, c.toUnit);
+    /* קצה שמחובר למכשיר בארון או למחבר ספציפי בפאנל — הקו נכנס ישר, בלי חץ ובלי עיגול
+       (המספר מוצג על נקודת החיבור עצמה בתוך הפאנל/הגב) */
+    const aUnit = !!unitOf(c.from, c.fromUnit) || !!c.fromHole, bUnit = !!unitOf(c.to, c.toUnit) || !!c.toHole;
     const mEnd = bUnit ? '' : ' marker-end="url(#ah)"';
     const mStart = (c.dir === 'both' && !aUnit) ? ' marker-start="url(#ah)"' : '';
     out += `<path d="${dpath}" fill="none"stroke="transparent" stroke-width="14" style="pointer-events:stroke;cursor:pointer" onclick="pickCable('${c.id}')"/>`;
@@ -2108,7 +2107,7 @@ function renderWires() {
        קצה שמחובר למכשיר בתוך ארון — נקודה קטנה בלבד, בלי מספר (המספר כבר בגב). */
     const handle = (x, y, end) => {
       const lbl = LBL[c.id], big = String(lbl).length > 2;
-      const toUnit = !!unitOf(c[end], c[end + 'Unit']);
+      const toUnit = !!unitOf(c[end], c[end + 'Unit']) || !!(end === 'from' ? c.fromHole : c.toHole);
       if (dragE && dragE.c.id === c.id && dragE.end === end)
         return `<circle cx="${x}" cy="${y}" r="${Math.max(3, 6 * shrink)}" fill="${col}" stroke="#fff" stroke-width="1.5" style="pointer-events:none"/>`;
       const cn = end === 'to' ? (c.conn2 || c.conn) : c.conn;
