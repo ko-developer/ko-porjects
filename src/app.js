@@ -601,11 +601,11 @@ function applyZoom() {
 }
 function setZoomPct(v) {
   const p = parseFloat(String(v).replace('%', ''));
-  if (!isNaN(p) && p > 0) P.zoom = Math.min(2, Math.max(0.15, p / 100));
+  if (!isNaN(p) && p > 0) P.zoom = Math.min(4, Math.max(0.15, p / 100));
   applyZoom(); save();
 }
 function zoomBy(f) {
-  P.zoom = Math.min(2, Math.max(0.15, getZ() * f));
+  P.zoom = Math.min(4, Math.max(0.15, getZ() * f));
   applyZoom(); save();
 }
 function fitView() {
@@ -1052,7 +1052,11 @@ function renderNodes() {
           REARPORTS[u.id] = {};
         }
         const chanXlocal = 8 + panelW + CHW / 2; /* תעלה אנכית בין פאנל לתווית */
-        d.style.width = (panelW + CHW + LBLW + 44) + 'px';
+        /* הגב מוקטן לרוחב החזית — לא תופס יותר שטח יחסי בתכנית; הזום מפצה על הקריאות */
+        const rearWnat = panelW + CHW + LBLW + 44;
+        const RK = Math.min(1, (n._frontW || 240) / rearWnat);
+        n._rearK = RK; d._rearK = RK;
+        d.style.width = Math.round(rearWnat * RK) + 'px';
         const pnum = s => { const m = /(\d+)/.exec(s || ''); return m ? +m[1] : null; };
         /* פריסה סכמטית: כל יחידה בגובה נוח + רווח אנכי ברור ביניהן, כמו בהדמיה */
         window.__chainLoad = window.__chainLoad || null;
@@ -1118,10 +1122,14 @@ function renderNodes() {
         /* הקווים מצוירים אחרי הכנסה ל-DOM לפי מדידת מיקום המחברים בפועל — drawRearCables */
         const rw = `<svg class="rearsvg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:5"></svg>`;
         d._drawRear = true;
-        body = `<div class="rackbody rearbody"><div class="rearchassis" style="position:relative;height:${railHrear + 12}px">
+        const rearHnat = railHrear + 12 + 64; /* גוף + שורת סיכום + רמז */
+        body = `<div style="position:relative;height:${Math.round(rearHnat * RK)}px">
+          <div style="position:absolute;top:0;right:0;width:${rearWnat}px;transform:scale(${RK});transform-origin:top right">
+          <div class="rackbody rearbody"><div class="rearchassis" style="position:relative;height:${railHrear + 12}px">
           <div class="rails rear" style="height:${railHrear}px">${rows}</div>${rw}</div>
           <div class="muted" style="margin-top:6px">${used}U בשימוש · ${Math.max(0, n.ru - used)}U פנוי</div>
-          <div class="rearhint">חיבור: לחץ על מחבר OUT ← ואז על מחבר IN במכשיר אחר (או על רמקול בתכנית) · ✎ גב = עריכת פריסת הדגם</div></div>`;
+          <div class="rearhint">חיבור: לחץ על מחבר OUT ← ואז על מחבר IN במכשיר אחר (או על רמקול בתכנית) · ✎ גב = עריכת פריסת הדגם</div></div>
+          </div></div>`;
       } else {
         for (const u of n.units) {
           const attr = ` data-uid="${u.id}"`;
@@ -1278,13 +1286,16 @@ function drawPanelCables(n, d) {
 function drawRearCables(n, d) {
   const chassis = d.querySelector('.rearchassis'), svg = d.querySelector('.rearsvg');
   if (!chassis || !svg) return;
+  /* הגב מוקטן ב-scale(K) — המדידות מוחזרות לקואורדינטות הטבעיות של השלדה,
+     כי ה-SVG הפנימי עצמו כבר בתוך העטיפה המוקטנת */
   const cr = chassis.getBoundingClientRect(), dr = d.getBoundingClientRect(), Z = getZ() || 1;
+  const K = d._rearK || 1, ZK = Z * K;
   const nodeLeftCanvas = 2200 - n.x - d.offsetWidth;
-  const ctr = el => { const r = el.getBoundingClientRect(); return { x: (r.left + r.width / 2 - cr.left) / Z, y: (r.top + r.height / 2 - cr.top) / Z }; };
-  const toCanvas = (chx, chy) => ({ x: nodeLeftCanvas + (cr.left + chx * Z - dr.left) / Z, y: n.y + (cr.top + chy * Z - dr.top) / Z });
+  const ctr = el => { const r = el.getBoundingClientRect(); return { x: (r.left + r.width / 2 - cr.left) / ZK, y: (r.top + r.height / 2 - cr.top) / ZK }; };
+  const toCanvas = (chx, chy) => ({ x: nodeLeftCanvas + (cr.left + chx * ZK - dr.left) / Z, y: n.y + (cr.top + chy * ZK - dr.top) / Z });
   const port = {}, ubox = {};
   d.querySelectorAll('[data-cport]').forEach(el => { port[el.dataset.cport] = ctr(el); });
-  d.querySelectorAll('.runit[data-runit]').forEach(el => { const r = el.getBoundingClientRect(); ubox[el.dataset.runit] = { top: (r.top - cr.top) / Z, bottom: (r.bottom - cr.top) / Z }; });
+  d.querySelectorAll('.runit[data-runit]').forEach(el => { const r = el.getBoundingClientRect(); ubox[el.dataset.runit] = { top: (r.top - cr.top) / ZK, bottom: (r.bottom - cr.top) / ZK }; });
   const LBL = cableLabels();
   const badge = (x, y, t, c, id) => `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${id}')"><circle cx="${x}" cy="${y}" r="9" fill="#fff" stroke="${c}" stroke-width="1.8"/><text x="${x}" y="${y + 3.4}" text-anchor="middle" font-size="10" font-weight="800" fill="${c}">${t}</text></g>`;
   let out = '';
@@ -1304,8 +1315,10 @@ function drawRearCables(n, d) {
     const ub = ubox[uid];
     if (!ub) return;
     /* מחובר למחבר → יוצא מהמחבר. מחובר למכשיר בלבד → יוצא מאמצע שורת המכשיר,
-       כדי שהנקודה תשב על המכשיר ולא תיפול לקצה הארון. */
-    const pp = port[uid + '|' + (p || '')] || { x: panelW - PADR - STEP / 2, y: (ub.top + ub.bottom) / 2 };
+       כדי שהנקודה תשב על המכשיר ולא תיפול לקצה הארון.
+       (panelW לא קיים כאן — נגזר מרוחב השלדה בקואורדינטות הטבעיות) */
+    const natW = cr.width / ZK;
+    const pp = port[uid + '|' + (p || '')] || { x: Math.max(40, natW - 250), y: (ub.top + ub.bottom) / 2 };
     if (!pp) return;
     /* כל כבל יוצא בנתיב ובגובה יציאה משלו — קווים לא מתלכדים לקו אחד */
     const col = CTYPES[c.type].c;
@@ -1833,34 +1846,24 @@ function panelEditor(p, nid, ui) {
 }
 function toggleRear(id) {
   const n = byId(id);
+  const el = document.getElementById('nd_' + id);
   n.rear = !n.rear;
   rearPick = null;
   if (n.rear) {
-    /* גב פתוח תופס ~660px רוחב — מזיזים את הארון לשטח פנוי כדי שלא יסתיר כלום.
-       מוצאים את הקצה השמאלי של התוכן הקיים ומעמידים אותו מעבר לו. */
-    n._preRear = { x: n.x, y: n.y };
-    const REARW = 680;
-    let leftmost = 0; /* בקואורדינטות canvas-LTR: הכי שמאלי שהתוכן מגיע אליו */
-    const bgim = document.getElementById('bgimg');
-    let bgLeft = 2200;
-    if (P.bg && bgim && bgim.style.display !== 'none') bgLeft = 2200 - (bgim.offsetWidth || P.bgW || 1400);
-    for (const m of P.nodes) {
-      if (m.id === n.id || m.hidden) continue;
-      const el = document.getElementById('nd_' + m.id);
-      const w2 = el ? el.offsetWidth : 160;
-      leftmost = Math.max(leftmost, m.x + w2); /* x = מרחק מימין; x+רוחב = הקצה השמאלי */
-    }
-    leftmost = Math.max(leftmost, 2200 - bgLeft);
-    /* אם יש מקום משמאל לתוכן — לשם; אחרת נשארים במקום */
-    if (leftmost + REARW < 2180) {
-      n.x = leftmost + 30;
-      /* גלילה אל הארון אחרי הרינדור */
-      setTimeout(() => { const el = document.getElementById('nd_' + n.id); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); }, 80);
-    }
-  } else if (n._preRear) {
-    /* חזרה הביתה */
-    n.x = n._preRear.x; n.y = n._preRear.y;
-    n._preRear = undefined;
+    /* הארון נשאר במקומו! הגב מוקטן לאותו שטח כמו החזית (scale ברינדור),
+       והזום של כל הקנבס עולה (עד 400%) כדי שהפירוט יהיה קריא. */
+    n._frontW = el ? el.offsetWidth : 240;
+    n._preZoom = getZ();
+    setTimeout(() => {
+      const k = n._rearK || 0.35;
+      const target = Math.min(4, (n._preZoom || 1) / Math.max(k, 0.2));
+      if (target > getZ()) { P.zoom = target; applyZoom(); }
+      const el2 = document.getElementById('nd_' + n.id);
+      if (el2 && el2.scrollIntoView) el2.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    }, 80);
+  } else {
+    if (n._preRear) { n.x = n._preRear.x; n.y = n._preRear.y; n._preRear = undefined; } /* ארונות שהוזזו בגרסה הישנה */
+    if (n._preZoom) { P.zoom = n._preZoom; applyZoom(); n._preZoom = undefined; }
   }
   render(); }
 function pickRear(nodeId, unitId) {
