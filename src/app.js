@@ -601,11 +601,11 @@ function applyZoom() {
 }
 function setZoomPct(v) {
   const p = parseFloat(String(v).replace('%', ''));
-  if (!isNaN(p) && p > 0) P.zoom = Math.min(4, Math.max(0.15, p / 100));
+  if (!isNaN(p) && p > 0) P.zoom = Math.min(5, Math.max(0.15, p / 100));
   applyZoom(); save();
 }
 function zoomBy(f) {
-  P.zoom = Math.min(4, Math.max(0.15, getZ() * f));
+  P.zoom = Math.min(5, Math.max(0.15, getZ() * f));
   applyZoom(); save();
 }
 function fitView() {
@@ -1856,7 +1856,7 @@ function toggleRear(id) {
     n._preZoom = getZ();
     setTimeout(() => {
       const k = n._rearK || 0.35;
-      const target = Math.min(4, (n._preZoom || 1) / Math.max(k, 0.2));
+      const target = Math.min(5, (n._preZoom || 1) / Math.max(k, 0.2)); /* עד 500% אם הגב זקוק לזה */
       if (target > getZ()) { P.zoom = target; applyZoom(); }
       const el2 = document.getElementById('nd_' + n.id);
       if (el2 && el2.scrollIntoView) el2.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
