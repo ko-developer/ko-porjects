@@ -2058,12 +2058,17 @@ function renderWires() {
     const instDash = c.inst === 'exist' ? '7 5' : c.inst === 'pull' ? '14 6' : null;
     out += `<path d="${dpath}" fill="none"stroke="transparent" stroke-width="14" style="pointer-events:stroke;cursor:pointer" onclick="pickCable('${c.id}')"/>`;
     out += `<path d="${dpath}" fill="none" stroke="${col}" stroke-width="${selw}"${instDash ? ` stroke-dasharray="${instDash}"` : ''} ${both} marker-end="url(#ah)" opacity="0.9" style="pointer-events:none"/>`;
+    /* קצה הכבל = עיגול אחד עם מספר הכבל בתוכו — גם מזהה וגם ידית גרירה */
     const handle = (x, y, end) => {
+      const lbl = LBL[c.id], big = String(lbl).length > 2;
+      const r = big ? 11 : 9;
       if (dragE && dragE.c.id === c.id && dragE.end === end)
-        return `<circle cx="${x}" cy="${y}" r="6" fill="${col}" stroke="#fff" stroke-width="1.5" style="pointer-events:none"/>`;
+        return `<circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#fff" stroke-width="1.5" style="pointer-events:none"/>`;
       const cn = end === 'to' ? (c.conn2 || c.conn) : c.conn;
       const tip = (cn && CONNS[cn] ? 'מחבר: ' + CONNS[cn].n + ' · ' : '') + 'גרור למכשיר אחר';
-      return `<circle cx="${x}" cy="${y}" r="5.5" fill="${col}" stroke="#fff" stroke-width="1.5" style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title></circle>`;
+      return `<g style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title>
+        <circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${col}" stroke-width="${c.id === selCable ? 3 : 2}"/>
+        <text x="${x}" y="${y + 3.4}" text-anchor="middle" font-size="${big ? 8.5 : 10}" font-weight="800" fill="${col}" style="user-select:none">${lbl}</text></g>`;
     };
     out += handle(pa.x, pa.y, 'from') + handle(pb.x, pb.y, 'to');
     if (ortho) {
@@ -2071,10 +2076,7 @@ function renderWires() {
       out += corner(it.mx, pa.y, 'from') + corner(it.mx, pb.y, 'to');
     }
     const btip = esc(`${CTYPES[c.type].n}${c.cores ? ' · ' + c.cores + '× XLR' : ''}${c.fiber ? ' · ' + c.fiber : ''}${c.spec ? ' · ' + c.spec : ''}${c.len ? ' · ' + c.len + ' מ׳' : ''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.note ? ' · ' + c.note : ''}${c.pOut || c.pIn ? ' · ' + (c.pOut || '?') + ' ← ' + (c.pIn || '?') : ''}`);
-    /* מספר הכבל ליד שתי נקודות החיבור — כדי לזהות קו בלי לעקוב אחריו לאורך התכנית */
-    const endTag = (x, y) => `<g style="pointer-events:none"><circle cx="${x}" cy="${y}" r="8" fill="#fff" stroke="${col}" stroke-width="1.6" opacity="0.96"/><text x="${x}" y="${y + 3.2}" text-anchor="middle" font-size="9" font-weight="800" fill="${col}">${LBL[c.id]}</text></g>`;
-    const offA = pa.x < pb.x ? -14 : 14, offB = -offA;
-    out += endTag(pa.x + offA, pa.y - 12) + endTag(pb.x + offB, pb.y - 12);
+    /* המספר יושב בתוך עיגול הקצה עצמו (handle) — אין תג נפרד */
     out += `<g style="pointer-events:all;cursor:grab" data-cbadge="${c.id}"><title>${btip}</title><circle cx="${it.bx}" cy="${it.by}" r="${String(LBL[c.id]).length > 2 ? 13 : 11}" fill="#fff" stroke="${col}" stroke-width="${c.id === selCable ? 3.5 : 2}"/><text x="${it.bx}" y="${it.by + 4}" text-anchor="middle" font-size="${String(LBL[c.id]).length > 2 ? 9.5 : 11}" font-weight="700" fill="${col}" style="user-select:none">${LBL[c.id]}</text></g>`;
   }
   /* פוליגון אזור בזמן ציור */
