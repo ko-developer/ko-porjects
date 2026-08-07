@@ -1134,7 +1134,7 @@ function renderNodes() {
         for (const u of n.units) {
           const attr = ` data-uid="${u.id}"`;
           const UZ = UPX * (n.uz || 1);
-          rows += `<div class="unit"${attr} title="${esc(ioTip(u.name))}" style="top:${u.pos * UZ}px;height:${u.u * UZ}px;background:${CATS[u.cat].c};font-size:${(n.uz || 1) >= 1.6 ? 12 : 10}px"><b>${esc(u.name)}</b><span>${u.panel ? '🧩' + u.panel.holes.length + '·' : ''}${u.u}U</span></div>`;
+          rows += `<div class="unit"${attr} title="${esc(ioTip(u.name))}" style="top:${u.pos * UZ}px;height:${u.u * UZ}px;background:${CATS[u.cat].c};font-size:${(n.uz || 1) >= 1.6 ? 12 : 10}px"><b>${esc(u.name)}</b><span>${u.panel ? '🧩' + u.panel.holes.length + '·' : ''}${u.u}U</span><button onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="עריכת המחברים של המוצר (פריסת הגב)" style="position:absolute;left:2px;top:2px;padding:0 4px;font-size:10px;line-height:16px;border-radius:5px;background:rgba(255,255,255,.88);border:none;cursor:pointer;z-index:2">🔌✎</button></div>`;
           used += u.u;
         }
         body = `<div class="rackbody"><div class="rails" style="height:${n.ru * UPX * (n.uz || 1)}px">${rows}</div>
@@ -2043,6 +2043,8 @@ function renderWires() {
     }
 
   let out = '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.6"/></marker></defs>';
+  /* בזום גבוה העיגולים מתכווצים ביחס הפוך — שלא יסתירו את המוצרים */
+  const ZW = getZ() || 1, shrink = Math.min(1, 1.6 / ZW);
   for (const it of items) {
     const { c, i, pa, pb } = it;
     const col = CTYPES[c.type].c;
@@ -2058,17 +2060,22 @@ function renderWires() {
     const instDash = c.inst === 'exist' ? '7 5' : c.inst === 'pull' ? '14 6' : null;
     out += `<path d="${dpath}" fill="none"stroke="transparent" stroke-width="14" style="pointer-events:stroke;cursor:pointer" onclick="pickCable('${c.id}')"/>`;
     out += `<path d="${dpath}" fill="none" stroke="${col}" stroke-width="${selw}"${instDash ? ` stroke-dasharray="${instDash}"` : ''} ${both} marker-end="url(#ah)" opacity="0.9" style="pointer-events:none"/>`;
-    /* קצה הכבל = עיגול אחד עם מספר הכבל בתוכו — גם מזהה וגם ידית גרירה */
+    /* קצה הכבל = עיגול אחד עם מספר הכבל בתוכו — גם מזהה וגם ידית גרירה.
+       קצה שמחובר למכשיר בתוך ארון — נקודה קטנה בלבד, בלי מספר (המספר כבר בגב). */
     const handle = (x, y, end) => {
       const lbl = LBL[c.id], big = String(lbl).length > 2;
-      const r = big ? 11 : 9;
+      const toUnit = !!unitOf(c[end], c[end + 'Unit']);
       if (dragE && dragE.c.id === c.id && dragE.end === end)
-        return `<circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#fff" stroke-width="1.5" style="pointer-events:none"/>`;
+        return `<circle cx="${x}" cy="${y}" r="${Math.max(3, 6 * shrink)}" fill="${col}" stroke="#fff" stroke-width="1.5" style="pointer-events:none"/>`;
       const cn = end === 'to' ? (c.conn2 || c.conn) : c.conn;
       const tip = (cn && CONNS[cn] ? 'מחבר: ' + CONNS[cn].n + ' · ' : '') + 'גרור למכשיר אחר';
+      if (toUnit)
+        return `<circle cx="${x}" cy="${y}" r="${Math.max(2.4, 5 * shrink)}" fill="${col}" stroke="#fff" stroke-width="${(1.5 * shrink).toFixed(2)}" style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title></circle>`;
+      const r = Math.max(6, (big ? 11 : 9) * shrink);
+      const fs = Math.max(5.5, (big ? 8.5 : 10) * shrink);
       return `<g style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title>
-        <circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${col}" stroke-width="${c.id === selCable ? 3 : 2}"/>
-        <text x="${x}" y="${y + 3.4}" text-anchor="middle" font-size="${big ? 8.5 : 10}" font-weight="800" fill="${col}" style="user-select:none">${lbl}</text></g>`;
+        <circle cx="${x}" cy="${y}" r="${r.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3 : 2) * shrink}"/>
+        <text x="${x}" y="${y + fs * 0.36}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="800" fill="${col}" style="user-select:none">${lbl}</text></g>`;
     };
     out += handle(pa.x, pa.y, 'from') + handle(pb.x, pb.y, 'to');
     if (ortho) {
@@ -2077,7 +2084,9 @@ function renderWires() {
     }
     const btip = esc(`${CTYPES[c.type].n}${c.cores ? ' · ' + c.cores + '× XLR' : ''}${c.fiber ? ' · ' + c.fiber : ''}${c.spec ? ' · ' + c.spec : ''}${c.len ? ' · ' + c.len + ' מ׳' : ''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.note ? ' · ' + c.note : ''}${c.pOut || c.pIn ? ' · ' + (c.pOut || '?') + ' ← ' + (c.pIn || '?') : ''}`);
     /* המספר יושב בתוך עיגול הקצה עצמו (handle) — אין תג נפרד */
-    out += `<g style="pointer-events:all;cursor:grab" data-cbadge="${c.id}"><title>${btip}</title><circle cx="${it.bx}" cy="${it.by}" r="${String(LBL[c.id]).length > 2 ? 13 : 11}" fill="#fff" stroke="${col}" stroke-width="${c.id === selCable ? 3.5 : 2}"/><text x="${it.bx}" y="${it.by + 4}" text-anchor="middle" font-size="${String(LBL[c.id]).length > 2 ? 9.5 : 11}" font-weight="700" fill="${col}" style="user-select:none">${LBL[c.id]}</text></g>`;
+    const bR = Math.max(7, (String(LBL[c.id]).length > 2 ? 13 : 11) * shrink);
+    const bF = Math.max(6, (String(LBL[c.id]).length > 2 ? 9.5 : 11) * shrink);
+    out += `<g style="pointer-events:all;cursor:grab" data-cbadge="${c.id}"><title>${btip}</title><circle cx="${it.bx}" cy="${it.by}" r="${bR.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3.5 : 2) * shrink}"/><text x="${it.bx}" y="${it.by + bF * 0.37}" text-anchor="middle" font-size="${bF.toFixed(1)}" font-weight="700" fill="${col}" style="user-select:none">${LBL[c.id]}</text></g>`;
   }
   /* פוליגון אזור בזמן ציור */
   if (zoneMode && zoneMode.poly && zoneMode.poly.length) {
