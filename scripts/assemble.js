@@ -2,7 +2,7 @@
 // המקור האחיד: src/app.js + סמני /*__DATA:NAME__*/ + src/index.template.html.
 import { readFileSync } from 'node:fs';
 
-export const DATA = ['ERP_ITEMS', 'ERP_PRICES', 'ERP_KITS', 'ERP_CATALOG'];
+export const DATA = ['ERP_ITEMS', 'ERP_PRICES', 'ERP_KITS', 'ERP_CATALOG', 'ERP_IMAGES'];
 
 // JS מלא של האפליקציה עם נתוני ה-ERP מוזרקים
 export function assembleAppJs() {

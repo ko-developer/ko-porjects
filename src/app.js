@@ -27,6 +27,7 @@ const LSKEY = 'installPlanner_v1';
 /*__DATA:ERP_KITS__*/
 
 /*__DATA:ERP_CATALOG__*/
+/*__DATA:ERP_IMAGES__*/
 
 const CONNS = {
   xlrf:    { n: 'XLR נקבה', c: '#5f5e5a' },
@@ -403,6 +404,27 @@ function endLevelHTML(side, c, nid0, selId) {
     <div class="fld" style="margin:0;${lvl === 'port' ? '' : 'display:none'}">
       <select name="${pName}">${portOpts}</select></div>
   </div>`;
+}
+/* כמות עתידית — הזמנות פתוחות על המק"ט מה-ERP (דרך שרת האפליקציה), עם תאריכים */
+async function futureQty(key, name) {
+  const ov = uiModal(`<b style="font-size:14px">📅 כמויות עתידיות — ${esc(name || key)}</b>
+    <div data-fq style="font-size:12px;margin-top:8px;line-height:1.6">⏳ טוען הזמנות פתוחות מה-ERP…</div>
+    <button style="width:100%;margin-top:10px" onclick="this.closest('.uiDlgOv').remove()">סגור</button>`);
+  const box = ov.querySelector('[data-fq]');
+  try {
+    const r = await fetch('/api/erp/item-future?key=' + encodeURIComponent(key));
+    const j = await r.json();
+    if (!j.ok) throw new Error((j.errors || ['שגיאה']).join(', '));
+    const inf = erpInfo(key);
+    if (!j.rows.length) { box.innerHTML = `במלאי כרגע: <b>${inf ? inf.qty : '?'}</b><br>אין הזמנות פתוחות על הפריט — אין תנועות עתידיות.`; return; }
+    box.innerHTML = `במלאי כרגע: <b>${inf ? inf.qty : '?'}</b> · מחויב להזמנות פתוחות: <b style="color:#a35c00">${j.committed}</b> · צפי נטו: <b>${inf ? inf.qty - j.committed : '?'}</b>
+      <table style="width:100%;font-size:11px;margin-top:6px;border-collapse:collapse">
+        <tr style="border-bottom:1px solid #ddd"><th style="text-align:right">הזמנה</th><th>כמות</th><th>סטטוס</th><th>תאריך</th></tr>
+        ${j.rows.map(r2 => `<tr style="border-bottom:1px solid #f0f0f0"><td>${esc(r2.order_code || '')}${r2.account ? ' · ' + esc(r2.account.slice(0, 18)) : ''}</td><td style="text-align:center">${r2.quantity}</td><td style="text-align:center">${esc(r2.status || '')}</td><td style="text-align:center">${r2.date ? new Date(r2.date).toLocaleDateString('he-IL') : '—'}</td></tr>`).join('')}
+      </table>`;
+  } catch (e) {
+    box.innerHTML = '❌ ' + esc(e.message) + '<br><span class="muted">זמין רק כשהשרת רץ עם חיבור ERP (.env)</span>';
+  }
 }
 /* קפיצה אל מוקד בתכנית — בחירה + גלילה אליו */
 function jumpToNode(nid) {
@@ -4691,6 +4713,12 @@ function erpInfo(key) {
   }
   return key ? ERP_INFO.get(key) : null;
 }
+/* תמונת מוצר מהחנות (store.kot.co.il) לפי מק"ט — נקצר ע"י scripts/harvest-store-images.js */
+function erpImg(key) { return (key && typeof ERP_IMAGES !== 'undefined' && ERP_IMAGES[key]) || ''; }
+function imgCell(key, size) {
+  const u = erpImg(key);
+  return u ? `<img src="${esc(u)}" loading="lazy" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:5px;background:#fff;flex:none" onerror="this.remove()">` : '';
+}
 function stockBadge(key) {
   const inf = erpInfo(key);
   if (!inf) return '';
@@ -4994,7 +5022,13 @@ function renderImp() {
     return `<tr style="${replOn ? 'background:#e8f0ff' : pinOn || wireOn || connOn ? 'background:#fff3e8' : it.added ? 'background:#f2faf4' : ''}">
         <td style="white-space:nowrap">${acc ? `<span title="אביזר — משויך למוצר, לא מוצב בתכנית" style="font-size:13px">🔩</span>` : ''}${canDrag ? `<span data-dragi="${i}" title="גרור אל התכנית" style="cursor:grab;user-select:none;font-size:14px;color:#c96f4a">⠿</span>` : ''}${canPin ? `<button onclick="togglePin('${it.iid}')" title="מצב נעיצה — לחץ על התכנית שוב ושוב" style="padding:0 5px;font-size:12px;${pinOn ? 'background:#ff8a50' : 'background:transparent'}">📌</button>` : ''}${canWire ? `<button onclick="wireFromItem('${it.iid}')" title="פרוס כבל זה — לחץ על שני מוצרים בתכנית (Esc לסיום)" style="padding:0 5px;font-size:12px;${wireOn ? 'background:#ff8a50' : 'background:transparent'}">🔌</button>` : ''}${canConn ? `<button onclick="connPinFromItem('${it.iid}')" title="נקור מחבר על קצה כבל — לחץ ליד קצה של כבל בתכנית" style="padding:0 5px;font-size:12px;${connOn ? 'background:#ff8a50' : 'background:transparent'}">📌</button>` : ''}</td>
         <td>${it.added ? '✓' : `<input type="checkbox" ${it.on ? 'checked' : ''} onchange="impItems[${i}].on=this.checked">`}</td>
-        <td><input style="width:42px" type="number" min="1" value="${it.qty}" ${it.added ? 'disabled' : `onchange="impItems[${i}].qty=+this.value"`}></td>
+        <td><input style="width:42px" type="number" min="1" value="${it.qty}" ${it.added ? 'disabled' : `onchange="impItems[${i}].qty=+this.value"`}>${(() => {
+          const inf = it.key ? erpInfo(it.key) : null;
+          if (!inf) return '';
+          return `<div style="font-size:9px;line-height:1.4;margin-top:2px;white-space:nowrap">
+            <span title="כמות במלאי (ERP)" style="color:${inf.qty > 0 ? '#0a7a4b' : '#a32222'};font-weight:700">מלאי ${inf.qty}</span> ·
+            <span title="כמות עתידית — פירוט הזמנות פתוחות ותאריכים" onclick="futureQty('${it.key}','${esc(it.name.slice(0, 40)).replace(/'/g, '&#39;')}')" style="color:#185fa5;cursor:pointer;text-decoration:underline">עתידי</span></div>`;
+        })()}</td>
         <td style="text-align:center;font-weight:700;color:${(it.placed || 0) >= it.qty ? '#0f6e56' : '#c96f4a'}">${cnt != null ? cnt : ['unit', 'panelUnit', 'point', 'panelNode', 'rack', 'conn'].includes(it.dest) ? (it.placed || 0) : (it.dest === 'cable' || it.dest === 'reel') ? planMeters(it) : '—'}</td>
         <td style="font-size:10px;max-width:95px">${zoneCell}</td>
         <td style="min-width:190px"><textarea rows="2" style="width:190px;resize:vertical;font-family:inherit;font-size:12px;line-height:1.25;vertical-align:middle" ${it.added ? 'disabled' : `onchange="impItems[${i}].name=this.value"`}>${esc(it.name)}</textarea><button onclick="startReplace('${it.iid}')" title="החלף מוצר — הקלד בחיפוש ובחר" style="padding:0 4px;font-size:11px;${replOn ? 'background:#7aa2ff' : 'background:transparent'}">🔄</button>${acc ? `<div style="margin-top:2px"><span style="font-size:10px;color:#8a6a00">🔩 משויך ל:</span> <select style="font-size:10px;max-width:150px" onchange="impItems[${i}].parentIid=this.value||undefined;save()">
@@ -5050,12 +5084,13 @@ function renderImp() {
       ${replFor ? '<span style="background:#7aa2ff;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">🔄 חפש ובחר מוצר להחלפה (Esc לביטול)</span>' : ''}
       <button onclick="showKits()" title="קיטים מוכנים (ERP)" style="white-space:nowrap">🧰 קיטים</button>
       <button onclick="showErp()" title="משיכה מפרויקטים מאושרים והצעות קיימות (ERP)" style="white-space:nowrap">🗂 פרויקטים</button>
-      <button onclick="if(dockWide){dockWide=false;dockMin=true}else{dockWide=true}renderImp()" title="${dockWide ? 'צמצם הצידה' : 'הרחב על כל המסך'}" style="white-space:nowrap;${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '◀ צמצם' : '⤢ הרחב'}</button>
+      <button onclick="dockWide=!dockWide;renderImp()" title="${dockWide ? 'חזרה מהמסך המלא' : 'הרחב על כל המסך'}" style="${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '⤡' : '⤢'}</button>
+      <button onclick="dockMin=true;renderImp()" title="צמצם הצידה">◀</button>
     </div>
     <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` +
     (results.length ? results.map(r => r.type === 'kit'
       ? `<div class="crow" onclick="pickKitInline(${r.i})"><span class="badge" style="background:#534ab7">${r.n}</span><span class="txt"><b>🧰 ${esc(r.name)}</b> · קיט מלא</span></div>`
-      : `<div class="crow" onclick="pickSearchItem('${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span><span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`
+      : `<div class="crow" onclick="pickSearchItem('${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span>${imgCell(r.key, 28)}<span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`
     ).join('') + '<div style="border-bottom:1px solid #eee;margin:8px 0"></div>' : '') +
     body;
 }
@@ -5666,7 +5701,7 @@ function zoneSpkPicker(zid) {
     const f = rows.filter(r => !q || r.name.toLowerCase().includes(q.toLowerCase()));
     listEl.innerHTML = f.slice(0, 80).map(r => `
       <div data-i="${rows.indexOf(r)}" style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;cursor:pointer">
-        <b style="flex:1;font-size:12.5px">${esc(r.name.slice(0, 60))}</b>
+        ${imgCell(r.key, 32)}<b style="flex:1;font-size:12.5px">${esc(r.name.slice(0, 60))}</b>
         ${stockBadge(r.key)}
         <span class="muted" style="font-size:10.5px;white-space:nowrap">${r.sub ? 'סאב' : r.d.h + '°×' + r.d.v + '°'} · ${r.d.max}dB ${r.d.ok ? '<span style="color:#0a7a4b">✓</span>' : '<span style="color:#a32222">לא מאומת</span>'}</span>
       </div>`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
