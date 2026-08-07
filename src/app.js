@@ -389,20 +389,27 @@ function endLevelHTML(side, c, nid0, selId) {
     }
   }
   const badge = { rack: ['ארון', '#5f5e5a'], unit: ['מכשיר', '#185fa5'], port: ['מחבר', '#0f6e56'] }[lvl];
-  return `<div style="background:#f4f2ec;border-radius:8px;padding:8px;margin-bottom:6px">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-      <b style="font-size:12px;flex:1">${lbl}: ${esc(n ? n.name.slice(0, 26) : '—')}</b>
-      <span style="background:${badge[1]};color:#fff;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px">${badge[0]}</span>
+  /* קומפקטי: שורה אחת — שם + קפיצה למוקד + שלושת מצבי הדיוק כאייקונים */
+  return `<div style="background:#f4f2ec;border-radius:8px;padding:5px 7px;margin-bottom:5px">
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
+      <b style="font-size:11.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(n ? n.name : '')}">${lbl}: ${esc(n ? n.name.slice(0, 22) : '—')}</b>
+      <span style="background:${badge[1]};color:#fff;font-size:9.5px;font-weight:700;padding:0 7px;border-radius:10px">${badge[0]}</span>
+      <button type="button" onclick="jumpToNode('${nid}')" title="עבור אל המוקד בתכנית" style="padding:1px 6px;font-size:11px">👁</button>
+      ${[['rack', '🗄', 'לארון'], ['unit', '📦', 'למכשיר'], ['port', '🔌', 'למחבר']].map(([v, ic, t]) =>
+        `<button type="button" onclick="setEndLevel(this.form,'${side}','${v}')" title="${t}" style="padding:1px 7px;font-size:11px;${lvl === v ? 'background:#c9502e;color:#fff' : ''}" ${v === 'unit' && !hasUnits ? 'disabled' : ''}>${ic}</button>`).join('')}
     </div>
-    <div style="display:flex;gap:4px;margin-bottom:5px">
-      ${[['rack', '🗄 לארון'], ['unit', '📦 למכשיר'], ['port', '🔌 למחבר']].map(([v, t]) =>
-        `<button type="button" onclick="setEndLevel(this.form,'${side}','${v}')" style="flex:1;padding:3px;font-size:11px;${lvl === v ? 'background:#c9502e;color:#fff;font-weight:700' : ''}" ${v !== 'rack' && !hasUnits && v === 'unit' ? 'disabled style=opacity:.4' : ''}>${t}</button>`).join('')}
-    </div>
-    <div class="fld" style="margin:0 0 4px;${lvl === 'rack' ? 'display:none' : ''}">
-      <select name="${uName}" id="${selId}" onchange="this.form && renderCableForm && 0">${unitOpts(nid, uidv)}</select></div>
+    <div class="fld" style="margin:0 0 3px;${lvl === 'rack' ? 'display:none' : ''}">
+      <select name="${uName}" id="${selId}">${unitOpts(nid, uidv)}</select></div>
     <div class="fld" style="margin:0;${lvl === 'port' ? '' : 'display:none'}">
       <select name="${pName}">${portOpts}</select></div>
   </div>`;
+}
+/* קפיצה אל מוקד בתכנית — בחירה + גלילה אליו */
+function jumpToNode(nid) {
+  const n = byId(nid); if (!n) return;
+  sel = nid; ui.tab = 'node';
+  render();
+  setTimeout(() => { const el = document.getElementById('nd_' + nid); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); }, 60);
 }
 /* מעבר בין רמות — מנקה את מה שכבר לא רלוונטי כדי שלא יישאר מידע מטעה */
 function setEndLevel(form, side, lvl) {
@@ -1114,10 +1121,10 @@ function renderNodes() {
               </div></div>`;
           });
           rows += `<div class="runit${picked}" data-runit="${u.id}" style="top:${top}px;height:${h}px">
-            <div class="runit-panel" style="width:${panelW}px;height:${h}px;flex:none">${conns}
-              <button class="runit-edit" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="ערוך את פריסת הגב של הדגם">✎ גב</button></div>
+            <div class="runit-panel" style="width:${panelW}px;height:${h}px;flex:none">${conns}</div>
             <div style="width:${CHW}px;flex:none"></div>
-            <div class="runit-lbl" style="background:${CATS[u.cat].c};width:${LBLW}px;height:${h}px;flex:none"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small></div></div>`;
+            <div class="runit-lbl" style="background:${CATS[u.cat].c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>
+              <button class="runit-edit" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="ערוך את פריסת הגב של הדגם" style="position:absolute;bottom:3px;left:3px">✎ גב</button></div></div>`;
           used += u.u;
           yCur += h + GAPV;
         }
@@ -1275,9 +1282,10 @@ function drawPanelCables(n, d) {
     const fromLeft = hx < W / 2;
     const laneY = H - 4 - (k % 4) * 4; k++;
     const ex = fromLeft ? 0 : W;
-    /* מסלול: נכנס מהצד הקרוב, רץ בתעלה תחתונה, עולה אל המחבר */
-    out += `<path d="M ${ex} ${laneY} L ${hx} ${laneY} L ${hx} ${hy + 12}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linecap="round" opacity="0.95"/>`;
-    out += `<circle cx="${hx}" cy="${hy + 12}" r="2.6" fill="${col}"/>`;
+    /* מסלול: תעלה תחתונה → עלייה בין העמודות (לא על המחברים והמספרים) → כניסה קצרה למחבר */
+    const vx = hx + 13;
+    out += `<path d="M ${ex} ${laneY} L ${vx} ${laneY} L ${vx} ${hy + 13} L ${hx + 3} ${hy + 13}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" opacity="0.85"/>`;
+    out += `<circle cx="${hx + 3}" cy="${hy + 13}" r="2.4" fill="${col}"/>`;
   });
   if (!out) return;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1307,7 +1315,8 @@ function drawRearCables(n, d) {
     const pa = port[c.fromUnit + '|' + (c.pOut || '')], pb = port[c.toUnit + '|' + (c.pIn || '')];
     if (!pa || !pb) return;
     const col = CTYPES[c.type].c, dir = pb.y > pa.y ? 1 : -1, tb = ubox[c.toUnit] || { top: pb.y - 40, bottom: pb.y + 40 };
-    const laneY = (dir > 0 ? tb.top - 12 : tb.bottom + 12) - dir * (k % 5) * 8;
+    /* התעלה האופקית רצה ברווח שבין המכשירים — לא על מכשיר */
+    const laneY = (dir > 0 ? tb.top - 8 : tb.bottom + 8) - dir * (k % 3) * 6;
     out += `<path d="M ${pa.x} ${pa.y} L ${pa.x} ${laneY} L ${pb.x} ${laneY} L ${pb.x} ${pb.y}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="square"/>`;
     out += `<circle cx="${pa.x}" cy="${pa.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/><circle cx="${pb.x}" cy="${pb.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/>`;
     out += badge(pa.x, pa.y + dir * 15, LBL[c.id], col, c.id) + badge(pb.x, pb.y - dir * 15, LBL[c.id], col, c.id);
@@ -1323,10 +1332,10 @@ function drawRearCables(n, d) {
     const natW = cr.width / ZK;
     const pp = port[uid + '|' + (p || '')] || { x: Math.max(40, natW - 250), y: (ub.top + ub.bottom) / 2 };
     if (!pp) return;
-    /* כל כבל יוצא בנתיב ובגובה יציאה משלו — קווים לא מתלכדים לקו אחד */
+    /* כל כבל יוצא בנתיב משלו — התעלה רצה ברווח שמתחת למכשיר, לא עליו */
     const col = CTYPES[c.type].c;
-    const laneY = ub.bottom - 8 - (k % 6) * 6;   /* תעלה אופקית ייחודית */
-    const exitX = 3, exitY = laneY - 0 - (k % 6) * 7; /* נקודת יציאה מהארון בגובה שונה לכל כבל */
+    const laneY = ub.bottom + 6 + (k % 3) * 6;   /* בתוך המרווח בין המכשירים */
+    const exitX = 3, exitY = laneY + (k % 3) * 3; /* נקודת יציאה מהארון בגובה שונה לכל כבל */
     out += `<path d="M ${pp.x} ${pp.y} L ${pp.x} ${laneY} L ${exitX + 14} ${laneY} L ${exitX} ${exitY}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
     out += `<circle cx="${pp.x}" cy="${pp.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/>`;
     out += badge(pp.x, (pp.y + laneY) / 2, LBL[c.id], col, c.id);
@@ -3285,8 +3294,8 @@ function renderPanel() {
       const idx = cableLabels()[c.id] || (P.cables.indexOf(c) + 1);
       html += `<h3 class="sec">עריכת כבל <span class="badge" style="background:${CTYPES[c.type].c}">${idx}</span></h3>
         <p style="font-size:12px;margin:2px 0 8px;line-height:1.6;background:#eef3ee;border-radius:8px;padding:6px 9px">
-          <b>מ:</b> ${esc(endNameTxt(c.from, c.fromUnit))}${c.fromUnit ? ' <span style="opacity:.6">(' + esc(byId(c.from)?.name || '') + ')</span>' : ''}${c.pOut ? ' · <b>' + esc(c.pOut) + '</b>' : c.fromHole ? ' · חור ' + c.fromHole : ''}<br>
-          <b>אל:</b> ${esc(endNameTxt(c.to, c.toUnit))}${c.toUnit ? ' <span style="opacity:.6">(' + esc(byId(c.to)?.name || '') + ')</span>' : ''}${c.pIn ? ' · <b>' + esc(c.pIn) + '</b>' : c.toHole ? ' · חור ' + c.toHole : ''}</p>
+          <b>מ:</b> <a style="cursor:pointer;text-decoration:underline" onclick="jumpToNode('${c.from}')" title="עבור אל המוקד בתכנית">${esc(endNameTxt(c.from, c.fromUnit))}</a>${c.fromUnit ? ' <span style="opacity:.6">(' + esc(byId(c.from)?.name || '') + ')</span>' : ''}${c.pOut ? ' · <b>' + esc(c.pOut) + '</b>' : c.fromHole ? ' · חור ' + c.fromHole : ''}<br>
+          <b>אל:</b> <a style="cursor:pointer;text-decoration:underline" onclick="jumpToNode('${c.to}')" title="עבור אל המוקד בתכנית">${esc(endNameTxt(c.to, c.toUnit))}</a>${c.toUnit ? ' <span style="opacity:.6">(' + esc(byId(c.to)?.name || '') + ')</span>' : ''}${c.pIn ? ' · <b>' + esc(c.pIn) + '</b>' : c.toHole ? ' · חור ' + c.toHole : ''}</p>
         <form onsubmit="event.preventDefault();updCable('${c.id}',this)">${cableForm(c)}
           <button class="primary" style="width:100%;margin-bottom:6px">שמור שינויים</button>
         </form>
