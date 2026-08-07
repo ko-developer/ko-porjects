@@ -1290,24 +1290,29 @@ function drawPanelCables(n, d) {
   const z = getZ ? getZ() : 1;
   const rect = d.getBoundingClientRect();
   const W = rect.width / z, H = rect.height / z;
-  const LBLc = cableLabels();
-  let out = '', k = 0;
+  let out = '';
+  /* איסוף כל החורים המחוברים תחילה — כדי לזהות את הצד הפנוי של הפאנל */
+  const ents = [];
   holes.forEach(el => {
     const [nid, ui2, idx] = el.dataset.hole.split('|');
     if (+ui2 !== -1 || nid !== n.id) return;
     const f = holeConnOf(nid, +idx); if (!f) return;
-    const c = f.c;
-    if (!cableVisible(c)) return;
+    if (!cableVisible(f.c)) return;
     const r2 = el.getBoundingClientRect();
-    const hx = (r2.left + r2.width / 2 - rect.left) / z, hy = (r2.top + r2.height / 2 - rect.top) / z;
-    const col = CTYPES[c.type].c;
-    const fromLeft = hx < W / 2;
-    const laneY = H - 4 - (k % 4) * 4; k++;
-    const ex = fromLeft ? 0 : W;
-    /* מסלול: תעלה תחתונה → עלייה בין העמודות (לא על המחברים והמספרים) → כניסה קצרה למחבר */
-    const vx = hx + 13;
-    out += `<path d="M ${ex} ${laneY} L ${vx} ${laneY} L ${vx} ${hy + 13} L ${hx + 3} ${hy + 13}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" opacity="0.85"/>`;
-    out += `<circle cx="${hx + 3}" cy="${hy + 13}" r="2.4" fill="${col}"/>`;
+    ents.push({ c: f.c, hx: (r2.left + r2.width / 2 - rect.left) / z, hy: (r2.top + r2.height / 2 - rect.top) / z });
+  });
+  if (!ents.length) return;
+  /* הצד הפנוי = הצד הרחוק ממרכז הכובד של המחברים; שם עובר עמוד השדרה */
+  const avgX = ents.reduce((s, e) => s + e.hx, 0) / ents.length;
+  const freeRight = avgX < W / 2;
+  ents.forEach((e, k) => {
+    const col = CTYPES[e.c.type].c;
+    const laneY = H - 4 - (k % 4) * 4; /* תעלה תחתונה */
+    const trunkX = freeRight ? (W - 8 - (k % 6) * 4) : (8 + (k % 6) * 4); /* טראנק נפרד לכל כבל */
+    const rowY = e.hy + 13 + (k % 3) * 2.5; /* חציה מתחת לשורת המחברים (השמות למעלה — האזור פנוי) */
+    const inX = e.hx + (freeRight ? 3 : -3);
+    out += `<path d="M ${freeRight ? W : 0} ${laneY} L ${trunkX} ${laneY} L ${trunkX} ${rowY} L ${inX} ${rowY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>`;
+    out += `<circle cx="${inX}" cy="${rowY}" r="2.4" fill="${col}"/>`;
   });
   if (!out) return;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1744,7 +1749,8 @@ function holeCell(p, h, idx, nid, ui, ro, noPos) {
     cblB = `<span onclick="event.stopPropagation();pickCable('${hc.id}')" style="position:absolute;top:-8px;left:-8px;background:#fff;border:2px solid ${cl};color:${cl};border-radius:50%;min-width:16px;height:16px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:2;cursor:pointer;padding:0 2px" title="כבל ${LBLC[hc.id]}">${LBLC[hc.id]}</span>`;
   }
   const pos = (p.mode === 'free' && !noPos) ? ` style="position:absolute;left:${h.x ?? 8 + (idx % 8) * 27}px;top:${h.y ?? 8 + Math.floor(idx / 8) * 27}px"` : '';
-  return `<div class="hcell"${pos || ' style="position:relative"'}>${cblB}${hole}${num}${lbl}</div>`;
+  /* מספר החור והשם מעל המחבר — קריאים תמיד, לא מוסתרים ע"י קווי הניתוב */
+  return `<div class="hcell"${pos || ' style="position:relative"'}>${cblB}${num}${lbl}${hole}</div>`;
 }
 let rgFrom = null, rgTo = null, rgCtx = null;
 function applyRange(nid, ui, from, to) {
@@ -2026,7 +2032,8 @@ function renderWires() {
     } else {
       const k = nid + '|' + side;
       const idx = sideIdx[k] = (sideIdx[k] || 0) + 1;
-      y = box.y + box.h / 2 + (idx - 1 - ((sideTot[k] || 1) - 1) / 2) * 14;
+      /* ריווח 26px — עיגולי הקצה הממוספרים לא עולים זה על זה ולא מסתירים קווים */
+      y = box.y + box.h / 2 + (idx - 1 - ((sideTot[k] || 1) - 1) / 2) * 26;
     }
     y += c.aoff?.[end] || 0;
     y = Math.max(box.y + 8, Math.min(box.y + box.h - 8, y));
