@@ -1291,16 +1291,27 @@ function drawPanelCables(n, d) {
   const rect = d.getBoundingClientRect();
   const W = rect.width / z, H = rect.height / z;
   let out = '';
-  /* איסוף כל החורים המחוברים תחילה — כדי לזהות את הצד הפנוי של הפאנל */
-  const ents = [];
+  /* מפת מיקומי החורים מה-DOM */
+  const holePos = {};
   holes.forEach(el => {
     const [nid, ui2, idx] = el.dataset.hole.split('|');
     if (+ui2 !== -1 || nid !== n.id) return;
-    const f = holeConnOf(nid, +idx); if (!f) return;
-    if (!cableVisible(f.c)) return;
     const r2 = el.getBoundingClientRect();
-    ents.push({ c: f.c, hx: (r2.left + r2.width / 2 - rect.left) / z, hy: (r2.top + r2.height / 2 - rect.top) / z });
+    holePos[+idx] = { hx: (r2.left + r2.width / 2 - rect.left) / z, hy: (r2.top + r2.height / 2 - rect.top) / z };
   });
+  /* איסוף לפי כבלים — כל כבל (וגם כל ליבת מולטי) מקבל מעבר פנימי עד המחבר שלו,
+     גם כשכמה כבלים יושבים על אותו חור */
+  const ents = [];
+  for (const c of P.cables) {
+    if (!cableVisible(c)) continue;
+    const sides = [];
+    if (c.from === n.id) sides.push(c.fromHole ? [c.fromHole - 1] : (c.chans || []).map(x => x.a - 1));
+    if (c.to === n.id) sides.push(c.toHole ? [c.toHole - 1] : (c.chans || []).map(x => x.b - 1));
+    for (const idxs of sides) for (const hi of idxs) {
+      const p2 = holePos[hi];
+      if (p2) ents.push({ c, hx: p2.hx, hy: p2.hy });
+    }
+  }
   if (!ents.length) return;
   /* הצד הפנוי = הצד הרחוק ממרכז הכובד של המחברים; שם עובר עמוד השדרה */
   const avgX = ents.reduce((s, e) => s + e.hx, 0) / ents.length;
