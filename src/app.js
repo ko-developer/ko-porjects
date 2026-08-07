@@ -1033,9 +1033,12 @@ function renderNodes() {
       continue;
     }
     if (n.kind === 'rack') {
-      flip = `<span class="flip" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rackZoom('${n.id}',-1)" title="הקטן ארון">−</span>
+      /* במצב גב הכותרת צרה — משאירים רק את כפתור החזרה לחזית */
+      flip = n.rear
+        ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRear('${n.id}')" title="חזרה לחזית" style="white-space:nowrap">⇄ חזית</span>`
+        : `<span class="flip" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rackZoom('${n.id}',-1)" title="הקטן ארון">−</span>
         <span class="flip" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rackZoom('${n.id}',1)" title="הגדל ארון">+</span>
-        <span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRackMin('${n.id}')" title="כווץ לאייקון">⤡</span><span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRear('${n.id}')" title="הפוך חזית/גב">${n.rear ? 'גב ⇄' : '⇄'}</span>`;
+        <span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRackMin('${n.id}')" title="כווץ לאייקון">⤡</span><span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRear('${n.id}')" title="הפוך חזית/גב">⇄</span>`;
       let used = 0, rows = '';
       if (n.rear) {
         /* גב הארון — פאנל סכמטי: יציאות משמאל, כניסות מימין, תעלה בין הפאנל לתווית */
@@ -2049,7 +2052,6 @@ function renderWires() {
     const { c, i, pa, pb } = it;
     const col = CTYPES[c.type].c;
     const selw = c.id === selCable ? 4 : 2.2;
-    const both = c.dir === 'both' ? 'marker-start="url(#ah)"' : '';
     let dpath;
     if (ortho) {
       dpath = `M${pa.x} ${pa.y} H ${it.mx} V ${pb.y} H ${pb.x}`;
@@ -2058,8 +2060,12 @@ function renderWires() {
       dpath = `M${pa.x} ${pa.y} Q ${cx} ${cy} ${pb.x} ${pb.y}`;
     }
     const instDash = c.inst === 'exist' ? '7 5' : c.inst === 'pull' ? '14 6' : null;
+    /* קצה שמחובר למכשיר בארון — הקו נכנס ישר, בלי חץ ובלי עיגול */
+    const aUnit = !!unitOf(c.from, c.fromUnit), bUnit = !!unitOf(c.to, c.toUnit);
+    const mEnd = bUnit ? '' : ' marker-end="url(#ah)"';
+    const mStart = (c.dir === 'both' && !aUnit) ? ' marker-start="url(#ah)"' : '';
     out += `<path d="${dpath}" fill="none"stroke="transparent" stroke-width="14" style="pointer-events:stroke;cursor:pointer" onclick="pickCable('${c.id}')"/>`;
-    out += `<path d="${dpath}" fill="none" stroke="${col}" stroke-width="${selw}"${instDash ? ` stroke-dasharray="${instDash}"` : ''} ${both} marker-end="url(#ah)" opacity="0.9" style="pointer-events:none"/>`;
+    out += `<path d="${dpath}" fill="none" stroke="${col}" stroke-width="${selw}"${instDash ? ` stroke-dasharray="${instDash}"` : ''}${mStart}${mEnd} opacity="0.9" style="pointer-events:none"/>`;
     /* קצה הכבל = עיגול אחד עם מספר הכבל בתוכו — גם מזהה וגם ידית גרירה.
        קצה שמחובר למכשיר בתוך ארון — נקודה קטנה בלבד, בלי מספר (המספר כבר בגב). */
     const handle = (x, y, end) => {
@@ -2069,8 +2075,8 @@ function renderWires() {
         return `<circle cx="${x}" cy="${y}" r="${Math.max(3, 6 * shrink)}" fill="${col}" stroke="#fff" stroke-width="1.5" style="pointer-events:none"/>`;
       const cn = end === 'to' ? (c.conn2 || c.conn) : c.conn;
       const tip = (cn && CONNS[cn] ? 'מחבר: ' + CONNS[cn].n + ' · ' : '') + 'גרור למכשיר אחר';
-      if (toUnit)
-        return `<circle cx="${x}" cy="${y}" r="${Math.max(2.4, 5 * shrink)}" fill="${col}" stroke="#fff" stroke-width="${(1.5 * shrink).toFixed(2)}" style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title></circle>`;
+      if (toUnit) /* בלתי-נראה — רק אזור אחיזה לגרירה בנקודת החיבור למכשיר */
+        return `<circle cx="${x}" cy="${y}" r="${Math.max(7, 10 * shrink)}" fill="transparent" style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title></circle>`;
       const r = Math.max(6, (big ? 11 : 9) * shrink);
       const fs = Math.max(5.5, (big ? 8.5 : 10) * shrink);
       return `<g style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title>
@@ -3278,6 +3284,9 @@ function renderPanel() {
     if (c) {
       const idx = cableLabels()[c.id] || (P.cables.indexOf(c) + 1);
       html += `<h3 class="sec">עריכת כבל <span class="badge" style="background:${CTYPES[c.type].c}">${idx}</span></h3>
+        <p style="font-size:12px;margin:2px 0 8px;line-height:1.6;background:#eef3ee;border-radius:8px;padding:6px 9px">
+          <b>מ:</b> ${esc(endNameTxt(c.from, c.fromUnit))}${c.fromUnit ? ' <span style="opacity:.6">(' + esc(byId(c.from)?.name || '') + ')</span>' : ''}${c.pOut ? ' · <b>' + esc(c.pOut) + '</b>' : c.fromHole ? ' · חור ' + c.fromHole : ''}<br>
+          <b>אל:</b> ${esc(endNameTxt(c.to, c.toUnit))}${c.toUnit ? ' <span style="opacity:.6">(' + esc(byId(c.to)?.name || '') + ')</span>' : ''}${c.pIn ? ' · <b>' + esc(c.pIn) + '</b>' : c.toHole ? ' · חור ' + c.toHole : ''}</p>
         <form onsubmit="event.preventDefault();updCable('${c.id}',this)">${cableForm(c)}
           <button class="primary" style="width:100%;margin-bottom:6px">שמור שינויים</button>
         </form>
@@ -5032,8 +5041,7 @@ function renderImp() {
       ${replFor ? '<span style="background:#7aa2ff;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">🔄 חפש ובחר מוצר להחלפה (Esc לביטול)</span>' : ''}
       <button onclick="showKits()" title="קיטים מוכנים (ERP)" style="white-space:nowrap">🧰 קיטים</button>
       <button onclick="showErp()" title="משיכה מפרויקטים מאושרים והצעות קיימות (ERP)" style="white-space:nowrap">🗂 פרויקטים</button>
-      <button onclick="dockWide=!dockWide;renderImp()" title="הרחב על כל המסך / חזרה" style="${dockWide ? 'background:#ff8a50' : ''}">⤢ הרחב</button>
-      <button onclick="dockMin=true;renderImp()" title="צמצם הצידה" style="white-space:nowrap">◀ צמצם</button>
+      <button onclick="if(dockWide){dockWide=false;dockMin=true}else{dockWide=true}renderImp()" title="${dockWide ? 'צמצם הצידה' : 'הרחב על כל המסך'}" style="white-space:nowrap;${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '◀ צמצם' : '⤢ הרחב'}</button>
     </div>
     <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` +
     (results.length ? results.map(r => r.type === 'kit'

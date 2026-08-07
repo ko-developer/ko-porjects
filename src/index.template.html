@@ -80,7 +80,10 @@
   #ughost { position: fixed; z-index: 999; pointer-events: none; background: #1f2430; color: #fff; padding: 5px 12px; border-radius: 6px; font-size: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.35); opacity: .92; }
   .unit b { font-weight: 600; text-overflow: ellipsis; overflow: hidden; }
   .unit span { font-size: 10px; opacity: .85; }
-  .node.rear { width: 520px; }
+  .node.rear { width: 520px; } /* נדרס ע"י רוחב inline מוקטן ברינדור */
+  .node.rear .hd { padding: 4px 6px; font-size: 11px; gap: 4px; }
+  .node.rear .hd .flip { padding: 1px 6px; font-size: 10px; }
+  .node.rear .hd small { font-size: 9px; }
   /* גב אמיתי: תווית מוצר מימין, פאנל מחברים כהה */
   .rails.rear { direction: ltr; }
   .runit { position: absolute; left: 8px; border-block: 1px solid rgba(0,0,0,.4); display: flex; direction: ltr; z-index: 2; }
