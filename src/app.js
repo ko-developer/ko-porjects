@@ -1028,7 +1028,7 @@ function rearLibImport(inp) {
 function renderNodes() {
   const host = $('#nodes');
   host.innerHTML = '';
-  MCOLS = {}; REARPORTS = {}; REAREXIT = {}; REARUNIT = {}; /* מאופסים בכל רינדור */
+  MCOLS = {}; REARPORTS = {}; REAREXIT = {}; REARUNIT = {}; PANELPORT = {}; /* מאופסים בכל רינדור */
   for (const n of P.nodes) {
     if (n.hidden) continue;
     const d = document.createElement('div');
@@ -1317,13 +1317,16 @@ function drawPanelCables(n, d) {
   const avgX = ents.reduce((s, e) => s + e.hx, 0) / ents.length;
   const freeRight = avgX < W / 2;
   const LBLc = cableLabels();
+  const nodeLeft = 2200 - n.x - W; /* שמאל הפאנל בקואורדינטות קנבס */
   ents.forEach((e, k) => {
     const col = CTYPES[e.c.type].c;
-    const laneY = H - 4 - (k % 4) * 4; /* תעלה תחתונה */
-    const trunkX = freeRight ? (W - 8 - (k % 6) * 4) : (8 + (k % 6) * 4); /* טראנק נפרד לכל כבל */
     const rowY = e.hy + 14 + (k % 3) * 2.5; /* חציה מתחת לשורת המחברים (השמות למעלה — האזור פנוי) */
     const inX = e.hx + (freeRight ? 3 : -3);
-    out += `<path d="M ${freeRight ? W : 0} ${laneY} L ${trunkX} ${laneY} L ${trunkX} ${rowY} L ${inX} ${rowY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>`;
+    const edgeX = freeRight ? W : 0;
+    /* קו רציף: הכבל החיצוני מסתיים בדיוק בנקודה הזו על שפת הפאנל (PANELPORT),
+       והמעבר הפנימי ממשיך ממנה ישר אל המחבר — בלי קטעים מנותקים */
+    out += `<path d="M ${edgeX} ${rowY} L ${inX} ${rowY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" opacity="0.85"/>`;
+    PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + edgeX, y: n.y + rowY };
     /* מספר הכבל בנקודת החיבור עצמה — פעם אחת, למטה, בלי לתפוס מקום מעל המחבר */
     const lb = LBLc[e.c.id];
     out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${inX}" cy="${rowY}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${inX}" y="${rowY + 2.6}" text-anchor="middle" font-size="${String(lb).length > 2 ? 5.5 : 7}" font-weight="800" fill="${col}">${lb}</text></g>`;
@@ -2039,6 +2042,9 @@ function renderWires() {
         dot = true;
       }
     } else {
+      /* כבל שמחובר למחבר ספציפי בפאנל — נכנס בדיוק בנקודת המעבר הפנימי (קו רציף) */
+      const pp = PANELPORT[c.id + '|' + nid];
+      if (pp) return { x: pp.x, y: pp.y, dot: false };
       const k = nid + '|' + side;
       const idx = sideIdx[k] = (sideIdx[k] || 0) + 1;
       /* ריווח 26px — עיגולי הקצה הממוספרים לא עולים זה על זה ולא מסתירים קווים */
@@ -2062,7 +2068,7 @@ function renderWires() {
     const sib = sibG[c.from + '|' + c.to];
     const off = (sib.indexOf(c) - (sib.length - 1) / 2) * 16;
     WIREPTS[c.id] = { a: { x: pa.x, y: pa.y }, b: { x: pb.x, y: pb.y } };
-    items.push({ c, i, pa, pb, off });
+    items.push({ c, i, pa, pb, off, A: f.A, B: f.B });
   });
 
   /* הקצאת נתיבים אנכיים ללא חפיפה (מצב מעגל חשמלי) */
@@ -2071,6 +2077,12 @@ function renderWires() {
     const { pa, pb, off, c } = it;
     if (ortho) {
       let mx = (pa.x + pb.x) / 2 + off + (c.bend?.dx || 0);
+      /* הקו האנכי לא חוצה את הארון/פאנל של הקצוות — עובר לצד החיצוני שלהם */
+      for (const box of [it.A, it.B]) {
+        if (!box) continue;
+        const L = 2200 - box.x - box.w, R = 2200 - box.x;
+        if (mx > L - 6 && mx < R + 6) mx = (mx - L < R - mx) ? L - 14 : R + 14;
+      }
       const y1 = Math.min(pa.y, pb.y), y2 = Math.max(pa.y, pb.y);
       let g = 0;
       while (g++ < 50 && lanes.some(v => Math.abs(v.mx - mx) < 15 && y1 < v.y2 + 12 && v.y1 - 12 < y2)) mx += 17;
@@ -4687,7 +4699,7 @@ async function importSpec(inp) {
   impItems = impItems.concat(items); /* אפשר לייבא כמה קבצים ברצף לאותו פרויקט */
   renderImp();
 }
-let dockOpen = true, dockQ = '', dockMin = false, dockWide = false, connPin = null, replFor = null, WIREPTS = {};
+let dockOpen = true, dockQ = '', dockMin = false, dockWide = false, connPin = null, replFor = null, WIREPTS = {}, PANELPORT = {};
 function openPlanSettings() {
   sel = null; selCable = null; selZone = null; panelEdit = null; ui.tab = 'node';
   document.body.classList.remove('smin');
@@ -4867,6 +4879,10 @@ function sendOffer() {
       <b style="color:#c1121f">⚠ ${noKey.length} שורות ללא מק"ט — לא יישלחו:</b>
       <div style="margin-top:4px">${noKey.map(it => '• ' + esc(it.name.slice(0, 50))).join('<br>')}</div></div>` : ''}
     <div class="fld"><label>שם הפרויקט ב-ERP (לאיתור אוטומטי)</label><input id="ofPrj" value="${esc(P.name || '')}"></div>
+    <div class="fld"><label>לקוח (חשבון ERP) — חובה כשאין פרויקט, מומלץ תמיד</label>
+      <input id="ofAcc" list="ofAccList" placeholder="🔍 הקלד 2+ תווים לחיפוש לקוח…" oninput="ofAccSearch(this)">
+      <datalist id="ofAccList"></datalist>
+      <div id="ofAccSt" class="muted" style="font-size:10px;margin-top:2px"></div></div>
     <div class="fld"><label>שם ההצעה — חובה בהצעת פרויקט (מבדיל בין הצעות באותו פרויקט)</label><input id="ofName" value="${esc((P.name || 'הצעה') + ' — סאונד וחיווט')}"></div>
     <div class="fld"><label>אופן העברת התשתית — חובה</label><select id="ofInfra">
       <option value="technician_install_site">🔧 טכנאי מביא לאתר ההתקנה</option>
@@ -4895,12 +4911,35 @@ function sendOffer() {
   fetch('/api/erp/status').then(r => r.json()).then(s => {
     if (!s || !s.ok) { document.getElementById('ofSrvW').style.display = 'none'; document.getElementById('ofNoSrvW').style.display = ''; }
   }).catch(() => { document.getElementById('ofSrvW').style.display = 'none'; document.getElementById('ofNoSrvW').style.display = ''; });
+  /* חיפוש לקוח חי מול ה-ERP תוך כדי הקלדה (debounce) */
+  window.ofAccSearch = inp => {
+    const a = (window.__ofAccs || []).find(x => x.name === inp.value);
+    inp.dataset.key = a ? a.key : '';
+    const st = document.getElementById('ofAccSt');
+    if (st) st.textContent = a ? '✓ לקוח ' + a.key : '';
+    clearTimeout(window.__ofAccT);
+    const q = inp.value.trim();
+    if (a || q.length < 2) return;
+    window.__ofAccT = setTimeout(async () => {
+      try {
+        const j = await fetch('/api/erp/accounts?q=' + encodeURIComponent(q)).then(r => r.json());
+        if (!j.ok) return;
+        window.__ofAccs = j.accounts;
+        const dl = document.getElementById('ofAccList');
+        if (dl) dl.innerHTML = j.accounts.map(x => `<option value="${esc(x.name)}">${esc(x.key)}</option>`).join('');
+        const m = j.accounts.find(x => x.name === inp.value);
+        if (m) { inp.dataset.key = m.key; if (st) st.textContent = '✓ לקוח ' + m.key; }
+      } catch (e) {}
+    }, 350);
+  };
 
   window.ofPayload = () => {
     const payload = {
       action: 'create_project_offer_via_erp_mcp',
       instructions: 'אתר את הפרויקט לפי project_name (list_projects), קרא get_offer_options עם project_id, וצור הצעה עם create_offer. החזר קוד הזמנה וקישור אישור.',
       project_name: document.getElementById('ofPrj').value.trim(),
+      account_key: document.getElementById('ofAcc')?.dataset.key || undefined,
+      account_name: document.getElementById('ofAcc')?.value.trim() || undefined,
       offer_name: document.getElementById('ofName').value.trim(),
       infrastructure_transfer_method: document.getElementById('ofInfra').value,
       shipment_method: document.getElementById('ofShip').value || null,
@@ -5042,8 +5081,8 @@ function renderImp() {
         <td><input style="width:42px" type="number" min="1" value="${it.qty}" ${it.added ? 'disabled' : `onchange="impItems[${i}].qty=+this.value"`}>${(() => {
           const inf = it.key ? erpInfo(it.key) : null;
           if (!inf) return '';
-          return `<div style="font-size:9px;line-height:1.4;margin-top:2px;white-space:nowrap">
-            <span title="כמות במלאי (ERP)" style="color:${inf.qty > 0 ? '#0a7a4b' : '#a32222'};font-weight:700">מלאי ${inf.qty}</span> ·
+          return `<div style="font-size:9px;line-height:1.5;margin-top:2px;white-space:nowrap">
+            <span title="כמות במלאי (ERP)" style="color:${inf.qty > 0 ? '#0a7a4b' : '#a32222'};font-weight:700">מלאי ${inf.qty}</span><br>
             <span title="כמות עתידית — פירוט הזמנות פתוחות ותאריכים" onclick="futureQty('${it.key}','${esc(it.name.slice(0, 40)).replace(/'/g, '&#39;')}')" style="color:#185fa5;cursor:pointer;text-decoration:underline">עתידי</span></div>`;
         })()}</td>
         <td style="text-align:center;font-weight:700;color:${(it.placed || 0) >= it.qty ? '#0f6e56' : '#c96f4a'}">${cnt != null ? cnt : ['unit', 'panelUnit', 'point', 'panelNode', 'rack', 'conn'].includes(it.dest) ? (it.placed || 0) : (it.dest === 'cable' || it.dest === 'reel') ? planMeters(it) : '—'}</td>
