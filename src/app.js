@@ -282,9 +282,21 @@ function firstFree(rack, u) {
   for (let p = 0; p <= rack.ru - u; p++) if (fits(rack, p, u, -1)) return p;
   return -1;
 }
+/* ＋ על שטח פנוי בארון — בוחר את הארון, מסמן את מיקום ההוספה וממקד את טופס היחידה */
+function addUnitAt(nid, pos) {
+  sel = nid; ui.tab = 'node';
+  window.__addUPos = { nid, pos };
+  render();
+  setTimeout(() => {
+    const f = document.querySelector('#panel input[name="nm"]');
+    if (f) { f.focus(); f.placeholder = 'שם היחידה — תתווסף במיקום ' + (pos + 1) + 'U'; if (f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
+  }, 60);
+}
 function addU(id, f) {
   const r = byId(id), u = +f.u.value || 1;
-  const p = firstFree(r, u);
+  let p = firstFree(r, u);
+  const pend = window.__addUPos;
+  if (pend && pend.nid === id) { p = pend.pos; window.__addUPos = null; } /* מיקום שנבחר ב-＋ */
   if (p < 0) { alert('אין מקום פנוי בארון — הגדל את גובה הארון'); return; }
   const unit = { id: uid('u'), name: f.nm.value, u, cat: f.cat.value, pos: p };
   const isPanel = f.isp && f.isp.checked;
@@ -1169,6 +1181,21 @@ function renderNodes() {
           rows += `<div class="unit"${attr} title="${esc(ioTip(u.name))}" style="top:${u.pos * UZ}px;height:${u.u * UZ}px;background:${CATS[u.cat].c};font-size:${(n.uz || 1) >= 1.6 ? 12 : 10}px"><b>${esc(u.name)}</b><span>${u.panel ? '🧩' + u.panel.holes.length + '·' : ''}${u.u}U</span><button onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="עריכת המחברים של המוצר (פריסת הגב)" style="position:absolute;left:2px;top:2px;padding:0 4px;font-size:10px;line-height:16px;border-radius:5px;background:rgba(255,255,255,.88);border:none;cursor:pointer;z-index:2">🔌✎</button></div>`;
           used += u.u;
         }
+        /* ＋ בכל רצף פנוי — הוספת יחידה ישר במקום */
+        {
+          const UZ3 = UPX * (n.uz || 1);
+          const occ = [];
+          n.units.forEach(u => { for (let i2 = u.pos; i2 < u.pos + u.u; i2++) occ[i2] = true; });
+          let g = null;
+          for (let i2 = 0; i2 <= n.ru; i2++) {
+            if (i2 < n.ru && !occ[i2]) { if (!g) g = { start: i2, len: 0 }; g.len++; }
+            else if (g) {
+              rows += `<div style="position:absolute;top:${g.start * UZ3}px;height:${g.len * UZ3}px;left:0;right:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+                <button onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();addUnitAt('${n.id}',${g.start})" title="הוסף יחידה כאן — ${g.len}U פנוי" style="pointer-events:all;padding:0 10px;font-size:13px;line-height:19px;border-radius:7px;background:rgba(255,255,255,.14);color:#cfd6e4;border:1px dashed #5a6274;cursor:pointer">＋</button></div>`;
+              g = null;
+            }
+          }
+        }
         body = `<div class="rackbody"><div class="rails" style="height:${n.ru * UPX * (n.uz || 1)}px">${rows}</div>
           <div class="muted" style="margin-top:4px">${used}U בשימוש · ${Math.max(0, n.ru - used)}U פנוי</div></div>`;
       }
@@ -1313,16 +1340,15 @@ function drawPanelCables(n, d) {
     }
   }
   if (!ents.length) return;
-  /* הצד הפנוי = הצד הרחוק ממרכז הכובד של המחברים; שם עובר עמוד השדרה */
-  const avgX = ents.reduce((s, e) => s + e.hx, 0) / ents.length;
-  const freeRight = avgX < W / 2;
   const LBLc = cableLabels();
   const nodeLeft = 2200 - n.x - W; /* שמאל הפאנל בקואורדינטות קנבס */
   ents.forEach((e, k) => {
     const col = CTYPES[e.c.type].c;
     const rowY = e.hy + 14 + (k % 3) * 2.5; /* חציה מתחת לשורת המחברים (השמות למעלה — האזור פנוי) */
-    const inX = e.hx + (freeRight ? 3 : -3);
-    const edgeX = freeRight ? W : 0;
+    /* כל כבל נכנס מהצד הקרוב למחבר שלו — קו קצר, בלי זנב שחוצה חורים אחרים */
+    const right = e.hx > W / 2;
+    const inX = e.hx + (right ? 3 : -3);
+    const edgeX = right ? W : 0;
     /* קו רציף: הכבל החיצוני מסתיים בדיוק בנקודה הזו על שפת הפאנל (PANELPORT),
        והמעבר הפנימי ממשיך ממנה ישר אל המחבר — בלי קטעים מנותקים */
     out += `<path d="M ${edgeX} ${rowY} L ${inX} ${rowY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" opacity="0.85"/>`;
@@ -1758,7 +1784,8 @@ function holeCell(p, h, idx, nid, ui, ro, noPos) {
   const selBadge = isSel ? '<span style="position:absolute;top:-7px;right:-7px;background:#ff8a50;color:#fff;border-radius:50%;width:15px;height:15px;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:3">1</span>' : '';
   const hole = `<div class="hole gph" ${ro ? '' : `data-hole="${nid}|${ui}|${idx}"`} style="position:relative;${selStyle}" title="${t.n}${h.label ? ' · ' + esc(h.label) : ''}${hc ? ' · מחובר (כבל)' : ''}${isSel ? ' · נבחר — לחץ על חור בפאנל אחר לחיבור' : ''}">${connGlyph(h.conn)}${selBadge}</div>`;
   const num = `<span class="hnum">${idx + 1}</span>`;
-  const lbl = h.label ? `<span class="hlbl">${esc(h.label)}</span>` : '';
+  /* מקום קבוע לשם — גם כשאין תווית, כדי שכל המחברים יתיישרו באותו גובה */
+  const lbl = `<span class="hlbl">${esc(h.label || ' ')}</span>`;
   /* מספר הכבל מצויר בנקודת החיבור למטה (drawPanelCables) — לא תג נוסף מעל המחבר */
   const pos = (p.mode === 'free' && !noPos) ? ` style="position:absolute;left:${h.x ?? 8 + (idx % 8) * 27}px;top:${h.y ?? 8 + Math.floor(idx / 8) * 27}px"` : '';
   /* מספר החור והשם מעל המחבר — קריאים תמיד, לא מוסתרים ע"י קווי הניתוב */
