@@ -2140,7 +2140,22 @@ function renderWires() {
     const selw = c.id === selCable ? 4 : 2.2;
     let dpath;
     if (ortho) {
-      dpath = `M${pa.x} ${pa.y} H ${it.mx} V ${pb.y} H ${pb.x}`;
+      /* קצה שנכנס בשפת פאנל/ארון והיעד בצד הנגדי — בורח החוצה ועוקף את הקופסה
+         מבחוץ (מעל/מתחת) במקום לחצות אותה. זה מה שקורה בשטח עם כבל אמיתי. */
+      const escape = (pt, box, towardX, otherY) => {
+        if (!box) return null;
+        const L = 2200 - box.x - box.w, R = 2200 - box.x, T = box.y, B = box.y + (box.h || 0);
+        if (Math.abs(pt.x - R) < 3 && towardX < pt.x - 4) return { x: R + 12, y: otherY < (T + B) / 2 ? T - 10 : B + 10 };
+        if (Math.abs(pt.x - L) < 3 && towardX > pt.x + 4) return { x: L - 12, y: otherY < (T + B) / 2 ? T - 10 : B + 10 };
+        return null;
+      };
+      const e1 = escape(pa, it.A, it.mx, pb.y);
+      const e2 = escape(pb, it.B, it.mx, e1 ? e1.y : pa.y);
+      dpath = `M${pa.x} ${pa.y}`;
+      if (e1) dpath += ` H ${e1.x} V ${e1.y}`;
+      dpath += ` H ${it.mx}`;
+      if (e2) dpath += ` V ${e2.y} H ${e2.x}`;
+      dpath += ` V ${pb.y} H ${pb.x}`;
     } else {
       const cx = 2 * it.bx - (pa.x + pb.x) / 2, cy = 2 * it.by - (pa.y + pb.y) / 2;
       dpath = `M${pa.x} ${pa.y} Q ${cx} ${cy} ${pb.x} ${pb.y}`;
