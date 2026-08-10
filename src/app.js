@@ -1621,12 +1621,22 @@ function offerCableLink(c) {
   const it = impItems.find(x => x.dest === 'reel' && (x.type || 'nl4') === c.type)
     || impItems.find(x => x.dest === 'cable' && (x.type || 'multi') === c.type);
   if (it) {
-    uiConfirm(`📏 הכבל נמדד: ${L || '?'} מ׳ (${CTYPES[c.type].n}).\nלשייך לפריט הקיים בהצעה ולהוסיף את המטרים?\n"${it.name.slice(0, 50)}"`).then(ok => {
-      if (!ok) return;
+    /* שלוש דרכים: לשייך למוצע · לבחור כבל אחר מהקטלוג · לבטל */
+    const ov = uiModal(`
+      <p style="font-size:13.5px;margin:0 0 12px;line-height:1.55">📏 הכבל נמדד: <b>${L || '?'} מ׳</b> (${CTYPES[c.type].n}).<br>יש פריט מתאים בהצעה: <b>"${esc(it.name.slice(0, 46))}"</b></p>
+      <button class="primary" data-ok style="width:100%;margin-bottom:6px">✓ שייך אליו והוסף את המטרים</button>
+      <button data-other style="width:100%;margin-bottom:6px">🔍 לא מתאים — בחר כבל אחר מהקטלוג</button>
+      <button data-cancel style="width:100%">ביטול — בלי שיוך</button>`);
+    const done = () => ov.remove();
+    ov.querySelector('[data-ok]').onclick = () => {
+      done();
       const st = ensureStockItem(it);
       applyStockRef((it.dest === 'reel' ? 'reel|' : 'cable|') + st.id, '', c);
       render(); save();
-    });
+    };
+    ov.querySelector('[data-other]').onclick = () => { done(); offerCablePick(c); };
+    ov.querySelector('[data-cancel]').onclick = done;
+    ov.addEventListener('click', e => { if (e.target === ov) done(); });
     return;
   }
   offerCablePick(c);
