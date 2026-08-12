@@ -1064,12 +1064,10 @@ function renderNodes() {
         <div class="mic" style="border-color:#2d3444" title="לחץ לפתיחת הארון"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="1.5" fill="none" stroke="#2d3444" stroke-width="2"/><line x1="8.5" y1="7" x2="15.5" y2="7" stroke="#2d3444" stroke-width="2"/><line x1="8.5" y1="11" x2="15.5" y2="11" stroke="#2d3444" stroke-width="2"/><line x1="8.5" y1="15" x2="15.5" y2="15" stroke="#2d3444" stroke-width="2"/></svg></div>
         <button onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();toggleRackMin('${n.id}')" title="פתח ארון" style="position:absolute;top:-8px;left:-8px;width:20px;height:20px;border-radius:50%;background:#c9502e;color:#fff;font-size:13px;line-height:1;border:2px solid #fff;cursor:pointer">⤢</button></div>`;
       d.addEventListener('pointerdown', e => {
-        d._px = e.clientX; d._py = e.clientY; d._moved = false;
         if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
         sel = n.id; ui.tab = 'node';
+        if (!e.target.closest('button')) miniOpenOnTap(e, () => toggleRackMin(n.id));
       });
-      d.addEventListener('pointermove', e => { if (d._px != null && Math.abs(e.clientX - d._px) + Math.abs(e.clientY - d._py) > 5) d._moved = true; });
-      d.addEventListener('click', e => { if (!wireMode && !d._moved && !e.target.closest('button')) toggleRackMin(n.id); });
       host.appendChild(d);
       continue;
     }
@@ -1211,12 +1209,10 @@ function renderNodes() {
         <div class="mic" style="border-color:#c9502e"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="#c9502e" stroke-width="2"/><circle cx="8" cy="12" r="2" fill="#c9502e"/><circle cx="14" cy="12" r="2" fill="#c9502e"/></svg></div>
         ${cnt ? `<div class="mnum" style="background:#0f6e56;left:auto;right:-6px;top:-6px">${cnt}</div>` : ''}</div>`;
       d.addEventListener('pointerdown', e => {
-        d._px = e.clientX; d._py = e.clientY; d._moved = false;
         if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
         sel = n.id; ui.tab = 'node';
+        miniOpenOnTap(e, () => { n.pmin = false; render(); save(); });
       });
-      d.addEventListener('pointermove', e => { if (d._px != null && Math.abs(e.clientX - d._px) + Math.abs(e.clientY - d._py) > 5) d._moved = true; });
-      d.addEventListener('click', () => { if (!wireMode && !d._moved) { n.pmin = false; render(); save(); } });
       $('#nodes').appendChild(d);
       continue;
     } else if (n.kind === 'panel') {
@@ -1270,9 +1266,10 @@ function renderNodes() {
         <div class="mic" style="border-color:${mc}">${icon}</div>
         ${sel === n.id ? `<div onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();toggleMini('${n.id}',false)" title="פתח מוקד" style="position:absolute;left:-9px;bottom:-9px;width:19px;height:19px;border-radius:50%;background:#ff8a50;color:#1a1e28;font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4);z-index:3">⤢</div>` : ''}</div>`;
       /* לחיצה על האייקון עצמו פותחת את המוקד — כמו בארון ובפאנל; גרירה נשארת גרירה */
-      d.addEventListener('pointerdown', e => { d._mpx = e.clientX; d._mpy = e.clientY; d._mmoved = false; });
-      d.addEventListener('pointermove', e => { if (d._mpx != null && Math.abs(e.clientX - d._mpx) + Math.abs(e.clientY - d._mpy) > 5) d._mmoved = true; });
-      d.addEventListener('click', () => { if (!d._mmoved && !wireMode && !pinMode && !connPin && !calMode && !zoneMode && !window.__moveEnd) toggleMini(n.id, false); });
+      d.addEventListener('pointerdown', e => {
+        if (wireMode || pinMode || connPin || calMode || zoneMode || window.__moveEnd) return;
+        miniOpenOnTap(e, () => toggleMini(n.id, false));
+      });
     } else
     d.innerHTML = `<div class="hd" data-drag="${n.id}"><span>${esc(n.name)}${n.kind === 'panel' && n.mount ? ` <small style="opacity:.75">· ${esc(n.mount)}</small>` : ''}</span><span style="display:flex;gap:6px;align-items:center">${n.kind === 'point' ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();toggleMini('${n.id}',true)" title="כווץ לאייקון" style="background:#ff8a50;color:#1a1e28;font-weight:800">⤡</span>` : ''}<small>${n.kind === 'rack' ? n.ru + 'U' : n.kind === 'panel' ? n.panel.holes.length + ' חורים · ' + P.cables.filter(c => c.from === n.id || c.to === n.id).length + ' חיבורים' : ''}</small>${n.kind === 'panel' ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="byId('${n.id}').pmin=${n.pmin ? 'false' : 'true'};render();save()" title="${n.pmin ? 'פתח פאנל' : 'כווץ פאנל'}" style="background:#ff8a50;color:#1a1e28;font-weight:800">${n.pmin ? '⤢' : '⤡'}</span><span class="flip" onpointerdown="event.stopPropagation()" onclick="multiView('${n.id}')" title="תצוגה מורחבת — כל הניתוב">⤢</span>` : ''}${flip}</span></div>` + body;
     d.addEventListener('pointerdown', e => {
@@ -4805,6 +4802,14 @@ function toggleSide() {
   document.getElementById('sideMinBtn').textContent = document.body.classList.contains('smin') ? '⮜' : '⮞';
 }
 function toggleMini(id, on) { const n = byId(id); if (!n) return; n.mini = on; n.full = !on; render(); }
+/* פתיחת אייקון ממוזער ב"טאפ": render() באמצע לחיצה מחליף את האלמנט והורג את אירוע ה-click,
+   לכן מאזינים ל-pointerup גלובלי ובודקים שהעכבר לא זז (טאפ ולא גרירה). */
+function miniOpenOnTap(e, open) {
+  const sx = e.clientX, sy = e.clientY;
+  document.addEventListener('pointerup', ev => {
+    if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 6) open();
+  }, { once: true });
+}
 /* גודל תצוגת הארון — מוגדל/מוקטן לפי הצורך; נשמר לכל ארון בנפרד */
 function rackZoom(id, dir) {
   const n = byId(id); if (!n) return;
