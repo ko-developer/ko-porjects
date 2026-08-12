@@ -3043,6 +3043,31 @@ function importSpkData(inp) {
 /* ===== נתוני מגברים ופרוססורים — מקור: שמות פריטי ה-ERP + דפי יצרן ===== */
 /* mo = מינימום עומס לערוץ (Ω) — השרשור לא ירד מתחתיו */
 const AMP_DATA = [
+  /* ===== YAMAHA ביתיים — נקצר מדפי המפרט הרשמיים (usa/uk/europe/au.yamaha.com), 2026-08.
+     ch = ערוצי הגברה בפועל (7.2 → 7) · אימפדנס מינימלי לא מפורסם בדפים — ברירת המחדל 4Ω ===== */
+  { re: /RX\s?-?V\s?-?6A?\b/i, kind: 'amp', ch: 7, ok: 1, w: '7ch · 100W @8Ω · 80W @6Ω (20Hz-20kHz, 2ch)', pw: { 8: 100, 6: 80 }, url: 'https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-v6a/specs.html' },
+  { re: /RX\s?-?V\s?-?4A?\b/i, kind: 'amp', ch: 5, ok: 1, w: '5ch · 100W @8Ω · 80W @6Ω (20Hz-20kHz, 2ch)', pw: { 8: 100, 6: 80 }, url: 'https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-v4a/specs.html' },
+  { re: /RX\s?-?A\s?-?2A\b/i, kind: 'amp', ch: 7, ok: 1, w: '7ch · 100W @8Ω (20Hz-20kHz, 2ch) · Zone2 preout', pw: { 8: 100 }, url: 'https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-a2a/specs.html' },
+  { re: /RX\s?-?A\s?-?4A\b/i, kind: 'amp', ch: 7, ok: 1, w: '7ch · 110W @8Ω (20Hz-20kHz, 2ch) · Zone2 preout/HDMI', pw: { 8: 110 }, url: 'https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-a4a/specs.html' },
+  { re: /RX\s?-?V\s?-?385/i, kind: 'amp', ch: 5, ok: 1, w: '5.1 · 70W @6Ω rated · מקס 135W @6Ω (JEITA)', pw: { 6: 70 }, url: 'https://europe.yamaha.com/products/audio_visual/av_receivers_amps/rx-v385/specs.html' },
+  { re: /RX\s?-?V\s?-?485/i, kind: 'amp', ch: 5, ok: 1, w: '5.1 · 80W @6Ω rated · מקס 145W @6Ω (JEITA)', pw: { 6: 80 }, url: 'https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-v485/specs.html' },
+  { re: /RX\s?-?V\s?-?483/i, kind: 'amp', ch: 5, ok: 1, w: '5.1 · 80W @6Ω rated · מקס 145W @6Ω (JEITA)', pw: { 6: 80 }, url: 'https://au.yamaha.com/en/products/audio_visual/av_receivers_amps/rx-v483/specs.html' },
+  { re: /RX\s?-?V\s?-?585/i, kind: 'amp', ch: 7, ok: 1, w: '7.2 · 80W @6Ω rated · מקס 145W @6Ω (JEITA)', pw: { 6: 80 }, url: 'https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-v585/specs.html' },
+  { re: /RX\s?-?V\s?-?685/i, kind: 'amp', ch: 7, ok: 1, w: '7.2 · 90W @8Ω rated · 150W @4Ω (1kHz) · דינמי 125W @8Ω', pw: { 8: 90, 4: 150 }, url: 'https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-v685/specs.html' },
+  { re: /RX\s?-?V\s?-?381/i, kind: 'amp', ch: 5, ok: 1, w: '5.1 · 70W @6Ω rated · מקס 140W @6Ω (JEITA)', pw: { 6: 70 }, url: 'https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-v381/specs.html' },
+  { re: /RX\s?-?A\s?-?2070/i, kind: 'amp', ch: 9, ok: 1, w: '9.2 · 140W @8Ω rated · 220W @4Ω (1kHz) · Zone2+3', pw: { 8: 140, 4: 220 }, url: 'https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-a2070/specs.html' },
+  { re: /RX\s?-?A\s?-?2080|YAMAHA\s?2080/i, kind: 'amp', ch: 9, ok: 1, w: '9.2 · 140W @8Ω rated · 220W @4Ω (1kHz) · Zone2+3', pw: { 8: 140, 4: 220 }, url: 'https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-a2080/specs.html' },
+  { re: /RX\s?-?A\s?-?880/i, kind: 'amp', ch: 7, ok: 1, w: '7.2 · 100W @8Ω rated · 160W @4Ω (1kHz) · Zone2/B', pw: { 8: 100, 4: 160 }, url: 'https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-a880/specs.html' },
+  { re: /R\s?-?N\s?-?303/i, kind: 'amp', ch: 2, ok: 1, w: 'סטריאו · 100W+100W @8Ω RMS · דינמי עד 180W @2Ω', pw: { 8: 100 }, url: 'https://usa.yamaha.com/products/audio_visual/hifi_components/r-n303/specs.html' },
+  { re: /R\s?-?N\s?-?402/i, kind: 'amp', ch: 2, ok: 1, w: 'סטריאו · 100W+100W @8Ω RMS · דינמי עד 180W @2Ω', pw: { 8: 100 }, url: 'https://usa.yamaha.com/products/audio_visual/hifi_components/r-n402/specs.html' },
+  { re: /R\s?-?N\s?-?602/i, kind: 'amp', ch: 2, ok: 1, w: 'סטריאו · 80W+80W @8Ω RMS · 105W @4Ω מקס', pw: { 8: 80, 4: 105 }, url: 'https://usa.yamaha.com/products/audio_visual/hifi_components/r-n602/specs.html' },
+  { re: /R\s?-?S\s?-?202/i, kind: 'amp', ch: 2, ok: 1, w: 'סטריאו · מקס 140W+140W @8Ω (10% THD) · rated לא פורסם בדף', url: 'https://usa.yamaha.com/products/audio_visual/hifi_components/r-s202/specs.html' },
+  { re: /R\s?-?S\s?-?500/i, kind: 'amp', ch: 2, ok: 0, w: '75W×2 RMS — אימפדנס לא צוין בדף המוצר', url: 'https://usa.yamaha.com/products/audio_visual/hifi_components/r-s500/specs.html' },
+  { re: /WXA\s?-?50/i, kind: 'amp', ch: 2, ok: 1, w: 'סטרימר מוגבר · 70W+70W @6Ω rated · מקס 90W @6Ω', pw: { 6: 70 }, url: 'https://usa.yamaha.com/products/audio_visual/wireless_streaming_amplifiers/wxa-50/specs.html' },
+  { re: /WXC\s?-?50/i, kind: 'proc', io: 'קדם-מגבר/סטרימר · 2ch · ללא הגברה', ok: 1, url: 'https://usa.yamaha.com/products/audio_visual/wireless_streaming_amplifiers/wxc-50/specs.html' },
+  { re: /RX\s?-?S\s?-?601/i, kind: 'amp', ch: 5, ok: 0, w: 'דף מפרט לא זמין — להשלים מה-manual (5.1 slim)', url: '' },
+  { re: /RX\s?-?A\s?-?820|YAMAHA\s?820\b/i, kind: 'amp', ch: 7, ok: 0, w: 'דף מפרט לא זמין — להשלים מה-manual (7.2)', url: '' },
+  { re: /XDA\s?-?QS5400/i, kind: 'amp', ch: 8, ok: 0, w: 'מולטי-רום 4 אזורים — דף מפרט לא זמין, להשלים מה-datasheet', url: '' },
   /* ===== XTA / MC² — מאומת מ-xta.co.uk (טבלת הספק מלאה בכל אימפדנס) ===== */
   { re: /DPA\s?40|DSP\s?40|DELTA\s?40/i, kind: 'amp', ch: 4, mo: 2, ok: 1, w: '4×500W @8Ω · 1000W @4Ω · 1400W @2.7Ω · 1200W @2Ω · גשר 2400W @8Ω', pw: { 8: 500, 4: 1000, 2.7: 1400, 2: 1200 }, br: { 8: 2400, 4: 2000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
   { re: /DPA\s?80|DSP\s?80|DELTA\s?80/i, kind: 'amp', ch: 4, mo: 2, ok: 1, w: '4×1000W @8Ω · 2000W @4Ω · 2200W @2.7Ω · 2000W @2Ω · גשר 4000W', pw: { 8: 1000, 4: 2000, 2.7: 2200, 2: 2000 }, br: { 8: 4000, 4: 4000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },

@@ -1,0 +1,256 @@
+{
+ "brand": "Yamaha (home)",
+ "series": "RX-V / RX-A / R-N / R-S / WXA / WXC / XDA",
+ "source_url": "usa/uk/europe/au.yamaha.com",
+ "harvested": "2026-08-13",
+ "models": [
+  {
+   "class": "amp",
+   "model": "RX-V6A",
+   "channels": 7,
+   "power": {
+    "6": 80,
+    "8": 100
+   },
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-v6a/specs.html",
+   "notes": "both figures as published by Yamaha (8Ω rated higher than 6Ω — their stated test conditions differ)"
+  },
+  {
+   "class": "amp",
+   "model": "RX-V4A",
+   "channels": 5,
+   "power": {
+    "6": 80,
+    "8": 100
+   },
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-v4a/specs.html",
+   "notes": "both figures as published by Yamaha (8Ω rated higher than 6Ω — their stated test conditions differ)"
+  },
+  {
+   "class": "amp",
+   "model": "RX-A2A",
+   "channels": 7,
+   "power": {
+    "8": 100
+   },
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-a2a/specs.html",
+   "notes": ""
+  },
+  {
+   "class": "amp",
+   "model": "RX-A4A",
+   "channels": 7,
+   "power": {
+    "8": 110
+   },
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-a4a/specs.html",
+   "notes": ""
+  },
+  {
+   "class": "amp",
+   "model": "RX-V385",
+   "channels": 5,
+   "power": {
+    "6": 70
+   },
+   "verified": true,
+   "url": "https://europe.yamaha.com/products/audio_visual/av_receivers_amps/rx-v385/specs.html",
+   "notes": "JEITA max 135W@6"
+  },
+  {
+   "class": "amp",
+   "model": "RX-V485",
+   "channels": 5,
+   "power": {
+    "6": 80
+   },
+   "verified": true,
+   "url": "https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-v485/specs.html",
+   "notes": "JEITA max 145W@6"
+  },
+  {
+   "class": "amp",
+   "model": "RX-V483",
+   "channels": 5,
+   "power": {
+    "6": 80
+   },
+   "verified": true,
+   "url": "https://au.yamaha.com/en/products/audio_visual/av_receivers_amps/rx-v483/specs.html",
+   "notes": ""
+  },
+  {
+   "class": "amp",
+   "model": "RX-V585",
+   "channels": 7,
+   "power": {
+    "6": 80
+   },
+   "verified": true,
+   "url": "https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-v585/specs.html",
+   "notes": ""
+  },
+  {
+   "class": "amp",
+   "model": "RX-V685",
+   "channels": 7,
+   "power": {
+    "4": 150,
+    "8": 90
+   },
+   "verified": true,
+   "url": "https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-v685/specs.html",
+   "notes": "4Ω=1ch 1kHz rating"
+  },
+  {
+   "class": "amp",
+   "model": "RX-V381",
+   "channels": 5,
+   "power": {
+    "6": 70
+   },
+   "verified": true,
+   "url": "https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-v381/specs.html",
+   "notes": ""
+  },
+  {
+   "class": "amp",
+   "model": "RX-A2070",
+   "channels": 9,
+   "power": {
+    "4": 220,
+    "8": 140
+   },
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/av_receivers_amps/rx-a2070/specs.html",
+   "notes": "4Ω=1ch 1kHz rating"
+  },
+  {
+   "class": "amp",
+   "model": "RX-A2080",
+   "channels": 9,
+   "power": {
+    "4": 220,
+    "8": 140
+   },
+   "verified": true,
+   "url": "https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-a2080/specs.html",
+   "notes": "4Ω=1ch 1kHz rating"
+  },
+  {
+   "class": "amp",
+   "model": "RX-A880",
+   "channels": 7,
+   "power": {
+    "4": 160,
+    "8": 100
+   },
+   "verified": true,
+   "url": "https://uk.yamaha.com/products/audio_visual/av_receivers_amps/rx-a880/specs.html",
+   "notes": "4Ω=1ch 1kHz rating"
+  },
+  {
+   "class": "amp",
+   "model": "R-N303",
+   "channels": 2,
+   "power": {
+    "8": 100
+   },
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/hifi_components/r-n303/specs.html",
+   "notes": "dynamic to 180W@2"
+  },
+  {
+   "class": "amp",
+   "model": "R-N402",
+   "channels": 2,
+   "power": {
+    "8": 100
+   },
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/hifi_components/r-n402/specs.html",
+   "notes": ""
+  },
+  {
+   "class": "amp",
+   "model": "R-N602",
+   "channels": 2,
+   "power": {
+    "4": 105,
+    "8": 80
+   },
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/hifi_components/r-n602/specs.html",
+   "notes": "4Ω=max 0.7% THD"
+  },
+  {
+   "class": "amp",
+   "model": "R-S202",
+   "channels": 2,
+   "power": {},
+   "verified": false,
+   "url": "https://usa.yamaha.com/products/audio_visual/hifi_components/r-s202/specs.html",
+   "notes": "page lists only 10% THD max (140W+140W@8); rated not published"
+  },
+  {
+   "class": "amp",
+   "model": "R-S500",
+   "channels": 2,
+   "power": {},
+   "verified": false,
+   "url": "https://usa.yamaha.com/products/audio_visual/hifi_components/r-s500/specs.html",
+   "notes": "75Wx2 RMS, impedance not stated on page"
+  },
+  {
+   "class": "amp",
+   "model": "WXA-50",
+   "channels": 2,
+   "power": {
+    "6": 70
+   },
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/wireless_streaming_amplifiers/wxa-50/specs.html",
+   "notes": "max 90W@6"
+  },
+  {
+   "class": "preamp",
+   "model": "WXC-50",
+   "channels": 0,
+   "power": {},
+   "verified": true,
+   "url": "https://usa.yamaha.com/products/audio_visual/wireless_streaming_amplifiers/wxc-50/specs.html",
+   "notes": "streaming preamplifier, no power amp"
+  },
+  {
+   "class": "amp",
+   "model": "RX-S601",
+   "channels": 5,
+   "power": {},
+   "verified": false,
+   "url": "",
+   "notes": "spec page unavailable on yamaha sites tried; needs manual/datasheet"
+  },
+  {
+   "class": "amp",
+   "model": "RX-A820",
+   "channels": 7,
+   "power": {},
+   "verified": false,
+   "url": "",
+   "notes": "spec page unavailable; needs manual/datasheet"
+  },
+  {
+   "class": "amp",
+   "model": "XDA-QS5400RK",
+   "channels": 8,
+   "power": {},
+   "verified": false,
+   "url": "",
+   "notes": "spec page unavailable; 4-zone MusicCast multi-room amp; needs datasheet"
+  }
+ ]
+}
