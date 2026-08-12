@@ -245,6 +245,64 @@ async function delProj() {
   P = store.projects[0]; sel = selCable = null; impItems = P.impSaved || []; render();
 }
 function switchProj(id) { P = store.projects.find(p => p.id === id) || P; sel = selCable = null; impItems = P.impSaved || []; render(); }
+/* ===== מנהל פרויקטים — חיפוש, לקוח, בחירה מרובה ומחיקה ===== */
+function projManager() {
+  const old = document.getElementById('pmOv'); if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'pmOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:600px;width:94%;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="flex:1">🗂 ניהול פרויקטים (${store.projects.length})</b><button onclick="document.getElementById('pmOv').remove()">✕</button></div>
+    <input id="pmQ" placeholder="🔍 חיפוש לפי שם פרויקט / לקוח / מספר לקוח…" style="width:100%" oninput="pmRender(this.value)">
+    <div style="display:flex;gap:6px;margin:8px 0">
+      <button style="flex:1" onclick="pmToggleAll()">☑ סמן/נקה את המסוננים</button>
+      <button style="flex:1;background:#f3d9d2;color:#8c2f16" onclick="pmDeleteSel()">🗑 מחק את המסומנים</button>
+    </div>
+    <div id="pmList"></div></div>`;
+  document.body.appendChild(ov);
+  window.__pmSel = new Set();
+  pmRender('');
+  setTimeout(() => { const q = document.getElementById('pmQ'); if (q) q.focus(); }, 50);
+}
+function pmFiltered(q) {
+  const toks = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  return store.projects.filter(p => {
+    const s = (p.name + ' ' + (p.accountName || '') + ' ' + (p.accountKey || '') + ' ' + (p.customer || '')).toLowerCase();
+    return toks.every(t => s.includes(t));
+  });
+}
+function pmRender(q) {
+  const el = document.getElementById('pmList'); if (!el) return;
+  window.__pmQ = q;
+  el.innerHTML = pmFiltered(q).map(p => `<div style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;${p.id === P.id ? 'background:#f2faf4' : ''}">
+      <input type="checkbox" style="width:auto" ${window.__pmSel.has(p.id) ? 'checked' : ''} onchange="this.checked?window.__pmSel.add('${p.id}'):window.__pmSel.delete('${p.id}')">
+      <b style="flex:1;font-size:12.5px;cursor:pointer" title="עבור לפרויקט" onclick="switchProj('${p.id}');document.getElementById('pmOv').remove()">${esc(p.name)}${p.id === P.id ? ' ←' : ''}</b>
+      <span class="muted" style="font-size:11px;white-space:nowrap">👤 ${esc(p.accountName || p.customer || '—')}${p.accountKey ? ' · ' + esc(p.accountKey) : ''}</span>
+      <span class="muted" style="font-size:10px;white-space:nowrap">${(p.nodes || []).length} מוקדים</span>
+      ${p.offerSent ? '<span title="נשלחה הצעה ל-ERP" style="font-size:12px">📤</span>' : ''}
+    </div>`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
+}
+function pmToggleAll() {
+  const ids = pmFiltered(window.__pmQ || '').map(p => p.id);
+  const allOn = ids.every(id => window.__pmSel.has(id));
+  ids.forEach(id => allOn ? window.__pmSel.delete(id) : window.__pmSel.add(id));
+  pmRender(window.__pmQ || '');
+}
+async function pmDeleteSel() {
+  const ids = [...(window.__pmSel || [])];
+  if (!ids.length) { uiToast('סמן פרויקטים למחיקה (בתיבות הסימון)'); return; }
+  if (store.projects.length - ids.length < 1) { alert('חייב להישאר לפחות פרויקט אחד'); return; }
+  const withOffer = ids.filter(id => store.projects.find(p => p.id === id)?.offerSent).length;
+  if (!(await uiConfirm(`למחוק ${ids.length} פרויקטים לצמיתות?${withOffer ? '\n⚠ ' + withOffer + ' מהם עם הצעה שכבר נשלחה ל-ERP!' : ''}`, { okText: '🗑 מחק ' + ids.length }))) return;
+  store.projects = store.projects.filter(p => !ids.includes(p.id));
+  if (!store.projects.find(p => p.id === P.id)) { P = store.projects[0]; impItems = P.impSaved || []; sel = null; selCable = null; }
+  window.__pmSel.clear();
+  render(); save();
+  const t = document.querySelector('#pmOv b'); if (t) t.textContent = '🗂 ניהול פרויקטים (' + store.projects.length + ')';
+  pmRender(window.__pmQ || '');
+  uiToast('✓ נמחקו ' + ids.length + ' פרויקטים');
+}
 function renameProj(v) { P.name = v; render(); }
 
 const $ = s => document.querySelector(s);
@@ -945,7 +1003,19 @@ function rearEdRender() {
       <button style="flex:1" onclick="rearMove(${sel},-1)" ${sel === 0 ? 'disabled' : ''}>◀ הזז שמאלה</button>
       <button style="flex:1" onclick="rearMove(${sel},1)" ${sel === items.length - 1 ? 'disabled' : ''}>הזז ימינה ▶</button>
       <button style="background:#f3d9d2;color:#8c2f16" onclick="__rearDraft.splice(${sel},1);__rearSel=Math.max(0,${sel}-1);rearEdRender()">✕ מחק מחבר</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button style="flex:1" onclick="rearInsert(${sel},0)">➕◀ הוסף משמאלו</button>
+      <button style="flex:1" onclick="rearInsert(${sel},1)">הוסף מימינו ▶➕</button>
     </div></div>`;
+}
+/* הוספת מחבר צמוד למחבר הנבחר — משמאלו (after=0) או מימינו (after=1) */
+function rearInsert(i, after) {
+  const a = window.__rearDraft;
+  const src = a[i] || { t: 'xlrf' };
+  a.splice(i + after, 0, { t: src.t, label: '', port: undefined });
+  window.__rearSel = i + after;
+  rearEdRender();
 }
 function rearMove(i, dir) {
   const a = window.__rearDraft, j = i + dir;
@@ -5114,6 +5184,10 @@ function sendOffer() {
           (confirmUrl ? '<br><a href="' + esc(confirmUrl) + '" target="_blank" rel="noopener">🔗 קישור אישור ללקוח</a>' : '') +
           (j.skipped_without_key && j.skipped_without_key.length ? '<br>⚠️ ' + j.skipped_without_key.length + ' פריטים ללא מק"ט לא נכללו' : '');
         btn.textContent = '✓ נוצרה — נפתח ב-ERP';
+        /* סימון הפרויקט: נשלחה הצעה + שיוך הלקוח (מוצג במנהל הפרויקטים) */
+        P.offerSent = true;
+        if (payload.account_name) { P.accountName = payload.account_name; P.accountKey = payload.account_key; }
+        save();
         if (projUrl) window.open(projUrl, '_blank', 'noopener'); /* ניווט אוטומטי אל הפרויקט */
       } else {
         out.innerHTML = '❌ ' + (j.errors || ['שגיאה לא ידועה']).map(esc).join('<br>');
