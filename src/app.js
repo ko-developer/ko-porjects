@@ -38,8 +38,11 @@ const CONNS = {
   hdmi:    { n: 'HDMI', c: '#185fa5', sq: 1 },
   fiber:   { n: 'אופטי', c: '#0f8a6d' },
   pwr:     { n: 'חשמל', c: '#a32222', sq: 1 },
+  rca:     { n: 'RCA', c: '#c98a2e' },
   empty:   { n: 'ריק', c: '#bbbbbb' },
 };
+/* סאב מוגבר (אקטיבי) — מקבל כבל סיגנל (RCA/XLR), לא קו רמקול */
+const isActiveSub = s => /סאב|sub|וופר/i.test(s || '') && /מוגבר|אקטיבי|active|powered/i.test(s || '');
 const defPanel = (count = 16, rows = 2, conn = 'xlrf') =>
   ({ mode: 'matrix', rows, holes: Array.from({ length: count }, () => ({ conn })) });
 const pCols = p => Math.ceil(p.holes.length / Math.max(1, p.rows || 1));
@@ -1136,7 +1139,7 @@ function renderNodes() {
       d.addEventListener('pointerdown', e => {
         if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
         sel = n.id; ui.tab = 'node';
-        if (!e.target.closest('button')) miniOpenOnTap(e, () => toggleRackMin(n.id));
+        if (!e.target.closest('button')) miniOpenOnTap(e, () => toggleRackMin(n.id), n.id);
       });
       host.appendChild(d);
       continue;
@@ -1281,7 +1284,7 @@ function renderNodes() {
       d.addEventListener('pointerdown', e => {
         if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
         sel = n.id; ui.tab = 'node';
-        miniOpenOnTap(e, () => { n.pmin = false; render(); save(); });
+        miniOpenOnTap(e, () => { n.pmin = false; render(); save(); }, n.id);
       });
       $('#nodes').appendChild(d);
       continue;
@@ -1338,7 +1341,7 @@ function renderNodes() {
       /* לחיצה על האייקון עצמו פותחת את המוקד — כמו בארון ובפאנל; גרירה נשארת גרירה */
       d.addEventListener('pointerdown', e => {
         if (wireMode || pinMode || connPin || calMode || zoneMode || window.__moveEnd) return;
-        miniOpenOnTap(e, () => toggleMini(n.id, false));
+        miniOpenOnTap(e, () => toggleMini(n.id, false), n.id);
       });
     } else
     d.innerHTML = `<div class="hd" data-drag="${n.id}"><span>${esc(n.name)}${n.kind === 'panel' && n.mount ? ` <small style="opacity:.75">· ${esc(n.mount)}</small>` : ''}</span><span style="display:flex;gap:6px;align-items:center">${n.kind === 'point' ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();toggleMini('${n.id}',true)" title="כווץ לאייקון" style="background:#ff8a50;color:#1a1e28;font-weight:800">⤡</span>` : ''}<small>${n.kind === 'rack' ? n.ru + 'U' : n.kind === 'panel' ? n.panel.holes.length + ' חורים · ' + P.cables.filter(c => c.from === n.id || c.to === n.id).length + ' חיבורים' : ''}</small>${n.kind === 'panel' ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="byId('${n.id}').pmin=${n.pmin ? 'false' : 'true'};render();save()" title="${n.pmin ? 'פתח פאנל' : 'כווץ פאנל'}" style="background:#ff8a50;color:#1a1e28;font-weight:800">${n.pmin ? '⤢' : '⤡'}</span><span class="flip" onpointerdown="event.stopPropagation()" onclick="multiView('${n.id}')" title="תצוגה מורחבת — כל הניתוב">⤢</span>` : ''}${flip}</span></div>` + body;
@@ -1676,6 +1679,7 @@ function toggleWire() { wireMode = wireMode ? null : { from: null }; if (!wireMo
 function wireTypeFor(nid) {
   const n = byId(nid);
   const s = ((n?.name || '') + ' ' + (n?.sub || ''));
+  if (isActiveSub(s)) return 'xlr'; /* סאב מוגבר — סיגנל RCA/XLR (עד ~10 מ׳), לא קו הגברה */
   if (/(רמקול|SPECTRA|NOMOS|GRAVIS|CA\s?106|סאב|פיל|מוניטור|דיליי|speaker)/i.test(s)) return 'nl4';
   if (/(מקרן|proj|וידאו)/i.test(s)) return 'sdi';
   if (/(תאור|light|dmx)/i.test(s)) return 'dmx';
@@ -2785,6 +2789,8 @@ async function smartWire(zid) {
   if (!(await uiConfirm(`🔌 חיווט חכם — ${amps.length} מגברים:\n\n${desc}${(singles.length + bg.length) ? '\n\n⚠ נשארו ' + (singles.length + bg.length) + ' רמקולים ללא ערוץ' : ''}\n\nלחבר?`, { okText: '🔌 חבר' }))) return;
   lines.forEach(l => {
     const cc = { id: uid('c'), from: l.amp.rk.id, fromUnit: l.amp.u.id, to: l.head.id, type: 'nl4', qty: '1', spec: '', note: l.label, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + l.ch };
+    /* סאב מוגבר: כבל סיגנל (XLR→RCA, עד ~10 מ׳) במקום קו רמקול */
+    if (isActiveSub(l.head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
     if (P.scale) cc.len = +(dist(l.amp.rk, l.head) * P.scale).toFixed(1);
     P.cables.push(cc);
     l.seg.forEach(sg => { const cb = { id: uid('c'), from: sg.from.id, to: sg.to.id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' }; if (P.scale) cb.len = +(dist(sg.from, sg.to) * P.scale).toFixed(1); P.cables.push(cb); });
@@ -3415,7 +3421,9 @@ function renderCoverage() {
     /* קודקוד הקונוס בגב האייקון — כל האייקון בתוך הקונוס, הפיזור "יוצא" מהרמקול */
     const backPx = 22; /* חצי רוחב האייקון + שוליים, בקואורדינטות קנבס */
     const cx0 = 2200 - n.x - 20, cy0 = n.y + 24;
-    const isOmni = disp >= 300;
+    /* רמקול שקוע בתקרה מקרין מטה — עיגול, לא קונוס קיר */
+    const isCeil = /שקוע|ceiling/i.test(n.name || '') || /תקרה/.test(n.mount || '');
+    const isOmni = disp >= 300 || isCeil;
     const cx = isOmni ? cx0 : cx0 - backPx * Math.cos(aim);
     const cy = isOmni ? cy0 : cy0 - backPx * Math.sin(aim);
     /* חיתוך לפי גבולות האזור */
@@ -3699,14 +3707,14 @@ function renderPanel() {
     <div class="fld"><label>תיאור</label><input value="${esc(n.sub || '')}" onchange="byId('${n.id}').sub=this.value;render()"></div>`;
   if (n.kind === 'point') {
     const isMini = n.mini || (n.srcIid && !n.full);
-    const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרה מוט הברגה', 'רצפה', 'אחר'];
+    const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'אחר'];
     /* סוג המוקד — לא בהכרח רמקול */
     const PTYPES = [['speaker', '🔊 רמקול'], ['sub', '🔈 סאב'], ['mic', '🎤 מיקרופון'], ['screen', '📺 מסך/מקרן'], ['light', '💡 גוף תאורה'], ['camera', '📷 מצלמה'], ['ap', '📶 נקודת רשת/AP'], ['device', '📦 מכשיר אחר'], ['other', '📍 נקודת קצה']];
     const autoT = /מגבר|פרוססור|amplifier|processor|קרוסאובר|xover/i.test(n.name) ? 'device' : /סאב|\bsub\b/i.test(n.name) ? 'sub' : /רמקול|speaker|קולונה/i.test(n.name) ? 'speaker' : /מסך|מקרן|screen|projector|led/i.test(n.name) ? 'screen' : /תאורה|light|par|לד/i.test(n.name) ? 'light' : /מצלמה|camera/i.test(n.name) ? 'camera' : /מיקרופון|mic/i.test(n.name) ? 'mic' : null;
     const pt = n.ptype || autoT || 'speaker';
     const isSpk = pt === 'speaker' || pt === 'sub';
     const isSub = pt === 'sub';
-    const curM = n.mount || (isSub ? 'רצפה' : 'קיר בלוק');
+    const curM = n.mount || (isSub ? 'רצפה' : /שקוע|ceiling/i.test(n.name || '') ? 'תקרת גבס' : 'קיר בלוק');
     html += `<div class="fld"><label>סוג המוקד</label><select onchange="byId('${n.id}').ptype=this.value;render();save()">
       ${PTYPES.map(([v, l]) => `<option value="${v}" ${pt === v ? 'selected' : ''}>${l}</option>`).join('')}
     </select></div>
@@ -4909,12 +4917,16 @@ function toggleSide() {
   document.getElementById('sideMinBtn').textContent = document.body.classList.contains('smin') ? '⮜' : '⮞';
 }
 function toggleMini(id, on) { const n = byId(id); if (!n) return; n.mini = on; n.full = !on; render(); }
-/* פתיחת אייקון ממוזער ב"טאפ": render() באמצע לחיצה מחליף את האלמנט והורג את אירוע ה-click,
-   לכן מאזינים ל-pointerup גלובלי ובודקים שהעכבר לא זז (טאפ ולא גרירה). */
-function miniOpenOnTap(e, open) {
+/* פתיחת אייקון ממוזער בדאבל-קליק: render() באמצע לחיצה מחליף את האלמנט והורג את אירועי
+   click/dblclick, לכן מזהים ידנית שני טאפים עוקבים (עד 450ms, בלי תזוזה) לפי מזהה המוקד. */
+let __lastTap = { key: null, t: 0 };
+function miniOpenOnTap(e, open, key) {
   const sx = e.clientX, sy = e.clientY;
   document.addEventListener('pointerup', ev => {
-    if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 6) open();
+    if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) >= 6) { __lastTap = { key: null, t: 0 }; return; }
+    const now = Date.now();
+    if (__lastTap.key === key && now - __lastTap.t < 450) { __lastTap = { key: null, t: 0 }; open(); }
+    else __lastTap = { key, t: now };
   }, { once: true });
 }
 /* גודל תצוגת הארון — מוגדל/מוקטן לפי הצורך; נשמר לכל ארון בנפרד */
@@ -5651,7 +5663,8 @@ function zoneSystemBuilder(z) {
     <div class="fld"><label>רמקול נבחר</label><div style="font-size:12px">${z._spk ? '🔊 ' + esc(z._spk) : '— (בחר מהחיפוש) —'}</div></div>
     <div class="fld"><label>סאב נבחר</label><div style="font-size:12px">${z._sub ? '🔈 ' + esc(z._sub) + ' <button style="padding:0 6px" onclick="setZoneField(\'' + zid + '\',\'_sub\',\'\')">✕</button>' : '— (אופציונלי) —'}</div></div>
 
-    <button style="width:100%;margin-bottom:6px;${z._djNodeId && byId(z._djNodeId) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__djPlace={zid:'${zid}'};render();">2️⃣ 🎧 ${z._djNodeId && byId(z._djNodeId) ? '✓ עמדת נגינה ממוקמת — לחץ למיקום מחדש' : 'מקם עמדת נגינה (DJ) — לחץ ואז על התכנית'}</button>
+    <button style="width:100%;margin-bottom:2px;${(z._djInRack || (z._djNodeId && byId(z._djNodeId))) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__djPlace={zid:'${zid}'};const z2=(P.zones||[]).find(x=>x.id==='${zid}');if(z2)z2._djInRack=false;render();">2️⃣ 🎧 ${z._djInRack ? '✓ מחשב מוזיקה בריכוז — לחץ למיקום עמדה נפרדת' : z._djNodeId && byId(z._djNodeId) ? '✓ עמדת נגינה ממוקמת — לחץ למיקום מחדש' : 'מקם עמדת נגינה (DJ) — לחץ ואז על התכנית'}</button>
+    <button style="width:100%;margin-bottom:6px;font-size:11px;${z._djInRack ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="const z2=(P.zones||[]).find(x=>x.id==='${zid}');if(z2){z2._djInRack=!z2._djInRack;render();save();}">🖥 ${z._djInRack ? '✓ ' : ''}המוזיקה ממחשב בתוך ריכוז המגברים (בלי עמדה בתכנית)</button>
     <button style="width:100%;margin-bottom:6px;${z._rackNodeId && byId(z._rackNodeId) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__rackPlace={zid:'${zid}'};render();">3️⃣ 🎚 ${z._rackNodeId && byId(z._rackNodeId) ? '✓ ריכוז מגברים ממוקם — לחץ למיקום מחדש' : 'מקם ריכוז ארון מגברים — לחץ ואז על התכנית'}</button>
     ${(() => {
       const isSubN = nm => /סאב|\bsub\b/i.test(nm);
