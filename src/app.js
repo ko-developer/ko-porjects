@@ -1062,7 +1062,7 @@ function renderNodes() {
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)} · ${n.ru}U · ${n.units.length} יחידות · לחץ לפתיחה" style="cursor:grab;position:relative">
         <div class="mnum" style="background:#2d3444">${n.ru}U</div>
         <div class="mic" style="border-color:#2d3444" title="לחץ לפתיחת הארון"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="1.5" fill="none" stroke="#2d3444" stroke-width="2"/><line x1="8.5" y1="7" x2="15.5" y2="7" stroke="#2d3444" stroke-width="2"/><line x1="8.5" y1="11" x2="15.5" y2="11" stroke="#2d3444" stroke-width="2"/><line x1="8.5" y1="15" x2="15.5" y2="15" stroke="#2d3444" stroke-width="2"/></svg></div>
-        <button onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();toggleRackMin('${n.id}')" title="פתח ארון" style="position:absolute;top:-8px;left:-8px;width:20px;height:20px;border-radius:50%;background:#c9502e;color:#fff;font-size:13px;line-height:1;border:2px solid #fff;cursor:pointer">⤢</button></div>`;
+</div>`;
       d.addEventListener('pointerdown', e => {
         if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
         sel = n.id; ui.tab = 'node';
@@ -1264,7 +1264,7 @@ function renderNodes() {
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}" style="cursor:grab;position:relative">
         <div class="mnum" style="background:${mc}">${mm ? mm[1] : '•'}</div>
         <div class="mic" style="border-color:${mc}">${icon}</div>
-        ${sel === n.id ? `<div onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();toggleMini('${n.id}',false)" title="פתח מוקד" style="position:absolute;left:-9px;bottom:-9px;width:19px;height:19px;border-radius:50%;background:#ff8a50;color:#1a1e28;font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4);z-index:3">⤢</div>` : ''}</div>`;
+</div>`; /* לחיצה על האייקון פותחת — אין צורך בכפתור צף */
       /* לחיצה על האייקון עצמו פותחת את המוקד — כמו בארון ובפאנל; גרירה נשארת גרירה */
       d.addEventListener('pointerdown', e => {
         if (wireMode || pinMode || connPin || calMode || zoneMode || window.__moveEnd) return;
@@ -2612,14 +2612,14 @@ function showMultiBar() {
   document.body.appendChild(bar);
 }
 /* שרשור הרמקולים המסומנים (בחירת ריבוע) לערוצי מגבר */
-async function chainSelectedToAmp() {
+async function chainSelectedToAmp(forceAmp) {
   const spk = [...selMulti].map(byId).filter(n => n && n.kind === 'point' && !/סאב|\bsub\b/i.test(n.name));
   if (spk.length < 2) return;
   /* בחירת מגבר */
   const amps = [];
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => (rk.units || []).forEach(u => { if (/מגבר|amp|DPA|DNA|MA\s?\d|IPD|PLM|XLI|DYNAMIQ|DAP\s?\d|MX3/i.test(u.name)) amps.push({ rk, u }); }));
-  let amp = amps[0];
-  if (amps.length > 1) {
+  let amp = forceAmp || amps[0];
+  if (!forceAmp && amps.length > 1) {
     const list = amps.map((a, i) => `${i + 1}. ${a.u.name.slice(0, 30)}`).join('\n');
     const pick = await uiPrompt('לאיזה מגבר לחבר?\n' + list + '\n\nהקלד מספר:', '1', { type: 'number' });
     if (pick === null) return; amp = amps[(+pick || 1) - 1] || amps[0];
@@ -2636,7 +2636,9 @@ async function chainSelectedToAmp() {
     chains.push({ seg, head, count: cnt, z: 1 / invZ });
   }
   const desc = chains.map((c, i) => `ערוץ ${i + 1}: ${c.count} רמקולים · ${c.z.toFixed(1)}Ω`).join('\n');
-  if (!(await uiConfirm(`${amp ? amp.u.name.slice(0, 28) + ' · ' : ''}${chCount} ערוצים · מינ׳ ${minOhm}Ω\n\n${desc}${avail.length ? '\n\n⚠ נשארו ' + avail.length + ' ללא ערוץ' : ''}\n\nלחבר?`, { okText: '🔗 חבר' }))) return;
+  const choice2 = await wireConfirm(`${amp ? amp.u.name.slice(0, 28) + ' · ' : ''}${chCount} ערוצים · מינ׳ ${minOhm}Ω\n\n${desc}${avail.length ? '\n\n⚠ נשארו ' + avail.length + ' ללא ערוץ' : ''}`);
+  if (!choice2) return;
+  if (choice2 === 'pick') { const a = await pickAmpDialog(); if (a) return chainSelectedToAmp(a); return; }
   chains.forEach((c, i) => {
     if (amp) { const cc = { id: uid('c'), from: amp.rk.id, fromUnit: amp.u.id, to: c.head.id, type: 'nl4', qty: '1', spec: '', note: 'ערוץ ' + (i + 1), conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + (i + 1) }; if (P.scale) cc.len = +(dist(amp.rk, c.head) * P.scale).toFixed(1); P.cables.push(cc); }
     c.seg.forEach(s => { const cb = { id: uid('c'), from: s.from.id, to: s.to.id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' }; if (P.scale) cb.len = +(dist(s.from, s.to) * P.scale).toFixed(1); P.cables.push(cb); });
@@ -2723,10 +2725,41 @@ async function smartWire(zid) {
 function ampChCount(uname) {
   const src = (typeof AMP_DATA !== 'undefined' ? AMP_DATA : []).find(d => d.kind === 'amp' && d.re && d.re.test(uname || ''));
   const custom = store.ampLib && Object.entries(store.ampLib).find(([k, v]) => v.kind === 'amp' && uname && rearKey(uname).includes(k));
-  return (custom && custom[1].ch) || (src && src.ch) || 2;
+  /* "4 ערוצים" מפורש בשם המוצר גובר על ניחוש מהטבלה — מגבר 4CH לא ינוצל כ-2 */
+  const named = /(\d+)\s*(?:ערוצים|ch\b|channels)/i.exec(uname || '');
+  return (custom && custom[1].ch) || (named && +named[1]) || (src && src.ch) || 2;
+}
+/* דיאלוג אישור חיווט עם שינוי מהיר — חבר / בחר מגבר אחר / ביטול */
+function wireConfirm(msg) {
+  return new Promise(res => {
+    const ov = uiModal(`
+      <p style="font-size:13.5px;margin:0 0 12px;line-height:1.55;white-space:pre-line">${esc(msg)}</p>
+      <button class="primary" data-go style="width:100%;margin-bottom:6px">🔗 חבר</button>
+      <button data-pick style="width:100%;margin-bottom:6px">🔄 לא טוב לי — בחר מגבר אחר</button>
+      <button data-cancel style="width:100%">ביטול</button>`);
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelector('[data-go]').onclick = () => done('go');
+    ov.querySelector('[data-pick]').onclick = () => done('pick');
+    ov.querySelector('[data-cancel]').onclick = () => done(null);
+    ov.addEventListener('click', e => { if (e.target === ov) done(null); });
+  });
+}
+/* כל המגברים בתכנית — לבחירה ידנית */
+function allAmps() {
+  const out = [];
+  P.nodes.filter(n => n.kind === 'rack').forEach(rk => (rk.units || []).forEach(u => { if (/מגבר|amp|DPA|DNA|MA\s?\d|IPD|PLM|XLI|DYNAMIQ|DAP\s?\d|MX3|PQM/i.test(u.name)) out.push({ rk, u }); }));
+  return out;
+}
+async function pickAmpDialog() {
+  const amps = allAmps();
+  if (!amps.length) { alert('אין מגברים בתכנית'); return null; }
+  const list = amps.map((a, i) => `${i + 1}. ${a.u.name.slice(0, 34)} (${esc(a.rk.name.slice(0, 16))})`).join('\n');
+  const pick = await uiPrompt('בחר מגבר:\n' + list + '\n\nהקלד מספר:', '1', { type: 'number' });
+  if (pick === null) return null;
+  return amps[(+pick || 1) - 1] || amps[0];
 }
 /* שרשור אוטומטי — מפזר את כל רמקולי הקבוצה על ערוצי המגבר, כל ערוץ עד מינימום העומס */
-async function autoChainFrom(nid) {
+async function autoChainFrom(nid, forceAmp) {
   const start = byId(nid); if (!start || start.kind !== 'point') return;
   const groupKey = n => start.srcIid ? n.srcIid === start.srcIid : (n.sub || '').split('·').pop() === (start.sub || '').split('·').pop();
   const isSpk = n => n.kind === 'point' && !/סאב|\bsub\b/i.test(n.name);
@@ -2736,11 +2769,13 @@ async function autoChainFrom(nid) {
   const all = P.nodes.filter(n => isSpk(n) && groupKey(n) && !fedNL4.has(n.id));
   if (!all.length) { alert('אין רמקולים פנויים לשרשור בקבוצה.'); return; }
 
-  /* מגבר מחובר לרמקול ההתחלה? */
+  /* מגבר: נבחר ידנית → מחובר לרמקול ההתחלה → הראשון בתכנית */
   let ampNode = null, ampUnit = null;
-  const srcCable = P.cables.find(c => c.to === start.id && c.fromUnit);
-  if (srcCable) { ampNode = byId(srcCable.from); ampUnit = ampNode && (ampNode.units || []).find(x => x.id === srcCable.fromUnit); }
-  /* אם אין — מחפשים מגבר כלשהו בתכנית */
+  if (forceAmp) { ampNode = forceAmp.rk; ampUnit = forceAmp.u; }
+  if (!ampUnit) {
+    const srcCable = P.cables.find(c => c.to === start.id && c.fromUnit);
+    if (srcCable) { ampNode = byId(srcCable.from); ampUnit = ampNode && (ampNode.units || []).find(x => x.id === srcCable.fromUnit); }
+  }
   if (!ampUnit) { for (const rk of P.nodes.filter(n => n.kind === 'rack')) { const u = (rk.units || []).find(x => /מגבר|amp|DPA|DNA|MA\s?\d|IPD|PLM|XLI|DYNAMIQ|DAP\s?\d|MX3/i.test(x.name)); if (u) { ampNode = rk; ampUnit = u; break; } } }
 
   const minOhm = ampUnit ? ampMinOhm(ampUnit.name) : 4;
@@ -2768,7 +2803,9 @@ async function autoChainFrom(nid) {
   const chDesc = chains.map((c, i) => `ערוץ ${i + 1}: ${c.count} רמקולים · ${c.z.toFixed(1)}Ω`).join('\n');
   const msg = `${ampUnit ? esc(ampUnit.name.slice(0, 30)) + ' — ' : ''}${chCount} ערוצים · מינ׳ ${minOhm}Ω\n\n${chDesc}` +
     (left ? `\n\n⚠ נשארו ${left} רמקולים ללא ערוץ — צריך מגבר נוסף.` : '');
-  if (!(await uiConfirm(msg + '\n\nלחבר?', { okText: '🔗 חבר' }))) return;
+  const choice = await wireConfirm(msg);
+  if (!choice) return;
+  if (choice === 'pick') { const a = await pickAmpDialog(); if (a) return autoChainFrom(nid, a); return; }
 
   chains.forEach((c, i) => {
     /* חיבור מיציאת המגבר לראש השרשרת */
@@ -5508,10 +5545,10 @@ function zoneSystemBuilder(z) {
         <option value="edge" ${(z._dens || 'edge') === 'edge' ? 'selected' : ''}>מעט — רמקול כל 7 מ׳ (ברירת מחדל)</option>
         <option value="min" ${z._dens === 'min' ? 'selected' : ''}>חפיפה מינימלית — כל 5 מ׳</option>
         <option value="full" ${z._dens === 'full' ? 'selected' : ''}>חפיפה מלאה — כל 3 מ׳ (דיבור/הופעות)</option>` : `
-        <option value="sparse" ${z._dens === 'sparse' ? 'selected' : ''}>רקע רופף — הכי מעט רמקולים</option>
-        <option value="edge" ${(z._dens || 'edge') === 'edge' ? 'selected' : ''}>Edge-to-Edge — מעט (ברירת מחדל)</option>
-        <option value="min" ${z._dens === 'min' ? 'selected' : ''}>חפיפה מינימלית — בינוני</option>
-        <option value="full" ${z._dens === 'full' ? 'selected' : ''}>חפיפה מלאה — צפוף (דיבור/הופעות)</option>`}
+        <option value="sparse" ${z._dens === 'sparse' ? 'selected' : ''}>רקע רופף — רמקול כל ~10 מ׳</option>
+        <option value="edge" ${(z._dens || 'edge') === 'edge' ? 'selected' : ''}>Edge-to-Edge — רמקול כל ~7 מ׳ (ברירת מחדל)</option>
+        <option value="min" ${z._dens === 'min' ? 'selected' : ''}>חפיפה מינימלית — רמקול כל ~5 מ׳</option>
+        <option value="full" ${z._dens === 'full' ? 'selected' : ''}>חפיפה מלאה — רמקול כל ~3 מ׳ (דיבור/הופעות)</option>`}
     </select></div>`}
 
     ${(() => {
