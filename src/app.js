@@ -3435,8 +3435,9 @@ function renderCoverage() {
       clip = ` clip-path="url(#${cid})"`;
     }
     /* מצייר קונוס/עיגול ממקור נתון — משמש גם למקור הישיר וגם להחזרות */
-    const drawSrc = (sx, sy, sAim, sSpl, gid, opMul) => {
-      const mR = Math.min(60, Math.pow(10, (sSpl - COV_FLOOR) / 20));
+    const drawSrc = (sx, sy, sAim, sSpl, gid, opMul, capM) => {
+      let mR = Math.min(60, Math.pow(10, (sSpl - COV_FLOOR) / 20));
+      if (capM) mR = Math.min(mR, capM); /* תקרה: רדיוס מוגבל גאומטרית */
       if (mR <= 0.6) return 0;
       const R = mR * pxPerM;
       let stops = '';
@@ -3453,7 +3454,17 @@ function renderCoverage() {
       }
       return R;
     };
-    const R = drawSrc(cx, cy, aim, spl, 'cov' + i, 1);
+    /* רמקול שקוע: הגובה קובע גם את העוצמה במישור האוזן וגם את רדיוס הכיסוי —
+       הצליל יורד אנכית, ההנחתה היא מרחק הגובה, והעיגול = קונוס הפיזור על רצפת ההאזנה */
+    let srcSpl = spl, srcCap;
+    if (isCeil) {
+      const hh = n.hgt ?? zc?.ceil ?? P.room?.ceil ?? 3;
+      const drop = Math.max(0.5, hh - 1.2); /* עד גובה אוזן */
+      srcSpl = spl - 20 * Math.log10(Math.max(1, drop));
+      const effD = disp >= 300 ? 90 : Math.min(disp, 150); /* שקוע טיפוסי ~90° */
+      srcCap = Math.max(1.5, drop * Math.tan(effD / 2 * Math.PI / 180) * 1.6);
+    }
+    const R = drawSrc(cx, cy, aim, srcSpl, 'cov' + i, 1, srcCap);
     /* החזרות מסדר ראשון מקירות סגורים — מקור-מראה מוחלש לפי חומר הקיר וספיגת החלל */
     if (zc && P.covRefl !== false) {
       const RLOSS = { 'בטון': 3, 'בלוק': 4, 'זכוכית': 2, 'גבס': 5, 'עץ': 5, 'וילון': 12, 'ספיגה אקוסטית': 15 };

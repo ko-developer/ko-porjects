@@ -174,10 +174,15 @@
 <header>
   <div class="logo"><div class="mark">KO</div><div><b>KO Projects</b><small>מתכנן הקמות וחיווט</small></div></div>
   <select id="projSel" onchange="switchProj(this.value)"></select>
-  <button onclick="projManager()" title="ניהול פרויקטים — חיפוש, לקוח, מחיקה מרובה">🗂</button>
-  <button onclick="newProj()">+ פרויקט</button>
-  <button onclick="dupProj()">שכפול</button>
-  <button onclick="delProj()">מחיקה</button>
+  <div class="dd">
+    <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()" title="פעולות פרויקט">🗂 ▾</button>
+    <div class="ddm">
+      <button onclick="projManager();this.closest('.dd').classList.remove('open')">🗂 ניהול פרויקטים — חיפוש ומחיקה</button>
+      <button onclick="newProj();this.closest('.dd').classList.remove('open')">➕ פרויקט חדש</button>
+      <button onclick="dupProj();this.closest('.dd').classList.remove('open')">📄 שכפול הפרויקט</button>
+      <button onclick="delProj();this.closest('.dd').classList.remove('open')">🗑 מחיקת הפרויקט</button>
+    </div>
+  </div>
   <input id="projName" onchange="renameProj(this.value)">
   <div class="spacer"></div>
   <button onclick="addNode('rack')">+ ארון</button>
