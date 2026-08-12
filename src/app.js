@@ -1205,11 +1205,18 @@ function renderNodes() {
       const cnt = P.cables.filter(c => c.from === n.id || c.to === n.id).length;
       d.className += ' mini';
       d.style.width = '';
-      d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}${n.mount ? ' · ' + esc(n.mount) : ''}" style="cursor:grab;position:relative">
+      /* לחיצה על האייקון עצמו פותחת את הפאנל (גרירה עדיין עובדת) */
+      d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}${n.mount ? ' · ' + esc(n.mount) : ''} · לחץ לפתיחה" style="cursor:grab;position:relative">
         <div class="mnum" style="background:#c9502e">${p.holes.length}</div>
         <div class="mic" style="border-color:#c9502e"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="#c9502e" stroke-width="2"/><circle cx="8" cy="12" r="2" fill="#c9502e"/><circle cx="14" cy="12" r="2" fill="#c9502e"/></svg></div>
-        ${cnt ? `<div class="mnum" style="background:#0f6e56;left:auto;right:-6px;top:-6px">${cnt}</div>` : ''}
-        <div onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();byId('${n.id}').pmin=false;render();save()" title="פתח פאנל" style="position:absolute;left:-8px;bottom:-8px;width:20px;height:20px;border-radius:50%;background:#ff8a50;color:#1a1e28;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4);z-index:3">⤢</div></div>`;
+        ${cnt ? `<div class="mnum" style="background:#0f6e56;left:auto;right:-6px;top:-6px">${cnt}</div>` : ''}</div>`;
+      d.addEventListener('pointerdown', e => {
+        d._px = e.clientX; d._py = e.clientY; d._moved = false;
+        if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
+        sel = n.id; ui.tab = 'node';
+      });
+      d.addEventListener('pointermove', e => { if (d._px != null && Math.abs(e.clientX - d._px) + Math.abs(e.clientY - d._py) > 5) d._moved = true; });
+      d.addEventListener('click', () => { if (!wireMode && !d._moved) { n.pmin = false; render(); save(); } });
       $('#nodes').appendChild(d);
       continue;
     } else if (n.kind === 'panel') {
@@ -1416,6 +1423,24 @@ function drawRearCables(n, d) {
 let rearPick = null, brush = 'xlrf', brushOn = false, panelEdit = null, wireMode = null, selHole = null;
 /* לחיצה על חור: מברשת פעילה → צביעה · אחרת בחירה, וחור שני בפאנל אחר → מתיחת כבל בין החורים */
 function holeTap(nid, ui, idx, h) {
+  /* מצב העברת חיבור — הלחיצה הזו היא חור היעד */
+  if (window.__moveEnd) {
+    const mv = window.__moveEnd; window.__moveEnd = null;
+    const { f } = mv;
+    if (f.kind === 'direct') {
+      const end = (f.c.from === mv.nid && f.c.fromHole === mv.idx + 1) ? 'from' : 'to';
+      f.c[end] = nid;
+      f.c[end + 'Hole'] = idx + 1;
+      f.c[end === 'from' ? 'pOut' : 'pIn'] = 'חור ' + (idx + 1);
+    } else {
+      if (nid !== mv.nid) { uiToast('ליבת מולטי אפשר להעביר רק בתוך אותו פאנל'); return; }
+      const ch = (f.c.chans || []).find(x => (f.side === 'a' ? x.a : x.b) === mv.idx + 1);
+      if (ch) { if (f.side === 'a') ch.a = idx + 1; else ch.b = idx + 1; }
+    }
+    render(); save();
+    uiToast('✓ החיבור הועבר לחור ' + (idx + 1));
+    return;
+  }
   if (brushOn) { h.conn = brush; render(); return; }
   if (selHole && !(selHole.nid === nid && selHole.ui === ui && selHole.idx === idx)) {
     if (selHole.nid !== nid || selHole.ui !== ui) { connectHoles(selHole, { nid, ui, idx, h }); return; }
@@ -1552,15 +1577,29 @@ async function disconnectHole(nid, idx) {
   const f = holeConnOf(nid, idx);
   if (!f) return false;
   const LBL = cableLabels();
-  if (f.kind === 'direct') {
-    if (await uiConfirm(`לנתק את כבל ${LBL[f.c.id]} מחור ${idx + 1}? (הכבל יימחק)`)) { delCable(f.c.id); return true; }
-  } else {
-    if (await uiConfirm(`לנתק את ליבה ${idx + 1} מהמולטי (כבל ${LBL[f.c.id]})? (המולטי עצמו נשאר)`)) {
-      f.c.chans = f.c.chans.filter(x => f.side === 'a' ? x.a !== idx + 1 : x.b !== idx + 1);
-      render(); save(); return true;
-    }
-  }
-  return false;
+  const isDirect = f.kind === 'direct';
+  /* שלוש דרכים: העברה למחבר אחר · ניתוק · ביטול */
+  return new Promise(res => {
+    const ov = uiModal(`
+      <p style="font-size:13.5px;margin:0 0 12px;line-height:1.55">${isDirect ? `כבל <b>${LBL[f.c.id]}</b> מחובר לחור ${idx + 1}.` : `ליבה ${idx + 1} מחוברת למולטי (כבל <b>${LBL[f.c.id]}</b>).`}</p>
+      <button class="primary" data-move style="width:100%;margin-bottom:6px">➡ העבר למחבר אחר — ואז לחץ על חור היעד</button>
+      <button data-del style="width:100%;margin-bottom:6px;background:#f3d9d2;color:#8c2f16">🗑 ${isDirect ? 'נתק — הכבל יימחק' : 'נתק את הליבה (המולטי נשאר)'}</button>
+      <button data-cancel style="width:100%">ביטול</button>`);
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelector('[data-move]').onclick = () => {
+      window.__moveEnd = { f, nid, idx };
+      done(true);
+      uiToast('🎯 לחץ על החור שאליו להעביר את החיבור (Esc לביטול)');
+      render();
+    };
+    ov.querySelector('[data-del]').onclick = () => {
+      if (isDirect) delCable(f.c.id);
+      else { f.c.chans = f.c.chans.filter(x => f.side === 'a' ? x.a !== idx + 1 : x.b !== idx + 1); render(); save(); }
+      done(true);
+    };
+    ov.querySelector('[data-cancel]').onclick = () => done(false);
+    ov.addEventListener('click', e => { if (e.target === ov) done(false); });
+  });
 }
 function toggleWire() { wireMode = wireMode ? null : { from: null }; if (!wireMode) wireStock = null; render(); }
 function wireTypeFor(nid) {
@@ -1767,7 +1806,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (aiming) { aiming = null; save(); render(); return; }
   if (selHole || brushOn) { selHole = null; brushOn = false; render(); return; }
-  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; render(); }
+  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; render(); }
 });
 function connGlyph(conn) {
   const C = (CONNS[conn] || CONNS.empty).c;
