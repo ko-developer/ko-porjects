@@ -1326,6 +1326,12 @@ function renderNodes() {
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="7" width="14" height="11" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><path d="M16 11l6-3v9l-6-3z" fill="${mc}"/></svg>`;
       else if (mpt === 'mic')
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3" fill="none" stroke="${mc}" stroke-width="2"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4" stroke="${mc}" stroke-width="2" fill="none"/></svg>`;
+      else if (mpt === 'amp')
+        icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="7.5" cy="12" r="2.4" fill="none" stroke="${mc}" stroke-width="1.8"/><path d="M12.5 9.5h6M12.5 12h6M12.5 14.5h4" stroke="${mc}" stroke-width="1.6"/></svg>`;
+      else if (mpt === 'proc')
+        icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><path d="M7 9v6M12 9v6M17 9v6" stroke="${mc}" stroke-width="1.6"/><circle cx="7" cy="14" r="1.5" fill="${mc}"/><circle cx="12" cy="10.5" r="1.5" fill="${mc}"/><circle cx="17" cy="12.5" r="1.5" fill="${mc}"/></svg>`;
+      else if (mpt === 'player')
+        icon = `<svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="${mc}" stroke-width="2"/><path d="M10 8.5l6 3.5-6 3.5z" fill="${mc}"/></svg>`;
       else if (mpt === 'device' || mpt === 'ap' || mpt === 'other')
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="8" cy="12" r="1.6" fill="${mc}"/><path d="M12 10.5h6M12 13.5h6" stroke="${mc}" stroke-width="1.6"/></svg>`;
       else if (/קולונ|column|441|INTERPID|SEQUENZA/i.test(n.name))
@@ -3745,8 +3751,8 @@ function renderPanel() {
     const isMini = n.mini || (n.srcIid && !n.full);
     const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'אחר'];
     /* סוג המוקד — לא בהכרח רמקול */
-    const PTYPES = [['speaker', '🔊 רמקול'], ['sub', '🔈 סאב'], ['mic', '🎤 מיקרופון'], ['screen', '📺 מסך/מקרן'], ['light', '💡 גוף תאורה'], ['camera', '📷 מצלמה'], ['ap', '📶 נקודת רשת/AP'], ['device', '📦 מכשיר אחר'], ['other', '📍 נקודת קצה']];
-    const autoT = /מגבר|פרוססור|amplifier|processor|קרוסאובר|xover/i.test(n.name) ? 'device' : /סאב|\bsub\b/i.test(n.name) ? 'sub' : /רמקול|speaker|קולונה/i.test(n.name) ? 'speaker' : /מסך|מקרן|screen|projector|led/i.test(n.name) ? 'screen' : /תאורה|light|par|לד/i.test(n.name) ? 'light' : /מצלמה|camera/i.test(n.name) ? 'camera' : /מיקרופון|mic/i.test(n.name) ? 'mic' : null;
+    const PTYPES = [['speaker', '🔊 רמקול'], ['sub', '🔈 סאב'], ['amp', '🎚 מגבר'], ['proc', '🎛 פרוססור / DSP / מטריצה'], ['player', '💿 נגן / סטרימר / מחשב מוזיקה'], ['mic', '🎤 מיקרופון'], ['screen', '📺 מסך/מקרן'], ['light', '💡 גוף תאורה'], ['camera', '📷 מצלמה'], ['ap', '📶 נקודת רשת/AP'], ['device', '📦 מכשיר אחר'], ['other', '📍 נקודת קצה']];
+    const autoT = /מגבר|amplifier/i.test(n.name) ? 'amp' : /פרוססור|processor|קרוסאובר|xover|מטריצ|\bDSP\b/i.test(n.name) ? 'proc' : /נגן|סטרימר|streamer|player|מחשב מוזיקה/i.test(n.name) ? 'player' : /סאב|\bsub\b/i.test(n.name) ? 'sub' : /רמקול|speaker|קולונה/i.test(n.name) ? 'speaker' : /מסך|מקרן|screen|projector|led/i.test(n.name) ? 'screen' : /תאורה|light|par|לד/i.test(n.name) ? 'light' : /מצלמה|camera/i.test(n.name) ? 'camera' : /מיקרופון|mic/i.test(n.name) ? 'mic' : null;
     const pt = n.ptype || autoT || 'speaker';
     const isSpk = pt === 'speaker' || pt === 'sub';
     const isSub = pt === 'sub';
