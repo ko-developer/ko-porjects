@@ -2813,6 +2813,7 @@ function ampChCount(uname) {
 }
 /* דיאלוג אישור חיווט עם שינוי מהיר — חבר / בחר מגבר אחר / ביטול */
 function wireConfirm(msg) {
+  if (window.__autoFlow) { uiToast('🔌 ' + msg.split('\n')[0]); return Promise.resolve('go'); } /* אשף V2 — אישור אוטומטי */
   return new Promise(res => {
     const ov = uiModal(`
       <p style="font-size:13.5px;margin:0 0 12px;line-height:1.55;white-space:pre-line">${esc(msg)}</p>

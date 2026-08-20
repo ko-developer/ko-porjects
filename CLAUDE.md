@@ -13,6 +13,9 @@ AV installation planner (Hebrew RTL). Now a SvelteKit app (strangler migration i
 - `scripts/build.js` — assembles `dist/index.html` (single self-contained file, Netlify)
 - `scripts/validate.js` — syntax-check assembled JS + data JSON. Run before every commit.
 
+## V2 — flow wizard (side-by-side with V1 for comparison; delete nothing)
+`/v2` is the streamlined version: same engine (app.js) + `src/wizard.js` overlay, clean fullscreen plan, guided steps תכנית→כיול→אזור→מערכת→הצעה→דוח. Auto-resumes at the right step per project state. "בנה הכל" auto-places the rack, builds the system, inserts rack gear and smart-wires (`window.__autoFlow` auto-accepts wireConfirm). `installerReport()` prints the installer/electrician report (rack build order, cable pull schedule, speaker mounting, full BOM). V1 keeps everything and gains a "⚡ אשף" header button.
+
 ## Commands
 - `npm run dev` — SvelteKit dev server → http://localhost:4177 (loads/saves projects via SQLite)
 - `npm run dev:legacy` — old per-request-rebuild server (same port, also serves `/api/store`)

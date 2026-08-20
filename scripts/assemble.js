@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 export const DATA = ['ERP_ITEMS', 'ERP_PRICES', 'ERP_KITS', 'ERP_CATALOG', 'ERP_IMAGES'];
 
-// JS מלא של האפליקציה עם נתוני ה-ERP מוזרקים
+// JS מלא של האפליקציה עם נתוני ה-ERP מוזרקים + אשף הזרימה (V2)
 export function assembleAppJs() {
   let app = readFileSync('src/app.js', 'utf8');
   for (const name of DATA) {
@@ -13,6 +13,7 @@ export function assembleAppJs() {
     if (!app.includes(marker)) throw new Error(`marker missing: ${name}`);
     app = app.replace(marker, `const ${name} = ${json};`);
   }
+  try { app += '\n' + readFileSync('src/wizard.js', 'utf8'); } catch (e) { /* אשף אופציונלי */ }
   return app;
 }
 
