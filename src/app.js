@@ -5673,6 +5673,9 @@ function zoneSystemBuilder(z) {
         <option value="full" ${z._dens === 'full' ? 'selected' : ''}>חפיפה מלאה — רמקול כל ~3 מ׳ (דיבור/הופעות)</option>`}
     </select></div>`}
 
+    <button style="width:100%;margin-bottom:2px;${(z._djInRack || (z._djNodeId && byId(z._djNodeId))) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__djPlace={zid:'${zid}'};const z2=(P.zones||[]).find(x=>x.id==='${zid}');if(z2)z2._djInRack=false;render();">1️⃣ 🎧 ${z._djInRack ? '✓ מחשב מוזיקה בריכוז — לחץ למיקום עמדה נפרדת' : z._djNodeId && byId(z._djNodeId) ? '✓ עמדת נגינה ממוקמת — לחץ למיקום מחדש' : 'מקם עמדת נגינה (DJ) — לחץ ואז על התכנית'}</button>
+    <button style="width:100%;margin-bottom:6px;font-size:11px;${z._djInRack ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="const z2=(P.zones||[]).find(x=>x.id==='${zid}');if(z2){z2._djInRack=!z2._djInRack;render();save();}">🖥 ${z._djInRack ? '✓ ' : ''}המוזיקה ממחשב בתוך ריכוז המגברים (בלי עמדה בתכנית)</button>
+    <button style="width:100%;margin-bottom:6px;${z._rackNodeId && byId(z._rackNodeId) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__rackPlace={zid:'${zid}'};render();">2️⃣ 🎚 ${z._rackNodeId && byId(z._rackNodeId) ? '✓ ריכוז מגברים ממוקם — לחץ למיקום מחדש' : 'מקם ריכוז ארון מגברים — לחץ ואז על התכנית'}</button>
     ${(() => {
       /* קיטים למעלה: קטגוריות + חיפוש, יחד עם מוצרים */
       const kcat = z._kcat || '';
@@ -5686,7 +5689,7 @@ function zoneSystemBuilder(z) {
         .filter(x => !kcat || (x.k.cat || '') === kcat)
         .filter(x => !kq || x.k.name.includes(kq))
         .sort((a, b) => (b.rec ? 1 : 0) - (a.rec ? 1 : 0));
-      return `<div class="fld"><label>1️⃣ חיפוש מוצר או קיט (ERP)</label>
+      return `<div class="fld"><label>3️⃣ חיפוש מוצר או קיט (ERP)</label>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px">${chips}</div>
         <input id="zsq" value="${esc(z._sq || '')}" placeholder="למשל UNICORN / F81 / קיט בר" oninput="setZoneField('${zid}','_sq',this.value)"></div>
       ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${esc(z.name).replace(/'/g, '&#39;')}',${x.i})">🧰 קיט: ${esc(x.k.name.slice(0, 42))}</button>`).join('')}</div>` : ''}
@@ -5699,9 +5702,6 @@ function zoneSystemBuilder(z) {
     <div class="fld"><label>רמקול נבחר</label><div style="font-size:12px">${z._spk ? '🔊 ' + esc(z._spk) : '— (בחר מהחיפוש) —'}</div></div>
     <div class="fld"><label>סאב נבחר</label><div style="font-size:12px">${z._sub ? '🔈 ' + esc(z._sub) + ' <button style="padding:0 6px" onclick="setZoneField(\'' + zid + '\',\'_sub\',\'\')">✕</button>' : '— (אופציונלי) —'}</div></div>
 
-    <button style="width:100%;margin-bottom:2px;${(z._djInRack || (z._djNodeId && byId(z._djNodeId))) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__djPlace={zid:'${zid}'};const z2=(P.zones||[]).find(x=>x.id==='${zid}');if(z2)z2._djInRack=false;render();">2️⃣ 🎧 ${z._djInRack ? '✓ מחשב מוזיקה בריכוז — לחץ למיקום עמדה נפרדת' : z._djNodeId && byId(z._djNodeId) ? '✓ עמדת נגינה ממוקמת — לחץ למיקום מחדש' : 'מקם עמדת נגינה (DJ) — לחץ ואז על התכנית'}</button>
-    <button style="width:100%;margin-bottom:6px;font-size:11px;${z._djInRack ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="const z2=(P.zones||[]).find(x=>x.id==='${zid}');if(z2){z2._djInRack=!z2._djInRack;render();save();}">🖥 ${z._djInRack ? '✓ ' : ''}המוזיקה ממחשב בתוך ריכוז המגברים (בלי עמדה בתכנית)</button>
-    <button style="width:100%;margin-bottom:6px;${z._rackNodeId && byId(z._rackNodeId) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__rackPlace={zid:'${zid}'};render();">3️⃣ 🎚 ${z._rackNodeId && byId(z._rackNodeId) ? '✓ ריכוז מגברים ממוקם — לחץ למיקום מחדש' : 'מקם ריכוז ארון מגברים — לחץ ואז על התכנית'}</button>
     ${(() => {
       const isSubN = nm => /סאב|\bsub\b/i.test(nm);
       const ziq = impItems.filter(it => it.zones && it.zones[z.name] && isSpeakerItem(it.name) && ((+it.qty || 1) - (it.placed || 0) > 0));
@@ -5982,13 +5982,43 @@ function applyVenuePreset(zid, v) {
   else { z.usage = 'מסעדה'; z._place = 'ring'; z._dens = 'edge'; z._spread = 'surround'; }
   render(); save();
 }
-/* תצוגה מקדימה של קיט לפני הוספה לאזור */
+/* בחירת קיט לאזור — לפני ההוספה להצעה: כמויות כמו בקיט, או חישוב אוטומטי לפי האזור */
 function zoneKitConfirm(zname, idx) {
   const k = allKits()[idx];
   if (!k) return;
-  const lines = k.items.slice(0, 14).map(x => '  • ' + (x.qty || 1) + '× ' + x.name.slice(0, 44)).join('\n');
-  uiConfirm('🧰 ' + k.name + ' — ' + k.items.length + ' פריטים:\n' + lines + (k.items.length > 14 ? '\n  …' : '') + '\n\nלהוסיף את הקיט לאזור "' + zname + '"?', { okText: '➕ הוסף לאזור' })
-    .then(ok => { if (ok) pickKitForZone(zname, idx); });
+  const z = (P.zones || []).find(x => x.name === zname);
+  const lines = k.items.slice(0, 12).map(x => '  • ' + (x.qty || 1) + '× ' + (x.name || '').slice(0, 44)).join('\n');
+  const ov = uiModal(`
+    <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
+    <p style="font-size:12px;white-space:pre-line;margin:8px 0;line-height:1.5">${esc(lines + (k.items.length > 12 ? '\n  …' : ''))}</p>
+    <button class="primary" data-asis style="width:100%;margin-bottom:6px">📋 הוסף והצב את הכמויות שבקיט</button>
+    <button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות לפי שטח האזור</button>
+    <button data-cancel style="width:100%">ביטול</button>`);
+  const done = () => ov.remove();
+  ov.querySelector('[data-asis]').onclick = () => { done(); pickKitForZone(zname, idx); if (z) buildZoneFromItems(z.id); };
+  ov.querySelector('[data-auto]').onclick = () => {
+    done();
+    if (!z) return;
+    /* הרמקול/סאב מהקיט נבחרים לאזור והכמות שלהם תחושב; שאר פריטי הקיט נכנסים להצעה כמו שהם */
+    const isSubN = nm => /סאב|\bsub\b/i.test(nm || '');
+    const spkIt = k.items.find(x => x.name && isSpeakerItem(x.name) && !isSubN(x.name));
+    const subIt = k.items.find(x => x.name && isSpeakerItem(x.name) && isSubN(x.name));
+    if (spkIt) { z._spk = spkIt.name; z._spkKey = spkIt.key || ''; }
+    if (subIt) { z._sub = subIt.name; z._subKey = subIt.key || ''; }
+    const src = 'קיט: ' + k.name.slice(0, 30) + ' · ' + zname;
+    for (const x of k.items) {
+      if (!x.name || isSpeakerItem(x.name)) continue;
+      const st = classifyStock(x.name);
+      const d = st ? null : SPEC_DICT.find(d2 => d2.re.test(x.name));
+      const it = st ? { on: true, qty: x.qty, name: x.name, src, cat: 'other', u: 1, key: x.key, ...st }
+        : { on: !d || d.dest !== 'ignore', qty: x.qty, name: x.name, src, key: x.key, dest: d ? d.dest : 'unit', cat: d?.cat || 'other', u: d?.u || 1 };
+      it.iid = uid('i'); it.rack = guessRackFor(it); it.zones = { [zname]: x.qty };
+      autoPrice(it); impItems.push(it);
+    }
+    buildZoneSystem(z.id);
+  };
+  ov.querySelector('[data-cancel]').onclick = done;
+  ov.addEventListener('click', e => { if (e.target === ov) done(); });
 }
 /* בחירת רמקול אמיתי מהקטלוג לבניית מערכת — במקום "רמקול התקנה" גנרי.
    מציג רק מוצרי ERP שמזוהים בבסיס הנתונים האקוסטי (פיזור/SPL ידועים). */
