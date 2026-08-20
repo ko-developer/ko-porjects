@@ -4582,6 +4582,8 @@ function isAccessory(name) { return ACCESSORY_RE.test(name || '') && !/רמקו�
 function isSpeakerItem(name) {
   const n = name || '';
   if (/כבל|מחבר|קונקטור|cable|מתקן|יוק|\byoke\b|סוגר|ברקט|תושבת|כננת|מתלה/i.test(n)) return false;
+  /* מגבר/פרוססור אינם רמקול — גם אם בשם מוזכר "קרוס בין סאבים" וכד' */
+  if (/מגבר|\bamp(lifier)?\b|פרוססור|processor|קרוסאובר|crossover|מטריצ|matrix|\bDSP\b/i.test(n)) return false;
   return /רמקול|סאב|קולונה|speaker|sub|woofer|monitor/i.test(n);
 }
 function classifyStock(name) {
@@ -5709,12 +5711,14 @@ function zoneSystemBuilder(z) {
       const tS = ziq.filter(it => !isSubN(it.name)).reduce((s, it) => s + remQ(it), 0);
       const tSub = ziq.filter(it => isSubN(it.name)).reduce((s, it) => s + remQ(it), 0);
       const tRack = impItems.filter(it => it.zones && it.zones[z.name] && /מגבר|פרוססור|amplifier|processor|קרוסאובר|מטריצ|matrix|DSP/i.test(it.name) && ((+it.qty || 1) - (it.placed || 0) > 0)).reduce((s2, it) => s2 + Math.max(0, (+it.qty || 1) - (it.placed || 0)), 0);
+      const bs = z._built ? 'background:#eef7f1;color:#0f6e56;font-weight:400' : '';
+      const bp = z._built ? '✓ ' : '';
       return (ziq.length || tRack)
-        ? `<button class="primary" style="width:100%" onclick="buildZoneFromItems('${zid}')">4️⃣ 📋 הצב את פריטי האזור מההצעה (${tS} רמקולים${tSub ? ' + ' + tSub + ' סאבים' : ''}${tRack ? ' + ' + tRack + ' לארון' : ''})</button>
-           <button style="width:100%;margin-top:5px" onclick="buildZoneSystem('${zid}')">4️⃣ ⚙ או: בנה מערכת אוטומטית (מחשב כמות)</button>`
-        : `<button class="primary" style="width:100%" onclick="buildZoneSystem('${zid}')">4️⃣ ⚙ בנה מערכת אוטומטית לאזור</button>`;
+        ? `<button class="${z._built ? '' : 'primary'}" style="width:100%;${bs}" onclick="buildZoneFromItems('${zid}')">4️⃣ 📋 ${bp}הצב את פריטי האזור מההצעה (${tS} רמקולים${tSub ? ' + ' + tSub + ' סאבים' : ''}${tRack ? ' + ' + tRack + ' לארון' : ''})</button>
+           <button style="width:100%;margin-top:5px;${bs}" onclick="buildZoneSystem('${zid}')">4️⃣ ⚙ ${bp}או: בנה מערכת אוטומטית (מחשב כמות)</button>`
+        : `<button class="${z._built ? '' : 'primary'}" style="width:100%;${bs}" onclick="buildZoneSystem('${zid}')">4️⃣ ⚙ ${bp}${z._built ? 'המערכת נבנתה — לחץ לבנייה מחדש' : 'בנה מערכת אוטומטית לאזור'}</button>`;
     })()}
-    <button style="width:100%;margin-top:6px;background:#534ab7;color:#fff;font-weight:700" onclick="autoLayoutAI('${zid}')">🤖 פריסה חכמה מהתכנית (AI) — מתחשבת בריהוט ובקירות</button>
+    <button style="width:100%;margin-top:6px;${z._built ? 'background:#eef7f1;color:#0f6e56' : 'background:#534ab7;color:#fff;font-weight:700'}" onclick="autoLayoutAI('${zid}')">🤖 ${z._built ? '✓ ' : ''}פריסה חכמה מהתכנית (AI) — מתחשבת בריהוט ובקירות</button>
     <button style="width:100%;margin-top:6px;background:#0f6e56;color:#fff;font-weight:700" onclick="smartWire('${zid}')">5️⃣ 🔌 חיווט חכם למגבר — פרימיום/סאב קו בודד · רקע בשרשור</button>
     <div style="display:flex;gap:5px;margin-top:6px">
       <button style="flex:1" onclick="zoneSplMode('${zid}','max')">🔊 הצג מקס SPL לרמקולי האזור</button>
@@ -5949,7 +5953,7 @@ function buildZoneFromItems(zid) {
       it.placed = (it.placed || 0) + q; it.added = true;
     }
   }
-  P.showCoverage = true; z._sysOpen = false; render(); save();
+  P.showCoverage = true; z._built = Date.now(); render(); save();
   zoneBuildBar(`📋 הוצבו פריטי האזור "${z.name}" לפי הכמויות בהצעה: ${nS}× רמקולים סביב ההיקף${nSub ? ' · ' + nSub + '× סאבים בפינות' : ''}${nRack ? ' · ' + nRack + '× ציוד ראק' : ''}`, () => {
     P.nodes = P.nodes.filter(n2 => !created.includes(n2.id));
     P.cables = P.cables.filter(c2 => byId(c2.from) && byId(c2.to));
@@ -5982,32 +5986,50 @@ function applyVenuePreset(zid, v) {
   else { z.usage = 'מסעדה'; z._place = 'ring'; z._dens = 'edge'; z._spread = 'surround'; }
   render(); save();
 }
+/* פריטי ראק של האזור שטרם הוצבו — נכנסים ישר לארון הריכוז שמוקם בשלב 2 */
+function placeZoneRackItems(z) {
+  const rk = z._rackNodeId && byId(z._rackNodeId);
+  if (!rk || rk.kind !== 'rack') return 0;
+  let n2 = 0;
+  for (const it of impItems) {
+    if (!it.zones || !it.zones[z.name]) continue;
+    if (it.dest !== 'unit' && it.dest !== 'panelUnit') continue;
+    const rem = Math.max(0, (+it.qty || 1) - (it.placed || 0));
+    for (let k2 = 0; k2 < rem; k2++) {
+      const uH = it.u || 1;
+      const pos = (rk.units || []).reduce((m, x) => Math.max(m, x.pos + x.u), 0);
+      if (pos + uH > rk.ru) rk.ru = pos + uH;
+      rk.units.push({ id: uid('u'), name: it.name.slice(0, 40), u: uH, cat: /פרוססור|processor|מטריצ|matrix|DSP/i.test(it.name) ? 'audio' : 'amp', pos });
+      n2++;
+    }
+    if (rem) { it.placed = (it.placed || 0) + rem; it.added = true; }
+  }
+  if (n2) { render(); save(); }
+  return n2;
+}
 /* בחירת קיט לאזור — לפני ההוספה להצעה: כמויות כמו בקיט, או חישוב אוטומטי לפי האזור */
 function zoneKitConfirm(zname, idx) {
   const k = allKits()[idx];
   if (!k) return;
   const z = (P.zones || []).find(x => x.name === zname);
-  const lines = k.items.slice(0, 12).map(x => '  • ' + (x.qty || 1) + '× ' + (x.name || '').slice(0, 44)).join('\n');
+  /* כמויות ניתנות לעריכה בפופאפ — לפני שהקיט נכנס להצעה */
+  const rows = k.items.map((x, i) => `<div style="display:flex;gap:6px;align-items:center;margin-bottom:3px">
+      <input data-kq="${i}" type="number" min="0" value="${+x.qty || 1}" style="width:48px;font-size:12px;padding:2px 4px;flex:none">
+      <span style="flex:1;font-size:11.5px;text-align:right">${esc((x.name || '').slice(0, 52))}</span>
+    </div>`).join('');
   const ov = uiModal(`
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
-    <p style="font-size:12px;white-space:pre-line;margin:8px 0;line-height:1.5">${esc(lines + (k.items.length > 12 ? '\n  …' : ''))}</p>
-    <button class="primary" data-asis style="width:100%;margin-bottom:6px">📋 הוסף והצב את הכמויות שבקיט</button>
-    <button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות לפי שטח האזור</button>
+    <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות לפני ההוספה · 0 = דלג על הפריט</p>
+    <div style="max-height:44vh;overflow-y:auto;margin:6px 0">${rows}</div>
+    <button class="primary" data-asis style="width:100%;margin-bottom:6px">📋 הוסף והצב את הכמויות האלה</button>
+    <button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>
     <button data-cancel style="width:100%">ביטול</button>`);
   const done = () => ov.remove();
-  ov.querySelector('[data-asis]').onclick = () => { done(); pickKitForZone(zname, idx); if (z) buildZoneFromItems(z.id); };
-  ov.querySelector('[data-auto]').onclick = () => {
-    done();
-    if (!z) return;
-    /* הרמקול/סאב מהקיט נבחרים לאזור והכמות שלהם תחושב; שאר פריטי הקיט נכנסים להצעה כמו שהם */
-    const isSubN = nm => /סאב|\bsub\b/i.test(nm || '');
-    const spkIt = k.items.find(x => x.name && isSpeakerItem(x.name) && !isSubN(x.name));
-    const subIt = k.items.find(x => x.name && isSpeakerItem(x.name) && isSubN(x.name));
-    if (spkIt) { z._spk = spkIt.name; z._spkKey = spkIt.key || ''; }
-    if (subIt) { z._sub = subIt.name; z._subKey = subIt.key || ''; }
+  const edited = () => k.items.map((x, i) => ({ ...x, qty: Math.max(0, +ov.querySelector(`[data-kq="${i}"]`).value || 0) })).filter(x => x.qty > 0 && x.name);
+  const addItems = (items, skipSpeakers) => {
     const src = 'קיט: ' + k.name.slice(0, 30) + ' · ' + zname;
-    for (const x of k.items) {
-      if (!x.name || isSpeakerItem(x.name)) continue;
+    for (const x of items) {
+      if (skipSpeakers && isSpeakerItem(x.name)) continue;
       const st = classifyStock(x.name);
       const d = st ? null : SPEC_DICT.find(d2 => d2.re.test(x.name));
       const it = st ? { on: true, qty: x.qty, name: x.name, src, cat: 'other', u: 1, key: x.key, ...st }
@@ -6015,7 +6037,24 @@ function zoneKitConfirm(zname, idx) {
       it.iid = uid('i'); it.rack = guessRackFor(it); it.zones = { [zname]: x.qty };
       autoPrice(it); impItems.push(it);
     }
+  };
+  ov.querySelector('[data-asis]').onclick = () => {
+    const items = edited(); done();
+    addItems(items, false);
+    if (z) { buildZoneFromItems(z.id); placeZoneRackItems(z); } else { render(); save(); }
+  };
+  ov.querySelector('[data-auto]').onclick = () => {
+    const items = edited(); done();
+    if (!z) return;
+    /* הרמקול/סאב מהקיט נבחרים לאזור והכמות מחושבת; מגברים/עיבוד נכנסים להצעה ולארון הריכוז */
+    const isSubN = nm => /סאב|\bsub\b/i.test(nm || '');
+    const spkIt = items.find(x => isSpeakerItem(x.name) && !isSubN(x.name));
+    const subIt = items.find(x => isSpeakerItem(x.name) && isSubN(x.name));
+    if (spkIt) { z._spk = spkIt.name; z._spkKey = spkIt.key || ''; }
+    if (subIt) { z._sub = subIt.name; z._subKey = subIt.key || ''; }
+    addItems(items, true);
     buildZoneSystem(z.id);
+    placeZoneRackItems(z);
   };
   ov.querySelector('[data-cancel]').onclick = done;
   ov.addEventListener('click', e => { if (e.target === ov) done(); });
@@ -6085,7 +6124,7 @@ function buildZoneSystem(zid) {
     it.qty = 4; it.placed = 4; it.zones = { [z.name]: 4 }; it.added = true;
     let subC = '';
     if (z._sub) { const sit = { on: true, qty: 2, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i'), zones: { [z.name]: 2 }, added: true, placed: 2 }; autoPrice(sit); impItems.push(sit); P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (1)', sub: 'סאב · ' + z.name, x: 2200 - (cx0 - inM) - 20, y: cy0 - 24, srcIid: sit.iid, mini: true, disp: 360, spl: guessSpl(z._sub) }, { id: uid('n'), kind: 'point', name: z._sub + ' (2)', sub: 'סאב · ' + z.name, x: 2200 - (cx0 + inM) - 20, y: cy0 - 24, srcIid: sit.iid, mini: true, disp: 360, spl: guessSpl(z._sub) }); subC = ' + 2 סאבים במרכז'; }
-    P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
+    P.showCoverage = true; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar(`נבנתה מערכת ל"${z.name}" (4 פינות · Funktion-One): 4× ${spk}${subC}`, () => undoZoneBuild(z));
     return;
   }
@@ -6127,7 +6166,7 @@ function buildZoneSystem(zid) {
       });
       dlyMsg = '\n2× דיליי (עומק ' + depthM.toFixed(0) + ' מ׳ > 18 מ׳)';
     }
-    P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
+    P.showCoverage = true; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar(`נבנתה מערכת הופעה חיה ל"${z.name}": 2× ${spk} (מיינים L/R)${subMsg2}${dlyMsg}`, () => undoZoneBuild(z));
     return;
   }
@@ -6149,7 +6188,7 @@ function buildZoneSystem(zid) {
       for (let s2 = 0; s2 < nSub; s2++) { const c3 = cp2[s2 % 4]; P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (' + (s2 + 1) + ')', sub: 'סאב פינה · ' + z.name, x: 2200 - c3[0] - 20, y: c3[1] - 24, srcIid: sit.iid, mini: true, mount: 'רצפה', hgt: 0, disp: 360 }); }
       subMsg3 = '\n' + nSub + '× ' + z._sub + ' (פינות — צימוד)';
     }
-    P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
+    P.showCoverage = true; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar(`נבנתה מערכת היקפית ל"${z.name}": ${pts.length}× ${spk} סביב הקירות (מרווח ~${spacingM.toFixed(1)} מ׳)${subMsg3}`, () => undoZoneBuild(z));
     return;
   }
@@ -6177,7 +6216,7 @@ function buildZoneSystem(zid) {
     sit.qty = nSub; sit.placed = nSub; sit.zones = { [z.name]: nSub }; sit.added = true; subMsg = ` + ${nSub} סאבים`;
   }
   const densName = { edge: 'edge-to-edge', min: 'חפיפה מינימלית', full: 'חפיפה מלאה', sparse: 'רופף' }[z._dens || 'edge'];
-  P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
+  P.showCoverage = true; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
   zoneBuildBar(`נבנתה מערכת ל"${z.name}" (${wall ? 'קיר — מכוונים לחלל' : 'תקרה'}): ${nSpk}× ${spk}${subMsg} · שטח ${area.toFixed(0)} מ"ר · מרווח ~${spacingM.toFixed(1)} מ׳ · ${densName}`, () => undoZoneBuild(z));
 }
 /* הסרת מערכת אוטומטית שנבנתה לאזור — מוקדים + פריטי הצעה */
@@ -6254,7 +6293,7 @@ async function autoLayoutAI(zid) {
     });
     it.qty = it.placed = nS; it.zones = { [z.name]: nS }; it.added = true;
     if (sit) { sit.qty = sit.placed = nSub; sit.zones = { [z.name]: nSub }; sit.added = nSub > 0; }
-    P.showCoverage = true; z._sysOpen = false; dockOpen = true; dockMin = false; render(); save();
+    P.showCoverage = true; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar('🤖 הפריסה החכמה מיקמה ' + nS + ' רמקולים' + (nSub ? ' + ' + nSub + ' סאבים' : '') + ' לפי ניתוח התכנית (' + (spread === 'surround' ? 'היקפי' : 'כיווני') + '). ריחוף על רמקול מציג את הנימוק.', () => undoZoneBuild(z));
   } catch (err) {
     if (/401|invalid|authentication/i.test(String(err.message))) { try { localStorage.removeItem('koflow_apikey'); } catch (e) {} }
