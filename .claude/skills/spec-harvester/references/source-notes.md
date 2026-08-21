@@ -83,3 +83,25 @@ Many AV brands run Shopify. Tells: `/collections/` and `/products/` URL patterns
 ## When a site is client-rendered
 
 If a fetch returns nav and boilerplate but no spec content, JavaScript is building the page. Don't retry — go to the PDF, or note the model as needing manual entry. Say so plainly in the report rather than leaving a silent gap.
+
+
+## Funktion-One (funktion-one.com)
+Nuxt/Prismic site. Product pages with a dot in the slug (f5.2, f81.2, f101.2, f1201.2) are **not** statically
+generated — fetching them returns the app shell. Skip the HTML entirely and query the Prismic API:
+`https://funktion-one.cdn.prismic.io/api/v2` → take `refs[0].ref` → `documents/search?ref=<ref>&q=[[at(document.type,"product")]]&pageSize=100`
+(2 pages, 108 products). Specs are clean and structured: `technicalTable` (driver, operatingBand, sensitivity,
+power, nominalImpedence — one row per way) and `secondaryTechnicalTable` (frequencyResponse, weight, dispersion,
+connectors). `downloads` carries direct PDF URLs (Specification Sheet / User Guide / Technical Drawing).
+Max SPL is never published — compute sens + 10log10(W) and label it as calculated.
+Dispersion is sometimes prose ("Conical", "Array dependent") — leave h/v empty rather than guessing.
+
+## KT Audio (kt-audio.com)
+Shopify. `/products.json?limit=250` lists all 25 products but `body_html` is marketing copy only.
+The real spec block is on the product page as `<li><strong>Label:</strong> Value</li>` — parse that.
+Datasheet PDFs live on cdn.shopify.com and are mostly **image-only scans**; the Interpid and Array-SUB PDFs
+do have a text layer. Catalog naming lags the site (ERP says "F 5"/"F 81", the site says F5.2/F81.2) — make
+the `.2` suffix optional in match patterns.
+
+## PDF text with subset fonts
+`scripts/pdf_text_cmap.py` extracts text from PDFs whose fonts are subset-encoded (raw string extraction
+returns garbage). It parses each font's ToUnicode CMap and decodes per font. Use it when pdftotext is absent.
