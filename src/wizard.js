@@ -7,7 +7,8 @@ let WIZ = null; /* { step } */
 
 const WIZ_STEPS = [
   ['plan', '🖼 תכנית'], ['cal', '📏 כיול'], ['zone', '🗺 אזור'],
-  ['sys', '🔊 מערכת'], ['offer', '🧾 הצעה'], ['report', '📑 דוח']
+  ['sys', '🔊 מערכת'], ['kit', '🧰 קיט התקנה'], ['gap', '🤔 שכחתי משהו?'],
+  ['offer', '🧾 הצעה'], ['report', '📑 דוח']
 ];
 
 function wizardStart() {
@@ -54,12 +55,14 @@ function wizAutoStep() {
   if (!P.scale) return 1;
   if (!(P.zones || []).length) return 2;
   if (!(P.zones || []).some(z => z._built)) return 3;
-  return 4;
+  if (!P._instKit) return 4;
+  if (!P._gapOk) return 5;
+  return 6;
 }
 function wizZone() { return (P.zones || []).find(z => z.id === WIZ?.zid) || (P.zones || [])[0]; }
 function wizDone(i) {
   const z = wizZone();
-  return [!!P.bg, !!P.scale, !!(P.zones || []).length, !!(z && z._built), impItems.length > 0, false][i];
+  return [!!P.bg, !!P.scale, !!(P.zones || []).length, !!(z && z._built), !!P._instKit, !!P._gapOk, impItems.length > 0, false][i];
 }
 function wizRefreshBadges() {
   document.querySelectorAll('#wiz .wzstep').forEach((el, i) => el.classList.toggle('done', wizDone(i) && i !== WIZ.step));
@@ -122,6 +125,20 @@ function wizStepHTML(s) {
     ${z._built ? '<button class="sec done">✓ נבנתה — לחיצה על "בנה הכל" תבנה מחדש</button>' : ''}`;
   }
   if (s === 4) {
+    const kits = installKitList();
+    return `
+    <h4>קיט התקנה לפרויקט</h4>
+    <p class="hint">קיטי התשתית שסוגרים את הפרויקט — עמדה, ארון, מולטי, פנלים ומחברים. הכמויות ניתנות לעריכה לפני ההוספה.</p>
+    ${kits.map(x => `<button class="sec" onclick="P._instKit=1;save();zoneKitConfirm('${esc((z || {}).name || '').replace(/'/g, '&#39;')}',${x.i});wizRender()">🧰 ${esc(x.k.name.slice(0, 44))} · ${(x.k.items || []).length} פריטים</button>`).join('') || '<p class="hint">אין קיטי התקנה בקטלוג</p>'}
+    ${P._instKit ? '<button class="sec done">✓ נבחר קיט התקנה</button>' : `<button class="sec" onclick="P._instKit=1;save();WIZ.step=5;wizRender()">דלג — בלי קיט</button>`}
+    <button class="big" onclick="installManager()">🔧 טבלת התקנה ותמחור (זמנים ומחירים)</button>`;
+  }
+  if (s === 5) return `
+    <h4>האם שכחתי משהו?</h4>
+    <p class="hint">סריקה אוטומטית של התכנית מול ההצעה: חיווט, גלילי כבל, מחברים, תושבות, פס שקעים, שורת התקנה ומק"טים — כל ממצא עם תיקון בלחיצה.</p>
+    <button class="big" onclick="projGapCheck();setTimeout(wizRender,300)">🤔 הרץ בדיקת שלמות</button>
+    ${P._gapOk ? '<button class="sec done">✓ הבדיקה הורצה — אפשר להמשיך להצעה</button>' : ''}`;
+  if (s === 6) {
     const rows = impItems.filter(it => it.on !== false);
     const total = rows.reduce((s2, it) => s2 + (+it.price || 0) * (+it.qty || 0), 0);
     const noKey = rows.filter(it => !it.key).length;
@@ -188,7 +205,7 @@ function wizBuildAll() {
   try {
     buildZoneSystem(z.id);
     placeZoneRackItems(z);
-    setTimeout(() => { smartWire(z.id).finally?.(() => { window.__autoFlow = false; }); setTimeout(() => { window.__autoFlow = false; wizRender(); }, 1500); }, 600);
+    setTimeout(() => { smartWire(z.id).finally?.(() => { window.__autoFlow = false; }); setTimeout(() => { window.__autoFlow = false; if (WIZ && z._built) WIZ.step = 4; wizRender(); uiToast('✓ נבנה וחווט — עכשיו קיט התקנה'); }, 1500); }, 600);
   } catch (e) { window.__autoFlow = false; uiToast('⚠ ' + e.message); }
   setTimeout(() => wizRender(), 900);
 }

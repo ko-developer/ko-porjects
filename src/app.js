@@ -2994,18 +2994,90 @@ async function patchApply() {
   /* הצעת קיטי התקנה/אביזרים לפרויקט — סוגרים את הפרויקט בקנייה אחת */
   setTimeout(() => patchOfferKits(zid0), 400);
 }
+/* 🤔 "האם שכחתי משהו?" — סריקת שלמות: עובר על התכנית וההצעה ומציע את מה שחסר.
+   כל ממצא עם כפתור פעולה שמתקן במקום — כך שההצעה יוצאת שלמה בלחיצה. */
+function projGapCheck() {
+  const finds = [];
+  const spkN = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/עמדת נגינה|מגבר|פרוססור/i.test(n.name));
+  const rows = impItems.filter(it => it.on !== false);
+  const qsum = f => rows.filter(f).reduce((s2, it) => s2 + (+it.qty || 0), 0);
+  /* 1. רמקולים לא מחווטים */
+  const fed = new Set(); P.cables.forEach(c => { if (c.to) fed.add(c.to); });
+  (P.zones || []).forEach(z => {
+    const un = spkN.filter(n => (n.sub || '').includes(z.name) && !fed.has(n.id)).length;
+    if (un) finds.push({ i: '🔌', t: un + ' רמקולים לא מחווטים באזור "' + esc(z.name) + '"', b: 'חווט עכשיו', fn: `smartWire('${z.id}')` });
+  });
+  /* 2. קווים בלי מוצר כבל בהצעה */
+  const noRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && +c.len > 0).length;
+  if (noRef) finds.push({ i: '🧵', t: noRef + ' קווים ללא שורת כבל בהצעה', b: 'השלם גלילי כבל (+15% רזרבה)', fn: 'wizFillCables()' });
+  /* 3. מחברים — 2 לכל קו חדש מול מה שבהצעה */
+  let needC = 0;
+  P.cables.forEach(c => {
+    if (c.inst === 'exist') return;
+    if ((c.conn || connFor(c.type)) !== 'empty') needC++;
+    if ((c.conn2 || c.conn || connFor(c.type)) !== 'empty') needC++;
+  });
+  const haveC = qsum(it => it.dest === 'conn' || /מחבר|קונקטור|connector/i.test(it.name));
+  if (needC > haveC) finds.push({ i: '🔩', t: 'דרושים ~' + needC + ' מחברים לקצוות · בהצעה ' + haveC, b: 'הוסף מחברים לכל הקווים', fn: 'gapFixConnectors()' });
+  /* 4. תושבות ומתקנים לרמקולים תלויים */
+  const hung = spkN.filter(n => patchKind(n) !== 'sub' && !/שקוע|תקרת גבס/.test((n.name || '') + (n.mount || ''))).length;
+  const mounts = qsum(it => /מתקן|תושבת|יוקה|YOKE|ברקט|bracket/i.test(it.name));
+  if (hung > mounts) finds.push({ i: '🔧', t: hung + ' רמקולים תלויים · רק ' + mounts + ' תושבות/מתקנים בהצעה', b: 'חפש מתקן בקטלוג', fn: "gapSearch('מתקן לרמקול')" });
+  /* 5. ארון בלי פס שקעים */
+  const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
+  if (racks.length && !qsum(it => /פס שקעים|פס חשמל|שקעים לארון|PDU/i.test(it.name))) finds.push({ i: '⚡', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: 'חפש פס שקעים', fn: "gapSearch('פס שקעים')" });
+  /* 6. שורת התקנה */
+  if (!rows.some(it => it.dest === 'work' || /התקנה/.test(it.name))) finds.push({ i: '🔧', t: 'אין שורת התקנה/עבודה בהצעה', b: 'פתח טבלת התקנה ותמחור', fn: 'installManager()' });
+  /* 7. קיט התקנה (תשתיות עמדה/ארון) */
+  if (!P._instKit && installKitList().length) finds.push({ i: '🧰', t: 'לא נבחר קיט התקנה (עמדה/ארון/סטנדרט)', b: 'בחר קיט התקנה', fn: `patchOfferKits('${(P.zones && P.zones[0] || {}).id || ''}')` });
+  /* 8. שורות בלי מק"ט — לא ייכנסו להזמנת ERP */
+  const noKey = rows.filter(it => !it.key).length;
+  if (noKey) finds.push({ i: '🏷', t: noKey + ' שורות ללא מק"ט ERP — לא ייקלטו בהצעה', b: 'פתח את ההצעה להשלמה', fn: 'openImported()' });
+  P._gapOk = true; save();
+  const ov = uiModal(`
+    <b style="font-size:14px">🤔 האם שכחתי משהו? — בדיקת שלמות</b>
+    ${finds.length ? `<p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">${finds.length} ממצאים — כל אחד עם תיקון בלחיצה:</p>
+      <div style="max-height:52vh;overflow-y:auto">${finds.map(f => `
+        <div style="display:flex;gap:8px;align-items:center;border:1px solid #eee;border-radius:9px;padding:7px 9px;margin-bottom:5px;background:#faf8f4">
+          <span style="font-size:16px">${f.i}</span>
+          <span style="flex:1;font-size:12px">${f.t}</span>
+          <button style="white-space:nowrap;font-size:11.5px;background:#0f6e56;color:#fff;border:none;border-radius:7px;padding:5px 9px;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
+        </div>`).join('')}</div>`
+      : '<p style="font-size:13px;color:#0f6e56;margin:10px 0">✓ לא נמצאו חוסרים — התכנית וההצעה שלמות: חיווט, כבלים, מחברים, תושבות, התקנה ומק"טים.</p>'}
+    <button style="width:100%;margin-top:6px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove()">סגור</button>`);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
+/* משלים מחברים לכל הקווים שקיימים — צריכה של 2 לקו דרך אותו מנגנון של החיבור */
+async function gapFixConnectors() {
+  let n = 0;
+  for (const c of P.cables) {
+    if (c.inst === 'exist') continue;
+    try { await autoConnectors(c); n++; } catch (e) {}
+  }
+  render(); save();
+  uiToast('🔩 עודכנו מחברים ל-' + n + ' קווים');
+}
+/* פתיחת חיפוש הקטלוג עם שאילתה מוכנה — לבחירת פריט משלים */
+function gapSearch(q) {
+  dockOpen = true; dockMin = false; dockQ = q; renderImp();
+  uiToast('🔍 בחר מהתוצאות — לחיצה מוסיפה להצעה');
+}
+/* קיטי ההתקנה האמיתיים — Project Accessories Kit עם "התקנה" בשם (עמדה/ארון/סטנדרט) + קיטים אישיים */
+function installKitList() {
+  return allKits().map((k, i) => ({ k, i }))
+    .filter(x => (x.k.sys === 'Project Accessories Kit' && /התקנ/.test(x.k.name)) || (/קיט/.test(x.k.name) && /התקנ/.test(x.k.name) && !/מסך|לד\b/i.test(x.k.name)));
+}
 /* אחרי חיווט: קיטים של אביזרים/התקנות שמתאימים להשלמת הפרויקט */
 function patchOfferKits(zid) {
   const z = (P.zones || []).find(x => x.id === zid) || (P.zones || [])[0];
   const zname = z ? z.name : '';
-  const kits = allKits().map((k, i) => ({ k, i }))
-    .filter(x => /אביזר|התקנ|מתקן|כבל|מחבר|בקר|control|stand|מעמד|תושבת|ברקט|חיווט|חומרי/i.test(x.k.name + ' ' + (x.k.sys || '')));
+  const kits = installKitList();
   if (!kits.length) return;
   const ov = uiModal(`
     <b style="font-size:14px">🧰 קיט התקנה וחיווט לפרויקט?</b>
     <p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">החיווט הושלם — אפשר להוסיף קיט אביזרים/התקנה מוכן (כמויות ניתנות לעריכה לפני ההוספה):</p>
     <div style="max-height:44vh;overflow-y:auto">
-      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();zoneKitConfirm('${esc(zname).replace(/'/g, '&#39;')}',${x.i})">🧰 ${esc(x.k.name.slice(0, 46))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
+      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${esc(zname).replace(/'/g, '&#39;')}',${x.i})">🧰 ${esc(x.k.name.slice(0, 46))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
     </div>
     <button data-skip style="width:100%;margin-top:8px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">דלג — בלי קיט</button>`);
   ov.querySelector('[data-skip]').onclick = () => ov.remove();
@@ -3049,14 +3121,18 @@ async function smartWire(zid) {
   if (!window.__autoFlow) { patchOpen(z, amps, lines, bg); return; }
   if (!lines.length) { alert('לא הוקצו קווים.'); return; }
   if (bg.length) uiToast('⚠ ' + bg.length + ' רמקולים ללא ערוץ — הוסף מגבר');
+  const made2 = [];
   lines.forEach(l => {
     const cc = { id: uid('c'), from: l.amp.rk.id, fromUnit: l.amp.u.id, to: l.head.id, type: 'nl4', qty: '1', spec: '', note: l.label, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + l.ch };
     /* סאב מוגבר: כבל סיגנל (XLR→RCA, עד ~10 מ׳) במקום קו רמקול */
     if (isActiveSub(l.head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
     if (P.scale) cc.len = +(dist(l.amp.rk, l.head) * P.scale).toFixed(1);
     P.cables.push(cc);
-    l.seg.forEach(sg => { const cb = { id: uid('c'), from: sg.from.id, to: sg.to.id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' }; if (P.scale) cb.len = +(dist(sg.from, sg.to) * P.scale).toFixed(1); P.cables.push(cb); });
+    made2.push(cc);
+    l.seg.forEach(sg => { const cb = { id: uid('c'), from: sg.from.id, to: sg.to.id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' }; if (P.scale) cb.len = +(dist(sg.from, sg.to) * P.scale).toFixed(1); P.cables.push(cb); made2.push(cb); });
   });
+  /* גם במסלול האוטומטי — המחברים נצרכים/נוספים להצעה כמו בעורך הגרפי */
+  for (const c of made2) { try { await autoConnectors(c); } catch (e) {} }
   render(); save();
 }
 /* מספר ערוצי מגבר לפי שם היחידה */
@@ -6072,6 +6148,8 @@ function zoneSystemBuilder(z) {
       <button style="flex:1" onclick="zoneSplMode('${zid}','max')">🔊 הצג מקס SPL לרמקולי האזור</button>
       <button style="flex:1" onclick="zoneSplMode('${zid}','design')">🔉 רמת תכנון (מקס−20)</button>
     </div>
+    <button style="width:100%;margin-top:6px;background:#7a4ab7;color:#fff;font-weight:700" onclick="patchOfferKits('${zid}')">6️⃣ 🧰 קיט התקנה לפרויקט — עמדה/ארון/סטנדרט</button>
+    <button style="width:100%;margin-top:6px;background:#b7761f;color:#fff;font-weight:700" onclick="projGapCheck()">7️⃣ 🤔 האם שכחתי משהו? — בדיקת שלמות והצעת חוסרים</button>
 
     <p class="muted" style="font-size:10px;margin-top:4px">פריסה מדורגת לפי מתודולוגיית distributed (מרווח = 2×(תקרה−1.2)×tan(פיזור/2) × צפיפות). שטח ${zoneAreaM(z).toFixed(0)} מ"ר.${P.scale ? '' : ' ⚠ כייל תכנית.'}</p>
   </div>`;
