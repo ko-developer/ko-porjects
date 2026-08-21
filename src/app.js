@@ -2731,6 +2731,239 @@ const PREMIUM_RE = /FUNKTION|F1[02]1|F1201|\bF8[18]\b|\bF55\b|\bF5\b|RES\s?\d|EV
 /* 🔌 חיווט חכם — מחבר את כל רמקולי האזור למגבר לפי הכללים:
    פרימיום (F-One/K&F/Lambda) = קו נפרד לכל רמקול · סאב = תמיד קו נפרד ·
    רמקולי רקע (KT/Unicorn) = שרשור לפי קרבה עד מינימום העומס של המגבר */
+/* ===================================================================
+   עורך חיווט גרפי — מטריצת מגברים × ערוצים.
+   גוררים (או מקישים) רמקולים בין יציאות, רואים עומס/הספק חי, ומחברים.
+   =================================================================== */
+let PATCH = null;
+function patchCss() {
+  if (document.getElementById('patchCss')) return;
+  const st = document.createElement('style');
+  st.id = 'patchCss';
+  st.textContent = `
+    /* חלון צף ולא-חוסם — התכנית נשארת גלויה ולחיצה, והחלון נגרר לאן שנוח */
+    #patchOv{position:fixed;inset:0;z-index:130;pointer-events:none}
+    #patchBox{position:absolute;background:#fff;border-radius:14px;width:min(680px,94vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 16px 50px rgba(0,0,0,.4);overflow:hidden;pointer-events:auto;border:1px solid #d8d2c6}
+    #patchBox .ph{background:linear-gradient(135deg,#1a1e28,#2d3444);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:8px;cursor:grab;user-select:none;touch-action:none}
+    #patchBox .ph:active{cursor:grabbing}
+    .node.pchHi{outline:4px solid #ff8a50;outline-offset:3px;border-radius:12px;z-index:88 !important;filter:drop-shadow(0 0 8px rgba(255,138,80,.9))}
+    #patchBox .ph b{flex:1;font-size:15px}
+    #patchBox .pb{padding:12px 14px;overflow-y:auto;background:#faf8f4}
+    .pchAmp{background:#fff;border:1px solid #e3ded3;border-radius:11px;margin-bottom:9px;overflow:hidden}
+    .pchAmpHd{background:#f4f2ec;padding:6px 10px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+    .pchAmpHd small{font-weight:400;color:#8a8377;font-size:11px}
+    .pchCh{display:flex;align-items:center;gap:8px;padding:5px 9px;border-top:1px solid #f0ede6;min-height:38px}
+    .pchCh.drop{background:#eef7f1;outline:2px dashed #0f6e56;outline-offset:-3px}
+    .pchCh.lock{opacity:.5}
+    .pchOut{flex:none;width:56px;font-size:11.5px;font-weight:800;color:#c9502e}
+    .pchChips{flex:1;display:flex;flex-wrap:wrap;gap:4px;min-height:24px;align-items:center}
+    .pchZ{flex:none;font-size:11px;font-weight:700;white-space:nowrap;padding:1px 7px;border-radius:9px}
+    .pchZ.ok{background:#eef7f1;color:#0f6e56}.pchZ.bad{background:#fdeeee;color:#c1121f}.pchZ.emp{background:#f4f2ec;color:#a9a396}
+    .pchip{display:inline-flex;align-items:center;gap:4px;background:#2d3444;color:#fff;border-radius:8px;padding:2px 7px;font-size:11px;cursor:grab;user-select:none;border:2px solid transparent}
+    .pchip.sel{border-color:#ff8a50;box-shadow:0 0 0 2px rgba(255,138,80,.35)}
+    .pchip.sub{background:#6a4fc9}.pchip.prem{background:#0f6e56}
+    .pchip b{font-size:12px}
+    .pchPool{background:#fff;border:2px dashed #d9d2c4;border-radius:11px;padding:8px 10px;min-height:44px}
+    .pchPool.drop{background:#eef7f1;border-color:#0f6e56}
+    #patchBox .pf{padding:9px 14px;border-top:1px solid #eee;display:flex;gap:7px;background:#fff}
+    #patchBox .pf button{flex:1;padding:9px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:13px}
+    #patchBox .pf button.go{background:#0f6e56;color:#fff;border:none;font-weight:700}`;
+  document.head.appendChild(st);
+}
+const patchNum = n => { const m = (n.name || '').match(/\((\d+)\)(?!.*\(\d+\))/); return m ? m[1] : '•'; };
+/* שם המוצר המלא של מוקד — שמות על התכנית נחתכים ל-40 תווים ומאבדים את הדגם,
+   אז מעדיפים את שם הפריט המקורי מהצעת המחיר */
+function nodeFullName(n) {
+  if (n && n.srcIid) { const it = impItems.find(x => x.iid === n.srcIid); if (it && it.name) return it.name; }
+  return (n && n.name) || '';
+}
+/* שם קצר וקריא לדגם — "…מדגם F81 100W…" → "F81" */
+function shortModel(name) {
+  const s = String(name || '').replace(/\(\d+\)\s*$/, '').trim();
+  const m = /מדגם\s+(.{2,22}?)(?:\s+(?:בעוצמה|וואט|\d+W\b|גודל|בצבע|עם|\d+X)|$)/i.exec(s);
+  if (m) return m[1].trim();
+  const en = s.match(/[A-Z][A-Z0-9\- ]{2,18}/);
+  if (en) return en[0].trim();
+  return s.replace(/^(רמקול|סאב|מגבר)\s+(פאסיבי|אקטיבי|מוגבר)?\s*(תוצרת)?\s*/i, '').slice(0, 18).trim();
+}
+const patchKind = n => isActiveSub(n.name) || /סאב|\bsub\b|NOMOS|MB2|BR\s?1|F118|F221/i.test(n.name) ? 'sub' : PREMIUM_RE.test(n.name) ? 'prem' : '';
+function patchOpen(z, amps, lines, leftover) {
+  patchCss();
+  PATCH = {
+    zid: z.id, sel: null,
+    amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set() })),
+    slots: {}, pool: leftover.map(n => n.id)
+  };
+  lines.forEach(l => { PATCH.slots[amps.indexOf(l.amp) + '|' + l.ch] = [l.head.id, ...l.seg.map(s => s.to.id)]; });
+  const ov = document.createElement('div');
+  ov.id = 'patchOv';
+  ov.innerHTML = `<div id="patchBox">
+      <div class="ph" id="patchDrag"><span style="opacity:.6">⠿</span><b>🔌 חיווט — ניתוב רמקולים למגברים</b>
+        <small style="opacity:.8;font-size:11px">גרור צ׳יפ ליציאה · הקש עליו כדי לראות אותו על התכנית</small>
+        <button onclick="patchClose()" style="background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button></div>
+      <div class="pb" id="patchBody"></div>
+      <div class="pf">
+        <button onclick="patchClose()">ביטול</button>
+        <button onclick="patchAutoFill()">⚡ סדר אוטומטית</button>
+        <button onclick="patchAddAmp()">➕ הוסף מגבר</button>
+        <button class="go" onclick="patchApply()">🔌 חבר</button>
+      </div></div>`;
+  document.body.appendChild(ov);
+  /* מיקום ברירת מחדל — צד שמאל, כדי שהתכנית מימין תישאר גלויה */
+  const box = document.getElementById('patchBox');
+  const pos = store.patchPos || { x: 16, y: Math.max(12, (window.innerHeight - 560) / 2) };
+  box.style.left = Math.min(pos.x, window.innerWidth - 220) + 'px';
+  box.style.top = Math.min(pos.y, window.innerHeight - 120) + 'px';
+  /* גרירת החלון בכותרת */
+  document.getElementById('patchDrag').addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    const r = box.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    const mv = ev => {
+      const x = Math.max(-r.width + 120, Math.min(window.innerWidth - 120, ev.clientX - dx));
+      const y = Math.max(0, Math.min(window.innerHeight - 60, ev.clientY - dy));
+      box.style.left = x + 'px'; box.style.top = y + 'px';
+      store.patchPos = { x, y };
+    };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    e.preventDefault();
+  });
+  patchRender();
+}
+function patchClose() { PATCH = null; patchHiClear(); const o = document.getElementById('patchOv'); if (o) o.remove(); }
+function patchHi(id, on) { const el = document.getElementById('nd_' + id); if (el) el.classList.toggle('pchHi', on); }
+function patchHiClear() { document.querySelectorAll('.node.pchHi').forEach(e => e.classList.remove('pchHi')); }
+function patchZ(ids) { const inv = ids.map(byId).filter(Boolean).reduce((s, n) => s + 1 / spkOhm(n), 0); return inv ? 1 / inv : 0; }
+function patchChip(id) {
+  const n = byId(id); if (!n) return '';
+  const full = nodeFullName(n);
+  return `<span class="pchip ${patchKind(n)} ${PATCH.sel === id ? 'sel' : ''}" draggable="true" data-chip="${id}"
+     title="${esc(full)} · ${spkOhm(n)}Ω · ${esc(n.sub || '')}"><b>${patchNum(n)}</b>${esc(shortModel(full))} <small style="opacity:.7">${spkOhm(n)}Ω</small></span>`;
+}
+function patchRender() {
+  const body = document.getElementById('patchBody'); if (!body || !PATCH) return;
+  const amps = PATCH.amps.map((a, ai) => {
+    const chs = [];
+    for (let ch = 1; ch <= a.chTotal; ch++) {
+      const key = ai + '|' + ch, ids = PATCH.slots[key] || [], locked = a.pre.has(ch);
+      const zz = patchZ(ids), w = ids.length ? ampChW(a.u.name, zz) : null;
+      const bad = ids.length && zz < a.minOhm - 0.05;
+      chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
+        <span class="pchOut">${locked ? '🔒 ' : ''}OUT ${ch}</span>
+        <div class="pchChips">${ids.map(patchChip).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
+        <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}">${ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + (w ? ' · ' + w + 'W' : '') : '—'}</span></div>`);
+    }
+    return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(a.u.name)}">🎚 ${esc(shortModel(a.u.name))}
+        <small>${a.chTotal} ערוצים · מינ׳ ${a.minOhm}Ω · ${esc(a.rk.name.slice(0, 14))}</small></div>${chs.join('')}</div>`;
+  }).join('');
+  body.innerHTML = amps + `
+    <div style="font-size:12px;font-weight:700;margin:10px 0 5px">${PATCH.pool.length ? '⚠ ' : '✓ '}רמקולים ללא ערוץ (${PATCH.pool.length})</div>
+    <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(patchChip).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>`;
+  /* גרירה + הקשה */
+  body.querySelectorAll('[data-chip]').forEach(el => {
+    const id = el.dataset.chip;
+    el.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', id); PATCH.sel = id; });
+    /* ריחוף/בחירה מדגישים את הרמקול על התכנית — רואים בדיוק על מה מדובר */
+    el.addEventListener('mouseenter', () => patchHi(id, true));
+    el.addEventListener('mouseleave', () => { if (PATCH.sel !== id) patchHi(id, false); });
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      patchHiClear();
+      PATCH.sel = PATCH.sel === id ? null : id;
+      if (PATCH.sel) { patchHi(id, true); const nd = document.getElementById('nd_' + id); if (nd && nd.scrollIntoView) nd.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); }
+      patchRender();
+    });
+  });
+  body.querySelectorAll('[data-slot]').forEach(el => {
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drop'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drop'));
+    el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('drop'); patchMove(e.dataTransfer.getData('text/plain'), el.dataset.slot); });
+    el.addEventListener('click', () => { if (PATCH.sel) patchMove(PATCH.sel, el.dataset.slot); });
+  });
+}
+function patchMove(id, slot) {
+  if (!id || !PATCH) return;
+  const a = PATCH.slots;
+  for (const k of Object.keys(a)) a[k] = a[k].filter(x => x !== id);
+  PATCH.pool = PATCH.pool.filter(x => x !== id);
+  if (slot === 'pool') PATCH.pool.push(id);
+  else {
+    const [ai, ch] = slot.split('|').map(Number);
+    if (PATCH.amps[ai].pre.has(ch)) { uiToast('הערוץ כבר מחובר — נתק אותו קודם'); PATCH.pool.push(id); }
+    else (a[slot] = a[slot] || []).push(id);
+  }
+  PATCH.sel = null;
+  patchRender();
+}
+/* סידור אוטומטי — ממלא ערוצים פנויים לפי קרבה ועד מינימום העומס */
+function patchAutoFill() {
+  const pool = PATCH.pool.map(byId).filter(Boolean);
+  if (!pool.length) { uiToast('אין רמקולים ממתינים'); return; }
+  const dist = (x, y) => Math.hypot(x.x - y.x, x.y - y.y);
+  const singles = pool.filter(n => patchKind(n)), bg = pool.filter(n => !patchKind(n));
+  for (let ai = 0; ai < PATCH.amps.length; ai++) {
+    const a = PATCH.amps[ai];
+    for (let ch = 1; ch <= a.chTotal; ch++) {
+      const key = ai + '|' + ch;
+      if (a.pre.has(ch) || (PATCH.slots[key] || []).length) continue;
+      if (singles.length) { PATCH.slots[key] = [singles.shift().id]; continue; }
+      if (!bg.length) break;
+      let si = 0, bd = Infinity; bg.forEach((p, i) => { const d = dist(a.rk, p); if (d < bd) { bd = d; si = i; } });
+      let cur = bg.splice(si, 1)[0]; const ids = [cur.id]; let inv = 1 / spkOhm(cur);
+      while (bg.length) {
+        let bi = -1, b2 = Infinity; bg.forEach((p, i) => { const d = dist(cur, p); if (d < b2) { b2 = d; bi = i; } });
+        const ni = inv + 1 / spkOhm(bg[bi]);
+        if (1 / ni < a.minOhm - 0.05) break;
+        cur = bg.splice(bi, 1)[0]; ids.push(cur.id); inv = ni;
+      }
+      PATCH.slots[key] = ids;
+    }
+  }
+  PATCH.pool = [...singles, ...bg].map(n => n.id);
+  patchRender();
+}
+/* הוספת מגבר נוסף (משכפל את האחרון) — לארון, להצעה ולמטריצה */
+function patchAddAmp() {
+  const last = PATCH.amps[PATCH.amps.length - 1];
+  if (!last) { uiToast('אין מגבר לשכפול — הוסף מגבר לארון'); return; }
+  const z = (P.zones || []).find(x => x.id === PATCH.zid);
+  const nu = { id: uid('u'), name: last.u.name, u: last.u.u || 2, cat: last.u.cat || 'amp', pos: (last.rk.units || []).reduce((s, x) => Math.max(s, x.pos + x.u), 0) };
+  if (nu.pos + nu.u > last.rk.ru) last.rk.ru = nu.pos + nu.u;
+  last.rk.units.push(nu);
+  let it = impItems.find(x => x.name === last.u.name && x.dest === 'unit');
+  if (it) { it.qty = (+it.qty || 1) + 1; it.placed = (it.placed || 0) + 1; if (z) { it.zones = it.zones || {}; it.zones[z.name] = (it.zones[z.name] || 0) + 1; } }
+  else { it = { on: true, qty: 1, name: last.u.name, src: 'חיווט · ' + (z ? z.name : ''), dest: 'unit', cat: 'amp', u: nu.u, iid: uid('i'), added: true, placed: 1, zones: z ? { [z.name]: 1 } : undefined }; autoPrice(it); impItems.push(it); }
+  PATCH.amps.push({ rk: last.rk, u: nu, minOhm: ampMinOhm(nu.name), chTotal: ampChCount(nu.name), pre: new Set() });
+  render(); save();
+  patchRender();
+  uiToast('✓ נוסף מגבר "' + nu.name.slice(0, 26) + '" לארון ולהצעה');
+}
+/* יצירת הכבלים בפועל מהמטריצה */
+function patchApply() {
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  let n2 = 0;
+  for (const [key, ids] of Object.entries(PATCH.slots)) {
+    if (!ids.length) continue;
+    const [ai, ch] = key.split('|').map(Number);
+    const a = PATCH.amps[ai];
+    const nodes = ids.map(byId).filter(Boolean);
+    if (!nodes.length) continue;
+    const head = nodes[0];
+    const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note: nodes.length > 1 ? 'שרשור (' + nodes.length + ' רמקולים)' : 'קו בודד', conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + ch };
+    if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
+    if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
+    P.cables.push(cc); n2++;
+    for (let i = 1; i < nodes.length; i++) {
+      const cb = { id: uid('c'), from: nodes[i - 1].id, to: nodes[i].id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' };
+      if (P.scale) cb.len = +(dist(nodes[i - 1], nodes[i]) * P.scale).toFixed(1);
+      P.cables.push(cb); n2++;
+    }
+  }
+  const left = PATCH.pool.length;
+  patchClose();
+  render(); save();
+  uiToast('✓ חוברו ' + n2 + ' כבלים' + (left ? ' · ⚠ ' + left + ' רמקולים נשארו ללא ערוץ' : ''));
+}
 async function smartWire(zid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   const inZone = n => (n.sub || '').includes(z.name);
@@ -2738,7 +2971,9 @@ async function smartWire(zid) {
   const spks = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && inZone(n) && !fed.has(n.id) && !/עמדת נגינה/.test(n.name));
   if (!spks.length) { alert('אין רמקולים לא-מחווטים באזור.'); return; }
   /* כל המגברים: קודם מריכוז האזור, אחר-כך שאר הארונות */
-  const isAmpU = u => /מגבר|amp|DPA|DNA|MA\s?\d|IPD|PLM|XLI|DYNAMIQ|DAP\s?\d|MX3|PQM/i.test(u.name);
+  /* מגבר אמיתי — לא כרטיס/מתקן/כבל שהמילה "מגבר" מופיעה בשמם */
+  const isAmpU = u => /מגבר|amp|DPA|DNA|MA\s?\d|IPD|PLM|XLI|DYNAMIQ|DAP\s?\d|MX3|PQM/i.test(u.name)
+    && !/כרטיס|\bcard\b|מתקן|תושבת|כבל|מחבר|ערכת|מדף|מאוורר/i.test(u.name);
   const amps = [];
   const rkPref = z._rackNodeId && byId(z._rackNodeId);
   const pushAmps = rk => (rk.units || []).forEach(u => { if (isAmpU(u)) amps.push({ rk, u, minOhm: ampMinOhm(u.name), chTotal: ampChCount(u.name), used: new Set() }); });
@@ -2746,6 +2981,7 @@ async function smartWire(zid) {
   P.nodes.filter(n => n.kind === 'rack' && n !== rkPref).forEach(pushAmps);
   if (!amps.length) { alert('אין מגבר בתכנית — הוסף מגבר לריכוז המגברים קודם.'); return; }
   amps.forEach(a => P.cables.forEach(c => { if (c.from === a.rk.id && c.fromUnit === a.u.id && c.pOut) { const m = c.pOut.match(/OUT (\d+)/); if (m) a.used.add(+m[1]); } }));
+  amps.forEach(a => { a.pre = new Set(a.used); }); /* ערוצים שכבר מחוברים — נעולים בעורך */
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const isSub = n => /סאב|\bsub\b|NOMOS|MB2|BR\s?1|F118|F221|TILL\s?1[58]P?\s?SUB/i.test(n.name);
   const singles = [...spks.filter(n => !isSub(n) && PREMIUM_RE.test(n.name)).map(n => ({ n, lbl: 'פרימיום — קו בודד' })), ...spks.filter(isSub).map(n => ({ n, lbl: 'סאב — קו בודד' }))];
@@ -2778,21 +3014,10 @@ async function smartWire(zid) {
     }
   };
   allocate();
-  /* עדיין חסר? מציעים להוסיף מגבר נוסף (כמו האחרון) להצעה ולריכוז */
-  while ((singles.length || bg.length)) {
-    const tmpl = amps[amps.length - 1];
-    if (!(await uiConfirm(`⚠ נגמרו הערוצים ונשארו ${singles.length + bg.length} רמקולים.\nלהוסיף עוד מגבר "${tmpl.u.name.slice(0, 28)}" לריכוז ולהצעת המחיר?`))) break;
-    const nu = { id: uid('u'), name: tmpl.u.name, u: tmpl.u.u || 2, cat: tmpl.u.cat || 'amp', pos: (tmpl.rk.units || []).reduce((s2, x) => Math.max(s2, x.pos + x.u), 0) };
-    tmpl.rk.units.push(nu);
-    let it = impItems.find(x => x.name === tmpl.u.name && x.dest === 'unit');
-    if (it) { it.qty = (+it.qty || 1) + 1; it.placed = (it.placed || 0) + 1; it.zones = it.zones || {}; it.zones[z.name] = (it.zones[z.name] || 0) + 1; }
-    else { it = { on: true, qty: 1, name: tmpl.u.name, src: 'חיווט חכם · ' + z.name, dest: 'unit', cat: 'amp', u: nu.u, iid: uid('i'), added: true, placed: 1, zones: { [z.name]: 1 } }; autoPrice(it); impItems.push(it); }
-    amps.push({ rk: tmpl.rk, u: nu, minOhm: ampMinOhm(nu.name), chTotal: ampChCount(nu.name), used: new Set() });
-    allocate();
-  }
+  /* עורך חיווט גרפי — רואים את הניתוב, גוררים בין יציאות, מוסיפים מגבר, ומחברים.
+     מסלול אוטומטי (אשף V2) מדלג על העורך ומחבר ישירות. */
+  if (!window.__autoFlow) { patchOpen(z, amps, lines, [...singles.map(s => s.n), ...bg]); return; }
   if (!lines.length) { alert('לא הוקצו קווים.'); return; }
-  const desc = lines.map(l => `${l.amp.u.name.slice(0, 16)}… OUT ${l.ch}: ${l.label} · ${l.z.toFixed(1)}Ω (מינ׳ ${l.amp.minOhm}Ω)`).join('\n');
-  if (!(await uiConfirm(`🔌 חיווט חכם — ${amps.length} מגברים:\n\n${desc}${(singles.length + bg.length) ? '\n\n⚠ נשארו ' + (singles.length + bg.length) + ' רמקולים ללא ערוץ' : ''}\n\nלחבר?`, { okText: '🔌 חבר' }))) return;
   lines.forEach(l => {
     const cc = { id: uid('c'), from: l.amp.rk.id, fromUnit: l.amp.u.id, to: l.head.id, type: 'nl4', qty: '1', spec: '', note: l.label, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + l.ch };
     /* סאב מוגבר: כבל סיגנל (XLR→RCA, עד ~10 מ׳) במקום קו רמקול */
