@@ -1888,6 +1888,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (aiming) { aiming = null; save(); render(); return; }
   if (selHole || brushOn) { selHole = null; brushOn = false; render(); return; }
+  if (sketchMode) { if (sketchMode.cur && sketchMode.cur.length) { sketchMode.cur = []; renderWires(); } else sketchEnd(); return; }
   if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; render(); }
 });
 function connGlyph(conn) {
@@ -2263,6 +2264,29 @@ function renderWires() {
     }
 
   let out = '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.6"/></marker></defs>';
+  /* שכבת שרטוט התכנית — קירות ואובייקטים (תחליף להעלאת תמונה) */
+  if (P.sketch && ((P.sketch.walls || []).length || (P.sketch.objs || []).length || sketchMode)) {
+    const wallW = Math.max(4, Math.min(14, P.scale ? 0.15 / P.scale : 8));
+    (P.sketch.walls || []).forEach((wl, wi) => {
+      out += `<polyline points="${wl.map(p => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#3f3a33" stroke-width="${wallW}" stroke-linecap="square" stroke-linejoin="miter"${sketchMode ? ` style="pointer-events:stroke;cursor:${sketchMode.tool === 'erase' ? 'not-allowed' : 'default'}" onclick="if(sketchMode&&sketchMode.tool==='erase'){P.sketch.walls.splice(${wi},1);save();renderWires();}"` : ''}><title>קיר${P.scale ? ' · ' + (wl.slice(1).reduce((s5, p5, i5) => s5 + Math.hypot(p5.x - wl[i5].x, p5.y - wl[i5].y), 0) * P.scale).toFixed(1) + ' מ׳' : ''}${sketchMode && sketchMode.tool === 'erase' ? ' — לחיצה מוחקת' : ''}</title></polyline>`;
+    });
+    (P.sketch.objs || []).forEach((o, oi) => {
+      const d = SK_OBJS[o.t] || { n: o.t, c: '#666' };
+      const selO = sketchMode && sketchSel === oi;
+      const fs = Math.max(9, Math.min(o.w * 0.28, 22));
+      out += `<g data-skobj="${oi}" transform="rotate(${o.r || 0} ${o.x} ${o.y})" style="cursor:${sketchMode ? 'move' : 'default'};pointer-events:${sketchMode ? 'all' : 'none'}">` +
+        (d.round ? `<ellipse cx="${o.x}" cy="${o.y}" rx="${o.w / 2}" ry="${o.h / 2}" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`
+          : `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`) +
+        `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${d.n}</text>` +
+        `<title>${d.n}${P.scale ? ` · ${(o.w * P.scale).toFixed(1)}×${(o.h * P.scale).toFixed(1)} מ׳` : ''} — במצב שרטוט: גרירה מזיזה, הסרגל מסובב/משנה גודל</title></g>`;
+    });
+    if (sketchMode && sketchMode.cur && sketchMode.cur.length) {
+      const c = sketchMode.cur;
+      out += `<polyline points="${c.map(p => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#3f3a33" stroke-width="${wallW}" opacity="0.65"/>`;
+      if (sketchMode.cur2) out += `<line x1="${c[c.length - 1].x}" y1="${c[c.length - 1].y}" x2="${sketchMode.cur2.x}" y2="${sketchMode.cur2.y}" stroke="#3f3a33" stroke-width="${wallW}" stroke-dasharray="7 6" opacity="0.5"/>`;
+      c.forEach(p2 => out += `<circle cx="${p2.x}" cy="${p2.y}" r="4.5" fill="#c9502e" stroke="#fff" stroke-width="1.5"/>`);
+    }
+  }
   /* בזום גבוה העיגולים מתכווצים ביחס הפוך — שלא יסתירו את המוצרים */
   const ZW = getZ() || 1, shrink = Math.min(1, 1.6 / ZW);
   for (const it of items) {
@@ -3693,12 +3717,38 @@ function spkDataManager(tab) {
     AMP_DATA.forEach((d, i) => { if (d.kind === (tab === 'amp' ? 'amp' : 'proc')) rows.push({ name: prettyRe(d.re), d, ok: !!d.ok, src: 'מובנה', bi: i }); });
     for (const [k, d] of Object.entries(store.ampLib || {})) if (d.kind === (tab === 'amp' ? 'amp' : 'proc')) rows.push({ name: k, d, ok: d.ok !== false, src: 'מותאם', lk: k });
   }
+  /* איחוד כפילויות: אותו שם (בלי רגישות לרישיות) = שורה אחת, עריכות ידניות גוברות;
+     גרסת צבע (WR/WH/BK/WHITE/BLACK/לבן/שחור) מנוהלת בשורת הבסיס ולא כשורה נפרדת */
+  {
+    const normNm = nm => String(nm).toLowerCase().replace(/\s+/g, ' ').trim();
+    const clrRe = /\s+(wr|wh|bk|white|black|לבן|שחור)$/i;
+    const seenNm = new Map(); const merged = [];
+    for (const r of rows) {
+      const k = normNm(r.name);
+      const ex = seenNm.get(k);
+      if (ex) {
+        if (r.lk) { const d2 = { ...ex.d }; Object.entries(r.d).forEach(([f, v]) => { if (v != null) d2[f] = v; }); ex.d = d2; ex.lk = r.lk; ex.ok = r.ok; ex.src = 'מובנה + עריכה'; }
+        continue;
+      }
+      seenNm.set(k, r); merged.push(r);
+    }
+    for (const r of merged.slice()) {
+      const b = normNm(r.name).replace(clrRe, '');
+      if (b !== normNm(r.name) && seenNm.has(b)) {
+        const ex = seenNm.get(b);
+        ex.variants = (ex.variants || []).concat((r.name.match(/\S+$/) || [''])[0]);
+        merged.splice(merged.indexOf(r), 1);
+      }
+    }
+    rows.length = 0; rows.push(...merged);
+  }
   /* חיפוש */
   const q2 = (window.__spkQ || '').trim().toLowerCase();
   if (q2) { const rowsF = rows.filter(r => r.name.toLowerCase().includes(q2)); rows.length = 0; rows.push(...rowsF); }
   /* קיבוץ ומיון לפי מותג */
   rows.forEach(r => r.brand = metaOf(r.name).brand || brandOf(r.name));
   rows.sort((a, b) => a.brand === b.brand ? a.name.localeCompare(b.name) : a.brand.localeCompare(b.brand));
+  const allBrands = [...new Set(rows.map(r => r.brand).concat(['Funktion-One', 'Kling & Freitag', 'KT Audio', 'XTA', 'Yamaha', 'SAE', 'Lab Gruppen', 'Crown', 'DigiSynthetic', 'Lambda Labs', 'אחר']))].sort();
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
   const heads = tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th>קישורים<br>🔗📄📘</th>' :
     tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th style="text-align:right">הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th style="text-align:right">הערות</th><th>קישור</th>';
@@ -3732,7 +3782,7 @@ function spkDataManager(tab) {
     const meta = metaOf(r.name);
     const cells = tab === 'spk' ?
       `<td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','typ',this.value)">${['רמקול', 'סאב', 'קולום', 'שקוע', 'מוניטור', 'אחר'].map(t => `<option ${(meta.typ || guessTyp(r.name)) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
-       <td style="text-align:center"><input value="${esc(meta.brand || brandOf(r.name))}" title="מותג — עריכה מסדרת את הקיבוץ" style="width:78px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:11px" onchange="spkMetaSet('${nmA}','brand',this.value)"></td>
+       <td style="text-align:center"><select title="מותג — הבחירה מסדרת את הקיבוץ בטבלה" style="max-width:112px;border:1px solid #ccc;border-radius:4px;font-size:11px;background:#fff" onchange="if(this.value==='__new'){spkBrandNew('${nmA}')}else spkMetaSet('${nmA}','brand',this.value)">${allBrands.map(b2 => `<option ${r.brand === b2 ? 'selected' : ''}>${esc(b2)}</option>`).join('')}<option value="__new">➕ מותג חדש…</option></select></td>
        <td style="text-align:center"><input value="${cell(r.d.h)}" style="width:44px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'h',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.v)}" style="width:44px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'v',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.sens)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'sens',this.value)"></td>
@@ -3745,13 +3795,13 @@ function spkDataManager(tab) {
        <td style="text-align:center"><input value="${cell(r.d.mo)}" placeholder="4" style="width:38px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'mo',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.dsp != null ? meta.dsp : guessDsp(r.d, r.name))}" placeholder="?" title="DSP: ✓ = יש · ציין ערוצים עודפים לשליטה במוצרים ללא DSP" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','dsp',this.value)"></td>
        <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid ${c};background:${bg};border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
-       <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" onclick="editAmpLink(${arg})">✎</button></td>` :
+       <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>` :
         `<td style="text-align:center"><input value="${esc(r.d.io || '')}" style="width:56px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'io',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="?" title="רשת דיגיטלית (Dante / AES67 / OMNEO) ותאימות תכנה עם מוצרים אחרים" style="width:110px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
        <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid #ccc;border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
-       <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" onclick="editAmpLink(${arg})">✎</button></td>`;
+       <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>`;
     return `${brandHdr}<tr style="border-bottom:1px solid #eee">
-        <td style="padding:4px 5px;font-weight:600"><a href="#" onclick="event.preventDefault();specSheet('${tab}','${esc(r.name).replace(/'/g, '&#39;')}')" style="color:#c9502e;text-decoration:none;border-bottom:1px dotted #c9502e">${esc(r.name)}</a><div class="muted" style="font-size:9px">${r.src}</div></td>
+        <td style="padding:4px 5px;font-weight:600"><a href="#" onclick="event.preventDefault();specSheet('${tab}','${esc(r.name).replace(/'/g, '&#39;')}')" style="color:#c9502e;text-decoration:none;border-bottom:1px dotted #c9502e">${esc(r.name)}</a><div class="muted" style="font-size:9px">${r.src}${r.variants ? ' · גרסאות צבע: ' + esc(r.variants.join(', ')) : ''}</div></td>
         ${cells}
         <td style="text-align:center;color:${c};font-weight:700;cursor:pointer" title="לחץ לשינוי" onclick="${fn}(${arg},'ok',${r.ok ? 'false' : 'true'})">${r.ok ? '✓' : '⚠'}</td>
         <td style="text-align:center">${r.lk ? `<button style="padding:0 6px" onclick="delete store.${tab === 'spk' ? 'spkLib' : 'ampLib'}['${esc(r.lk).replace(/'/g, '&#39;')}'];save();spkDataManager()">✕</button>` : ''}</td>
@@ -3870,6 +3920,11 @@ function spkMetaSet(name, field, val) {
   ms[k] = ms[k] || {};
   ms[k][field] = (val === '' || val == null) ? undefined : val;
   save(); spkDataManager(tab);
+}
+async function spkBrandNew(name) {
+  const b = await uiPrompt('שם המותג החדש:', '');
+  if (b === null) { spkDataManager(); return; }
+  spkMetaSet(name, 'brand', b.trim());
 }
 function spkDbExport() {
   const a = document.createElement('a');
@@ -4227,11 +4282,13 @@ function renderPanel() {
           <p class="muted" style="margin:0 0 8px">${P.scale ? `1 מ׳ = ${(1 / P.scale).toFixed(1)}px · מרחקי כבלים נמדדים אוטומטית מהתכנית` : 'בלי כיול מרחקי הכבלים לא יחושבו נכון. כייל פעם אחת לפי מידה ידועה בתכנית.'}</p>
           <button class="primary" style="width:100%;${calMode ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : (P.scale ? 'כייל מחדש' : 'כייל עכשיו')}</button>
         </div>
+        <button style="width:100%;margin-bottom:6px" title="הוספת קירות ואובייקטים משורטטים מעל תכנית הרקע" onclick="sketchStart()">🖊 ${P.sketch && ((P.sketch.walls || []).length || (P.sketch.objs || []).length) ? 'ערוך את השרטוט' : 'שרטט מעל התכנית — קירות ואובייקטים'}</button>
         <button style="width:100%;margin-bottom:6px;background:#f3d9d2;color:#8c2f16" onclick="removeBg()">הסר רקע</button>`;
     } else {
       bgTop = `<h3 class="sec">🗺 תכנית רקע</h3>
-        <p class="muted" style="margin-bottom:8px">העלה שרטוט/תכנית (תמונה) כרקע לקנבס ומקם את המוקדים לפיה.</p>
-        <button class="primary" style="width:100%" onclick="$('#bgIn').click()">🖼 העלה תכנית כרקע</button>`;
+        <p class="muted" style="margin-bottom:8px">העלה שרטוט/תכנית (תמונה) כרקע לקנבס ומקם את המוקדים לפיה — או שרטט תכנית בעצמך.</p>
+        <button class="primary" style="width:100%" onclick="$('#bgIn').click()">🖼 העלה תכנית כרקע</button>
+        <button style="width:100%;margin-top:6px" title="ציור קירות והצבת בר/ספה/שולחנות בקנה מידה — במקום העלאת תמונה" onclick="sketchStart()">🖊 ${P.sketch && (P.sketch.walls || []).length ? 'ערוך את השרטוט' : 'או: שרטט תכנית — קירות ואובייקטים בקנה מידה'}</button>`;
     }
     /* פרטי החלל — הועלו למעלה */
     const roomSec = `<h3 class="sec">🏠 פרטי החלל (ברירת מחדל כללית)</h3>
@@ -4431,6 +4488,86 @@ function vdCell(c) {
 
 /* drag nodes + cable badge bend + endpoint re-connect */
 let dragC = null, dragE = null, modalCb = null;
+/* ===== 🖊 שרטוט תכנית — קירות ואובייקטים בקנה מידה, תחליף להעלאת תמונה ===== */
+let sketchMode = null, sketchSel = null;
+const SK_OBJS = {
+  bar: { n: 'בר', w: 3, h: 0.7, c: '#8b5a2b' },
+  counter: { n: 'דלפק', w: 2, h: 0.6, c: '#8b5a2b' },
+  sofa: { n: 'ספה', w: 2.2, h: 0.9, c: '#7a4ab7' },
+  table: { n: 'שולחן', w: 1.6, h: 0.8, c: '#4a6ab7' },
+  tableR: { n: 'שולחן עגול', w: 1.2, h: 1.2, c: '#4a6ab7', round: 1 },
+  stage: { n: 'במה', w: 4, h: 3, c: '#c9502e' },
+  dance: { n: 'רחבה', w: 4, h: 4, c: '#b7761f', dash: 1 },
+  door: { n: 'דלת', w: 0.9, h: 0.18, c: '#666' },
+  plant: { n: 'צמח', w: 0.6, h: 0.6, c: '#2e7d32', round: 1 }
+};
+async function sketchStart() {
+  if (!P.scale) {
+    const m = parseFloat(await uiPrompt('רוחב השטח שתשרטט במטרים (קובע את קנה המידה):', '20'));
+    if (!(m > 1)) return;
+    P.bgW = P.bgW || 1400;
+    P.scale = m / P.bgW;
+    recalcCableLengths();
+  }
+  P.sketch = P.sketch || { walls: [], objs: [] };
+  sketchMode = { tool: 'rect', cur: [] };
+  sketchSel = null;
+  sketchBar(); render(); save();
+  uiToast('🖊 מצב שרטוט · ⬜ חדר: 2 לחיצות פינות · 📏 קיר: נקודות + דאבל-קליק · אובייקטים מהסרגל בגודל אמיתי');
+}
+function sketchBar() {
+  const old2 = document.getElementById('sketchBar'); if (old2) old2.remove();
+  if (!sketchMode) return;
+  const bar = document.createElement('div');
+  bar.id = 'sketchBar';
+  bar.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:82;background:#1a1e28;color:#fff;border-radius:12px;padding:7px 10px;display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:96vw;box-shadow:0 8px 30px rgba(0,0,0,.4);direction:rtl';
+  const bs = on => `padding:5px 8px;border-radius:8px;border:none;cursor:pointer;font-size:12px;background:${on ? '#c9502e' : '#2d3444'};color:#fff`;
+  const tb = (id, label, title) => `<button data-t="${id}" title="${title}" style="${bs(sketchMode.tool === id)}">${label}</button>`;
+  const o = sketchSel != null ? (P.sketch.objs || [])[sketchSel] : null;
+  bar.innerHTML = `<b style="font-size:12px;margin-left:2px">🖊</b>` +
+    tb('select', '✋', 'בחירה והזזת אובייקטים') +
+    tb('rect', '⬜ חדר', 'מלבן קירות — שתי לחיצות על פינות נגדיות') +
+    tb('wall', '📏 קיר', 'קו קירות — לחץ נקודות, דאבל-קליק מסיים, Esc מבטל') +
+    tb('erase', '🧽', 'מחיקת קיר — לחיצה על קיר מוחקת אותו') +
+    `<span style="opacity:.35">|</span>` +
+    Object.entries(SK_OBJS).map(([k, d]) => tb(k, d.n, 'הצבת ' + d.n + ' (' + d.w + '×' + d.h + ' מ׳) — לחיצה על התכנית')).join('') +
+    (o ? `<span style="opacity:.35">|</span>
+      <button title="סיבוב 45°" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.r=((o2.r||0)+45)%360;save();renderWires()">⟳</button>
+      <button title="הגדלה" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.w*=1.15;o2.h*=1.15;save();renderWires()">＋</button>
+      <button title="הקטנה" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.w/=1.15;o2.h/=1.15;save();renderWires()">－</button>
+      <button title="מחיקת האובייקט המסומן" style="${bs(false)}" onclick="P.sketch.objs.splice(sketchSel,1);sketchSel=null;save();sketchBar();renderWires()">🗑</button>` : '') +
+    `<button title="סיום — השרטוט נשאר על התכנית" style="padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:12px;background:#0f6e56;color:#fff;font-weight:700" onclick="sketchEnd()">✓ סיום</button>`;
+  bar.querySelectorAll('[data-t]').forEach(b => { b.onclick = () => { sketchMode.tool = b.dataset.t; sketchMode.cur = []; sketchBar(); renderWires(); }; });
+  document.body.appendChild(bar);
+}
+function sketchEnd() {
+  sketchMode = null; sketchSel = null;
+  const b = document.getElementById('sketchBar'); if (b) b.remove();
+  renderWires();
+  uiToast('✓ השרטוט נשמר — "🖊 ערוך שרטוט" בפאנל ההגדרות מחזיר את הכלים');
+}
+/* גרירת אובייקט שרטוט + בחירה */
+document.addEventListener('pointerdown', e => {
+  if (!sketchMode) return;
+  const el = e.target.closest('[data-skobj]');
+  if (!el) return;
+  sketchSel = +el.dataset.skobj; sketchBar();
+  const o = (P.sketch.objs || [])[sketchSel]; if (!o) return;
+  const st = canvasPt(e), ox = o.x, oy = o.y;
+  const mv = ev => { const p2 = canvasPt(ev); o.x = ox + p2.x - st.x; o.y = oy + p2.y - st.y; renderWires(); };
+  const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); };
+  document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  e.stopPropagation(); e.preventDefault();
+}, true);
+/* דאבל-קליק מסיים קיר */
+document.addEventListener('dblclick', e => {
+  if (!sketchMode || sketchMode.tool !== 'wall' || !e.target.closest('#canvasWrap')) return;
+  const c = sketchMode.cur;
+  if (c.length > 2) { const l = c[c.length - 1], p2 = c[c.length - 2]; if (Math.hypot(l.x - p2.x, l.y - p2.y) < 5) c.pop(); }
+  if (c.length >= 2) { P.sketch.walls.push(c.slice()); save(); }
+  sketchMode.cur = [];
+  renderWires();
+});
 function canvasPt(e) {
   const r = $('#canvas').getBoundingClientRect();
   const Z = getZ();
@@ -4443,6 +4580,14 @@ let dragK = null, dragH = null, pendingU = null, dragU = null, uGhost = null;
 /* ===== דיאלוגים בתוך הדף =====
    חלונות מערכת (alert/confirm/prompt) חסומים בשקט בדפדפנים משובצים —
    confirm מחזיר false, prompt מחזיר null, alert נבלע. כאן תחליפים מלאים. */
+/* טולטיפ אוטומטי לכל אייקון בלי title — כך שריחוף תמיד מסביר מה הכפתור עושה */
+const ICON_TIPS = { '✎': 'עריכה', '✕': 'סגירה / מחיקה', '×': 'סגירה', '🔄': 'החלפה / רענון', '↩': 'בטל (Undo)', '↪': 'בצע שוב (Redo)', '⤢': 'הרחב למסך מלא', '⤡': 'חזרה מהמסך המלא', '◀': 'צמצם הצידה', '▶': 'הרחב', '📌': 'נעיצה על התכנית', '🗑': 'מחיקה', '➕': 'הוספה', '＋': 'הגדלה', '－': 'הקטנה', '+': 'הגדלת תצוגה', '−': 'הקטנת תצוגה', '-': 'הקטנת תצוגה', '⟳': 'סיבוב', '🔓': 'שחרור נעילה', '🔒': 'נעול', '⚙': 'הגדרות', '📏': 'מדידה / כיול', '🔗': 'קישור לדף המוצר', '📄': 'מפרט PDF', '📘': 'מדריך משתמש', '⠿': 'גרירת החלון', '↺': 'איפוס', '💾': 'שמירה', '📥': 'ייבוא', '🔍': 'חיפוש' };
+document.addEventListener('mouseover', e => {
+  const b = e.target.closest('button, a');
+  if (!b || b.title || b.getAttribute('aria-label')) return;
+  const t = (b.textContent || '').trim();
+  if (ICON_TIPS[t]) b.title = ICON_TIPS[t];
+}, true);
 function uiToast(msg) {
   let host = document.getElementById('toastHost');
   if (!host) {
@@ -4551,6 +4696,28 @@ document.addEventListener('pointerdown', e => {
     if (z) { sizeZ = { z, sx: e.clientX, sy: e.clientY, ow: z.w, oh: z.h }; e.preventDefault(); return; }
   }
   /* ציור אזור סאונד — ניקור נקודות עד סגירת הצורה */
+  if (sketchMode && e.target.closest('#canvasWrap') && !e.target.closest('#sketchBar') && !e.target.closest('[data-skobj]')) {
+    const p2 = canvasPt(e);
+    if (sketchMode.tool === 'wall') { sketchMode.cur.push(p2); renderWires(); return; }
+    if (sketchMode.tool === 'rect') {
+      sketchMode.cur.push(p2);
+      if (sketchMode.cur.length === 2) {
+        const [a2, b2] = sketchMode.cur;
+        P.sketch.walls.push([{ x: a2.x, y: a2.y }, { x: b2.x, y: a2.y }, { x: b2.x, y: b2.y }, { x: a2.x, y: b2.y }, { x: a2.x, y: a2.y }]);
+        sketchMode.cur = []; save();
+      }
+      renderWires(); return;
+    }
+    if (SK_OBJS[sketchMode.tool]) {
+      const d2 = SK_OBJS[sketchMode.tool];
+      const pxm = 1 / (P.scale || 0.02);
+      P.sketch.objs.push({ t: sketchMode.tool, x: p2.x, y: p2.y, w: d2.w * pxm, h: d2.h * pxm, r: 0 });
+      sketchSel = P.sketch.objs.length - 1;
+      sketchMode.tool = 'select'; sketchBar(); save(); renderWires(); return;
+    }
+    if (sketchMode.tool === 'select') { sketchSel = null; sketchBar(); renderWires(); }
+    return;
+  }
   if (zoneMode && e.target.closest('#canvasWrap')) {
     const pt = canvasPt(e);
     zoneMode.poly = zoneMode.poly || [];
@@ -4813,6 +4980,11 @@ document.addEventListener('pointermove', e => {
     if (!m) { m = document.createElement('div'); m.id = 'marqBox'; m.style.cssText = 'position:absolute;border:1.5px dashed #c9502e;background:rgba(201,80,46,.12);z-index:40;pointer-events:none'; $('#canvas').appendChild(m); }
     m.style.left = x0 + 'px'; m.style.top = y0 + 'px'; m.style.width = (x1 - x0) + 'px'; m.style.height = (y1 - y0) + 'px';
     document.querySelectorAll('.node').forEach(el => { const id = el.id.slice(3); el.style.outline = selMulti.has(id) ? '2.5px solid #c9502e' : ''; });
+    return;
+  }
+  if (sketchMode && sketchMode.tool === 'wall' && sketchMode.cur.length) {
+    sketchMode.cur2 = canvasPt(e);
+    renderWires();
     return;
   }
   if (zoneMode && zoneMode.poly && zoneMode.poly.length) {
