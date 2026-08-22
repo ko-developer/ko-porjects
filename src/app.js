@@ -4650,6 +4650,76 @@ function uiToast(msg) {
 }
 window.alert = uiToast; /* כל 48 קריאות alert() באפליקציה עוברות לטוסט */
 
+/* ===================================================================================
+   🪟 חלונות צפים — כל דיאלוג באפליקציה ניתן להזזה, כולל חלונות שייווצרו בעתיד.
+   מנגנון גלובלי: MutationObserver מזהה כל שכבת-על חדשה שנוספת ל-body והופך את
+   הקופסה שבתוכה לגרירה (ידית ⠿ + גרירה מכל אזור שאינו שדה/כפתור). המיקום נשמר
+   לכל חלון לפי מפתח, ודאבל-קליק על הידית מחזיר למרכז. */
+const FLOAT_SKIP = new Set(['patchOv', 'wiz', 'sketchBar', 'toastHost', 'marqBox', 'multiBar', 'instOvSkip']);
+function floatKey(box) {
+  const ov = box.parentElement;
+  const b = box.querySelector('b, h3, h4');
+  return (ov && ov.id) || (b && b.textContent.trim().slice(0, 28)) || 'dlg';
+}
+function floatDialog(box, key) {
+  if (!box || box.__float) return;
+  box.__float = 1;
+  const k = key || floatKey(box);
+  store.floatPos = store.floatPos || {};
+  const pos = { ...(store.floatPos[k] || { dx: 0, dy: 0 }) };
+  const apply = () => {
+    box.style.transform = 'translate(' + pos.dx + 'px,' + pos.dy + 'px)';
+    /* לא נותנים לחלון לברוח מהמסך — לפחות 120px ממנו נשארים גלויים */
+    const r = box.getBoundingClientRect();
+    let fix = false;
+    if (r.right < 120) { pos.dx += 120 - r.right; fix = true; }
+    if (r.left > window.innerWidth - 120) { pos.dx -= r.left - (window.innerWidth - 120); fix = true; }
+    if (r.bottom < 60) { pos.dy += 60 - r.bottom; fix = true; }
+    if (r.top > window.innerHeight - 60) { pos.dy -= r.top - (window.innerHeight - 60); fix = true; }
+    if (fix) box.style.transform = 'translate(' + pos.dx + 'px,' + pos.dy + 'px)';
+  };
+  if (getComputedStyle(box).position === 'static') box.style.position = 'relative';
+  const grip = document.createElement('div');
+  grip.textContent = '⠿';
+  grip.title = 'גרור להזזת החלון · דאבל-קליק מחזיר למרכז';
+  grip.style.cssText = 'position:absolute;top:3px;left:6px;font-size:14px;color:#c2bbad;cursor:move;user-select:none;z-index:9;padding:2px 5px;line-height:1;border-radius:5px';
+  grip.onmouseenter = () => grip.style.background = '#f0ede8';
+  grip.onmouseleave = () => grip.style.background = '';
+  grip.ondblclick = e => { e.stopPropagation(); pos.dx = pos.dy = 0; delete store.floatPos[k]; save(); apply(); };
+  box.appendChild(grip);
+  box.addEventListener('pointerdown', e => {
+    if (e.button) return;
+    if (e.target !== grip && e.target.closest('input,textarea,select,button,a,option,[contenteditable],[data-chip],[data-slot],[data-skobj]')) return;
+    const sx = e.clientX, sy = e.clientY, ox = pos.dx, oy = pos.dy;
+    let moved = false;
+    const mv = ev => {
+      pos.dx = ox + ev.clientX - sx; pos.dy = oy + ev.clientY - sy;
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 3) { moved = true; box.style.cursor = 'grabbing'; }
+      if (moved) apply();
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up);
+      box.style.cursor = '';
+      if (moved) { store.floatPos[k] = { dx: pos.dx, dy: pos.dy }; save(); window.__floatDragT = Date.now(); }
+    };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  });
+  if (pos.dx || pos.dy) apply();
+}
+/* לחיצה שמסיימת גרירה לא תיחשב כלחיצה על הרקע (שסוגרת את החלון) */
+document.addEventListener('click', e => {
+  if (window.__floatDragT && Date.now() - window.__floatDragT < 300) { e.stopPropagation(); window.__floatDragT = 0; }
+}, true);
+/* זיהוי אוטומטי של כל חלון קופץ חדש — גם כאלה שייכתבו בהמשך */
+function floatScan(el) {
+  if (!el || el.nodeType !== 1) return;
+  if (FLOAT_SKIP.has(el.id)) return;
+  const st = el.style.cssText || '';
+  const isOv = el.classList.contains('uiDlgOv') || (/position\s*:\s*fixed/.test(st) && /inset\s*:\s*0/.test(st) && el.children.length === 1);
+  if (isOv) { const box = el.firstElementChild; if (box && box.nodeType === 1) floatDialog(box); }
+}
+new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(floatScan))).observe(document.body, { childList: true });
+document.querySelectorAll('body > div').forEach(floatScan);
 function uiModal(inner) { /* בסיס משותף: מחזיר {ov, box} */
   const ov = document.createElement('div');
   ov.className = 'uiDlgOv';
