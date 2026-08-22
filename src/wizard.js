@@ -76,7 +76,7 @@ function wizRender() {
   const steps = WIZ_STEPS.map(([k, l], i) =>
     `<div class="wzstep ${i === WIZ.step ? 'on' : ''} ${wizDone(i) && i !== WIZ.step ? 'done' : ''}" onclick="WIZ.step=${i};wizRender()">${wizDone(i) && i !== WIZ.step ? '✓ ' : ''}${l}</div>`).join('');
   w.innerHTML = `
-    <div class="wzhead"><b>⚡ KO V2 — אשף מהיר</b>
+    <div class="wzhead" style="cursor:move" title="גרור להזזת החלון"><span style="opacity:.55">⠿</span><b>⚡ KO V2 — אשף מהיר</b>
       <span style="font-size:11px;opacity:.75">${esc(P.name.slice(0, 18))}</span>
       <button onclick="wizClose()" style="background:transparent;border:none;color:#fff;font-size:15px;cursor:pointer" title="סגור אשף">✕</button></div>
     <div class="wzsteps">${steps}</div>
@@ -86,6 +86,25 @@ function wizRender() {
       <button class="nx" onclick="WIZ.step=Math.min(${WIZ_STEPS.length - 1},WIZ.step+1);wizRender()" ${WIZ.step === WIZ_STEPS.length - 1 ? 'disabled' : ''}>הבא ◀</button>
     </div>`;
   document.body.appendChild(w);
+  /* חלון צף — נגרר מהכותרת והמיקום נשמר */
+  const pos = store.wizPos;
+  if (pos) {
+    w.style.left = Math.max(0, Math.min(pos.x, window.innerWidth - 140)) + 'px';
+    w.style.top = Math.max(0, Math.min(pos.y, window.innerHeight - 80)) + 'px';
+  }
+  w.querySelector('.wzhead').addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    const r = w.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    const mv = ev => {
+      const x = Math.max(-r.width + 140, Math.min(window.innerWidth - 140, ev.clientX - dx));
+      const y = Math.max(0, Math.min(window.innerHeight - 60, ev.clientY - dy));
+      w.style.left = x + 'px'; w.style.top = y + 'px';
+      store.wizPos = { x, y };
+    };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    e.preventDefault();
+  });
 }
 
 function wizStepHTML(s) {
@@ -98,7 +117,7 @@ function wizStepHTML(s) {
     <button class="sec" onclick="wizNewProject()">🗂 התחל פרויקט חדש נקי</button>`;
   if (s === 1) return `
     <h4>כיול קנה מידה</h4>
-    ${P.scale ? `<button class="sec done">✓ מכויל — 1 מ׳ = ${(1 / P.scale).toFixed(1)}px</button>` : `<p class="hint">הדרך המהירה: הקלד את רוחב השטח המצולם במטרים. לדיוק מלא — שתי לחיצות על מידה ידועה.</p>`}
+    ${P.scale ? `<button class="sec done">✓ מכויל — 1 מ׳ = ${(1 / P.scale).toFixed(1)}px${P.calLine ? ' · 📏 קו הייחוס מוצג על התכנית' : ''}</button>` : `<p class="hint">הדרך המהירה: הקלד את רוחב השטח המצולם במטרים. לדיוק מלא — שתי לחיצות על מידה ידועה.</p>`}
     <input id="wizWidthM" type="number" step="0.1" placeholder="רוחב התכנית במטרים (למשל 23.7)">
     <button class="big" onclick="wizCalByWidth()">⚡ כייל לפי רוחב</button>
     <button class="sec" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
@@ -170,9 +189,14 @@ function wizCalByWidth() {
   const m = parseFloat(document.getElementById('wizWidthM').value);
   if (!(m > 1)) { uiToast('הקלד רוחב במטרים'); return; }
   P.scale = m / (P.bgW || 1400);
+  /* קו ייחוס אדום על התכנית — בודקים בעין מול חדר/דלת מוכרים שהכיול הגיוני */
+  const w = P.bgW || 1400;
+  const bgEl = document.getElementById('bgimg');
+  const h = bgEl && bgEl.offsetHeight ? bgEl.offsetHeight : Math.round(w * 0.6);
+  P.calLine = { p1: { x: Math.round(w * 0.25), y: Math.round(h / 2) }, p2: { x: Math.round(w * 0.75), y: Math.round(h / 2) } };
   recalcCableLengths(); save(); render();
   WIZ.step = 2; wizRender();
-  uiToast('✓ כויל: 1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px — לדיוק מלא השתמש בכיול 2 הנקודות');
+  uiToast('✓ כויל: 1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px · 📏 הקו האדום שבאמצע התכנית = ' + (m / 2).toFixed(1) + ' מ׳ — ודא שזה נראה נכון מול חדר או דלת מוכרים; לדיוק מלא כייל ב-2 נקודות', 7000);
 }
 function wizDrawZone() {
   const nm = document.getElementById('wizZName').value.trim();
