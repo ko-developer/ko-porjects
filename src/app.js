@@ -1492,8 +1492,8 @@ function drawRearCables(n, d) {
     if (!pp) return;
     /* כל כבל יוצא בנתיב משלו — התעלה רצה ברווח שמתחת למכשיר, לא עליו */
     const col = CTYPES[c.type].c;
-    const laneY = ub.bottom + 6 + (k % 3) * 6;   /* בתוך המרווח בין המכשירים */
-    const exitX = 3, exitY = laneY + (k % 3) * 3; /* נקודת יציאה מהארון בגובה שונה לכל כבל */
+    const laneY = ub.bottom + 5 + (k % 8) * 5;   /* נתיב נפרד לכל כבל — בלי חזרות שמאחדות קווים */
+    const exitX = 3, exitY = laneY;               /* היציאה באותו גובה של הנתיב — קו ישר ונפרד */
     out += `<path d="M ${pp.x} ${pp.y} L ${pp.x} ${laneY} L ${exitX + 14} ${laneY} L ${exitX} ${exitY}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
     out += `<circle cx="${pp.x}" cy="${pp.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/>`;
     out += badge(pp.x, (pp.y + laneY) / 2, LBL[c.id], col, c.id);
@@ -2289,6 +2289,7 @@ function renderWires() {
   }
   /* בזום גבוה העיגולים מתכווצים ביחס הפוך — שלא יסתירו את המוצרים */
   const ZW = getZ() || 1, shrink = Math.min(1, 1.6 / ZW);
+  const escCnt = {}; /* מונה עקיפות לכל קופסה+צד — מסלולים מקבילים נפרדים */
   for (const it of items) {
     const { c, i, pa, pb } = it;
     const col = CTYPES[c.type].c;
@@ -2297,11 +2298,18 @@ function renderWires() {
     if (ortho) {
       /* קצה שנכנס בשפת פאנל/ארון והיעד בצד הנגדי — בורח החוצה ועוקף את הקופסה
          מבחוץ (מעל/מתחת) במקום לחצות אותה. זה מה שקורה בשטח עם כבל אמיתי. */
+      /* כמה כבלים שעוקפים את אותה קופסה מאותו צד — כל אחד במסלול מקביל משלו (מדורג 6px) */
       const escape = (pt, box, towardX, otherY) => {
         if (!box) return null;
         const L = 2200 - box.x - box.w, R = 2200 - box.x, T = box.y, B = box.y + (box.h || 0);
-        if (Math.abs(pt.x - R) < 3 && towardX < pt.x - 4) return { x: R + 12, y: otherY < (T + B) / 2 ? T - 10 : B + 10 };
-        if (Math.abs(pt.x - L) < 3 && towardX > pt.x + 4) return { x: L - 12, y: otherY < (T + B) / 2 ? T - 10 : B + 10 };
+        const up = otherY < (T + B) / 2;
+        const mk = side => {
+          const key = box.x + '|' + box.y + '|' + side + '|' + (up ? 'T' : 'B');
+          const li = (escCnt[key] = (escCnt[key] || 0) + 1) - 1;
+          return { x: side === 'R' ? R + 12 + li * 6 : L - 12 - li * 6, y: up ? T - 10 - li * 6 : B + 10 + li * 6 };
+        };
+        if (Math.abs(pt.x - R) < 3 && towardX < pt.x - 4) return mk('R');
+        if (Math.abs(pt.x - L) < 3 && towardX > pt.x + 4) return mk('L');
         return null;
       };
       const e1 = escape(pa, it.A, it.mx, pb.y);
