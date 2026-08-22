@@ -2351,6 +2351,12 @@ function renderWires() {
     const bF = Math.max(6, (String(LBL[c.id]).length > 2 ? 9.5 : 11) * shrink);
     out += `<g style="pointer-events:all;cursor:grab" data-cbadge="${c.id}"><title>${btip}</title><circle cx="${it.bx}" cy="${it.by}" r="${bR.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3.5 : 2) * shrink}"/><text x="${it.bx}" y="${it.by + bF * 0.37}" text-anchor="middle" font-size="${bF.toFixed(1)}" font-weight="700" fill="${col}" style="user-select:none">${LBL[c.id]}</text></g>`;
   }
+  /* קווי יישור בזמן גרירת מוקד */
+  if (window.__alignG) {
+    const g = window.__alignG, EX = 6000;
+    if (g.x != null) out += `<line x1="${g.x}" y1="0" x2="${g.x}" y2="${EX}" stroke="#e2438a" stroke-width="1.5" stroke-dasharray="7 5" opacity="0.95" style="pointer-events:none"/>`;
+    if (g.y != null) out += `<line x1="0" y1="${g.y}" x2="${EX}" y2="${g.y}" stroke="#e2438a" stroke-width="1.5" stroke-dasharray="7 5" opacity="0.95" style="pointer-events:none"/>`;
+  }
   /* פוליגון אזור בזמן ציור */
   if (zoneMode && zoneMode.poly && zoneMode.poly.length) {
     const pp = zoneMode.poly;
@@ -2841,6 +2847,10 @@ function patchOpen(z, amps, lines, leftover) {
         <small style="opacity:.8;font-size:11px">גרור צ׳יפ ליציאה · הקש עליו כדי לראות אותו על התכנית</small>
         <button onclick="patchClose()" style="background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button></div>
       <div class="pb" id="patchBody"></div>
+      <div style="display:flex;gap:6px;align-items:center;padding:6px 12px;border-top:1px solid #eee;font-size:12px;background:#faf8f4">
+        🧵 <span style="white-space:nowrap">כבל הרמקולים ייחתך מ:</span>
+        <select id="pchCableSrc" title="הקווים שייווצרו ישויכו למוצר הכבל הזה — המטרים נצרכים ממנו" style="flex:1;font-size:12px;padding:3px 6px;border:1px solid #ddd;border-radius:7px">${patchCableOpts()}</select>
+      </div>
       <div class="pf">
         <button onclick="patchClose()">ביטול</button>
         <button onclick="patchAutoFill()">⚡ סדר אוטומטית</button>
@@ -3058,6 +3068,19 @@ function patchAddAmp() {
   patchRender();
   uiToast('✓ נוסף מגבר "' + nu.name.slice(0, 26) + '" לארון ולהצעה');
 }
+/* אפשרויות מקור כבל הרמקולים — גלילים מהמלאי ומהצעת המחיר; ההמלצה נבחרת אוטומטית */
+function patchCableOpts() {
+  ensureStock(P);
+  const opts = [];
+  P.stock.reels.forEach(st => { if (!st.type || st.type === 'nl4' || /רמקול/.test(st.name)) opts.push({ v: 'ref:reel|' + st.id, nm: '🧵 גליל במלאי: ' + st.name.slice(0, 40) + ' · נותרו ' + Math.max(0, (st.total || 0) - (st.used || 0)) + ' מ׳' }); });
+  impItems.forEach(it => {
+    if (it.on === false || it.stockId) return;
+    if ((it.dest === 'reel' || it.dest === 'cable') && (it.type === 'nl4' || /רמקול/.test(it.name)))
+      opts.push({ v: 'iid:' + it.iid, nm: '🧵 מההצעה: ' + it.name.slice(0, 44) });
+  });
+  return opts.map((o, i) => `<option value="${o.v}" ${i === 0 ? 'selected' : ''}>${esc(o.nm)}</option>`).join('') +
+    `<option value="" ${opts.length ? '' : 'selected'}>ללא שיוך — כבל חדש (יושלם בבדיקת השלמות)</option>`;
+}
 /* יצירת הכבלים בפועל מהמטריצה — כולל צריכת המחברים הדרושים לכל קצה */
 async function patchApply() {
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -3066,6 +3089,16 @@ async function patchApply() {
   const dlyRef = zoneDelayRef((P.zones || []).find(x => x.id === zid0));
   const allIds = Object.entries(PATCH.slots).filter(([k2]) => { const [ai2, ch2] = k2.split('|').map(Number); return !PATCH.amps[ai2].pre.has(ch2); }).flatMap(([, v2]) => v2);
   const dlyBase = allIds.length && dlyRef && P.scale ? Math.min(...allIds.map(id3 => { const n3 = byId(id3); return n3 ? delayDistM(n3, dlyRef) : Infinity; })) : 0;
+  /* מקור הכבל שנבחר בעורך — הקווים משויכים אליו והמטרים נצרכים מהגליל */
+  let cblRef = null;
+  const srcSel = document.getElementById('pchCableSrc');
+  if (srcSel && srcSel.value) {
+    if (srcSel.value.startsWith('iid:')) {
+      const it = impItems.find(x => x.iid === srcSel.value.slice(4));
+      const st = it && ensureStockItem(it);
+      if (st) cblRef = (it.dest === 'reel' ? 'reel|' : 'cable|') + st.id;
+    } else cblRef = srcSel.value.slice(4);
+  }
   let n2 = 0;
   for (const [key, ids] of Object.entries(PATCH.slots)) {
     if (!ids.length) continue;
@@ -3089,10 +3122,12 @@ async function patchApply() {
     const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + ch };
     if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
     if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
+    if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
     P.cables.push(cc); n2++; made.push(cc);
     for (let i = 1; i < nodes.length; i++) {
       const cb = { id: uid('c'), from: nodes[i - 1].id, to: nodes[i].id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' };
       if (P.scale) cb.len = +(dist(nodes[i - 1], nodes[i]) * P.scale).toFixed(1);
+      if (cblRef) applyStockRef(cblRef, null, cb);
       P.cables.push(cb); n2++; made.push(cb);
     }
   }
@@ -3192,7 +3227,9 @@ function patchOfferKits(zid) {
     <div style="max-height:44vh;overflow-y:auto">
       ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${esc(zname).replace(/'/g, '&#39;')}',${x.i})">🧰 ${esc(x.k.name.slice(0, 46))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
     </div>
-    <button data-skip style="width:100%;margin-top:8px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">דלג — בלי קיט</button>`);
+    <button data-inst style="width:100%;margin-top:8px;padding:8px;border-radius:9px;border:none;background:#0f6e56;color:#fff;font-weight:700;cursor:pointer">🔧 טבלת התקנה ותמחור — זמנים ומחירים</button>
+    <button data-skip style="width:100%;margin-top:6px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">דלג — בלי קיט</button>`);
+  ov.querySelector('[data-inst]').onclick = () => { ov.remove(); installManager(); };
   ov.querySelector('[data-skip]').onclick = () => ov.remove();
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
@@ -5046,10 +5083,28 @@ document.addEventListener('pointermove', e => {
   if (!drag) return;
   drag.n.x = Math.max(0, drag.ox - (e.clientX - drag.sx) / Z);
   drag.n.y = Math.max(0, drag.oy + (e.clientY - drag.sy) / Z);
+  /* קווי יישור: כשהמוקד הנגרר מתיישר עם רמקול/סאב אחר — קו מנחה + הצמדה */
+  window.__alignG = null;
+  if (drag.n.kind === 'point') {
+    const TH = 8 / Z;
+    let gx = null, gy = null;
+    for (const nn of P.nodes) {
+      if (nn === drag.n || nn.kind !== 'point') continue;
+      if (gx == null && Math.abs(nn.x - drag.n.x) < TH) gx = nn.x;
+      if (gy == null && Math.abs(nn.y - drag.n.y) < TH) gy = nn.y;
+    }
+    if (gx != null) drag.n.x = gx;
+    if (gy != null) drag.n.y = gy;
+    if (gx != null || gy != null) window.__alignG = { x: gx, y: gy };
+  }
   const el = document.getElementById('nd_' + drag.n.id);
   el.style.right = drag.n.x + 'px';
   el.style.top = drag.n.y + 'px';
   renderWires();
+  /* עורך החיווט פתוח? הדיליי והעומסים מתעדכנים חי תוך כדי גרירה */
+  if (PATCH && document.getElementById('patchBody') && !window.__pchT) {
+    window.__pchT = requestAnimationFrame(() => { window.__pchT = null; if (PATCH) patchRender(); });
+  }
 });
 document.addEventListener('pointerup', e => {
   if (marq) {
@@ -5085,6 +5140,7 @@ document.addEventListener('pointerup', e => {
     dragH = null; render();
     return;
   }
+  if (window.__alignG) { window.__alignG = null; renderWires(); }
   if (dragK) { dragK = null; render(); return; }
   if (dragE) {
     const de = dragE; dragE = null;
@@ -6796,10 +6852,11 @@ function installTbl() {
       תמחור לפי ימי טכנאי שלמים · <input type="number" value="${dayRate}" style="width:64px;font-size:11.5px" onchange="store.installDayRate=+this.value||1500;save();installTbl()"> ₪ ליום · אין חצאי ימים — עיגול מעלה
     </label>
     <div style="display:flex;gap:6px;margin-top:6px">
-      <div style="flex:1;background:${dayMode ? '#eef7f1' : '#f7f5f0'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'outline:2px solid #0f6e56' : ''}"><b style="font-size:17px">₪${dayTotal.toLocaleString()}</b><br><small class="muted">${days} ימי טכנאי × ₪${dayRate.toLocaleString()}</small></div>
+      <div onclick="store.installDayMode=true;save();installTbl()" title="לחץ לבחירת תמחור לפי ימי טכנאי" style="cursor:pointer;flex:1;background:${dayMode ? '#eef7f1' : '#f7f5f0'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'outline:2px solid #0f6e56' : 'opacity:.75'}"><b style="font-size:17px">${dayMode ? '✓ ' : ''}₪${dayTotal.toLocaleString()}</b><br><small class="muted">${days} ימי טכנאי × ₪${dayRate.toLocaleString()}</small></div>
       <div style="flex:1;background:#f7f5f0;border-radius:9px;padding:8px;text-align:center"><b style="font-size:17px">${hours.toFixed(1)} שע׳</b><br><small class="muted">זמן מחושב → ${days} ימים (שלמים)</small></div>
-      <div style="flex:1;background:${dayMode ? '#f7f5f0' : '#eef7f1'};border-radius:9px;padding:8px;text-align:center;${dayMode ? '' : 'outline:2px solid #0f6e56'}"><b style="font-size:17px">₪${Math.round(tPrice).toLocaleString()}</b><br><small class="muted">לפי פירוט סעיפים (ייחוס)</small></div>
-    </div>`;
+      <div onclick="store.installDayMode=false;save();installTbl()" title="לחץ לבחירת תמחור לפי פירוט הסעיפים" style="cursor:pointer;flex:1;background:${dayMode ? '#f7f5f0' : '#eef7f1'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'opacity:.75' : 'outline:2px solid #0f6e56'}"><b style="font-size:17px">${dayMode ? '' : '✓ '}₪${Math.round(tPrice).toLocaleString()}</b><br><small class="muted">לפי פירוט סעיפים</small></div>
+    </div>
+    <p class="muted" style="font-size:10.5px;margin:4px 0 0">לחיצה על כרטיס בוחרת את בסיס המחיר — הוא שייכנס לשורת ההתקנה בהצעה.</p>`;
 }
 function installAddToOffer() {
   const rates = installRates(), cnt = installCounts();
@@ -6923,7 +6980,11 @@ function zoneKitConfirm(zname, idx) {
   ov.querySelector('[data-asis]').onclick = () => {
     const items = edited(); done();
     addItems(items, false);
-    if (z) { buildZoneFromItems(z.id); placeZoneRackItems(z); } else { render(); save(); }
+    /* קיט בלי רמקולים (קיט התקנה/אביזרים) — רק מציב ציוד ארון, בלי לפתוח בורר רמקולים */
+    const hasSpk = items.some(x => isSpeakerItem(x.name));
+    if (z && hasSpk) { buildZoneFromItems(z.id); placeZoneRackItems(z); }
+    else if (z) { placeZoneRackItems(z); render(); save(); uiToast('🧰 פריטי הקיט נוספו להצעה' + ((P.nodes.some(n => n.kind === 'rack')) ? ' וצוידו בארון' : '')); }
+    else { render(); save(); }
   };
   ov.querySelector('[data-auto]').onclick = () => {
     const items = edited(); done();
