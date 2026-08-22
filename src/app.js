@@ -2910,10 +2910,25 @@ function allocBalanced(freeSlots, speakerNodes) {
   let spk = speakerNodes.filter(n => patchKind(n) !== 'sub');
   const out = []; /* [{slot, ids}] */
   const slots = freeSlots.slice();
-  for (const sN of subs) {
-    const slot = slots.shift();
-    if (!slot) { spk.push(sN); break; }
-    out.push({ slot, ids: [sN.id] });
+  /* כמה ערוצים חייבים להישאר לרמקולים כדי שאף אחד לא ייתקע בלי קו?
+     סאב מקבל קו נפרד רק כשיש שפע — כשחסר, הסאבים משתשרים יחד עד גבול האום */
+  if (subs.length && slots.length) {
+    const capS = Math.max(1, Math.floor(spkOhm(spk[0] || subs[0]) / slots[0].a.minOhm + 1e-6));
+    const spkNeed = Math.ceil(spk.length / capS);
+    const subSlots = Math.max(1, Math.min(subs.length, slots.length - spkNeed));
+    const rem = subs.slice();
+    for (let k = 0; k < subSlots && rem.length; k++) {
+      const slot = slots.shift();
+      const per = Math.ceil(rem.length / (subSlots - k));
+      const nodes = []; let inv = 0;
+      while (nodes.length < per && rem.length) {
+        const cand = rem[0], ni = inv + 1 / spkOhm(cand);
+        if (nodes.length && 1 / ni < slot.a.minOhm - 0.05) break;
+        nodes.push(rem.shift()); inv = ni;
+      }
+      out.push({ slot, ids: nodes.map(n => n.id) });
+    }
+    spk = spk.concat(rem); /* סאבים שלא נכנסו — מצטרפים לחלוקה הכללית */
   }
   while (spk.length && slots.length) {
     const per = Math.ceil(spk.length / slots.length);
@@ -3500,6 +3515,10 @@ const AMP_DATA = [
   { re: /DNA\s?80|80ND/i, kind: 'amp', ch: 4, mo: 2, ok: 1, w: '4×1000W @8Ω · 2000W @4Ω · 2200W @2.7Ω · 2000W @2Ω · גשר 4000W', pw: { 8: 1000, 4: 2000, 2.7: 2200, 2: 2000 }, br: { 8: 4000, 4: 4000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
   { re: /DNA\s?100|100ND/i, kind: 'amp', ch: 4, mo: 2, ok: 1, w: '4×1400W @8Ω · 2700W @4Ω · 3700W @2.7Ω · 3500W @2Ω · גשר 7000W @4Ω', pw: { 8: 1400, 4: 2700, 2.7: 3700, 2: 3500 }, br: { 8: 5400, 4: 7000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
   { re: /DNA\s?120|120ND|DELTA\s?120/i, kind: 'amp', ch: 2, mo: 2, ok: 1, w: '2×2400W @8Ω · 4600W @4Ω · 6250W @2.7Ω · 6800W @2Ω (ללא גשר)', pw: { 8: 2400, 4: 4600, 2.7: 6250, 2: 6800 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
+  /* דגם לא מפורט בשם המוצר ("XTA DPA" בלי מספר) — נופל לנתוני הסדרה:
+     כל סדרת DPA/DNA/DELTA יציבה ב-2Ω ו-4 ערוצים (DNA120 הדו-ערוצי נתפס למעלה).
+     בלי טבלת הספק — לא ממציאים מספרים לדגם לא ידוע. */
+  { re: /\bDPA\b|\bDNA\b/i, kind: 'amp', ch: 4, mo: 2, ok: 1, w: 'סדרת XTA DPA/DNA — דגם לא מפורט בשם · הסדרה כולה יציבה 2Ω', url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
   /* ===== KT Audio — מאומת מ-kt-audio.com ===== */
   { re: /DYNAMIQ\s?450/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×300W @8Ω · 2×450W @4Ω · גשר 900W @8Ω · DSP + AES67', pw: { 8: 300, 4: 450 }, br: { 8: 900 }, url: 'https://www.kt-audio.com/products/unicorn-dynamiq-450', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf' },
   { re: /DYNAMIQ\s?750/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×500W @8Ω · 2×750W @4Ω · גשר 1500W @8Ω · DSP + AES67', pw: { 8: 500, 4: 750 }, br: { 8: 1500 }, url: 'https://www.kt-audio.com/products/unicorn-dynamiq-750', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf' },
