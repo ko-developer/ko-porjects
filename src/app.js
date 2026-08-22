@@ -2796,6 +2796,20 @@ function patchOpen(z, amps, lines, leftover) {
     slots: {}, pool: leftover.map(n => n.id)
   };
   lines.forEach(l => { PATCH.slots[amps.indexOf(l.amp) + '|' + l.ch] = [l.head.id, ...l.seg.map(s => s.to.id)]; });
+  /* ערוצים שכבר מחוברים — מציגים את הרמקולים המחוברים בפועל; 🔓 משחרר לעריכה */
+  PATCH.preCables = {}; PATCH.redo = {};
+  PATCH.amps.forEach((a, ai) => {
+    [...a.pre].forEach(ch => {
+      const port = 'OUT ' + ch;
+      const head = P.cables.find(c => c.from === a.rk.id && (c.fromUnit || null) === (a.u.id || null) && c.pOut === port);
+      if (!head) return;
+      const cl = chainLoad(a.rk.id, a.u.id, port);
+      const ids = cl && cl.spks && cl.spks.length ? cl.spks.map(n => n.id) : [head.to];
+      PATCH.slots[ai + '|' + ch] = ids;
+      const inSet = new Set(ids);
+      PATCH.preCables[ai + '|' + ch] = P.cables.filter(c => c.id === head.id || (inSet.has(c.from) && inSet.has(c.to))).map(c => c.id);
+    });
+  });
   const ov = document.createElement('div');
   ov.id = 'patchOv';
   ov.innerHTML = `<div id="patchBox">
@@ -2835,24 +2849,29 @@ function patchClose() { PATCH = null; patchHiClear(); const o = document.getElem
 function patchHi(id, on) { const el = document.getElementById('nd_' + id); if (el) el.classList.toggle('pchHi', on); }
 function patchHiClear() { document.querySelectorAll('.node.pchHi').forEach(e => e.classList.remove('pchHi')); }
 function patchZ(ids) { const inv = ids.map(byId).filter(Boolean).reduce((s, n) => s + 1 / spkOhm(n), 0); return inv ? 1 / inv : 0; }
-function patchChip(id) {
+function patchChip(id, ro) {
   const n = byId(id); if (!n) return '';
   const full = nodeFullName(n);
-  return `<span class="pchip ${patchKind(n)} ${PATCH.sel === id ? 'sel' : ''}" draggable="true" data-chip="${id}"
+  return `<span class="pchip ${patchKind(n)} ${PATCH.sel === id ? 'sel' : ''}" ${ro ? `data-chipro="${id}" style="opacity:.85"` : `draggable="true" data-chip="${id}"`}
      title="${esc(full)} · ${spkOhm(n)}Ω · ${esc(n.sub || '')}"><b>${patchNum(n)}</b>${esc(shortModel(full))} <small style="opacity:.7">${spkOhm(n)}Ω</small></span>`;
 }
 function patchRender() {
   const body = document.getElementById('patchBody'); if (!body || !PATCH) return;
+  let totAmpW = 0, totSpkW = 0;
   const amps = PATCH.amps.map((a, ai) => {
     const chs = [];
     for (let ch = 1; ch <= a.chTotal; ch++) {
       const key = ai + '|' + ch, ids = PATCH.slots[key] || [], locked = a.pre.has(ch);
       const zz = patchZ(ids), w = ids.length ? ampChW(a.u.name, zz) : null;
+      /* צריכת הרמקולים בערוץ — RMS מנתוני הדגם (150W ברירת מחדל כשלא ידוע) */
+      const sw = ids.reduce((s3, id2) => { const n3 = byId(id2); const pw = n3 ? (n3.pow ?? (spkData(n3.name) || {}).w) : null; return s3 + (pw == null ? 150 : +pw); }, 0);
+      if (w) totAmpW += w; totSpkW += sw;
       const bad = ids.length && zz < a.minOhm - 0.05;
+      const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + (w ? ' · 🎚' + w + 'W' : '') + (sw ? ' · 🔊' + sw + 'W' : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
-        <span class="pchOut">${locked ? '🔒 ' : ''}OUT ${ch}</span>
-        <div class="pchChips">${ids.map(patchChip).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
-        <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}">${ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + (w ? ' · ' + w + 'W' : '') : '—'}</span></div>`);
+        <span class="pchOut">${locked ? '🔒 ' : ''}OUT ${ch}${locked ? `<button style="border:none;background:transparent;cursor:pointer;font-size:13px;padding:0 2px" title="שחרר ערוץ לעריכה — הקווים הקיימים יוחלפו בעת החיבור" onclick="patchUnlock('${key}')">🔓</button>` : ''}</span>
+        <div class="pchChips">${ids.map(id2 => patchChip(id2, locked)).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
+        <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" title="עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS">${zTxt}</span></div>`);
     }
     return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(a.u.name)}">🎚 ${esc(shortModel(a.u.name))}
         <small>${a.chTotal} ערוצים · מינ׳ ${a.minOhm}Ω · ${esc(a.rk.name.slice(0, 14))}</small></div>${chs.join('')}</div>`;
@@ -2862,9 +2881,16 @@ function patchRender() {
   Object.keys(PATCH.slots).forEach(k => { estCables += (PATCH.slots[k] || []).length; });
   body.innerHTML = amps + `
     <div style="font-size:12px;font-weight:700;margin:10px 0 5px">${PATCH.pool.length ? '⚠ ' : '✓ '}רמקולים ללא ערוץ (${PATCH.pool.length})</div>
-    <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(patchChip).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>
-    ${estCables ? `<div style="font-size:11px;color:#8a8377;margin-top:6px;background:#f7f5f0;border-radius:8px;padding:6px 8px">🔌 בעת החיבור ייווצרו ${estCables} קווים · ~${estCables * 2} מחברים ייצרכו/יתווספו להצעה אוטומטית</div>` : ''}`;
+    <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(id2 => patchChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>
+    ${estCables ? `<div style="font-size:11px;color:#8a8377;margin-top:6px;background:#f7f5f0;border-radius:8px;padding:6px 8px">🔌 בעת החיבור ייווצרו ${estCables} קווים · ~${estCables * 2} מחברים ייצרכו/יתווספו להצעה אוטומטית</div>` : ''}
+    ${totSpkW ? `<div style="font-size:11px;color:#8a8377;margin-top:4px;background:#f7f5f0;border-radius:8px;padding:6px 8px">⚡ סיכום הספקים: 🎚 מגברים ${totAmpW ? totAmpW.toLocaleString() + 'W' : '—'} זמינים בערוצים המאוישים · 🔊 רמקולים צורכים ${totSpkW.toLocaleString()}W RMS</div>` : ''}`;
   /* גרירה + הקשה */
+  body.querySelectorAll('[data-chipro]').forEach(el => {
+    const id = el.dataset.chipro;
+    el.addEventListener('mouseenter', () => patchHi(id, true));
+    el.addEventListener('mouseleave', () => patchHi(id, false));
+    el.addEventListener('click', e => { e.stopPropagation(); const nd = document.getElementById('nd_' + id); if (nd && nd.scrollIntoView) nd.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); });
+  });
   body.querySelectorAll('[data-chip]').forEach(el => {
     const id = el.dataset.chip;
     el.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', id); PATCH.sel = id; });
@@ -2885,6 +2911,14 @@ function patchRender() {
     el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('drop'); patchMove(e.dataTransfer.getData('text/plain'), el.dataset.slot); });
     el.addEventListener('click', () => { if (PATCH.sel) patchMove(PATCH.sel, el.dataset.slot); });
   });
+}
+/* שחרור ערוץ נעול — הרמקולים המחוברים הופכים לעריכים; בחיבור הקווים הישנים יוחלפו */
+function patchUnlock(key) {
+  const [ai, ch] = key.split('|').map(Number);
+  PATCH.amps[ai].pre.delete(ch);
+  (PATCH.redo = PATCH.redo || {})[key] = 1;
+  patchRender();
+  uiToast('🔓 הערוץ שוחרר — אפשר לגרור; בעת החיבור הניתוב הישן יוחלף בחדש');
 }
 function patchMove(id, slot) {
   if (!id || !PATCH) return;
@@ -2985,6 +3019,11 @@ async function patchApply() {
     if (!ids.length) continue;
     const [ai, ch] = key.split('|').map(Number);
     const a = PATCH.amps[ai];
+    if (a.pre.has(ch)) continue; /* ערוץ נעול — הקווים הקיימים נשארים כמו שהם */
+    if (PATCH.redo && PATCH.redo[key] && PATCH.preCables && PATCH.preCables[key]) {
+      const del = new Set(PATCH.preCables[key]); /* ערוץ ששוחרר — הניתוב הישן מוחלף */
+      P.cables = P.cables.filter(c => !del.has(c.id));
+    }
     const nodes = ids.map(byId).filter(Boolean);
     if (!nodes.length) continue;
     const head = nodes[0];
@@ -3103,7 +3142,7 @@ async function smartWire(zid) {
   const inZone = n => (n.sub || '').includes(z.name);
   const fed = new Set(); P.cables.forEach(c => { if (c.type === 'nl4' && c.to) fed.add(c.to); });
   const spks = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && inZone(n) && !fed.has(n.id) && !/עמדת נגינה/.test(n.name));
-  if (!spks.length) { alert('אין רמקולים לא-מחווטים באזור.'); return; }
+  const noNew = !spks.length; /* הכול מחווט? עדיין נפתח לעריכת הניתוב הקיים */
   /* כל המגברים: קודם מריכוז האזור, אחר-כך שאר הארונות */
   /* מגבר אמיתי — לא כרטיס/מתקן/כבל שהמילה "מגבר" מופיעה בשמם */
   const isAmpU = u => /מגבר|amp|DPA|DNA|MA\s?\d|IPD|PLM|XLI|DYNAMIQ|DAP\s?\d|MX3|PQM/i.test(u.name)
@@ -3116,6 +3155,8 @@ async function smartWire(zid) {
   if (!amps.length) { alert('אין מגבר בתכנית — הוסף מגבר לריכוז המגברים קודם.'); return; }
   amps.forEach(a => P.cables.forEach(c => { if (c.from === a.rk.id && c.fromUnit === a.u.id && c.pOut) { const m = c.pOut.match(/OUT (\d+)/); if (m) a.used.add(+m[1]); } }));
   amps.forEach(a => { a.pre = new Set(a.used); }); /* ערוצים שכבר מחוברים — נעולים בעורך */
+  if (noNew && !amps.some(a => a.used.size)) { alert('אין רמקולים באזור.'); return; }
+  if (noNew && window.__autoFlow) return;
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const isSub = n => /סאב|\bsub\b|NOMOS|MB2|BR\s?1|F118|F221|TILL\s?1[58]P?\s?SUB/i.test(n.name);
   /* הצעה התחלתית — המקצה המאוזן (מנצל את כל הערוצים עד האום המינימלי) */
@@ -3272,7 +3313,7 @@ function chainLoad(nid, unitId, port) {
   const inv = spks.reduce((s, x) => s + 1 / spkOhm(x), 0);
   let est = false;
   const w = spks.reduce((s, x) => { let pw = x.pow ?? spkData(x.name)?.w; if (pw == null) { pw = 150; est = true; } return s + pw; }, 0);
-  return { z: 1 / inv, n: spks.length, w, est };
+  return { z: 1 / inv, n: spks.length, w, est, spks };
 }
 /* הספק זמין לערוץ מגבר — מנותח משם המוצר או מטבלת המגברים (4×1300W → 1300) */
 function ampRec(uname) {
@@ -3617,11 +3658,13 @@ function spkDataManager(tab) {
   ov.id = 'spkDbOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
-  ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:760px;width:96%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)">
+  ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:820px;width:96%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)">
+    <style>#spkDbOv table a{font-size:17px;margin:0 5px;text-decoration:none;display:inline-block}#spkDbOv table a:hover{transform:scale(1.25)}#spkDbOv table td{padding:6px 5px}#spkDbOv table td button{font-size:12.5px;padding:2px 7px}</style>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">📚 טבלת נתונים טכניים (${rows.length})</b>
       <button onclick="document.getElementById('spkDbOv').remove()">✕</button></div>
     <div style="display:flex;gap:5px;margin-bottom:8px">${tabBtn('spk', '🔊 רמקולים')}${tabBtn('amp', '🎚 מגברים')}${tabBtn('proc', '🎛 פרוססורים')}</div>
-    <p class="muted" style="margin:0 0 8px;font-size:11px">🟢 = מאומת (דף יצרן / שם פריט ב-ERP) · 🔴 = הערכה. עריכה שומרת כמותאם ומסמנת כמאומת.</p>
+    <p class="muted" style="margin:0 0 4px;font-size:11px">🟢 = מאומת (דף יצרן / שם פריט ב-ERP) · 🔴 = הערכה. עריכה שומרת כמותאם ומסמנת כמאומת.</p>
+    <p style="margin:0 0 8px;font-size:11.5px;background:#f7f5f0;border-radius:8px;padding:5px 9px">מקרא קישורים: 🔗 דף המוצר באתר היצרן · 📄 מפרט טכני PDF · 📘 מדריך משתמש PDF · ✎ עריכת הקישורים</p>
     <div class="fld" style="margin-bottom:6px"><input id="spkDbQ" placeholder="🔍 חפש דגם…" value="${esc(window.__spkQ || '')}" oninput="window.__spkQ=this.value;spkDataManager('${tab}');const e2=document.getElementById('spkDbQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button style="flex:1" onclick="spkDbAddModel('${tab}')">+ דגם חדש</button>
@@ -6162,13 +6205,18 @@ function zoneSystemBuilder(z) {
         : `<button class="${z._built ? '' : 'primary'}" style="width:100%;${bs}" onclick="buildZoneSystem('${zid}')">4️⃣ ⚙ ${bp}${z._built ? 'המערכת נבנתה — לחץ לבנייה מחדש' : 'בנה מערכת אוטומטית לאזור'}</button>`;
     })()}
     <button style="width:100%;margin-top:6px;${z._built ? 'background:#eef7f1;color:#0f6e56' : 'background:#534ab7;color:#fff;font-weight:700'}" onclick="autoLayoutAI('${zid}')">🤖 ${z._built ? '✓ ' : ''}פריסה חכמה מהתכנית (AI) — מתחשבת בריהוט ובקירות</button>
-    <button style="width:100%;margin-top:6px;background:#0f6e56;color:#fff;font-weight:700" onclick="smartWire('${zid}')">5️⃣ 🔌 חיווט חכם למגבר — פרימיום/סאב קו בודד · רקע בשרשור</button>
+    ${(() => {
+      const fed2 = new Set(P.cables.map(c => c.to));
+      const zs = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && (n.sub || '').includes(z.name) && !/עמדת נגינה|מגבר|פרוססור/i.test(n.name));
+      const wd = zs.length > 0 && zs.every(n => fed2.has(n.id));
+      return `<button style="width:100%;margin-top:6px;${wd ? 'background:#eef7f1;color:#0f6e56' : 'background:#0f6e56;color:#fff;font-weight:700'}" onclick="smartWire('${zid}')">5️⃣ 🔌 ${wd ? '✓ מחווט — לחץ לעריכת הניתוב' : 'חיווט חכם למגבר — פרימיום/סאב קו בודד · רקע בשרשור'}</button>`;
+    })()}
     <div style="display:flex;gap:5px;margin-top:6px">
       <button style="flex:1" onclick="zoneSplMode('${zid}','max')">🔊 הצג מקס SPL לרמקולי האזור</button>
       <button style="flex:1" onclick="zoneSplMode('${zid}','design')">🔉 רמת תכנון (מקס−20)</button>
     </div>
-    <button style="width:100%;margin-top:6px;background:#7a4ab7;color:#fff;font-weight:700" onclick="patchOfferKits('${zid}')">6️⃣ 🧰 קיט התקנה לפרויקט — עמדה/ארון/סטנדרט</button>
-    <button style="width:100%;margin-top:6px;background:#b7761f;color:#fff;font-weight:700" onclick="projGapCheck()">7️⃣ 🤔 האם שכחתי משהו? — בדיקת שלמות והצעת חוסרים</button>
+    <button style="width:100%;margin-top:6px;${P._instKit ? 'background:#eef7f1;color:#0f6e56' : 'background:#7a4ab7;color:#fff;font-weight:700'}" onclick="patchOfferKits('${zid}')">6️⃣ 🧰 ${P._instKit ? '✓ נבחר קיט התקנה — לחץ לבחירה נוספת' : 'קיט התקנה לפרויקט — עמדה/ארון/סטנדרט'}</button>
+    <button style="width:100%;margin-top:6px;${P._gapOk ? 'background:#eef7f1;color:#0f6e56' : 'background:#b7761f;color:#fff;font-weight:700'}" onclick="projGapCheck()">7️⃣ 🤔 ${P._gapOk ? '✓ הבדיקה הורצה — לחץ לבדיקה חוזרת' : 'האם שכחתי משהו? — בדיקת שלמות והצעת חוסרים'}</button>
 
     <p class="muted" style="font-size:10px;margin-top:4px">פריסה מדורגת לפי מתודולוגיית distributed (מרווח = 2×(תקרה−1.2)×tan(פיזור/2) × צפיפות). שטח ${zoneAreaM(z).toFixed(0)} מ"ר.${P.scale ? '' : ' ⚠ כייל תכנית.'}</p>
   </div>`;
@@ -6501,25 +6549,42 @@ function installTbl() {
       <td style="text-align:left;white-space:nowrap;font-weight:600">${on ? '₪' + Math.round(line).toLocaleString() : '—'}</td>
       <td><button style="padding:0 6px" onclick="installRates().splice(${i},1);save();installTbl()">✕</button></td></tr>`;
   }).join('');
-  const hours = tMin / 60, crew = Math.ceil(hours / 8);
+  const hours = tMin / 60;
+  /* המודל המסחרי: טכנאי ליום — ימים שלמים בלבד, אין חצאי ימים (עיגול מעלה) */
+  const dayRate = +(store.installDayRate ?? 1500);
+  const days = tMin > 0 ? Math.max(1, Math.ceil(hours / 8)) : 0;
+  const dayMode = store.installDayMode !== false;
+  const dayTotal = days * dayRate;
   el.innerHTML = `<table class="cablelist" style="font-size:11.5px"><tr><th></th><th>סעיף</th><th>יח׳</th><th>כמות</th><th>דק׳/יח׳</th><th>₪/יח׳</th><th>סה"כ</th><th></th></tr>${rows}</table>
-    <div style="display:flex;gap:6px;margin-top:8px">
-      <div style="flex:1;background:#f7f5f0;border-radius:9px;padding:8px;text-align:center"><b style="font-size:17px">₪${Math.round(tPrice).toLocaleString()}</b><br><small class="muted">סה"כ התקנה (לפני מע"מ)</small></div>
-      <div style="flex:1;background:#f7f5f0;border-radius:9px;padding:8px;text-align:center"><b style="font-size:17px">${hours.toFixed(1)} שע׳</b><br><small class="muted">זמן עבודה · ~${crew} ימי טכנאי</small></div>
-      <div style="flex:1;background:#f7f5f0;border-radius:9px;padding:8px;text-align:center"><b style="font-size:17px">₪${hours > 0 ? Math.round(tPrice / hours).toLocaleString() : '—'}</b><br><small class="muted">אפקטיבי לשעה (ייחוס שוק: ₪650)</small></div>
+    <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin-top:8px;background:#faf8f4;border-radius:8px;padding:6px 8px">
+      <input type="checkbox" style="width:auto" ${dayMode ? 'checked' : ''} onchange="store.installDayMode=this.checked;save();installTbl()">
+      תמחור לפי ימי טכנאי שלמים · <input type="number" value="${dayRate}" style="width:64px;font-size:11.5px" onchange="store.installDayRate=+this.value||1500;save();installTbl()"> ₪ ליום · אין חצאי ימים — עיגול מעלה
+    </label>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <div style="flex:1;background:${dayMode ? '#eef7f1' : '#f7f5f0'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'outline:2px solid #0f6e56' : ''}"><b style="font-size:17px">₪${dayTotal.toLocaleString()}</b><br><small class="muted">${days} ימי טכנאי × ₪${dayRate.toLocaleString()}</small></div>
+      <div style="flex:1;background:#f7f5f0;border-radius:9px;padding:8px;text-align:center"><b style="font-size:17px">${hours.toFixed(1)} שע׳</b><br><small class="muted">זמן מחושב → ${days} ימים (שלמים)</small></div>
+      <div style="flex:1;background:${dayMode ? '#f7f5f0' : '#eef7f1'};border-radius:9px;padding:8px;text-align:center;${dayMode ? '' : 'outline:2px solid #0f6e56'}"><b style="font-size:17px">₪${Math.round(tPrice).toLocaleString()}</b><br><small class="muted">לפי פירוט סעיפים (ייחוס)</small></div>
     </div>`;
 }
 function installAddToOffer() {
   const rates = installRates(), cnt = installCounts();
-  let total = 0; const det = [];
+  let total = 0, tMin = 0; const det = [];
   rates.forEach(r => {
     if (r.off) return;
     const qty = r.qty != null ? r.qty : (cnt[r.auto] ?? 0);
     if (!qty) return;
     total += qty * (+r.price || 0);
+    tMin += qty * (+r.min || 0);
     det.push(qty + '× ' + r.label.slice(0, 30));
   });
-  if (!total) { uiToast('אין סעיפי התקנה פעילים'); return; }
+  if (!total && !tMin) { uiToast('אין סעיפי התקנה פעילים'); return; }
+  /* המודל המסחרי: ימי טכנאי שלמים × התעריף היומי (ברירת מחדל) */
+  if (store.installDayMode !== false) {
+    const dayRate = +(store.installDayRate ?? 1500);
+    const days = Math.max(1, Math.ceil(tMin / 60 / 8));
+    total = days * dayRate;
+    det.unshift(days + ' ימי טכנאי × ₪' + dayRate.toLocaleString());
+  }
   const hit = (typeof ERP_ITEMS !== 'undefined') && ERP_ITEMS.find(([k, n]) => n && /התקנה.*הצעת מחיר/i.test(n));
   const ex = impItems.find(it => it.iid === P._instIid);
   if (ex) { ex.price = Math.round(total); ex.note = det.slice(0, 4).join(' · '); }
@@ -6569,20 +6634,45 @@ function zoneKitConfirm(zname, idx) {
   const k = allKits()[idx];
   if (!k) return;
   const z = (P.zones || []).find(x => x.name === zname);
-  /* כמויות ניתנות לעריכה בפופאפ — לפני שהקיט נכנס להצעה */
-  const rows = k.items.map((x, i) => `<div style="display:flex;gap:6px;align-items:center;margin-bottom:3px">
-      <input data-kq="${i}" type="number" min="0" value="${+x.qty || 1}" style="width:48px;font-size:12px;padding:2px 4px;flex:none">
-      <span style="flex:1;font-size:11.5px;text-align:right">${esc((x.name || '').slice(0, 52))}</span>
-    </div>`).join('');
+  /* כמויות ומק"טים עריכים בפופאפ — 🔄 מחליף פריט מהקטלוג לפני שהקיט נכנס להצעה */
+  const cur = k.items.map(x => ({ ...x, qty: +x.qty || 1 }));
   const ov = uiModal(`
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
-    <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות לפני ההוספה · 0 = דלג על הפריט</p>
-    <div style="max-height:44vh;overflow-y:auto;margin:6px 0">${rows}</div>
+    <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
+    <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
     <button class="primary" data-asis style="width:100%;margin-bottom:6px">📋 הוסף והצב את הכמויות האלה</button>
     <button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>
     <button data-cancel style="width:100%">ביטול</button>`);
   const done = () => ov.remove();
-  const edited = () => k.items.map((x, i) => ({ ...x, qty: Math.max(0, +ov.querySelector(`[data-kq="${i}"]`).value || 0) })).filter(x => x.qty > 0 && x.name);
+  const rowsEl = ov.querySelector('[data-kitrows]');
+  let swapIdx = null, swapQ = '';
+  const renderRows = () => {
+    rowsEl.innerHTML = cur.map((x, i) => `<div style="border-bottom:1px solid #f0ede8;padding:3px 0">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input data-kq="${i}" type="number" min="0" value="${x.qty}" style="width:48px;font-size:12px;padding:2px 4px;flex:none">
+        <span style="flex:1;font-size:11.5px;text-align:right">${esc((x.name || '').slice(0, 46))}</span>
+        ${x.key ? `<span style="background:#f0ede8;border-radius:5px;padding:1px 6px;font-size:10px;white-space:nowrap" title="מק&quot;ט ERP">${esc(String(x.key))}</span>` : '<span style="color:#c1121f;font-size:10px;white-space:nowrap">ללא מק"ט</span>'}
+        <button data-swap="${i}" title="החלף פריט מהקטלוג" style="padding:1px 6px;font-size:11px;flex:none">🔄</button>
+      </div>
+      ${swapIdx === i ? `<div style="margin:4px 0 2px">
+        <input data-swapq placeholder="🔍 חפש פריט חלופי בקטלוג…" value="${esc(swapQ)}" style="width:100%;font-size:12px;padding:3px 6px">
+        <div>${swapQ.trim() ? (dockSearchResults(swapQ).filter(r => r.type === 'item').slice(0, 6).map((r, ri2) => `<button data-pick="${ri2}" style="display:block;width:100%;text-align:right;font-size:11px;padding:3px 6px;margin-top:2px;border:1px solid #eee;border-radius:6px;background:#faf8f4;cursor:pointer">${esc(r.name.slice(0, 52))}${r.key ? ' · ' + esc(String(r.key)) : ''}</button>`).join('') || '<small class="muted">אין תוצאות</small>') : ''}
+      </div>` : ''}
+    </div>`).join('');
+    rowsEl.querySelectorAll('[data-kq]').forEach(inp => { inp.onchange = () => { cur[+inp.dataset.kq].qty = Math.max(0, +inp.value || 0); }; });
+    rowsEl.querySelectorAll('[data-swap]').forEach(b => { b.onclick = () => { swapIdx = swapIdx === +b.dataset.swap ? null : +b.dataset.swap; swapQ = ''; renderRows(); }; });
+    const sq = rowsEl.querySelector('[data-swapq]');
+    if (sq) sq.oninput = () => { swapQ = sq.value; renderRows(); const s3 = rowsEl.querySelector('[data-swapq]'); if (s3) { s3.focus(); s3.setSelectionRange(s3.value.length, s3.value.length); } };
+    rowsEl.querySelectorAll('[data-pick]').forEach(b => {
+      b.onclick = () => {
+        const r = dockSearchResults(swapQ).filter(x2 => x2.type === 'item')[+b.dataset.pick];
+        if (r && swapIdx != null) { cur[swapIdx].name = r.name; cur[swapIdx].key = r.key || undefined; }
+        swapIdx = null; swapQ = ''; renderRows();
+      };
+    });
+  };
+  renderRows();
+  const edited = () => cur.filter(x => x.qty > 0 && x.name);
   const addItems = (items, skipSpeakers) => {
     const src = 'קיט: ' + k.name.slice(0, 30) + ' · ' + zname;
     for (const x of items) {
