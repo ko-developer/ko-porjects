@@ -2848,6 +2848,15 @@ function patchOpen(z, amps, lines, leftover) {
 function patchClose() { PATCH = null; patchHiClear(); const o = document.getElementById('patchOv'); if (o) o.remove(); }
 function patchHi(id, on) { const el = document.getElementById('nd_' + id); if (el) el.classList.toggle('pchHi', on); }
 function patchHiClear() { document.querySelectorAll('.node.pchHi').forEach(e => e.classList.remove('pchHi')); }
+/* נקודת הייחוס לדיליי — עמדת הנגינה/DJ של האזור (מקור הסאונד), אחרת ריכוז המגברים */
+function zoneDelayRef(z) {
+  const inZ = n => z && (n.sub || '').includes(z.name);
+  return P.nodes.find(n => n.kind === 'point' && /עמדת נגינה|\bDJ\b|במה|stage/i.test(n.name) && inZ(n))
+    || P.nodes.find(n => n.kind === 'point' && /עמדת נגינה|\bDJ\b|במה|stage/i.test(n.name))
+    || (z && z._rackNodeId && byId(z._rackNodeId)) || null;
+}
+/* מרחק במטרים מנקודת הייחוס (0 כשאין כיול/ייחוס) */
+function delayDistM(n, ref) { return (ref && P.scale) ? Math.hypot(n.x - ref.x, n.y - ref.y) * P.scale : 0; }
 function patchZ(ids) { const inv = ids.map(byId).filter(Boolean).reduce((s, n) => s + 1 / spkOhm(n), 0); return inv ? 1 / inv : 0; }
 function patchChip(id, ro) {
   const n = byId(id); if (!n) return '';
@@ -2858,6 +2867,12 @@ function patchChip(id, ro) {
 function patchRender() {
   const body = document.getElementById('patchBody'); if (!body || !PATCH) return;
   let totAmpW = 0, totSpkW = 0;
+  /* דיליי: יישור למרחק הרמקול הקרוב ביותר לעמדת ההשמעה · 343 מ'/שנ' */
+  const zD = (P.zones || []).find(x => x.id === PATCH.zid);
+  const dRef = zoneDelayRef(zD);
+  const allD = Object.values(PATCH.slots).flat().map(id2 => { const n2 = byId(id2); return n2 ? delayDistM(n2, dRef) : 0; });
+  const dBase = allD.length ? Math.min(...allD) : 0;
+  let anySpread = false;
   const amps = PATCH.amps.map((a, ai) => {
     const chs = [];
     for (let ch = 1; ch <= a.chTotal; ch++) {
@@ -2867,11 +2882,17 @@ function patchRender() {
       const sw = ids.reduce((s3, id2) => { const n3 = byId(id2); const pw = n3 ? (n3.pow ?? (spkData(n3.name) || {}).w) : null; return s3 + (pw == null ? 150 : +pw); }, 0);
       if (w) totAmpW += w; totSpkW += sw;
       const bad = ids.length && zz < a.minOhm - 0.05;
-      const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + (w ? ' · 🎚' + w + 'W' : '') + (sw ? ' · 🔊' + sw + 'W' : '') : '—';
+      /* דיליי מומלץ לערוץ + פער בתוך הערוץ (ערוץ = דיליי אחד לכולם) */
+      const dts = ids.map(id2 => { const n2 = byId(id2); return n2 ? delayDistM(n2, dRef) : 0; });
+      const dAvg = dts.length ? dts.reduce((s4, x2) => s4 + x2, 0) / dts.length : 0;
+      const dMs = dRef && P.scale && dts.length ? Math.max(0, (dAvg - dBase) / 343 * 1000) : null;
+      const dSpread = dts.length > 1 ? (Math.max(...dts) - Math.min(...dts)) / 343 * 1000 : 0;
+      if (dSpread > 5) anySpread = true;
+      const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + (w ? ' · 🎚' + w + 'W' : '') + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
         <span class="pchOut">${locked ? '🔒 ' : ''}OUT ${ch}${locked ? `<button style="border:none;background:transparent;cursor:pointer;font-size:13px;padding:0 2px" title="שחרר ערוץ לעריכה — הקווים הקיימים יוחלפו בעת החיבור" onclick="patchUnlock('${key}')">🔓</button>` : ''}</span>
         <div class="pchChips">${ids.map(id2 => patchChip(id2, locked)).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
-        <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" title="עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS">${zTxt}</span></div>`);
+        <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" title="עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
     }
     return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(a.u.name)}">🎚 ${esc(shortModel(a.u.name))}
         <small>${a.chTotal} ערוצים · מינ׳ ${a.minOhm}Ω · ${esc(a.rk.name.slice(0, 14))}</small></div>${chs.join('')}</div>`;
@@ -2883,7 +2904,8 @@ function patchRender() {
     <div style="font-size:12px;font-weight:700;margin:10px 0 5px">${PATCH.pool.length ? '⚠ ' : '✓ '}רמקולים ללא ערוץ (${PATCH.pool.length})</div>
     <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(id2 => patchChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>
     ${estCables ? `<div style="font-size:11px;color:#8a8377;margin-top:6px;background:#f7f5f0;border-radius:8px;padding:6px 8px">🔌 בעת החיבור ייווצרו ${estCables} קווים · ~${estCables * 2} מחברים ייצרכו/יתווספו להצעה אוטומטית</div>` : ''}
-    ${totSpkW ? `<div style="font-size:11px;color:#8a8377;margin-top:4px;background:#f7f5f0;border-radius:8px;padding:6px 8px">⚡ סיכום הספקים: 🎚 מגברים ${totAmpW ? totAmpW.toLocaleString() + 'W' : '—'} זמינים בערוצים המאוישים · 🔊 רמקולים צורכים ${totSpkW.toLocaleString()}W RMS</div>` : ''}`;
+    ${totSpkW ? `<div style="font-size:11px;color:#8a8377;margin-top:4px;background:#f7f5f0;border-radius:8px;padding:6px 8px">⚡ סיכום הספקים: 🎚 מגברים ${totAmpW ? totAmpW.toLocaleString() + 'W' : '—'} זמינים בערוצים המאוישים · 🔊 רמקולים צורכים ${totSpkW.toLocaleString()}W RMS</div>` : ''}
+    ${dRef && P.scale ? `<div style="font-size:11px;color:#8a8377;margin-top:4px;background:${anySpread ? '#fdeeee' : '#f7f5f0'};border-radius:8px;padding:6px 8px">⏱ דיליי (ב-DSP המגבר) מיושר ל"${esc((dRef.name || 'ריכוז').slice(0, 22))}" — הערך ליד כל ערוץ${anySpread ? ' · <b style="color:#c1121f">⚠ יש ערוץ עם פער >5ms בין רמקולים — ערוץ מקבל דיליי אחד, עדיף לקבץ לפי מרחק</b>' : ' · הקיבוץ שומר על פער קטן בין רמקולי אותו ערוץ'}</div>` : ''}`;
   /* גרירה + הקשה */
   body.querySelectorAll('[data-chipro]').forEach(el => {
     const id = el.dataset.chipro;
@@ -2938,8 +2960,10 @@ function patchMove(id, slot) {
    סאב = קו נפרד · רמקולים מחולקים שווה על הערוצים (ceil(N/ערוצים)), כל ערוץ עד תקרת
    העומס (Ω רמקול ÷ Ω מינימלי), בשרשור לפי קרבה — כך שכל שרשרת נשארת באזור השמעה
    אחד וניתן להנמיך אותה בנפרד. */
-function allocBalanced(freeSlots, speakerNodes) {
+function allocBalanced(freeSlots, speakerNodes, dRef) {
   const dist = (x, y) => Math.hypot(x.x - y.x, x.y - y.y);
+  /* רמקולים על אותו ערוץ חולקים דיליי אחד — השרשור מעדיף שכנים במרחק דומה מעמדת ההשמעה */
+  const rad = n => dRef ? dist(dRef, n) : 0;
   const subs = speakerNodes.filter(n => patchKind(n) === 'sub');
   let spk = speakerNodes.filter(n => patchKind(n) !== 'sub');
   const out = []; /* [{slot, ids}] */
@@ -2972,7 +2996,8 @@ function allocBalanced(freeSlots, speakerNodes) {
     let si = 0, bd = Infinity; spk.forEach((pp, i) => { const d = dist(f.a.rk, pp); if (d < bd) { bd = d; si = i; } });
     let cur = spk.splice(si, 1)[0]; const nodes = [cur]; let inv = 1 / spkOhm(cur);
     while (nodes.length < take && spk.length) {
-      let bi = -1, b2 = Infinity; spk.forEach((pp, i) => { const d = dist(cur, pp); if (d < b2) { b2 = d; bi = i; } });
+      /* ציון = קרבה פיזית + חצי מהפרש הרדיוס מהמקור (דיליי דומה) */
+      let bi = -1, b2 = Infinity; spk.forEach((pp, i) => { const d = dist(cur, pp) + 0.5 * Math.abs(rad(pp) - rad(cur)); if (d < b2) { b2 = d; bi = i; } });
       const ni = inv + 1 / spkOhm(spk[bi]);
       if (1 / ni < f.a.minOhm - 0.05) break;
       cur = spk.splice(bi, 1)[0]; nodes.push(cur); inv = ni;
@@ -2987,7 +3012,7 @@ function patchAutoFill() {
   const free = [];
   PATCH.amps.forEach((a, ai) => { for (let ch = 1; ch <= a.chTotal; ch++) { const key = ai + '|' + ch; if (!a.pre.has(ch) && !(PATCH.slots[key] || []).length) free.push({ a, ai, ch, key }); } });
   if (!free.length) { uiToast('אין ערוצים פנויים — הוסף מגבר'); return; }
-  const { assigned, leftover } = allocBalanced(free, pool);
+  const { assigned, leftover } = allocBalanced(free, pool, zoneDelayRef((P.zones || []).find(x => x.id === PATCH.zid)));
   assigned.forEach(x => { PATCH.slots[x.slot.key] = x.ids; });
   PATCH.pool = leftover;
   patchRender();
@@ -3014,6 +3039,9 @@ async function patchApply() {
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const zid0 = PATCH.zid;
   const made = [];
+  const dlyRef = zoneDelayRef((P.zones || []).find(x => x.id === zid0));
+  const allIds = Object.entries(PATCH.slots).filter(([k2]) => { const [ai2, ch2] = k2.split('|').map(Number); return !PATCH.amps[ai2].pre.has(ch2); }).flatMap(([, v2]) => v2);
+  const dlyBase = allIds.length && dlyRef && P.scale ? Math.min(...allIds.map(id3 => { const n3 = byId(id3); return n3 ? delayDistM(n3, dlyRef) : Infinity; })) : 0;
   let n2 = 0;
   for (const [key, ids] of Object.entries(PATCH.slots)) {
     if (!ids.length) continue;
@@ -3027,7 +3055,14 @@ async function patchApply() {
     const nodes = ids.map(byId).filter(Boolean);
     if (!nodes.length) continue;
     const head = nodes[0];
-    const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note: nodes.length > 1 ? 'שרשור (' + nodes.length + ' רמקולים)' : 'קו בודד', conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + ch };
+    let note = nodes.length > 1 ? 'שרשור (' + nodes.length + ' רמקולים)' : 'קו בודד';
+    /* דיליי מומלץ לערוץ — נרשם על הקו כדי שיופיע במפתח הכבלים ובדוח המתקינים */
+    if (dlyRef && P.scale) {
+      const dts = nodes.map(n4 => delayDistM(n4, dlyRef));
+      const ms = Math.max(0, (dts.reduce((s4, x4) => s4 + x4, 0) / dts.length - dlyBase) / 343 * 1000);
+      if (ms >= 0.5) note += ' · ⏱ דיליי ~' + ms.toFixed(1) + 'ms';
+    }
+    const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + ch };
     if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
     if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
     P.cables.push(cc); n2++; made.push(cc);
@@ -3162,7 +3197,7 @@ async function smartWire(zid) {
   /* הצעה התחלתית — המקצה המאוזן (מנצל את כל הערוצים עד האום המינימלי) */
   const freeSlots = [];
   amps.forEach(a => { for (let ch = 1; ch <= a.chTotal; ch++) if (!a.used.has(ch)) freeSlots.push({ a, ch }); });
-  const { assigned, leftover } = allocBalanced(freeSlots, spks);
+  const { assigned, leftover } = allocBalanced(freeSlots, spks, zoneDelayRef(z));
   const lines = assigned.map(x => {
     const nodes = x.ids.map(byId).filter(Boolean);
     const invZ = nodes.reduce((s2, n) => s2 + 1 / spkOhm(n), 0);
@@ -3621,10 +3656,23 @@ function spkDataManager(tab) {
   const old = document.getElementById('spkDbOv'); if (old) old.remove();
   const cell = (v) => v == null || v === '' ? '—' : v;
   const rows = [];
+  /* סוג מוצר משוער משם הדגם — ניתן לדריסה בעמודת "סוג" */
+  const guessTyp = nm => /סאב|\bsub\b|\bSB\s?\d|BR\s?1\d\d|BASS|INFRA|MB\d|F118|F121|F221|F215/i.test(nm) ? 'סאב'
+    : /column|קולום|VERTUS|2L\b|6EL\b/i.test(nm) ? 'קולום'
+    : /שקוע|ceiling|\bCS\s?\d/i.test(nm) ? 'שקוע'
+    : /monitor|מוניטור/i.test(nm) ? 'מוניטור' : 'רמקול';
+  /* DSP במגבר — מזוהה מנתוני ההספק/שם; עריך. DPA/DNA = מגבר משולב פרוססור */
+  const guessDsp = (d, nm) => /DPA|DNA/i.test(nm) ? '✓ מלא — משולב פרוססור' :
+    /DSP|Lake|Dante|OMNEO|AES67/i.test((d && d.w) || '') ? '✓' : /XLI|MA\s?\d|MAX\s?\d/i.test(nm) ? '—' : '';
+  /* רשת/תאימות לפרוססור — מה שמופיע במפרט */
+  const guessNet = d => { const w2 = (d && d.w) || ''; const hits = []; if (/AES67|ST2110/i.test(w2)) hits.push('AES67/ST2110'); if (/Dante/i.test(w2)) hits.push('Dante'); if (/OMNEO/i.test(w2)) hits.push('OMNEO'); return hits.join(' + ') || (/אנלוג/i.test(w2) ? 'אנלוגי' : ''); };
+  const metaStore = tab === 'spk' ? (store.spkMeta = store.spkMeta || {}) : (store.ampMeta = store.ampMeta || {});
+  const metaOf = nm => metaStore[rearKey(nm)] || {};
   /* זיהוי מותג לפי שם הדגם — לקיבוץ */
   const brandOf = nm => /\bSIX\b|DS8000|DP[45]|Ti1048/i.test(nm) ? 'XTA'
     : /GRAVIS|SPECTRA|CA\s?10|NOMOS|IPX\s?\d|TGX|SCALA|\bIX\b/i.test(nm) ? 'Kling & Freitag'
-    : /\bF\d|Res|EVO|MB\d|MINIBASS|MICROBASS|INFRABASS|F1201|F118|F215|F221/i.test(nm) ? 'Funktion-One'
+    : /\bF\s?\d|Res|EVO|MB\d|MINIBASS|MICROBASS|INFRABASS|BR\s?1\d\d|\bSB\s?\d|VERO/i.test(nm) ? 'Funktion-One'
+    : /YAMAHA|XMV|PX\d|MA2030|PA2030|MTX\d|MRX\d|DME\d|A-S\d|R-N\d|CRX|WXA|WXC|STAGEPAS/i.test(nm) ? 'Yamaha'
     : /TILL|PAGAZ|UNICORN|EUPHORIA|INTERPID|WR\s?600|BOLD|ALPHA|KT\s?ARRAY|NIKO|DYNAMIQ|MX3|DAP\s?\d/i.test(nm) ? 'KT Audio'
     : /CX-?\d|Lambda/i.test(nm) ? 'Lambda Labs'
     : /DMX\s?\d|DLA-?\s?0|DIGI|DSK|418/i.test(nm) ? 'DigiSynthetic'
@@ -3649,11 +3697,11 @@ function spkDataManager(tab) {
   const q2 = (window.__spkQ || '').trim().toLowerCase();
   if (q2) { const rowsF = rows.filter(r => r.name.toLowerCase().includes(q2)); rows.length = 0; rows.push(...rowsF); }
   /* קיבוץ ומיון לפי מותג */
-  rows.forEach(r => r.brand = brandOf(r.name));
+  rows.forEach(r => r.brand = metaOf(r.name).brand || brandOf(r.name));
   rows.sort((a, b) => a.brand === b.brand ? a.name.localeCompare(b.name) : a.brand.localeCompare(b.brand));
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
-  const heads = tab === 'spk' ? '<th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th>קישורים<br>🔗📄📘</th>' :
-    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th style="text-align:right">הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th style="text-align:right">הערות</th><th>קישור</th>';
+  const heads = tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th>קישורים<br>🔗📄📘</th>' :
+    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th style="text-align:right">הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th style="text-align:right">הערות</th><th>קישור</th>';
   const ov = document.createElement('div');
   ov.id = 'spkDbOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
@@ -3677,11 +3725,15 @@ function spkDataManager(tab) {
     const c = r.ok ? '#0f8a5f' : '#c1121f';
     const bg = r.ok ? '#eef7f1' : '#fdeeee';
     const arg = r.lk ? `'${esc(r.lk).replace(/'/g, '&#39;')}'` : `null,${r.bi}`;
-    const colspan = tab === 'spk' ? 9 : 6;
+    const colspan = tab === 'spk' ? 11 : 7;
     const brandHdr = (ri === 0 || rows[ri - 1].brand !== r.brand) ? `<tr style="background:#e9e4db"><td colspan="${colspan}" style="padding:4px 6px;font-weight:800;font-size:12px">🏷 ${esc(r.brand)}</td></tr>` : '';
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
+    const nmA = esc(r.name).replace(/'/g, '&#39;');
+    const meta = metaOf(r.name);
     const cells = tab === 'spk' ?
-      `<td style="text-align:center"><input value="${cell(r.d.h)}" style="width:44px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'h',this.value)"></td>
+      `<td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','typ',this.value)">${['רמקול', 'סאב', 'קולום', 'שקוע', 'מוניטור', 'אחר'].map(t => `<option ${(meta.typ || guessTyp(r.name)) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+       <td style="text-align:center"><input value="${esc(meta.brand || brandOf(r.name))}" title="מותג — עריכה מסדרת את הקיבוץ" style="width:78px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:11px" onchange="spkMetaSet('${nmA}','brand',this.value)"></td>
+       <td style="text-align:center"><input value="${cell(r.d.h)}" style="width:44px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'h',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.v)}" style="width:44px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'v',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.sens)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'sens',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.max)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'max',this.value)"></td>
@@ -3691,9 +3743,11 @@ function spkDataManager(tab) {
       tab === 'amp' ?
         `<td style="text-align:center"><input value="${cell(r.d.ch)}" style="width:40px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'ch',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.mo)}" placeholder="4" style="width:38px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'mo',this.value)"></td>
+       <td style="text-align:center"><input value="${esc(meta.dsp != null ? meta.dsp : guessDsp(r.d, r.name))}" placeholder="?" title="DSP: ✓ = יש · ציין ערוצים עודפים לשליטה במוצרים ללא DSP" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','dsp',this.value)"></td>
        <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid ${c};background:${bg};border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" onclick="editAmpLink(${arg})">✎</button></td>` :
         `<td style="text-align:center"><input value="${esc(r.d.io || '')}" style="width:56px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'io',this.value)"></td>
+       <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="?" title="רשת דיגיטלית (Dante / AES67 / OMNEO) ותאימות תכנה עם מוצרים אחרים" style="width:110px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
        <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid #ccc;border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" onclick="editAmpLink(${arg})">✎</button></td>`;
     return `${brandHdr}<tr style="border-bottom:1px solid #eee">
@@ -3808,9 +3862,18 @@ function editSpkDb(libKey, biOrField, arg3, arg4) {
   else { store.spkLib[key][field] = val === '' || val === '—' ? undefined : +val; if (field === 'h' || field === 'v') store.spkLib[key].ok = true; }
   save(); render(); spkDataManager();
 }
+/* מטא-נתונים לטבלה (סוג/מותג/DSP/רשת) — לפי מפתח שם, בלי לשכפל את הרשומה */
+function spkMetaSet(name, field, val) {
+  const tab = window.__spkTab || 'spk';
+  const ms = tab === 'spk' ? (store.spkMeta = store.spkMeta || {}) : (store.ampMeta = store.ampMeta || {});
+  const k = rearKey(name);
+  ms[k] = ms[k] || {};
+  ms[k][field] = (val === '' || val == null) ? undefined : val;
+  save(); spkDataManager(tab);
+}
 function spkDbExport() {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify({ speakers: store.spkLib || {}, amps: store.ampLib || {} }, null, 1)], { type: 'application/json' }));
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ speakers: store.spkLib || {}, amps: store.ampLib || {}, meta: { spk: store.spkMeta || {}, amp: store.ampMeta || {} } }, null, 1)], { type: 'application/json' }));
   a.download = 'speaker-amp-data.json'; a.click();
 }
 function guessSens(name) { const d = spkData(name); return d ? d.sens : null; }
