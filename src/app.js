@@ -2857,7 +2857,19 @@ function shortModel(name) {
   if (en) return en[0].trim();
   return s.replace(/^(רמקול|סאב|מגבר)\s+(פאסיבי|אקטיבי|מוגבר)?\s*(תוצרת)?\s*/i, '').slice(0, 18).trim();
 }
-const patchKind = n => isActiveSub(n.name) || /סאב|\bsub\b|NOMOS|MB2|BR\s?1|F118|F221/i.test(n.name) ? 'sub' : PREMIUM_RE.test(n.name) ? 'prem' : '';
+/* סוג המוצר מטבלת הנתונים הטכניים — כולל דריסות ידניות בעמודת "סוג" */
+function dbSpkType(prodName) {
+  const nm = prodName || '';
+  const d = spkData(nm);
+  const rowNm = d && d.re ? prettyRe(d.re) : rearKey(nm);
+  const m = (store.spkMeta || {})[rearKey(rowNm)] || (store.spkMeta || {})[rearKey(nm)];
+  if (m && m.typ) return m.typ;
+  if (/סאב|\bsub\b|\bSB\s?\d|BR\s?1\d\d|BASS|INFRA|MB\d|F118|F121|F221|F215|NOMOS/i.test(rowNm + ' ' + nm)) return 'סאב';
+  if (/column|קולום|VERTUS/i.test(rowNm + ' ' + nm)) return 'קולום';
+  if (/שקוע|ceiling|\bCS\s?\d/i.test(rowNm + ' ' + nm)) return 'שקוע';
+  return null;
+}
+const patchKind = n => dbSpkType(n.name) === 'סאב' || isActiveSub(n.name) || /סאב|\bsub\b|NOMOS|MB2|BR\s?1|F118|F221/i.test(n.name) ? 'sub' : PREMIUM_RE.test(n.name) ? 'prem' : '';
 function patchOpen(z, amps, lines, leftover) {
   patchCss();
   PATCH = {
@@ -2941,7 +2953,9 @@ function zoneSourceRef(z) {
 }
 /* מצב הדיליי: off = בלי (מוזיקת רקע מפוזרת) · geo = יישור גיאומטרי למקור · haas = geo + 15ms
    (אפקט קדימות — המאזין ממקם את המקור בבמה למרות שהקול מגיע מרמקול קרוב) */
-function dlyMode(z) { return store.dlyMode || (zoneSourceRef(z) ? 'haas' : 'off'); }
+function dlyMode(z) { return store.dlyMode || (zoneSourceRef(z) ? 'haas' : 'geo'); }
+/* נקודת הייחוס בפועל: מקור אמיתי אם יש, אחרת ריכוז המגברים (יישור יחסי בלבד) */
+function dlyRefOf(z) { return zoneSourceRef(z) || zoneDelayRef(z); }
 const SND_MS_M = 1000 / 343; /* 2.92 ms למטר (343 מ׳/שנ׳ ב-20°C) */
 /* תכנון דיליי לערוצים — הערוץ הקרוב למקור מקבל 0, השאר יחסית אליו */
 function delayPlan(chans, src, mode) {
@@ -2967,7 +2981,7 @@ function patchRender() {
   let totAmpW = 0, totSpkW = 0;
   /* דיליי — לפי המקור העיקרי (במה/DJ) ובמצב שנבחר; ערוץ אחד לפחות תמיד 0 */
   const zD = (P.zones || []).find(x => x.id === PATCH.zid);
-  const dSrc = zoneSourceRef(zD), dMode = dlyMode(zD);
+  const dSrcReal = zoneSourceRef(zD), dSrc = dlyRefOf(zD), dMode = dlyMode(zD);
   const dPlan = delayPlan(Object.entries(PATCH.slots).map(([k2, ids2]) => ({ key: k2, nodes: ids2.map(byId).filter(Boolean) })), dSrc, dMode);
   let anySpread = false;
   const amps = PATCH.amps.map((a, ai) => {
@@ -3011,9 +3025,9 @@ function patchRender() {
           <option value="geo" ${dMode === 'geo' ? 'selected' : ''}>יישור למקור (גיאומטרי)</option>
           <option value="haas" ${dMode === 'haas' ? 'selected' : ''}>יישור + 15ms Haas (מומלץ עם במה)</option>
         </select>
-        ${dSrc ? `מקור: <b>${esc((dSrc.name || '').slice(0, 20))}</b>` : '<b>אין במה/עמדת נגינה בתכנית</b> — במערכת מפוזרת אין צורך בדיליי'}
+        ${dSrcReal ? `מקור: <b>${esc((dSrcReal.name || '').slice(0, 20))}</b>` : dSrc ? `ייחוס: <b>${esc((dSrc.name || '').slice(0, 18))}</b> · אין במה/עמדת נגינה בתכנית — היישור יחסי בלבד` : ''}
       </div>
-      ${dMode !== 'off' && dSrc ? `<div style="margin-top:3px">הערוץ הקרוב למקור = 0ms, השאר מתעכבים ביחס אליו (2.92ms/מ׳)${dMode === 'haas' ? ' + 15ms קדימות' : ''}${anySpread ? ' · <b style="color:#c1121f">⚠ ערוץ עם פער >5ms בין רמקוליו — ערוץ מקבל דיליי אחד, עדיף לקבץ לפי מרחק</b>' : ''}</div>` : ''}
+      ${dMode !== 'off' && dSrc ? `<div style="margin-top:3px">הערוץ הקרוב לייחוס = 0ms, השאר מתעכבים ביחס אליו (2.92ms/מ׳)${dMode === 'haas' ? ' + 15ms קדימות' : ''}${anySpread ? ' · <b style="color:#c1121f">⚠ ערוץ עם פער >5ms בין רמקוליו — ערוץ מקבל דיליי אחד, עדיף לקבץ לפי מרחק</b>' : ''}</div>` : ''}
     </div>`;
   /* גרירה + הקשה */
   body.querySelectorAll('[data-chipro]').forEach(el => {
@@ -3178,7 +3192,7 @@ async function patchApply() {
   const zid0 = PATCH.zid;
   const made = [];
   const zA = (P.zones || []).find(x => x.id === zid0);
-  const dlyPlanMap = delayPlan(Object.entries(PATCH.slots).map(([k2, ids2]) => ({ key: k2, nodes: ids2.map(byId).filter(Boolean) })), zoneSourceRef(zA), dlyMode(zA));
+  const dlyPlanMap = delayPlan(Object.entries(PATCH.slots).map(([k2, ids2]) => ({ key: k2, nodes: ids2.map(byId).filter(Boolean) })), dlyRefOf(zA), dlyMode(zA));
   /* מקור הכבל שנבחר בעורך — הקווים משויכים אליו והמטרים נצרכים מהגליל */
   let cblRef = null;
   const srcSel = document.getElementById('pchCableSrc');
@@ -3505,9 +3519,11 @@ function chainLoad(nid, unitId, port) {
 }
 /* הספק זמין לערוץ מגבר — מנותח משם המוצר או מטבלת המגברים (4×1300W → 1300) */
 function ampRec(uname) {
+  const base = (typeof AMP_DATA !== 'undefined' ? AMP_DATA : []).find(d => d.kind === 'amp' && d.re && d.re.test(uname || '')) || null;
   const custom = store.ampLib && Object.entries(store.ampLib).find(([k, v]) => v.kind === 'amp' && uname && rearKey(uname).includes(k));
-  if (custom) return custom[1];
-  return (typeof AMP_DATA !== 'undefined' ? AMP_DATA : []).find(d => d.kind === 'amp' && d.re && d.re.test(uname || '')) || null;
+  /* עריכה ידנית (ערוצים/אום) גוברת, אבל טבלת ההספק המאומתת נשמרת */
+  if (custom) return base ? { ...base, ...Object.fromEntries(Object.entries(custom[1]).filter(([, v]) => v != null && v !== '')) } : custom[1];
+  return base;
 }
 /* הספק זמין לערוץ — לפי טבלת ההספק באימפדנס בפועל (8/4/2.7/2Ω), עם אינטרפולציה לערך הקרוב */
 function ampChW(uname, loadOhm) {
@@ -4481,7 +4497,8 @@ function renderPanel() {
     const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'אחר'];
     /* סוג המוקד — לא בהכרח רמקול */
     const PTYPES = [['speaker', '🔊 רמקול'], ['sub', '🔈 סאב'], ['amp', '🎚 מגבר'], ['proc', '🎛 פרוססור / DSP / מטריצה'], ['player', '💿 נגן / סטרימר / מחשב מוזיקה'], ['mic', '🎤 מיקרופון'], ['screen', '📺 מסך/מקרן'], ['light', '💡 גוף תאורה'], ['camera', '📷 מצלמה'], ['ap', '📶 נקודת רשת/AP'], ['device', '📦 מכשיר אחר'], ['other', '📍 נקודת קצה']];
-    const autoT = /מגבר|amplifier/i.test(n.name) ? 'amp' : /פרוססור|processor|קרוסאובר|xover|מטריצ|\bDSP\b/i.test(n.name) ? 'proc' : /נגן|סטרימר|streamer|player|מחשב מוזיקה/i.test(n.name) ? 'player' : /סאב|\bsub\b/i.test(n.name) ? 'sub' : /רמקול|speaker|קולונה/i.test(n.name) ? 'speaker' : /מסך|מקרן|screen|projector|led/i.test(n.name) ? 'screen' : /תאורה|light|par|לד/i.test(n.name) ? 'light' : /מצלמה|camera/i.test(n.name) ? 'camera' : /מיקרופון|mic/i.test(n.name) ? 'mic' : null;
+    const dbT = dbSpkType(n.name);
+    const autoT = dbT === 'סאב' ? 'sub' : /מגבר|amplifier/i.test(n.name) ? 'amp' : /פרוססור|processor|קרוסאובר|xover|מטריצ|\bDSP\b/i.test(n.name) ? 'proc' : /נגן|סטרימר|streamer|player|מחשב מוזיקה/i.test(n.name) ? 'player' : /סאב|\bsub\b/i.test(n.name) ? 'sub' : /רמקול|speaker|קולונה/i.test(n.name) ? 'speaker' : /מסך|מקרן|screen|projector|led/i.test(n.name) ? 'screen' : /תאורה|light|par|לד/i.test(n.name) ? 'light' : /מצלמה|camera/i.test(n.name) ? 'camera' : /מיקרופון|mic/i.test(n.name) ? 'mic' : null;
     const pt = n.ptype || autoT || 'speaker';
     const isSpk = pt === 'speaker' || pt === 'sub';
     const isSub = pt === 'sub';
@@ -7101,7 +7118,7 @@ function zoneKitConfirm(zname, idx) {
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
-    <button class="primary" data-asis style="width:100%;margin-bottom:6px">📋 הוסף והצב את הכמויות האלה</button>
+    <button class="primary" data-asis style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף את הקיט להצעה והצב על התכנית</button>
     <button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd">🔧 טבלת התקנה ותמחור — זמני עבודה ומחירים</button>
     <button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>
     <button data-cancel style="width:100%">ביטול</button>`);
@@ -7152,9 +7169,12 @@ function zoneKitConfirm(zname, idx) {
     addItems(items, false);
     /* קיט בלי רמקולים (קיט התקנה/אביזרים) — רק מציב ציוד ארון, בלי לפתוח בורר רמקולים */
     const hasSpk = items.some(x => isSpeakerItem(x.name));
+    const nBefore = P.nodes.length;
     if (z && hasSpk) { buildZoneFromItems(z.id); placeZoneRackItems(z); }
-    else if (z) { placeZoneRackItems(z); render(); save(); uiToast('🧰 פריטי הקיט נוספו להצעה' + ((P.nodes.some(n => n.kind === 'rack')) ? ' וצוידו בארון' : '')); }
+    else if (z) { placeZoneRackItems(z); render(); save(); }
     else { render(); save(); }
+    const placed = P.nodes.length - nBefore;
+    uiToast('🧰 נוספו ' + items.length + ' פריטים מהקיט "' + k.name.slice(0, 26) + '" להצעה' + (placed > 0 ? ' · הוצבו ' + placed + ' על התכנית' : '') + ' — ההצעה מתעדכנת בצד');
   };
   ov.querySelector('[data-auto]').onclick = () => {
     const items = edited(); done();
