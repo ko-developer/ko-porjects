@@ -6322,13 +6322,20 @@ function sendOffer() {
     ${noKey.length ? `<div style="background:#fdeeee;border:1px solid #c1121f;border-radius:8px;padding:8px;margin-bottom:10px;font-size:12px">
       <b style="color:#c1121f">⚠ ${noKey.length} שורות ללא מק"ט — לא יישלחו:</b>
       <div style="margin-top:4px">${noKey.map(it => '• ' + esc(it.name.slice(0, 50))).join('<br>')}</div></div>` : ''}
-    <div class="fld"><label>שם הפרויקט ב-ERP (לאיתור אוטומטי)</label><input id="ofPrj" value="${esc(P.name || '')}"></div>
+    <div class="fld" style="position:relative"><label>פרויקט ב-ERP — בחר פרויקט <b>קיים</b> (ה-ERP לא מאפשר ליצור פרויקט מכאן)</label>
+      <input id="ofPrj" autocomplete="off" value="${esc(P.erpProjName || '')}" placeholder="🔍 חפש פרויקט קיים לפי שם / לקוח / כתובת…" oninput="ofPrjSearch(this)" onfocus="ofPrjSearch(this)">
+      <div id="ofPrjList" style="display:none;position:absolute;z-index:6;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.18)"></div>
+      <div id="ofPrjSt" class="muted" style="font-size:10px;margin-top:2px">${P.erpProjId ? '✓ פרויקט משויך' : ''}</div>
+      <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin-top:4px;background:#faf8f4;border-radius:8px;padding:5px 8px">
+        <input type="checkbox" id="ofNoPrj" style="width:auto" ${P.erpProjId ? '' : 'checked'} onchange="ofPrjMode()">
+        הצעה ללקוח בלבד — בלי פרויקט (אפשר לשייך לפרויקט ב-ERP אחר כך)
+      </label></div>
     <div class="fld" style="position:relative"><label>לקוח (חשבון ERP) — חובה כשאין פרויקט, מומלץ תמיד</label>
-      <input id="ofAcc" autocomplete="off" placeholder="🔍 שם לקוח או מפתח חשבון…" oninput="ofAccSearch(this)" onfocus="ofAccSearch(this)">
+      <input id="ofAcc" autocomplete="off" value="${esc(P.accountName || '')}" data-key="${esc(P.accountKey || '')}" placeholder="🔍 שם לקוח או מפתח חשבון…" oninput="ofAccSearch(this)" onfocus="ofAccSearch(this)">
       <div id="ofAccList" style="display:none;position:absolute;z-index:5;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.18)"></div>
-      <div id="ofAccSt" class="muted" style="font-size:10px;margin-top:2px"></div></div>
+      <div id="ofAccSt" class="muted" style="font-size:10px;margin-top:2px">${P.accountKey ? '✓ לקוח <b>' + esc(P.accountKey) + '</b> · ' + esc(P.accountName || '') : ''}</div></div>
     <div class="fld"><label>שם ההצעה — חובה בהצעת פרויקט (מבדיל בין הצעות באותו פרויקט)</label><input id="ofName" value="${esc((P.name || 'הצעה') + ' — סאונד וחיווט')}"></div>
-    <div class="fld"><label>אופן העברת התשתית — חובה</label><select id="ofInfra">
+    <div class="fld" id="ofInfraW"><label>אופן העברת התשתית — חובה בהצעת פרויקט</label><select id="ofInfra">
       <option value="technician_install_site">🔧 טכנאי מביא לאתר ההתקנה</option>
       <option value="one_time_delivery">🚚 משלוח חד-פעמי לאתר</option>
       <option value="customer_pickup">🏭 הלקוח אוסף מהמחסן</option>
@@ -6412,11 +6419,68 @@ function sendOffer() {
     if (!e.target.closest('#ofAcc') && !e.target.closest('#ofAccList')) { const el = document.getElementById('ofAccList'); if (el) el.style.display = 'none'; }
   });
 
+  /* בורר פרויקט — אותה מהירות כמו בורר הלקוח (מטמון + סינון קידומת מקומי) */
+  window.__ofPrjCache = window.__ofPrjCache || new Map();
+  window.__ofPrjPick = (id, name, accKey, accName) => {
+    const inp = document.getElementById('ofPrj');
+    inp.value = name; inp.dataset.id = id;
+    document.getElementById('ofPrjList').style.display = 'none';
+    document.getElementById('ofNoPrj').checked = false;
+    document.getElementById('ofPrjSt').innerHTML = '✓ פרויקט <b>' + esc(name) + '</b>' + (accName ? ' · לקוח ' + esc(accName) : '');
+    /* הלקוח נגזר מהפרויקט — ממלאים אוטומטית */
+    if (accKey) {
+      const ai = document.getElementById('ofAcc');
+      ai.value = accName || ai.value; ai.dataset.key = accKey;
+      document.getElementById('ofAccSt').innerHTML = '✓ לקוח <b>' + esc(accKey) + '</b>' + (accName ? ' · ' + esc(accName) : '') + ' (מהפרויקט)';
+    }
+    ofPrjMode();
+  };
+  window.ofPrjMode = () => {
+    const no = document.getElementById('ofNoPrj').checked;
+    document.getElementById('ofInfraW').style.display = no ? 'none' : '';
+    const b = document.getElementById('ofSrvW').querySelector('button');
+    if (b && !b.disabled) b.textContent = no ? '🚀 צור הצעה ללקוח ב-ERP' : '🚀 צור הצעה ופתח את הפרויקט ב-ERP';
+  };
+  window.ofPrjSearch = inp => {
+    const st = document.getElementById('ofPrjSt'), el = document.getElementById('ofPrjList');
+    const q = inp.value.trim();
+    inp.dataset.id = '';
+    if (q.length < 2) { el.style.display = 'none'; return; }
+    const C = window.__ofPrjCache;
+    const paint = list => {
+      if (!list.length) { el.style.display = 'none'; st.textContent = 'לא נמצא פרויקט — סמן "הצעה ללקוח בלבד"'; return; }
+      el.innerHTML = list.slice(0, 40).map(pr => `<div onclick="__ofPrjPick('${esc(pr.id)}','${esc(pr.name).replace(/'/g, '&#39;')}','${esc(pr.accountKey || '')}','${esc(pr.account || '').replace(/'/g, '&#39;')}')" style="padding:6px 9px;cursor:pointer;border-bottom:1px solid #f2efe9;font-size:12.5px" onmouseover="this.style.background='#f7f5f0'" onmouseout="this.style.background=''">
+        <b>${esc(pr.name)}</b>${pr.account ? ' <span class="muted" style="font-size:11px">· ' + esc(pr.account) + '</span>' : ''}${pr.address ? '<br><span class="muted" style="font-size:10.5px">📍 ' + esc(pr.address) + '</span>' : ''}</div>`).join('');
+      el.style.display = ''; st.textContent = list.length + ' פרויקטים — בחר מהרשימה';
+    };
+    if (C.has(q)) return paint(C.get(q));
+    for (let n = q.length - 1; n >= 2; n--) {
+      const pre = C.get(q.slice(0, n));
+      if (pre) { const loc = pre.filter(x => (x.name + ' ' + x.account + ' ' + x.address).toLowerCase().includes(q.toLowerCase())); if (loc.length) { C.set(q, loc); return paint(loc); } break; }
+    }
+    clearTimeout(window.__ofPrjT);
+    st.textContent = '⏳ מחפש…';
+    window.__ofPrjT = setTimeout(async () => {
+      try {
+        const j = await fetch('/api/erp/projects?q=' + encodeURIComponent(q)).then(r => r.json());
+        if (!j.ok) { st.textContent = ''; return; }
+        C.set(q, j.projects);
+        if (document.getElementById('ofPrj') !== inp || inp.value.trim() !== q) return;
+        paint(j.projects);
+      } catch (e) { st.textContent = ''; }
+    }, 140);
+  };
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#ofPrj') && !e.target.closest('#ofPrjList')) { const el = document.getElementById('ofPrjList'); if (el) el.style.display = 'none'; }
+  });
+  setTimeout(() => { if (document.getElementById('ofNoPrj')) ofPrjMode(); }, 0);
+
   window.ofPayload = () => {
     const payload = {
       action: 'create_project_offer_via_erp_mcp',
       instructions: 'אתר את הפרויקט לפי project_name (list_projects), קרא get_offer_options עם project_id, וצור הצעה עם create_offer. החזר קוד הזמנה וקישור אישור.',
-      project_name: document.getElementById('ofPrj').value.trim(),
+      project_id: document.getElementById('ofNoPrj')?.checked ? undefined : (document.getElementById('ofPrj')?.dataset.id || undefined),
+      project_name: document.getElementById('ofNoPrj')?.checked ? undefined : document.getElementById('ofPrj').value.trim(),
       account_key: document.getElementById('ofAcc')?.dataset.key || undefined,
       account_name: document.getElementById('ofAcc')?.value.trim() || undefined,
       offer_name: document.getElementById('ofName').value.trim(),
@@ -6452,12 +6516,16 @@ function sendOffer() {
         const confirmUrl = res.confirmation_url || res.customer_confirmation_url || res.order?.confirmation_url || '';
         const projUrl = j.project_web_url || '';
         out.innerHTML = '✅ ההצעה נוצרה ב-ERP' + (code ? ' — הזמנה <b>' + esc(code) + '</b>' : '') +
+          (j.note ? '<br><span style="color:#b7761f">ℹ ' + esc(j.note) + '</span>' : '') +
           (projUrl ? '<br><a href="' + esc(projUrl) + '" target="_blank" rel="noopener">📂 פתח את הפרויקט ב-ERP</a>' : '') +
           (confirmUrl ? '<br><a href="' + esc(confirmUrl) + '" target="_blank" rel="noopener">🔗 קישור אישור ללקוח</a>' : '') +
           (j.skipped_without_key && j.skipped_without_key.length ? '<br>⚠️ ' + j.skipped_without_key.length + ' פריטים ללא מק"ט לא נכללו' : '');
         btn.textContent = '✓ נוצרה — נפתח ב-ERP';
         /* סימון הפרויקט: נשלחה הצעה + שיוך הלקוח (מוצג במנהל הפרויקטים) */
         P.offerSent = true;
+        P.erpOfferCode = code || P.erpOfferCode;
+        P.erpProjId = payload.project_id || P.erpProjId;
+        P.erpProjName = payload.project_name || P.erpProjName;
         if (payload.account_name) { P.accountName = payload.account_name; P.accountKey = payload.account_key; }
         save();
         if (projUrl) window.open(projUrl, '_blank', 'noopener'); /* ניווט אוטומטי אל הפרויקט */
