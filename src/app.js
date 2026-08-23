@@ -810,6 +810,7 @@ function renderHeader() {
     <button onclick="autoConnect()">${auto ? `🔌 בטל חיבור אוטומטי (${P.autoIds.length})` : '🔌 חבר אותי — שידוך אוטומטי'}</button>
     <button onclick="designBrief()">🎯 תכנן לי מערכת לחלל זה</button>
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
+    <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
     <button onclick="verManager()">🕘 היסטוריית גרסאות — שחזור מצב קודם</button>
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>
     <button onclick="rearLibManager()">🛠 ספריית גבי מוצרים</button>
@@ -3409,6 +3410,17 @@ function projGapCheck() {
   });
   const haveC = qsum(it => it.dest === 'conn' || /מחבר|קונקטור|connector/i.test(it.name));
   if (needC > haveC) finds.push({ i: '🔩', t: 'דרושים ~' + needC + ' מחברים לקצוות · בהצעה ' + haveC, b: 'הוסף מחברים לכל הקווים', fn: 'gapFixConnectors()' });
+  /* 3b. מולטי-קייבל: לכל גיד דרוש מחבר בכל קצה — וקופסת XLR מרובה סופרת כגידים */
+  const coresOf = nm => { const m = /(\d+)\s*[xX×]\s*[\d.]+/.exec(nm || '') || /\b(\d+)\s*(?:גידים|cores?)\b/i.exec(nm || ''); return m ? +m[1] : 0; };
+  let mcCores = 0;
+  rows.forEach(it => { if (/מולטי|multi/i.test(it.name)) mcCores += coresOf(it.name) * (+it.qty || 1); });
+  P.cables.forEach(c => { if (c.type === 'multi' && c.cores) mcCores += +c.cores; });
+  if (mcCores) {
+    const xlrHave = qsum(it => /XLR/i.test(it.name) && /מחבר|connector|פנל|קופס|panel/i.test(it.name)) +
+      rows.filter(it => /פנל|קופס/i.test(it.name) && /XLR/i.test(it.name)).reduce((s3, it) => s3 + coresOf(it.name) * (+it.qty || 1), 0);
+    const need = mcCores * 2; /* שני קצוות לכל גיד */
+    if (need > xlrHave) finds.push({ i: '🎚', t: 'מולטי עם ' + mcCores + ' גידים — דרושים ~' + need + ' מחברי XLR (זכר/נקבה) · בהצעה ' + xlrHave, b: 'חפש מחבר XLR', fn: "gapSearch('מחבר XLR')" });
+  }
   /* 4. תושבות ומתקנים לרמקולים תלויים */
   const hung = spkN.filter(n => patchKind(n) !== 'sub' && !/שקוע|תקרת גבס/.test((n.name || '') + (n.mount || ''))).length;
   const mounts = qsum(it => /מתקן|תושבת|יוקה|YOKE|ברקט|bracket/i.test(it.name));
@@ -6514,7 +6526,7 @@ function renderImp() {
     return `<tr style="${replOn ? 'background:#e8f0ff' : pinOn || wireOn || connOn ? 'background:#fff3e8' : it.added ? 'background:#f2faf4' : ''}">
         <td style="white-space:nowrap">${acc ? `<span title="אביזר — משויך למוצר, לא מוצב בתכנית" style="font-size:13px">🔩</span>` : ''}${canDrag ? `<span data-dragi="${i}" title="גרור אל התכנית" style="cursor:grab;user-select:none;font-size:14px;color:#c96f4a">⠿</span>` : ''}${canPin ? `<button onclick="togglePin('${it.iid}')" title="מצב נעיצה — לחץ על התכנית שוב ושוב" style="padding:0 5px;font-size:12px;${pinOn ? 'background:#ff8a50' : 'background:transparent'}">📌</button>` : ''}${canWire ? `<button onclick="wireFromItem('${it.iid}')" title="פרוס כבל זה — לחץ על שני מוצרים בתכנית (Esc לסיום)" style="padding:0 5px;font-size:12px;${wireOn ? 'background:#ff8a50' : 'background:transparent'}">🔌</button>` : ''}${canConn ? `<button onclick="connPinFromItem('${it.iid}')" title="נקור מחבר על קצה כבל — לחץ ליד קצה של כבל בתכנית" style="padding:0 5px;font-size:12px;${connOn ? 'background:#ff8a50' : 'background:transparent'}">📌</button>` : ''}</td>
         <td>${it.added ? '✓' : `<input type="checkbox" ${it.on ? 'checked' : ''} onchange="impItems[${i}].on=this.checked">`}</td>
-        <td><input style="width:42px" type="number" min="1" value="${it.qty}" ${it.added ? 'disabled' : `onchange="impItems[${i}].qty=+this.value"`}>${(() => {
+        <td><input style="width:42px" type="number" min="0" value="${it.qty}" title="כמות — ניתנת לעריכה בכל שלב עד אישור הלקוח" onchange="setItemQty(${i},this.value)">${(() => {
           const inf = it.key ? erpInfo(it.key) : null;
           if (!inf) return '';
           return `<div style="font-size:9px;line-height:1.5;margin-top:2px;white-space:nowrap">
@@ -6589,6 +6601,26 @@ function renderImp() {
 }
 function openImported() { dockOpen = true; dockMin = false; renderImp(); }
 function itemZones(it) { return it.zones ? Object.entries(it.zones).filter(([z, n]) => n > 0) : []; }
+/* שינוי כמות בכל שלב — כולל אחרי הצבה: עודף מוקדים על התכנית מוסר, וחוסר נפתח להצבה */
+function setItemQty(i, val) {
+  const it = impItems[i]; if (!it) return;
+  const q = Math.max(0, +val || 0);
+  const placed = +it.placed || 0;
+  it.qty = q;
+  if (q < placed) {
+    /* מסירים את המוקדים האחרונים שנוצרו מהפריט הזה */
+    const mine = P.nodes.filter(n => n.srcIid === it.iid);
+    const drop = mine.slice(Math.max(0, mine.length - (placed - q))).map(n => n.id);
+    const ds = new Set(drop);
+    P.nodes = P.nodes.filter(n => !ds.has(n.id));
+    P.cables = P.cables.filter(c => !ds.has(c.from) && !ds.has(c.to));
+    it.placed = q;
+    if (it.zones) Object.keys(it.zones).forEach(k => { it.zones[k] = Math.min(it.zones[k], q); });
+  }
+  it.added = q > 0 && (it.placed || 0) >= q;
+  render(); save();
+  if (q < placed) uiToast('הכמות ירדה ל-' + q + ' — הוסרו ' + (placed - q) + ' מוקדים מהתכנית');
+}
 function setItemZone(i, v) {
   const it = impItems[i];
   if (!v) delete it.zones; else it.zones = { [v]: it.placed || it.qty || 1 };
@@ -7023,6 +7055,48 @@ function placeZoneWall(z, name, spacingPx, iid, extra) {
   return pts.length;
 }
 /* נקודות סביב כל הקירות הסגורים — לפי מרווח (spacingPx) או לפי מספר (count) */
+/* פיזור אחיד סביב מרכז האזור: N קרניים בזוויות שוות מהמרכז אל קירות האזור.
+   מבין 36 היסטי-זווית אפשריים נבחר זה שבו מרחקי הרמקולים מהמרכז אחידים ביותר —
+   כך הכיסוי אחיד וגם תיקוני הדיליי (למיקרופון במרכז) מינימליים. */
+function evenRingPts(z, count) {
+  const b = zoneBounds(z);
+  const poly = (z.poly && z.poly.length > 2) ? z.poly : [{ x: b.L, y: b.T }, { x: b.L + b.W, y: b.T }, { x: b.L + b.W, y: b.T + b.H }, { x: b.L, y: b.T + b.H }];
+  const cx = poly.reduce((s2, p) => s2 + p.x, 0) / poly.length, cy = poly.reduce((s2, p) => s2 + p.y, 0) / poly.length;
+  const inset = P.scale ? 0.4 / P.scale : 16;
+  /* חיתוך קרן מהמרכז עם מצולע האזור */
+  const cast = ang => {
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+    let best = null;
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], c = poly[(i + 1) % poly.length];
+      const ex = c.x - a.x, ey = c.y - a.y;
+      const den = dx * ey - dy * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const t = ((a.x - cx) * ey - (a.y - cy) * ex) / den;
+      const u = (dx * (a.y - cy) - dy * (a.x - cx)) / -den;
+      if (t > 0 && u >= 0 && u <= 1 && (!best || t < best.t)) {
+        const len = Math.hypot(ex, ey) || 1;
+        best = { t, x: cx + dx * t, y: cy + dy * t, nx: -ey / len, ny: ex / len };
+      }
+    }
+    if (!best) return null;
+    /* נורמל פנימה — הרמקול יושב מעט בתוך האזור, מכוון למרכז */
+    const sgn = ((cx - best.x) * best.nx + (cy - best.y) * best.ny) > 0 ? 1 : -1;
+    return { cx: best.x + best.nx * inset * sgn, cy: best.y + best.ny * inset * sgn, r: best.t,
+      aim: Math.round((Math.atan2(cy - best.y, cx - best.x) * 180 / Math.PI + 360) % 360) };
+  };
+  let bestSet = null;
+  for (let o = 0; o < 36; o++) {
+    const off = (o / 36) * (Math.PI * 2 / count);
+    const set = [];
+    for (let i = 0; i < count; i++) { const p = cast(off + i * Math.PI * 2 / count); if (p) set.push(p); }
+    if (set.length < count) continue;
+    const rs = set.map(p => p.r), m = rs.reduce((a2, c2) => a2 + c2, 0) / rs.length;
+    const sd = Math.sqrt(rs.reduce((a2, c2) => a2 + (c2 - m) ** 2, 0) / rs.length);
+    if (!bestSet || sd < bestSet.sd) bestSet = { sd, set, mean: m };
+  }
+  return bestSet ? bestSet.set : [];
+}
 function ringPts(z, spacingPx, count) {
   const segs = [];
   let totalLen = 0;
@@ -7091,7 +7165,9 @@ function buildZoneFromItems(zid) {
   let nS = 0, nSub = 0;
   const spkItems = zi.filter(it => !isSub(it.name)), subItems = zi.filter(it => isSub(it.name));
   const totalS = spkItems.reduce((s, it) => s + remQ(it), 0);
-  const pts = ringPts(z, 0, Math.max(1, totalS));
+  /* פיזור אחיד סביב המרכז (נופל לפיזור לאורך הקירות אם האזור לא סגור) */
+  const nWanted = Math.max(1, totalS);
+  const pts = evenRingPts(z, nWanted).length === nWanted ? evenRingPts(z, nWanted) : ringPts(z, 0, nWanted);
   let pi = 0;
   for (const it of spkItems) {
     const q = remQ(it);
