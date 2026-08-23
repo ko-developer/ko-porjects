@@ -4849,6 +4849,23 @@ window.alert = uiToast; /* כל 48 קריאות alert() באפליקציה עו�
    הקופסה שבתוכה לגרירה (ידית ⠿ + גרירה מכל אזור שאינו שדה/כפתור). המיקום נשמר
    לכל חלון לפי מפתח, ודאבל-קליק על הידית מחזיר למרכז. */
 const FLOAT_SKIP = new Set(['patchOv', 'wiz', 'sketchBar', 'toastHost', 'marqBox', 'multiBar', 'instOvSkip']);
+const FLOAT_OVS = new Set();
+let FLOAT_Z = 140;
+/* כשיותר מחלון אחד פתוח — הרקעים מפסיקים לחסום ולסגור, וכל חלון עומד בפני עצמו.
+   כך אפשר לעבוד בשני חלונות במקביל (למשל קיט + טבלת תמחור) בלי שאחד יבלע את השני. */
+function floatSync() {
+  const live = [...FLOAT_OVS].filter(o => o.isConnected);
+  FLOAT_OVS.clear(); live.forEach(o => FLOAT_OVS.add(o));
+  const multi = live.length > 1;
+  live.forEach(o => {
+    if (multi && o.dataset.fbg == null) o.dataset.fbg = o.style.background || '';
+    o.style.pointerEvents = multi ? 'none' : '';
+    o.style.background = multi ? 'transparent' : (o.dataset.fbg != null ? o.dataset.fbg : o.style.background);
+    const box = o.firstElementChild;
+    if (box && box.nodeType === 1) box.style.pointerEvents = 'auto';
+    if (!multi) delete o.dataset.fbg;
+  });
+}
 function floatKey(box) {
   const ov = box.parentElement;
   const b = box.querySelector('b, h3, h4');
@@ -4872,6 +4889,13 @@ function floatDialog(box, key) {
     if (fix) box.style.transform = 'translate(' + pos.dx + 'px,' + pos.dy + 'px)';
   };
   if (getComputedStyle(box).position === 'static') box.style.position = 'relative';
+  const ovEl = box.parentElement;
+  if (ovEl) {
+    FLOAT_OVS.add(ovEl);
+    /* לחיצה על חלון מביאה אותו לחזית */
+    box.addEventListener('pointerdown', () => { ovEl.style.zIndex = ++FLOAT_Z; }, true);
+    floatSync();
+  }
   const grip = document.createElement('div');
   grip.textContent = '⠿';
   grip.title = 'גרור להזזת החלון · דאבל-קליק מחזיר למרכז';
@@ -4911,7 +4935,10 @@ function floatScan(el) {
   const isOv = el.classList.contains('uiDlgOv') || (/position\s*:\s*fixed/.test(st) && /inset\s*:\s*0/.test(st) && el.children.length === 1);
   if (isOv) { const box = el.firstElementChild; if (box && box.nodeType === 1) floatDialog(box); }
 }
-new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(floatScan))).observe(document.body, { childList: true });
+new MutationObserver(ms => {
+  ms.forEach(m => m.addedNodes.forEach(floatScan));
+  if (ms.some(m => m.removedNodes.length)) floatSync();
+}).observe(document.body, { childList: true });
 document.querySelectorAll('body > div').forEach(floatScan);
 function uiModal(inner) { /* בסיס משותף: מחזיר {ov, box} */
   const ov = document.createElement('div');
