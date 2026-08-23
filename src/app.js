@@ -7235,7 +7235,7 @@ function installManager(kitCtx) {
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button style="flex:1" onclick="installRates().push({k:'row'+Date.now()%1e5,label:'סעיף חדש',unit:'יח׳',min:15,price:100,auto:'manual',qty:1});save();installTbl()">➕ שורה</button>
       <button style="flex:1" onclick="store.installRates=null;save();installManager()">↺ אפס לברירות מחדל</button>
-      <button style="flex:2;background:#0f6e56;color:#fff;font-weight:700" onclick="installAddToOffer()">🧾 הוסף שורת התקנה להצעת המחיר</button>
+      <button style="flex:2;background:#0f6e56;color:#fff;font-weight:700" onclick="installAddToOffer()">${kitCtx ? '🔧 עדכן את סעיף ההתקנה בקיט' : '🧾 ' + (impItems.some(it => it.iid === P._instIid) ? 'עדכן את שורת ההתקנה בהצעה' : 'הוסף שורת התקנה להצעת המחיר')}</button>
     </div></div>`;
   document.body.appendChild(ov);
   installTbl();
@@ -7296,25 +7296,35 @@ function installAddToOffer() {
     total = days * dayRate;
     det.unshift(days + ' ימי טכנאי × ₪' + dayRate.toLocaleString());
   }
-  const hit = (typeof ERP_ITEMS !== 'undefined') && ERP_ITEMS.find(([k, n]) => n && /התקנה.*הצעת מחיר/i.test(n));
-  const ex = impItems.find(it => it.iid === P._instIid);
-  if (ex) { ex.price = Math.round(total); ex.note = det.slice(0, 4).join(' · '); }
-  else {
-    const it = { on: true, qty: 1, name: hit ? hit[1] : 'התקנה — עבודה לפי פירוט', key: hit ? hit[0] : undefined, src: 'תמחור התקנה', dest: 'work', cat: 'other', u: 1, iid: uid('i'), price: Math.round(total), note: det.slice(0, 4).join(' · ') };
-    impItems.push(it); P._instIid = it.iid;
-  }
-  render(); save();
-  /* מעדכן גם את סעיף ההתקנה שבקיט הפתוח — "הוסף את הקיט" ייקח את המחיר הזה */
+  const sum = Math.round(total), note = det.slice(0, 4).join(' · ');
+  /* נפתח מתוך קיט? מעדכנים רק את סעיף העבודה של הקיט — כדי שלא תיווצר שורה כפולה.
+     השורה עצמה תיכנס להצעה בלחיצה על "הוסף את הקיט". */
   if (window.__instKit) {
-    window.__kitInstall = { total: Math.round(total), det: det.slice(0, 4).join(' · ') };
+    window.__kitInstall = { total: sum, det: note };
     const kd = [...document.querySelectorAll('.uiDlgOv')].find(o2 => o2.querySelector('[data-asis]'));
     if (kd) {
       const b = kd.querySelector('[data-inst]');
-      if (b) b.innerHTML = '🔧 סעיף ההתקנה עודכן — ₪' + Math.round(total).toLocaleString() + ' (לחץ לעריכה)';
+      if (b) b.innerHTML = '🔧 סעיף ההתקנה בקיט: ₪' + sum.toLocaleString() + ' (לחץ לעריכה)';
     }
+    /* אם כבר נוספה שורת התקנה עצמאית קודם — מסונכרנת ולא מוכפלת */
+    const ex0 = impItems.find(it => it.iid === P._instIid);
+    if (ex0) { ex0.price = sum; ex0.note = note; }
+    save();
+    const o0 = document.getElementById('instOv'); if (o0) o0.remove();
+    window.__instKit = null;
+    uiToast('🔧 סעיף ההתקנה בקיט עודכן ל-₪' + sum.toLocaleString() + ' — לחץ "הוסף את הקיט להצעה" כדי להכניס אותו');
+    return;
   }
-  installTbl(); /* החלון נשאר פתוח — אפשר להמשיך לערוך */
-  uiToast('🧾 שורת התקנה בהצעה: ₪' + Math.round(total).toLocaleString() + (window.__instKit ? ' · עודכן גם בקיט' : ''));
+  const hit = (typeof ERP_ITEMS !== 'undefined') && ERP_ITEMS.find(([k, n]) => n && /התקנה.*הצעת מחיר/i.test(n));
+  const ex = impItems.find(it => it.iid === P._instIid);
+  if (ex) { ex.price = sum; ex.note = note; }
+  else {
+    const it = { on: true, qty: 1, name: hit ? hit[1] : 'התקנה — עבודה לפי פירוט', key: hit ? hit[0] : undefined, src: 'תמחור התקנה', dest: 'work', cat: 'other', u: 1, iid: uid('i'), price: sum, note };
+    impItems.push(it); P._instIid = it.iid;
+  }
+  render(); save();
+  const o = document.getElementById('instOv'); if (o) o.remove();
+  uiToast((ex ? '🧾 שורת ההתקנה בהצעה עודכנה: ₪' : '🧾 שורת התקנה נוספה להצעה: ₪') + sum.toLocaleString());
 }
 /* תבניות מקום — ממלאות את כל ההגדרות לפי כללי התכנון המקובלים */
 function applyVenuePreset(zid, v) {
