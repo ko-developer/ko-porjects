@@ -6323,9 +6323,9 @@ function sendOffer() {
       <b style="color:#c1121f">⚠ ${noKey.length} שורות ללא מק"ט — לא יישלחו:</b>
       <div style="margin-top:4px">${noKey.map(it => '• ' + esc(it.name.slice(0, 50))).join('<br>')}</div></div>` : ''}
     <div class="fld"><label>שם הפרויקט ב-ERP (לאיתור אוטומטי)</label><input id="ofPrj" value="${esc(P.name || '')}"></div>
-    <div class="fld"><label>לקוח (חשבון ERP) — חובה כשאין פרויקט, מומלץ תמיד</label>
-      <input id="ofAcc" list="ofAccList" placeholder="🔍 הקלד 2+ תווים לחיפוש לקוח…" oninput="ofAccSearch(this)">
-      <datalist id="ofAccList"></datalist>
+    <div class="fld" style="position:relative"><label>לקוח (חשבון ERP) — חובה כשאין פרויקט, מומלץ תמיד</label>
+      <input id="ofAcc" autocomplete="off" placeholder="🔍 שם לקוח או מפתח חשבון…" oninput="ofAccSearch(this)" onfocus="ofAccSearch(this)">
+      <div id="ofAccList" style="display:none;position:absolute;z-index:5;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.18)"></div>
       <div id="ofAccSt" class="muted" style="font-size:10px;margin-top:2px"></div></div>
     <div class="fld"><label>שם ההצעה — חובה בהצעת פרויקט (מבדיל בין הצעות באותו פרויקט)</label><input id="ofName" value="${esc((P.name || 'הצעה') + ' — סאונד וחיווט')}"></div>
     <div class="fld"><label>אופן העברת התשתית — חובה</label><select id="ofInfra">
@@ -6355,27 +6355,62 @@ function sendOffer() {
   fetch('/api/erp/status').then(r => r.json()).then(s => {
     if (!s || !s.ok) { document.getElementById('ofSrvW').style.display = 'none'; document.getElementById('ofNoSrvW').style.display = ''; }
   }).catch(() => { document.getElementById('ofSrvW').style.display = 'none'; document.getElementById('ofNoSrvW').style.display = ''; });
-  /* חיפוש לקוח חי מול ה-ERP תוך כדי הקלדה (debounce) */
-  window.ofAccSearch = inp => {
-    const a = (window.__ofAccs || []).find(x => x.name === inp.value);
-    inp.dataset.key = a ? a.key : '';
+  /* חיפוש לקוח מהיר: מטמון מקומי לכל שאילתה + סינון מיידי מתוצאה קודמת
+     (הקלדת תו נוסף לא יוצאת לשרת), חיפוש גם לפי מפתח חשבון, ורשימה עם המפתח גלוי */
+  window.__ofAccCache = window.__ofAccCache || new Map();
+  const ofAccPick = (key, name) => {
+    const inp = document.getElementById('ofAcc');
+    inp.value = name; inp.dataset.key = key;
+    document.getElementById('ofAccList').style.display = 'none';
     const st = document.getElementById('ofAccSt');
-    if (st) st.textContent = a ? '✓ לקוח ' + a.key : '';
-    clearTimeout(window.__ofAccT);
+    if (st) st.innerHTML = '✓ לקוח <b>' + esc(key) + '</b> · ' + esc(name);
+  };
+  window.__ofAccPick = ofAccPick;
+  const ofAccPaint = (list, q) => {
+    const el = document.getElementById('ofAccList'); if (!el) return;
+    if (!list.length) { el.style.display = 'none'; return; }
+    el.innerHTML = list.slice(0, 40).map(a => `<div onclick="__ofAccPick('${esc(a.key).replace(/'/g, '&#39;')}','${esc(a.name).replace(/'/g, '&#39;')}')" style="display:flex;gap:8px;align-items:center;padding:6px 9px;cursor:pointer;border-bottom:1px solid #f2efe9;font-size:12.5px" onmouseover="this.style.background='#f7f5f0'" onmouseout="this.style.background=''">
+      <span style="flex:1">${esc(a.name)}</span>
+      <span style="background:#f0ede8;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:700;white-space:nowrap">${esc(a.key)}</span></div>`).join('');
+    el.style.display = '';
+  };
+  window.ofAccSearch = inp => {
+    const st = document.getElementById('ofAccSt');
     const q = inp.value.trim();
-    if (a || q.length < 2) return;
+    inp.dataset.key = '';
+    if (st) st.textContent = '';
+    if (q.length < 2) { const el = document.getElementById('ofAccList'); if (el) el.style.display = 'none'; return; }
+    const C = window.__ofAccCache;
+    const match = (a, t) => (a.name + ' ' + a.key).toLowerCase().includes(t.toLowerCase());
+    /* תוצאה מדויקת במטמון — מיידי */
+    if (C.has(q)) { window.__ofAccs = C.get(q); ofAccPaint(C.get(q), q); return; }
+    /* קידומת קיימת במטמון — מסננים מקומית בלי לצאת לשרת */
+    for (let n = q.length - 1; n >= 2; n--) {
+      const pre = q.slice(0, n);
+      if (C.has(pre)) {
+        const local = C.get(pre).filter(a => match(a, q));
+        if (local.length) { window.__ofAccs = local; ofAccPaint(local, q); C.set(q, local); return; }
+        break;
+      }
+    }
+    clearTimeout(window.__ofAccT);
+    if (st) st.textContent = '⏳ מחפש…';
     window.__ofAccT = setTimeout(async () => {
       try {
         const j = await fetch('/api/erp/accounts?q=' + encodeURIComponent(q)).then(r => r.json());
-        if (!j.ok) return;
+        if (!j.ok) { if (st) st.textContent = ''; return; }
+        C.set(q, j.accounts);
+        if (C.size > 300) C.delete(C.keys().next().value);
+        if (document.getElementById('ofAcc') !== inp || inp.value.trim() !== q) return; /* המשתמש המשיך להקליד */
         window.__ofAccs = j.accounts;
-        const dl = document.getElementById('ofAccList');
-        if (dl) dl.innerHTML = j.accounts.map(x => `<option value="${esc(x.name)}">${esc(x.key)}</option>`).join('');
-        const m = j.accounts.find(x => x.name === inp.value);
-        if (m) { inp.dataset.key = m.key; if (st) st.textContent = '✓ לקוח ' + m.key; }
-      } catch (e) {}
-    }, 350);
+        ofAccPaint(j.accounts, q);
+        if (st) st.textContent = j.accounts.length ? j.accounts.length + ' לקוחות — בחר מהרשימה' : 'לא נמצאו לקוחות';
+      } catch (e) { if (st) st.textContent = ''; }
+    }, 140);
   };
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#ofAcc') && !e.target.closest('#ofAccList')) { const el = document.getElementById('ofAccList'); if (el) el.style.display = 'none'; }
+  });
 
   window.ofPayload = () => {
     const payload = {
