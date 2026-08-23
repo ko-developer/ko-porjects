@@ -656,7 +656,9 @@ function pickCable(id) { selCable = id; ui.tab = 'cable'; render(); }
 
 function nodeBox(n) {
   const el = document.getElementById('nd_' + n.id);
-  return el ? { x:n.x, y:n.y, w:el.offsetWidth, h:el.offsetHeight } : { x:n.x, y:n.y, w:172, h:80 };
+  /* _fanX/_fanY — היסט התצוגה של מוקדים שיושבים באותה נקודה, כדי שהקווים יגיעו לאייקון */
+  const x = n.x + (n._fanX || 0), y = n.y + (n._fanY || 0);
+  return el ? { x, y, w: el.offsetWidth, h: el.offsetHeight } : { x, y, w: 172, h: 80 };
 }
 
 function uploadBg(inp) {
@@ -1173,14 +1175,37 @@ function renderNodes() {
   const host = $('#nodes');
   host.innerHTML = '';
   MCOLS = {}; REARPORTS = {}; REAREXIT = {}; REARUNIT = {}; PANELPORT = {}; /* מאופסים בכל רינדור */
+  /* מוקדים שיושבים בדיוק אחד על השני — נפרשים במניפה קטנה כדי ששניהם יהיו גלויים
+     וניתנים ללחיצה, עם מסגרת שמסמנת שהם חולקים מיקום. */
+  const stackAt = {}, stackOf = {};
+  for (const n of P.nodes) {
+    if (n.hidden || n.kind === 'rack') continue;
+    const k = Math.round(n.x / 26) + '|' + Math.round(n.y / 26);
+    (stackAt[k] = stackAt[k] || []).push(n.id);
+  }
+  Object.values(stackAt).forEach(ids => {
+    if (ids.length < 2) return;
+    ids.forEach((id, i) => stackOf[id] = { i, tot: ids.length });
+  });
+  P.nodes.forEach(n => { n._fanX = 0; n._fanY = 0; });
   for (const n of P.nodes) {
     if (n.hidden) continue;
+    const stk = stackOf[n.id];
     const d = document.createElement('div');
     d.className = 'node' + (sel === n.id ? ' sel' : '') + (n.kind === 'rack' && n.rear ? ' rear' : '')
       + (wireMode?.from?.nid === n.id ? ' wsrc' : '');
     d.id = 'nd_' + n.id;
-    d.style.right = n.x + 'px';
-    d.style.top = n.y + 'px';
+    let sx = 0, sy = 0;
+    if (stk) { /* פריסה במניפה: 15px לכל שכבה, לסירוגין ימין-שמאל ומעלה-מטה */
+      const a = stk.i * (Math.PI * 2 / Math.max(3, stk.tot)) - Math.PI / 4;
+      const r = 15 + stk.i * 3;
+      sx = Math.round(Math.cos(a) * r); sy = Math.round(Math.sin(a) * r);
+      d.dataset.stack = stk.i + '/' + stk.tot;
+      n._fanX = sx; n._fanY = sy;
+    }
+    d.style.right = (n.x + sx) + 'px';
+    d.style.top = (n.y + sy) + 'px';
+    if (stk) { d.style.zIndex = 9 + stk.i; d.title = (d.title || '') + ' · ' + stk.tot + ' מוקדים באותה נקודה — נפרשו לתצוגה'; }
     /* גב ארון = שכבה עליונה כדי שלא יוסתר ע"י פאנלים/מוקדים אחרים */
     if (n.kind === 'rack' && n.rear) d.style.zIndex = (sel === n.id ? 60 : 20);
     else if (sel === n.id) d.style.zIndex = 8;
@@ -6438,6 +6463,7 @@ function renderImp() {
           <option value="">— בחר מוצר —</option>
           ${impItems.filter(x => x.iid !== it.iid && isSpeakerItem(x.name)).map(x => `<option value="${x.iid}" ${it.parentIid === x.iid ? 'selected' : ''}>${esc(x.name.slice(0, 30))}</option>`).join('')}
         </select></div>` : ''}</td>
+        <td style="white-space:nowrap"><input style="width:76px;font-size:11px;${it.key ? '' : 'border-color:#c1121f'}" value="${esc(it.key || '')}" placeholder="ללא מק״ט" title="${it.key ? 'מק״ט ERP — ניתן לתיקון' : 'אין מק״ט — השורה לא תיקלט בהצעה ב-ERP'}" onchange="impItems[${i}].key=this.value.trim()||undefined;autoPrice(impItems[${i}]);renderImp();save()"></td>
         <td><input style="width:58px" type="number" min="0" value="${it.price ?? ''}" onchange="impItems[${i}].price=+this.value;renderImp();save()"></td>
         <td style="white-space:nowrap;font-weight:600">${it.price ? '₪' + (it.price * (cnt != null ? cnt : (it.placed || it.qty))).toLocaleString() : '—'}</td>
         <td><input style="width:78px" value="${esc(it.note || '')}" placeholder="הערה" onchange="impItems[${i}].note=this.value;save()"></td>
@@ -6467,7 +6493,7 @@ function renderImp() {
   }
   const body = impItems.length
     ? `<p class="muted" style="margin-bottom:8px">✓ = בתכנית (עם ניצול מלאי) · <b>גרור ⠿ ישר לתכנית</b> — מוצר למיקום/לארון, כבל מפעיל חיבור בלחיצה עם הפרטים שלו.</p>
-      <div style="overflow-x:auto"><table class="cablelist"><tr><th></th><th></th><th>כמות</th><th>בתכנית</th><th>אזור</th><th>שם פריט</th><th>מחיר ₪</th><th>סה"כ</th><th>הערה</th><th>יעד בתכנית</th><th>ארון</th><th>סטטוס</th><th>מקור</th><th></th></tr>` +
+      <div style="overflow-x:auto"><table class="cablelist"><tr><th></th><th></th><th>כמות</th><th>בתכנית</th><th>אזור</th><th>שם פריט</th><th>מק"ט</th><th>מחיר ₪</th><th>סה"כ</th><th>הערה</th><th>יעד בתכנית</th><th>ארון</th><th>סטטוס</th><th>מקור</th><th></th></tr>` +
       rowsHtml + '</table></div>' +
       `<div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px;background:#f4f2ec;border-radius:8px">
         <b style="flex:1">סה"כ הצעת מחיר:</b><b style="font-size:16px;color:#c96f4a">₪${quoteTotal().toLocaleString()}</b>
