@@ -2247,7 +2247,7 @@ function renderWires() {
         const k = nid + '|' + side;
         const idx = sideIdx[k] = (sideIdx[k] || 0) + 1;
         const tot = sideTot[k] || 1;
-        const span = Math.min(box.h - 10, Math.max(18, (tot - 1) * 14));
+        const span = Math.min(box.h + 26, Math.max(22, (tot - 1) * 19));
         y = box.y + box.h / 2 + (tot > 1 ? (idx - 1) / (tot - 1) - 0.5 : 0) * span;
         dot = true;
       }
@@ -2298,8 +2298,8 @@ function renderWires() {
     items.push({ c, i, pa, pb, off, A: f.A, B: f.B });
   });
 
-  /* הקצאת נתיבים אנכיים ללא חפיפה (מצב מעגל חשמלי) */
-  const lanes = [];
+  /* הקצאת נתיבים אנכיים ואופקיים ללא חפיפה (מצב מעגל חשמלי) */
+  const lanes = [], hlanes = [];
   for (const it of items) {
     const { pa, pb, off, c } = it;
     if (ortho) {
@@ -2314,6 +2314,17 @@ function renderWires() {
       let g = 0;
       while (g++ < 50 && lanes.some(v => Math.abs(v.mx - mx) < 15 && y1 < v.y2 + 12 && v.y1 - 12 < y2)) mx += 17;
       lanes.push({ mx, y1, y2 });
+      /* מסדרון אופקי: שני קווים באותו גובה שרצים על אותו קטע — מקבלים פס משלהם
+         וירידה קצרה לתוך נקודת החיבור, כך שאפשר לספור כל קו בנפרד */
+      /* גם הקטע האופקי היוצא (מהמקור אל התעלה) נרשם — כדי שלא ישב על קו אחר */
+      hlanes.push({ y: pa.y, x1: Math.min(pa.x, mx), x2: Math.max(pa.x, mx) });
+      const hx1 = Math.min(mx, pb.x), hx2 = Math.max(mx, pb.x);
+      let hoff = 0, g2 = 0;
+      while (g2++ < 12 && hlanes.some(v => Math.abs(v.y - (pb.y + hoff)) < 9 && hx1 < v.x2 + 10 && v.x1 - 10 < hx2))
+        hoff = hoff <= 0 ? -hoff + 9 : -hoff;
+      if (Math.abs(hoff) > 0 && Math.abs(mx - pb.x) < 26) hoff = 0; /* קטע קצר מדי לפס נפרד */
+      hlanes.push({ y: pb.y + hoff, x1: hx1, x2: hx2 });
+      it.hoff = hoff;
       it.mx = mx;
       it.bx = mx;
       it.by = Math.abs(pa.y - pb.y) < 10 ? pa.y - 16 : (pa.y + pb.y) / 2 + (c.bend?.dy || 0);
@@ -2408,7 +2419,12 @@ function renderWires() {
       if (e1) dpath += ` H ${e1.x} V ${e1.y}`;
       dpath += ` H ${it.mx}`;
       if (e2) dpath += ` V ${e2.y} H ${e2.x}`;
-      dpath += ` V ${pb.y} H ${pb.x}`;
+      const ho = it.hoff || 0;
+      if (ho) {
+        /* פס מקביל ואז ירידה קצרה לנקודת החיבור — בלי צמתים משותפים */
+        const jog = pb.x > it.mx ? -14 : 14;
+        dpath += ` V ${pb.y + ho} H ${pb.x + jog} V ${pb.y} H ${pb.x}`;
+      } else dpath += ` V ${pb.y} H ${pb.x}`;
     } else {
       const cx = 2 * it.bx - (pa.x + pb.x) / 2, cy = 2 * it.by - (pa.y + pb.y) / 2;
       dpath = `M${pa.x} ${pa.y} Q ${cx} ${cy} ${pb.x} ${pb.y}`;
@@ -3006,8 +3022,18 @@ function delayDistM(n, ref) { return (ref && P.scale) ? Math.hypot(n.x - ref.x, 
 /* מקור עיקרי אמיתי לדיליי — במה/עמדת נגינה/DJ בלבד. ארון מגברים אינו מקור קול. */
 function zoneSourceRef(z) {
   const inZ = n => z && (n.sub || '').includes(z.name);
-  return P.nodes.find(n => n.kind === 'point' && /עמדת נגינה|\bDJ\b|במה|stage/i.test(n.name) && inZ(n))
+  /* מיקרופון מדידה שהוצב ידנית גובר על הכול — זו הנקודה שממנה המתכנן רוצה לחשב */
+  return P.nodes.find(n => n.ptype === 'mic' && n.dlyRef !== false)
+    || P.nodes.find(n => n.kind === 'point' && /עמדת נגינה|\bDJ\b|במה|stage/i.test(n.name) && inZ(n))
     || P.nodes.find(n => n.kind === 'point' && /עמדת נגינה|\bDJ\b|במה|stage/i.test(n.name)) || null;
+}
+/* הצבת נקודת ייחוס לדיליי מתוך עורך החיווט */
+function dlyMicPlace() {
+  window.__micPlace = true;
+  const w = document.getElementById('patchBox');
+  if (w) w.style.opacity = '0.25';
+  render();
+  uiToast('🎙 לחץ על התכנית במקום שבו יימדד הדיליי — כל הערכים יחושבו ממנו');
 }
 /* מצב הדיליי: off = בלי (מוזיקת רקע מפוזרת) · geo = יישור גיאומטרי למקור · haas = geo + 15ms
    (אפקט קדימות — המאזין ממקם את המקור בבמה למרות שהקול מגיע מרמקול קרוב) */
@@ -3091,6 +3117,7 @@ function patchRender() {
           <option value="haas" ${dMode === 'haas' ? 'selected' : ''}>יישור + 15ms Haas (מומלץ עם במה)</option>
         </select>
         ${dSrcReal ? `מקור: <b>${esc((dSrcReal.name || '').slice(0, 20))}</b>` : dSrc ? `ייחוס: <b>${esc((dSrc.name || '').slice(0, 18))}</b> · אין במה/עמדת נגינה בתכנית — היישור יחסי בלבד` : ''}
+        <button onclick="dlyMicPlace()" title="הצב מיקרופון מדידה על התכנית — הדיליי יחושב מהנקודה הזו" style="font-size:11px;padding:2px 7px;border-radius:7px;border:1px solid #ddd;background:#fff;cursor:pointer">🎙 נקודת ייחוס</button>
       </div>
       ${dMode !== 'off' && dSrc ? `<div style="margin-top:3px">הערוץ הקרוב לייחוס = 0ms, השאר מתעכבים ביחס אליו (2.92ms/מ׳)${dMode === 'haas' ? ' + 15ms קדימות' : ''}${anySpread ? ' · <b style="color:#c1121f">⚠ ערוץ עם פער >5ms בין רמקוליו — ערוץ מקבל דיליי אחד, עדיף לקבץ לפי מרחק</b>' : ''}</div>` : ''}
     </div>`;
@@ -5067,6 +5094,8 @@ document.addEventListener('pointerdown', e => {
     window.__micPlace = null;
     P.nodes.push({ id: uid('n'), kind: 'point', ptype: 'mic', name: 'מיקרופון מדידה', sub: 'נק׳ מדידה', x: 2200 - pt.x - 20, y: pt.y - 24, mini: true, noCov: true });
     render(); save();
+    const pw = document.getElementById('patchBox');
+    if (pw) { pw.style.opacity = ''; if (typeof patchRender === 'function' && PATCH) patchRender(); uiToast('🎙 נקודת הייחוס הוצבה — הדיליי חושב מחדש ממנה'); }
     e.preventDefault();
     return;
   }
@@ -7158,8 +7187,17 @@ function installAddToOffer() {
     impItems.push(it); P._instIid = it.iid;
   }
   render(); save();
-  const o = document.getElementById('instOv'); if (o) o.remove();
-  uiToast('🧾 שורת התקנה בהצעה: ₪' + Math.round(total).toLocaleString());
+  /* מעדכן גם את סעיף ההתקנה שבקיט הפתוח — "הוסף את הקיט" ייקח את המחיר הזה */
+  if (window.__instKit) {
+    window.__kitInstall = { total: Math.round(total), det: det.slice(0, 4).join(' · ') };
+    const kd = [...document.querySelectorAll('.uiDlgOv')].find(o2 => o2.querySelector('[data-asis]'));
+    if (kd) {
+      const b = kd.querySelector('[data-inst]');
+      if (b) b.innerHTML = '🔧 סעיף ההתקנה עודכן — ₪' + Math.round(total).toLocaleString() + ' (לחץ לעריכה)';
+    }
+  }
+  installTbl(); /* החלון נשאר פתוח — אפשר להמשיך לערוך */
+  uiToast('🧾 שורת התקנה בהצעה: ₪' + Math.round(total).toLocaleString() + (window.__instKit ? ' · עודכן גם בקיט' : ''));
 }
 /* תבניות מקום — ממלאות את כל ההגדרות לפי כללי התכנון המקובלים */
 function applyVenuePreset(zid, v) {
@@ -7248,7 +7286,13 @@ function zoneKitConfirm(zname, idx) {
       const it = st ? { on: true, qty: x.qty, name: x.name, src, cat: 'other', u: 1, key: x.key, ...st }
         : { on: !d || d.dest !== 'ignore', qty: x.qty, name: x.name, src, key: x.key, dest: d ? d.dest : 'unit', cat: d?.cat || 'other', u: d?.u || 1 };
       it.iid = uid('i'); it.rack = guessRackFor(it); it.zones = { [zname]: x.qty };
-      autoPrice(it); impItems.push(it);
+      autoPrice(it);
+      /* סעיף העבודה מקבל את המחיר שחושב בטבלת ההתקנה */
+      if (window.__kitInstall && INSTALL_ITEM_RE.test(x.name || '')) {
+        it.qty = 1; it.price = window.__kitInstall.total; it.dest = 'work';
+        it.note = window.__kitInstall.det; it.zones = { [zname]: 1 };
+      }
+      impItems.push(it);
     }
   };
   ov.querySelector('[data-asis]').onclick = () => {
