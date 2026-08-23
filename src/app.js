@@ -6746,7 +6746,8 @@ function zoneSystemBuilder(z) {
       return (ziq.length || tRack)
         ? `<button class="${z._built ? '' : 'primary'}" style="width:100%;${bs}" onclick="buildZoneFromItems('${zid}')">4️⃣ 📋 ${bp}הצב את פריטי האזור מההצעה (${tS} רמקולים${tSub ? ' + ' + tSub + ' סאבים' : ''}${tRack ? ' + ' + tRack + ' לארון' : ''})</button>
            <button style="width:100%;margin-top:5px;${bs}" onclick="buildZoneSystem('${zid}')">4️⃣ ⚙ ${bp}או: בנה מערכת אוטומטית (מחשב כמות)</button>`
-        : `<button class="${z._built ? '' : 'primary'}" style="width:100%;${bs}" onclick="buildZoneSystem('${zid}')">4️⃣ ⚙ ${bp}${z._built ? 'המערכת נבנתה — לחץ לבנייה מחדש' : 'בנה מערכת אוטומטית לאזור'}</button>`;
+        : z._built ? `<button style="width:100%;${bs}" onclick="buildZoneSystem('${zid}')">4️⃣ ⚙ ${bp}המערכת נבנתה — לחץ לבנייה מחדש</button>`
+          : `<p class="muted" style="font-size:11px;margin:4px 0;background:#faf8f4;border-radius:8px;padding:6px 8px">4️⃣ בחר קיט או רמקול בשלב 3 — הבנייה וההצבה נעשות משם</p>`;
     })()}
     <button style="width:100%;margin-top:6px;${z._built ? 'background:#eef7f1;color:#0f6e56' : 'background:#534ab7;color:#fff;font-weight:700'}" onclick="autoLayoutAI('${zid}')">🤖 ${z._built ? '✓ ' : ''}פריסה חכמה מהתכנית (AI) — מתחשבת בריהוט ובקירות</button>
     ${(() => {
@@ -7052,8 +7053,28 @@ function installCounts() {
   const zone = Math.max(1, (P.zones || []).length);
   return { fixed: 1, spk, ceil, sub, rack, panel, cable, meters, zone };
 }
-function installManager() {
+/* מה נחשב "סעיף התקנה/עבודה" בקיט — קובע גם את הצגת כפתור התמחור וגם את השורות */
+const INSTALL_ITEM_RE = /התקנה|עבודה|טכנאי|הובלה|כיוונון|תכנות|הדרכה/i;
+/* סעיפי התקנה שמגיעים מהקיט הנבחר — נכנסים לטבלה כשורות נערכות ומסומנות 🧰 */
+function installKitRows(ctx) {
+  if (!ctx || !ctx.items) return 0;
+  const rates = installRates();
+  let n = 0;
+  ctx.items.forEach(x => {
+    if (!INSTALL_ITEM_RE.test(x.name || '')) return;
+    const key = 'kit_' + rearKey(x.name).slice(0, 24);
+    const ex = rates.find(r => r.k === key);
+    const price = (x.key && typeof ERP_PRICES !== 'undefined' && ERP_PRICES[x.key] != null) ? +ERP_PRICES[x.key] : 0;
+    if (ex) { ex.qty = x.qty; ex.off = undefined; }
+    else { rates.push({ k: key, label: x.name.slice(0, 48), unit: 'יח׳', min: 60, price: Math.round(price) || 350, auto: 'manual', qty: x.qty, kit: ctx.name.slice(0, 26) }); n++; }
+  });
+  if (n) save();
+  return n;
+}
+function installManager(kitCtx) {
   const old = document.getElementById('instOv'); if (old) old.remove();
+  window.__instKit = kitCtx || null;
+  const addedFromKit = installKitRows(kitCtx);
   const rates = installRates();
   const ov = document.createElement('div');
   ov.id = 'instOv';
@@ -7063,6 +7084,7 @@ function installManager() {
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><b style="flex:1;font-size:16px">🔧 התקנה ותמחור — ${esc(P.name.slice(0, 24))}</b>
       <button onclick="document.getElementById('instOv').remove()">✕</button></div>
     <p class="muted" style="font-size:11px;margin:0 0 8px">תעריפים נערכים ונשמרים · כמות = אוטומטית מהתכנית וניתנת לדריסה · כויל לפי 390 שורות התקנה מהזמנות אמת (חציון ₪2,000 לפרויקט · שעת צוות ₪650 · יום טכנאי ₪1,500)</p>
+    ${kitCtx ? `<p style="font-size:11.5px;margin:0 0 8px;background:#eef7f1;color:#0f6e56;border-radius:8px;padding:6px 9px">🧰 מוצג לפי הקיט <b>${esc(kitCtx.name.slice(0, 30))}</b>${addedFromKit ? ' · נוספו ' + addedFromKit + ' סעיפי עבודה מהקיט' : ' · סעיפי העבודה מהקיט כבר בטבלה'} — ערוך ולחץ "הוסף שורת התקנה להצעה"</p>` : ''}
     <div id="instTbl"></div>
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button style="flex:1" onclick="installRates().push({k:'row'+Date.now()%1e5,label:'סעיף חדש',unit:'יח׳',min:15,price:100,auto:'manual',qty:1});save();installTbl()">➕ שורה</button>
@@ -7083,7 +7105,7 @@ function installTbl() {
     tMin += lm; tPrice += line;
     return `<tr style="${on ? '' : 'opacity:.45'}">
       <td><input type="checkbox" style="width:auto" ${on ? 'checked' : ''} onchange="installRates()[${i}].off=this.checked?undefined:1;save();installTbl()"></td>
-      <td><input style="width:100%;font-size:11.5px;border:none;background:transparent" value="${esc(r.label)}" onchange="installRates()[${i}].label=this.value;save()"></td>
+      <td><input style="width:100%;font-size:11.5px;border:none;background:transparent" value="${esc(r.label)}" title="${r.kit ? 'סעיף מהקיט: ' + esc(r.kit) : 'סעיף קבוע'}" onchange="installRates()[${i}].label=this.value;save()">${r.kit ? '<span style="font-size:9.5px;color:#0f6e56">🧰 ' + esc(r.kit) + '</span>' : ''}</td>
       <td style="text-align:center;font-size:10.5px">${esc(r.unit)}</td>
       <td><input type="number" style="width:52px" value="${qty}" onchange="installRates()[${i}].qty=+this.value;save();installTbl()" title="כמות (אוטומטי מהתכנית — עריכה דורסת)"></td>
       <td><input type="number" style="width:52px" value="${r.min}" onchange="installRates()[${i}].min=+this.value;save();installTbl()"></td>
@@ -7183,8 +7205,8 @@ function zoneKitConfirm(zname, idx) {
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
+    ${INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
     <button class="primary" data-asis style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף את הקיט להצעה והצב על התכנית</button>
-    <button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd">🔧 טבלת התקנה ותמחור — זמני עבודה ומחירים</button>
     <button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>
     <button data-cancel style="width:100%">ביטול</button>`);
   const done = () => ov.remove();
@@ -7260,7 +7282,8 @@ function zoneKitConfirm(zname, idx) {
     buildZoneSystem(z.id);
     placeZoneRackItems(z);
   };
-  ov.querySelector('[data-inst]').onclick = () => installManager();
+  const instBtn = ov.querySelector('[data-inst]');
+  if (instBtn) instBtn.onclick = () => installManager({ name: k.name, items: edited() });
   ov.querySelector('[data-cancel]').onclick = done;
   ov.addEventListener('click', e => { if (e.target === ov) done(); });
 }
