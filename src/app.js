@@ -192,9 +192,66 @@ function renderHistBtns() {
 function save() {
   store.cur = P.id;
   if (typeof impItems !== 'undefined') P.impSaved = impItems;
+  verSnapshot();
   try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
   pushSrv();
   pushHistory();
+}
+/* ===================================================================================
+   🕘 היסטוריית גרסאות — כל שמירה משמעותית שומרת snapshot של הפרויקט (עד 30 גרסאות),
+   כך שאפשר לחזור אחורה מכל טעות: מחיקה, בנייה מחדש, או שינוי שלא רצית. */
+const VER_MAX = 30, VER_MIN_GAP = 45e3; /* גרסה חדשה לכל היותר כל 45 שניות */
+function verSnapshot(force) {
+  try {
+    if (!P || !P.id) return;
+    P.vers = P.vers || [];
+    const now = Date.now();
+    const last = P.vers[P.vers.length - 1];
+    const stat = { n: (P.nodes || []).length, c: (P.cables || []).length, i: (typeof impItems !== 'undefined' ? impItems.length : 0), z: (P.zones || []).length };
+    const sameShape = last && last.stat.n === stat.n && last.stat.c === stat.c && last.stat.i === stat.i && last.stat.z === stat.z;
+    if (!force && last && (sameShape || now - last.t < VER_MIN_GAP)) return;
+    /* התמונה עצמה (base64) לא משוכפלת — גרסה שומרת רק את התוכן שמשתנה */
+    const { vers, bg, impSaved, ...rest } = P;
+    const snap = JSON.parse(JSON.stringify({ ...rest, impSaved: (typeof impItems !== 'undefined' ? impItems : []) }));
+    P.vers.push({ t: now, stat, d: snap });
+    while (P.vers.length > VER_MAX) P.vers.shift();
+  } catch (e) {}
+}
+function verTime(t) {
+  const d = new Date(t), n = Date.now();
+  const mins = Math.round((n - t) / 60000);
+  const rel = mins < 1 ? 'עכשיו' : mins < 60 ? 'לפני ' + mins + ' דק׳' : mins < 1440 ? 'לפני ' + Math.round(mins / 60) + ' שע׳' : 'לפני ' + Math.round(mins / 1440) + ' ימים';
+  return rel + ' · ' + d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function verManager() {
+  verSnapshot(true);
+  const vs = (P.vers || []).slice().reverse();
+  const ov = uiModal(`
+    <b style="font-size:14px">🕘 היסטוריית גרסאות — ${esc(P.name.slice(0, 26))}</b>
+    <p class="muted" style="font-size:10.5px;margin:4px 0">כל שינוי משמעותי נשמר אוטומטית (עד ${VER_MAX} גרסאות). שחזור יוצר קודם גיבוי של המצב הנוכחי — אפשר תמיד לחזור.</p>
+    <div style="max-height:52vh;overflow-y:auto;margin:6px 0">
+      ${vs.length ? vs.map((v, i) => `<div style="display:flex;gap:8px;align-items:center;border:1px solid #eee;border-radius:9px;padding:6px 8px;margin-bottom:4px;background:${i === 0 ? '#eef7f1' : '#faf8f4'}">
+        <span style="flex:1;font-size:11.5px">${i === 0 ? '<b>המצב הנוכחי</b> · ' : ''}${esc(verTime(v.t))}<br>
+          <span class="muted" style="font-size:10.5px">${v.stat.n} מוקדים · ${v.stat.c} כבלים · ${v.stat.i} פריטים · ${v.stat.z} אזורים</span></span>
+        ${i === 0 ? '' : `<button style="white-space:nowrap;font-size:11.5px;background:#0f6e56;color:#fff;border:none;border-radius:7px;padding:5px 9px;cursor:pointer" onclick="verRestore(${(P.vers || []).length - 1 - i})">↩ שחזר גרסה זו</button>`}
+      </div>`).join('') : '<p class="hint">אין עדיין גרסאות שמורות</p>'}
+    </div>
+    <button data-close style="width:100%;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">סגור</button>`);
+  ov.querySelector('[data-close]').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
+async function verRestore(idx) {
+  const v = (P.vers || [])[idx]; if (!v) return;
+  if (!(await uiConfirm('לשחזר את הגרסה מ' + verTime(v.t) + '?\n' + v.stat.n + ' מוקדים · ' + v.stat.c + ' כבלים · ' + v.stat.i + ' פריטים\n\nהמצב הנוכחי יישמר כגרסה, כך שאפשר לחזור אליו.'))) return;
+  verSnapshot(true);
+  const keep = { id: P.id, name: P.name, bg: P.bg, bgW: P.bgW, bgOp: P.bgOp, vers: P.vers };
+  const d = JSON.parse(JSON.stringify(v.d));
+  Object.keys(P).forEach(k => { if (!(k in keep)) delete P[k]; });
+  Object.assign(P, d, keep);
+  if (typeof impItems !== 'undefined') { impItems.length = 0; impItems.push(...(d.impSaved || [])); }
+  document.querySelectorAll('.uiDlgOv').forEach(x => x.remove());
+  render(); save();
+  uiToast('↩ שוחזרה הגרסה מ' + verTime(v.t) + ' — המצב הקודם נשמר בהיסטוריה');
 }
 function normalizeAll() {
   for (const pr of store.projects) { ensureStock(pr); pr.route = pr.route || 'ortho'; }
@@ -750,6 +807,7 @@ function renderHeader() {
     <button onclick="autoConnect()">${auto ? `🔌 בטל חיבור אוטומטי (${P.autoIds.length})` : '🔌 חבר אותי — שידוך אוטומטי'}</button>
     <button onclick="designBrief()">🎯 תכנן לי מערכת לחלל זה</button>
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
+    <button onclick="verManager()">🕘 היסטוריית גרסאות — שחזור מצב קודם</button>
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>
     <button onclick="rearLibManager()">🛠 ספריית גבי מוצרים</button>
     <button onclick="spkDataManager()">🔊 טבלת נתוני רמקולים/מגברים</button>`;
@@ -2998,7 +3056,13 @@ function patchRender() {
       const dMs = dPlan[key] != null ? dPlan[key] : null;
       const dSpread = dSrc && dMode !== 'off' && dts.length > 1 ? (Math.max(...dts) - Math.min(...dts)) * SND_MS_M : 0;
       if (dSpread > 5) anySpread = true;
-      const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + (w ? ' · 🎚' + w + 'W' : '') + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
+      /* יחס הספק מגבר/רמקולים — אדום: המגבר חלש מהרמקולים · כתום: פחות מ-×2 ·
+         ירוק: ×2 ומעלה (הכלל המקובל — headroom של 3dB) · זהב: ×3 ומעלה */
+      const ratio = (w && sw) ? w / sw : null;
+      const rc = ratio == null ? '' : ratio < 1 ? '#c1121f' : ratio < 2 ? '#c96a13' : ratio < 3 ? '#0f8a5f' : '#b7900f';
+      const rTip = ratio == null ? '' : ratio < 1 ? 'המגבר חלש מהרמקולים — סכנת קליפ/שריפה' : ratio < 2 ? 'פחות מ-×2 — headroom נמוך' : ratio < 3 ? '×2 ומעלה — תקין (3dB headroom)' : '×3 ומעלה — headroom נדיב';
+      const wTxt = w ? ` · <b style="color:${rc}" title="${rTip}">🎚${w}W${ratio ? ' (×' + ratio.toFixed(1) + ')' : ''}</b>` : '';
+      const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
         <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${ch}</span>
         <div class="pchChips">${ids.map(id2 => patchChip(id2)).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
@@ -3017,7 +3081,8 @@ function patchRender() {
     <div style="font-size:12px;font-weight:700;margin:10px 0 5px">${PATCH.pool.length ? '⚠ ' : '✓ '}רמקולים ללא ערוץ (${PATCH.pool.length})</div>
     <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(id2 => patchChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>
     ${estCables ? `<div style="font-size:11px;color:#8a8377;margin-top:6px;background:#f7f5f0;border-radius:8px;padding:6px 8px">🔌 בעת החיבור ייווצרו ${estCables} קווים · ~${estCables * 2} מחברים ייצרכו/יתווספו להצעה אוטומטית</div>` : ''}
-    ${totSpkW ? `<div style="font-size:11px;color:#8a8377;margin-top:4px;background:#f7f5f0;border-radius:8px;padding:6px 8px">⚡ סיכום הספקים: 🎚 מגברים ${totAmpW ? totAmpW.toLocaleString() + 'W' : '—'} זמינים בערוצים המאוישים · 🔊 רמקולים צורכים ${totSpkW.toLocaleString()}W RMS</div>` : ''}
+    ${totSpkW ? `<div style="font-size:11px;color:#8a8377;margin-top:4px;background:#f7f5f0;border-radius:8px;padding:6px 8px">⚡ סיכום הספקים: 🎚 מגברים ${totAmpW ? totAmpW.toLocaleString() + 'W' : '—'} זמינים בערוצים המאוישים · 🔊 רמקולים צורכים ${totSpkW.toLocaleString()}W RMS<br>
+      <span style="font-size:10.5px">יחס הספק לערוץ: <b style="color:#c1121f">אדום</b> = מגבר חלש מהרמקולים · <b style="color:#c96a13">כתום</b> = פחות מ-×2 · <b style="color:#0f8a5f">ירוק</b> = ×2 ומעלה · <b style="color:#b7900f">זהב</b> = ×3 ומעלה</span></div>` : ''}
     <div style="font-size:11px;color:#8a8377;margin-top:4px;background:${anySpread ? '#fdeeee' : '#f7f5f0'};border-radius:8px;padding:6px 8px">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">⏱ דיליי:
         <select onchange="store.dlyMode=this.value;save();patchRender()" style="font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:6px">
@@ -6926,7 +6991,7 @@ function buildZoneFromItems(zid) {
     }
   }
   P.showCoverage = true;
-  P.splMode = mode; z._built = Date.now(); render(); save();
+  z._built = Date.now(); render(); save();
   zoneBuildBar(`📋 הוצבו פריטי האזור "${z.name}" לפי הכמויות בהצעה: ${nS}× רמקולים סביב ההיקף${nSub ? ' · ' + nSub + '× סאבים בפינות' : ''}${nRack ? ' · ' + nRack + '× ציוד ראק' : ''}`, () => {
     P.nodes = P.nodes.filter(n2 => !created.includes(n2.id));
     P.cables = P.cables.filter(c2 => byId(c2.from) && byId(c2.to));
@@ -7165,16 +7230,22 @@ function zoneKitConfirm(zname, idx) {
     }
   };
   ov.querySelector('[data-asis]').onclick = () => {
-    const items = edited(); done();
-    addItems(items, false);
-    /* קיט בלי רמקולים (קיט התקנה/אביזרים) — רק מציב ציוד ארון, בלי לפתוח בורר רמקולים */
-    const hasSpk = items.some(x => isSpeakerItem(x.name));
-    const nBefore = P.nodes.length;
-    if (z && hasSpk) { buildZoneFromItems(z.id); placeZoneRackItems(z); }
-    else if (z) { placeZoneRackItems(z); render(); save(); }
-    else { render(); save(); }
-    const placed = P.nodes.length - nBefore;
-    uiToast('🧰 נוספו ' + items.length + ' פריטים מהקיט "' + k.name.slice(0, 26) + '" להצעה' + (placed > 0 ? ' · הוצבו ' + placed + ' על התכנית' : '') + ' — ההצעה מתעדכנת בצד');
+    /* הוספה עמידה: גם אם שלב ההצבה נכשל, הפריטים כבר נכנסו להצעה והמשתמש מקבל דיווח */
+    let items = [], placed = 0, err = null;
+    try {
+      items = edited(); done();
+      addItems(items, false);
+      const hasSpk = items.some(x => isSpeakerItem(x.name));
+      const nBefore = P.nodes.length;
+      /* אזור לפי שם, ואם השם השתנה — האזור הנבחר או הראשון */
+      const zz = z || (P.zones || []).find(x => x.id === selZone) || (P.zones || [])[0];
+      if (zz && hasSpk) { buildZoneFromItems(zz.id); placeZoneRackItems(zz); }
+      else if (zz) { placeZoneRackItems(zz); }
+      placed = P.nodes.length - nBefore;
+    } catch (e) { err = e; }
+    render(); save();
+    if (err) uiToast('🧰 נוספו ' + items.length + ' פריטים להצעה · ⚠ ההצבה על התכנית נכשלה: ' + (err.message || err));
+    else uiToast('🧰 נוספו ' + items.length + ' פריטים מהקיט "' + k.name.slice(0, 26) + '" להצעה' + (placed > 0 ? ' · הוצבו ' + placed + ' על התכנית' : ' · פתח את ההצעה בצד לראות אותם'));
   };
   ov.querySelector('[data-auto]').onclick = () => {
     const items = edited(); done();
@@ -7259,7 +7330,7 @@ function buildZoneSystem(zid) {
     let subC = '';
     if (z._sub) { const sit = { on: true, qty: 2, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i'), zones: { [z.name]: 2 }, added: true, placed: 2 }; autoPrice(sit); impItems.push(sit); P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (1)', sub: 'סאב · ' + z.name, x: 2200 - (cx0 - inM) - 20, y: cy0 - 24, srcIid: sit.iid, mini: true, disp: 360, spl: guessSpl(z._sub) }, { id: uid('n'), kind: 'point', name: z._sub + ' (2)', sub: 'סאב · ' + z.name, x: 2200 - (cx0 + inM) - 20, y: cy0 - 24, srcIid: sit.iid, mini: true, disp: 360, spl: guessSpl(z._sub) }); subC = ' + 2 סאבים במרכז'; }
     P.showCoverage = true;
-  P.splMode = mode; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
+  z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar(`נבנתה מערכת ל"${z.name}" (4 פינות · Funktion-One): 4× ${spk}${subC}`, () => undoZoneBuild(z));
     return;
   }
@@ -7302,7 +7373,7 @@ function buildZoneSystem(zid) {
       dlyMsg = '\n2× דיליי (עומק ' + depthM.toFixed(0) + ' מ׳ > 18 מ׳)';
     }
     P.showCoverage = true;
-  P.splMode = mode; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
+  z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar(`נבנתה מערכת הופעה חיה ל"${z.name}": 2× ${spk} (מיינים L/R)${subMsg2}${dlyMsg}`, () => undoZoneBuild(z));
     return;
   }
@@ -7325,7 +7396,7 @@ function buildZoneSystem(zid) {
       subMsg3 = '\n' + nSub + '× ' + z._sub + ' (פינות — צימוד)';
     }
     P.showCoverage = true;
-  P.splMode = mode; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
+  z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar(`נבנתה מערכת היקפית ל"${z.name}": ${pts.length}× ${spk} סביב הקירות (מרווח ~${spacingM.toFixed(1)} מ׳)${subMsg3}`, () => undoZoneBuild(z));
     return;
   }
@@ -7354,7 +7425,7 @@ function buildZoneSystem(zid) {
   }
   const densName = { edge: 'edge-to-edge', min: 'חפיפה מינימלית', full: 'חפיפה מלאה', sparse: 'רופף' }[z._dens || 'edge'];
   P.showCoverage = true;
-  P.splMode = mode; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
+  z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
   zoneBuildBar(`נבנתה מערכת ל"${z.name}" (${wall ? 'קיר — מכוונים לחלל' : 'תקרה'}): ${nSpk}× ${spk}${subMsg} · שטח ${area.toFixed(0)} מ"ר · מרווח ~${spacingM.toFixed(1)} מ׳ · ${densName}`, () => undoZoneBuild(z));
 }
 /* הסרת מערכת אוטומטית שנבנתה לאזור — מוקדים + פריטי הצעה */
@@ -7432,7 +7503,7 @@ async function autoLayoutAI(zid) {
     it.qty = it.placed = nS; it.zones = { [z.name]: nS }; it.added = true;
     if (sit) { sit.qty = sit.placed = nSub; sit.zones = { [z.name]: nSub }; sit.added = nSub > 0; }
     P.showCoverage = true;
-  P.splMode = mode; z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
+  z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar('🤖 הפריסה החכמה מיקמה ' + nS + ' רמקולים' + (nSub ? ' + ' + nSub + ' סאבים' : '') + ' לפי ניתוח התכנית (' + (spread === 'surround' ? 'היקפי' : 'כיווני') + '). ריחוף על רמקול מציג את הנימוק.', () => undoZoneBuild(z));
   } catch (err) {
     if (/401|invalid|authentication/i.test(String(err.message))) { try { localStorage.removeItem('koflow_apikey'); } catch (e) {} }
