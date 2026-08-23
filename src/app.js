@@ -2277,8 +2277,20 @@ function renderWires() {
   /* שכבת שרטוט התכנית — קירות ואובייקטים (תחליף להעלאת תמונה) */
   if (P.sketch && ((P.sketch.walls || []).length || (P.sketch.objs || []).length || sketchMode)) {
     const wallW = Math.max(4, Math.min(14, P.scale ? 0.15 / P.scale : 8));
+    const dimFz = Math.max(10, 13 / (getZ() || 1));
+    const dimTxt = (x, y, t, rot) => `<g transform="translate(${x} ${y})${rot ? ' rotate(' + rot + ')' : ''}" style="pointer-events:none">
+        <rect x="${-t.length * dimFz * 0.31 - 4}" y="${-dimFz * 0.78}" width="${t.length * dimFz * 0.62 + 8}" height="${dimFz * 1.25}" rx="3" fill="#fff" opacity="0.82"/>
+        <text x="0" y="${dimFz * 0.34}" text-anchor="middle" font-size="${dimFz.toFixed(1)}" font-weight="700" fill="#3f3a33">${t}</text></g>`;
     (P.sketch.walls || []).forEach((wl, wi) => {
       out += `<polyline points="${wl.map(p => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#3f3a33" stroke-width="${wallW}" stroke-linecap="square" stroke-linejoin="miter"${sketchMode ? ` style="pointer-events:stroke;cursor:${sketchMode.tool === 'erase' ? 'not-allowed' : 'default'}" onclick="if(sketchMode&&sketchMode.tool==='erase'){P.sketch.walls.splice(${wi},1);save();renderWires();}"` : ''}><title>קיר${P.scale ? ' · ' + (wl.slice(1).reduce((s5, p5, i5) => s5 + Math.hypot(p5.x - wl[i5].x, p5.y - wl[i5].y), 0) * P.scale).toFixed(1) + ' מ׳' : ''}${sketchMode && sketchMode.tool === 'erase' ? ' — לחיצה מוחקת' : ''}</title></polyline>`;
+      /* מידה על כל מקטע קיר — קריאה גם כשהקו אנכי (הטקסט מסתובב עם הקיר) */
+      if (P.scale) wl.slice(1).forEach((p2, i2) => {
+        const p1 = wl[i2], len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        if (len * P.scale < 0.4) return;
+        let ang = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+        if (ang > 90 || ang < -90) ang += 180;
+        out += dimTxt((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, (len * P.scale).toFixed(2) + ' מ׳', ang.toFixed(1));
+      });
     });
     (P.sketch.objs || []).forEach((o, oi) => {
       const d = SK_OBJS[o.t] || { n: o.t, c: '#666' };
@@ -2288,13 +2300,23 @@ function renderWires() {
         (d.round ? `<ellipse cx="${o.x}" cy="${o.y}" rx="${o.w / 2}" ry="${o.h / 2}" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`
           : `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`) +
         `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${d.n}</text>` +
+        (P.scale ? `<text x="${o.x}" y="${o.y + o.h / 2 + fs * 0.95}" text-anchor="middle" font-size="${(fs * 0.72).toFixed(1)}" fill="${d.c}" opacity="0.85" style="user-select:none">${(o.w * P.scale).toFixed(2)}×${(o.h * P.scale).toFixed(2)} מ׳</text>` : '') +
         `<title>${d.n}${P.scale ? ` · ${(o.w * P.scale).toFixed(1)}×${(o.h * P.scale).toFixed(1)} מ׳` : ''} — במצב שרטוט: גרירה מזיזה, הסרגל מסובב/משנה גודל</title></g>`;
     });
     if (sketchMode && sketchMode.cur && sketchMode.cur.length) {
       const c = sketchMode.cur;
       out += `<polyline points="${c.map(p => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#3f3a33" stroke-width="${wallW}" opacity="0.65"/>`;
-      if (sketchMode.cur2) out += `<line x1="${c[c.length - 1].x}" y1="${c[c.length - 1].y}" x2="${sketchMode.cur2.x}" y2="${sketchMode.cur2.y}" stroke="#3f3a33" stroke-width="${wallW}" stroke-dasharray="7 6" opacity="0.5"/>`;
-      c.forEach(p2 => out += `<circle cx="${p2.x}" cy="${p2.y}" r="4.5" fill="#c9502e" stroke="#fff" stroke-width="1.5"/>`);
+      if (sketchMode.cur2) {
+        const l2 = c[c.length - 1];
+        out += `<line x1="${l2.x}" y1="${l2.y}" x2="${sketchMode.cur2.x}" y2="${sketchMode.cur2.y}" stroke="#3f3a33" stroke-width="${wallW}" stroke-dasharray="7 6" opacity="0.5"/>`;
+        /* מידה חיה תוך כדי ציור — רואים את האורך לפני שמניחים את הנקודה */
+        if (P.scale) {
+          const lv = Math.hypot(sketchMode.cur2.x - l2.x, sketchMode.cur2.y - l2.y) * P.scale;
+          const t2 = sketchMode.tool === 'rect' ? (Math.abs(sketchMode.cur2.x - l2.x) * P.scale).toFixed(2) + ' × ' + (Math.abs(sketchMode.cur2.y - l2.y) * P.scale).toFixed(2) + ' מ׳' : lv.toFixed(2) + ' מ׳';
+          out += dimTxt((l2.x + sketchMode.cur2.x) / 2, (l2.y + sketchMode.cur2.y) / 2 - 14, t2, 0);
+        }
+      }
+      c.forEach((p2, pi) => out += `<circle cx="${p2.x}" cy="${p2.y}" r="${pi === 0 ? 7 : 5.5}" fill="${pi === 0 ? '#fff' : '#c9502e'}" stroke="#c9502e" stroke-width="2"><title>${pi === 0 ? 'לחיצה כאן סוגרת מסלול' : 'לחיצה על נקודה קיימת מסיימת את הקיר'}</title></circle>`);
     }
   }
   /* בזום גבוה העיגולים מתכווצים ביחס הפוך — שלא יסתירו את המוצרים */
@@ -2845,7 +2867,7 @@ function patchOpen(z, amps, lines, leftover) {
   };
   lines.forEach(l => { PATCH.slots[amps.indexOf(l.amp) + '|' + l.ch] = [l.head.id, ...l.seg.map(s => s.to.id)]; });
   /* ערוצים שכבר מחוברים — מציגים את הרמקולים המחוברים בפועל; 🔓 משחרר לעריכה */
-  PATCH.preCables = {}; PATCH.redo = {};
+  PATCH.preCables = {}; PATCH.redo = {}; PATCH.orig = {};
   PATCH.amps.forEach((a, ai) => {
     [...a.pre].forEach(ch => {
       const port = 'OUT ' + ch;
@@ -2854,9 +2876,11 @@ function patchOpen(z, amps, lines, leftover) {
       const cl = chainLoad(a.rk.id, a.u.id, port);
       const ids = cl && cl.spks && cl.spks.length ? cl.spks.map(n => n.id) : [head.to];
       PATCH.slots[ai + '|' + ch] = ids;
+      PATCH.orig[ai + '|' + ch] = ids.join(',');
       const inSet = new Set(ids);
       PATCH.preCables[ai + '|' + ch] = P.cables.filter(c => c.id === head.id || (inSet.has(c.from) && inSet.has(c.to))).map(c => c.id);
     });
+    a.pre = new Set(); /* אין ערוצים נעולים — הכול ניתן לעריכה בכל שלב */
   });
   const ov = document.createElement('div');
   ov.id = 'patchOv';
@@ -2949,7 +2973,7 @@ function patchRender() {
   const amps = PATCH.amps.map((a, ai) => {
     const chs = [];
     for (let ch = 1; ch <= a.chTotal; ch++) {
-      const key = ai + '|' + ch, ids = PATCH.slots[key] || [], locked = a.pre.has(ch);
+      const key = ai + '|' + ch, ids = PATCH.slots[key] || [], locked = false;
       const zz = patchZ(ids), w = ids.length ? ampChW(a.u.name, zz) : null;
       /* צריכת הרמקולים בערוץ — RMS מנתוני הדגם (150W ברירת מחדל כשלא ידוע) */
       const sw = ids.reduce((s3, id2) => { const n3 = byId(id2); const pw = n3 ? (n3.pow ?? (spkData(n3.name) || {}).w) : null; return s3 + (pw == null ? 150 : +pw); }, 0);
@@ -2962,12 +2986,15 @@ function patchRender() {
       if (dSpread > 5) anySpread = true;
       const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + (w ? ' · 🎚' + w + 'W' : '') + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
-        <span class="pchOut">${locked ? '🔒 ' : ''}OUT ${ch}${locked ? `<button style="border:none;background:transparent;cursor:pointer;font-size:13px;padding:0 2px" title="שחרר ערוץ לעריכה — הקווים הקיימים יוחלפו בעת החיבור" onclick="patchUnlock('${key}')">🔓</button>` : ''}</span>
-        <div class="pchChips">${ids.map(id2 => patchChip(id2, locked)).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
+        <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${ch}</span>
+        <div class="pchChips">${ids.map(id2 => patchChip(id2)).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
         <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" title="עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
     }
     return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(a.u.name)}">🎚 ${esc(shortModel(a.u.name))}
-        <small>${a.chTotal} ערוצים · מינ׳ ${a.minOhm}Ω · ${esc(a.rk.name.slice(0, 14))}</small></div>${chs.join('')}</div>`;
+        <small>
+          <input type="number" min="1" max="16" value="${a.chTotal}" title="מספר ערוצי המגבר — ניתן לתיקון, נשמר לדגם" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchAmpSet(${ai},'ch',this.value)"> ערוצים ·
+          מינ׳ <input type="number" min="1" max="16" step="0.1" value="${a.minOhm}" title="אום מינימלי לערוץ (סטריאו) — ניתן לתיקון, נשמר לדגם" style="width:38px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchAmpSet(${ai},'mo',this.value)">Ω ·
+          ${esc(a.rk.name.slice(0, 14))}</small></div>${chs.join('')}</div>`;
   }).join('');
   /* אומדן מחברים: כל קו = 2 קצוות (ספיקון / XLR-RCA לסאב אקטיבי) — מאושר כאן לפני החיבור */
   let estCables = 0;
@@ -3015,6 +3042,22 @@ function patchRender() {
     el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('drop'); patchMove(e.dataTransfer.getData('text/plain'), el.dataset.slot); });
     el.addEventListener('click', () => { if (PATCH.sel) patchMove(PATCH.sel, el.dataset.slot); });
   });
+}
+/* תיקון נתוני המגבר מתוך עורך החיווט — נשמר לספריית המגברים ומשפיע על כל התכנון */
+function patchAmpSet(ai, field, val) {
+  const a = PATCH.amps[ai]; if (!a) return;
+  const v = +val; if (!(v > 0)) return;
+  store.ampLib = store.ampLib || {};
+  const k = rearKey(a.u.name);
+  const cur = store.ampLib[k] || {};
+  store.ampLib[k] = { ...cur, kind: 'amp', ch: field === 'ch' ? v : (cur.ch || a.chTotal), mo: field === 'mo' ? v : (cur.mo || a.minOhm), ok: true };
+  if (field === 'ch') {
+    a.chTotal = v;
+    /* ערוצים שנעלמו — הרמקולים שלהם חוזרים למאגר */
+    Object.keys(PATCH.slots).forEach(kk => { const [ai2, ch2] = kk.split('|').map(Number); if (ai2 === ai && ch2 > v) { PATCH.pool.push(...PATCH.slots[kk]); delete PATCH.slots[kk]; } });
+  } else a.minOhm = v;
+  save(); patchRender();
+  uiToast('✓ עודכן ל' + (field === 'ch' ? v + ' ערוצים' : 'מינ׳ ' + v + 'Ω') + ' — נשמר לדגם "' + shortModel(a.u.name) + '"');
 }
 /* שחרור ערוץ נעול — הרמקולים המחוברים הופכים לעריכים; בחיבור הקווים הישנים יוחלפו */
 function patchUnlock(key) {
@@ -3151,9 +3194,10 @@ async function patchApply() {
     if (!ids.length) continue;
     const [ai, ch] = key.split('|').map(Number);
     const a = PATCH.amps[ai];
-    if (a.pre.has(ch)) continue; /* ערוץ נעול — הקווים הקיימים נשארים כמו שהם */
-    if (PATCH.redo && PATCH.redo[key] && PATCH.preCables && PATCH.preCables[key]) {
-      const del = new Set(PATCH.preCables[key]); /* ערוץ ששוחרר — הניתוב הישן מוחלף */
+    /* ערוץ שלא נגעו בו — משאירים את הקווים הקיימים; ערוץ ששונה — מחליפים אותם */
+    if (PATCH.orig && PATCH.orig[key] === ids.join(',')) continue;
+    if (PATCH.preCables && PATCH.preCables[key]) {
+      const del = new Set(PATCH.preCables[key]);
       P.cables = P.cables.filter(c => !del.has(c.id));
     }
     const nodes = ids.map(byId).filter(Boolean);
@@ -3174,6 +3218,13 @@ async function patchApply() {
       P.cables.push(cb); n2++; made.push(cb);
     }
   }
+  /* ערוצים שרוקנו לגמרי — הקווים הישנים שלהם נמחקים */
+  Object.entries(PATCH.preCables || {}).forEach(([k5, cids]) => {
+    if (PATCH.orig[k5] === (PATCH.slots[k5] || []).join(',')) return;
+    if ((PATCH.slots[k5] || []).length) return;
+    const del = new Set(cids);
+    P.cables = P.cables.filter(c => !del.has(c.id));
+  });
   const left = PATCH.pool.length;
   patchClose();
   /* מחברים: כל קו צורך 2 מחברים מתאימים (ספיקון/RCA) — נוספים להצעה אוטומטית */
@@ -3696,7 +3747,7 @@ const AMP_DATA = [
   /* דגם לא מפורט בשם המוצר ("XTA DPA" בלי מספר) — נופל לנתוני הסדרה:
      כל סדרת DPA/DNA/DELTA יציבה ב-2Ω ו-4 ערוצים (DNA120 הדו-ערוצי נתפס למעלה).
      בלי טבלת הספק — לא ממציאים מספרים לדגם לא ידוע. */
-  { re: /\bDPA\b|\bDNA\b/i, kind: 'amp', ch: 4, mo: 2, ok: 1, w: 'סדרת XTA DPA/DNA — דגם לא מפורט בשם · הסדרה כולה יציבה 2Ω', url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
+  { re: /\bDPA\b|\bDNA\b|\bXTA\b/i, kind: 'amp', ch: 4, mo: 2, ok: 1, w: 'מגבר XTA — דגם לא מפורט בשם · מגברי XTA יציבים 2Ω', url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
   /* ===== KT Audio — מאומת מ-kt-audio.com ===== */
   { re: /DYNAMIQ\s?450/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×300W @8Ω · 2×450W @4Ω · גשר 900W @8Ω · DSP + AES67', pw: { 8: 300, 4: 450 }, br: { 8: 900 }, url: 'https://www.kt-audio.com/products/unicorn-dynamiq-450', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf' },
   { re: /DYNAMIQ\s?750/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×500W @8Ω · 2×750W @4Ω · גשר 1500W @8Ω · DSP + AES67', pw: { 8: 500, 4: 750 }, br: { 8: 1500 }, url: 'https://www.kt-audio.com/products/unicorn-dynamiq-750', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf' },
@@ -4846,13 +4897,22 @@ document.addEventListener('pointerdown', e => {
   /* ציור אזור סאונד — ניקור נקודות עד סגירת הצורה */
   if (sketchMode && e.target.closest('#canvasWrap') && !e.target.closest('#sketchBar') && !e.target.closest('[data-skobj]')) {
     const p2 = canvasPt(e);
-    if (sketchMode.tool === 'wall') { sketchMode.cur.push(p2); renderWires(); return; }
+    if (sketchMode.tool === 'wall') {
+      const c = sketchMode.cur, TH = 10 / (getZ() || 1);
+      /* לחיצה על נקודה קיימת מסיימת — הראשונה סוגרת מסלול, האחרונה משחררת */
+      if (c.length) {
+        const hit = c.findIndex(pt => Math.hypot(pt.x - p2.x, pt.y - p2.y) < TH);
+        if (hit === 0 && c.length > 2) { P.sketch.walls.push(c.concat([{ x: c[0].x, y: c[0].y }])); sketchMode.cur = []; sketchMode.cur2 = null; save(); renderWires(); uiToast('✓ מסלול נסגר'); return; }
+        if (hit >= 0) { if (c.length >= 2) { P.sketch.walls.push(c.slice()); save(); } sketchMode.cur = []; sketchMode.cur2 = null; renderWires(); uiToast('✓ הקיר הסתיים — אפשר להתחיל קיר חדש'); return; }
+      }
+      c.push(p2); renderWires(); return;
+    }
     if (sketchMode.tool === 'rect') {
       sketchMode.cur.push(p2);
       if (sketchMode.cur.length === 2) {
         const [a2, b2] = sketchMode.cur;
         P.sketch.walls.push([{ x: a2.x, y: a2.y }, { x: b2.x, y: a2.y }, { x: b2.x, y: b2.y }, { x: a2.x, y: b2.y }, { x: a2.x, y: a2.y }]);
-        sketchMode.cur = []; save();
+        sketchMode.cur = []; sketchMode.cur2 = null; save();
       }
       renderWires(); return;
     }
@@ -5130,7 +5190,7 @@ document.addEventListener('pointermove', e => {
     document.querySelectorAll('.node').forEach(el => { const id = el.id.slice(3); el.style.outline = selMulti.has(id) ? '2.5px solid #c9502e' : ''; });
     return;
   }
-  if (sketchMode && sketchMode.tool === 'wall' && sketchMode.cur.length) {
+  if (sketchMode && (sketchMode.tool === 'wall' || sketchMode.tool === 'rect') && sketchMode.cur.length) {
     sketchMode.cur2 = canvasPt(e);
     renderWires();
     return;
