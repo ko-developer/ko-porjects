@@ -95,17 +95,23 @@ function ampPowerAt(amp, ohm) {
   keys.forEach(k => { const d = Math.abs(k - ohm); if (d < bd) { bd = d; best = k; } });
   return pw[best];
 }
+/* כלל ההספק: מגבר צריך לתת בערך פי 2 ממה שמחובר אליו.
+   פי 2 מהספק ה-RMS של הרמקולים הוא הסטנדרט המקצועי — זה מה שנותן מרווח לפסגות
+   המוזיקה בלי שהמגבר ייכנס לקליפ (שזה מה ששורף רמקולים). מתחת ל-×1.5 לא מאשרים. */
+const PWR_TARGET = 2.0, PWR_MIN = 1.5;
 function spkPerChannel(amp, spk) {
   const minOhm = amp.minOhm || 4;
   const ohmLimit = Math.max(1, Math.floor((spk.ohm || 8) / minOhm + 1e-6));
-  let best = 1;
+  let best = 0, bestRatio = 0;
   for (let n = 1; n <= Math.min(8, ohmLimit); n++) {
     const load = (spk.ohm || 8) / n;
-    const avail = ampPowerAt(amp, load);
-    /* דרישה מציאותית להתקנה קבועה: כ-60% מה-RMS לרמקול — עם מרווח לפסגות */
-    if (avail >= n * (spk.w || 100) * 0.6) best = n;
+    const ratio = ampPowerAt(amp, load) / Math.max(1, n * (spk.w || 100));
+    if (ratio >= PWR_MIN) { best = n; bestRatio = ratio; }   /* הכי הרבה רמקולים שעדיין עומדים בכלל */
   }
-  return best;
+  if (!best) { /* אפילו רמקול אחד לא מקבל מספיק — מסמנים כגבולי */
+    best = 1; bestRatio = ampPowerAt(amp, spk.ohm || 8) / Math.max(1, spk.w || 100);
+  }
+  return { n: best, ratio: +bestRatio.toFixed(2), ok: bestRatio >= PWR_MIN };
 }
 /* בחירת הסאב: חלל גדול או רחבה/DJ ⇒ סאב גדול (18"), אחרת הרגיל */
 function pickSub(tier, zones, scale) {
@@ -128,14 +134,17 @@ function buildProposal(tier) {
     ? [tier.spk, tier.spkBig, tier.spkSmall].find(x => x && x.key === Object.keys(spkCount)[0]) || tier.spk : tier.spk;
   const cands = [tier.ampSmall, tier.amp, tier.ampBig].filter(Boolean);
   let amp = tier.amp, ampN = 99, perCh = 1;
+  let pwrRatio = 0, pwrOk = false;
+  let bestCost = Infinity;
   cands.forEach(a => {
-    const per = spkPerChannel(a, mainSpk);
-    const chNeeded = Math.ceil(totalSpk / per) + totalSub;   /* סאב = ערוץ ייעודי */
+    const cap = spkPerChannel(a, mainSpk);
+    const chNeeded = Math.ceil(totalSpk / cap.n) + totalSub;   /* סאב = ערוץ ייעודי */
     const n = Math.max(1, Math.ceil(chNeeded / (a.ch || 2)));
-    /* עלות אמיתית + עדיפות קלה למגבר שמופיע יחד עם הרמקול בקיטים של החברה */
-    const cost = n * a.price * (kitBacked(mainSpk.key, a.key, 'amp') ? 0.9 : 1);
-    const bestCost = ampN === 99 ? Infinity : ampN * amp.price * (kitBacked(mainSpk.key, amp.key, 'amp') ? 0.9 : 1);
-    if (cost < bestCost) { amp = a; ampN = n; perCh = per; }
+    /* ציון: עלות אמיתית · בונוס לזיווג מהקיטים · קנס ככל שמתרחקים מיחס ×2 */
+    const kitBonus = kitBacked(mainSpk.key, a.key, 'amp') ? 0.9 : 1;
+    const pwrPenalty = cap.ok ? 1 + Math.min(0.25, Math.abs(cap.ratio - PWR_TARGET) * 0.06) : 2.5;
+    const cost = n * a.price * kitBonus * pwrPenalty;
+    if (cost < bestCost) { bestCost = cost; amp = a; ampN = n; perCh = cap.n; pwrRatio = cap.ratio; pwrOk = cap.ok; }
   });
   const ampFromKit = kitBacked(mainSpk.key, amp.key, 'amp');
   const lines = Math.ceil(totalSpk / perCh) + totalSub;
@@ -177,7 +186,7 @@ function buildProposal(tier) {
   const hours = (45 + totalSpk * 30 + totalSub * 15 + ampN * 30 + 45 * S.zones.length) / 60;
   const days = Math.max(1, Math.ceil(hours / 8));
   return { tier, zones, rows, inst, equip, install, days, hours, total: equip + install,
-    totalSpk, totalSub, ampN, amp, perCh, lines, meters, sub, bigSub, ampFromKit, mainSpk, util: Math.round(totalSpk / Math.max(1, ampN * (amp.ch || 2) * perCh) * 100) };
+    totalSpk, totalSub, ampN, amp, perCh, pwrRatio, pwrOk, lines, meters, sub, bigSub, ampFromKit, mainSpk, util: Math.round(totalSpk / Math.max(1, ampN * (amp.ch || 2) * perCh) * 100) };
 }
 function erpItem(key) {
   const r = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).find(x => x[0] === key);
@@ -375,6 +384,31 @@ function buildFromDims() {
   save(); go(3);
 }
 const CAL = { mode: 'width', pts: [] };
+const DRAW = { on: false, from: null, cur: null };
+function startDrawZone() { DRAW.on = true; DRAW.from = null; DRAW.cur = null; render(); toast('✏️ גרור על התכנית מפינה לפינה'); }
+/* ציור אזור בגרירה — האזור נוצר בדיוק במקום שסומן */
+function bindDrawZone() {
+  const svg = $('#planSvg'); if (!svg || !DRAW.on) return;
+  svg.style.cursor = 'crosshair';
+  const toPlan = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * S.planW, y: (e.clientY - r.top) / r.height * (S.planH || 900) }; };
+  svg.onpointerdown = e => {
+    DRAW.from = toPlan(e); DRAW.cur = DRAW.from;
+    const mv = ev => { DRAW.cur = toPlan(ev); drawPlan(); };
+    const up = () => {
+      document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up);
+      const a = DRAW.from, b = DRAW.cur;
+      DRAW.on = false; DRAW.from = DRAW.cur = null;
+      if (a && b && Math.abs(b.x - a.x) > 30 && Math.abs(b.y - a.y) > 30) {
+        S.zones.push({ id: uid(), name: 'אזור ' + (S.zones.length + 1), purpose: defaultPurpose(), spl: usePeak(),
+          x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) });
+        save(); toast('✓ האזור נוסף — אפשר לבחור מה קורה בו למטה');
+      } else toast('האזור קטן מדי — נסה שוב');
+      render();
+    };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    e.preventDefault();
+  };
+}
 function calMode(m) { CAL.mode = m; CAL.pts = []; render(); }
 /* לחיצה על התכנית במצב 2 נקודות — נקודות בקואורדינטות התכנית */
 function planClick(e) {
@@ -462,8 +496,15 @@ function drawPlan() {
       </g>
       <rect data-rs="${i}" x="${z.x + z.w - 26}" y="${z.y + z.h - 26}" width="26" height="26" rx="6" fill="#fff" stroke="${p.color}" stroke-width="4" style="cursor:nwse-resize"/>`;
   });
+  if (DRAW.on && DRAW.from && DRAW.cur) {
+    const a = DRAW.from, b = DRAW.cur;
+    out += `<rect x="${Math.min(a.x, b.x)}" y="${Math.min(a.y, b.y)}" width="${Math.abs(b.x - a.x)}" height="${Math.abs(b.y - a.y)}"
+      fill="#7c5cff22" stroke="#7c5cff" stroke-width="4" stroke-dasharray="10 7" rx="8"/>`;
+    if (S.scale) out += `<text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2}" text-anchor="middle" font-size="26" font-weight="800" fill="#7c5cff">${(Math.abs(b.x - a.x) * S.scale).toFixed(1)}×${(Math.abs(b.y - a.y) * S.scale).toFixed(1)} מ׳</text>`;
+  }
   svg.innerHTML = out;
   bindZoneDrag();
+  bindDrawZone();
 }
 /* גרירה ושינוי גודל של אזור ישירות על התכנית */
 function bindZoneDrag() {
@@ -538,7 +579,11 @@ function stepZones() {
         <label class="fld"><span>אורך (מ׳)</span><input type="number" step="0.1" value="${(z.h * S.scale).toFixed(1)}" oninput="setZoneM(${i},'h',+this.value)"></label></div>` : ''}
     </div>`;
   }).join('')}</div>
-  <button class="ghost wide" onclick="addZone()">➕ הוסף אזור</button>`;
+  <div class="row">
+    <button class="ghost" style="flex:1" onclick="startDrawZone()">✏️ צייר אזור על התכנית — בדיוק איפה שצריך</button>
+    <button class="ghost" style="flex:1" onclick="addZone()">➕ הוסף אזור במרכז</button>
+  </div>
+  ${DRAW.on ? '<div class="note">✏️ גרור על התכנית מפינה לפינה כדי לסמן את האזור. Esc לביטול.</div>' : ''}`;
 }
 function afterZones() {
   const img = $('#planImg');
@@ -601,6 +646,7 @@ function stepOffers() {
         <div><b>${spl}</b><small>dB יכולת</small></div>
       </div>
       <div class="ampline">🎚 ${p.ampN}× ${esc(p.amp.name.slice(0, 26))} · ${p.perCh} רמקולים לערוץ · ניצול ${p.util}%
+        <br><b style="color:${p.pwrOk ? '#0f6e56' : '#c1121f'}">×${p.pwrRatio} הספק מגבר מול הרמקולים</b> — היעד ×2, מרווח לפסגות בלי קליפ
         ${p.ampFromKit ? '<br>✓ שילוב מוכח — מופיע יחד בקיטים שלנו' : ''}</div>
       <div class="prods">${prodCards(p)}</div>
       <div class="badges">${fits ? '<span class="b ok">✓ בתקציב</span>' : '<span class="b over">מעל התקציב</span>'}
@@ -691,7 +737,25 @@ function stepReport() {
   const w = S.planW, h = S.planH || 900;
   const cov = coverageSVG(p, w, h);
   const L = ensureLayout(p);
+  const rk = rackPoint();
+  const sched = cableSchedule(p);
   let marks = '';
+  /* קווי החיווט בפועל — מהארון אל כל רמקול, ממוספרים בדיוק כמו בטבלה */
+  let li = 0;
+  p.zones.forEach(({ z }) => {
+    const col = purposeOf(z).color;
+    [...(L[z.id].spk || []), ...(L[z.id].subs || [])].forEach(pt => {
+      const row = sched[li++]; if (!row) return;
+      const mx = (rk.x + pt.x) / 2, my = (rk.y + pt.y) / 2;
+      marks += `<line x1="${rk.x.toFixed(0)}" y1="${rk.y.toFixed(0)}" x2="${pt.x.toFixed(0)}" y2="${pt.y.toFixed(0)}"
+          stroke="${col}" stroke-width="2.5" opacity="0.55" stroke-dasharray="7 5"/>
+        <g><circle cx="${mx.toFixed(0)}" cy="${my.toFixed(0)}" r="13" fill="#fff" stroke="${col}" stroke-width="2.5" opacity="0.95"/>
+          <text x="${mx.toFixed(0)}" y="${(my + 5).toFixed(0)}" text-anchor="middle" font-size="15" font-weight="800" fill="${col}">${row.id}</text></g>`;
+    });
+  });
+  /* ארון הציוד */
+  marks += `<g><rect x="${(rk.x - 26).toFixed(0)}" y="${(rk.y - 22).toFixed(0)}" width="52" height="44" rx="8" fill="#141821" stroke="#fff" stroke-width="3"/>
+    <text x="${rk.x.toFixed(0)}" y="${(rk.y + 7).toFixed(0)}" text-anchor="middle" font-size="17" font-weight="800" fill="#fff">ארון</text></g>`;
   p.zones.forEach(({ z, p: pz }) => {
     const col = purposeOf(z).color;
     marks += `<rect x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" fill="none" stroke="${col}" stroke-width="3" stroke-dasharray="9 6" rx="8"/>
@@ -720,7 +784,8 @@ function stepReport() {
       <svg viewBox="0 0 ${w} ${h}" style="${S.plan ? '' : 'position:relative;background:#f7f5f0;border-radius:10px;display:block;width:100%;height:auto;aspect-ratio:' + (w / h).toFixed(3)}">${cov.svg}${marks}</svg>
     </div></div>
     <div class="legend"><span class="lg cold"></span>${cov.min} dB<span class="lg warm"></span>${cov.max} dB
-      <span class="lgnote">כל עיגול = רמקול. הצבע מראה את עוצמת המוזיקה בכל נקודה בחלל.</span></div>
+      <span class="lgnote">עיגול ממוספר = רמקול · הריבוע השחור = ארון הציוד · הקו המקווקו = מסלול הכבל,
+      והמספר עליו הוא מספר הקו בטבלת החיווט למטה.</span></div>
   </div>
   <div class="rsec"><h3>🔊 מה מקבלים בכל אזור</h3>
     <table class="rt"><tr><th>אזור</th><th>שימוש</th><th>שטח</th><th>רמקולים</th><th>עוצמת יעד</th><th>יכולת המערכת</th><th>מרווח</th></tr>
@@ -871,4 +936,5 @@ function toast(m) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = m;
   $('#toasts').appendChild(t); setTimeout(() => t.remove(), 4500);
 }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && DRAW.on) { DRAW.on = false; DRAW.from = DRAW.cur = null; render(); } });
 load(); render();
