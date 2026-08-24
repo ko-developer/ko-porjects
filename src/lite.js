@@ -932,6 +932,38 @@ function shareReport() {
   if (navigator.share) { navigator.share({ title: 'KO Studio', text: txt }).catch(() => {}); return; }
   window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener');
 }
+/* דיאלוג אישור פנימי — דיאלוג מערכת חסום בדפדפנים משובצים */
+function ask(msg, okLabel, danger) {
+  return new Promise(res => {
+    const ov = document.createElement('div');
+    ov.className = 'askov';
+    ov.innerHTML = `<div class="askbox">
+      <p>${esc(msg)}</p>
+      <div class="askbtns">
+        <button class="go ${danger ? 'danger' : ''}" data-ok>${esc(okLabel || 'אישור')}</button>
+        <button class="ghost" data-no>ביטול</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelector('[data-ok]').onclick = () => done(true);
+    ov.querySelector('[data-no]').onclick = () => done(false);
+    ov.addEventListener('click', e => { if (e.target === ov) done(false); });
+  });
+}
+/* התחלה מחדש — מנקה הכול וחוזר לשלב הראשון */
+async function resetAll() {
+  const has = S.venue || S.zones.length || S.plan;
+  if (has && !(await ask('להתחיל מחדש? כל מה שמילאת — המקום, התכנית, האזורים וההצעות — יימחק ולא ניתן יהיה לשחזר.', '↺ כן, התחל מחדש', true))) return;
+  try { localStorage.removeItem(LS); } catch (e) {}
+  S = { step: 0, venue: null, uses: [], name: '', plan: null, planW: 1400, planH: 900, scale: null,
+    roomW: null, roomL: null, ceil: 3, zones: [], budget: null, tier: null, contact: {},
+    sameContent: true, layout: {}, wireEdits: {} };
+  CAL.mode = 'width'; CAL.pts = [];
+  DRAW.on = false; DRAW.from = DRAW.cur = null;
+  save(); render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  toast('↺ התחלנו מחדש — בהצלחה!');
+}
 function toast(m) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = m;
   $('#toasts').appendChild(t); setTimeout(() => t.remove(), 4500);
