@@ -25,3 +25,26 @@ export function templateParts() {
   if (!css || !bodyInner) throw new Error('template structure changed — update templateParts()');
   return { css, bodyInner };
 }
+
+
+/* ===== KO Studio (גרסת משתמשי קצה) — נבנית בנפרד לגמרי מהאפליקציה המקצועית ===== */
+export const LITE_DATA = ['LITE_CATALOG', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_IMAGES'];
+
+export function assembleLiteJs() {
+  let js = readFileSync('src/lite.js', 'utf8');
+  for (const name of LITE_DATA) {
+    const json = readFileSync(`data/${name.toLowerCase()}.json`, 'utf8');
+    const marker = `/*__DATA:${name}__*/`;
+    if (!js.includes(marker)) throw new Error(`lite marker missing: ${name}`);
+    js = js.replace(marker, `const ${name} = ${json};`);
+  }
+  return js;
+}
+
+export function liteTemplateParts() {
+  const tpl = readFileSync('src/lite.template.html', 'utf8');
+  const css = tpl.slice(tpl.indexOf('<style>') + 7, tpl.indexOf('</style>'));
+  const bodyInner = tpl.slice(tpl.indexOf('<body>') + 6, tpl.indexOf('<script>/*__LITE__*/'));
+  if (!css || !bodyInner) throw new Error('lite template structure changed');
+  return { css, bodyInner };
+}

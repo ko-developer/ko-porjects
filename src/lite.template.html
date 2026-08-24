@@ -1,0 +1,120 @@
+<!doctype html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#141821">
+<title>KO Studio — תכנון הסאונד שלך</title>
+<style>
+*{box-sizing:border-box}
+:root{--ink:#141821;--muted:#7b7568;--line:#e7e2d8;--bg:#faf8f4;--go:#0f6e56;--accent:#ff6a3d;--violet:#7c5cff}
+body{margin:0;font-family:-apple-system,'Segoe UI','Rubik',Arial,sans-serif;background:var(--bg);color:var(--ink);-webkit-text-size-adjust:100%}
+header{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,#141821,#2b3244);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:12px}
+header .logo{width:38px;height:38px;border-radius:11px;background:var(--accent);display:grid;place-items:center;font-weight:900;font-size:17px}
+header h1{font-size:17px;margin:0;font-weight:800}header p{margin:0;font-size:11.5px;opacity:.75}
+#steps{display:flex;gap:4px;padding:9px 12px;background:#fff;border-bottom:1px solid var(--line);overflow-x:auto;position:sticky;top:66px;z-index:19}
+.st{flex:1;min-width:66px;text-align:center;font-size:11.5px;padding:7px 4px;border-radius:9px;color:var(--muted);white-space:nowrap;cursor:pointer}
+.st.on{background:var(--ink);color:#fff;font-weight:800}.st.done{color:var(--go);font-weight:700}
+main{max-width:960px;margin:0 auto;padding:18px 16px 120px}
+h2{font-size:24px;margin:6px 0 4px;letter-spacing:-.3px}
+.sub{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 18px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.card{background:#fff;border:2px solid var(--line);border-radius:16px;padding:16px 12px;text-align:center;cursor:pointer;transition:.15s;position:relative}
+.card:hover{border-color:#c8c1b4;transform:translateY(-2px)}
+.card.sel{border-color:var(--go);background:#f0f9f5;box-shadow:0 6px 20px rgba(15,110,86,.13)}
+.card .ic{font-size:34px;line-height:1;margin-bottom:8px}
+.card b{display:block;font-size:15px;margin-bottom:3px}.card small{color:var(--muted);font-size:11.5px;line-height:1.45;display:block}
+.card .pill{position:absolute;top:8px;left:8px;background:#f0ede8;border-radius:20px;padding:1px 8px;font-size:10px;font-weight:700;color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+@media(max-width:640px){.two{grid-template-columns:1fr}}
+.opt{background:#fff;border:2px solid var(--line);border-radius:18px;padding:20px;text-align:center}
+.opt.sel{border-color:var(--go);background:#f0f9f5}.opt .ic{font-size:38px}.opt b{display:block;font-size:16px;margin:6px 0 3px}
+.opt small{color:var(--muted);font-size:12px;display:block;margin-bottom:12px}
+.fld{display:block;margin-bottom:10px}.fld span{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+input,select{width:100%;padding:12px;border:2px solid var(--line);border-radius:12px;font-size:16px;font-family:inherit;background:#fff}
+input:focus{outline:none;border-color:var(--go)}
+.row{display:flex;gap:10px}.row .fld{flex:1}
+button{font-family:inherit;cursor:pointer;border:none}
+.go{background:var(--go);color:#fff;font-weight:800;font-size:16px;padding:14px 26px;border-radius:14px}
+.go[disabled]{opacity:.35;cursor:not-allowed}.go.sm{font-size:14px;padding:10px 18px}
+.ghost{background:#fff;border:2px solid var(--line);color:var(--ink);font-weight:700;font-size:15px;padding:12px 22px;border-radius:14px}
+.ghost.sm{padding:5px 10px;font-size:13px}.wide{width:100%;margin-top:8px}
+#nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:12px 16px;display:flex;justify-content:space-between;gap:10px;z-index:30;max-width:960px;margin:0 auto}
+.note{background:#fff;border:1px solid var(--line);border-right:5px solid var(--violet);border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.65;margin:14px 0}
+.note.ok{border-right-color:var(--go);background:#f0f9f5}
+.planbox{background:#fff;border:1px solid var(--line);border-radius:16px;padding:8px;margin:14px 0;overflow:hidden}
+.planwrap{position:relative;line-height:0}.planwrap img{width:100%;display:block;border-radius:10px}
+.planwrap svg{position:absolute;inset:0;width:100%;height:100%}
+.calib{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.chip{background:#fff;border:2px solid var(--line);border-radius:20px;padding:7px 13px;font-size:13px;font-weight:600}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.zlist{display:flex;flex-direction:column;gap:12px}
+.zcard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}
+.zhead{display:flex;gap:8px;align-items:center;margin-bottom:8px}.zhead input{font-weight:800;font-size:16px;border-color:transparent;background:#faf8f4}
+.zinfo{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:8px 0}
+.budget{background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px;text-align:center;margin-bottom:14px}
+.bignum{font-size:40px;font-weight:900;letter-spacing:-1px;color:var(--go)}
+.budget input[type=range]{width:100%;margin:14px 0 4px;accent-color:var(--go)}
+.brange{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
+.fit{display:flex;flex-direction:column;gap:8px}
+.fitrow{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 14px;font-size:13.5px}
+.fitrow b{min-width:64px}.fitrow span{color:var(--muted)}.fitrow .amt{margin-right:auto;font-weight:800;color:var(--ink);font-size:15px}
+.fitrow.ok{border-right:5px solid var(--go)}.fitrow.over{border-right:5px solid #d9534f;opacity:.75}
+.fitrow .badge{font-size:11px;font-weight:700}
+.offers{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.offer{background:#fff;border:2px solid var(--line);border-radius:20px;padding:18px;position:relative;display:flex;flex-direction:column}
+.offer.reco{border-color:var(--violet);box-shadow:0 10px 34px rgba(124,92,255,.16)}
+.offer.sel{border-color:var(--go);background:#f7fdfa}
+.ribbon{position:absolute;top:-11px;right:18px;background:var(--violet);color:#fff;font-size:11px;font-weight:800;padding:4px 12px;border-radius:20px}
+.oh b{font-size:20px;display:block}.oh small{color:var(--muted);font-size:12px}
+.price{font-size:27px;font-weight:900;margin:10px 0 4px;letter-spacing:-.5px}
+.price small{display:block;font-size:11px;font-weight:500;color:var(--muted);letter-spacing:0}
+.why{font-size:13px;color:#4a4640;line-height:1.6;margin:8px 0 12px}
+.specs{display:flex;gap:8px;margin-bottom:12px}
+.specs div{flex:1;background:#faf8f4;border-radius:11px;padding:9px 4px;text-align:center}
+.specs b{display:block;font-size:19px}.specs small{font-size:10.5px;color:var(--muted)}
+.prods{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+.prod{display:flex;gap:9px;align-items:center;background:#faf8f4;border-radius:11px;padding:7px}
+.prod img{width:40px;height:40px;object-fit:contain;background:#fff;border-radius:8px}
+.prod .noimg{width:40px;height:40px;display:grid;place-items:center;background:#fff;border-radius:8px;font-size:19px}
+.prod b{font-size:12.5px;display:block;line-height:1.3}.prod small{font-size:11px;color:var(--muted)}
+.badges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;margin-top:auto}
+.b{font-size:11px;background:#f0ede8;border-radius:20px;padding:3px 9px;font-weight:600;color:var(--muted)}
+.b.ok{background:#e6f5ee;color:var(--go)}.b.over{background:#fdeaea;color:#c1121f}
+#report{background:#fff;border-radius:18px;padding:22px;border:1px solid var(--line)}
+.rhead{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--accent);padding-bottom:14px;margin-bottom:18px}
+.rhead h1{font-size:25px;margin:0}.rhead p{margin:5px 0 0;color:var(--muted);font-size:13px}
+.rlogo{width:46px;height:46px;border-radius:13px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:900}
+.rsec{margin-bottom:24px}.rsec h3{font-size:17px;margin:0 0 10px;background:#faf8f4;padding:8px 12px;border-radius:10px}
+.rsec h4{font-size:13.5px;margin:14px 0 5px;color:var(--muted)}
+.rt{width:100%;border-collapse:collapse;font-size:13px}
+.rt th{background:#faf8f4;text-align:right;padding:8px;font-size:12px;color:var(--muted)}
+.rt td{padding:8px;border-bottom:1px solid #f0ede8;text-align:right}
+.rt .sku{font-family:ui-monospace,monospace;font-size:11.5px;color:var(--muted)}
+.rt .good{color:var(--go);font-weight:800}.rt .warn{color:#c98a1b;font-weight:800}
+.rt.sum{margin-top:12px}.rt.sum td:last-child{text-align:left;font-weight:700}
+.rt.sum .tot td{border-top:2px solid var(--ink);font-size:17px;font-weight:900;padding-top:10px}
+.legend{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+.lg{width:34px;height:11px;border-radius:3px;display:inline-block}
+.lg.cold{background:linear-gradient(90deg,#3c82eb,#78c8eb)}.lg.warm{background:linear-gradient(90deg,#f0dc5a,#f06a2a)}
+.lgnote{margin-right:auto}
+.todo{margin:0;padding-right:20px;font-size:13.5px;line-height:2}
+.ract{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+#toasts{position:fixed;bottom:86px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;width:min(420px,92vw)}
+.toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;font-size:13.5px;box-shadow:0 8px 26px rgba(0,0,0,.3)}
+@media print{header,#steps,#nav,.ract,#toasts{display:none!important}main{padding:0;max-width:none}#report{border:none;padding:0}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">KO</div>
+  <div><h1>KO Studio</h1><p>תכנון הסאונד של המקום שלך — בכמה דקות</p></div>
+</header>
+<div id="steps"></div>
+<main><div id="body"></div></main>
+<div id="nav"></div>
+<div id="toasts"></div>
+<script>/*__LITE__*/</script>
+</body>
+</html>

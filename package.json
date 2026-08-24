@@ -10,7 +10,8 @@
     "build:kit": "vite build",
     "preview:kit": "vite preview",
     "validate": "node scripts/validate.js",
-    "import-backup": "node scripts/import-backup.js"
+    "import-backup": "node scripts/import-backup.js",
+    "build:studio": "node scripts/build-lite.js"
   },
   "private": true,
   "devDependencies": {

@@ -1,0 +1,342 @@
+{
+ "note": "קטלוג הצעות למשתמשי קצה — נבנה מנתוני ERP אמיתיים: מלאי, מחירי יחידה וזיווגי מגבר/רמקול שנמכרו יחד בפועל.",
+ "tiers": [
+  {
+   "id": "premium",
+   "name": "פרמיום",
+   "brand": "Funktion-One · Kling & Freitag",
+   "tag": "הצליל הכי טוב שיש — מותגי הבמה העולמיים",
+   "why": "רמקולים שמנגנים נקי גם בעוצמה גבוהה, עמידים לשנים ארוכות, וכל מילה מובנת גם כשהמקום מלא.",
+   "spk": {
+    "key": "S18FUOKO",
+    "name": "FUNKTION-ONE F81",
+    "price": 3540,
+    "h": 80,
+    "v": 50,
+    "sens": 96,
+    "max": 124,
+    "w": 100,
+    "ohm": 8,
+    "mount": "S18FUOKO2"
+   },
+   "spkBig": {
+    "key": "S19FUOKO",
+    "name": "FUNKTION-ONE F101",
+    "price": 4509,
+    "h": 80,
+    "v": 50,
+    "sens": 98,
+    "max": 127,
+    "w": 150,
+    "ohm": 8,
+    "mount": "S19FUOKO2"
+   },
+   "sub": {
+    "key": "SFUO20KO",
+    "name": "FUNKTION-ONE BR115 סאב",
+    "price": 9424,
+    "w": 400,
+    "ohm": 8
+   },
+   "amp": {
+    "key": "S36FUOKOS",
+    "name": "XTA DNA 20 — מגבר 4 ערוצים 4×350W",
+    "price": 10030,
+    "ch": 4,
+    "minOhm": 2,
+    "pw": {
+     "8": 175,
+     "4": 350,
+     "2": 340
+    }
+   },
+   "xover": {
+    "key": "S36FUOKO1",
+    "name": "כרטיס קרוסאובר XTA D20",
+    "price": 1652
+   }
+  },
+  {
+   "id": "mid",
+   "name": "ביניים",
+   "brand": "Unicorn Euphoria",
+   "tag": "האיזון בין מחיר לאיכות — הבחירה הנפוצה",
+   "why": "צליל נקי ומכובד בעיצוב עדין שמשתלב בכל חלל, בכשליש ממחיר הפרמיום.",
+   "spk": {
+    "key": "SEGL12KO",
+    "name": "UNICORN EUPHORIA 8",
+    "price": 1151,
+    "h": 90,
+    "v": 60,
+    "sens": 90,
+    "max": 117,
+    "w": 200,
+    "ohm": 8,
+    "mount": "GJIG4KO"
+   },
+   "spkBig": {
+    "key": "STON28KO",
+    "name": "KT UNICORN TILL 12",
+    "price": 1770,
+    "h": 90,
+    "v": 60,
+    "sens": 92,
+    "max": 121,
+    "w": 300,
+    "ohm": 8,
+    "mount": "GJIG4KO"
+   },
+   "sub": {
+    "key": "SEGL8KO",
+    "name": "UNICORN EUPHORIA 12 סאב",
+    "price": 1682,
+    "w": 300,
+    "ohm": 8
+   },
+   "amp": {
+    "key": "SKOB4KOS",
+    "name": "UNICORN MX3-700 — 2×700W",
+    "price": 2390,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "8": 700,
+     "4": 1000
+    }
+   },
+   "ampBig": {
+    "key": "SMAG3KO",
+    "name": "UNICORN DAP 4200 עם DSP",
+    "price": 3540,
+    "ch": 3,
+    "minOhm": 4,
+    "pw": {
+     "8": 400,
+     "4": 800
+    }
+   }
+  },
+  {
+   "id": "budget",
+   "name": "חסכוני",
+   "brand": "KT Audio",
+   "tag": "כיסוי מלא בתקציב הכי נמוך",
+   "why": "פתרון אמין למוזיקת רקע ולהכרזות — מלאי גדול, התקנה מהירה ומחיר נגיש.",
+   "spk": {
+    "key": "STON7KO",
+    "name": "KT TILL 8",
+    "price": 1062,
+    "h": 90,
+    "v": 60,
+    "sens": 89,
+    "max": 115,
+    "w": 250,
+    "ohm": 8,
+    "mount": "GJIG4KO"
+   },
+   "spkSmall": {
+    "key": "SANA2KO",
+    "name": "KT WR600 (מוגן מים IP66)",
+    "price": 654,
+    "h": 90,
+    "v": 60,
+    "sens": 88,
+    "max": 110,
+    "w": 60,
+    "ohm": 8,
+    "mount": "GJIG4KO"
+   },
+   "sub": {
+    "key": "SANA13KO",
+    "name": "KT ARRAY SUB 1000",
+    "price": 867,
+    "w": 200,
+    "ohm": 8
+   },
+   "amp": {
+    "key": "SSDK1KO",
+    "name": "KT DYNAMIQ 450 עם DSP",
+    "price": 2124,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "8": 300,
+     "4": 450
+    }
+   },
+   "ampBig": {
+    "key": "SSDK2KO",
+    "name": "KT DYNAMIQ 750 עם DSP",
+    "price": 2478,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "8": 500,
+     "4": 750
+    }
+   },
+   "spkBig": {
+    "key": "STON7KO",
+    "name": "KT TILL 8",
+    "price": 1062,
+    "h": 90,
+    "v": 60,
+    "sens": 89,
+    "max": 115,
+    "w": 250,
+    "ohm": 8,
+    "mount": "GJIG4KO"
+   }
+  }
+ ],
+ "ceiling": {
+  "key": "SSHD1KO",
+  "name": "רמקול שקוע תקרה KT 8\"",
+  "price": 398,
+  "h": 110,
+  "v": 110,
+  "sens": 88,
+  "max": 110,
+  "w": 60,
+  "ohm": 8
+ },
+ "accessories": {
+  "cableReel": {
+   "key": "CA1219KO",
+   "name": "כבל רמקול 2×2.5 — גליל 100 מ׳",
+   "price": 810,
+   "meters": 100
+  },
+  "speakon": {
+   "key": "CASEE18KO",
+   "name": "מחבר ספיקון לכבל",
+   "price": 14
+  },
+  "rack": {
+   "key": "G1TIBLK12U60",
+   "name": "ארון תקשורת 12U",
+   "price": 1003
+  },
+  "install": {
+   "key": "214",
+   "name": "התקנה לפי הצעת מחיר",
+   "price": 0
+  }
+ },
+ "venues": [
+  {
+   "id": "restaurant",
+   "name": "מסעדה",
+   "icon": "🍽",
+   "spl": 78,
+   "desc": "מוזיקת רקע נעימה שלא מפריעה לשיחה"
+  },
+  {
+   "id": "cafe",
+   "name": "בית קפה",
+   "icon": "☕",
+   "spl": 75,
+   "desc": "אווירה שקטה ונעימה"
+  },
+  {
+   "id": "bar",
+   "name": "בר / פאב",
+   "icon": "🍸",
+   "spl": 88,
+   "desc": "מוזיקה נוכחת, אנרגיה גבוהה"
+  },
+  {
+   "id": "club",
+   "name": "מועדון / רחבה",
+   "icon": "🎧",
+   "spl": 100,
+   "desc": "מוזיקת ריקודים בעוצמה מלאה"
+  },
+  {
+   "id": "store",
+   "name": "חנות",
+   "icon": "🛍",
+   "spl": 76,
+   "desc": "מוזיקה אחידה בכל שטח החנות"
+  },
+  {
+   "id": "gym",
+   "name": "מכון כושר",
+   "icon": "🏋",
+   "spl": 92,
+   "desc": "מוזיקה אנרגטית לאימונים"
+  },
+  {
+   "id": "office",
+   "name": "משרד / לובי",
+   "icon": "🏢",
+   "spl": 72,
+   "desc": "רקע שקט והכרזות"
+  },
+  {
+   "id": "hall",
+   "name": "אולם אירועים",
+   "icon": "🎉",
+   "spl": 98,
+   "desc": "אירועים, הופעות ומסיבות"
+  },
+  {
+   "id": "home",
+   "name": "בית פרטי",
+   "icon": "🏡",
+   "spl": 80,
+   "desc": "מוזיקה בסלון, במרפסת ובגינה"
+  }
+ ],
+ "zonePurposes": [
+  {
+   "id": "seating",
+   "name": "אזור ישיבה",
+   "icon": "🪑",
+   "spl": 76,
+   "desc": "שומעים מוזיקה אבל מדברים בנוח"
+  },
+  {
+   "id": "bar",
+   "name": "בר",
+   "icon": "🍸",
+   "spl": 88,
+   "desc": "מוזיקה נוכחת יותר"
+  },
+  {
+   "id": "dance",
+   "name": "רחבת ריקודים",
+   "icon": "💃",
+   "spl": 100,
+   "desc": "עוצמה מלאה עם בס"
+  },
+  {
+   "id": "stage",
+   "name": "במה / DJ",
+   "icon": "🎤",
+   "spl": 100,
+   "desc": "מקור המוזיקה"
+  },
+  {
+   "id": "entry",
+   "name": "כניסה / לובי",
+   "icon": "🚪",
+   "spl": 74,
+   "desc": "רקע עדין"
+  },
+  {
+   "id": "outdoor",
+   "name": "חוץ / מרפסת",
+   "icon": "🌤",
+   "spl": 82,
+   "desc": "דורש רמקולים מוגני מים"
+  },
+  {
+   "id": "toilets",
+   "name": "שירותים / מסדרון",
+   "icon": "🚻",
+   "spl": 70,
+   "desc": "רקע חלש, בד\"כ שקועי תקרה"
+  }
+ ]
+}

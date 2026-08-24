@@ -13,4 +13,16 @@ const tmp = join(tmpdir(), 'ko-validate.js');
 writeFileSync(tmp, app);
 execFileSync(process.execPath, ['--check', tmp], { stdio: 'inherit' });
 JSON.parse(readFileSync('data/erp_items.json', 'utf8'));
-console.log('validate OK — JS syntax + data JSON');
+
+/* KO Studio (גרסת משתמשי הקצה) — נבדקת בנפרד, אותה רמת בדיקה */
+let lite = readFileSync('src/lite.js', 'utf8');
+for (const name of ['LITE_CATALOG', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_IMAGES']) {
+  const json = readFileSync(`data/${name.toLowerCase()}.json`, 'utf8');
+  lite = lite.replace(`/*__DATA:${name}__*/`, `const ${name} = ${json};`);
+}
+const tmpLite = join(tmpdir(), 'ko-validate-lite.js');
+writeFileSync(tmpLite, lite);
+execFileSync(process.execPath, ['--check', tmpLite], { stdio: 'inherit' });
+const cat = JSON.parse(readFileSync('data/lite_catalog.json', 'utf8'));
+if (!cat.tiers || cat.tiers.length !== 3) throw new Error('lite_catalog: expected 3 tiers');
+console.log('validate OK — JS syntax + data JSON (app + studio)');
