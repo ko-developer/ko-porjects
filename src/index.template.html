@@ -167,12 +167,19 @@
     #legend { max-height: none; }
     body.printing main, body.printing #legend, body.printing #modal { display: none !important; }
     body.printing #report { display: block; padding: 10px; background: #fff; }
+    #studioLink { display: none !important; }
   }
+
+  /* קישור ל-KO Studio (גרסת הלקוחות) — נבדל ויזואלית משאר כפתורי הפעולה */
+  #studioLink { background: linear-gradient(135deg,#7c5cff,#5b8cff); color: #fff; font-weight: 700; border: none;
+    border-radius: 9px; padding: 7px 12px; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
+  #studioLink:hover { filter: brightness(1.1); }
 </style>
 </head>
 <body>
 <header>
   <div class="logo"><div class="mark">KO</div><div><b>KO Projects</b><small>מתכנן הקמות וחיווט</small></div></div>
+  <button id="studioLink" title="KO Studio — הגרסה ללקוחות: תכנון מודרך, שלוש הצעות ודוח ברור" onclick="window.open(location.protocol==='file:'?'studio.html':'/studio','_blank','noopener')">🎧 KO Studio</button>
   <select id="projSel" onchange="switchProj(this.value)"></select>
   <div class="dd">
     <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()" title="פעולות פרויקט">🗂 ▾</button>
