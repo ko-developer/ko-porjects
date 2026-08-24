@@ -87,12 +87,26 @@ function buildProposal(tier) {
   push(A.cableReel.key, A.cableReel.name, reels, A.cableReel.price, 'תשתית');
   push(A.speakon.key, A.speakon.name, (totalSpk + totalSub) * 2, A.speakon.price, 'תשתית');
   push(A.rack.key, A.rack.name, 1, A.rack.price, 'תשתית');
+  /* מעבד/מטריצה — רק כשרוצים תוכן שונה בכל אזור */
+  if (S.sameContent === false && S.zones.length > 1) {
+    /* מטריצת רשת אמיתית מהמלאי — 4 יציאות, שולטת בתוכן ובעוצמה לכל אזור */
+    const mx = erpItem('SDIG15KO') || erpItem('SDIG5KO');
+    if (mx) push(mx.key, mx.name, 1, mx.price, 'ניתוב תוכן');
+  }
   const equip = rows.reduce((s, r) => s + r.total, 0);
-  /* התקנה: מכויל לפי נתוני אמת — יום טכנאי ₪1,500, ~30 דק׳ לרמקול + הגעה וכיוונון */
-  const mins = 45 + totalSpk * 30 + totalSub * 15 + ampN * 30 + 45 * S.zones.length;
-  const days = Math.max(1, Math.ceil(mins / 60 / 8));
-  const install = days * 1500;
-  return { tier, zones, rows, equip, install, days, total: equip + install, totalSpk, totalSub, ampN, amp, meters };
+  /* התקנה מתומחרת לפי פריט — כל פעולה והמחיר שלה, כמו בהצעת מחיר מקצועית */
+  const inst = [
+    { k: 'arrive', label: 'הגעה, פריקה והתארגנות באתר', unit: 'ביקור', qty: 1, price: 350 },
+    { k: 'spk',    label: 'התקנת רמקול על קיר/תקרה כולל מתקן וכיוון', unit: 'יח׳', qty: totalSpk, price: 160 },
+    { k: 'sub',    label: 'הצבת סאב, חיבור וכיוון', unit: 'יח׳', qty: totalSub, price: 90 },
+    { k: 'rack',   label: 'הרכבת מגבר/מעבד בארון וחיווט פנימי', unit: 'יח׳', qty: ampN, price: 200 },
+    { k: 'ends',   label: 'קצוות ומחברים לכל קו רמקול', unit: 'קו', qty: lines, price: 45 },
+    { k: 'tune',   label: 'כיוונון, בדיקות ומסירה', unit: 'אזור', qty: S.zones.length, price: 400 }
+  ].filter(r => r.qty > 0).map(r => ({ ...r, total: r.qty * r.price }));
+  const install = inst.reduce((s, r) => s + r.total, 0);
+  const hours = (45 + totalSpk * 30 + totalSub * 15 + ampN * 30 + 45 * S.zones.length) / 60;
+  const days = Math.max(1, Math.ceil(hours / 8));
+  return { tier, zones, rows, inst, equip, install, days, hours, total: equip + install, totalSpk, totalSub, ampN, amp, lines, meters };
 }
 function erpItem(key) {
   const r = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).find(x => x[0] === key);
@@ -248,11 +262,31 @@ function stepPlan() {
   ${S.plan ? `
     <div class="planbox"><div id="planWrap" class="planwrap"><img id="planImg" src="${S.plan}"><svg id="planSvg"></svg></div></div>
     <div class="calib">
-      <b>📏 קנה מידה</b>
-      <p class="sub">כמה מטרים הרוחב של התכנית? הקו הסגול על התכנית מראה את ההצעה — השווה לשולחן (1.5 מ׳) או לדלת (0.9 מ׳).</p>
-      <div class="chips">${[6, 8, 10, 12, 15, 20, 25, 30, 40].map(v => `<button class="chip ${S.scale && Math.abs(S.planW * S.scale - v) < .3 ? 'on' : ''}" onclick="setWidth(${v})">${v} מ׳</button>`).join('')}</div>
-      <label class="fld"><span>או הקלד מדויק</span><input type="number" step="0.1" value="${S.scale ? +(S.planW * S.scale).toFixed(1) : ''}" oninput="setWidth(+this.value)"></label>
-      ${S.scale ? `<div class="note ok">✓ מכויל — רוחב התכנית ${(S.planW * S.scale).toFixed(1)} מ׳ · 1 מ׳ = ${(1 / S.scale).toFixed(0)}px</div>` : ''}
+      <b>📏 קנה מידה — כמה גדול המקום באמת?</b>
+      <p class="sub">בלי זה אי אפשר לחשב כיסוי. בחר את הדרך שנוחה לך:</p>
+      <div class="calmodes">
+        <button class="chip ${CAL.mode === 'width' ? 'on' : ''}" onclick="calMode('width')">↔ לפי רוחב התכנית</button>
+        <button class="chip ${CAL.mode === 'two' ? 'on' : ''}" onclick="calMode('two')">📐 סימון 2 נקודות (מדויק)</button>
+      </div>
+      ${CAL.mode === 'two' ? `
+        <div class="note">${CAL.pts.length === 0 ? '① לחץ על התכנית בנקודה הראשונה של מידה שאתה מכיר — למשל קצה קיר או דלת.'
+          : CAL.pts.length === 1 ? '② עכשיו לחץ על הנקודה השנייה.'
+          : '③ כמה מטרים בין שתי הנקודות? (בתכניות בנייה המידות בד"כ במ״מ — 5000 = 5 מ׳)'}</div>
+        ${CAL.pts.length === 2 ? `<div class="row"><label class="fld" style="flex:2"><span>המרחק בין הנקודות</span>
+            <input id="calDist" type="number" step="0.01" placeholder="למשל 5 (מטר) או 5000 (מ״מ)" onkeydown="if(event.key==='Enter')applyTwoPoint()"></label>
+          <button class="go sm" style="align-self:flex-end;margin-bottom:10px" onclick="applyTwoPoint()">✓ קבע</button></div>` : ''}
+        <button class="ghost sm" onclick="CAL.pts=[];render()">↺ התחל מחדש</button>
+      ` : `
+        <div class="chips">${[6, 8, 10, 12, 15, 20, 25, 30, 40].map(v => `<button class="chip ${S.scale && Math.abs(S.planW * S.scale - v) < .3 ? 'on' : ''}" onclick="setWidth(${v})">${v} מ׳</button>`).join('')}</div>
+        <label class="fld"><span>או הקלד את הרוחב המדויק במטרים</span><input type="number" step="0.1" value="${S.scale ? +(S.planW * S.scale).toFixed(1) : ''}" oninput="setWidth(+this.value)"></label>`}
+      ${S.scale ? `
+        <div class="rulerbox">
+          <div class="rulerlbl">כך נראים 5 מטרים בתכנית שלך — השווה לשולחן (1.5 מ׳) או לדלת (0.9 מ׳):</div>
+          <div class="ruler" style="width:${Math.min(96, (5 / S.scale) / S.planW * 100)}%"><span>5 מ׳</span></div>
+          <div class="rulerlbl">שולחן <b>1.5 מ׳</b>:</div>
+          <div class="ruler small" style="width:${Math.min(96, (1.5 / S.scale) / S.planW * 100)}%"></div>
+        </div>
+        <div class="note ok">✓ מכויל — רוחב התכנית ${(S.planW * S.scale).toFixed(1)} מ׳ · 1 מ׳ = ${(1 / S.scale).toFixed(0)}px</div>` : ''}
     </div>` : ''}`;
 }
 function uploadPlan(inp) {
@@ -268,6 +302,25 @@ function buildFromDims() {
   S.scale = S.roomW / S.planW;
   S.zones = [{ id: uid(), name: 'החלל', purpose: defaultPurpose(), x: 40, y: 40, w: S.planW - 80, h: S.planH - 80, spl: usePeak() }];
   save(); go(3);
+}
+const CAL = { mode: 'width', pts: [] };
+function calMode(m) { CAL.mode = m; CAL.pts = []; render(); }
+/* לחיצה על התכנית במצב 2 נקודות — נקודות בקואורדינטות התכנית */
+function planClick(e) {
+  if (CAL.mode !== 'two' || CAL.pts.length >= 2) return;
+  const svg = $('#planSvg'), r = svg.getBoundingClientRect();
+  CAL.pts.push({ x: (e.clientX - r.left) / r.width * S.planW, y: (e.clientY - r.top) / r.height * (S.planH || 900) });
+  render();
+}
+function applyTwoPoint() {
+  const inp = $('#calDist'); let m = parseFloat(inp && inp.value);
+  if (!(m > 0)) { toast('הקלד את המרחק'); return; }
+  if (m >= 1000) m = m / 1000; else if (m >= 100) m = m / 100;   /* מ״מ / ס״מ → מטרים */
+  const px = Math.hypot(CAL.pts[0].x - CAL.pts[1].x, CAL.pts[0].y - CAL.pts[1].y);
+  if (px < 5) { toast('הנקודות קרובות מדי — סמן מרחק גדול יותר'); return; }
+  S.scale = m / px; save();
+  toast('✓ כויל: ' + m.toFixed(2) + ' מ׳ בין הנקודות · רוחב התכנית ' + (S.planW * S.scale).toFixed(1) + ' מ׳');
+  render();
 }
 function setWidth(m) {
   if (!(m > 0.5)) return;
@@ -308,8 +361,19 @@ function drawPlan() {
   const w = S.planW, h = S.planH || 900;
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
   if (img) { img.style.width = '100%'; }
+  svg.style.cursor = (CAL.mode === 'two' && CAL.pts.length < 2) ? 'crosshair' : '';
+  svg.onclick = planClick;
   let out = '';
-  if (S.scale) {
+  /* נקודות הכיול הידני */
+  CAL.pts.forEach((p, i) => {
+    out += `<circle cx="${p.x}" cy="${p.y}" r="14" fill="#fff" stroke="#7c5cff" stroke-width="5"/>
+      <text x="${p.x}" y="${p.y + 8}" text-anchor="middle" font-size="20" font-weight="800" fill="#7c5cff">${i + 1}</text>`;
+  });
+  if (CAL.pts.length === 2) {
+    const [a, b] = CAL.pts;
+    out += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#7c5cff" stroke-width="4" stroke-dasharray="10 7"/>`;
+  }
+  if (S.scale && CAL.mode !== 'two') {
     const y = Math.round(h * 0.08), bar = 5 / S.scale, bx = w / 2 - bar / 2;
     out += `<line x1="6" y1="${y}" x2="${w - 6}" y2="${y}" stroke="#7c5cff" stroke-width="3" stroke-dasharray="10 7"/>
       <text x="${w / 2}" y="${y - 12}" text-anchor="middle" font-size="26" font-weight="800" fill="#7c5cff">${(w * S.scale).toFixed(1)} מ׳</text>
@@ -318,11 +382,41 @@ function drawPlan() {
   }
   S.zones.forEach((z, i) => {
     const p = purposeOf(z);
-    out += `<rect x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" fill="${p.color}22" stroke="${p.color}" stroke-width="3" rx="8"/>
-      <text x="${z.x + 12}" y="${z.y + 34}" font-size="26" font-weight="800" fill="${p.color}">${p.icon} ${esc(z.name)}</text>`;
-    if (S.scale) out += `<text x="${z.x + 12}" y="${z.y + 62}" font-size="20" fill="${p.color}">${(z.w * S.scale).toFixed(1)}×${(z.h * S.scale).toFixed(1)} מ׳ · ${Math.round(z.w * z.h * S.scale * S.scale)} מ"ר</text>`;
+    out += `<g data-zone="${i}" style="cursor:move">
+      <rect x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" fill="${p.color}22" stroke="${p.color}" stroke-width="4" rx="10"/>
+      <circle cx="${z.x + 30}" cy="${z.y + 30}" r="22" fill="${p.color}"/>
+      <text x="${z.x + 30}" y="${z.y + 39}" text-anchor="middle" font-size="26" font-weight="900" fill="#fff">${i + 1}</text>
+      <text x="${z.x + 62}" y="${z.y + 39}" font-size="26" font-weight="800" fill="${p.color}">${p.icon} ${esc(z.name)}</text>
+      ${S.scale ? `<text x="${z.x + 62}" y="${z.y + 66}" font-size="20" fill="${p.color}">${(z.w * S.scale).toFixed(1)}×${(z.h * S.scale).toFixed(1)} מ׳ · ${Math.round(z.w * z.h * S.scale * S.scale)} מ"ר</text>` : ''}
+      </g>
+      <rect data-rs="${i}" x="${z.x + z.w - 26}" y="${z.y + z.h - 26}" width="26" height="26" rx="6" fill="#fff" stroke="${p.color}" stroke-width="4" style="cursor:nwse-resize"/>`;
   });
   svg.innerHTML = out;
+  bindZoneDrag();
+}
+/* גרירה ושינוי גודל של אזור ישירות על התכנית */
+function bindZoneDrag() {
+  const svg = $('#planSvg'); if (!svg) return;
+  const toPlan = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * S.planW, y: (e.clientY - r.top) / r.height * (S.planH || 900), k: S.planW / r.width }; };
+  svg.querySelectorAll('[data-zone]').forEach(g => {
+    g.addEventListener('pointerdown', e => {
+      if (CAL.mode === 'two') return;
+      const i = +g.dataset.zone, z = S.zones[i], st = toPlan(e), ox = z.x, oy = z.y;
+      e.stopPropagation();
+      const mv = ev => { const p = toPlan(ev); z.x = Math.max(0, ox + p.x - st.x); z.y = Math.max(0, oy + p.y - st.y); drawPlan(); };
+      const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); render(); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    });
+  });
+  svg.querySelectorAll('[data-rs]').forEach(h => {
+    h.addEventListener('pointerdown', e => {
+      const i = +h.dataset.rs, z = S.zones[i], st = toPlan(e), ow = z.w, oh = z.h;
+      e.stopPropagation();
+      const mv = ev => { const p = toPlan(ev); z.w = Math.max(60, ow + p.x - st.x); z.h = Math.max(60, oh + p.y - st.y); drawPlan(); };
+      const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); render(); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    });
+  });
 }
 function purposeOf(z) {
   const P2 = LITE_CATALOG.zonePurposes.find(p => p.id === z.purpose) || LITE_CATALOG.zonePurposes[0];
@@ -334,6 +428,23 @@ function purposeOf(z) {
 function stepZones() {
   return `<h2>מה קורה בכל אזור?</h2>
   <p class="sub">כל אזור מקבל עוצמה משלו. אזור ישיבה שקט יותר, רחבה חזקה יותר — ככה לא צועקים בארוחה ולא מתפשרים במסיבה.</p>
+  <button class="ghost wide" onclick="S._why=!S._why;save();render()">${S._why ? '▲ הבנתי' : '❓ למה בכלל לחלק לאזורים?'}</button>
+  ${S._why ? `<div class="note"><b>כי אנשים לא רוצים את אותה עוצמה בכל מקום.</b><br>
+    • באזור ישיבה מוזיקה חזקה מדי גורמת לאנשים לצעוק — ולעזוב מוקדם.<br>
+    • ברחבה מוזיקה חלשה מדי הורגת את האנרגיה.<br>
+    • חלוקה לאזורים מאפשרת <b>שליטה נפרדת בעוצמה</b> — להנמיך בישיבה בלי לגעת ברחבה.<br>
+    • ואם רוצים <b>תוכן שונה</b> (מוזיקה ברחבה, ספורט בבר) — צריך מעבד שמנתב ערוצים נפרדים, וזה משפיע על הציוד.<br>
+    <b>בלי חלוקה</b> כל המקום מקבל את אותה עוצמה ואותו תוכן — פשוט וזול יותר, אבל פחות גמיש.</div>` : ''}
+  <div class="content-q">
+    <b>🎚 מה מתנגן בכל אזור?</b>
+    <div class="chips">
+      <button class="chip ${S.sameContent !== false ? 'on' : ''}" onclick="S.sameContent=true;save();render()">אותה מוזיקה בכל המקום</button>
+      <button class="chip ${S.sameContent === false ? 'on' : ''}" onclick="S.sameContent=false;save();render()">תוכן שונה בכל אזור</button>
+    </div>
+    <small>${S.sameContent === false
+      ? 'נוסיף מעבד/מטריצה שמנתב מקורות שונים לכל אזור — שליטה מלאה, עלות נוספת.'
+      : 'מקור אחד לכל המקום, עם ויסות עוצמה נפרד לכל אזור — הפתרון הנפוץ והחסכוני.'}</small>
+  </div>
   <div class="planbox"><div id="planWrap" class="planwrap">
     ${S.plan ? `<img id="planImg" src="${S.plan}">` : ''}
     <svg id="planSvg" style="${S.plan ? '' : 'position:relative;background:#f7f5f0;border-radius:10px;display:block;width:100%;height:auto;aspect-ratio:' + ((S.planW || 1200) / (S.planH || 800)).toFixed(3)}"></svg>
@@ -341,7 +452,8 @@ function stepZones() {
   <div class="zlist">${S.zones.map((z, i) => {
     const p = purposeOf(z), pl = S.scale ? planZone(z, LITE_CATALOG.tiers[1], S.ceil, S.scale) : null;
     return `<div class="zcard" style="border-right:6px solid ${p.color}">
-      <div class="zhead"><input value="${esc(z.name)}" oninput="S.zones[${i}].name=this.value;save();drawPlan()">
+      <div class="zhead"><span class="znum" style="background:${p.color}">${i + 1}</span>
+        <input value="${esc(z.name)}" oninput="S.zones[${i}].name=this.value;save();drawPlan()">
         <button class="ghost sm" onclick="delZone(${i})">✕</button></div>
       <div class="chips">${LITE_CATALOG.zonePurposes.map(q => `
         <button class="chip ${z.purpose === q.id ? 'on' : ''}" onclick="setPurpose(${i},'${q.id}')" title="${esc(q.desc)}">${q.icon} ${esc(q.name)}</button>`).join('')}</div>
@@ -350,6 +462,7 @@ function stepZones() {
         ${S.scale ? `<span>📐 ${(z.w * S.scale).toFixed(1)}×${(z.h * S.scale).toFixed(1)} מ׳ · ${Math.round(z.w * z.h * S.scale * S.scale)} מ"ר</span>` : ''}
         ${pl ? `<span>🔈 ${pl.n} רמקולים${pl.subs ? ' + ' + pl.subs + ' סאב' : ''}</span>` : ''}
       </div>
+      <small class="hintline">💡 אפשר לגרור את המלבן על התכנית ולשנות גודל מהפינה</small>
       ${S.scale ? `<div class="row"><label class="fld"><span>רוחב (מ׳)</span><input type="number" step="0.1" value="${(z.w * S.scale).toFixed(1)}" oninput="setZoneM(${i},'w',+this.value)"></label>
         <label class="fld"><span>אורך (מ׳)</span><input type="number" step="0.1" value="${(z.h * S.scale).toFixed(1)}" oninput="setZoneM(${i},'h',+this.value)"></label></div>` : ''}
     </div>`;
@@ -528,11 +641,15 @@ function stepReport() {
     ${Object.entries(groups).map(([g, rows]) => `<h4>${esc(g)}</h4>
       <table class="rt"><tr><th>פריט</th><th>מק"ט</th><th>כמות</th><th>מחיר יחידה</th><th>סה"כ</th></tr>
       ${rows.map(r => `<tr><td>${esc(r.name)}</td><td class="sku">${esc(r.key)}</td><td>${r.qty}</td><td>${ils(r.price)}</td><td><b>${ils(r.total)}</b></td></tr>`).join('')}</table>`).join('')}
+    <h4>התקנה — מתומחר לפי פריט</h4>
+    <table class="rt"><tr><th>פעולה</th><th>יח׳</th><th>כמות</th><th>מחיר ליח׳</th><th>סה"כ</th></tr>
+      ${p.inst.map(r => `<tr><td>${esc(r.label)}</td><td>${esc(r.unit)}</td><td>${r.qty}</td><td>${ils(r.price)}</td><td><b>${ils(r.total)}</b></td></tr>`).join('')}</table>
     <table class="rt sum"><tr><td>ציוד</td><td>${ils(p.equip)}</td></tr>
-      <tr><td>התקנה, חיווט וכיוונון (${p.days} ימי עבודה)</td><td>${ils(p.install)}</td></tr>
+      <tr><td>התקנה (${p.inst.reduce((s2, r) => s2 + r.qty, 0)} פעולות · כ-${p.days} ימי עבודה)</td><td>${ils(p.install)}</td></tr>
       <tr class="tot"><td>סה"כ לפני מע"מ</td><td>${ils(p.total)}</td></tr>
       <tr><td>כולל מע"מ 18%</td><td>${ils(p.total * 1.18)}</td></tr></table>
   </div>
+  ${wiringSection(p)}
   <div class="rsec"><h3>⚡ מה צריך להכין — לחשמלאי ולאדריכל</h3>
     <ul class="todo">
       <li><b>נקודת חשמל</b> בארון הציוד: שקע 16A ייעודי ליד ${esc(S.zones[0] ? S.zones[0].name : 'האזור הראשי')}.</li>
@@ -548,6 +665,73 @@ function stepReport() {
     <button class="ghost" onclick="shareReport()">📲 שתף</button>
     <button class="ghost" onclick="go(5)">▶ חזרה להצעות</button>
   </div></div>`;
+}
+/* ---------- דוח חיווט מלא — ההמשך הטכני של הצעת המחיר ---------- */
+/* מיקום הארון: בפינה של האזור הראשון, מקום נגיש ומאוורר */
+function rackPoint() {
+  const z = S.zones[0];
+  if (!z) return { x: 60, y: 60 };
+  return { x: z.x + 24, y: z.y + z.h - 24 };
+}
+/* לוח משיכת כבלים: קו לכל רמקול/סאב עם אורך אמיתי + רזרבה */
+function cableSchedule(p) {
+  const rk = rackPoint(), sc = S.scale || 0.02, rows = [];
+  let n = 1;
+  p.zones.forEach(({ z, p: pz }) => {
+    speakerPts(z, pz.n).forEach((pt, i) => {
+      const run = Math.hypot(pt.x - rk.x, pt.y - rk.y) * sc;
+      const len = Math.ceil(run * 1.25 + 3);   /* +25% מסלול אמיתי + 3 מ׳ שירות */
+      rows.push({ id: n++, zone: z.name, dest: 'רמקול ' + (i + 1), type: 'כבל רמקול 2×2.5 מ"מ',
+        conn: 'ספיקון NL4 ↔ ספיקון NL4', len, note: 'מהארון אל הרמקול' });
+    });
+    for (let i = 0; i < pz.subs; i++) {
+      const sx = z.x + z.w * (i + 1) / (pz.subs + 1), sy = z.y + z.h - 26;
+      const run = Math.hypot(sx - rk.x, sy - rk.y) * sc;
+      rows.push({ id: n++, zone: z.name, dest: 'סאב ' + (i + 1), type: 'כבל רמקול 2×2.5 מ"מ',
+        conn: 'ספיקון NL4 ↔ ספיקון NL4', len: Math.ceil(run * 1.25 + 3), note: 'קו נפרד — לא בשרשור' });
+    }
+  });
+  return rows;
+}
+function wiringSection(p) {
+  const rows = cableSchedule(p);
+  const totalM = rows.reduce((s2, r) => s2 + r.len, 0);
+  const reels = Math.ceil(totalM / 100);
+  const ampW = p.ampN * 900;                    /* צריכת שיא משוערת למגבר */
+  const amps16 = Math.max(1, Math.ceil(ampW / 2300));
+  const rackU = Math.max(6, p.ampN * 2 + 4);
+  return `<div class="rsec"><h3>🔌 דוח חיווט — כל מה שהחשמלאי צריך</h3>
+    <div class="wsec"><h5>לפני הכול — מה זה בכלל</h5>
+      <p><b>קו רמקול</b> = כבל דו-גידי שמחבר מגבר לרמקול (לא כבל חשמל!). <b>ספיקון (Speakon)</b> = המחבר התקני,
+      ננעל בסיבוב ולא נשלף בטעות. <b>ארון הציוד</b> = הארון שבו יושבים המגברים והמעבד.
+      <b>שרוול/צנרת</b> = הצינור שבתוכו עוברים הכבלים בקיר או בתקרה.</p></div>
+    <div class="wsec"><h5>נקודת המוצא — ארון הציוד</h5>
+      <p>ארון <b>${rackU}U</b> (${rackU * 4.5} ס"מ גובה), עומק 60 ס"מ, במקום מאוורר ונגיש לשירות.
+      כל הכבלים יוצאים ממנו. מומלץ במחסן/חדר שירות ולא באזור הקהל.</p></div>
+    <div class="wsec"><h5>חשמל</h5>
+      <p>• <b>${amps16}× מעגל 16A ייעודי</b> לארון (לא משותף עם תאורה או מטבח — רעש חשמלי פוגע בצליל).<br>
+      • צריכת שיא מוערכת: <b>${ampW}W</b> · פס שקעים בארון.<br>
+      • הארקה תקנית לארון — חובה.<br>
+      • רצוי מפסק ייעודי מסומן "מערכת סאונד".</p></div>
+    <div class="wsec"><h5>תשתית לצנרת</h5>
+      <p>• שרוול <b>25 מ"מ</b> מהארון לכל עמדת רמקול (או תעלה משותפת + הסתעפויות).<br>
+      • להימנע ממקבילות צמודות לכבלי חשמל — לפחות 30 ס"מ הפרדה או חצייה ב-90°.<br>
+      • סה"כ כבל רמקול: <b>${totalM} מ׳</b> (${reels} גלילים של 100 מ׳) — כולל רזרבה של 25%.<br>
+      • נקודת רמקול בגובה <b>${(S.ceil - 0.4).toFixed(1)} מ׳</b>, קופסה שקועה או יציאת כבל מהקיר.</p></div>
+    <h4>לוח משיכת כבלים — קו אחר קו</h4>
+    <table class="rt"><tr><th>#</th><th>אזור</th><th>אל</th><th>סוג כבל</th><th>מחברים</th><th>אורך משוער</th></tr>
+      ${rows.map(r => `<tr><td><b>${r.id}</b></td><td>${esc(r.zone)}</td><td>${esc(r.dest)}</td>
+        <td>${esc(r.type)}</td><td>${esc(r.conn)}</td><td>${r.len} מ׳</td></tr>`).join('')}
+      <tr class="tot"><td colspan="5">סה"כ ${rows.length} קווים</td><td><b>${totalM} מ׳</b></td></tr></table>
+    <div class="wsec" style="margin-top:12px"><h5>בדיקות מסירה</h5>
+      <p>1. כל קו נבדק בבודק רציפות לפני חיבור המגבר.<br>
+      2. פולריות אחידה בכל הרמקולים (+ ל-+) — אחרת הבס נעלם.<br>
+      3. מדידת עכבה בכל קו לפני הפעלה — ${p.tier.amp.minOhm}Ω מינימום למגבר שנבחר.<br>
+      4. הפעלה הדרגתית וכיוונון עוצמה לכל אזור.</p></div>
+    <div class="wsec"><h5>למה זה חשוב</h5>
+      <p>כבל דק מדי או קו ארוך מדי = ירידת מתח, פחות עוצמה וצליל דחוס. חיבור לא תקין = רעש או שריפת מגבר.
+      הצנרת חייבת להיות מוכנה <b>לפני</b> הגבס והצבע — אחרת פותחים קירות.</p></div>
+  </div>`;
 }
 function afterReport() { save(); }
 function shareReport() {
