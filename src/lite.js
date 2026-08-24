@@ -6,6 +6,7 @@
 /*__DATA:ERP_ITEMS__*/
 /*__DATA:ERP_PRICES__*/
 /*__DATA:ERP_IMAGES__*/
+/*__DATA:ERP_KITS__*/
 
 const $ = s => document.querySelector(s);
 const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -58,6 +59,61 @@ function planZone(zone, tier, ceil, scale) {
   return { spk, n, subs, area, spacing: sp, splCenter: capability, capability, headroom: capability - zone.spl,
     needW, splTarget: zone.spl, ok: capability >= zone.spl + 3, wPer };
 }
+/* ---------- למידה מהקיטים: מה הולך עם מה ---------- */
+/* הקיטים ב-ERP הם הידע המצטבר של החברה — מהם לומדים אילו מגבר/סאב משתלבים עם כל רמקול */
+let KITPAIR = null;
+function kitPairs() {
+  if (KITPAIR) return KITPAIR;
+  KITPAIR = { amp: {}, sub: {} };
+  const SPK = /רמקול|סאב/i, AMP = /מגבר|amplifier/i, SUB = /סאב|\bsub\b/i;
+  const NOT = /מתקן|תושבת|כבל|מחבר|ערכת|כרטיס|מדף|כיסוי/i;
+  (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).forEach(k => {
+    const its = (k.items || []).filter(i => i.name && i.key);
+    const tops = its.filter(i => SPK.test(i.name) && !SUB.test(i.name) && !NOT.test(i.name));
+    const amps = its.filter(i => AMP.test(i.name) && !NOT.test(i.name));
+    const subs = its.filter(i => SUB.test(i.name) && !NOT.test(i.name));
+    tops.forEach(t => {
+      amps.forEach(a => { (KITPAIR.amp[t.key] = KITPAIR.amp[t.key] || {})[a.key] = (KITPAIR.amp[t.key][a.key] || 0) + 1; });
+      subs.forEach(b => { (KITPAIR.sub[t.key] = KITPAIR.sub[t.key] || {})[b.key] = (KITPAIR.sub[t.key][b.key] || 0) + 1; });
+    });
+  });
+  return KITPAIR;
+}
+/* האם הזיווג שבחרנו מגובה בקיטים של החברה */
+function kitBacked(spkKey, otherKey, kind) {
+  const m = kitPairs()[kind][spkKey];
+  return !!(m && m[otherKey]);
+}
+/* כמה רמקולים אפשר לתלות על ערוץ אחד של המגבר — חוק אום + בדיקת הספק.
+   זה מה שמבדיל הצעה יעילה מהצעה שמבזבזת מגברים: מגבר שיציב ב-2Ω יכול לשאת
+   4 רמקולים של 8Ω על ערוץ, במקום 2. */
+function ampPowerAt(amp, ohm) {
+  const pw = amp.pw || {};
+  const keys = Object.keys(pw).map(Number).sort((a, b) => b - a);
+  if (!keys.length) return 0;
+  let best = keys[0], bd = Infinity;
+  keys.forEach(k => { const d = Math.abs(k - ohm); if (d < bd) { bd = d; best = k; } });
+  return pw[best];
+}
+function spkPerChannel(amp, spk) {
+  const minOhm = amp.minOhm || 4;
+  const ohmLimit = Math.max(1, Math.floor((spk.ohm || 8) / minOhm + 1e-6));
+  let best = 1;
+  for (let n = 1; n <= Math.min(8, ohmLimit); n++) {
+    const load = (spk.ohm || 8) / n;
+    const avail = ampPowerAt(amp, load);
+    /* דרישה מציאותית להתקנה קבועה: כ-60% מה-RMS לרמקול — עם מרווח לפסגות */
+    if (avail >= n * (spk.w || 100) * 0.6) best = n;
+  }
+  return best;
+}
+/* בחירת הסאב: חלל גדול או רחבה/DJ ⇒ סאב גדול (18"), אחרת הרגיל */
+function pickSub(tier, zones, scale) {
+  const area = zones.reduce((s2, z) => s2 + z.w * z.h * scale * scale, 0);
+  const loud = zones.some(z => z.spl >= 95);
+  const big = loud || area > 150;
+  return { sub: big && tier.subBig ? tier.subBig : tier.sub, big };
+}
 /* בניית הצעה מלאה לשכבה */
 function buildProposal(tier) {
   const scale = S.scale || 0.02, ceil = S.ceil || 3;
@@ -66,10 +122,23 @@ function buildProposal(tier) {
   let totalSpk = 0, totalSub = 0;
   zones.forEach(({ p }) => { add(p.spk.key, p.n); totalSpk += p.n; if (p.subs) totalSub += p.subs; });
   /* מגברים: ערוצים לפי מספר קווים (2 רמקולים לקו בממוצע) + קו לכל סאב */
-  const lines = Math.ceil(totalSpk / 2) + totalSub;
-  /* מעל 6 קווים עדיף מגבר רב-ערוצי אחד גדול מאשר ערימת מגברים קטנים */
-  const amp = (lines > 6 && tier.ampBig) ? tier.ampBig : tier.amp;
-  const ampN = Math.max(1, Math.ceil(lines / (amp.ch || 2)));
+  /* ניצול המגבר: בוחרים מבין המגברים של השכבה את זה שנותן הכי הרבה רמקולים לשקל,
+     ומחשבים ערוצים לפי כמה רמקולים באמת אפשר לתלות על ערוץ (אום + הספק). */
+  const mainSpk = Object.keys(spkCount)[0]
+    ? [tier.spk, tier.spkBig, tier.spkSmall].find(x => x && x.key === Object.keys(spkCount)[0]) || tier.spk : tier.spk;
+  const cands = [tier.ampSmall, tier.amp, tier.ampBig].filter(Boolean);
+  let amp = tier.amp, ampN = 99, perCh = 1;
+  cands.forEach(a => {
+    const per = spkPerChannel(a, mainSpk);
+    const chNeeded = Math.ceil(totalSpk / per) + totalSub;   /* סאב = ערוץ ייעודי */
+    const n = Math.max(1, Math.ceil(chNeeded / (a.ch || 2)));
+    /* עלות אמיתית + עדיפות קלה למגבר שמופיע יחד עם הרמקול בקיטים של החברה */
+    const cost = n * a.price * (kitBacked(mainSpk.key, a.key, 'amp') ? 0.9 : 1);
+    const bestCost = ampN === 99 ? Infinity : ampN * amp.price * (kitBacked(mainSpk.key, amp.key, 'amp') ? 0.9 : 1);
+    if (cost < bestCost) { amp = a; ampN = n; perCh = per; }
+  });
+  const ampFromKit = kitBacked(mainSpk.key, amp.key, 'amp');
+  const lines = Math.ceil(totalSpk / perCh) + totalSub;
   /* אורך כבל משוער: היקף כל האזורים ×1.3 + 12 מ׳ לארון */
   const meters = Math.ceil(zones.reduce((s, { z }) => s + 2 * (z.w * scale + z.h * scale), 0) * 1.3 + 12);
   const reels = Math.max(1, Math.ceil(meters / LITE_CATALOG.accessories.cableReel.meters));
@@ -80,7 +149,8 @@ function buildProposal(tier) {
     push(k, t.name, n, t.price, 'רמקולים');
     if (t.mount) { const m = erpItem(t.mount); if (m) push(t.mount, m.name, n, m.price, 'מתקני תלייה'); }
   });
-  if (totalSub) push(tier.sub.key, tier.sub.name, totalSub, tier.sub.price, 'סאבים');
+  const { sub, big: bigSub } = pickSub(tier, S.zones, scale);
+  if (totalSub) push(sub.key, sub.name, totalSub, sub.price, 'סאבים');
   push(amp.key, amp.name, ampN, amp.price, 'הגברה');
   if (tier.xover && totalSub) push(tier.xover.key, tier.xover.name, ampN, tier.xover.price, 'הגברה');
   const A = LITE_CATALOG.accessories;
@@ -106,7 +176,8 @@ function buildProposal(tier) {
   const install = inst.reduce((s, r) => s + r.total, 0);
   const hours = (45 + totalSpk * 30 + totalSub * 15 + ampN * 30 + 45 * S.zones.length) / 60;
   const days = Math.max(1, Math.ceil(hours / 8));
-  return { tier, zones, rows, inst, equip, install, days, hours, total: equip + install, totalSpk, totalSub, ampN, amp, lines, meters };
+  return { tier, zones, rows, inst, equip, install, days, hours, total: equip + install,
+    totalSpk, totalSub, ampN, amp, perCh, lines, meters, sub, bigSub, ampFromKit, mainSpk, util: Math.round(totalSpk / Math.max(1, ampN * (amp.ch || 2) * perCh) * 100) };
 }
 function erpItem(key) {
   const r = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).find(x => x[0] === key);
@@ -526,9 +597,11 @@ function stepOffers() {
       <p class="why">${esc(p.tier.why)}</p>
       <div class="specs">
         <div><b>${p.totalSpk}</b><small>רמקולים</small></div>
-        <div><b>${p.totalSub || '—'}</b><small>סאבים</small></div>
+        <div><b>${p.totalSub ? p.totalSub + '×' + p.sub.inch + '"' : '—'}</b><small>סאבים</small></div>
         <div><b>${spl}</b><small>dB יכולת</small></div>
       </div>
+      <div class="ampline">🎚 ${p.ampN}× ${esc(p.amp.name.slice(0, 26))} · ${p.perCh} רמקולים לערוץ · ניצול ${p.util}%
+        ${p.ampFromKit ? '<br>✓ שילוב מוכח — מופיע יחד בקיטים שלנו' : ''}</div>
       <div class="prods">${prodCards(p)}</div>
       <div class="badges">${fits ? '<span class="b ok">✓ בתקציב</span>' : '<span class="b over">מעל התקציב</span>'}
         <span class="b">${p.days} ימי התקנה</span>
@@ -554,6 +627,26 @@ function pickTier(id) { S.tier = id; save(); render(); go(6); }
 
 /* ---------- שלב 7 — הדוח ---------- */
 /* מיקומי הרמקולים בפועל: פריסה שווה סביב היקף האזור, מכוונים פנימה */
+/* מיקומי הרמקולים נשמרים ברגע שההצעה נבחרת — ומאותו רגע ניתנים לגרירה ידנית */
+function layoutKey(z, n, subs) { return z.id + '|' + n + '|' + subs; }
+function ensureLayout(prop) {
+  S.layout = S.layout || {};
+  prop.zones.forEach(({ z, p }) => {
+    const k = layoutKey(z, p.n, p.subs);
+    if (!S.layout[z.id] || S.layout[z.id].key !== k) {
+      S.layout[z.id] = { key: k, spk: speakerPts(z, p.n), subs: subPts(z, p.subs) };
+    }
+  });
+  Object.keys(S.layout).forEach(id => { if (!prop.zones.some(x => x.z.id === id)) delete S.layout[id]; });
+  save();
+  return S.layout;
+}
+function subPts(z, n) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push({ x: z.x + z.w * (i + 1) / (n + 1), y: z.y + z.h - 26 });
+  return out;
+}
+function resetLayout() { S.layout = {}; save(); render(); toast('↺ המיקומים חזרו לפריסה האוטומטית'); }
 function speakerPts(z, n) {
   const cx = z.x + z.w / 2, cy = z.y + z.h / 2, pts = [];
   for (let i = 0; i < n; i++) {
@@ -570,7 +663,8 @@ function coverageSVG(prop, w, h) {
   const step = Math.max(18, Math.round(w / 46));
   let out = '', min = 999, max = 0;
   const spk = [];
-  prop.zones.forEach(({ z, p }) => speakerPts(z, p.n).forEach(pt => spk.push({ pt, p })));
+  const L = S.layout || {};
+  prop.zones.forEach(({ z, p }) => ((L[z.id] && L[z.id].spk) || speakerPts(z, p.n)).forEach(pt => spk.push({ pt, p })));
   if (!spk.length || !S.scale) return { svg: '', min: 0, max: 0 };
   const cells = [];
   for (let y = step / 2; y < h; y += step) for (let x = step / 2; x < w; x += step) {
@@ -596,20 +690,20 @@ function stepReport() {
   const p = buildProposal(tier);
   const w = S.planW, h = S.planH || 900;
   const cov = coverageSVG(p, w, h);
+  const L = ensureLayout(p);
   let marks = '';
   p.zones.forEach(({ z, p: pz }) => {
     const col = purposeOf(z).color;
     marks += `<rect x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" fill="none" stroke="${col}" stroke-width="3" stroke-dasharray="9 6" rx="8"/>
       <text x="${z.x + 12}" y="${z.y + 32}" font-size="24" font-weight="800" fill="${col}">${purposeOf(z).icon} ${esc(z.name)} · ${pz.n} רמקולים</text>`;
-    speakerPts(z, pz.n).forEach((pt, i) => {
-      marks += `<g><circle cx="${pt.x.toFixed(0)}" cy="${pt.y.toFixed(0)}" r="17" fill="#fff" stroke="${col}" stroke-width="4"/>
+    (L[z.id].spk || []).forEach((pt, i) => {
+      marks += `<g data-sp="${z.id}|${i}" style="cursor:grab"><circle cx="${pt.x.toFixed(0)}" cy="${pt.y.toFixed(0)}" r="17" fill="#fff" stroke="${col}" stroke-width="4"/>
         <text x="${pt.x.toFixed(0)}" y="${(pt.y + 7).toFixed(0)}" text-anchor="middle" font-size="18" font-weight="800" fill="${col}">${i + 1}</text></g>`;
     });
-    if (pz.subs) for (let i = 0; i < pz.subs; i++) {
-      const sx = z.x + z.w * (i + 1) / (pz.subs + 1), sy = z.y + z.h - 26;
-      marks += `<rect x="${sx - 20}" y="${sy - 16}" width="40" height="32" rx="6" fill="#fff" stroke="${col}" stroke-width="4"/>
-        <text x="${sx}" y="${sy + 7}" text-anchor="middle" font-size="17" font-weight="800" fill="${col}">SUB</text>`;
-    }
+    (L[z.id].subs || []).forEach((pt, i) => {
+      marks += `<g data-sub="${z.id}|${i}" style="cursor:grab"><rect x="${(pt.x - 20).toFixed(0)}" y="${(pt.y - 16).toFixed(0)}" width="40" height="32" rx="6" fill="#fff" stroke="${col}" stroke-width="4"/>
+        <text x="${pt.x.toFixed(0)}" y="${(pt.y + 7).toFixed(0)}" text-anchor="middle" font-size="17" font-weight="800" fill="${col}">SUB</text></g>`;
+    });
   });
   const groups = {};
   p.rows.forEach(r => (groups[r.note] = groups[r.note] || []).push(r));
@@ -620,7 +714,7 @@ function stepReport() {
       ${Math.round(S.zones.reduce((s, z) => s + z.w * z.h * (S.scale || 0) ** 2, 0))} מ"ר · תקרה ${S.ceil} מ׳</p></div>
     <div class="rlogo">KO</div>
   </div>
-  <div class="rsec"><h3>📍 פריסת הרמקולים והכיסוי בחלל</h3>
+  <div class="rsec"><h3>📍 פריסת הרמקולים והכיסוי בחלל <span class="editable">✎ אפשר לגרור כל רמקול</span></h3>
     <div class="planbox report"><div class="planwrap">
       ${S.plan ? `<img src="${S.plan}" style="width:100%">` : ''}
       <svg viewBox="0 0 ${w} ${h}" style="${S.plan ? '' : 'position:relative;background:#f7f5f0;border-radius:10px;display:block;width:100%;height:auto;aspect-ratio:' + (w / h).toFixed(3)}">${cov.svg}${marks}</svg>
@@ -663,6 +757,7 @@ function stepReport() {
   <div class="ract">
     <button class="go" onclick="window.print()">🖨 הדפס / שמור PDF</button>
     <button class="ghost" onclick="shareReport()">📲 שתף</button>
+    <button class="ghost" onclick="resetLayout()">↺ אפס פריסה</button>
     <button class="ghost" onclick="go(5)">▶ חזרה להצעות</button>
   </div></div>`;
 }
@@ -676,23 +771,30 @@ function rackPoint() {
 /* לוח משיכת כבלים: קו לכל רמקול/סאב עם אורך אמיתי + רזרבה */
 function cableSchedule(p) {
   const rk = rackPoint(), sc = S.scale || 0.02, rows = [];
+  const L = ensureLayout(p);
+  S.wireEdits = S.wireEdits || {};
   let n = 1;
+  const mk = (z, key, dest, pt, note) => {
+    const run = Math.hypot(pt.x - rk.x, pt.y - rk.y) * sc;
+    const auto = Math.ceil(run * 1.25 + 3);            /* +25% מסלול אמיתי + 3 מ׳ שירות */
+    const e = S.wireEdits[key] || {};
+    rows.push({ id: n++, key, zone: z.name, dest: e.dest || dest,
+      type: e.type || 'כבל רמקול 2×2.5 מ"מ', conn: e.conn || 'ספיקון NL4 ↔ ספיקון NL4',
+      len: e.len != null ? e.len : auto, auto, edited: e.len != null && e.len !== auto, note: e.note || note });
+  };
   p.zones.forEach(({ z, p: pz }) => {
-    speakerPts(z, pz.n).forEach((pt, i) => {
-      const run = Math.hypot(pt.x - rk.x, pt.y - rk.y) * sc;
-      const len = Math.ceil(run * 1.25 + 3);   /* +25% מסלול אמיתי + 3 מ׳ שירות */
-      rows.push({ id: n++, zone: z.name, dest: 'רמקול ' + (i + 1), type: 'כבל רמקול 2×2.5 מ"מ',
-        conn: 'ספיקון NL4 ↔ ספיקון NL4', len, note: 'מהארון אל הרמקול' });
-    });
-    for (let i = 0; i < pz.subs; i++) {
-      const sx = z.x + z.w * (i + 1) / (pz.subs + 1), sy = z.y + z.h - 26;
-      const run = Math.hypot(sx - rk.x, sy - rk.y) * sc;
-      rows.push({ id: n++, zone: z.name, dest: 'סאב ' + (i + 1), type: 'כבל רמקול 2×2.5 מ"מ',
-        conn: 'ספיקון NL4 ↔ ספיקון NL4', len: Math.ceil(run * 1.25 + 3), note: 'קו נפרד — לא בשרשור' });
-    }
+    (L[z.id].spk || []).forEach((pt, i) => mk(z, z.id + '|s' + i, 'רמקול ' + (i + 1), pt, 'מהארון אל הרמקול'));
+    (L[z.id].subs || []).forEach((pt, i) => mk(z, z.id + '|b' + i, 'סאב ' + (i + 1), pt, 'קו נפרד — לא בשרשור'));
   });
   return rows;
 }
+function editWire(key, field, val) {
+  S.wireEdits = S.wireEdits || {};
+  const e = S.wireEdits[key] = S.wireEdits[key] || {};
+  if (field === 'len') e.len = Math.max(1, +val || 0); else e[field] = val;
+  save(); render();
+}
+function resetWires() { S.wireEdits = {}; save(); render(); toast('↺ אורכי הכבלים חזרו לחישוב האוטומטי'); }
 function wiringSection(p) {
   const rows = cableSchedule(p);
   const totalM = rows.reduce((s2, r) => s2 + r.len, 0);
@@ -718,11 +820,17 @@ function wiringSection(p) {
       • להימנע ממקבילות צמודות לכבלי חשמל — לפחות 30 ס"מ הפרדה או חצייה ב-90°.<br>
       • סה"כ כבל רמקול: <b>${totalM} מ׳</b> (${reels} גלילים של 100 מ׳) — כולל רזרבה של 25%.<br>
       • נקודת רמקול בגובה <b>${(S.ceil - 0.4).toFixed(1)} מ׳</b>, קופסה שקועה או יציאת כבל מהקיר.</p></div>
-    <h4>לוח משיכת כבלים — קו אחר קו</h4>
-    <table class="rt"><tr><th>#</th><th>אזור</th><th>אל</th><th>סוג כבל</th><th>מחברים</th><th>אורך משוער</th></tr>
-      ${rows.map(r => `<tr><td><b>${r.id}</b></td><td>${esc(r.zone)}</td><td>${esc(r.dest)}</td>
-        <td>${esc(r.type)}</td><td>${esc(r.conn)}</td><td>${r.len} מ׳</td></tr>`).join('')}
+    <h4>לוח משיכת כבלים — קו אחר קו <span class="editable">✎ ניתן לעריכה</span></h4>
+    <table class="rt wt"><tr><th>#</th><th>אזור</th><th>אל</th><th>סוג כבל</th><th>מחברים</th><th>אורך</th></tr>
+      ${rows.map(r => `<tr><td><b>${r.id}</b></td><td>${esc(r.zone)}</td>
+        <td><input value="${esc(r.dest)}" onchange="editWire('${r.key}','dest',this.value)"></td>
+        <td><input value="${esc(r.type)}" onchange="editWire('${r.key}','type',this.value)"></td>
+        <td><input value="${esc(r.conn)}" onchange="editWire('${r.key}','conn',this.value)"></td>
+        <td class="lencell"><input type="number" min="1" value="${r.len}" onchange="editWire('${r.key}','len',this.value)">
+          <small>${r.edited ? 'ידני · אוטו ' + r.auto : 'אוטו'}</small></td></tr>`).join('')}
       <tr class="tot"><td colspan="5">סה"כ ${rows.length} קווים</td><td><b>${totalM} מ׳</b></td></tr></table>
+    <div class="wact"><button class="ghost sm" onclick="resetWires()">↺ אפס אורכים לחישוב אוטומטי</button>
+      <span class="hintline">האורכים מחושבים מהמרחק בתכנית +25% מסלול +3 מ׳ שירות. אפשר לתקן ידנית לפי המסלול בפועל.</span></div>
     <div class="wsec" style="margin-top:12px"><h5>בדיקות מסירה</h5>
       <p>1. כל קו נבדק בבודק רציפות לפני חיבור המגבר.<br>
       2. פולריות אחידה בכל הרמקולים (+ ל-+) — אחרת הבס נעלם.<br>
@@ -733,7 +841,25 @@ function wiringSection(p) {
       הצנרת חייבת להיות מוכנה <b>לפני</b> הגבס והצבע — אחרת פותחים קירות.</p></div>
   </div>`;
 }
-function afterReport() { save(); }
+function afterReport() {
+  save();
+  /* גרירת רמקולים וסאבים ישירות על התכנית בדוח */
+  const svg = document.querySelector('#report svg'); if (!svg) return;
+  const toPlan = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * S.planW, y: (e.clientY - r.top) / r.height * (S.planH || 900) }; };
+  const bind = (sel, arr) => svg.querySelectorAll(sel).forEach(g => {
+    g.addEventListener('pointerdown', e => {
+      const [zid, idx] = g.dataset[arr === 'spk' ? 'sp' : 'sub'].split('|');
+      const pt = S.layout[zid][arr][+idx]; if (!pt) return;
+      const st = toPlan(e), ox = pt.x, oy = pt.y;
+      g.style.cursor = 'grabbing'; e.preventDefault();
+      const mv = ev => { const p2 = toPlan(ev); pt.x = ox + p2.x - st.x; pt.y = oy + p2.y - st.y;
+        g.setAttribute('transform', `translate(${pt.x - ox} ${pt.y - oy})`); };
+      const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); render(); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    });
+  });
+  bind('[data-sp]', 'spk'); bind('[data-sub]', 'subs');
+}
 function shareReport() {
   const tier = LITE_CATALOG.tiers.find(t => t.id === S.tier) || LITE_CATALOG.tiers[1];
   const p = buildProposal(tier);

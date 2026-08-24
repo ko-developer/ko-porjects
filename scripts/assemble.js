@@ -28,7 +28,7 @@ export function templateParts() {
 
 
 /* ===== KO Studio (גרסת משתמשי קצה) — נבנית בנפרד לגמרי מהאפליקציה המקצועית ===== */
-export const LITE_DATA = ['LITE_CATALOG', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_IMAGES'];
+export const LITE_DATA = ['LITE_CATALOG', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_IMAGES', 'ERP_KITS'];
 
 export function assembleLiteJs() {
   let js = readFileSync('src/lite.js', 'utf8');

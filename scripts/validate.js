@@ -16,7 +16,7 @@ JSON.parse(readFileSync('data/erp_items.json', 'utf8'));
 
 /* KO Studio (גרסת משתמשי הקצה) — נבדקת בנפרד, אותה רמת בדיקה */
 let lite = readFileSync('src/lite.js', 'utf8');
-for (const name of ['LITE_CATALOG', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_IMAGES']) {
+for (const name of ['LITE_CATALOG', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_IMAGES', 'ERP_KITS']) {
   const json = readFileSync(`data/${name.toLowerCase()}.json`, 'utf8');
   lite = lite.replace(`/*__DATA:${name}__*/`, `const ${name} = ${json};`);
 }
