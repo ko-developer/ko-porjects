@@ -811,6 +811,7 @@ function renderHeader() {
     <button onclick="autoConnect()">${auto ? `🔌 בטל חיבור אוטומטי (${P.autoIds.length})` : '🔌 חבר אותי — שידוך אוטומטי'}</button>
     <button onclick="designBrief()">🎯 תכנן לי מערכת לחלל זה</button>
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
+    <button onclick="mergeOfferDupes()">🧹 אחד שורות כפולות בהצעה</button>
     <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
     <button onclick="verManager()">🕘 היסטוריית גרסאות — שחזור מצב קודם</button>
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>
@@ -3080,6 +3081,30 @@ function zoneDelayRef(z) {
 /* מרחק במטרים מנקודת הייחוס (0 כשאין כיול/ייחוס) */
 function delayDistM(n, ref) { return (ref && P.scale) ? Math.hypot(n.x - ref.x, n.y - ref.y) * P.scale : 0; }
 /* מקור עיקרי אמיתי לדיליי — במה/עמדת נגינה/DJ בלבד. ארון מגברים אינו מקור קול. */
+/* איחוד שורות כפולות בהצעה: אותו מק"ט/שם ואותו יעד → שורה אחת עם סכימת כמויות
+   ופירוט לפי אזור — כך שאותו פריט בשני אזורים לא מופיע פעמיים ב-ERP. */
+function mergeOfferDupes(silent) {
+  const keyOf = it => (it.key ? 'k:' + it.key : 'n:' + (it.name || '').trim()) + '|' + (it.dest || '') + '|' + (it.type || '');
+  const first = new Map();
+  let merged = 0;
+  for (let i = 0; i < impItems.length; i++) {
+    const it = impItems[i], k = keyOf(it);
+    const a = first.get(k);
+    if (!a) { first.set(k, it); continue; }
+    if (it.stockId || a.stockId) continue; /* קשור למלאי/גליל — נשאר בנפרד */
+    a.qty = (+a.qty || 0) + (+it.qty || 0);
+    a.placed = (+a.placed || 0) + (+it.placed || 0);
+    if (it.zones) { a.zones = a.zones || {}; Object.entries(it.zones).forEach(([z, n]) => a.zones[z] = (a.zones[z] || 0) + n); }
+    if (!a.price && it.price) a.price = it.price;
+    if (!a.note && it.note) a.note = it.note;
+    P.nodes.forEach(n => { if (n.srcIid === it.iid) n.srcIid = a.iid; });
+    a.added = (a.placed || 0) > 0 && (a.placed || 0) >= (a.qty || 0);
+    impItems.splice(i--, 1); merged++;
+  }
+  if (merged) { render(); save(); if (!silent) uiToast('🧹 אוחדו ' + merged + ' שורות כפולות בהצעה'); }
+  else if (!silent) uiToast('אין שורות כפולות — ההצעה נקייה');
+  return merged;
+}
 /* מעבר בין ארון משותף לארון ייעודי לאזור */
 function zoneOwnRack(zid, own) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
@@ -7493,7 +7518,11 @@ function buildZoneFromItems(zid) {
       for (let k = 0; k < q; k++) {
         const uH = it.u || 2;
         const pos = (rk.units || []).reduce((m, x) => Math.max(m, x.pos + x.u), 0);
-        if (pos + uH > rk.ru) rk.ru = pos + uH; /* מרחיב את הארון במקום לדחוס */
+        if (pos + uH > rk.ru) { /* ארון משותף מתמלא — מגדילים לגודל תקני הבא */
+          const std = [6, 9, 12, 16, 18, 20, 24, 27, 32, 42].find(v => v >= pos + uH) || (pos + uH);
+          if (std !== rk.ru) uiToast('🗄 הארון המשותף גדל ל-' + std + 'U — ודא ארון בגודל הזה בהצעה');
+          rk.ru = std;
+        }
         rk.units.push({ id: uid('u'), name: it.name.slice(0, 40), u: uH, cat: /פרוססור|processor|מטריצ|matrix|DSP/i.test(it.name) ? 'audio' : 'amp', pos });
         nRack++;
       }
@@ -7801,6 +7830,7 @@ function zoneKitConfirm(zname, idx) {
       if (zz && hasSpk) { buildZoneFromItems(zz.id); placeZoneRackItems(zz); }
       else if (zz) { placeZoneRackItems(zz); }
       placed = P.nodes.length - nBefore;
+      mergeOfferDupes(true); /* אותו פריט בשני אזורים = שורה אחת עם פירוט */
     } catch (e) { err = e; }
     render(); save();
     if (err) uiToast('🧰 נוספו ' + items.length + ' פריטים להצעה · ⚠ ההצבה על התכנית נכשלה: ' + (err.message || err));
@@ -8411,8 +8441,43 @@ function exportPDF() {
     renderWires(); renderNodes();
   }
   for (let si = snaps.length - 1; si >= 0; si--) r.insertBefore(snaps[si], r.children[1]);
-  document.body.classList.add('printing');
-  setTimeout(() => window.print(), 80);
+  reportPreview();
+}
+/* תצוגה מקדימה של הדוח לפני הדפסה — רואים את כל הפריסה ואז מחליטים */
+function reportPreview() {
+  const old = document.getElementById('rpPrev'); if (old) old.remove();
+  const r = $('#report');
+  const pages = r.querySelectorAll('.rp-sec').length + 1;
+  const ov = document.createElement('div');
+  ov.id = 'rpPrev';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.55);z-index:150;display:flex;flex-direction:column;align-items:center;padding:14px;gap:10px';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:96vw">
+      <b style="font-size:15px;flex:1;white-space:nowrap">📑 תצוגה מקדימה — ${esc(P.name.slice(0, 24))}</b>
+      <span class="muted" style="font-size:11.5px">${pages} מקטעים · גלול לראות את כל הפריסה</span>
+      <button id="rpPrint" style="background:#0f6e56;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer">🖨 הדפס / שמור PDF</button>
+      <button id="rpShare" style="background:#25D366;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer">📲 שתף</button>
+      <button id="rpClose" style="border:1px solid #ddd;background:#fff;border-radius:9px;padding:9px 14px;cursor:pointer">ביטול</button>
+    </div>
+    <div id="rpPage" style="flex:1;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.4);width:min(1000px,96vw);padding:22px"></div>`;
+  document.body.appendChild(ov);
+  /* מציגים עותק של הדוח — כך שהמקור נשאר מוכן להדפסה */
+  const clone = r.cloneNode(true);
+  clone.removeAttribute('id'); clone.style.display = 'block';
+  ov.querySelector('#rpPage').appendChild(clone);
+  ov.querySelector('#rpClose').onclick = () => ov.remove();
+  ov.querySelector('#rpPrint').onclick = () => {
+    ov.remove();
+    document.body.classList.add('printing');
+    setTimeout(() => window.print(), 80);
+  };
+  ov.querySelector('#rpShare').onclick = async () => {
+    const txt = 'דוח פרויקט KO — ' + P.name + '\n' + (P.zones || []).length + ' אזורים · ' + P.cables.length + ' כבלים · ' + impItems.length + ' פריטים';
+    if (navigator.share) { try { await navigator.share({ title: 'KO Projects — ' + P.name, text: txt }); return; } catch (e) {} }
+    window.open('https://wa.me/?text=' + encodeURIComponent(txt + '\n(הדוח המלא מצורף כ-PDF — הדפס ושמור קודם)'), '_blank', 'noopener');
+    uiToast('📲 נפתח וואטסאפ — צרף את ה-PDF ששמרת');
+  };
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
 window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
 
