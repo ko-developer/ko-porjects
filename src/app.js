@@ -29,6 +29,7 @@ const LSKEY = 'installPlanner_v1';
 /*__DATA:ERP_CATALOG__*/
 /*__DATA:ERP_IMAGES__*/
 /*__DATA:ERP_SOLD__*/
+/*__DATA:ERP_FILTERS__*/
 
 const CONNS = {
   xlrf:    { n: 'XLR נקבה', c: '#5f5e5a' },
@@ -3410,6 +3411,20 @@ function projGapCheck() {
   });
   const haveC = qsum(it => it.dest === 'conn' || /מחבר|קונקטור|connector/i.test(it.name));
   if (needC > haveC) finds.push({ i: '🔩', t: 'דרושים ~' + needC + ' מחברים לקצוות · בהצעה ' + haveC, b: 'הוסף מחברים לכל הקווים', fn: 'gapFixConnectors()' });
+  /* 3c. גלילי כבל — האם יש מספיק מטרים בהצעה למה שמתוכנן */
+  {
+    const needM = Math.ceil(P.cables.filter(c => c.inst !== 'exist').reduce((s3, c) => s3 + (+c.len || 0), 0) * 1.1);
+    let haveM = 0;
+    rows.forEach(it => {
+      if (it.dest !== 'reel' && !/גליל|לפי מטר|למטר/i.test(it.name)) return;
+      const m = /(\d{2,4})\s*מטר|של\s*(\d{2,4})/.exec(it.name);
+      haveM += (m ? +(m[1] || m[2]) : (+it.len || 100)) * (+it.qty || 1);
+    });
+    if (needM && haveM && needM > haveM) {
+      const extra = Math.ceil((needM - haveM) / 100);
+      finds.push({ i: '🧵', t: 'התכנית דורשת ~' + needM + ' מ׳ כבל · בהצעה ' + haveM + ' מ׳ — חסרים ' + (needM - haveM) + ' מ׳', b: '➕ הוסף ' + extra + ' גליל', fn: 'gapAddReel(' + extra + ')' });
+    }
+  }
   /* 3b. מולטי-קייבל: לכל גיד דרוש מחבר בכל קצה — וקופסת XLR מרובה סופרת כגידים */
   const coresOf = nm => { const m = /(\d+)\s*[xX×]\s*[\d.]+/.exec(nm || '') || /\b(\d+)\s*(?:גידים|cores?)\b/i.exec(nm || ''); return m ? +m[1] : 0; };
   let mcCores = 0;
@@ -3419,7 +3434,7 @@ function projGapCheck() {
     const xlrHave = qsum(it => /XLR/i.test(it.name) && /מחבר|connector|פנל|קופס|panel/i.test(it.name)) +
       rows.filter(it => /פנל|קופס/i.test(it.name) && /XLR/i.test(it.name)).reduce((s3, it) => s3 + coresOf(it.name) * (+it.qty || 1), 0);
     const need = mcCores * 2; /* שני קצוות לכל גיד */
-    if (need > xlrHave) finds.push({ i: '🎚', t: 'מולטי עם ' + mcCores + ' גידים — דרושים ~' + need + ' מחברי XLR (זכר/נקבה) · בהצעה ' + xlrHave, b: 'חפש מחבר XLR', fn: "gapSearch('מחבר XLR')" });
+    if (need > xlrHave) finds.push({ i: '🎚', t: 'מולטי עם ' + mcCores + ' גידים — דרושים ~' + need + ' מחברי XLR (זכר/נקבה) · בהצעה ' + xlrHave, b: '➕ הוסף ' + (need - xlrHave) + ' מחברים', fn: 'gapAddConn(' + (need - xlrHave) + ')', alt: { b: '🔍 בחר אחר', fn: "gapSearch('מחבר XLR')" } });
   }
   /* 4. תושבות ומתקנים לרמקולים תלויים */
   const hung = spkN.filter(n => patchKind(n) !== 'sub' && !/שקוע|תקרת גבס/.test((n.name || '') + (n.mount || ''))).length;
@@ -3444,6 +3459,7 @@ function projGapCheck() {
           <span style="font-size:16px">${f.i}</span>
           <span style="flex:1;font-size:12px">${f.t}</span>
           <button style="white-space:nowrap;font-size:11.5px;background:#0f6e56;color:#fff;border:none;border-radius:7px;padding:5px 9px;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
+          ${f.alt ? `<button style="white-space:nowrap;font-size:11px;background:#f0ede8;border:1px solid #ddd;border-radius:7px;padding:5px 8px;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();${f.alt.fn}">${f.alt.b}</button>` : ''}
         </div>`).join('')}</div>`
       : '<p style="font-size:13px;color:#0f6e56;margin:10px 0">✓ לא נמצאו חוסרים — התכנית וההצעה שלמות: חיווט, כבלים, מחברים, תושבות, התקנה ומק"טים.</p>'}
     <button style="width:100%;margin-top:6px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove()">סגור</button>`);
@@ -3458,6 +3474,39 @@ async function gapFixConnectors() {
   }
   render(); save();
   uiToast('🔩 עודכנו מחברים ל-' + n + ' קווים');
+}
+/* הוספת מחברים ישירות מהמלאי/קטלוג — בלי לחפש ידנית */
+function gapAddConn(n) {
+  const want = Math.max(1, +n || 1);
+  const ex = impItems.find(it => /XLR/i.test(it.name) && /מחבר|connector/i.test(it.name));
+  if (ex) { ex.qty = (+ex.qty || 0) + want; render(); save(); uiToast('➕ ' + want + ' מחברים נוספו לשורה הקיימת (' + ex.qty + ' סה"כ)'); return; }
+  const cand = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : [])
+    .filter(([, n2]) => n2 && /מחבר/.test(n2) && /XLR/i.test(n2))
+    .sort((a, b) => byStockThenSold(a[0], b[0]));
+  const male = cand.find(([, n2]) => /זכר|MALE/i.test(n2)) || cand[0];
+  const female = cand.find(([, n2]) => /נקבה|FEMALE/i.test(n2));
+  const add = (row, q) => {
+    if (!row) return 0;
+    const it = { on: true, qty: q, name: row[1], key: row[0], src: 'בדיקת שלמות', dest: 'conn', cat: 'other', u: 1, iid: uid('i') };
+    autoPrice(it); impItems.push(it); return q;
+  };
+  const half = Math.ceil(want / 2);
+  const added = add(male, female ? half : want) + (female ? add(female, want - half) : 0);
+  render(); save();
+  uiToast(added ? '➕ נוספו ' + added + ' מחברי XLR מהקטלוג (לפי מלאי)' : '⚠ לא נמצא מחבר XLR בקטלוג');
+}
+/* הוספת גלילי כבל חסרים */
+function gapAddReel(n) {
+  const want = Math.max(1, +n || 1);
+  const ex = impItems.find(it => it.dest === 'reel' || /גליל/.test(it.name));
+  if (ex) { ex.qty = (+ex.qty || 1) + want; render(); save(); uiToast('➕ ' + want + ' גלילים נוספו (' + ex.qty + ' סה"כ)'); return; }
+  const cand = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : [])
+    .filter(([, n2]) => n2 && /כבל רמקול/.test(n2) && /גליל|מטר/.test(n2))
+    .sort((a, b) => byStockThenSold(a[0], b[0]))[0];
+  if (!cand) { uiToast('⚠ לא נמצא גליל בקטלוג'); return; }
+  const it = { on: true, qty: want, name: cand[1], key: cand[0], src: 'בדיקת שלמות', dest: 'reel', type: 'nl4', cat: 'cable', u: 1, iid: uid('i') };
+  autoPrice(it); impItems.push(it); render(); save();
+  uiToast('➕ נוסף ' + want + ' גליל כבל רמקול להצעה');
 }
 /* פתיחת חיפוש הקטלוג עם שאילתה מוכנה — לבחירת פריט משלים */
 function gapSearch(q) {
@@ -5945,35 +5994,56 @@ function pickKit(i) {
 /* 🧾 כתב כמויות והצעת מחיר מהתכנית */
 function bomBuild() {
   const agg = {};
-  const add = (name, qty, unit, key) => {
+  const add = (name, qty, unit, key, iid) => {
     const base = name.replace(/\s*\(\d+\)\s*$/, '').trim();
     const k = base + '|' + (unit || 'יח׳');
-    if (!agg[k]) agg[k] = { name: base, qty: 0, unit: unit || 'יח׳', key };
+    if (!agg[k]) agg[k] = { name: base, qty: 0, unit: unit || 'יח׳', key, iid };
     agg[k].qty += qty;
     if (key && !agg[k].key) agg[k].key = key;
+    if (iid && !agg[k].iid) agg[k].iid = iid;
   };
   for (const n of P.nodes) {
     if (n.kind === 'rack') {
-      add(n.name, 1, 'יח׳', n.key);
-      for (const u of n.units) add(u.name, 1, 'יח׳', u.key);
-    } else if (n.kind === 'point' || n.kind === 'panel') add(n.name, 1, 'יח׳', n.key);
+      add(n.name, 1, 'יח׳', n.key, n.srcIid);
+      for (const u of n.units) add(u.name, 1, 'יח׳', u.key, u.srcIid);
+    } else if (n.kind === 'point' || n.kind === 'panel') add(n.name, 1, 'יח׳', n.key, n.srcIid);
   }
   for (const c of P.cables) {
     const nm = (CTYPES[c.type] ? 'כבל ' + CTYPES[c.type].n : 'כבל') + (c.spec ? ' — ' + c.spec : '');
-    if (c.len) add(nm, c.len, 'מ׳');
-    else add(nm, +c.qty || 1, 'יח׳');
+    /* קו שנחתך מגליל/כבל מהמלאי — נושא את המק"ט של אותו פריט בהצעה */
+    let ck, cid;
+    if (c.stockRef) {
+      const [kind, sid] = c.stockRef.split('|');
+      const st = (kind === 'reel' ? (P.stock?.reels || []) : (P.stock?.cables || [])).find(x => x.id === sid);
+      const src = st && impItems.find(x => x.stockId === st.id);
+      if (src) { ck = src.key; cid = src.iid; }
+    }
+    if (c.len) add(nm, c.len, 'מ׳', ck, cid);
+    else add(nm, +c.qty || 1, 'יח׳', ck, cid);
   }
   ensureStock(P);
   for (const s of P.stock.conns) if (s.used) add(s.name, s.used, 'יח׳', s.key);
   /* השלמת מחיר, מק"ט ואזורים מרשימת הפריטים */
   const out = Object.values(agg);
+  const norm = t => String(t || '').replace(/\s*\(\d+\)\s*$/, '').replace(/\s+/g, ' ').trim();
   for (const b of out) {
-    const it = impItems.find(x => x.name.replace(/\s*\(\d+\)\s*$/, '').trim() === b.name);
+    /* קודם קישור ישיר לפריט שממנו נוצר המוקד, ואז התאמת שם (כולל שמות מקוצרים) */
+    const it = (b.iid && impItems.find(x => x.iid === b.iid))
+      || impItems.find(x => norm(x.name) === b.name)
+      || impItems.find(x => { const a = norm(x.name), c = b.name; return a.length > 8 && c.length > 8 && (a.startsWith(c) || c.startsWith(a)); })
+      || (b.key && impItems.find(x => x.key === b.key));
     if (it) {
       if (it.price) b.price = it.price;
       if (it.key && !b.key) b.key = it.key;
       if (it.zones) b.zones = Object.entries(it.zones).map(([z, n]) => z + (n > 1 ? ' ×' + n : '')).join(', ');
     }
+    /* עדיין בלי מק"ט? מחפשים בקטלוג ה-ERP לפי שם; מחיר מגיע מטבלת המחירים */
+    if (!b.key && typeof ERP_ITEMS !== 'undefined') {
+      const hit = ERP_ITEMS.find(([, n2]) => n2 && norm(n2) === b.name)
+        || ERP_ITEMS.find(([, n2]) => n2 && b.name.length > 10 && norm(n2).startsWith(b.name));
+      if (hit) b.key = hit[0];
+    }
+    if (!b.price && b.key && typeof ERP_PRICES !== 'undefined' && ERP_PRICES[b.key] != null) b.price = +ERP_PRICES[b.key];
   }
   return out;
 }
@@ -6154,6 +6224,19 @@ function wireFromItem(iid) {
 let ERP_INFO = null;
 /* דירוג תוצאות חיפוש: קודם מלאי גבוה, ואז פריטים על 0 לפי הנמכרים לאחרונה
    (ERP_SOLD = [תאריך מכירה אחרון, מס׳ שורות, כמות מצטברת] לכל מק"ט) */
+/* קבוצת הפילטר של פריט ב-ERP (INSTALL / IMPORT / RENT …) — מגיע משדה Filter */
+function erpFilter(key) { return (key && typeof ERP_FILTERS !== 'undefined' && ERP_FILTERS[key]) || ''; }
+function erpItemsByFilter(f) {
+  if (typeof ERP_ITEMS === 'undefined' || typeof ERP_FILTERS === 'undefined') return [];
+  return ERP_ITEMS.filter(([k]) => ERP_FILTERS[k] === f);
+}
+/* בחירת פריט ההתקנה המתאים מקבוצת INSTALL לפי מודל התמחור */
+function installErpItem(mode, days) {
+  const rows = erpItemsByFilter('INSTALL');
+  const find = re => rows.find(([, n]) => n && re.test(n));
+  if (mode === 'day') return (days >= 2 ? find(/2 טכנאים ליום/) : null) || find(/טכנאי בודד ליום/) || find(/לפי הצעת מחיר/) || rows[0];
+  return find(/לפי הצעת מחיר/) || find(/לשעת עבודה/) || rows[0];
+}
 function soldInfo(key) { return (key && typeof ERP_SOLD !== 'undefined' && ERP_SOLD[key]) || null; }
 function stockRank(key) {
   const inf = key ? erpInfo(key) : null;
@@ -6341,7 +6424,7 @@ function sendOffer() {
       <option value="customer_pickup">🏭 הלקוח אוסף מהמחסן</option>
       <option value="none">— ללא העברת תשתית —</option>
     </select></div>
-    <div class="fld"><label>אופן משלוח הפריטים</label><select id="ofShip" onchange="document.getElementById('ofAddrW').style.display=this.value==='warehouse_delivery'?'':'none'">
+    <div class="fld"><label>אופן משלוח הפריטים <span class="muted" style="font-size:10px">(מהאפשרויות של ה-ERP)</span></label><select id="ofShip" onchange="document.getElementById('ofAddrW').style.display=this.value==='warehouse_delivery'?'':'none'">
       <option value="">🔧 קריאת שירות — הטכנאי מביא (ללא משלוח)</option>
       <option value="warehouse_delivery">🚚 משלוח מהמחסן לכתובת</option>
       <option value="warehouse_pickup">🏭 איסוף מהמחסן בהמשך</option>
@@ -6358,6 +6441,20 @@ function sendOffer() {
   </div>`;
   document.body.appendChild(ov);
 
+  /* אפשרויות ההצעה מגיעות מה-ERP עצמו (get_offer_options) — לא רשימה קשיחה בקוד */
+  fetch('/api/erp/options').then(r => r.json()).then(o => {
+    if (!o || !o.ok) return;
+    const LBL_I = { technician_install_site: '🔧 טכנאי מביא לאתר ההתקנה', one_time_delivery: '🚚 משלוח חד-פעמי לאתר', customer_pickup: '🏭 הלקוח אוסף מהמחסן', none: '— ללא העברת תשתית —' };
+    const LBL_S = { warehouse_delivery: '🚚 משלוח מהמחסן לכתובת', warehouse_pickup: '🏭 איסוף מהמחסן בהמשך', pickup_now: '🤝 איסוף מיידי' };
+    const inf = document.getElementById('ofInfra');
+    if (inf && (o.infrastructure_transfer_methods || []).length)
+      inf.innerHTML = o.infrastructure_transfer_methods.map(m => `<option value="${esc(m.value)}" title="${esc(m.description || '')}">${esc(LBL_I[m.value] || m.value)}</option>`).join('');
+    const sh = document.getElementById('ofShip');
+    if (sh && (o.shipment_methods || []).length)
+      sh.innerHTML = '<option value="">🔧 קריאת שירות — הטכנאי מביא (ללא משלוח)</option>' +
+        o.shipment_methods.map(m => `<option value="${esc(m.value)}" title="${esc(m.description || '')}">${esc(LBL_S[m.value] || m.value)}</option>`).join('');
+    if (o.vat_rate) { const el2 = document.querySelector('#offerOv p'); if (el2 && !el2.dataset.vat) { el2.dataset.vat = 1; el2.innerHTML = el2.innerHTML.replace('18%', Math.round(o.vat_rate * 100) + '%'); } }
+  }).catch(() => {});
   /* יצירה ישירה דרך השרת; אם אין חיבור (פריסה סטטית) — נשאר מסלול קובץ ידני */
   fetch('/api/erp/status').then(r => r.json()).then(s => {
     if (!s || !s.ok) { document.getElementById('ofSrvW').style.display = 'none'; document.getElementById('ofNoSrvW').style.display = ''; }
@@ -7494,7 +7591,9 @@ function installAddToOffer() {
     uiToast('🔧 סעיף ההתקנה בקיט עודכן ל-₪' + sum.toLocaleString() + ' — לחץ "הוסף את הקיט להצעה" כדי להכניס אותו');
     return;
   }
-  const hit = (typeof ERP_ITEMS !== 'undefined') && ERP_ITEMS.find(([k, n]) => n && /התקנה.*הצעת מחיר/i.test(n));
+  /* מק"ט אמיתי מקבוצת INSTALL של ה-ERP — לפי מודל התמחור שנבחר */
+  const days = Math.max(1, Math.ceil(tMin / 60 / 8));
+  const hit = installErpItem(store.installDayMode !== false ? 'day' : 'quote', days);
   const ex = impItems.find(it => it.iid === P._instIid);
   if (ex) { ex.price = sum; ex.note = note; }
   else {
@@ -7597,6 +7696,7 @@ function zoneKitConfirm(zname, idx) {
       if (window.__kitInstall && INSTALL_ITEM_RE.test(x.name || '')) {
         it.qty = 1; it.price = window.__kitInstall.total; it.dest = 'work';
         it.note = window.__kitInstall.det; it.zones = { [zname]: 1 };
+        if (!it.key) { const h2 = installErpItem('quote', 1); if (h2) { it.key = h2[0]; it.name = h2[1]; } }
       }
       impItems.push(it);
     }

@@ -186,10 +186,15 @@
   <input id="projName" onchange="renameProj(this.value)">
   <button onclick="wizardStart()" title="אשף זרימה מהיר — תכנית→כיול→אזור→מערכת→הצעה→דוח" style="background:#534ab7;color:#fff;font-weight:700">⚡ אשף</button>
   <div class="spacer"></div>
-  <button onclick="addNode('rack')">+ ארון</button>
-  <button onclick="addNode('point')">+ מוקד</button>
-  <button onclick="addNode('panel')">+ פאנל/מולטי</button>
-  <button class="primary" onclick="ui.tab='cable';selCable=null;wireMode={from:null};render()">+ כבל</button>
+  <div class="dd">
+    <button class="primary" onclick="this.parentElement.classList.toggle('open');event.stopPropagation()" title="הוספת ארון, מוקד, פאנל או כבל לתכנית">➕ הוסף ▾</button>
+    <div class="ddm">
+      <button onclick="addNode('rack')">🗄 ארון</button>
+      <button onclick="addNode('point')">📍 מוקד (רמקול / מכשיר)</button>
+      <button onclick="addNode('panel')">🔌 פאנל / מולטי</button>
+      <button onclick="ui.tab='cable';selCable=null;wireMode={from:null};render()">🔗 כבל — חיבור בין שני מוצרים</button>
+    </div>
+  </div>
   <button onclick="openPlanSettings()" title="תכנית רקע, כיול, אזורים ופרטי חלל">🗺 הגדרות תכנית</button>
   <div class="dd">
     <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()" title="הצגה/הסתרה של מוצרים מהתכנית — כולל הכבלים שלהם">👁 תצוגה ▾</button>
