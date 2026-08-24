@@ -115,12 +115,25 @@ function wizStepHTML(s) {
     ${P.bg ? `<button class="sec done">✓ יש תכנית בפרויקט — אפשר להמשיך</button>` : ''}
     <input type="file" accept="image/*" onchange="wizUploadBg(this)">
     <button class="sec" onclick="wizNewProject()">🗂 התחל פרויקט חדש נקי</button>`;
-  if (s === 1) return `
+  if (s === 1) {
+    /* אותה תכנית כויּלה כבר בפרויקט אחר? מציעים את אותו קנה מידה — חוסך את כל התהליך */
+    const sig = p2 => p2 && p2.bg ? (p2.bg.length + '|' + p2.bg.slice(-24)) : '';
+    const mine = sig(P);
+    const twin = mine ? (store.projects || []).find(p2 => p2 !== P && p2.scale && sig(p2) === mine) : null;
+    const guess = twin ? +(P.bgW * twin.scale).toFixed(1) : null;
+    return `
     <h4>כיול קנה מידה</h4>
-    ${P.scale ? `<button class="sec done">✓ מכויל — 1 מ׳ = ${(1 / P.scale).toFixed(1)}px${P.calLine ? ' · 📏 קו הייחוס מוצג על התכנית' : ''}</button>` : `<p class="hint">הדרך המהירה: הקלד את רוחב השטח המצולם במטרים. לדיוק מלא — שתי לחיצות על מידה ידועה.</p>`}
-    <input id="wizWidthM" type="number" step="0.1" placeholder="רוחב התכנית במטרים (למשל 23.7)">
+    ${P.scale ? `<div class="kpi" style="margin-bottom:7px"><div style="background:#eef7f1;outline:2px solid #0f6e56">
+        <b style="color:#0f6e56">✓ מכויל</b><small>1 מ׳ = ${(1 / P.scale).toFixed(1)}px · רוחב התכנית ${(P.bgW * P.scale).toFixed(1)} מ׳${P.calLine ? ' · 📏 קו ייחוס על התכנית' : ''}</small></div></div>`
+      : `<p class="hint">הדרך המהירה: הקלד את רוחב השטח המצולם במטרים. לדיוק מלא — שתי לחיצות על מידה ידועה בתכנית (מידות בתכנית בנייה בד"כ במ״מ: 23700 = 23.7 מ׳).</p>`}
+    ${twin ? `<button class="sec" style="background:#eef7f1;border-color:#bfe0cd;color:#0f6e56;font-weight:700" onclick="P.scale=${twin.scale};recalcCableLengths();save();render();wizRender();uiToast('✓ הועתק קנה המידה מהפרויקט \'${esc((twin.name || '').slice(0, 18)).replace(/'/g, '&#39;')}\'')">♻ אותה תכנית כויּלה כבר — השתמש (${guess} מ׳ רוחב)</button>` : ''}
+    <input id="wizWidthM" type="number" step="0.1" placeholder="רוחב התכנית במטרים (למשל 23.7)" value="${guess || ''}">
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px">
+      ${[8, 10, 12, 16, 20, 23.7, 30, 40].map(v => `<button class="sec" style="flex:1;min-width:52px;margin:0;padding:5px 4px;font-size:12px" onclick="document.getElementById('wizWidthM').value=${v};wizCalByWidth()">${v} מ׳</button>`).join('')}
+    </div>
     <button class="big" onclick="wizCalByWidth()">⚡ כייל לפי רוחב</button>
     <button class="sec" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
+  }
   if (s === 2) return `
     <h4>סימון אזור סאונד</h4>
     ${(P.zones || []).map(zz => `<button class="sec ${zz.id === (WIZ.zid || (P.zones[0] || {}).id) ? 'done' : ''}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">🗺 ${esc(zz.name)} · ${zoneAreaM(zz).toFixed(0)} מ"ר</button>`).join('')}
@@ -141,7 +154,8 @@ function wizStepHTML(s) {
     <p class="hint" style="margin-top:4px">${z._spk ? '🔊 ' + esc(z._spk.slice(0, 42)) : 'לא נבחר רמקול — הבנייה תציע מהקטלוג'}</p>
     <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-bottom:7px"><input type="checkbox" style="width:auto" ${z._djInRack !== false ? 'checked' : ''} onchange="const zz=wizZone();zz._djInRack=this.checked;save()"> 🖥 מוזיקה ממחשב בארון (בלי עמדת DJ)</label>
     <button class="big" onclick="wizBuildAll()">🚀 בנה הכל — מערכת + ארון + חיווט</button>
-    ${z._built ? '<button class="sec done">✓ נבנתה — לחיצה על "בנה הכל" תבנה מחדש</button>' : ''}`;
+    ${z._built ? `<button class="sec done">✓ נבנתה — לחיצה על "בנה הכל" תבנה מחדש</button>
+      <button class="sec" style="background:#eef7f1;border-color:#bfe0cd;color:#0f6e56;font-weight:700" onclick="smartWire('${z.id}')">🔌 פתח את טבלת החיווט — ניתוב, אום, הספק ודיליי</button>` : ''}`;
   }
   if (s === 4) {
     const kits = installKitList();

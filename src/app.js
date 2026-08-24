@@ -885,6 +885,14 @@ function renderCableKey() {
 }
 const CAB_GROUP = { multi: 'audio', xlr: 'audio', nl4: 'audio', dmx: 'light', sdi: 'video', hdmi: 'video', cat: 'data', fiber: 'data', pwr: 'power' };
 function cableVisible(c) {
+  /* בידוד קו בעורך החיווט — מציגים רק את הכבלים של הערוץ שנבחר */
+  if (typeof PATCH !== 'undefined' && PATCH && PATCH.solo) {
+    const ids = new Set(PATCH.slots[PATCH.solo] || []);
+    const [ai] = PATCH.solo.split('|').map(Number);
+    const rk = PATCH.amps[ai] && PATCH.amps[ai].rk.id;
+    const touches = ids.has(c.to) || ids.has(c.from) || (c.from === rk && ids.has(c.to));
+    if (!touches) return false;
+  }
   const g = CAB_GROUP[c.type] || 'audio';
   if ((P.cabVis || {})[g] === false) return false;
   /* הסתרה ברמת מוקד — אם אחד הקצוות הסתיר את הקטגוריה, הקו לא מצויר */
@@ -3041,7 +3049,7 @@ function patchOpen(z, amps, lines, leftover) {
   });
   patchRender();
 }
-function patchClose() { PATCH = null; patchHiClear(); const o = document.getElementById('patchOv'); if (o) o.remove(); }
+function patchClose() { if (PATCH) PATCH.solo = null; PATCH = null; patchHiClear(); const o = document.getElementById('patchOv'); if (o) o.remove(); }
 function patchHi(id, on) { const el = document.getElementById('nd_' + id); if (el) el.classList.toggle('pchHi', on); }
 function patchHiClear() { document.querySelectorAll('.node.pchHi').forEach(e => e.classList.remove('pchHi')); }
 /* נקודת הייחוס לדיליי — עמדת הנגינה/DJ של האזור (מקור הסאונד), אחרת ריכוז המגברים */
@@ -3133,7 +3141,8 @@ function patchRender() {
       const wTxt = w ? ` · <b style="color:${rc}" title="${rTip}">🎚${w}W${ratio ? ' (×' + ratio.toFixed(1) + ')' : ''}</b>` : '';
       const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
-        <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${ch}</span>
+        <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${ch}
+          ${ids.length ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
         <div class="pchChips">${ids.map(id2 => patchChip(id2)).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
         <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" title="עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
     }
@@ -3192,6 +3201,18 @@ function patchRender() {
     el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('drop'); patchMove(e.dataTransfer.getData('text/plain'), el.dataset.slot); });
     el.addEventListener('click', () => { if (PATCH.sel) patchMove(PATCH.sel, el.dataset.slot); });
   });
+}
+/* בידוד קו: מציג על התכנית רק את הכבלים והרמקולים של הערוץ הזה */
+function patchSolo(key) {
+  PATCH.solo = PATCH.solo === key ? null : key;
+  patchHiClear();
+  if (PATCH.solo) {
+    (PATCH.slots[key] || []).forEach(id => patchHi(id, true));
+    const first = document.getElementById('nd_' + (PATCH.slots[key] || [])[0]);
+    if (first && first.scrollIntoView) first.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+  }
+  renderWires(); patchRender();
+  uiToast(PATCH.solo ? '👁 מוצג רק ' + key.split('|')[1] + ' OUT — לחץ שוב לביטול' : '👁 כל הקווים מוצגים');
 }
 /* תיקון נתוני המגבר מתוך עורך החיווט — נשמר לספריית המגברים ומשפיע על כל התכנון */
 function patchAmpSet(ai, field, val) {
@@ -5114,6 +5135,8 @@ function showCalDialog(px, p1, p2) {
       P.calLine = { p1, p2 }; /* קו הכיול נשאר על התכנית */
       recalcCableLengths();
       save();
+      uiToast('✓ כויל: ' + m.toFixed(2) + ' מ׳ = ' + Math.round(px) + 'px · 1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px — קו הייחוס מסומן על התכנית');
+      if (typeof WIZ !== 'undefined' && WIZ) wizRender();
     }
     render();
   };
@@ -6612,11 +6635,23 @@ function sendOffer() {
         const code = res.order_code || res.code || res.order?.code || '';
         const confirmUrl = res.confirmation_url || res.customer_confirmation_url || res.order?.confirmation_url || '';
         const projUrl = j.project_web_url || '';
-        out.innerHTML = '✅ ההצעה נוצרה ב-ERP' + (code ? ' — הזמנה <b>' + esc(code) + '</b>' : '') +
-          (j.note ? '<br><span style="color:#b7761f">ℹ ' + esc(j.note) + '</span>' : '') +
-          (projUrl ? '<br><a href="' + esc(projUrl) + '" target="_blank" rel="noopener">📂 פתח את הפרויקט ב-ERP</a>' : '') +
-          (confirmUrl ? '<br><a href="' + esc(confirmUrl) + '" target="_blank" rel="noopener">🔗 קישור אישור ללקוח</a>' : '') +
-          (j.skipped_without_key && j.skipped_without_key.length ? '<br>⚠️ ' + j.skipped_without_key.length + ' פריטים ללא מק"ט לא נכללו' : '');
+        const wa = confirmUrl ? 'https://wa.me/?text=' + encodeURIComponent(
+          'שלום! הצעת המחיר של KO מוכנה' + (code ? ' (הזמנה ' + code + ')' : '') +
+          '\nסה"כ: ₪' + Math.round(total).toLocaleString() + ' לפני מע"מ' +
+          '\nלצפייה ואישור: ' + confirmUrl) : '';
+        out.innerHTML = `<div style="background:#eef7f1;border:2px solid #0f6e56;border-radius:12px;padding:14px;margin-top:4px">
+          <div style="font-size:17px;font-weight:800;color:#0f6e56;margin-bottom:6px">✅ ההצעה נוצרה ב-ERP</div>
+          ${code ? '<div style="font-size:15px;margin-bottom:8px">הזמנה <b style="font-size:18px;letter-spacing:.5px">' + esc(code) + '</b></div>' : ''}
+          ${j.note ? '<div style="color:#b7761f;font-size:12px;margin-bottom:8px">ℹ ' + esc(j.note) + '</div>' : ''}
+          ${j.skipped_without_key && j.skipped_without_key.length ? '<div style="color:#c1121f;font-size:12px;margin-bottom:8px">⚠️ ' + j.skipped_without_key.length + ' פריטים ללא מק"ט לא נכללו</div>' : ''}
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${wa ? '<a href="' + esc(wa) + '" target="_blank" rel="noopener" style="flex:1;min-width:150px;text-align:center;background:#25D366;color:#fff;font-weight:800;font-size:14px;padding:11px;border-radius:10px;text-decoration:none">📲 שלח בוואטסאפ</a>' : ''}
+            ${confirmUrl ? '<button onclick="navigator.clipboard.writeText(\'' + esc(confirmUrl) + '\');uiToast(\'📋 קישור האישור הועתק\')" style="flex:1;min-width:120px;background:#fff;border:1px solid #bfe0cd;color:#0f6e56;font-weight:700;font-size:13px;padding:11px;border-radius:10px;cursor:pointer">📋 העתק קישור</button>' : ''}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+            ${projUrl ? '<a href="' + esc(projUrl) + '" target="_blank" rel="noopener" style="flex:1;min-width:130px;text-align:center;background:#fff;border:1px solid #ddd;padding:9px;border-radius:9px;text-decoration:none;font-size:12.5px">📂 פתח את הפרויקט ב-ERP</a>' : ''}
+            ${confirmUrl ? '<a href="' + esc(confirmUrl) + '" target="_blank" rel="noopener" style="flex:1;min-width:130px;text-align:center;background:#fff;border:1px solid #ddd;padding:9px;border-radius:9px;text-decoration:none;font-size:12.5px">🔗 פתח את דף האישור</a>' : ''}
+          </div></div>`;
         btn.textContent = '✓ נוצרה — נפתח ב-ERP';
         /* סימון הפרויקט: נשלחה הצעה + שיוך הלקוח (מוצג במנהל הפרויקטים) */
         P.offerSent = true;
