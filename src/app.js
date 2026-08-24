@@ -2518,6 +2518,24 @@ function renderWires() {
     pp.forEach((p, i) => out += `<circle cx="${p.x}" cy="${p.y}" r="${i === 0 ? 8 : 5}" fill="${i === 0 ? '#fff' : '#c96f4a'}" stroke="#c96f4a" stroke-width="2.5"/>`);
     if (zoneMode.cur) out += `<line x1="${pp[pp.length - 1].x}" y1="${pp[pp.length - 1].y}" x2="${zoneMode.cur.x}" y2="${zoneMode.cur.y}" stroke="#c96f4a" stroke-width="2" stroke-dasharray="4 4"/>`;
   }
+  /* תצוגה מקדימה של כיול מוצע — רואים על התכנית אם הרוחב הגיוני לפני שמאשרים */
+  if (window.__calPrev > 0 && P.bgW) {
+    const mPrev = window.__calPrev, sc = mPrev / P.bgW;
+    const bgEl2 = document.getElementById('bgimg');
+    const H2 = bgEl2 && bgEl2.offsetHeight ? bgEl2.offsetHeight : P.bgW * 0.6;
+    const yTop = Math.round(H2 * 0.14), fzp = Math.max(13, 20 / (getZ() || 1));
+    out += `<line x1="4" y1="${yTop}" x2="${P.bgW - 4}" y2="${yTop}" stroke="#534ab7" stroke-width="2.5" stroke-dasharray="9 6"/>
+      <line x1="4" y1="${yTop - 9}" x2="4" y2="${yTop + 9}" stroke="#534ab7" stroke-width="2.5"/>
+      <line x1="${P.bgW - 4}" y1="${yTop - 9}" x2="${P.bgW - 4}" y2="${yTop + 9}" stroke="#534ab7" stroke-width="2.5"/>`;
+    const t1 = 'רוחב מוצע: ' + mPrev.toFixed(1) + ' מ׳';
+    out += `<rect x="${P.bgW / 2 - t1.length * fzp * 0.34}" y="${yTop - fzp - 12}" width="${t1.length * fzp * 0.68}" height="${fzp + 10}" rx="6" fill="#534ab7"/>
+      <text x="${P.bgW / 2}" y="${yTop - 6}" text-anchor="middle" font-size="${fzp}" font-weight="800" fill="#fff">${t1}</text>`;
+    const barPx = 5 / sc, bx = P.bgW / 2 - barPx / 2, by = yTop + 46;
+    out += `<line x1="${bx}" y1="${by}" x2="${bx + barPx}" y2="${by}" stroke="#c9502e" stroke-width="4"/>
+      <line x1="${bx}" y1="${by - 8}" x2="${bx}" y2="${by + 8}" stroke="#c9502e" stroke-width="4"/>
+      <line x1="${bx + barPx}" y1="${by - 8}" x2="${bx + barPx}" y2="${by + 8}" stroke="#c9502e" stroke-width="4"/>
+      <text x="${bx + barPx / 2}" y="${by + fzp + 6}" text-anchor="middle" font-size="${fzp}" font-weight="800" fill="#c9502e">5 מ׳ — השווה לשולחן (1.5 מ׳) או לדלת (0.9 מ׳)</text>`;
+  }
   /* קו הכיול הקבוע — תזכורת קנה המידה על התכנית */
   if (P.calLine && P.scale && !calMode) {
     const { p1, p2 } = P.calLine;
@@ -3062,6 +3080,33 @@ function zoneDelayRef(z) {
 /* מרחק במטרים מנקודת הייחוס (0 כשאין כיול/ייחוס) */
 function delayDistM(n, ref) { return (ref && P.scale) ? Math.hypot(n.x - ref.x, n.y - ref.y) * P.scale : 0; }
 /* מקור עיקרי אמיתי לדיליי — במה/עמדת נגינה/DJ בלבד. ארון מגברים אינו מקור קול. */
+/* מעבר בין ארון משותף לארון ייעודי לאזור */
+function zoneOwnRack(zid, own) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  z._ownRack = own || undefined;
+  z._rackNodeId = undefined;
+  const rk = zoneRack(z);
+  save(); render();
+  uiToast(own ? '🗄 האזור יקבל ארון נפרד — ימוקם בבנייה הבאה' : '🗄 האזור משתמש בארון המשותף' + (rk ? ' "' + rk.name.slice(0, 20) + '"' : ''));
+}
+/* ארון ריכוז משותף: בפרויקט רב-אזורי המגברים והעיבוד יושבים בארון אחד.
+   מחזיר את ארון האזור, מאמץ ארון קיים כשיש, ויוצר חדש רק כשאין בכלל
+   (או כשהאזור סומן במפורש כדורש ארון נפרד — z._ownRack). */
+function zoneRack(z, mk) {
+  if (!z) return null;
+  let rk = z._rackNodeId && byId(z._rackNodeId);
+  if (rk) return rk;
+  if (!z._ownRack) {
+    const shared = (P.zones || []).map(x => (x !== z && x._rackNodeId) ? byId(x._rackNodeId) : null).find(Boolean)
+      || P.nodes.find(n => n.kind === 'rack');
+    if (shared) { z._rackNodeId = shared.id; return shared; }
+  }
+  if (!mk) return null;
+  rk = mk();
+  P.nodes.push(rk); z._rackNodeId = rk.id;
+  if ((P.zones || []).filter(x => x._rackNodeId).length <= 1) rk.name = 'ריכוז מגברים';
+  return rk;
+}
 function zoneSourceRef(z) {
   const inZ = n => z && (n.sub || '').includes(z.name);
   /* מיקרופון מדידה שהוצב ידנית גובר על הכול — זו הנקודה שממנה המתכנן רוצה לחשב */
@@ -5272,7 +5317,7 @@ document.addEventListener('pointerdown', e => {
     const z = (P.zones || []).find(x => x.id === window.__rackPlace.zid);
     window.__rackPlace = null;
     if (z) {
-      let rk = z._rackNodeId && byId(z._rackNodeId);
+      let rk = zoneRack(z);
       if (rk) { rk.x = 2200 - pt.x - 24; rk.y = pt.y - 24; }
       else { rk = { id: uid('n'), kind: 'rack', name: 'ריכוז מגברים · ' + z.name, sub: '', x: 2200 - pt.x - 24, y: pt.y - 24, ru: 12, units: [], min: true }; P.nodes.push(rk); z._rackNodeId = rk.id; }
       sel = rk.id; render(); save();
@@ -7121,6 +7166,14 @@ function zoneSystemBuilder(z) {
     <button style="width:100%;margin-bottom:2px;${(z._djInRack || (z._djNodeId && byId(z._djNodeId))) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__djPlace={zid:'${zid}'};const z2=(P.zones||[]).find(x=>x.id==='${zid}');if(z2)z2._djInRack=false;render();">1️⃣ 🎧 ${z._djInRack ? '✓ מחשב מוזיקה בריכוז — לחץ למיקום עמדה נפרדת' : z._djNodeId && byId(z._djNodeId) ? '✓ עמדת נגינה ממוקמת — לחץ למיקום מחדש' : 'מקם עמדת נגינה (DJ) — לחץ ואז על התכנית'}</button>
     <button style="width:100%;margin-bottom:6px;font-size:11px;${z._djInRack ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="const z2=(P.zones||[]).find(x=>x.id==='${zid}');if(z2){z2._djInRack=!z2._djInRack;render();save();}">🖥 ${z._djInRack ? '✓ ' : ''}המוזיקה ממחשב בתוך ריכוז המגברים (בלי עמדה בתכנית)</button>
     <button style="width:100%;margin-bottom:6px;${z._rackNodeId && byId(z._rackNodeId) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__rackPlace={zid:'${zid}'};render();">2️⃣ 🎚 ${z._rackNodeId && byId(z._rackNodeId) ? '✓ ריכוז מגברים ממוקם — לחץ למיקום מחדש' : 'מקם ריכוז ארון מגברים — לחץ ואז על התכנית'}</button>
+    ${(P.zones || []).length > 1 ? (() => {
+      const rkz = zoneRack(z);
+      const shared = rkz && (P.zones || []).filter(x => x._rackNodeId === rkz.id).length > 1;
+      return `<div style="font-size:11px;background:#f7f5f0;border-radius:8px;padding:6px 8px;margin-bottom:6px">
+        🗄 ${rkz ? 'ארון האזור: <b>' + esc(rkz.name.slice(0, 22)) + '</b>' + (shared ? ' · <b style="color:#0f6e56">משותף לכל האזורים</b>' : '') : 'טרם נקבע ארון'}
+        <label style="display:flex;gap:5px;align-items:center;margin-top:4px" title="כברירת מחדל כל האזורים חולקים ארון מגברים אחד"><input type="checkbox" style="width:auto" ${z._ownRack ? 'checked' : ''} onchange="zoneOwnRack('${zid}',this.checked)">ארון נפרד לאזור הזה</label>
+      </div>`;
+    })() : ''}
     ${(() => {
       /* קיטים למעלה: קטגוריות + חיפוש, יחד עם מוצרים */
       const kcat = z._kcat || '';
@@ -7430,12 +7483,11 @@ function buildZoneFromItems(zid) {
   let nRack = 0;
   const rackItems = impItems.filter(it => it.zones && it.zones[z.name] && /מגבר|פרוססור|amplifier|processor|קרוסאובר|מטריצ|matrix|DSP/i.test(it.name) && ((+it.qty || 1) - (it.placed || 0) > 0));
   if (rackItems.length) {
-    let rk = z._rackNodeId && byId(z._rackNodeId);
-    if (!rk) {
+    const rk = zoneRack(z, () => {
       const b2 = zoneBounds(z);
-      rk = { id: uid('n'), kind: 'rack', name: 'ריכוז מגברים · ' + z.name, sub: '', x: 2200 - (b2.L + b2.W + 90) - 24, y: b2.T, ru: 12, units: [], min: true };
-      P.nodes.push(rk); z._rackNodeId = rk.id; created.push(rk.id);
-    }
+      return { id: uid('n'), kind: 'rack', name: 'ריכוז מגברים · ' + z.name, sub: '', x: 2200 - (b2.L + b2.W + 90) - 24, y: b2.T, ru: 12, units: [], min: true };
+    });
+    if (rk && !created.includes(rk.id) && !P.cables.some(c => c.from === rk.id)) created.push(rk.id);
     for (const it of rackItems) {
       const q = Math.max(0, (+it.qty || 1) - (it.placed || 0));
       for (let k = 0; k < q; k++) {

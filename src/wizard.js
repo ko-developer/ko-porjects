@@ -126,10 +126,11 @@ function wizStepHTML(s) {
     ${P.scale ? `<div class="kpi" style="margin-bottom:7px"><div style="background:#eef7f1;outline:2px solid #0f6e56">
         <b style="color:#0f6e56">✓ מכויל</b><small>1 מ׳ = ${(1 / P.scale).toFixed(1)}px · רוחב התכנית ${(P.bgW * P.scale).toFixed(1)} מ׳${P.calLine ? ' · 📏 קו ייחוס על התכנית' : ''}</small></div></div>`
       : `<p class="hint">הדרך המהירה: הקלד את רוחב השטח המצולם במטרים. לדיוק מלא — שתי לחיצות על מידה ידועה בתכנית (מידות בתכנית בנייה בד"כ במ״מ: 23700 = 23.7 מ׳).</p>`}
-    ${twin ? `<button class="sec" style="background:#eef7f1;border-color:#bfe0cd;color:#0f6e56;font-weight:700" onclick="P.scale=${twin.scale};recalcCableLengths();save();render();wizRender();uiToast('✓ הועתק קנה המידה מהפרויקט \'${esc((twin.name || '').slice(0, 18)).replace(/'/g, '&#39;')}\'')">♻ אותה תכנית כויּלה כבר — השתמש (${guess} מ׳ רוחב)</button>` : ''}
-    <input id="wizWidthM" type="number" step="0.1" placeholder="רוחב התכנית במטרים (למשל 23.7)" value="${guess || ''}">
+    ${twin ? `<button class="sec" style="background:#eef7f1;border-color:#bfe0cd;color:#0f6e56;font-weight:700" onclick="wizCalPreview(${guess});P.scale=${twin.scale};recalcCableLengths();save();render();wizRender();uiToast('✓ הועתק קנה המידה מהפרויקט \'${esc((twin.name || '').slice(0, 18)).replace(/'/g, '&#39;')}\'')">♻ אותה תכנית כויּלה כבר — השתמש (${guess} מ׳ רוחב)</button>` : ''}
+    <input id="wizWidthM" type="number" step="0.1" placeholder="רוחב התכנית במטרים (למשל 23.7)" value="${guess || ''}" oninput="wizCalPreview(this.value)">
+    <p class="hint" style="margin:-2px 0 6px">📐 ההצעה מוצגת על התכנית — קו סגול ברוחב המלא וסרגל 5 מ׳ להשוואה מול שולחן או דלת.</p>
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px">
-      ${[8, 10, 12, 16, 20, 23.7, 30, 40].map(v => `<button class="sec" style="flex:1;min-width:52px;margin:0;padding:5px 4px;font-size:12px" onclick="document.getElementById('wizWidthM').value=${v};wizCalByWidth()">${v} מ׳</button>`).join('')}
+      ${[8, 10, 12, 16, 20, 23.7, 30, 40].map(v => `<button class="sec" style="flex:1;min-width:52px;margin:0;padding:5px 4px;font-size:12px" onclick="document.getElementById('wizWidthM').value=${v};wizCalPreview(${v})" ondblclick="wizCalByWidth()">${v} מ׳</button>`).join('')}
     </div>
     <button class="big" onclick="wizCalByWidth()">⚡ כייל לפי רוחב</button>
     <button class="sec" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
@@ -204,10 +205,17 @@ function wizUploadBg(inp) {
   r.readAsDataURL(f);
 }
 function wizNewProject() { newProj(); WIZ.step = 0; wizRender(); }
+/* תצוגה מקדימה של הכיול המוצע על התכנית (בלי לשנות עדיין את קנה המידה) */
+function wizCalPreview(v) {
+  const m = parseFloat(v);
+  window.__calPrev = (m > 0.5 && m < 500) ? m : 0;
+  renderWires();
+}
 function wizCalByWidth() {
   const m = parseFloat(document.getElementById('wizWidthM').value);
   if (!(m > 1)) { uiToast('הקלד רוחב במטרים'); return; }
   P.scale = m / (P.bgW || 1400);
+  window.__calPrev = 0; /* התצוגה המקדימה מתחלפת בקו הייחוס הקבוע */
   /* קו ייחוס אדום על התכנית — בודקים בעין מול חדר/דלת מוכרים שהכיול הגיוני */
   const w = P.bgW || 1400;
   const bgEl = document.getElementById('bgimg');
@@ -239,11 +247,11 @@ function wizBuildAll() {
   const z = wizZone(); if (!z) return;
   if (z._djInRack === undefined) z._djInRack = true;
   /* ארון ריכוז אוטומטי בפינת האזור אם אין */
-  if (!z._rackNodeId || !byId(z._rackNodeId)) {
+  /* ארון משותף לכל האזורים — נוצר חדש רק אם אין ארון בפרויקט */
+  zoneRack(z, () => {
     const b = zoneBounds(z);
-    const rk = { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: '', x: Math.max(10, 2200 - b.L - 60), y: Math.max(10, b.T - 10), ru: 12, units: [], min: true };
-    P.nodes.push(rk); z._rackNodeId = rk.id;
-  }
+    return { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: '', x: Math.max(10, 2200 - b.L - 60), y: Math.max(10, b.T - 10), ru: 12, units: [], min: true };
+  });
   window.__autoFlow = true;
   try {
     buildZoneSystem(z.id);
