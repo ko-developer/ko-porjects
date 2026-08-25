@@ -356,6 +356,11 @@ function stepPlan() {
       <div class="gstep ${CAL.pts.length === 1 ? 'now' : CAL.pts.length > 1 ? 'done' : ''}"><b>2</b><span>לחץ על הקצה השני</span></div>
       <div class="gstep ${CAL.pts.length === 2 ? 'now' : ''}"><b>3</b><span>הקלד כמה מטרים זה — בחלון שייפתח על התכנית</span></div>
     </div>
+    <div class="planops">
+      <button class="ghost" onclick="cropPlan()">✂️ הסר שוליים — תן לתכנית יותר מקום</button>
+      <input type="file" accept="image/*" id="planIn3" style="display:none" onchange="uploadPlan(this)">
+      <button class="ghost" onclick="document.getElementById('planIn3').click()">🔄 החלף תכנית</button>
+    </div>
     <details class="fallback"><summary>אין לי מידה מדויקת — אעריך את רוחב התכנית</summary>
       <p class="sub" style="margin:8px 0">בחר את הרוחב הכולל של מה שרואים בתכנית:</p>
       <div class="chips">${[6, 8, 10, 12, 15, 20, 25, 30, 40].map(v => `<button class="chip" onclick="setWidth(${v})">${v} מ׳</button>`).join('')}</div>
@@ -372,7 +377,18 @@ function stepPlan() {
       <div><b>${wM} מ׳</b><small>רוחב התכנית</small></div>
       <div><b>${(1 / S.scale).toFixed(0)}px</b><small>= מטר אחד</small></div>
     </div>
-    <button class="ghost wide" onclick="recalibrate()">↺ המידה לא נכונה — כייל מחדש</button>`,
+    <label class="fld"><span>גובה התקרה (מטרים) — קובע כמה רמקולים צריך</span>
+      <input type="number" step="0.1" min="2" max="12" value="${S.ceil}" oninput="S.ceil=+this.value||4;save()"></label>
+    ${(S.suggest || []).length ? `<div class="note ok">🤖 זיהינו <b>${S.suggest.length} חללים</b> בתכנית —
+      נציע אותם כאזורים בשלב הבא, ותוכל לתקן כל צורה.</div>` : ''}
+    <div class="planops">
+      <b>כלים לתכנית</b>
+      <button class="ghost" onclick="cropPlan()">✂️ הסר שוליים — תן לתכנית יותר מקום</button>
+      <button class="ghost" onclick="recalibrate()">↺ המידה לא נכונה — כייל מחדש</button>
+      <input type="file" accept="image/*" id="planIn2" style="display:none" onchange="uploadPlan(this)">
+      <button class="ghost" onclick="document.getElementById('planIn2').click()">🔄 החלף תכנית</button>
+    </div>
+    <div class="note">הצעד הבא: לסמן איפה צריך מוזיקה. אפשר צורה חופשית — כולל קשתות.</div>`,
     `<div class="rulerbox">
       <div class="rulerlbl">כך נראים <b>5 מטרים</b> בתכנית שלך — השווה לשולחן או לדלת בתכנית:</div>
       <div class="ruler" data-m="5"><span>5 מ׳</span></div>
@@ -397,7 +413,7 @@ function uploadPlan(inp) {
   const f = inp.files && inp.files[0]; if (!f) return;
   const r = new FileReader();
   r.onload = () => {
-    S.plan = r.result; S.zones = []; S.scale = null; S.suggest = null;
+    S.plan = r.result; S.zones = []; S.scale = null; S.suggest = null; S.cropDone = false;
     CAL.mode = 'two'; CAL.pts = [];
     save(); render();
     toast('📐 עכשיו סמן על התכנית מידה שאתה מכיר');
@@ -516,6 +532,8 @@ function afterPlan() {
   const fit = () => {
     const nat = img.naturalWidth || 1400;
     S.planW = 1400; S.planH = Math.round(1400 * (img.naturalHeight || 900) / nat);
+    /* חיתוך אוטומטי פעם אחת — לפני שיש כיול או אזורים */
+    if (!S.cropDone && !S.scale && !S.zones.length) { S.cropDone = true; if (cropPlan(true)) return; }
     drawPlan();
     sizeRulers();
     if (!S.zones.length) autoDetect(img);
@@ -523,6 +541,97 @@ function afterPlan() {
   addEventListener('resize', sizeRulers);
   if (img.complete) fit(); else img.onload = fit;
 }
+/* ---------- חיתוך שוליים: משאיר רק את התכנית עצמה ---------- */
+/* מזהים "תוכן" לפי כמות המעברים בהירות בשורה/בעמודה — כך שגם פס שחור אחיד
+   (סרגל של צילום מסך) וגם שוליים לבנים נחתכים, אבל קווי שרטוט נשמרים */
+function contentBox(img) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  if (!W || !H) return null;
+  const m = Math.min(1, 900 / Math.max(W, H));
+  const w = Math.max(8, Math.round(W * m)), h = Math.max(8, Math.round(H * m));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const cx = c.getContext('2d', { willReadFrequently: true });
+  cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
+  cx.drawImage(img, 0, 0, w, h);
+  let d;
+  try { d = cx.getImageData(0, 0, w, h).data; } catch (e) { return null; }
+  const lum = new Float32Array(w * h);
+  for (let i = 0, n = w * h; i < n; i++) lum[i] = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114;
+  /* מחלקים את הציר לקבוצות של "דיו" עם רווחים לבנים ביניהן, ולוקחים את הגוש
+     המשמעותי — כך פסי ממשק (שעה, שם קובץ, סרגל שיתוף) ושוליים ריקים יוצאים החוצה */
+  const band = (ink, n) => {
+    const gap = Math.max(4, Math.round(n * 0.02)), gs = [];
+    let cur = null, miss = 0;
+    for (let i = 0; i < n; i++) {
+      if (ink[i] > 0) { if (!cur) { cur = { a: i, b: i, ink: 0 }; gs.push(cur); } cur.b = i; cur.ink += ink[i]; miss = 0; }
+      else if (cur) { miss++; if (miss > gap) cur = null; }
+    }
+    if (!gs.length) return null;
+    const best = gs.reduce((p, g) => g.ink > p.ink ? g : p, gs[0]);
+    /* גושים נוספים בגודל משמעותי (חותמת שרטוט, מקרא) נשארים בפנים —
+       אבל פס דק של ממשק (שורת שעה או שם קובץ) לא */
+    const bestLen = best.b - best.a + 1;
+    const keep = gs.filter(g => g.ink >= best.ink * 0.2 && (g.b - g.a + 1) >= bestLen * 0.15);
+    return { a: Math.min.apply(null, keep.map(g => g.a)), b: Math.max.apply(null, keep.map(g => g.b)) };
+  };
+  /* "דיו" = מעברי בהירות, לא פיקסלים כהים — כך פס אחיד (שחור או צבעוני) שוקל אפס,
+     בעוד קווי שרטוט דקים נספרים במלואם */
+  const rowMin = Math.max(2, w * 0.004);
+  const rowInk = new Float64Array(h);
+  for (let y = 0; y < h; y++) {
+    let k = 0;
+    for (let x = 1; x < w; x++) if (Math.abs(lum[y * w + x] - lum[y * w + x - 1]) > 38) k++;
+    rowInk[y] = k >= rowMin ? k : 0;
+  }
+  const rb = band(rowInk, h);
+  if (!rb || rb.b - rb.a < h * 0.12) return null;
+  const bandH = rb.b - rb.a + 1, colMin = Math.max(2, bandH * 0.004);
+  const colInk = new Float64Array(w);
+  for (let x = 0; x < w; x++) {
+    let k = 0;
+    for (let y = rb.a + 1; y <= rb.b; y++) if (Math.abs(lum[y * w + x] - lum[(y - 1) * w + x]) > 38) k++;
+    colInk[x] = k >= colMin ? k : 0;
+  }
+  const cb = band(colInk, w);
+  if (!cb || cb.b - cb.a < w * 0.12) return null;
+  const pad = Math.round(Math.max(w, h) * 0.008);
+  const x0 = Math.max(0, cb.a - pad), y0 = Math.max(0, rb.a - pad);
+  const x1 = Math.min(w - 1, cb.b + pad), y1 = Math.min(h - 1, rb.b + pad);
+  const box = { x: x0 / m, y: y0 / m, w: (x1 - x0 + 1) / m, h: (y1 - y0 + 1) / m };
+  /* אם כמעט ולא נחתך משהו — לא נוגעים בתמונה */
+  if (box.w * box.h > W * H * 0.95) return null;
+  return box;
+}
+function cropPlan(silent) {
+  const img = $('#planImg');
+  if (!img || !img.complete) return false;
+  const box = contentBox(img);
+  if (!box) { if (!silent) toast('התכנית כבר תופסת את כל התמונה'); return false; }
+  const c = document.createElement('canvas');
+  c.width = Math.round(box.w); c.height = Math.round(box.h);
+  const cx = c.getContext('2d');
+  cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+  cx.drawImage(img, -box.x, -box.y);
+  const png = (S.plan || '').startsWith('data:image/png');
+  let out;
+  try { out = c.toDataURL(png ? 'image/png' : 'image/jpeg', 0.92); } catch (e) { return false; }
+  /* המרת כל הקואורדינטות למערכת החדשה */
+  const W = img.naturalWidth, k = W / box.w, offX = box.x * 1400 / W, offY = box.y * 1400 / W;
+  const map = pt => { pt.x = (pt.x - offX) * k; pt.y = (pt.y - offY) * k; };
+  S.zones.forEach(z => {
+    (z.poly || []).forEach(map);
+    map(z); z.w *= k; z.h *= k;
+  });
+  (S.suggest || []).forEach(r => { map(r); r.w *= k; r.h *= k; });
+  if (S.scale) S.scale = S.scale / k;
+  S.layout = null; S.wireEdits = null;
+  S.plan = out; S.planH = Math.round(1400 * box.h / box.w); S.cropDone = true;
+  CAL.pts = [];
+  save(); render();
+  if (!silent) toast('✂️ השוליים הוסרו — התכנית גדולה יותר');
+  return true;
+}
+
 /* הסרגלים נמדדים מול רוחב התכנית כפי שהיא מוצגת בפועל */
 function sizeRulers() {
   const img = $('#planImg'); if (!img || !S.scale) return;
