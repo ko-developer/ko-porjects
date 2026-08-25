@@ -6,7 +6,6 @@
 /*__DATA:ERP_ITEMS__*/
 /*__DATA:ERP_PRICES__*/
 /*__DATA:ERP_IMAGES__*/
-/*__DATA:ERP_KITS__*/
 
 const $ = s => document.querySelector(s);
 const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -85,31 +84,6 @@ function planZone(zone, tier, ceil, scale) {
     needW, splTarget: zone.spl, ok: capability >= zone.spl + 3, wPer, onCeil,
     dz: onCeil ? Math.max(1.2, (ceil || 3) - 1.2) : Math.max(0.6, (ceil || 3) - 0.4 - 1.2),
     grid: onCeil ? { cols: gcols, rows: grows } : null };
-}
-/* ---------- למידה מהקיטים: מה הולך עם מה ---------- */
-/* הקיטים ב-ERP הם הידע המצטבר של החברה — מהם לומדים אילו מגבר/סאב משתלבים עם כל רמקול */
-let KITPAIR = null;
-function kitPairs() {
-  if (KITPAIR) return KITPAIR;
-  KITPAIR = { amp: {}, sub: {} };
-  const SPK = /רמקול|סאב/i, AMP = /מגבר|amplifier/i, SUB = /סאב|\bsub\b/i;
-  const NOT = /מתקן|תושבת|כבל|מחבר|ערכת|כרטיס|מדף|כיסוי/i;
-  (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).forEach(k => {
-    const its = (k.items || []).filter(i => i.name && i.key);
-    const tops = its.filter(i => SPK.test(i.name) && !SUB.test(i.name) && !NOT.test(i.name));
-    const amps = its.filter(i => AMP.test(i.name) && !NOT.test(i.name));
-    const subs = its.filter(i => SUB.test(i.name) && !NOT.test(i.name));
-    tops.forEach(t => {
-      amps.forEach(a => { (KITPAIR.amp[t.key] = KITPAIR.amp[t.key] || {})[a.key] = (KITPAIR.amp[t.key][a.key] || 0) + 1; });
-      subs.forEach(b => { (KITPAIR.sub[t.key] = KITPAIR.sub[t.key] || {})[b.key] = (KITPAIR.sub[t.key][b.key] || 0) + 1; });
-    });
-  });
-  return KITPAIR;
-}
-/* האם הזיווג שבחרנו מגובה בקיטים של החברה */
-function kitBacked(spkKey, otherKey, kind) {
-  const m = kitPairs()[kind][spkKey];
-  return !!(m && m[otherKey]);
 }
 /* כמה רמקולים אפשר לתלות על ערוץ אחד של המגבר — חוק אום + בדיקת הספק.
    זה מה שמבדיל הצעה יעילה מהצעה שמבזבזת מגברים: מגבר שיציב ב-2Ω יכול לשאת
@@ -213,12 +187,10 @@ function buildProposal(tier) {
         + grp.reduce((k, { p }) => k + p.subs, 0), 0);
     const n = Math.max(1, Math.ceil(chNeeded / (a.ch || 2)));
     /* ציון: עלות אמיתית · בונוס לזיווג מהקיטים · קנס ככל שמתרחקים מיחס ×2 */
-    const kitBonus = kitBacked(mainSpk.key, a.key, 'amp') ? 0.9 : 1;
     const pwrPenalty = cap.ok ? 1 + Math.min(0.25, Math.abs(cap.ratio - PWR_TARGET) * 0.06) : 2.5;
-    const cost = n * a.price * kitBonus * pwrPenalty;
+    const cost = n * a.price * pwrPenalty;
     if (cost < bestCost) { bestCost = cost; amp = a; ampN = n; perCh = cap.n; pwrRatio = cap.ratio; pwrOk = cap.ok; }
   });
-  const ampFromKit = kitBacked(mainSpk.key, amp.key, 'amp');
   const lines = (tier.cut >= 2 ? chanGroups(zones, tier.cut) : zones.map(x => [x]))
     .reduce((n2, grp) => n2 + Math.ceil(grp.reduce((k, { p }) => k + p.n, 0) / perCh)
       + grp.reduce((k, { p }) => k + p.subs, 0), 0);
@@ -267,7 +239,7 @@ function buildProposal(tier) {
   const hours = (45 + totalSpk * 30 + totalSub * 15 + ampN * 30 + 45 * S.zones.length) / 60;
   const days = Math.max(1, Math.ceil(hours / 8));
   return { tier, zones, rows, inst, equip, install, days, hours, total: equip + install,
-    totalSpk, totalSub, ampN, amp, perCh, pwrRatio, pwrOk, lines, meters, sub, bigSub, ampFromKit, mainSpk, util: Math.round(totalSpk / Math.max(1, ampN * (amp.ch || 2) * perCh) * 100) };
+    totalSpk, totalSub, ampN, amp, perCh, pwrRatio, pwrOk, lines, meters, sub, bigSub, mainSpk, util: Math.round(totalSpk / Math.max(1, ampN * (amp.ch || 2) * perCh) * 100) };
 }
 function erpItem(key) {
   const r = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).find(x => x[0] === key);
@@ -489,7 +461,7 @@ function planBoxHTML() {
 }
 function recalibrate() { S.scale = null; CAL.mode = 'two'; CAL.pts = []; save(); render(); toast('סמן שוב 2 נקודות על התכנית'); }
 const CAL = { mode: 'two', pts: [] };
-const DRAW = { on: false, from: null, cur: null, pts: [] };
+const DRAW = { on: false, from: null, cur: null, pts: [], purpose: null };
 function calMode(m) { CAL.mode = m; CAL.pts = []; render(); }
 function uploadPlan(inp) {
   const f = inp.files && inp.files[0]; if (!f) return;
@@ -557,20 +529,37 @@ function calPopup() {
   wrap.appendChild(pop);
   setTimeout(() => { const i = document.getElementById('calDist'); if (i) i.focus(); }, 30);
 }
-function startDrawZone(mode) {
+function startDrawZone(mode, purpose) {
   DRAW.on = mode || 'poly'; DRAW.from = null; DRAW.cur = null; DRAW.pts = [];
+  DRAW.purpose = purpose || null;                      /* ייעוד שנבחר מראש */
   render();
-  toast(DRAW.on === 'poly' ? '✏️ לחץ על פינות האזור — לחיצה על הנקודה הראשונה סוגרת (או דאבל-קליק)'
+  const q = purpose && LITE_CATALOG.zonePurposes.find(x => x.id === purpose);
+  toast(q ? `${q.icon} סמן על התכנית איפה ${q.name} — הייעוד כבר מוגדר`
+    : DRAW.on === 'poly' ? '✏️ לחץ על פינות האזור — לחיצה על הנקודה הראשונה סוגרת (או דאבל-קליק)'
     : '▭ גרור על התכנית מפינה לפינה');
+}
+/* אזור חדש: אם נבחר ייעוד מראש — מחילים אותו מיד ומדלגים על השאלה */
+function newZone(z) {
+  const pid = DRAW.purpose;
+  if (pid) {
+    const q = LITE_CATALOG.zonePurposes.find(x => x.id === pid);
+    z.purpose = pid;
+    z.name = q ? q.name : z.name;
+    z.spl = q ? (pid === 'dance' || pid === 'stage' ? Math.max(q.spl, usePeak()) : q.spl) : z.spl;
+    z.mount = (pid === 'toilets' || pid === 'entry') ? 'ceil' : 'wall';
+  }
+  S.zones.push(z);
+  S.layout = null;
+  DRAW.purpose = null;
+  save();
+  toast(pid ? '✓ האזור נוסף ומוגדר' : '✓ האזור סומן — עכשיו בחר מה קורה בו');
 }
 function finishPoly() {
   if (DRAW.pts.length >= 3) {
     const poly = DRAW.pts.slice();
     const xs = poly.map(p => p.x), ys = poly.map(p => p.y);
-    S.zones.push({ id: uid(), name: 'אזור ' + (S.zones.length + 1), purpose: null, spl: usePeak(),
+    newZone({ id: uid(), name: 'אזור ' + (S.zones.length + 1), purpose: null, spl: usePeak(),
       poly, x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) });
-    save();
-    toast('✓ האזור סומן — עכשיו בחר מה קורה בו');
   } else toast('צריך לפחות 3 פינות');
   DRAW.on = false; DRAW.pts = []; DRAW.cur = null;
   render();
@@ -611,9 +600,8 @@ function bindDrawZone() {
       const a = DRAW.from, b = DRAW.cur;
       DRAW.on = false; DRAW.from = DRAW.cur = null;
       if (a && b && Math.abs(b.x - a.x) > 30 && Math.abs(b.y - a.y) > 30) {
-        S.zones.push({ id: uid(), name: 'אזור ' + (S.zones.length + 1), purpose: null, spl: usePeak(),
+        newZone({ id: uid(), name: 'אזור ' + (S.zones.length + 1), purpose: null, spl: usePeak(),
           x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) });
-        save(); toast('✓ האזור סומן — עכשיו בחר מה קורה בו');
       } else toast('האזור קטן מדי — נסה שוב');
       render();
     };
@@ -1007,6 +995,7 @@ function stepZones() {
     <span>✥ <b>גוף האזור</b> — גרור להזזת הצורה כולה</span>
   </div>
   ${DRAW.on ? drawHint() : ''}
+  ${forgotHTML()}
   <div class="zlist">${zs.map((z, i) => {
     const p = purposeOf(z), pl = S.scale ? planZone(z, LITE_CATALOG.tiers[1], S.ceil, S.scale) : null;
     return `<div class="zcard" style="border-right:6px solid ${p.color}">
@@ -1061,6 +1050,31 @@ function stepZones() {
     • באזור ישיבה מוזיקה חזקה מדי גורמת לאנשים לצעוק — ולעזוב מוקדם.<br>
     • ברחבה מוזיקה חלשה מדי הורגת את האנרגיה.<br>
     • חלוקה מאפשרת להנמיך בישיבה בלי לגעת ברחבה.</div>` : ''}`);
+}
+/* אזורים שקל לשכוח — שירותים, חוץ, כניסה. מוצעים לפי סוג המקום, ורק אם עוד לא סומנו */
+const FORGOT = {
+  toilets: 'כמעט תמיד רוצים שם מוזיקה — ובלעדיה השירותים מרגישים נטושים',
+  outdoor: 'מרפסת או חצר צריכות רמקול מוגן מים משלהן',
+  entry:   'הכניסה היא הרושם הראשון — ושם המוזיקה חלשה יותר',
+  bar:     'הבר תמיד רוצה קצת יותר עוצמה מהישיבה'
+};
+function forgotHTML() {
+  const used = new Set(S.zones.map(z => z.purpose).filter(Boolean));
+  const v = LITE_CATALOG.venues.find(x => x.id === S.venue) || {};
+  const list = Object.keys(FORGOT).filter(id => !used.has(id))
+    .filter(id => id !== 'outdoor' || !/office|store/.test(v.id || ''));
+  if (!list.length || !S.zones.length) return '';
+  return `<div class="forgot">
+    <b>💡 אל תשכח אזור</b>
+    <div class="fgrid">${list.map(id => {
+      const q = LITE_CATALOG.zonePurposes.find(x => x.id === id) || {};
+      return `<button class="fbtn" onclick="startDrawZone('poly','${id}')">
+        <span class="fic">${q.icon || '＋'}</span>
+        <span><b>${esc(q.name || id)}</b><small>${esc(FORGOT[id])}</small></span>
+        <span class="fdb">${q.spl} dB</span></button>`;
+    }).join('')}</div>
+    <small class="fnote">לחיצה פותחת סימון על התכנית — הייעוד כבר מוגדר, רק לסמן איפה.</small>
+  </div>`;
 }
 function drawHint() {
   return DRAW.on === 'poly'
@@ -1210,7 +1224,7 @@ function stepOffers() {
       </div>
       <div class="ampline">🎚 ${p.ampN}× ${esc(p.amp.name.slice(0, 26))} · ${p.perCh} רמקולים לערוץ · ניצול ${p.util}%
         <br><b style="color:${p.pwrOk ? '#0f6e56' : '#c1121f'}">×${p.pwrRatio} הספק מגבר מול הרמקולים</b> — היעד ×2, מרווח לפסגות בלי קליפ
-        ${p.ampFromKit ? '<br>✓ שילוב מוכח — מופיע יחד בקיטים שלנו' : ''}</div>
+</div>
       <div class="prods">${prodCards(p)}</div>
       <details class="incl"><summary>מה כלול בדיוק — ${p.rows.length} פריטי ציוד + ${p.inst.length} שורות התקנה</summary>
         <table class="inclt"><tr><th>ציוד</th><th>כמות</th><th>סה"כ</th></tr>

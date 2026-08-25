@@ -243,6 +243,17 @@ button{font-family:inherit;cursor:pointer;border:none}
 .scale{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:4px}
 .scale .sb{color:#fff;font-size:10.5px;font-weight:800;padding:3px 7px;border-radius:5px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .scale b{font-size:11px;color:var(--muted);margin-right:4px}
+.forgot{background:#fff;border:1px solid var(--line);border-right:5px solid var(--violet);border-radius:14px;padding:12px;margin:10px 0}
+.forgot>b{font-size:13px;color:var(--ink);display:block;margin-bottom:8px}
+.fgrid{display:flex;flex-direction:column;gap:6px}
+.fbtn{display:flex;align-items:center;gap:9px;width:100%;text-align:right;background:#faf8f4;border:1px solid var(--line);
+  border-radius:11px;padding:8px 10px;cursor:pointer;font:inherit;color:var(--ink)}
+.fbtn:hover{border-color:var(--violet);background:#f6f4ff}
+.fbtn .fic{font-size:20px;flex:none}
+.fbtn b{display:block;font-size:13px}
+.fbtn small{display:block;font-size:11px;color:var(--muted);line-height:1.35}
+.fbtn .fdb{margin-right:auto;font-size:11px;font-weight:800;color:var(--muted);white-space:nowrap}
+.fnote{display:block;margin-top:7px;font-size:11px;color:var(--muted)}
 #toasts{position:fixed;bottom:86px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;width:min(420px,92vw)}
 .toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;font-size:13.5px;box-shadow:0 8px 26px rgba(0,0,0,.3)}
 @media print{header,#steps,#nav,.ract,#toasts,.navhint{display:none!important}.wb{display:block}.wb .wbplan{position:static}main{padding:0;max-width:none}#report{border:none;padding:0}}
