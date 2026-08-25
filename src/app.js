@@ -299,6 +299,67 @@ function unitOpts(nodeId, selId) {
 }
 function uid(pre) { return pre + Date.now().toString(36) + (++cnt); }
 
+/* ---------- ייבוא פרויקט מ-KO Studio ---------- */
+/* Studio אורז את הפרויקט ל-localStorage.koHandoff ופותח את הדף הזה.
+   כאן שואלים פעם אחת ומייבאים: תכנית+כיול, אזורים (כולל פוליגונים),
+   רמקולים וסאבים כנקודות ממוקמות, ארון עם המגברים, ורשימת הציוד המלאה. */
+async function checkStudioHandoff() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem('koHandoff') || 'null'); } catch (e) {}
+  if (!d || d.v !== 1) return;
+  localStorage.removeItem('koHandoff');
+  if (!await uiConfirm(`🎧 התקבל פרויקט מ-KO Studio: "${d.name}" (${d.tier || ''} · ₪${(d.total || 0).toLocaleString()}).\nלייבא אותו כפרויקט חדש?`)) return;
+  importStudioProject(d);
+}
+function importStudioProject(d) {
+  /* קואורדינטות: התכנית ב-Studio רחבה 1400px בדיוק כמו bgW כאן, והקנבס 2200
+     במהופך — canvasX = 2200 − nodeX − 20 (המוסכמה של כל הנקודות באפליקציה) */
+  const toNodeX = cx => 2200 - cx - 20, toNodeY = cy => cy - 24;
+  const p = { id: uid('p'), name: '🎧 ' + (d.name || 'מ-KO Studio'), nodes: [], cables: [], route: 'ortho',
+    bgW: d.planW || 1400, bgOp: 0.5, scale: d.scale || null, zones: [] };
+  if (d.plan) p.bg = d.plan;
+  (d.zones || []).forEach(z => p.zones.push({ id: uid('z'), name: z.name || 'אזור', usage: z.purpose || '',
+    spl: z.spl, x: z.x, y: z.y, w: z.w, h: z.h,
+    poly: z.poly && z.poly.length >= 3 ? z.poly.map(pt => ({ x: pt.x, y: pt.y })) : undefined }));
+  /* רשימת הציוד של ההצעה שנבחרה */
+  const items = (d.items || []).map(r => {
+    const it = { on: true, qty: r.qty, name: r.name, key: r.key, price: r.price,
+      src: 'KO Studio · ' + (d.tier || ''), dest: 'point', cat: 'other', u: 1, iid: uid('i') };
+    autoPrice(it); return it;
+  });
+  const iidOf = key => (items.find(i => i.key === key) || {}).iid;
+  /* הרמקולים והסאבים — בדיוק במקומות שנקבעו ב-Studio, כולל כיוון והתקנה */
+  const byZone = {};
+  (d.speakers || []).forEach(sp => {
+    const n = (byZone[sp.zone] = (byZone[sp.zone] || 0) + 1);
+    p.nodes.push({ id: uid('n'), kind: 'point', name: (sp.name || 'רמקול') + ' (' + n + ')',
+      sub: (sp.ceil ? 'שקוע בתקרה' : 'קיר') + ' · ' + (sp.zone || ''),
+      x: toNodeX(sp.x), y: toNodeY(sp.y), srcIid: iidOf(sp.key), mini: true,
+      mount: sp.ceil ? 'שקוע בתקרה' : 'קיר בלוק', hgt: sp.ceil ? (d.ceil || 4) : Math.max(2, (d.ceil || 4) - 0.4),
+      aim: sp.aim != null && sp.aim >= 0 ? Math.round(sp.aim) : undefined,
+      disp: sp.ceil ? 360 : (sp.disp || 90), spl: sp.spl });
+  });
+  (d.subs || []).forEach((sp, i) => p.nodes.push({ id: uid('n'), kind: 'point',
+    name: (sp.name || 'סאב') + ' (' + (i + 1) + ')', sub: 'סאב · ' + (sp.zone || ''),
+    x: toNodeX(sp.x), y: toNodeY(sp.y), srcIid: iidOf(sp.key), mini: true,
+    mount: 'רצפה', hgt: 0, disp: 360 }));
+  /* הארון — במיקום שנקבע, עם המגברים כיחידות */
+  if (d.rack) {
+    const units = [];
+    let pos = 0;
+    (d.amps || []).forEach(a => { for (let i = 0; i < (a.qty || 1); i++) { units.push({ id: uid('u'), name: a.name + ((a.qty || 1) > 1 ? ` (${i + 1})` : ''), u: 2, cat: 'amp', pos }); pos += 2; } });
+    p.nodes.push({ id: uid('n'), kind: 'rack', name: 'ארון ציוד', sub: 'מ-KO Studio',
+      x: toNodeX(d.rack.x + 40), y: Math.max(10, toNodeY(d.rack.y)), ru: Math.max(8, pos + 4), units });
+  }
+  p.impSaved = items;
+  ensureStock(p);
+  store.projects.push(p);
+  P = p; sel = null; selCable = null;
+  impItems.length = 0; impItems.push(...items);
+  render();
+  if (typeof fitView === 'function') fitView();
+  uiToast('🎧 יובא מ-KO Studio: תכנית, ' + p.zones.length + ' אזורים, ' + p.nodes.length + ' נקודות ורשימת ציוד מלאה');
+}
 function newProj() { const p = { id: uid('p'), name: 'פרויקט חדש', nodes: [], cables: [], route: 'ortho' }; ensureStock(p); store.projects.push(p); P = p; sel = selCable = null; impItems = []; render(); }
 function dupProj() { const p = JSON.parse(JSON.stringify(P)); p.id = uid('p'); p.name = P.name + ' (עותק)'; store.projects.push(p); P = p; sel = selCable = null; render(); }
 async function delProj() {
@@ -8537,3 +8598,4 @@ render();
 /* מצב פתיחה נכנס להיסטוריה מיד, אחרת אין לאן לחזור בביטול הראשון */
 HIST.past.push(snapProject());
 renderHistBtns();
+checkStudioHandoff();

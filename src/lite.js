@@ -1814,6 +1814,7 @@ function stepReport() {
   </div>
   <div class="ract">
     <button class="go" onclick="window.print()">🖨 הדפס / שמור PDF</button>
+    <button class="ghost pro" onclick="sendToPro()" title="ממשיך את התכנון בכלי המקצועי: תכנית, כיול, אזורים, רמקולים ורשימת ציוד">🛠 פתח ב-KO Projects</button>
     <button class="ghost" onclick="shareReport()">📲 שתף</button>
     <button class="ghost" onclick="resetLayout()">↺ אפס פריסה</button>
     <button class="ghost" onclick="go(4)">▶ חזרה להצעות</button>
@@ -1976,6 +1977,36 @@ function afterReport() {
       document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
     });
   });
+}
+/* אריזת הפרויקט להמשך עבודה ב-KO Projects: תכנית + כיול + אזורים + פריסת
+   הרמקולים + הארון + רשימת הציוד של ההצעה שנבחרה — דרך localStorage משותף */
+function sendToPro() {
+  const tier = selTier();
+  const p = buildProposal(tier);
+  const L = ensureLayout(p);
+  calibrateLevels(p);
+  const payload = {
+    v: 1, name: S.name || 'פרויקט מ-KO Studio', tier: tier.name, total: p.total,
+    plan: S.plan || null, planW: S.planW || 1400, planH: S.planH || 900,
+    scale: S.scale || null, ceil: S.ceil, rack: rackPoint(),
+    zones: S.zones.map(z => ({ name: z.name, purpose: purposeOf(z).name, spl: z.spl,
+      x: z.x, y: z.y, w: z.w, h: z.h,
+      poly: z.poly ? zoneOutline(z).map(pt => ({ x: +pt.x.toFixed(1), y: +pt.y.toFixed(1) })) : null })),
+    speakers: [], subs: [],
+    amps: p.rows.filter(r => r.note === 'הגברה' || r.note === 'ניתוב תוכן').map(r => ({ name: r.name, qty: r.qty })),
+    items: p.rows.map(r => ({ key: r.key, name: r.name, qty: r.qty, price: r.price, note: r.note }))
+  };
+  p.zones.forEach(({ z, p: pz }) => {
+    ((L[z.id] || {}).spk || []).forEach(pt => payload.speakers.push({
+      x: +pt.x.toFixed(1), y: +pt.y.toFixed(1), aim: pt.aim, name: pz.spk.name, key: pz.spk.key,
+      zone: z.name, spl: Math.round(pz.capability), disp: pz.spk.h || 90, ceil: !!pz.onCeil }));
+    ((L[z.id] || {}).subs || []).forEach(pt => payload.subs.push({
+      x: +pt.x.toFixed(1), y: +pt.y.toFixed(1), name: p.sub.name, key: p.sub.key, zone: z.name }));
+  });
+  try { localStorage.setItem('koHandoff', JSON.stringify(payload)); }
+  catch (e) { toast('התכנית כבדה מדי להעברה — נסה להסיר שוליים קודם'); return; }
+  toast('📦 הפרויקט נארז — KO Projects נפתח ומציע לייבא אותו');
+  window.open(location.protocol === 'file:' ? 'index.html' : '/', '_blank', 'noopener');
 }
 function shareReport() {
   const tier = selTier();
