@@ -18,7 +18,7 @@ const LS = 'koStudio_v1';
 let S = {
   step: 0, venue: null, uses: [], name: '',
   plan: null, planW: 1400, planH: 900, scale: null,   /* מטרים לפיקסל */
-  roomW: null, roomL: null, ceil: 3,
+  roomW: null, roomL: null, ceil: 4,
   zones: [],            /* {id,name,purpose,x,y,w,h,spl} — במרחב התכנית */
   budget: null, tier: null, contact: {}
 };
@@ -36,14 +36,15 @@ function spacing(spk, ceil, density) {
 }
 /* כמה רמקולים דרושים לאזור, ומה ה-SPL הצפוי */
 function planZone(zone, tier, ceil, scale) {
-  const wM = zone.w * scale, hM = zone.h * scale, area = wM * hM;
+  const b = zoneBox(zone);
+  const wM = b.w * scale, hM = b.h * scale, area = zoneAreaPx(zone) * scale * scale;
   const loud = zone.spl >= 95, mid = zone.spl >= 85;
   const spk = loud && tier.spkBig ? tier.spkBig : tier.spk;
   /* צפיפות: רחבה = כיסוי צמוד ואחיד · רקע = פחות נקודות, מרווח גדול יותר */
   const dens = loud ? 0.8 : mid ? 1.1 : 1.5;
   const sp = spacing(spk, ceil, dens);
   /* פריסה היקפית: מספר עמדות סביב האזור לפי ההיקף והמרווח */
-  const perim = 2 * (wM + hM);
+  const perim = zonePerimPx(zone) * scale;
   let n = Math.max(2, Math.ceil(perim / sp));
   if (n % 2) n++;                                            /* זוגי — סימטרי ונוח לחיווט */
   n = Math.min(n, 24);
@@ -122,7 +123,7 @@ function pickSub(tier, zones, scale) {
 }
 /* בניית הצעה מלאה לשכבה */
 function buildProposal(tier) {
-  const scale = S.scale || 0.02, ceil = S.ceil || 3;
+  const scale = S.scale || 0.02, ceil = S.ceil || 4;
   const zones = S.zones.map(z => ({ z, p: planZone(z, tier, ceil, scale) }));
   const spkCount = {}, add = (k, n) => spkCount[k] = (spkCount[k] || 0) + n;
   let totalSpk = 0, totalSub = 0;
@@ -313,7 +314,7 @@ function stepUse() {
       : peak >= 85 ? 'רמת בר: מוזיקה נוכחת בלי לצעוק, עם אפשרות להגביר בסופ״ש.'
       : 'רקע נעים: מערכת מבוזרת שנשמעת אחיד בכל פינה בלי נקודות חזקות.'}</div>` : ''}
   <label class="fld"><span>גובה התקרה (מטרים)</span>
-    <input type="number" step="0.1" min="2" max="12" value="${S.ceil}" oninput="S.ceil=+this.value||3;save()"></label>`;
+    <input type="number" step="0.1" min="2" max="12" value="${S.ceil}" oninput="S.ceil=+this.value||4;save()"></label>`;
 }
 function toggleUse(id) { S.uses.includes(id) ? S.uses = S.uses.filter(x => x !== id) : S.uses.push(id); save(); render(); }
 function usePeak() { return Math.max(70, ...S.uses.map(id => (USES.find(u => u.id === id) || {}).spl || 0)); }
@@ -384,13 +385,41 @@ function buildFromDims() {
   save(); go(3);
 }
 const CAL = { mode: 'width', pts: [] };
-const DRAW = { on: false, from: null, cur: null };
-function startDrawZone() { DRAW.on = true; DRAW.from = null; DRAW.cur = null; render(); toast('✏️ גרור על התכנית מפינה לפינה'); }
+const DRAW = { on: false, from: null, cur: null, pts: [] };
+function startDrawZone(mode) {
+  DRAW.on = mode || 'poly'; DRAW.from = null; DRAW.cur = null; DRAW.pts = [];
+  render();
+  toast(DRAW.on === 'poly' ? '✏️ לחץ על פינות האזור — לחיצה על הנקודה הראשונה סוגרת (או דאבל-קליק)'
+    : '▭ גרור על התכנית מפינה לפינה');
+}
+function finishPoly() {
+  if (DRAW.pts.length >= 3) {
+    const poly = DRAW.pts.slice();
+    const xs = poly.map(p => p.x), ys = poly.map(p => p.y);
+    S.zones.push({ id: uid(), name: 'אזור ' + (S.zones.length + 1), purpose: defaultPurpose(), spl: usePeak(),
+      poly, x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) });
+    save();
+    toast('✓ האזור נוסף — ' + poly.length + ' פינות · ' + Math.round(zoneAreaPx(S.zones[S.zones.length - 1]) * (S.scale || 0) ** 2) + ' מ"ר');
+  } else toast('צריך לפחות 3 פינות');
+  DRAW.on = false; DRAW.pts = []; DRAW.cur = null;
+  render();
+}
 /* ציור אזור בגרירה — האזור נוצר בדיוק במקום שסומן */
 function bindDrawZone() {
   const svg = $('#planSvg'); if (!svg || !DRAW.on) return;
   svg.style.cursor = 'crosshair';
   const toPlan = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * S.planW, y: (e.clientY - r.top) / r.height * (S.planH || 900) }; };
+  if (DRAW.on === 'poly') {
+    svg.onclick = e => {
+      const p = toPlan(e);
+      /* לחיצה על הנקודה הראשונה סוגרת את הצורה */
+      if (DRAW.pts.length >= 3 && Math.hypot(p.x - DRAW.pts[0].x, p.y - DRAW.pts[0].y) < 26) return finishPoly();
+      DRAW.pts.push(p); drawPlan();
+    };
+    svg.ondblclick = () => finishPoly();
+    svg.onpointermove = e => { DRAW.cur = toPlan(e); drawPlan(); };
+    return;
+  }
   svg.onpointerdown = e => {
     DRAW.from = toPlan(e); DRAW.cur = DRAW.from;
     const mv = ev => { DRAW.cur = toPlan(ev); drawPlan(); };
@@ -486,17 +515,30 @@ function drawPlan() {
       <text x="${w / 2}" y="${y + 70}" text-anchor="middle" font-size="22" font-weight="800" fill="#ff6a3d">5 מ׳</text>`;
   }
   S.zones.forEach((z, i) => {
-    const p = purposeOf(z);
+    const p = purposeOf(z), b = zoneBox(z);
     out += `<g data-zone="${i}" style="cursor:move">
-      <rect x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" fill="${p.color}22" stroke="${p.color}" stroke-width="4" rx="10"/>
-      <circle cx="${z.x + 30}" cy="${z.y + 30}" r="22" fill="${p.color}"/>
-      <text x="${z.x + 30}" y="${z.y + 39}" text-anchor="middle" font-size="26" font-weight="900" fill="#fff">${i + 1}</text>
-      <text x="${z.x + 62}" y="${z.y + 39}" font-size="26" font-weight="800" fill="${p.color}">${p.icon} ${esc(z.name)}</text>
-      ${S.scale ? `<text x="${z.x + 62}" y="${z.y + 66}" font-size="20" fill="${p.color}">${(z.w * S.scale).toFixed(1)}×${(z.h * S.scale).toFixed(1)} מ׳ · ${Math.round(z.w * z.h * S.scale * S.scale)} מ"ר</text>` : ''}
+      <path d="${zonePath(z)}" fill="${p.color}22" stroke="${p.color}" stroke-width="4" stroke-linejoin="round"/>
+      <circle cx="${b.x + 30}" cy="${b.y + 30}" r="22" fill="${p.color}"/>
+      <text x="${b.x + 30}" y="${b.y + 39}" text-anchor="middle" font-size="26" font-weight="900" fill="#fff">${i + 1}</text>
+      <text x="${b.x + 62}" y="${b.y + 39}" font-size="26" font-weight="800" fill="${p.color}">${p.icon} ${esc(z.name)}</text>
+      ${S.scale ? `<text x="${b.x + 62}" y="${b.y + 66}" font-size="20" fill="${p.color}">${Math.round(zoneAreaPx(z) * S.scale * S.scale)} מ"ר${z.poly ? ' · ' + z.poly.length + ' פינות' : ' · ' + (b.w * S.scale).toFixed(1) + '×' + (b.h * S.scale).toFixed(1) + ' מ׳'}</text>` : ''}
       </g>
-      <rect data-rs="${i}" x="${z.x + z.w - 26}" y="${z.y + z.h - 26}" width="26" height="26" rx="6" fill="#fff" stroke="${p.color}" stroke-width="4" style="cursor:nwse-resize"/>`;
+      ${(z.poly || []).map((pt, pi) => `<circle data-pt="${i}|${pi}" cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="11" fill="#fff" stroke="${p.color}" stroke-width="4" style="cursor:grab"/>`).join('')}
+      ${z.poly ? '' : `<rect data-rs="${i}" x="${b.x + b.w - 26}" y="${b.y + b.h - 26}" width="26" height="26" rx="6" fill="#fff" stroke="${p.color}" stroke-width="4" style="cursor:nwse-resize"/>`}`;
   });
-  if (DRAW.on && DRAW.from && DRAW.cur) {
+  if (DRAW.on === 'poly' && DRAW.pts.length) {
+    const pts = DRAW.pts;
+    out += `<polyline points="${pts.map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ')}" fill="#7c5cff1a" stroke="#7c5cff" stroke-width="4" stroke-linejoin="round"/>`;
+    if (DRAW.cur) out += `<line x1="${pts[pts.length - 1].x}" y1="${pts[pts.length - 1].y}" x2="${DRAW.cur.x}" y2="${DRAW.cur.y}" stroke="#7c5cff" stroke-width="3" stroke-dasharray="9 6" opacity="0.7"/>`;
+    pts.forEach((p, i) => out += `<circle cx="${p.x}" cy="${p.y}" r="${i === 0 ? 14 : 9}" fill="${i === 0 ? '#fff' : '#7c5cff'}" stroke="#7c5cff" stroke-width="4"/>`);
+    if (pts.length >= 3 && S.scale) {
+      let a = 0;
+      for (let i = 0; i < pts.length; i++) { const p1 = pts[i], p2 = pts[(i + 1) % pts.length]; a += p1.x * p2.y - p2.x * p1.y; }
+      const c = { x: pts.reduce((s2, p) => s2 + p.x, 0) / pts.length, y: pts.reduce((s2, p) => s2 + p.y, 0) / pts.length };
+      out += `<text x="${c.x}" y="${c.y}" text-anchor="middle" font-size="26" font-weight="800" fill="#7c5cff">${Math.round(Math.abs(a) / 2 * S.scale * S.scale)} מ"ר · סגור בנקודה הראשונה</text>`;
+    }
+  }
+  if (DRAW.on === 'rect' && DRAW.from && DRAW.cur) {
     const a = DRAW.from, b = DRAW.cur;
     out += `<rect x="${Math.min(a.x, b.x)}" y="${Math.min(a.y, b.y)}" width="${Math.abs(b.x - a.x)}" height="${Math.abs(b.y - a.y)}"
       fill="#7c5cff22" stroke="#7c5cff" stroke-width="4" stroke-dasharray="10 7" rx="8"/>`;
@@ -512,10 +554,32 @@ function bindZoneDrag() {
   const toPlan = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * S.planW, y: (e.clientY - r.top) / r.height * (S.planH || 900), k: S.planW / r.width }; };
   svg.querySelectorAll('[data-zone]').forEach(g => {
     g.addEventListener('pointerdown', e => {
-      if (CAL.mode === 'two') return;
-      const i = +g.dataset.zone, z = S.zones[i], st = toPlan(e), ox = z.x, oy = z.y;
+      if (CAL.mode === 'two' || DRAW.on) return;
+      const i = +g.dataset.zone, z = S.zones[i], st = toPlan(e);
+      const ox = z.x, oy = z.y, op = (z.poly || []).map(p => ({ x: p.x, y: p.y }));
       e.stopPropagation();
-      const mv = ev => { const p = toPlan(ev); z.x = Math.max(0, ox + p.x - st.x); z.y = Math.max(0, oy + p.y - st.y); drawPlan(); };
+      const mv = ev => {
+        const p = toPlan(ev), dx = p.x - st.x, dy = p.y - st.y;
+        z.x = Math.max(0, ox + dx); z.y = Math.max(0, oy + dy);
+        if (z.poly) z.poly.forEach((pt, k) => { pt.x = op[k].x + dx; pt.y = op[k].y + dy; });
+        drawPlan();
+      };
+      const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); render(); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    });
+  });
+  /* גרירת פינה בודדת של פוליגון — התאמה מדויקת לצורת החדר */
+  svg.querySelectorAll('[data-pt]').forEach(h => {
+    h.addEventListener('pointerdown', e => {
+      if (DRAW.on) return;
+      const [zi, pi] = h.dataset.pt.split('|').map(Number);
+      const z = S.zones[zi], pt = z.poly[pi], st = toPlan(e), ox = pt.x, oy = pt.y;
+      e.stopPropagation();
+      const mv = ev => {
+        const p = toPlan(ev); pt.x = ox + p.x - st.x; pt.y = oy + p.y - st.y;
+        const b = zoneBox(z); z.x = b.x; z.y = b.y; z.w = b.w; z.h = b.h;
+        drawPlan();
+      };
       const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); render(); };
       document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
     });
@@ -571,19 +635,22 @@ function stepZones() {
         <button class="chip ${z.purpose === q.id ? 'on' : ''}" onclick="setPurpose(${i},'${q.id}')" title="${esc(q.desc)}">${q.icon} ${esc(q.name)}</button>`).join('')}</div>
       <div class="zinfo">
         <span>🔊 עוצמת יעד <b>${z.spl} dB</b></span>
-        ${S.scale ? `<span>📐 ${(z.w * S.scale).toFixed(1)}×${(z.h * S.scale).toFixed(1)} מ׳ · ${Math.round(z.w * z.h * S.scale * S.scale)} מ"ר</span>` : ''}
+        ${S.scale ? `<span>📐 ${Math.round(zoneAreaPx(z) * S.scale * S.scale)} מ"ר${z.poly ? ' · ' + z.poly.length + ' פינות' : ' · ' + (z.w * S.scale).toFixed(1) + '×' + (z.h * S.scale).toFixed(1) + ' מ׳'}</span>` : ''}
         ${pl ? `<span>🔈 ${pl.n} רמקולים${pl.subs ? ' + ' + pl.subs + ' סאב' : ''}</span>` : ''}
       </div>
-      <small class="hintline">💡 אפשר לגרור את המלבן על התכנית ולשנות גודל מהפינה</small>
-      ${S.scale ? `<div class="row"><label class="fld"><span>רוחב (מ׳)</span><input type="number" step="0.1" value="${(z.w * S.scale).toFixed(1)}" oninput="setZoneM(${i},'w',+this.value)"></label>
+      <small class="hintline">💡 ${z.poly ? 'אפשר לגרור את האזור כולו, או כל פינה בנפרד, ישירות על התכנית' : 'אפשר לגרור את המלבן על התכנית ולשנות גודל מהפינה'}</small>
+      ${S.scale && !z.poly ? `<div class="row"><label class="fld"><span>רוחב (מ׳)</span><input type="number" step="0.1" value="${(z.w * S.scale).toFixed(1)}" oninput="setZoneM(${i},'w',+this.value)"></label>
         <label class="fld"><span>אורך (מ׳)</span><input type="number" step="0.1" value="${(z.h * S.scale).toFixed(1)}" oninput="setZoneM(${i},'h',+this.value)"></label></div>` : ''}
     </div>`;
   }).join('')}</div>
   <div class="row">
-    <button class="ghost" style="flex:1" onclick="startDrawZone()">✏️ צייר אזור על התכנית — בדיוק איפה שצריך</button>
-    <button class="ghost" style="flex:1" onclick="addZone()">➕ הוסף אזור במרכז</button>
+    <button class="ghost" style="flex:2" onclick="startDrawZone('poly')">✏️ סמן אזור לפי הצורה שלו — ניקור פינות</button>
+    <button class="ghost" style="flex:1" onclick="startDrawZone('rect')">▭ מלבן מהיר</button>
+    <button class="ghost" style="flex:1" onclick="addZone()">➕ במרכז</button>
   </div>
-  ${DRAW.on ? '<div class="note">✏️ גרור על התכנית מפינה לפינה כדי לסמן את האזור. Esc לביטול.</div>' : ''}`;
+  ${DRAW.on === 'poly' ? `<div class="note">✏️ <b>נקר את פינות האזור על התכנית</b> — לחיצה על כל פינה, ולסיום לחיצה על הנקודה הראשונה (או דאבל-קליק).
+    ${DRAW.pts.length ? '<b>' + DRAW.pts.length + ' פינות סומנו.</b> ' : ''}כך אפשר לסמן חדר בכל צורה — L, מדרגות, פינות חתוכות. Esc לביטול.</div>`
+    : DRAW.on === 'rect' ? '<div class="note">▭ גרור על התכנית מפינה לפינה. Esc לביטול.</div>' : ''}`;
 }
 function afterZones() {
   const img = $('#planImg');
@@ -673,6 +740,40 @@ function pickTier(id) { S.tier = id; save(); render(); go(6); }
 
 /* ---------- שלב 7 — הדוח ---------- */
 /* מיקומי הרמקולים בפועל: פריסה שווה סביב היקף האזור, מכוונים פנימה */
+/* ---------- גאומטריית אזור: מלבן או פוליגון חופשי (כמו באפליקציה המקצועית) ---------- */
+function zoneBox(z) {
+  if (!z.poly || z.poly.length < 3) return { x: z.x, y: z.y, w: z.w, h: z.h };
+  const xs = z.poly.map(p => p.x), ys = z.poly.map(p => p.y);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  return { x, y, w: Math.max(1, Math.max(...xs) - x), h: Math.max(1, Math.max(...ys) - y) };
+}
+/* שטח אמיתי — נוסחת השרוכים לפוליגון, מלבן פשוט אחרת */
+function zoneAreaPx(z) {
+  if (!z.poly || z.poly.length < 3) return z.w * z.h;
+  let a = 0;
+  for (let i = 0; i < z.poly.length; i++) {
+    const p1 = z.poly[i], p2 = z.poly[(i + 1) % z.poly.length];
+    a += p1.x * p2.y - p2.x * p1.y;
+  }
+  return Math.abs(a) / 2;
+}
+function zonePerimPx(z) {
+  if (!z.poly || z.poly.length < 3) return 2 * (z.w + z.h);
+  let l = 0;
+  for (let i = 0; i < z.poly.length; i++) {
+    const p1 = z.poly[i], p2 = z.poly[(i + 1) % z.poly.length];
+    l += Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  }
+  return l;
+}
+function zoneCenter(z) {
+  if (!z.poly || z.poly.length < 3) { return { x: z.x + z.w / 2, y: z.y + z.h / 2 }; }
+  return { x: z.poly.reduce((s2, p) => s2 + p.x, 0) / z.poly.length, y: z.poly.reduce((s2, p) => s2 + p.y, 0) / z.poly.length };
+}
+function zonePath(z) {
+  if (!z.poly || z.poly.length < 3) return `M${z.x} ${z.y} H${z.x + z.w} V${z.y + z.h} H${z.x} Z`;
+  return 'M' + z.poly.map(p => p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' L') + ' Z';
+}
 /* מיקומי הרמקולים נשמרים ברגע שההצעה נבחרת — ומאותו רגע ניתנים לגרירה ידנית */
 function layoutKey(z, n, subs) { return z.id + '|' + n + '|' + subs; }
 function ensureLayout(prop) {
@@ -688,19 +789,41 @@ function ensureLayout(prop) {
   return S.layout;
 }
 function subPts(z, n) {
-  const out = [];
-  for (let i = 0; i < n; i++) out.push({ x: z.x + z.w * (i + 1) / (n + 1), y: z.y + z.h - 26 });
+  const b = zoneBox(z), out = [];
+  for (let i = 0; i < n; i++) out.push({ x: b.x + b.w * (i + 1) / (n + 1), y: b.y + b.h - 26 });
   return out;
 }
 function resetLayout() { S.layout = {}; save(); render(); toast('↺ המיקומים חזרו לפריסה האוטומטית'); }
 function speakerPts(z, n) {
-  const cx = z.x + z.w / 2, cy = z.y + z.h / 2, pts = [];
+  const c = zoneCenter(z), pts = [];
+  if (z.poly && z.poly.length >= 3) {
+    /* פריסה שווה לאורך היקף הפוליגון, כל רמקול מוסט מעט פנימה אל המרכז */
+    const per = zonePerimPx(z), step = per / n;
+    let target = step / 2, walked = 0, i = 0;
+    for (let k = 0; k < n; k++) {
+      while (i < z.poly.length) {
+        const p1 = z.poly[i], p2 = z.poly[(i + 1) % z.poly.length];
+        const seg = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        if (walked + seg >= target || i === z.poly.length - 1) {
+          const t = Math.max(0, Math.min(1, (target - walked) / (seg || 1)));
+          const x = p1.x + (p2.x - p1.x) * t, y = p1.y + (p2.y - p1.y) * t;
+          const dx = c.x - x, dy = c.y - y, d = Math.hypot(dx, dy) || 1;
+          pts.push({ x: x + dx / d * Math.min(18, d * 0.06), y: y + dy / d * Math.min(18, d * 0.06),
+            aim: Math.round((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360) });
+          break;
+        }
+        walked += seg; i++;
+      }
+      target += step;
+    }
+    while (pts.length < n) pts.push({ x: c.x, y: c.y, aim: 0 });
+    return pts;
+  }
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 - Math.PI / 2 + Math.PI / n;
-    /* חיתוך הקרן עם מלבן האזור, ואז 6% פנימה כדי שהרמקול יישב על הקיר */
     const dx = Math.cos(a), dy = Math.sin(a);
     const t = Math.min(Math.abs((z.w / 2) / (dx || 1e-6)), Math.abs((z.h / 2) / (dy || 1e-6)));
-    pts.push({ x: cx + dx * t * 0.94, y: cy + dy * t * 0.94, aim: Math.round((Math.atan2(cy - (cy + dy * t), cx - (cx + dx * t)) * 180 / Math.PI + 360) % 360) });
+    pts.push({ x: c.x + dx * t * 0.94, y: c.y + dy * t * 0.94, aim: Math.round((Math.atan2(-dy, -dx) * 180 / Math.PI + 360) % 360) });
   }
   return pts;
 }
@@ -758,8 +881,9 @@ function stepReport() {
     <text x="${rk.x.toFixed(0)}" y="${(rk.y + 7).toFixed(0)}" text-anchor="middle" font-size="17" font-weight="800" fill="#fff">ארון</text></g>`;
   p.zones.forEach(({ z, p: pz }) => {
     const col = purposeOf(z).color;
-    marks += `<rect x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" fill="none" stroke="${col}" stroke-width="3" stroke-dasharray="9 6" rx="8"/>
-      <text x="${z.x + 12}" y="${z.y + 32}" font-size="24" font-weight="800" fill="${col}">${purposeOf(z).icon} ${esc(z.name)} · ${pz.n} רמקולים</text>`;
+    const zb = zoneBox(z);
+    marks += `<path d="${zonePath(z)}" fill="none" stroke="${col}" stroke-width="3" stroke-dasharray="9 6" stroke-linejoin="round"/>
+      <text x="${zb.x + 12}" y="${zb.y + 32}" font-size="24" font-weight="800" fill="${col}">${purposeOf(z).icon} ${esc(z.name)} · ${pz.n} רמקולים</text>`;
     (L[z.id].spk || []).forEach((pt, i) => {
       marks += `<g data-sp="${z.id}|${i}" style="cursor:grab"><circle cx="${pt.x.toFixed(0)}" cy="${pt.y.toFixed(0)}" r="17" fill="#fff" stroke="${col}" stroke-width="4"/>
         <text x="${pt.x.toFixed(0)}" y="${(pt.y + 7).toFixed(0)}" text-anchor="middle" font-size="18" font-weight="800" fill="${col}">${i + 1}</text></g>`;
@@ -831,7 +955,8 @@ function stepReport() {
 function rackPoint() {
   const z = S.zones[0];
   if (!z) return { x: 60, y: 60 };
-  return { x: z.x + 24, y: z.y + z.h - 24 };
+  const b = zoneBox(z);
+  return { x: b.x + 24, y: b.y + b.h - 24 };
 }
 /* לוח משיכת כבלים: קו לכל רמקול/סאב עם אורך אמיתי + רזרבה */
 function cableSchedule(p) {
@@ -956,7 +1081,7 @@ async function resetAll() {
   if (has && !(await ask('להתחיל מחדש? כל מה שמילאת — המקום, התכנית, האזורים וההצעות — יימחק ולא ניתן יהיה לשחזר.', '↺ כן, התחל מחדש', true))) return;
   try { localStorage.removeItem(LS); } catch (e) {}
   S = { step: 0, venue: null, uses: [], name: '', plan: null, planW: 1400, planH: 900, scale: null,
-    roomW: null, roomL: null, ceil: 3, zones: [], budget: null, tier: null, contact: {},
+    roomW: null, roomL: null, ceil: 4, zones: [], budget: null, tier: null, contact: {},
     sameContent: true, layout: {}, wireEdits: {} };
   CAL.mode = 'width'; CAL.pts = [];
   DRAW.on = false; DRAW.from = DRAW.cur = null;
@@ -968,5 +1093,5 @@ function toast(m) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = m;
   $('#toasts').appendChild(t); setTimeout(() => t.remove(), 4500);
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && DRAW.on) { DRAW.on = false; DRAW.from = DRAW.cur = null; render(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && DRAW.on) { DRAW.on = false; DRAW.from = DRAW.cur = null; DRAW.pts = []; render(); } });
 load(); render();
