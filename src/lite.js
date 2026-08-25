@@ -37,17 +37,20 @@ function spacing(spk, ceil, density) {
 /* כמה רמקולים דרושים לאזור, ומה ה-SPL הצפוי */
 function planZone(zone, tier, ceil, scale) {
   const b = zoneBox(zone);
+  const cut = tier.cut || 0;                                  /* דרגת קיצוץ להתאמה לתקציב */
   const wM = b.w * scale, hM = b.h * scale, area = zoneAreaPx(zone) * scale * scale;
   const loud = zone.spl >= 95, mid = zone.spl >= 85;
-  const spk = loud && tier.spkBig ? tier.spkBig : tier.spk;
+  const spk = (loud && tier.spkBig && !cut) ? tier.spkBig : tier.spk;
   /* צפיפות: רחבה = כיסוי צמוד ואחיד · רקע = פחות נקודות, מרווח גדול יותר */
-  const dens = loud ? 0.8 : mid ? 1.1 : 1.5;
+  const dens = (loud ? 0.8 : mid ? 1.1 : 1.5) * (1 + cut * 0.4);
   const sp = spacing(spk, ceil, dens);
   /* פריסה היקפית: מספר עמדות סביב האזור לפי ההיקף והמרווח */
   const perim = zonePerimPx(zone) * scale;
-  let n = Math.max(2, Math.ceil(perim / sp));
-  if (n % 2) n++;                                            /* זוגי — סימטרי ונוח לחיווט */
-  n = Math.min(n, 24);
+  /* בקיצוץ עמוק אזור קטן מסתפק בנקודה אחת — פחות מזה כבר אין מה לספק */
+  const minN = cut >= 2 && area < 12 ? 1 : 2;
+  let n = Math.max(minN, Math.ceil(perim / sp));
+  if (n > 2 && n % 2) n++;                                   /* זוגי — סימטרי ונוח לחיווט */
+  n = Math.min(n, cut >= 2 ? 4 : 24);                        /* בקיצוץ עמוק — מינימום נקודות */
   /* הספק לרמקול: מוגבל להספק הרמקול ולמה שהמגבר נותן */
   const wPer = Math.min(spk.w, 250);
   /* SPL במרכז: כל הרמקולים תורמים, מרחק ממוצע ≈ חצי האלכסון */
@@ -56,7 +59,9 @@ function planZone(zone, tier, ceil, scale) {
   const capability = one + 10 * Math.log10(n);               /* יכולת מקסימלית (חיבור לא-קוהרנטי) */
   /* ההספק שבאמת יידרש כדי להגיע לעוצמת היעד — ממנו נגזר המרווח (headroom) */
   const needW = Math.max(1, wPer / Math.pow(10, (capability - zone.spl) / 10));
-  const subs = zone.spl >= 90 ? Math.max(1, Math.round(area / 90)) : 0;
+  let subs = zone.spl >= 90 ? Math.max(1, Math.round(area / 90)) : 0;
+  if (cut === 1) subs = zone.spl >= 95 ? 1 : 0;               /* סאב רק לרחבה */
+  if (cut >= 2) subs = 0;                                     /* בלי סאבים בכלל */
   return { spk, n, subs, area, spacing: sp, splCenter: capability, capability, headroom: capability - zone.spl,
     needW, splTarget: zone.spl, ok: capability >= zone.spl + 3, wPer };
 }
@@ -121,6 +126,30 @@ function pickSub(tier, zones, scale) {
   const big = loud || area > 150;
   return { sub: big && tier.subBig ? tier.subBig : tier.sub, big };
 }
+/* קבוצות תוכן: אילו אזורים מקבלים את אותו מקור. ברירת מחדל — כל אזור לעצמו,
+   והמשתמש מאחד אזורים שמנגנים אותו דבר (לרוב הפיצול נעשה בגלל עוצמה, לא תוכן) */
+function srcOf(z, i) { return z.src == null ? i : z.src; }
+function srcList() {
+  const ids = [];
+  S.zones.forEach((z, i) => { const g = srcOf(z, i); if (!ids.includes(g)) ids.push(g); });
+  return ids.sort((a, b) => a - b);
+}
+function srcCount() { return S.sameContent === false ? srcList().length : 1; }
+function srcIndex(z, i) { return srcList().indexOf(srcOf(z, i)) + 1; }
+function setSrc(i, g) { S.zones[i].src = g; save(); render(); }
+function addSrc(i) {
+  const max = Math.max(-1, ...S.zones.map((z, k) => srcOf(z, k)));
+  S.zones[i].src = max + 1; save(); render();
+}
+
+/* בקיצוץ עמוק — אזורים באותה עוצמה חולקים ערוץ (ויסות משותף, פחות מגברים) */
+function chanGroups(zones, cut) {
+  if (cut >= 3) return [zones];                               /* ויסות אחד לכל המקום */
+  const by = {};
+  zones.forEach(x => { const k = cut >= 2 ? Math.round(x.z.spl / 10) : x.z.spl; (by[k] = by[k] || []).push(x); });
+  return Object.values(by);
+}
+
 /* בניית הצעה מלאה לשכבה */
 function buildProposal(tier) {
   const scale = S.scale || 0.02, ceil = S.ceil || 4;
@@ -139,7 +168,11 @@ function buildProposal(tier) {
   let bestCost = Infinity;
   cands.forEach(a => {
     const cap = spkPerChannel(a, mainSpk);
-    const chNeeded = Math.ceil(totalSpk / cap.n) + totalSub;   /* סאב = ערוץ ייעודי */
+    /* ערוץ לא יכול לשרת שני אזורים — לכל אזור עוצמה משלו (ולפעמים גם תוכן משלו).
+       בקיצוץ עמוק אזורים בעלי אותה עוצמה מתאחדים לערוץ משותף (ויסות משותף) */
+    const chNeeded = (tier.cut >= 2 ? chanGroups(zones, tier.cut) : zones.map(x => [x]))
+      .reduce((n2, grp) => n2 + Math.ceil(grp.reduce((k, { p }) => k + p.n, 0) / cap.n)
+        + grp.reduce((k, { p }) => k + p.subs, 0), 0);
     const n = Math.max(1, Math.ceil(chNeeded / (a.ch || 2)));
     /* ציון: עלות אמיתית · בונוס לזיווג מהקיטים · קנס ככל שמתרחקים מיחס ×2 */
     const kitBonus = kitBacked(mainSpk.key, a.key, 'amp') ? 0.9 : 1;
@@ -148,7 +181,9 @@ function buildProposal(tier) {
     if (cost < bestCost) { bestCost = cost; amp = a; ampN = n; perCh = cap.n; pwrRatio = cap.ratio; pwrOk = cap.ok; }
   });
   const ampFromKit = kitBacked(mainSpk.key, amp.key, 'amp');
-  const lines = Math.ceil(totalSpk / perCh) + totalSub;
+  const lines = (tier.cut >= 2 ? chanGroups(zones, tier.cut) : zones.map(x => [x]))
+    .reduce((n2, grp) => n2 + Math.ceil(grp.reduce((k, { p }) => k + p.n, 0) / perCh)
+      + grp.reduce((k, { p }) => k + p.subs, 0), 0);
   /* אורך כבל משוער: היקף כל האזורים ×1.3 + 12 מ׳ לארון */
   const meters = Math.ceil(zones.reduce((s, { z }) => s + 2 * (z.w * scale + z.h * scale), 0) * 1.3 + 12);
   const reels = Math.max(1, Math.ceil(meters / LITE_CATALOG.accessories.cableReel.meters));
@@ -166,9 +201,9 @@ function buildProposal(tier) {
   const A = LITE_CATALOG.accessories;
   push(A.cableReel.key, A.cableReel.name, reels, A.cableReel.price, 'תשתית');
   push(A.speakon.key, A.speakon.name, (totalSpk + totalSub) * 2, A.speakon.price, 'תשתית');
-  push(A.rack.key, A.rack.name, 1, A.rack.price, 'תשתית');
-  /* מעבד/מטריצה — רק כשרוצים תוכן שונה בכל אזור */
-  if (S.sameContent === false && S.zones.length > 1) {
+  if (!(tier.cut >= 3)) push(A.rack.key, A.rack.name, 1, A.rack.price, 'תשתית');
+  /* מעבד/מטריצה — רק כשבאמת יש יותר ממקור תוכן אחד */
+  if (S.sameContent === false && S.zones.length > 1 && srcCount() > 1 && !tier.cut) {
     /* מטריצת רשת אמיתית מהמלאי — 4 יציאות, שולטת בתוכן ובעוצמה לכל אזור */
     const mx = erpItem('SDIG15KO') || erpItem('SDIG5KO');
     if (mx) push(mx.key, mx.name, 1, mx.price, 'ניתוב תוכן');
@@ -357,7 +392,8 @@ function stepPlan() {
       <div class="gstep ${CAL.pts.length === 2 ? 'now' : ''}"><b>3</b><span>הקלד כמה מטרים זה — בחלון שייפתח על התכנית</span></div>
     </div>
     <div class="planops">
-      <button class="ghost" onclick="cropPlan()">✂️ הסר שוליים — תן לתכנית יותר מקום</button>
+      <button class="ghost" onclick="cropPlan()">✂️ הסר שוליים אוטומטית</button>
+      <button class="ghost ${CROP.on ? 'on' : ''}" onclick="${CROP.on ? 'cancelCrop()' : 'startCrop()'}">${CROP.on ? '✕ בטל גזירה' : '⬚ גזור בעצמי — סמן מסגרת'}</button>
       <input type="file" accept="image/*" id="planIn3" style="display:none" onchange="uploadPlan(this)">
       <button class="ghost" onclick="document.getElementById('planIn3').click()">🔄 החלף תכנית</button>
     </div>
@@ -383,7 +419,8 @@ function stepPlan() {
       נציע אותם כאזורים בשלב הבא, ותוכל לתקן כל צורה.</div>` : ''}
     <div class="planops">
       <b>כלים לתכנית</b>
-      <button class="ghost" onclick="cropPlan()">✂️ הסר שוליים — תן לתכנית יותר מקום</button>
+      <button class="ghost" onclick="cropPlan()">✂️ הסר שוליים אוטומטית</button>
+      <button class="ghost ${CROP.on ? 'on' : ''}" onclick="${CROP.on ? 'cancelCrop()' : 'startCrop()'}">${CROP.on ? '✕ בטל גזירה' : '⬚ גזור בעצמי — סמן מסגרת'}</button>
       <button class="ghost" onclick="recalibrate()">↺ המידה לא נכונה — כייל מחדש</button>
       <input type="file" accept="image/*" id="planIn2" style="display:none" onchange="uploadPlan(this)">
       <button class="ghost" onclick="document.getElementById('planIn2').click()">🔄 החלף תכנית</button>
@@ -498,6 +535,19 @@ function bindDrawZone() {
   const svg = $('#planSvg'); if (!svg || !DRAW.on) return;
   svg.style.cursor = 'crosshair';
   const toPlan = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * S.planW, y: (e.clientY - r.top) / r.height * (S.planH || 900) }; };
+  if (CROP.on) {
+    svg.style.cursor = 'crosshair';
+    svg.onclick = null;
+    svg.onpointerdown = e => {
+      e.preventDefault();
+      CROP.a = toPlan(e); CROP.b = null;
+      const mv = ev => { CROP.b = toPlan(ev); drawPlan(); };
+      const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); finishCrop(); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    };
+    return;
+  }
+  svg.onpointerdown = null;
   if (DRAW.on === 'poly') {
     svg.onclick = e => {
       const p = toPlan(e);
@@ -602,11 +652,36 @@ function contentBox(img) {
   if (box.w * box.h > W * H * 0.95) return null;
   return box;
 }
+const CROP = { on: false, a: null, b: null };
+function startCrop() {
+  if (!S.plan) return;
+  CROP.on = true; CROP.a = CROP.b = null; DRAW.on = false;
+  render();
+  toast('✂️ גרור מסגרת סביב מה שרוצים להשאיר');
+}
+function cancelCrop() { CROP.on = false; CROP.a = CROP.b = null; render(); }
+/* גזירה ידנית — המסגרת שסומנה על התכנית הופכת לתמונה החדשה */
+function finishCrop() {
+  const a = CROP.a, b = CROP.b;
+  CROP.on = false; CROP.a = CROP.b = null;
+  const img = $('#planImg');
+  if (!a || !b || !img) { render(); return; }
+  const x0 = Math.max(0, Math.min(a.x, b.x)), y0 = Math.max(0, Math.min(a.y, b.y));
+  const x1 = Math.min(S.planW, Math.max(a.x, b.x)), y1 = Math.min(S.planH || 900, Math.max(a.y, b.y));
+  if (x1 - x0 < 40 || y1 - y0 < 40) { toast('המסגרת קטנה מדי'); render(); return; }
+  const f = img.naturalWidth / 1400;   /* מיחידות התכנית לפיקסלים של התמונה */
+  applyCropBox({ x: x0 * f, y: y0 * f, w: (x1 - x0) * f, h: (y1 - y0) * f }, false, 'הגזירה בוצעה');
+}
 function cropPlan(silent) {
   const img = $('#planImg');
   if (!img || !img.complete) return false;
   const box = contentBox(img);
   if (!box) { if (!silent) toast('התכנית כבר תופסת את כל התמונה'); return false; }
+  return applyCropBox(box, silent, 'השוליים הוסרו — התכנית גדולה יותר');
+}
+function applyCropBox(box, silent, msg) {
+  const img = $('#planImg');
+  if (!img) return false;
   const c = document.createElement('canvas');
   c.width = Math.round(box.w); c.height = Math.round(box.h);
   const cx = c.getContext('2d');
@@ -628,7 +703,7 @@ function cropPlan(silent) {
   S.plan = out; S.planH = Math.round(1400 * box.h / box.w); S.cropDone = true;
   CAL.pts = [];
   save(); render();
-  if (!silent) toast('✂️ השוליים הוסרו — התכנית גדולה יותר');
+  if (!silent) toast('✂️ ' + msg);
   return true;
 }
 
@@ -722,6 +797,18 @@ function drawPlan() {
       for (let i = 0; i < pts.length; i++) { const p1 = pts[i], p2 = pts[(i + 1) % pts.length]; a += p1.x * p2.y - p2.x * p1.y; }
       const c = { x: pts.reduce((s2, p) => s2 + p.x, 0) / pts.length, y: pts.reduce((s2, p) => s2 + p.y, 0) / pts.length };
       out += `<text x="${c.x}" y="${c.y}" text-anchor="middle" font-size="26" font-weight="800" fill="#7c5cff">${Math.round(Math.abs(a) / 2 * S.scale * S.scale)} מ"ר · סגור בנקודה הראשונה</text>`;
+    }
+  }
+  if (CROP.on) {
+    const a = CROP.a, b = CROP.b;
+    if (a && b) {
+      const x0 = Math.min(a.x, b.x), y0 = Math.min(a.y, b.y), cw = Math.abs(b.x - a.x), ch = Math.abs(b.y - a.y);
+      out += `<path d="M0 0H${w}V${h}H0Z M${x0} ${y0}H${x0 + cw}V${y0 + ch}H${x0}Z" fill="#0b0b0bcc" fill-rule="evenodd"/>
+        <rect x="${x0}" y="${y0}" width="${cw}" height="${ch}" fill="none" stroke="#ff6a3d" stroke-width="5"/>
+        ${S.scale ? `<text x="${x0 + cw / 2}" y="${y0 - 14}" text-anchor="middle" font-size="26" font-weight="800" fill="#ff6a3d">${(cw * S.scale).toFixed(1)}×${(ch * S.scale).toFixed(1)} מ׳</text>` : ''}`;
+    } else {
+      out += `<rect x="0" y="0" width="${w}" height="${h}" fill="#0b0b0b55"/>
+        <text x="${w / 2}" y="${h / 2}" text-anchor="middle" font-size="34" font-weight="800" fill="#fff">גרור מסגרת סביב מה שרוצים להשאיר</text>`;
     }
   }
   if (DRAW.on === 'rect' && DRAW.from && DRAW.cur) {
@@ -886,20 +973,36 @@ function stepZones() {
         ${S.scale ? `<span>${Math.round(zoneAreaPx(z) * S.scale * S.scale)} מ"ר</span>` : ''}
         ${z.poly ? `<span>${z.poly.length} פינות${z.poly.some(pt => pt.b) ? ' · ' + z.poly.filter(pt => pt.b).length + ' קשתות' : ''}</span>` : ''}
         ${pl ? `<span>🔈 ${pl.n} רמקולים${pl.subs ? ' + ' + pl.subs + ' סאב' : ''}</span>` : ''}
+        ${S.sameContent === false && zs.length > 1 && srcCount() > 1 ? `<span>🎚 מקור ${srcIndex(z, i)}</span>` : ''}
       </div>
       <button class="ghost sm" onclick="S.zones[${i}].purpose=null;save();render()">↺ שנה מה קורה כאן</button>
     </div>`;
   }).join('')}</div>
-  <div class="content-q">
+  ${zs.length > 1 ? `<div class="content-q">
     <b>🎚 מה מתנגן בכל אזור?</b>
     <div class="chips">
       <button class="chip ${S.sameContent !== false ? 'on' : ''}" onclick="S.sameContent=true;save();render()">אותה מוזיקה בכל המקום</button>
-      <button class="chip ${S.sameContent === false ? 'on' : ''}" onclick="S.sameContent=false;save();render()">תוכן שונה בכל אזור</button>
+      <button class="chip ${S.sameContent === false ? 'on' : ''}" onclick="S.sameContent=false;save();render()">תוכן שונה</button>
     </div>
-    <small>${S.sameContent === false
-      ? 'נוסיף מעבד שמנתב מקורות שונים לכל אזור — שליטה מלאה, עלות נוספת.'
-      : 'מקור אחד לכל המקום, עם ויסות עוצמה נפרד לכל אזור — הפתרון הנפוץ והחסכוני.'}</small>
-  </div>
+    ${S.sameContent === false ? `
+      <small>סמן לכל אזור מאיזה מקור הוא מנגן. אזורים שחולקים מקור מקבלים את אותה מוזיקה
+      — אבל עדיין עוצמה נפרדת לכל אחד.</small>
+      <div class="srcgrid">${zs.map((z, i) => {
+        const p = purposeOf(z), mine = srcOf(z, i);
+        return `<div class="srcrow">
+          <span class="znum sm" style="background:${p.color}">${i + 1}</span>
+          <b>${esc(z.name)}</b>
+          <div class="chips">
+            ${srcList().map((g, gi) => `<button class="chip xs ${mine === g ? 'on' : ''}" onclick="setSrc(${i},${g})">מקור ${gi + 1}</button>`).join('')}
+            <button class="chip xs ghosty" onclick="addSrc(${i})" title="מקור חדש רק לאזור הזה">＋</button>
+          </div>
+        </div>`;
+      }).join('')}</div>
+      <small class="srcsum">${srcCount() === 1
+        ? 'כרגע כל האזורים על אותו מקור — זהה ל"אותה מוזיקה בכל המקום", בלי עלות מעבד.'
+        : `<b>${srcCount()} מקורות</b> — נוסיף מעבד ניתוב שמזין כל קבוצה בנפרד.`}</small>` : `
+      <small>מקור אחד לכל המקום, עם ויסות עוצמה נפרד לכל אזור — הפתרון הנפוץ והחסכוני.</small>`}
+  </div>` : ''}
   <div class="row">
     <button class="ghost" style="flex:2" onclick="startDrawZone('poly')">➕ יש עוד אזור עם אופי אחר</button>
     <button class="ghost" style="flex:1" onclick="S._why=!S._why;save();render()">${S._why ? '▲' : '❓'} למה לחלק</button>
@@ -938,10 +1041,41 @@ function addZone() {
 function delZone(i) { S.zones.splice(i, 1); save(); render(); }
 
 /* שלב 5 — תקציב */
+/* כשהתקציב נמוך מכל שלוש האפשרויות — בונים אפשרות מקוצצת, שלב אחרי שלב,
+   עד שנכנסים לתקציב או עד שמגיעים למינימום הטכני שאי אפשר לרדת מתחתיו */
+function fitTier(cut) {
+  const base = LITE_CATALOG.tiers[LITE_CATALOG.tiers.length - 1];
+  return Object.assign({}, base, { id: 'fit', name: 'מותאם לתקציב', cut });
+}
+function fitInfo(budget) {
+  if (!budget) return null;
+  const base = buildProposal(LITE_CATALOG.tiers[LITE_CATALOG.tiers.length - 1]);
+  for (let cut = 1; cut <= 3; cut++) {
+    const p = buildProposal(fitTier(cut));
+    if (p.total <= budget * 1.05) return { p, cut, base, floor: false };
+    if (cut === 3) return { p, cut, base, floor: true, gap: p.total - budget };
+  }
+  return null;
+}
+function cutSummary(base, p) {
+  const out = [];
+  if (p.totalSpk !== base.totalSpk) out.push(`רמקולים ${base.totalSpk} → <b>${p.totalSpk}</b>`);
+  if (p.totalSub !== base.totalSub) out.push(p.totalSub ? `סאבים ${base.totalSub} → <b>${p.totalSub}</b>` : 'בלי סאב');
+  if (p.ampN !== base.ampN) out.push(`מגברים ${base.ampN} → <b>${p.ampN}</b>`);
+  if (p.lines !== base.lines) out.push(`קווי רמקול ${base.lines} → <b>${p.lines}</b>`);
+  if (p.tier.cut === 2 && S.zones.length > 1) out.push('אזורים בעוצמה דומה על ויסות משותף');
+  if (p.tier.cut >= 3 && S.zones.length > 1) out.push('ויסות אחד לכל המקום');
+  if (p.tier.cut >= 3) out.push('בלי ארון — המגבר על מדף');
+  if (S.sameContent === false && srcCount() > 1) out.push('בלי מעבד ניתוב תוכן');
+  return out;
+}
+
 function stepBudget() {
   const props = LITE_CATALOG.tiers.map(buildProposal);
   const lo = Math.min(...props.map(p => p.total)), hi = Math.max(...props.map(p => p.total));
   if (S.budget == null) S.budget = Math.round(props[1].total / 1000) * 1000;
+  const belowAll = S.budget && props.every(p => p.total > S.budget * 1.05);
+  const fit = belowAll ? fitInfo(S.budget) : null;
   return `<h2>מה התקציב שלך?</h2>
   <p class="sub">נראה לך מה אפשר לקבל בכל טווח. המחירים לפני מע"מ וכוללים ציוד, כבילה והתקנה.</p>
   <div class="budget">
@@ -956,22 +1090,50 @@ function stepBudget() {
       <span class="amt">${ils(p.total)}</span>
       <span class="badge">${fits ? '✓ בתקציב' : 'מעל התקציב ב-' + ils(p.total - S.budget)}</span></div>`;
   }).join('')}</div>
+  ${belowAll ? fitRowHTML(fit) : ''}
   <div class="note">💡 אפשר להמשיך גם אם משהו מעל התקציב — בשלב הבא נראה בדיוק מה ההבדל בין האפשרויות.</div>`;
+}
+function fitRowHTML(fit) {
+  if (!fit) return '';
+  const cuts = cutSummary(fit.base, fit.p);
+  return `<div class="fitcard ${fit.floor ? 'floor' : ''}">
+    <div class="fchead">
+      <b>${fit.floor ? '⛔ זה המינימום הטכני' : '✂️ אפשרות מותאמת לתקציב שלך'}</b>
+      <span class="amt">${ils(fit.p.total)}</span>
+    </div>
+    <p>${fit.floor
+      ? `גם אחרי כל הקיצוצים אי אפשר לרדת מתחת ל-<b>${ils(fit.p.total)}</b> — חסרים ${ils(fit.gap)}.
+         מתחת לזה כבר לא נשארת מערכת שעובדת: אין מספיק נקודות כדי לכסות את השטח,
+         והמגבר לא יחזיק את הרמקולים. אפשר להקטין את האזורים או להעלות את התקציב.`
+      : `כדי להיכנס ל-${ils(S.budget)} ויתרנו על חלק מהדברים. זה עדיין פתרון עובד — אבל עם פחות עתודה.`}</p>
+    ${cuts.length ? `<div class="cutlist">${cuts.map(c => `<span>${c}</span>`).join('')}</div>` : ''}
+    ${fit.floor ? '' : `<button class="ghost wide" onclick="pickTier('budget',${fit.cut})">בחר את האפשרות המותאמת ◀</button>`}
+  </div>`;
 }
 
 /* שלב 6 — שלוש ההצעות */
+function selTier() {
+  const t = LITE_CATALOG.tiers.find(x => x.id === S.tier) || LITE_CATALOG.tiers[1];
+  return S.cut ? Object.assign({}, t, { cut: S.cut, name: t.name + ' · מותאם לתקציב' }) : t;
+}
 function stepOffers() {
   const props = LITE_CATALOG.tiers.map(buildProposal);
-  return `<h2>שלוש דרכים לעשות את זה</h2>
-  <p class="sub">אותה תכנית, אותו כיסוי — שלוש רמות ציוד. כל המחירים הם מחירי יחידה מהמלאי שלנו, לפני מע"מ.</p>
-  <div class="offers">${props.map((p, i) => {
+  const belowAll = S.budget && props.every(p => p.total > S.budget * 1.05);
+  const fit = belowAll ? fitInfo(S.budget) : null;
+  const list = fit && !fit.floor ? props.concat([fit.p]) : props;
+  return `<h2>${list.length > 3 ? 'ארבע דרכים לעשות את זה' : 'שלוש דרכים לעשות את זה'}</h2>
+  <p class="sub">אותה תכנית, אותו כיסוי — רמות ציוד שונות. כל המחירים הם מחירי יחידה מהמלאי שלנו, לפני מע"מ.</p>
+  ${fit && fit.floor ? fitRowHTML(fit) : ''}
+  <div class="offers">${list.map((p, i) => {
+    const isFit = p.tier.id === 'fit';
     const fits = S.budget ? p.total <= S.budget * 1.05 : true;
     const spl = p.zones.length ? Math.round(p.zones.reduce((s, z) => s + z.p.splCenter, 0) / p.zones.length) : 0;
-    return `<div class="offer ${S.tier === p.tier.id ? 'sel' : ''} ${i === 1 ? 'reco' : ''}">
+    return `<div class="offer ${(isFit ? S.cut > 0 : S.tier === p.tier.id && !S.cut) ? 'sel' : ''} ${i === 1 ? 'reco' : ''} ${isFit ? 'fitoffer' : ''}">
       ${i === 1 ? '<div class="ribbon">הכי נבחר</div>' : ''}
-      <div class="oh"><b>${esc(p.tier.name)}</b><small>${esc(p.tier.brand)}</small></div>
+      ${isFit ? '<div class="ribbon fitrib">בתקציב שלך</div>' : ''}
+      <div class="oh"><b>${esc(p.tier.name)}</b><small>${isFit ? 'מקוצץ כדי להיכנס ל-' + ils(S.budget) : esc(p.tier.brand)}</small></div>
       <div class="price">${ils(p.total)}<small>כולל ציוד + התקנה, לפני מע"מ</small></div>
-      <p class="why">${esc(p.tier.why)}</p>
+      <p class="why">${isFit ? 'הכי הרבה שאפשר לקבל בתקציב הזה — ' + cutSummary(fit.base, p).join(' · ').replace(/<\/?b>/g, '') : esc(p.tier.why)}</p>
       <div class="specs">
         <div><b>${p.totalSpk}</b><small>רמקולים</small></div>
         <div><b>${p.totalSub ? p.totalSub + '×' + p.sub.inch + '"' : '—'}</b><small>סאבים</small></div>
@@ -984,7 +1146,7 @@ function stepOffers() {
       <div class="badges">${fits ? '<span class="b ok">✓ בתקציב</span>' : '<span class="b over">מעל התקציב</span>'}
         <span class="b">${p.days} ימי התקנה</span>
         <span class="b">${stockNote(p)}</span></div>
-      <button class="go wide" onclick="pickTier('${p.tier.id}')">${S.tier === p.tier.id ? '✓ נבחר' : 'בחר את זה'}</button>
+      <button class="go wide" onclick="pickTier('${isFit ? LITE_CATALOG.tiers[LITE_CATALOG.tiers.length - 1].id : p.tier.id}'${isFit ? ',' + fit.cut : ''})">${(isFit ? S.cut > 0 : S.tier === p.tier.id && !S.cut) ? '✓ נבחר' : 'בחר את זה'}</button>
     </div>`;
   }).join('')}</div>`;
 }
@@ -1001,7 +1163,7 @@ function stockNote(p) {
   const short = p.rows.filter(r => { const st = stockOf(r.key); return st != null && st < r.qty; });
   return short.length ? '⏳ ' + short.length + ' פריטים בהזמנה' : '📦 הכל במלאי';
 }
-function pickTier(id) { S.tier = id; save(); render(); go(6); }
+function pickTier(id, cut) { S.tier = id; S.cut = cut || 0; save(); render(); go(6); }
 
 /* ---------- שלב 7 — הדוח ---------- */
 /* מיקומי הרמקולים בפועל: פריסה שווה סביב היקף האזור, מכוונים פנימה */
@@ -1150,7 +1312,7 @@ function coverageSVG(prop, w, h) {
   return { svg: out, min: Math.round(lo), max: Math.round(hi) };
 }
 function stepReport() {
-  const tier = LITE_CATALOG.tiers.find(t => t.id === S.tier) || LITE_CATALOG.tiers[1];
+  const tier = selTier();
   const p = buildProposal(tier);
   const w = S.planW, h = S.planH || 900;
   const cov = coverageSVG(p, w, h);
@@ -1295,6 +1457,19 @@ function wiringSection(p) {
     <div class="wsec"><h5>נקודת המוצא — ארון הציוד</h5>
       <p>ארון <b>${rackU}U</b> (${rackU * 4.5} ס"מ גובה), עומק 60 ס"מ, במקום מאוורר ונגיש לשירות.
       כל הכבלים יוצאים ממנו. מומלץ במחסן/חדר שירות ולא באזור הקהל.</p></div>
+    <div class="wsec"><h5>ניתוב אות — מה מנגן איפה, וכמה ערוצי מגבר</h5>
+      <table class="rt"><tr><th>אזור</th><th>מקור</th><th>רמקולים</th><th>ערוצי מגבר</th><th>עוצמת תכנון</th></tr>
+        ${p.zones.map(({ z, p: pz }, i) => {
+          const ch = Math.ceil(pz.n / p.perCh) + pz.subs;
+          return `<tr><td>${esc(z.name)}</td>
+            <td>${srcCount() > 1 ? 'מקור ' + srcIndex(z, i) : 'מקור יחיד'}</td>
+            <td>${pz.n}${pz.subs ? ' + ' + pz.subs + ' סאב' : ''}</td>
+            <td>${ch}</td><td>${z.spl} dB</td></tr>`;
+        }).join('')}
+        <tr class="tot"><td>סה"כ</td><td>${srcCount()} מקור${srcCount() > 1 ? 'ות' : ''}</td>
+          <td>${p.totalSpk}${p.totalSub ? ' + ' + p.totalSub : ''}</td><td>${p.lines}</td><td></td></tr></table>
+      <p>לכל אזור ערוץ (או ערוצים) משלו — כך אפשר להנמיך אזור אחד בלי לגעת באחרים.
+      ${srcCount() > 1 ? 'המעבד מזין כל קבוצת מקור בנפרד, והמגבר מפצל לערוצים לפי אזור.' : 'מקור אחד מוזן לכל הערוצים, והעוצמה נשלטת בנפרד לכל אזור.'}</p></div>
     <div class="wsec"><h5>חשמל</h5>
       <p>• <b>${amps16}× מעגל 16A ייעודי</b> לארון (לא משותף עם תאורה או מטבח — רעש חשמלי פוגע בצליל).<br>
       • צריכת שיא מוערכת: <b>${ampW}W</b> · פס שקעים בארון.<br>
@@ -1346,7 +1521,7 @@ function afterReport() {
   bind('[data-sp]', 'spk'); bind('[data-sub]', 'subs');
 }
 function shareReport() {
-  const tier = LITE_CATALOG.tiers.find(t => t.id === S.tier) || LITE_CATALOG.tiers[1];
+  const tier = selTier();
   const p = buildProposal(tier);
   const txt = `תכנון סאונד — ${S.name || 'הפרויקט שלי'}\n${S.zones.length} אזורים · ${p.totalSpk} רמקולים${p.totalSub ? ' + ' + p.totalSub + ' סאבים' : ''}\nרמת ציוד: ${tier.name} (${tier.brand})\nסה"כ: ${ils(p.total)} לפני מע"מ`;
   if (navigator.share) { navigator.share({ title: 'KO Studio', text: txt }).catch(() => {}); return; }
@@ -1377,7 +1552,7 @@ async function resetAll() {
   try { localStorage.removeItem(LS); } catch (e) {}
   S = { step: 0, venue: null, uses: [], name: '', plan: null, planW: 1400, planH: 900, scale: null,
     roomW: null, roomL: null, ceil: 4, zones: [], budget: null, tier: null, contact: {},
-    sameContent: true, layout: {}, wireEdits: {} };
+    sameContent: true, cut: 0, layout: {}, wireEdits: {} };
   CAL.mode = 'width'; CAL.pts = [];
   DRAW.on = false; DRAW.from = DRAW.cur = null;
   save(); render();
@@ -1389,6 +1564,7 @@ function toast(m) {
   $('#toasts').appendChild(t); setTimeout(() => t.remove(), 4500);
 }
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && CROP.on) { cancelCrop(); return; }
   if (e.key === 'Escape' && DRAW.on) { DRAW.on = false; DRAW.from = DRAW.cur = null; DRAW.pts = []; render(); }
   /* ⌫ בזמן ציור — מבטל את הפינה האחרונה */
   if ((e.key === 'Backspace' || e.key === 'Delete') && DRAW.on === 'poly' && DRAW.pts.length
