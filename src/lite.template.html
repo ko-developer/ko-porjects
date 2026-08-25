@@ -45,6 +45,10 @@ button{font-family:inherit;cursor:pointer;border:none}
 .planbox{background:#fff;border:1px solid var(--line);border-radius:16px;padding:6px;margin:14px 0;overflow:hidden;display:flex;justify-content:center}
 .planwrap{position:relative;line-height:0;width:max-content;max-width:100%}
 .planwrap img{display:block;border-radius:10px;width:auto;max-width:100%;max-height:var(--planh,max(320px,calc(100vh - 300px)))}
+/* בדוח התכנית מוצגת במלוא הרוחב — שם רוצים כמה שיותר גדול */
+.planbox.report{padding:6px;margin:10px 0}
+.planbox.report .planwrap{width:100%}
+.planbox.report .planwrap img{max-height:none;width:100%}
 /* שולחן עבודה — התכנית נעוצה, ההסברים לצידה (בלי גלילה הלוך ושוב) */
 .wb{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(280px,.75fr);gap:16px;align-items:start}
 .wbplan{min-width:0}
@@ -205,6 +209,8 @@ button{font-family:inherit;cursor:pointer;border:none}
 .cutlist span{background:#f4f1ec;border-radius:999px;padding:4px 10px;font-size:12px}
 .offer.fitoffer{border-color:var(--go)}
 .ribbon.fitrib{background:var(--go)}
+.mountrow{display:flex;align-items:center;gap:6px;margin:6px 0;font-size:12px;color:var(--muted)}
+.mountrow .chip{margin:0}
 #toasts{position:fixed;bottom:86px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;width:min(420px,92vw)}
 .toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;font-size:13.5px;box-shadow:0 8px 26px rgba(0,0,0,.3)}
 @media print{header,#steps,#nav,.ract,#toasts,.navhint{display:none!important}.wb{display:block}.wb .wbplan{position:static}main{padding:0;max-width:none}#report{border:none;padding:0}}

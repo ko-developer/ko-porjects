@@ -40,30 +40,44 @@ function planZone(zone, tier, ceil, scale) {
   const cut = tier.cut || 0;                                  /* דרגת קיצוץ להתאמה לתקציב */
   const wM = b.w * scale, hM = b.h * scale, area = zoneAreaPx(zone) * scale * scale;
   const loud = zone.spl >= 95, mid = zone.spl >= 85;
-  const spk = (loud && tier.spkBig && !cut) ? tier.spkBig : tier.spk;
+  const onCeil = zone.mount === 'ceil' && !!tier.spkCeil;      /* שקוע בתקרת גבס */
+  const spk = onCeil ? tier.spkCeil : (loud && tier.spkBig && !cut) ? tier.spkBig : tier.spk;
   /* צפיפות: רחבה = כיסוי צמוד ואחיד · רקע = פחות נקודות, מרווח גדול יותר */
   const dens = (loud ? 0.8 : mid ? 1.1 : 1.5) * (1 + cut * 0.4);
-  const sp = spacing(spk, ceil, dens);
-  /* פריסה היקפית: מספר עמדות סביב האזור לפי ההיקף והמרווח */
+  /* תכנון מבוזר בתקרה: קוטר הכיסוי D = 2·נפילה·tan(θ/2), והמרווח נגזר ממנו —
+     רקע = חפיפה מינימלית (0.71D) · מוזיקה נוכחת = חפיפה (0.5D) · כיסוי צמוד (0.35D) */
+  const dropSp = Math.max(1.2, (ceil || 3) - 1.2);
+  const covD = 2 * dropSp * Math.tan(Math.min(spk.h || 90, 100) * Math.PI / 360);
+  const sp = onCeil
+    ? Math.max(1.5, Math.min(8, covD * (loud ? 0.35 : mid ? 0.5 : 0.71) * (1 + cut * 0.25)))
+    : spacing(spk, ceil, dens);
+  /* פריסה היקפית: מספר עמדות סביב האזור לפי ההיקף והמרווח.
+     בתקרה שקועה הפריסה היא רשת על פני השטח — לא סביב ההיקף */
   const perim = zonePerimPx(zone) * scale;
   /* בקיצוץ עמוק אזור קטן מסתפק בנקודה אחת — פחות מזה כבר אין מה לספק */
-  const minN = cut >= 2 && area < 12 ? 1 : 2;
-  let n = Math.max(minN, Math.ceil(perim / sp));
-  if (n > 2 && n % 2) n++;                                   /* זוגי — סימטרי ונוח לחיווט */
-  n = Math.min(n, cut >= 2 ? 4 : 24);                        /* בקיצוץ עמוק — מינימום נקודות */
+  const minN = (cut >= 2 && area < 12) || onCeil ? 1 : 2;
+  /* רשת אמיתית על המלבן החוסם — כמו שמתכננים תקרה בפועל */
+  const gcols = Math.max(1, Math.ceil(wM / sp)), grows = Math.max(1, Math.ceil(hM / sp));
+  let n = onCeil ? gcols * grows : Math.max(minN, Math.ceil(perim / sp));
+  if (!onCeil && n > 2 && n % 2) n++;                        /* זוגי — סימטרי ונוח לחיווט */
+  n = Math.min(n, cut >= 2 ? (onCeil ? 6 : 4) : 24);         /* בקיצוץ עמוק — מינימום נקודות */
   /* הספק לרמקול: מוגבל להספק הרמקול ולמה שהמגבר נותן */
   const wPer = Math.min(spk.w, 250);
   /* SPL במרכז: כל הרמקולים תורמים, מרחק ממוצע ≈ חצי האלכסון */
   const rAvg = Math.max(2, Math.hypot(wM, hM) / 2);
-  const one = splAt(spk, wPer, rAvg);
-  const capability = one + 10 * Math.log10(n);               /* יכולת מקסימלית (חיבור לא-קוהרנטי) */
+  /* בתקרה שקועה המאזין נמצא ישירות מתחת לרמקול — מרחק = גובה התקרה פחות אוזן,
+     ורק השכנים הקרובים מוסיפים (≈3 dB), לא כל הרמקולים */
+  const drop = Math.max(1.2, (ceil || 3) - 1.2);
+  const one = splAt(spk, wPer, onCeil ? drop : rAvg);
+  const capability = onCeil ? one + 3 : one + 10 * Math.log10(n);
   /* ההספק שבאמת יידרש כדי להגיע לעוצמת היעד — ממנו נגזר המרווח (headroom) */
   const needW = Math.max(1, wPer / Math.pow(10, (capability - zone.spl) / 10));
   let subs = zone.spl >= 90 ? Math.max(1, Math.round(area / 90)) : 0;
   if (cut === 1) subs = zone.spl >= 95 ? 1 : 0;               /* סאב רק לרחבה */
   if (cut >= 2) subs = 0;                                     /* בלי סאבים בכלל */
   return { spk, n, subs, area, spacing: sp, splCenter: capability, capability, headroom: capability - zone.spl,
-    needW, splTarget: zone.spl, ok: capability >= zone.spl + 3, wPer };
+    needW, splTarget: zone.spl, ok: capability >= zone.spl + 3, wPer, onCeil,
+    grid: onCeil ? { cols: gcols, rows: grows } : null };
 }
 /* ---------- למידה מהקיטים: מה הולך עם מה ---------- */
 /* הקיטים ב-ERP הם הידע המצטבר של החברה — מהם לומדים אילו מגבר/סאב משתלבים עם כל רמקול */
@@ -137,6 +151,11 @@ function srcList() {
 function srcCount() { return S.sameContent === false ? srcList().length : 1; }
 function srcIndex(z, i) { return srcList().indexOf(srcOf(z, i)) + 1; }
 function setSrc(i, g) { S.zones[i].src = g; save(); render(); }
+/* סוג ההתקנה משנה את הרמקול עצמו, את הפריסה ואת מחיר ההתקנה */
+function setMount(i, m) {
+  S.zones[i].mount = m; S.layout = null; save(); render();
+  toast(m === 'ceil' ? '⬤ רמקולים שקועים בתקרה — פריסת רשת כלפי מטה' : '🔊 רמקולים על הקיר, מכוונים פנימה');
+}
 function addSrc(i) {
   const max = Math.max(-1, ...S.zones.map((z, k) => srcOf(z, k)));
   S.zones[i].src = max + 1; save(); render();
@@ -160,8 +179,10 @@ function buildProposal(tier) {
   /* מגברים: ערוצים לפי מספר קווים (2 רמקולים לקו בממוצע) + קו לכל סאב */
   /* ניצול המגבר: בוחרים מבין המגברים של השכבה את זה שנותן הכי הרבה רמקולים לשקל,
      ומחשבים ערוצים לפי כמה רמקולים באמת אפשר לתלות על ערוץ (אום + הספק). */
-  const mainSpk = Object.keys(spkCount)[0]
-    ? [tier.spk, tier.spkBig, tier.spkSmall].find(x => x && x.key === Object.keys(spkCount)[0]) || tier.spk : tier.spk;
+  /* המגבר נבחר לפי הרמקול הדומיננטי בכמות — לא לפי הראשון שנכנס לרשימה */
+  const domKey = Object.entries(spkCount).sort((a, b) => b[1] - a[1])[0];
+  const mainSpk = domKey
+    ? [tier.spk, tier.spkBig, tier.spkSmall, tier.spkCeil].find(x => x && x.key === domKey[0]) || tier.spk : tier.spk;
   const cands = [tier.ampSmall, tier.amp, tier.ampBig].filter(Boolean);
   let amp = tier.amp, ampN = 99, perCh = 1;
   let pwrRatio = 0, pwrOk = false;
@@ -190,9 +211,9 @@ function buildProposal(tier) {
   const rows = [];
   const push = (key, name, qty, price, note) => { if (qty > 0) rows.push({ key, name, qty, price, total: qty * price, note }); };
   Object.entries(spkCount).forEach(([k, n]) => {
-    const t = [tier.spk, tier.spkBig, tier.spkSmall].find(x => x && x.key === k) || tier.spk;
+    const t = [tier.spk, tier.spkBig, tier.spkSmall, tier.spkCeil].find(x => x && x.key === k) || tier.spk;
     push(k, t.name, n, t.price, 'רמקולים');
-    if (t.mount) { const m = erpItem(t.mount); if (m) push(t.mount, m.name, n, m.price, 'מתקני תלייה'); }
+    if (t.mount && !t.ceil) { const m = erpItem(t.mount); if (m) push(t.mount, m.name, n, m.price, 'מתקני תלייה'); }
   });
   const { sub, big: bigSub } = pickSub(tier, S.zones, scale);
   if (totalSub) push(sub.key, sub.name, totalSub, sub.price, 'סאבים');
@@ -210,9 +231,12 @@ function buildProposal(tier) {
   }
   const equip = rows.reduce((s, r) => s + r.total, 0);
   /* התקנה מתומחרת לפי פריט — כל פעולה והמחיר שלה, כמו בהצעת מחיר מקצועית */
+  const ceilSpk = zones.reduce((n2, { z, p }) => n2 + (p.onCeil ? p.n : 0), 0);
+  const wallSpk = totalSpk - ceilSpk;
   const inst = [
     { k: 'arrive', label: 'הגעה, פריקה והתארגנות באתר', unit: 'ביקור', qty: 1, price: 350 },
-    { k: 'spk',    label: 'התקנת רמקול על קיר/תקרה כולל מתקן וכיוון', unit: 'יח׳', qty: totalSpk, price: 160 },
+    { k: 'spk',    label: 'התקנת רמקול על קיר כולל מתקן וכיוון', unit: 'יח׳', qty: wallSpk, price: 160 },
+    { k: 'spkc',   label: 'ניסור תקרת גבס, התקנת רמקול שקוע וסגירה', unit: 'יח׳', qty: ceilSpk, price: 210 },
     { k: 'sub',    label: 'הצבת סאב, חיבור וכיוון', unit: 'יח׳', qty: totalSub, price: 90 },
     { k: 'rack',   label: 'הרכבת מגבר/מעבד בארון וחיווט פנימי', unit: 'יח׳', qty: ampN, price: 200 },
     { k: 'ends',   label: 'קצוות ומחברים לכל קו רמקול', unit: 'קו', qty: lines, price: 45 },
@@ -975,6 +999,11 @@ function stepZones() {
         ${pl ? `<span>🔈 ${pl.n} רמקולים${pl.subs ? ' + ' + pl.subs + ' סאב' : ''}</span>` : ''}
         ${S.sameContent === false && zs.length > 1 && srcCount() > 1 ? `<span>🎚 מקור ${srcIndex(z, i)}</span>` : ''}
       </div>
+      <div class="mountrow">
+        <span>התקנה:</span>
+        <button class="chip xs ${z.mount !== 'ceil' ? 'on' : ''}" onclick="setMount(${i},'wall')">🔊 על הקיר</button>
+        <button class="chip xs ${z.mount === 'ceil' ? 'on' : ''}" ${z.spl >= 95 ? 'disabled title="בעוצמה כזאת רמקול שקוע לא יעמוד — צריך רמקול על קיר"' : ''} onclick="setMount(${i},'ceil')">⬤ שקוע בתקרה</button>
+      </div>
       <button class="ghost sm" onclick="S.zones[${i}].purpose=null;save();render()">↺ שנה מה קורה כאן</button>
     </div>`;
   }).join('')}</div>
@@ -1029,6 +1058,9 @@ function setPurpose(i, pid) {
   S.layout = {};   /* הפריסה תחושב מחדש לפי האופי החדש */
   /* העוצמה נגזרת מהשימוש — אבל לא פחות ממה שהמקום דורש בשיא */
   S.zones[i].spl = pid === 'dance' || pid === 'stage' ? Math.max(p.spl, usePeak()) : p.spl;
+  /* ברירת מחדל להתקנה לפי אופי המקום: שירותים ומסדרון הם כמעט תמיד תקרת גבס
+     עם רמקול שקוע · רחבה ובמה תמיד על הקיר, בגלל העוצמה */
+  if (S.zones[i].mount == null) S.zones[i].mount = (pid === 'toilets' || pid === 'entry') ? 'ceil' : 'wall';
   save(); render();
 }
 function setZoneM(i, k, m) { if (m > 0.5 && S.scale) { S.zones[i][k] = m / S.scale; save(); drawPlan(); } }
@@ -1231,13 +1263,13 @@ function zonePath(z) {
   return d + ' Z';
 }
 /* מיקומי הרמקולים נשמרים ברגע שההצעה נבחרת — ומאותו רגע ניתנים לגרירה ידנית */
-function layoutKey(z, n, subs) { return z.id + '|' + n + '|' + subs; }
+function layoutKey(z, n, subs) { return z.id + '|' + n + '|' + subs + '|' + (z.mount || 'wall'); }
 function ensureLayout(prop) {
   S.layout = S.layout || {};
   prop.zones.forEach(({ z, p }) => {
     const k = layoutKey(z, p.n, p.subs);
     if (!S.layout[z.id] || S.layout[z.id].key !== k) {
-      S.layout[z.id] = { key: k, spk: speakerPts(z, p.n), subs: subPts(z, p.subs) };
+      S.layout[z.id] = { key: k, spk: speakerPts(z, p.n, p), subs: subPts(z, p.subs) };
     }
   });
   Object.keys(S.layout).forEach(id => { if (!prop.zones.some(x => x.z.id === id)) delete S.layout[id]; });
@@ -1250,8 +1282,19 @@ function subPts(z, n) {
   return out;
 }
 function resetLayout() { S.layout = {}; save(); render(); toast('↺ המיקומים חזרו לפריסה האוטומטית'); }
-function speakerPts(z, n) {
+function speakerPts(z, n, plan) {
   const c = zoneCenter(z), pts = [];
+  /* שקוע בתקרה — רשת אחידה על פני האזור, פנים כלפי מטה */
+  if (z.mount === 'ceil') {
+    const b = zoneBox(z);
+    const cols = (plan && plan.grid && plan.grid.cols) || Math.max(1, Math.round(Math.sqrt(n * b.w / Math.max(1, b.h))));
+    const rows = (plan && plan.grid && plan.grid.rows) || Math.max(1, Math.ceil(n / cols));
+    for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
+      if (pts.length >= n) break;
+      pts.push({ x: b.x + b.w * (k + 0.5) / cols, y: b.y + b.h * (r + 0.5) / rows, aim: -1 });
+    }
+    return pts;
+  }
   if (z.poly && z.poly.length >= 3) {
     /* פריסה שווה לאורך קו המתאר (כולל קשתות), כל רמקול מוסט מעט פנימה אל המרכז */
     const out = zoneOutline(z);
@@ -1307,10 +1350,51 @@ function coverageSVG(prop, w, h) {
   cells.forEach(c => {
     const t = Math.max(0, Math.min(1, (c.db - lo) / (hi - lo)));
     const col = t < .5 ? `rgb(${Math.round(60 + t * 2 * 60)},${Math.round(130 + t * 2 * 90)},235)` : `rgb(${Math.round(240)},${Math.round(220 - (t - .5) * 2 * 150)},${Math.round(90 - (t - .5) * 2 * 80)})`;
-    out += `<rect x="${(c.x - step / 2).toFixed(1)}" y="${(c.y - step / 2).toFixed(1)}" width="${step}" height="${step}" fill="${col}" opacity="0.5"/>`;
+    out += `<rect x="${(c.x - step / 2).toFixed(1)}" y="${(c.y - step / 2).toFixed(1)}" width="${step}" height="${step}" fill="${col}" opacity="0.45"/>`;
   });
   return { svg: out, min: Math.round(lo), max: Math.round(hi) };
 }
+/* אייקונים ברורים: רמקול קיר עם כיוון הפנייה, רמקול שקוע, סאב וארון */
+function coneSVG(pt, aim, ang, col, len) {
+  if (aim == null || aim < 0) return `<circle cx="${pt.x.toFixed(0)}" cy="${pt.y.toFixed(0)}" r="${len.toFixed(0)}" fill="${col}" opacity="0.10"/>`;
+  const a0 = (aim - ang / 2) * Math.PI / 180, a1 = (aim + ang / 2) * Math.PI / 180;
+  const x0 = pt.x + Math.cos(a0) * len, y0 = pt.y + Math.sin(a0) * len;
+  const x1 = pt.x + Math.cos(a1) * len, y1 = pt.y + Math.sin(a1) * len;
+  return `<path d="M${pt.x.toFixed(0)} ${pt.y.toFixed(0)} L${x0.toFixed(0)} ${y0.toFixed(0)} A${len.toFixed(0)} ${len.toFixed(0)} 0 ${ang > 180 ? 1 : 0} 1 ${x1.toFixed(0)} ${y1.toFixed(0)} Z" fill="${col}" opacity="0.13"/>`;
+}
+function spkIcon(pt, col, label, aim, onCeil) {
+  const x = pt.x, y = pt.y;
+  if (onCeil) {
+    /* שקוע בתקרה — עיגול עם גריל */
+    return `<g><circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="19" fill="#fff" stroke="${col}" stroke-width="4"/>
+      <circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="11" fill="none" stroke="${col}" stroke-width="2.5" opacity="0.65"/>
+      <circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="4" fill="${col}"/>
+      <text x="${(x + 26).toFixed(0)}" y="${(y + 7).toFixed(0)}" font-size="18" font-weight="800" fill="${col}">${label}</text></g>`;
+  }
+  /* רמקול על קיר — תיבה מסובבת לכיוון הכיסוי, עם ווּפר וטוויטר */
+  const rot = aim == null || aim < 0 ? 0 : aim;
+  return `<g transform="translate(${x.toFixed(0)},${y.toFixed(0)}) rotate(${rot})">
+    <rect x="-13" y="-17" width="30" height="34" rx="5" fill="#fff" stroke="${col}" stroke-width="4"/>
+    <circle cx="0" cy="4" r="8" fill="none" stroke="${col}" stroke-width="3"/>
+    <circle cx="0" cy="4" r="3" fill="${col}"/>
+    <circle cx="0" cy="-10" r="3.6" fill="none" stroke="${col}" stroke-width="2.5"/>
+    <path d="M17 -9 L26 -15 L26 15 L17 9 Z" fill="${col}" opacity="0.5"/>
+    <g transform="rotate(${-rot})"><text x="0" y="-24" text-anchor="middle" font-size="18" font-weight="800" fill="${col}">${label}</text></g></g>`;
+}
+function subIcon(pt, col, label) {
+  const x = pt.x, y = pt.y;
+  return `<g><rect x="${(x - 24).toFixed(0)}" y="${(y - 24).toFixed(0)}" width="48" height="48" rx="7" fill="#fff" stroke="${col}" stroke-width="4"/>
+    <circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="15" fill="none" stroke="${col}" stroke-width="3"/>
+    <circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="6" fill="${col}"/>
+    <text x="${x.toFixed(0)}" y="${(y + 40).toFixed(0)}" text-anchor="middle" font-size="16" font-weight="800" fill="${col}">SUB ${label}</text></g>`;
+}
+function rackIcon(pt) {
+  const x = pt.x, y = pt.y;
+  return `<g><rect x="${(x - 30).toFixed(0)}" y="${(y - 34).toFixed(0)}" width="60" height="68" rx="7" fill="#141821" stroke="#fff" stroke-width="3"/>
+    ${[0, 1, 2].map(i => `<rect x="${(x - 22).toFixed(0)}" y="${(y - 25 + i * 17).toFixed(0)}" width="44" height="12" rx="2.5" fill="none" stroke="#8ea0b5" stroke-width="2.5"/>`).join('')}
+    <text x="${x.toFixed(0)}" y="${(y + 50).toFixed(0)}" text-anchor="middle" font-size="17" font-weight="800" fill="#141821">ארון ציוד</text></g>`;
+}
+
 function stepReport() {
   const tier = selTier();
   const p = buildProposal(tier);
@@ -1334,20 +1418,22 @@ function stepReport() {
     });
   });
   /* ארון הציוד */
-  marks += `<g><rect x="${(rk.x - 26).toFixed(0)}" y="${(rk.y - 22).toFixed(0)}" width="52" height="44" rx="8" fill="#141821" stroke="#fff" stroke-width="3"/>
-    <text x="${rk.x.toFixed(0)}" y="${(rk.y + 7).toFixed(0)}" text-anchor="middle" font-size="17" font-weight="800" fill="#fff">ארון</text></g>`;
+  marks += rackIcon(rk);
   p.zones.forEach(({ z, p: pz }) => {
     const col = purposeOf(z).color;
     const zb = zoneBox(z);
     marks += `<path d="${zonePath(z)}" fill="none" stroke="${col}" stroke-width="3" stroke-dasharray="9 6" stroke-linejoin="round"/>
       <text x="${zb.x + 12}" y="${zb.y + 32}" font-size="24" font-weight="800" fill="${col}">${purposeOf(z).icon} ${esc(z.name)} · ${pz.n} רמקולים</text>`;
+    /* חרוט הכיסוי מצויר לפי זווית הפתיחה של הרמקול ומרחק ההגעה */
+    const reach = pz.spacing / (S.scale || 0.02) * (pz.onCeil ? 0.75 : 1.6);
     (L[z.id].spk || []).forEach((pt, i) => {
-      marks += `<g data-sp="${z.id}|${i}" style="cursor:grab"><circle cx="${pt.x.toFixed(0)}" cy="${pt.y.toFixed(0)}" r="17" fill="#fff" stroke="${col}" stroke-width="4"/>
-        <text x="${pt.x.toFixed(0)}" y="${(pt.y + 7).toFixed(0)}" text-anchor="middle" font-size="18" font-weight="800" fill="${col}">${i + 1}</text></g>`;
+      marks += coneSVG(pt, pz.onCeil ? -1 : pt.aim, pz.spk.h || 90, col, reach);
+    });
+    (L[z.id].spk || []).forEach((pt, i) => {
+      marks += `<g data-sp="${z.id}|${i}" style="cursor:grab">${spkIcon(pt, col, i + 1, pt.aim, pz.onCeil)}</g>`;
     });
     (L[z.id].subs || []).forEach((pt, i) => {
-      marks += `<g data-sub="${z.id}|${i}" style="cursor:grab"><rect x="${(pt.x - 20).toFixed(0)}" y="${(pt.y - 16).toFixed(0)}" width="40" height="32" rx="6" fill="#fff" stroke="${col}" stroke-width="4"/>
-        <text x="${pt.x.toFixed(0)}" y="${(pt.y + 7).toFixed(0)}" text-anchor="middle" font-size="17" font-weight="800" fill="${col}">SUB</text></g>`;
+      marks += `<g data-sub="${z.id}|${i}" style="cursor:grab">${subIcon(pt, col, i + 1)}</g>`;
     });
   });
   const groups = {};
@@ -1362,16 +1448,20 @@ function stepReport() {
   <div class="rsec"><h3>📍 פריסת הרמקולים והכיסוי בחלל <span class="editable">✎ אפשר לגרור כל רמקול</span></h3>
     <div class="planbox report"><div class="planwrap">
       ${S.plan ? `<img src="${S.plan}" style="width:100%">` : ''}
-      <svg viewBox="0 0 ${w} ${h}" style="${S.plan ? '' : 'position:relative;background:#f7f5f0;border-radius:10px;display:block;width:100%;height:auto;aspect-ratio:' + (w / h).toFixed(3)}">${cov.svg}${marks}</svg>
+      <svg viewBox="0 0 ${w} ${h}" style="${S.plan ? '' : 'position:relative;background:#f7f5f0;border-radius:10px;display:block;width:100%;height:auto;aspect-ratio:' + (w / h).toFixed(3)}">
+        <defs><clipPath id="zclip">${S.zones.map(z => `<path d="${zonePath(z)}"/>`).join('')}</clipPath></defs>
+        <g clip-path="url(#zclip)">${cov.svg}</g>${marks}</svg>
     </div></div>
     <div class="legend"><span class="lg cold"></span>${cov.min} dB<span class="lg warm"></span>${cov.max} dB
-      <span class="lgnote">עיגול ממוספר = רמקול · הריבוע השחור = ארון הציוד · הקו המקווקו = מסלול הכבל,
-      והמספר עליו הוא מספר הקו בטבלת החיווט למטה.</span></div>
+      <span class="lgnote">🔊 תיבה עם ווּפר = רמקול על קיר, מסובבת לכיוון שהיא מכסה · ⬤ עיגול עם גריל = רמקול שקוע בתקרה ·
+      הצללית סביבו = זווית הכיסוי בפועל · הארון השחור = ארון הציוד · הקו המקווקו = מסלול הכבל,
+      והמספר עליו הוא מספר הקו בטבלת החיווט.</span></div>
   </div>
   <div class="rsec"><h3>🔊 מה מקבלים בכל אזור</h3>
-    <table class="rt"><tr><th>אזור</th><th>שימוש</th><th>שטח</th><th>רמקולים</th><th>עוצמת יעד</th><th>יכולת המערכת</th><th>מרווח</th></tr>
+    <table class="rt"><tr><th>אזור</th><th>שימוש</th><th>שטח</th><th>רמקולים</th><th>התקנה</th><th>עוצמת יעד</th><th>יכולת המערכת</th><th>מרווח</th></tr>
     ${p.zones.map(({ z, p: pz }) => `<tr><td><b>${esc(z.name)}</b></td><td>${purposeOf(z).icon} ${esc(purposeOf(z).name)}</td>
       <td>${Math.round(pz.area)} מ"ר</td><td>${pz.n}${pz.subs ? ' + ' + pz.subs + ' סאב' : ''}</td>
+      <td>${pz.onCeil ? '⬤ שקוע בתקרת גבס · ' + (S.ceil).toFixed(1) + ' מ׳' : '🔊 על הקיר · ' + (S.ceil - 0.4).toFixed(1) + ' מ׳'}</td>
       <td>${z.spl} dB</td><td class="${pz.ok ? 'good' : 'warn'}">${Math.round(pz.capability)} dB ${pz.ok ? '✓' : '⚠'}</td>
       <td>${pz.headroom > 0 ? '+' + Math.round(pz.headroom) + ' dB' : '—'}</td></tr>`).join('')}</table>
     <p class="sub" style="margin-top:6px">"מרווח" = כמה עוד יש למערכת מעבר לעוצמה שביקשת. מרווח בריא (10 dB ומעלה) אומר
@@ -1479,7 +1569,10 @@ function wiringSection(p) {
       <p>• שרוול <b>25 מ"מ</b> מהארון לכל עמדת רמקול (או תעלה משותפת + הסתעפויות).<br>
       • להימנע ממקבילות צמודות לכבלי חשמל — לפחות 30 ס"מ הפרדה או חצייה ב-90°.<br>
       • סה"כ כבל רמקול: <b>${totalM} מ׳</b> (${reels} גלילים של 100 מ׳) — כולל רזרבה של 25%.<br>
-      • נקודת רמקול בגובה <b>${(S.ceil - 0.4).toFixed(1)} מ׳</b>, קופסה שקועה או יציאת כבל מהקיר.</p></div>
+      • נקודת רמקול על קיר בגובה <b>${(S.ceil - 0.4).toFixed(1)} מ׳</b>, קופסה שקועה או יציאת כבל מהקיר.<br>
+      ${p.zones.some(x => x.p.onCeil) ? `• באזורים עם רמקול שקוע: קצה כבל חופשי <b>50 ס"מ</b> מעל התקרה בכל נקודה,
+        לפני סגירת הגבס. קוטר ניסור לפי היצרן — לוודא שאין מעליו תשתית מיזוג או ספרינקלר.<br>` : ''}
+      • גובה התקנה למתקן על קיר: הרמקול מכוון פנימה ומטה אל אזור האוזניים.</p></div>
     <h4>לוח משיכת כבלים — קו אחר קו <span class="editable">✎ ניתן לעריכה</span></h4>
     <table class="rt wt"><tr><th>#</th><th>אזור</th><th>אל</th><th>סוג כבל</th><th>מחברים</th><th>אורך</th></tr>
       ${rows.map(r => `<tr><td><b>${r.id}</b></td><td>${esc(r.zone)}</td>
