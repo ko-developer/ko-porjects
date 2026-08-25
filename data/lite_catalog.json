@@ -88,6 +88,26 @@
     "ohm": 8,
     "ceil": true,
     "price": 780.0
+   },
+   "spkSmall": {
+    "key": "S17FUOKOWHT",
+    "name": "FUNKTION-ONE F55",
+    "h": 100,
+    "v": 60,
+    "sens": 91,
+    "max": 118,
+    "w": 120,
+    "ohm": 8,
+    "mount": "S17FUOKO2",
+    "price": 2500.0
+   },
+   "subSmall": {
+    "key": "S25FUOKOWHT",
+    "name": "FUNKTION-ONE SB8 סאב 8\"",
+    "w": 250,
+    "ohm": 8,
+    "inch": 8,
+    "price": 3978.0
    }
   },
   {
@@ -181,6 +201,26 @@
     "ohm": 8,
     "ceil": true,
     "price": 780.0
+   },
+   "spkSmall": {
+    "key": "SEGL7KO",
+    "name": "UNICORN EUPHORIA 5",
+    "h": 100,
+    "v": 70,
+    "sens": 87,
+    "max": 110,
+    "w": 80,
+    "ohm": 8,
+    "mount": "GJIG4KO",
+    "price": 620.0
+   },
+   "subSmall": {
+    "key": "SANA39KO",
+    "name": "KT ARRAY SUB 1000 — סאב 10\"",
+    "w": 200,
+    "ohm": 8,
+    "inch": 10,
+    "price": 1168.0
    }
   },
   {
@@ -265,14 +305,14 @@
     "inch": 15
    },
    "ampSmall": {
-    "key": "SSDK1KO",
-    "name": "KT DYNAMIQ 450 עם DSP",
-    "price": 2124,
+    "key": "SKOB3KOS",
+    "name": "UNICORN MX3-200 — 2×200W",
+    "price": 1593,
     "ch": 2,
     "minOhm": 4,
     "pw": {
-     "8": 300,
-     "4": 450
+     "8": 200,
+     "4": 300
     }
    },
    "spkCeil": {
@@ -286,6 +326,14 @@
     "ohm": 8,
     "ceil": true,
     "price": 398.0
+   },
+   "subSmall": {
+    "key": "SANA13KO",
+    "name": "KT ARRAY SUB 1000 — סאב 10\"",
+    "w": 200,
+    "ohm": 8,
+    "inch": 10,
+    "price": 867.0
    }
   }
  ],
