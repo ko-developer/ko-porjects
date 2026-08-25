@@ -1,0 +1,719 @@
+{
+ "note": "גימורים חלופיים לאותו דגם רמקול/סאב — נגזר משמות הפריטים ב-ERP (צבע + מוגן מים כמשפחה נפרדת).",
+ "byKey": {
+  "S16FUOKO": [
+   {
+    "key": "S16FUOKOWHT",
+    "finish": "לבן",
+    "price": 2316.0,
+    "stock": 44.0,
+    "name": "רמקול פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם F 5 בעוצמה של 30 וואט גודל וופר 5 \" 1 WAY - בצבע לבן!"
+   },
+   {
+    "key": "S16FUOKO",
+    "finish": "רגיל",
+    "price": 1947.0,
+    "stock": 6.0,
+    "name": "רמקול פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם F 5 בעוצמה של 30 וואט גודל וופר 5 \" 1 WAY"
+   }
+  ],
+  "S16FUOKOWHT": [
+   {
+    "key": "S16FUOKOWHT",
+    "finish": "לבן",
+    "price": 2316.0,
+    "stock": 44.0,
+    "name": "רמקול פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם F 5 בעוצמה של 30 וואט גודל וופר 5 \" 1 WAY - בצבע לבן!"
+   },
+   {
+    "key": "S16FUOKO",
+    "finish": "רגיל",
+    "price": 1947.0,
+    "stock": 6.0,
+    "name": "רמקול פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם F 5 בעוצמה של 30 וואט גודל וופר 5 \" 1 WAY"
+   }
+  ],
+  "S19FUOKO": [
+   {
+    "key": "S19FUOKOWHT",
+    "finish": "לבן",
+    "price": 4509.0,
+    "stock": 19.0,
+    "name": "רמקול פאסיבי לבן תוצרת FUNKTION - ONE אנגליה מדגם F 101 בעוצמה של וואט 150W גודל וופר 10\" 2 WAY"
+   },
+   {
+    "key": "S19FUOKO",
+    "finish": "רגיל",
+    "price": 4509.0,
+    "stock": 33.0,
+    "name": "רמקול פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם F 101 בעוצמה של וואט 150W גודל וופר 10\" 2 WAY"
+   }
+  ],
+  "S19FUOKOWHT": [
+   {
+    "key": "S19FUOKOWHT",
+    "finish": "לבן",
+    "price": 4509.0,
+    "stock": 19.0,
+    "name": "רמקול פאסיבי לבן תוצרת FUNKTION - ONE אנגליה מדגם F 101 בעוצמה של וואט 150W גודל וופר 10\" 2 WAY"
+   },
+   {
+    "key": "S19FUOKO",
+    "finish": "רגיל",
+    "price": 4509.0,
+    "stock": 33.0,
+    "name": "רמקול פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם F 101 בעוצמה של וואט 150W גודל וופר 10\" 2 WAY"
+   }
+  ],
+  "S22158KR": [
+   {
+    "key": "S22158KRWHT",
+    "finish": "לבן",
+    "price": 1989.0,
+    "stock": 2.0,
+    "name": "רמקול אקטיבי מוניטור תוצרת Kramer מדגם DOLEV 8 בעוצמה של 100W וואט אלמנטים בגודל 8\" 2 WAY בצבע לבן"
+   },
+   {
+    "key": "S22158KR",
+    "finish": "רגיל",
+    "price": 1534.0,
+    "stock": 0.0,
+    "name": "רמקול אקטיבי תוצרת Kramer מדגם DOLEV 8 בעוצמה של וואט 100W אלמנטים בגודל 8\"2 WAY"
+   }
+  ],
+  "S22158KRWHT": [
+   {
+    "key": "S22158KRWHT",
+    "finish": "לבן",
+    "price": 1989.0,
+    "stock": 2.0,
+    "name": "רמקול אקטיבי מוניטור תוצרת Kramer מדגם DOLEV 8 בעוצמה של 100W וואט אלמנטים בגודל 8\" 2 WAY בצבע לבן"
+   },
+   {
+    "key": "S22158KR",
+    "finish": "רגיל",
+    "price": 1534.0,
+    "stock": 0.0,
+    "name": "רמקול אקטיבי תוצרת Kramer מדגם DOLEV 8 בעוצמה של וואט 100W אלמנטים בגודל 8\"2 WAY"
+   }
+  ],
+  "S22160KO": [
+   {
+    "key": "S22160KON",
+    "finish": "עץ",
+    "price": 2124.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX7 בעוצמה של וואט 200W עץ טבעי גודל וופר 7.5'' 1 WAY"
+   },
+   {
+    "key": "S22160KO",
+    "finish": "שחור",
+    "price": 1708.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX7 בעוצמה של וואט 200W שחור גודל וופר 7.5'' 1 WAY"
+   }
+  ],
+  "S22160KON": [
+   {
+    "key": "S22160KON",
+    "finish": "עץ",
+    "price": 2124.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX7 בעוצמה של וואט 200W עץ טבעי גודל וופר 7.5'' 1 WAY"
+   },
+   {
+    "key": "S22160KO",
+    "finish": "שחור",
+    "price": 1708.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX7 בעוצמה של וואט 200W שחור גודל וופר 7.5'' 1 WAY"
+   }
+  ],
+  "S22177KO": [
+   {
+    "key": "S22178KO",
+    "finish": "לבן",
+    "price": 1027.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 6 בעוצמה של וואט 120W לבן גודל וופר 6'' 1 WAY"
+   },
+   {
+    "key": "S22179KO",
+    "finish": "עץ",
+    "price": 1275.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 6 בעוצמה של וואט 120W עץ גודל וופר 6'' 1 WAY"
+   },
+   {
+    "key": "S22177KO",
+    "finish": "שחור",
+    "price": 1275.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 6 בעוצמה של וואט 120W שחור גודל וופר 6'' 1 WAY"
+   }
+  ],
+  "S22178KO": [
+   {
+    "key": "S22178KO",
+    "finish": "לבן",
+    "price": 1027.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 6 בעוצמה של וואט 120W לבן גודל וופר 6'' 1 WAY"
+   },
+   {
+    "key": "S22179KO",
+    "finish": "עץ",
+    "price": 1275.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 6 בעוצמה של וואט 120W עץ גודל וופר 6'' 1 WAY"
+   },
+   {
+    "key": "S22177KO",
+    "finish": "שחור",
+    "price": 1275.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 6 בעוצמה של וואט 120W שחור גודל וופר 6'' 1 WAY"
+   }
+  ],
+  "S22179KO": [
+   {
+    "key": "S22178KO",
+    "finish": "לבן",
+    "price": 1027.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 6 בעוצמה של וואט 120W לבן גודל וופר 6'' 1 WAY"
+   },
+   {
+    "key": "S22179KO",
+    "finish": "עץ",
+    "price": 1275.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 6 בעוצמה של וואט 120W עץ גודל וופר 6'' 1 WAY"
+   },
+   {
+    "key": "S22177KO",
+    "finish": "שחור",
+    "price": 1275.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 6 בעוצמה של וואט 120W שחור גודל וופר 6'' 1 WAY"
+   }
+  ],
+  "S22198KO": [
+   {
+    "key": "S22198KONET",
+    "finish": "עץ",
+    "price": 3422.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 17 בעוצמה של וואט 800W צבע עץ טבעי גודל וופר 18\" 1 WAY"
+   },
+   {
+    "key": "S22198KO",
+    "finish": "שחור",
+    "price": 2950.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 17 בעוצמה של וואט 800W שחור גודל וופר 18\" 1 WAY"
+   }
+  ],
+  "S22198KONET": [
+   {
+    "key": "S22198KONET",
+    "finish": "עץ",
+    "price": 3422.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 17 בעוצמה של וואט 800W צבע עץ טבעי גודל וופר 18\" 1 WAY"
+   },
+   {
+    "key": "S22198KO",
+    "finish": "שחור",
+    "price": 2950.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי CELTO ACOUSTIQUE צרפת מדגם IFIX 17 בעוצמה של וואט 800W שחור גודל וופר 18\" 1 WAY"
+   }
+  ],
+  "S2346KO": [
+   {
+    "key": "S2346KO",
+    "finish": "לבן",
+    "price": 368.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי KT AUDIO מדגם INTERPID 500 בעוצמה של וואט 140W לבן גודל וופר 5 \" 2 WAY"
+   },
+   {
+    "key": "S2360KO",
+    "finish": "שחור",
+    "price": 368.0,
+    "stock": 1.0,
+    "name": "רמקול פאסיבי KT AUDIO מדגם INTERPID 500 בעוצמה של 140W וואט בצבע שחור אלמנט 5 אינצ 2 WAY"
+   }
+  ],
+  "S2360KO": [
+   {
+    "key": "S2346KO",
+    "finish": "לבן",
+    "price": 368.0,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי KT AUDIO מדגם INTERPID 500 בעוצמה של וואט 140W לבן גודל וופר 5 \" 2 WAY"
+   },
+   {
+    "key": "S2360KO",
+    "finish": "שחור",
+    "price": 368.0,
+    "stock": 1.0,
+    "name": "רמקול פאסיבי KT AUDIO מדגם INTERPID 500 בעוצמה של 140W וואט בצבע שחור אלמנט 5 אינצ 2 WAY"
+   }
+  ],
+  "S2347KO": [
+   {
+    "key": "S2361KO",
+    "finish": "לבן",
+    "price": 471.5,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי KT AUDIO מדגם INTERPID 600 בעוצמה של וואט 160W לבן גודל וופר 6'' 2 WAY"
+   },
+   {
+    "key": "S2347KO",
+    "finish": "שחור",
+    "price": 471.5,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי KT AUDIO מדגם INTERPID 600 בעוצמה של וואט 160W שחור גודל וופר 6'' 2 WAY"
+   }
+  ],
+  "S2361KO": [
+   {
+    "key": "S2361KO",
+    "finish": "לבן",
+    "price": 471.5,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי KT AUDIO מדגם INTERPID 600 בעוצמה של וואט 160W לבן גודל וופר 6'' 2 WAY"
+   },
+   {
+    "key": "S2347KO",
+    "finish": "שחור",
+    "price": 471.5,
+    "stock": 0.0,
+    "name": "רמקול פאסיבי KT AUDIO מדגם INTERPID 600 בעוצמה של וואט 160W שחור גודל וופר 6'' 2 WAY"
+   }
+  ],
+  "S25FUOKO": [
+   {
+    "key": "S25FUOKOWHT",
+    "finish": "לבן",
+    "price": 3978.0,
+    "stock": 21.0,
+    "name": "סאב פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם SB 8 בעוצמה של וואט 250W גודל וופר 8\" 1 WAY - בצבע לבן"
+   },
+   {
+    "key": "S25FUOKO",
+    "finish": "רגיל",
+    "price": 3978.0,
+    "stock": 26.0,
+    "name": "רמקול פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם SB 8 בעוצמה של וואט 250W גודל וופר 8\" 1 WAY"
+   }
+  ],
+  "S25FUOKOWHT": [
+   {
+    "key": "S25FUOKOWHT",
+    "finish": "לבן",
+    "price": 3978.0,
+    "stock": 21.0,
+    "name": "סאב פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם SB 8 בעוצמה של וואט 250W גודל וופר 8\" 1 WAY - בצבע לבן"
+   },
+   {
+    "key": "S25FUOKO",
+    "finish": "רגיל",
+    "price": 3978.0,
+    "stock": 26.0,
+    "name": "רמקול פאסיבי תוצרת FUNKTION - ONE אנגליה מדגם SB 8 בעוצמה של וואט 250W גודל וופר 8\" 1 WAY"
+   }
+  ],
+  "SANA11KO": [
+   {
+    "key": "SANA11KO",
+    "finish": "לבן",
+    "price": 531.0,
+    "stock": 200.0,
+    "name": "רמקול פסיבי KT INTERPID 800 V2 בצבע לבן WHITE עם בורר התנגדויות לבחירה בין 4-8-16 אוהם"
+   },
+   {
+    "key": "SANA12KO",
+    "finish": "שחור",
+    "price": 474.0,
+    "stock": 200.0,
+    "name": "רמקול פסיבי KT INTERPID 800 V2 בצבע שחור BLACK עם בורר התנגדויות לבחירה בין 4-8-16 אוהם"
+   }
+  ],
+  "SANA12KO": [
+   {
+    "key": "SANA11KO",
+    "finish": "לבן",
+    "price": 531.0,
+    "stock": 200.0,
+    "name": "רמקול פסיבי KT INTERPID 800 V2 בצבע לבן WHITE עם בורר התנגדויות לבחירה בין 4-8-16 אוהם"
+   },
+   {
+    "key": "SANA12KO",
+    "finish": "שחור",
+    "price": 474.0,
+    "stock": 200.0,
+    "name": "רמקול פסיבי KT INTERPID 800 V2 בצבע שחור BLACK עם בורר התנגדויות לבחירה בין 4-8-16 אוהם"
+   }
+  ],
+  "SANA21KO": [
+   {
+    "key": "SANA22KO",
+    "finish": "לבן",
+    "price": 620.0,
+    "stock": 0.0,
+    "name": "רמקול חיצוני לבן תוצרת KT מדגם WR 600 עם אלמנט של 6.5 אינץ 16 אוהם עם מגביר בס מובנה"
+   },
+   {
+    "key": "SANA21KO",
+    "finish": "שחור",
+    "price": 620.0,
+    "stock": 148.0,
+    "name": "רמקול חיצוני שחור תוצרת KT  מדגם WR 600 עם אלמנט של 6.5 אינץ 16 אום עם מגביר בס מובנה"
+   }
+  ],
+  "SANA22KO": [
+   {
+    "key": "SANA22KO",
+    "finish": "לבן",
+    "price": 620.0,
+    "stock": 0.0,
+    "name": "רמקול חיצוני לבן תוצרת KT מדגם WR 600 עם אלמנט של 6.5 אינץ 16 אוהם עם מגביר בס מובנה"
+   },
+   {
+    "key": "SANA21KO",
+    "finish": "שחור",
+    "price": 620.0,
+    "stock": 148.0,
+    "name": "רמקול חיצוני שחור תוצרת KT  מדגם WR 600 עם אלמנט של 6.5 אינץ 16 אום עם מגביר בס מובנה"
+   }
+  ],
+  "SEGL10KO": [
+   {
+    "key": "SEGL9KO",
+    "finish": "במבוק",
+    "price": 1859.0,
+    "stock": 44.0,
+    "name": "רמקול פסיבי 8 אינצ' תוצרת UNICORN מדגם EUPHORIA 8 BAMBOO מוגן מים IP66 בצבע עץ"
+   },
+   {
+    "key": "SEGL10KO",
+    "finish": "שחור",
+    "price": 1770.0,
+    "stock": 18.0,
+    "name": "רמקול פסיבי 8 אינצ' תוצרת UNICORN מדגם EUPHORIA 8 BLACK מוגן מים IP66 בצבע שחור"
+   }
+  ],
+  "SEGL9KO": [
+   {
+    "key": "SEGL9KO",
+    "finish": "במבוק",
+    "price": 1859.0,
+    "stock": 44.0,
+    "name": "רמקול פסיבי 8 אינצ' תוצרת UNICORN מדגם EUPHORIA 8 BAMBOO מוגן מים IP66 בצבע עץ"
+   },
+   {
+    "key": "SEGL10KO",
+    "finish": "שחור",
+    "price": 1770.0,
+    "stock": 18.0,
+    "name": "רמקול פסיבי 8 אינצ' תוצרת UNICORN מדגם EUPHORIA 8 BLACK מוגן מים IP66 בצבע שחור"
+   }
+  ],
+  "SEGL11KO": [
+   {
+    "key": "SEGL11KO",
+    "finish": "במבוק",
+    "price": 1239.0,
+    "stock": 5.0,
+    "name": "רמקול פסיבי 8 אינצ' תוצרת UNICORN מדגם EUPHORIA 8 BAMBOO בצבע עץ"
+   },
+   {
+    "key": "SEGL12KO",
+    "finish": "שחור",
+    "price": 1151.0,
+    "stock": 33.0,
+    "name": "רמקול פסיבי 8 אינצ' תוצרת UNICORN מדגם EUPHORIA 8 BLACK בצבע שחור"
+   }
+  ],
+  "SEGL12KO": [
+   {
+    "key": "SEGL11KO",
+    "finish": "במבוק",
+    "price": 1239.0,
+    "stock": 5.0,
+    "name": "רמקול פסיבי 8 אינצ' תוצרת UNICORN מדגם EUPHORIA 8 BAMBOO בצבע עץ"
+   },
+   {
+    "key": "SEGL12KO",
+    "finish": "שחור",
+    "price": 1151.0,
+    "stock": 33.0,
+    "name": "רמקול פסיבי 8 אינצ' תוצרת UNICORN מדגם EUPHORIA 8 BLACK בצבע שחור"
+   }
+  ],
+  "SEGL15KO": [
+   {
+    "key": "SEGL15KO",
+    "finish": "לבן",
+    "price": 620.0,
+    "stock": 172.0,
+    "name": "רמקול פסיבי 5 אינצ' תוצרת UNICORN מדגם EUPHORIA 5 WHITE בצבע לבן"
+   },
+   {
+    "key": "SEGL5KO",
+    "finish": "עץ",
+    "price": 708.0,
+    "stock": 92.0,
+    "name": "רמקול פסיבי 5 אינצ' תוצרת UNICORN מדגם EUPHORIA 5 WOOD בצבע עץ"
+   },
+   {
+    "key": "SEGL7KO",
+    "finish": "שחור",
+    "price": 620.0,
+    "stock": 131.0,
+    "name": "רמקול פסיבי 5 אינצ' תוצרת UNICORN מדגם EUPHORIA 5 BLACK בצבע שחור"
+   }
+  ],
+  "SEGL5KO": [
+   {
+    "key": "SEGL15KO",
+    "finish": "לבן",
+    "price": 620.0,
+    "stock": 172.0,
+    "name": "רמקול פסיבי 5 אינצ' תוצרת UNICORN מדגם EUPHORIA 5 WHITE בצבע לבן"
+   },
+   {
+    "key": "SEGL5KO",
+    "finish": "עץ",
+    "price": 708.0,
+    "stock": 92.0,
+    "name": "רמקול פסיבי 5 אינצ' תוצרת UNICORN מדגם EUPHORIA 5 WOOD בצבע עץ"
+   },
+   {
+    "key": "SEGL7KO",
+    "finish": "שחור",
+    "price": 620.0,
+    "stock": 131.0,
+    "name": "רמקול פסיבי 5 אינצ' תוצרת UNICORN מדגם EUPHORIA 5 BLACK בצבע שחור"
+   }
+  ],
+  "SEGL7KO": [
+   {
+    "key": "SEGL15KO",
+    "finish": "לבן",
+    "price": 620.0,
+    "stock": 172.0,
+    "name": "רמקול פסיבי 5 אינצ' תוצרת UNICORN מדגם EUPHORIA 5 WHITE בצבע לבן"
+   },
+   {
+    "key": "SEGL5KO",
+    "finish": "עץ",
+    "price": 708.0,
+    "stock": 92.0,
+    "name": "רמקול פסיבי 5 אינצ' תוצרת UNICORN מדגם EUPHORIA 5 WOOD בצבע עץ"
+   },
+   {
+    "key": "SEGL7KO",
+    "finish": "שחור",
+    "price": 620.0,
+    "stock": 131.0,
+    "name": "רמקול פסיבי 5 אינצ' תוצרת UNICORN מדגם EUPHORIA 5 BLACK בצבע שחור"
+   }
+  ],
+  "SEGL6KO": [
+   {
+    "key": "SEGL6KO",
+    "finish": "עץ",
+    "price": 1888.0,
+    "stock": 7.0,
+    "name": "סאב פסיבי 12 אינצ' תוצרת UNICORN מדגם EUPHORIA 12 SUB WOOD בצבע עץ"
+   },
+   {
+    "key": "SEGL8KO",
+    "finish": "שחור",
+    "price": 1682.0,
+    "stock": 38.0,
+    "name": "סאב פסיבי 12 אינצ' תוצרת UNICORN מדגם EUPHORIA 12 SUB BLACK בצבע שחור"
+   }
+  ],
+  "SEGL8KO": [
+   {
+    "key": "SEGL6KO",
+    "finish": "עץ",
+    "price": 1888.0,
+    "stock": 7.0,
+    "name": "סאב פסיבי 12 אינצ' תוצרת UNICORN מדגם EUPHORIA 12 SUB WOOD בצבע עץ"
+   },
+   {
+    "key": "SEGL8KO",
+    "finish": "שחור",
+    "price": 1682.0,
+    "stock": 38.0,
+    "name": "סאב פסיבי 12 אינצ' תוצרת UNICORN מדגם EUPHORIA 12 SUB BLACK בצבע שחור"
+   }
+  ],
+  "SFAM16KO": [
+   {
+    "key": "SFAM16KO",
+    "finish": "לבן",
+    "price": 1947.0,
+    "stock": 67.0,
+    "name": "רמקול קולונה תוצרת UNICORN מדגם PAGAZ 641 עם 6 אלמנטים של 4 אינצ' מוגן מים IP56 בצבע לבן"
+   },
+   {
+    "key": "SFAM8KO",
+    "finish": "שחור",
+    "price": 1947.0,
+    "stock": 56.0,
+    "name": "רמקול קולונה תוצרת UNICORN מדגם PAGAZ 641 6 אלמנטים 4 אינץ מוגן מים בצבע שחור"
+   }
+  ],
+  "SFAM8KO": [
+   {
+    "key": "SFAM16KO",
+    "finish": "לבן",
+    "price": 1947.0,
+    "stock": 67.0,
+    "name": "רמקול קולונה תוצרת UNICORN מדגם PAGAZ 641 עם 6 אלמנטים של 4 אינצ' מוגן מים IP56 בצבע לבן"
+   },
+   {
+    "key": "SFAM8KO",
+    "finish": "שחור",
+    "price": 1947.0,
+    "stock": 56.0,
+    "name": "רמקול קולונה תוצרת UNICORN מדגם PAGAZ 641 6 אלמנטים 4 אינץ מוגן מים בצבע שחור"
+   }
+  ],
+  "SFAM17KO": [
+   {
+    "key": "SFAM17KO",
+    "finish": "לבן",
+    "price": 1505.0,
+    "stock": 54.0,
+    "name": "רמקול קולונה תוצרת UNICORN מדגם PAGAZ 441 ארבע אלמנטים 4 אינץ מוגן מים IP56 בצבע לבן"
+   },
+   {
+    "key": "SFAM7KO",
+    "finish": "שחור",
+    "price": 1505.0,
+    "stock": 73.0,
+    "name": "רמקול קולונה תוצרת UNICORN מדגם PAGAZ 441 ארבע אלמנטים 4 אינץ מוגן מים בצבע שחור"
+   }
+  ],
+  "SFAM7KO": [
+   {
+    "key": "SFAM17KO",
+    "finish": "לבן",
+    "price": 1505.0,
+    "stock": 54.0,
+    "name": "רמקול קולונה תוצרת UNICORN מדגם PAGAZ 441 ארבע אלמנטים 4 אינץ מוגן מים IP56 בצבע לבן"
+   },
+   {
+    "key": "SFAM7KO",
+    "finish": "שחור",
+    "price": 1505.0,
+    "stock": 73.0,
+    "name": "רמקול קולונה תוצרת UNICORN מדגם PAGAZ 441 ארבע אלמנטים 4 אינץ מוגן מים בצבע שחור"
+   }
+  ],
+  "SFUO234KO": [
+   {
+    "key": "SFUO234KO",
+    "finish": "רגיל",
+    "price": 44870.0,
+    "stock": 4.0,
+    "name": "רמקול FUNKTION ONE EVO X בצבע סגול להתקנות ולתנאי חוץ Evox WR B/S (Evolution) Three way loudspeaker "
+   },
+   {
+    "key": "SFUO235KO",
+    "finish": "שחור",
+    "price": 35400.0,
+    "stock": 0.0,
+    "name": "רמקול FUNKTION ONE EVO X להתקנות ולתנאי חוץ בצבע שחור Evox WR B/S (Evolution) Three way loudspeaker "
+   }
+  ],
+  "SFUO235KO": [
+   {
+    "key": "SFUO234KO",
+    "finish": "רגיל",
+    "price": 44870.0,
+    "stock": 4.0,
+    "name": "רמקול FUNKTION ONE EVO X בצבע סגול להתקנות ולתנאי חוץ Evox WR B/S (Evolution) Three way loudspeaker "
+   },
+   {
+    "key": "SFUO235KO",
+    "finish": "שחור",
+    "price": 35400.0,
+    "stock": 0.0,
+    "name": "רמקול FUNKTION ONE EVO X להתקנות ולתנאי חוץ בצבע שחור Evox WR B/S (Evolution) Three way loudspeaker "
+   }
+  ],
+  "SFUO27KO": [
+   {
+    "key": "SFUO27KO",
+    "finish": "רגיל",
+    "price": 8025.0,
+    "stock": 0.0,
+    "name": "רמקול FUNKTION ONE SB12 V (Small Bass) bass reflex loudspeaker 12\" בצבע סגול"
+   },
+   {
+    "key": "SFUO28KO",
+    "finish": "שחור",
+    "price": 8025.0,
+    "stock": 2.0,
+    "name": "רמקול FUNKTION ONE SB12 V (Small Bass) bass reflex loudspeaker 12\" בצבע שחור"
+   }
+  ],
+  "SFUO28KO": [
+   {
+    "key": "SFUO27KO",
+    "finish": "רגיל",
+    "price": 8025.0,
+    "stock": 0.0,
+    "name": "רמקול FUNKTION ONE SB12 V (Small Bass) bass reflex loudspeaker 12\" בצבע סגול"
+   },
+   {
+    "key": "SFUO28KO",
+    "finish": "שחור",
+    "price": 8025.0,
+    "stock": 2.0,
+    "name": "רמקול FUNKTION ONE SB12 V (Small Bass) bass reflex loudspeaker 12\" בצבע שחור"
+   }
+  ],
+  "SKNF30KO": [
+   {
+    "key": "SKNF30KOWHT",
+    "finish": "לבן",
+    "price": 19824.0,
+    "stock": 2.0,
+    "name": "רמקול קולנה מקצועי K&F PIA M 3-way בצבע לבן"
+   },
+   {
+    "key": "SKNF30KO",
+    "finish": "שחור",
+    "price": 19824.0,
+    "stock": 2.0,
+    "name": "רמקול קולנה מקצועי K&F PIA M 3-way בצבע שחור"
+   }
+  ],
+  "SKNF30KOWHT": [
+   {
+    "key": "SKNF30KOWHT",
+    "finish": "לבן",
+    "price": 19824.0,
+    "stock": 2.0,
+    "name": "רמקול קולנה מקצועי K&F PIA M 3-way בצבע לבן"
+   },
+   {
+    "key": "SKNF30KO",
+    "finish": "שחור",
+    "price": 19824.0,
+    "stock": 2.0,
+    "name": "רמקול קולנה מקצועי K&F PIA M 3-way בצבע שחור"
+   }
+  ]
+ }
+}

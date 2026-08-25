@@ -6,6 +6,7 @@
 /*__DATA:ERP_ITEMS__*/
 /*__DATA:ERP_PRICES__*/
 /*__DATA:ERP_IMAGES__*/
+/*__DATA:FINISHES__*/
 
 const $ = s => document.querySelector(s);
 const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -200,11 +201,13 @@ function buildProposal(tier) {
   const rows = [];
   const push = (key, name, qty, price, note) => { if (qty > 0) rows.push({ key, name, qty, price, total: qty * price, note }); };
   Object.entries(spkCount).forEach(([k, n]) => {
-    const t = [tier.spk, tier.spkBig, tier.spkSmall, tier.spkCeil].find(x => x && x.key === k) || tier.spk;
-    push(k, t.name, n, t.price, 'רמקולים');
+    const t0 = [tier.spk, tier.spkBig, tier.spkSmall, tier.spkCeil].find(x => x && x.key === k) || tier.spk;
+    const t = withFinish(t0);
+    push(t.key, t.name, n, t.price, 'רמקולים');
     if (t.mount && !t.ceil) { const m = erpItem(t.mount); if (m) push(t.mount, m.name, n, m.price, 'מתקני תלייה'); }
   });
-  const { sub, big: bigSub } = pickSub(tier, S.zones, scale);
+  const picked = pickSub(tier, S.zones, scale);
+  const sub = withFinish(picked.sub), bigSub = picked.big;
   if (totalSub) push(sub.key, sub.name, totalSub, sub.price, 'סאבים');
   push(amp.key, amp.name, ampN, amp.price, 'הגברה');
   if (tier.xover && totalSub) push(tier.xover.key, tier.xover.name, ampN, tier.xover.price, 'הגברה');
@@ -241,6 +244,37 @@ function buildProposal(tier) {
   return { tier, zones, rows, inst, equip, install, days, hours, total: equip + install,
     totalSpk, totalSub, ampN, amp, perCh, pwrRatio, pwrOk, lines, meters, sub, bigSub, mainSpk, util: Math.round(totalSpk / Math.max(1, ampN * (amp.ch || 2) * perCh) * 100) };
 }
+/* ---------- גימור: אותו דגם, מראה אחר ---------- */
+/* לקוח שרוצה רמקול עץ או במבוק מקבל את אותו רמקול בדיוק — רק בגימור אחר,
+   עם הפרש המחיר האמיתי מהמלאי. האקוסטיקה לא משתנה */
+const FIN_ANY = 'any';
+const FIN_COL = { 'שחור': '#1c1c1c', 'לבן': '#f2f2ee', 'עץ': '#b1793f', 'במבוק': '#d8b478', 'אפור': '#8d918c', 'כסף': '#c9ccd1' };
+function finishOpts(key) {
+  return (typeof FINISHES !== 'undefined' && FINISHES.byKey && FINISHES.byKey[key]) || null;
+}
+/* כל הגימורים שאפשר להציע לפרויקט הנוכחי, לפי מה שבאמת בקטלוג ובמלאי */
+function finishChoices() {
+  const seen = {};
+  LITE_CATALOG.tiers.forEach(t => ['spk', 'spkBig', 'spkSmall', 'spkCeil', 'sub', 'subBig', 'subSmall'].forEach(k => {
+    const e = t[k]; if (!e) return;
+    (finishOpts(e.key) || []).forEach(v => { if (v.stock > 0) seen[v.finish] = (seen[v.finish] || 0) + 1; });
+  }));
+  /* "רגיל" הוא פריט בלי צבע בשם — לא אפשרות שמציגים ללקוח */
+  const order = ['שחור', 'לבן', 'עץ', 'במבוק', 'אפור', 'כסף'];
+  return order.filter(f => seen[f]);
+}
+/* הפריט בפועל אחרי בחירת הגימור — אם אין מלאי או אין וריאנט, נשארים במקורי */
+function withFinish(entry) {
+  const want = S.finish;
+  if (!want || want === FIN_ANY || !entry) return entry;
+  const opts = finishOpts(entry.key);
+  if (!opts) return entry;
+  const hit = opts.find(v => v.finish === want && v.stock > 0);
+  if (!hit || hit.key === entry.key) return entry;
+  return Object.assign({}, entry, { key: hit.key, name: entry.name + ' · ' + want, price: hit.price, finish: want });
+}
+function setFinish(f) { S.finish = f; save(); render(); toast(f === FIN_ANY ? 'נבחר: מה שמתאים ביותר' : '🎨 ' + f + ' — ההצעות מתעדכנות'); }
+
 function erpItem(key) {
   const r = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).find(x => x[0] === key);
   return r ? { key: r[0], name: r[1], price: +r[2] || 0, stock: +r[3] || 0 } : null;
@@ -1170,11 +1204,38 @@ function stepBudget() {
     </div>`;
   }).join('')}</div>
   ${belowAll ? fitRowHTML(fit) : ''}
+  ${finishHTML(props)}
   <div class="note">💡 אפשר להמשיך גם אם משהו מעל התקציב — בשלב הבא נראה בדיוק מה ההבדל בין האפשרויות.</div>`;
 }
 /* שורות הציוד העיקריות — רמקולים, סאבים והגברה, מקובצות לפי פריט */
 function mainLines(p) {
   return p.rows.filter(r => ['רמקולים', 'סאבים', 'הגברה'].includes(r.note));
+}
+/* איך זה צריך להיראות — שאלה מסחרית כמו התקציב, ולכן היא יושבת לידו */
+function finishHTML(props) {
+  const list = finishChoices();
+  if (!list.length) return '';
+  const cur = S.finish || FIN_ANY;
+  /* מחשבים את ההפרש בפועל על השכבה המומלצת */
+  const before = S.finish; 
+  const delta = f => {
+    S.finish = f; const p = buildProposal(LITE_CATALOG.tiers[1]); S.finish = before;
+    return p.total;
+  };
+  const baseTotal = delta(FIN_ANY);
+  return `<div class="finish">
+    <b>🎨 איך זה צריך להיראות?</b>
+    <small>אותו רמקול בדיוק, גימור אחר. ההפרש מחושב על האפשרות האמצעית ומתעדכן בכל ההצעות.</small>
+    <div class="fchips">
+      <button class="chip ${cur === FIN_ANY ? 'on' : ''}" onclick="setFinish('${FIN_ANY}')">מה שמתאים ביותר</button>
+      ${list.map(f => {
+        const t = delta(f), d = t - baseTotal;
+        return `<button class="chip ${cur === f ? 'on' : ''}" onclick="setFinish('${f}')"><span class="sw" style="background:${FIN_COL[f] || '#ccc'}"></span>${f}
+          <span class="fd ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d === 0 ? 'ללא תוספת' : (d > 0 ? '+' : '−') + ils(Math.abs(d)).replace('₪', '₪')}</span></button>`;
+      }).join('')}
+    </div>
+    ${cur !== FIN_ANY ? `<small class="fnote">אם דגם מסוים לא קיים ב${cur} — הוא יישאר בגימור הרגיל שלו, ולא נחליף אותו לדגם אחר.</small>` : ''}
+  </div>`;
 }
 function fitRowHTML(fit) {
   if (!fit) return '';
@@ -1225,6 +1286,7 @@ function stepOffers() {
       <div class="ampline">🎚 ${p.ampN}× ${esc(p.amp.name.slice(0, 26))} · ${p.perCh} רמקולים לערוץ · ניצול ${p.util}%
         <br><b style="color:${p.pwrOk ? '#0f6e56' : '#c1121f'}">×${p.pwrRatio} הספק מגבר מול הרמקולים</b> — היעד ×2, מרווח לפסגות בלי קליפ
 </div>
+      ${S.finish && S.finish !== FIN_ANY ? `<div class="finline">🎨 גימור ${esc(S.finish)}${p.rows.some(r => (r.name || '').endsWith('· ' + S.finish)) ? '' : ' — לדגם הזה אין גימור כזה, נשאר במקורי'}</div>` : ''}
       <div class="prods">${prodCards(p)}</div>
       <details class="incl"><summary>מה כלול בדיוק — ${p.rows.length} פריטי ציוד + ${p.inst.length} שורות התקנה</summary>
         <table class="inclt"><tr><th>ציוד</th><th>כמות</th><th>סה"כ</th></tr>
@@ -1847,7 +1909,7 @@ async function resetAll() {
   try { localStorage.removeItem(LS); } catch (e) {}
   S = { step: 0, venue: null, uses: [], name: '', plan: null, planW: 1400, planH: 900, scale: null,
     roomW: null, roomL: null, ceil: 4, zones: [], budget: null, tier: null, contact: {},
-    sameContent: true, cut: 0, layout: {}, wireEdits: {}, instPrice: {} };
+    sameContent: true, cut: 0, finish: 'any', layout: {}, wireEdits: {}, instPrice: {} };
   CAL.mode = 'width'; CAL.pts = [];
   DRAW.on = false; DRAW.from = DRAW.cur = null;
   save(); render();
