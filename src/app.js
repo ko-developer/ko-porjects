@@ -7259,45 +7259,80 @@ function applyZonesJson(zs) {
   render();
   return zs.length;
 }
-/* זיהוי אזורים אוטומטי — קריאה ישירה ל-Claude API (מפתח נשמר מקומית בלבד) */
-async function autoZones() {
-  if (!P.bg) { alert('העלה קודם תכנית רקע'); return; }
+/* ===== גישה ל-Claude API =====
+   קודם דרך השרת (/api/ai) — המפתח יושב ב-.env ולא נחשף לדפדפן.
+   בפריסה סטטית (Netlify) אין שרת, ואז נופלים למפתח אישי שנשמר ב-localStorage. */
+/* מצב ה-AI: 'srv' = לשרת יש מפתח והוא מבצע את הקריאה · 'env' = יש שרת אבל חסר
+   ANTHROPIC_API_KEY ב-.env · 'static' = אין שרת בכלל (פריסת Netlify) */
+let AI_SRV = null;
+async function aiServerReady() {
+  if (AI_SRV !== null) return AI_SRV;
+  try {
+    const r = await fetch('/api/ai', { cache: 'no-store' });
+    if (!r.ok) AI_SRV = 'static';                      /* אין ראוט — פריסה סטטית */
+    else AI_SRV = (await r.json()).configured === true ? 'srv' : 'env';
+  } catch (e) { AI_SRV = 'static'; }
+  return AI_SRV;
+}
+/* שולח הודעות ל-Claude ומחזיר את גוף התשובה. זורק Error('NOKEY') אם המשתמש ביטל את בקשת המפתח. */
+async function claudeMsg(messages, maxTokens) {
+  const mode = await aiServerReady();
+  if (mode === 'srv') {
+    const r = await fetch('/api/ai', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages, max_tokens: maxTokens })
+    });
+    const j = await r.json().catch(() => ({ error: 'תשובת שרת לא תקינה' }));
+    if (!r.ok || j.error) throw new Error(j.error || 'שגיאת שרת ' + r.status);
+    return j;
+  }
   let key = '';
   try { key = localStorage.getItem('koflow_apikey') || ''; } catch (e) {}
   if (!key) {
-    key = await uiPrompt('חד-פעמי: הדבק מפתח API של Claude (נשמר רק בדפדפן שלך, נשלח רק ל-Anthropic).\nמשיגים ב: console.anthropic.com → API Keys\n\nביטול = מסלול ידני דרך הצ׳אט.');
-    if (!key) { autoZonesHint(); return; }
+    key = await uiPrompt(mode === 'env'
+      ? 'נדרש מפתח API של Claude כדי שהתכנית תנותח.\n\nהמפתח משיגים כך:\n1. פתח https://console.anthropic.com/settings/keys\n2. לחץ "Create Key" (למעלה מימין)\n3. תן שם ולחץ "Add", ואז "Copy" — מוצג פעם אחת בלבד\n\nהדרך המומלצת: תן את המפתח לסוכן ב-Claude Code — הוא ישמור אותו ב-.env בשרת\nוהשאלה הזאת לא תחזור. הדבקה כאן עובדת גם, אבל אז המפתח נשמר גלוי בדפדפן.\n\nחיוב: יתרת ה-API בקונסולה, בנפרד ממנוי Claude (כאגורה לזיהוי).\nביטול = מסלול ידני דרך הצ׳אט.'
+      : 'חד-פעמי: הדבק מפתח API של Claude — נשמר רק בדפדפן שלך ונשלח רק ל-Anthropic.\n\n1. פתח https://console.anthropic.com/settings/keys\n2. לחץ "Create Key" (למעלה מימין)\n3. תן שם ולחץ "Add", ואז "Copy" — מוצג פעם אחת בלבד\n\nחיוב: יתרת ה-API בקונסולה, בנפרד ממנוי Claude (כאגורה לזיהוי).\nביטול = מסלול ידני דרך הצ׳אט.');
+    if (!key) throw new Error('NOKEY');
     key = key.trim();
     try { localStorage.setItem('koflow_apikey', key); } catch (e) {}
   }
-  const btnMsg = 'מזהה אזורים… (~15 שניות)';
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: maxTokens, messages })
+  });
+  const j = await res.json();
+  if (j.error) {
+    const m = j.error.message || 'שגיאת API';
+    if (res.status === 401 || /invalid|authentication/i.test(m)) { try { localStorage.removeItem('koflow_apikey'); } catch (e) {} }
+    throw new Error(m);
+  }
+  return j;
+}
+/* מחלץ את ה-JSON מתשובת Claude — מסיר גדרות ```json ורעש שלפני הסוגר הפותח */
+function claudeJson(j) {
+  let txt = (j.content && j.content[0] && j.content[0].text || '').replace(/```json|```/g, '').trim();
+  txt = txt.slice(txt.indexOf('{'));
+  return JSON.parse(txt);
+}
+/* זיהוי אזורים אוטומטי — Claude מנתח את תמונת התכנית */
+async function autoZones() {
+  if (!P.bg) { alert('העלה קודם תכנית רקע'); return; }
   render();
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-5',
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: [
+    const j = await claudeMsg([{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: P.bg.split(',')[1] } },
           { type: 'text', text: 'זו תכנית אדריכלית של חלל אירוח/מסחרי. זהה אזורי סאונד לוגיים (רחבת ריקודים, במה, בר, אזור ישיבה/מסעדה, חוץ/מרפסת, כניסה). דלג על מטבחים, שירותים ומחסנים. החזר JSON בלבד ללא שום טקסט נוסף: {"zones":[{"name":"שם בעברית","usage":"מוזיקת רקע|מוזיקה לבר|הופעות חיות|מוזיקת ריקודים|מועדון על מלא","rx":0.1,"ry":0.2,"rw":0.3,"rh":0.25}]} — rx,ry מיקום יחסי (0-1) של הפינה השמאלית-העליונה של האזור בתמונה, rw,rh רוחב וגובה יחסיים. עד 8 אזורים.' }
-        ] }]
-      })
-    });
-    const j = await res.json();
-    if (j.error) throw new Error(j.error.message || 'שגיאת API');
-    let txt = (j.content && j.content[0] && j.content[0].text || '').replace(/```json|```/g, '').trim();
-    txt = txt.slice(txt.indexOf('{'));
-    const n = applyZonesJson(JSON.parse(txt).zones);
+    ] }], 1500);
+    const n = applyZonesJson(claudeJson(j).zones);
     alert('✓ זוהו ' + n + ' אזורים — ערוך שמות ותכליות בטבלה למטה או בלחיצה על אזור');
   } catch (err) {
-    if (String(err.message).includes('401') || /invalid|authentication/i.test(err.message)) { try { localStorage.removeItem('koflow_apikey'); } catch (e) {} }
+    if (err.message === 'NOKEY') { autoZonesHint(); return; }
     alert('הזיהוי האוטומטי נכשל: ' + err.message + '\nעובר למסלול הידני דרך הצ׳אט.');
     autoZonesHint();
   }
@@ -8216,14 +8251,6 @@ async function autoLayoutAI(zid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   if (!P.bg) { alert('העלה קודם תכנית רקע'); return; }
   if (!P.scale) { alert('כייל את התכנית קודם — הפריסה תלויה במרחקים אמיתיים.'); return; }
-  let key = '';
-  try { key = localStorage.getItem('koflow_apikey') || ''; } catch (e) {}
-  if (!key) {
-    key = await uiPrompt('חד-פעמי: הדבק מפתח API של Claude (נשמר רק בדפדפן שלך).');
-    if (!key) return;
-    key = key.trim();
-    try { localStorage.setItem('koflow_apikey', key); } catch (e) {}
-  }
   const img = $('#bgimg');
   const imgW = img.offsetWidth || P.bgW || 1400, imgH = img.offsetHeight || 900;
   const imgLeft = 2200 - imgW;
@@ -8235,22 +8262,11 @@ async function autoLayoutAI(zid) {
   const tgt = z.usage ? USAGE_SPL[z.usage] : 88;
   alert('שולח את התכנית לניתוח… (~20 שניות). לחץ OK והמתן.');
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-5', max_tokens: 2000,
-        messages: [{ role: 'user', content: [
+    const j = await claudeMsg([{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: P.bg.split(',')[1] } },
           { type: 'text', text: 'אתה מתכנן סאונד. בתמונה תכנית אדריכלית. תכנן פריסת רמקולים לאזור שגבולותיו היחסיים בתמונה: x=' + rz.rx + ', y=' + rz.ry + ', w=' + rz.rw + ', h=' + rz.rh + ' (0-1).\nנתונים: שטח ' + areaM + ' מ"ר · תקרה ' + ceil + ' מ׳ · תכלית "' + (z.usage || 'מוזיקה לבר') + '" (יעד ' + tgt + 'dB) · רמקול: ' + spk + ' (פיזור ' + disp + '°) · סגנון: ' + (spread === 'surround' ? 'היקפי — רמקולים סביב ההיקף/קירות מכוונים פנימה, כיסוי אחיד מכל הכיוונים' : 'כיווני — כל הרמקולים מצד אחד (במה) מכוונים אל הקהל') + '.\nהסתכל על התכנית בפועל: זהה קירות, עמודים, אזורי ישיבה (שולחנות/כסאות), בר, דלתות. מקם רמקולים על קירות/עמודים אמיתיים בלבד, כוון אותם אל אזורי הישיבה, אל תמקם מעל מטבח/שירותים, שמור מרווח ~' + Math.max(3, 2 * (ceil - 1.2) * Math.tan(Math.min(disp, 150) / 2 * Math.PI / 180)).toFixed(0) + ' מ׳ בין רמקולים.\nהחזר JSON בלבד: {"speakers":[{"rx":0.42,"ry":0.31,"aim":180,"type":"spk","why":"קיר צפוני מעל הבר"}]} — rx,ry יחסי לכל התמונה (0-1), aim במעלות (0=ימין,90=מטה,180=שמאל,270=מעלה), type: spk או sub (1-2 סאבים אם מתאים). עד 16 רמקולים.' }
-        ] }]
-      })
-    });
-    const j = await res.json();
-    if (j.error) throw new Error(j.error.message || 'שגיאת API');
-    let txt = (j.content && j.content[0] && j.content[0].text || '').replace(/```json|```/g, '').trim();
-    txt = txt.slice(txt.indexOf('{'));
-    const sp = JSON.parse(txt).speakers || [];
+    ] }], 2000);
+    const sp = claudeJson(j).speakers || [];
     if (!sp.length) throw new Error('לא הוחזרו מיקומים');
     const spl = (guessSpl(spk) || 120) - 20;
     const it = { on: true, qty: 0, name: spk, src: 'מערכת אוטו · ' + z.name, key: z._spkKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') };
@@ -8271,7 +8287,7 @@ async function autoLayoutAI(zid) {
   z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar('🤖 הפריסה החכמה מיקמה ' + nS + ' רמקולים' + (nSub ? ' + ' + nSub + ' סאבים' : '') + ' לפי ניתוח התכנית (' + (spread === 'surround' ? 'היקפי' : 'כיווני') + '). ריחוף על רמקול מציג את הנימוק.', () => undoZoneBuild(z));
   } catch (err) {
-    if (/401|invalid|authentication/i.test(String(err.message))) { try { localStorage.removeItem('koflow_apikey'); } catch (e) {} }
+    if (err.message === 'NOKEY') return;
     alert('הפריסה החכמה נכשלה: ' + err.message);
   }
 }

@@ -2,6 +2,40 @@
 
 AV installation planner (Hebrew RTL). Now a SvelteKit app (strangler migration in progress); the legacy single-file build is still produced for Netlify drag-and-drop deploys.
 
+## ⚠ הפעולה הראשונה אחרי משיכת הקוד — מפתח API של Claude
+`npm run dev` מדפיס את זה לבד (דרך `scripts/check-env.js`), אבל בדוק לפני שאתה מתחיל לעבוד:
+
+```bash
+grep -q '^ANTHROPIC_API_KEY=.' .env && echo set || echo MISSING
+```
+
+אם MISSING — תכונות ה-AI (🪄 זיהוי אזורים אוטומטי, 🤖 פריסה חכמה) מושבתות, והאפליקציה
+תבקש מהמשתמש מפתח שיישמר גלוי ב-localStorage. **בקש מפתח מהמשתמש מיד — הבלט את זה,
+אל תקבור ואל תעקוף.** העבר לו את הטקסט הזה כמו שהוא:
+
+> צריך מפתח API של Claude כדי שהתכנית תנותח אוטומטית. תוציא אותו כך:
+>
+> 1. פתח: **https://console.anthropic.com/settings/keys**
+> 2. לחץ **"Create Key"** (הכפתור למעלה מימין)
+> 3. תן שם (למשל "KO Projects") ולחץ **"Add"**
+> 4. לחץ **"Copy"** — המפתח מוצג פעם אחת בלבד — והדבק לי אותו כאן
+>
+> המפתח נשמר רק ב-.env על המחשב שלך: לא נכנס לגיט ולא מגיע לדפדפן.
+> חיוב: יתרת ה-API בקונסולה, בנפרד ממנוי Claude — כאגורה לכל זיהוי.
+
+אחר כך כתוב אותו בעצמך והפעל מחדש את השרת בעצמך — **אל תבקש מהמשתמש להריץ פקודה,
+אל תדפיס את המפתח בחזרה, ואל תכניס אותו לקוד או לקומיט**:
+
+```bash
+KEY='sk-ant-...'                      # מה שהמשתמש הדביק
+grep -q '^ANTHROPIC_API_KEY=' .env \
+  && sed -i '' "s|^ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$KEY|" .env \
+  || printf 'ANTHROPIC_API_KEY=%s\n' "$KEY" >> .env
+```
+
+בדיקה: `curl -s localhost:4177/api/ai` → `{"configured":true,...}`. הפירוט בסעיף AI features
+למטה. אם המשתמש מסרב — אמור שהשני כפתורי ה-AI ימשיכו לבקש מפתח בדפדפן, והמשך.
+
 ## Layout
 - `src/app.js` — legacy application JS (all logic), with `/*__DATA:NAME__*/` markers
 - `src/index.template.html` — legacy HTML shell + CSS, with `/*__APP__*/` marker
@@ -22,6 +56,26 @@ AV installation planner (Hebrew RTL). Now a SvelteKit app (strangler migration i
 - `npm run build` — legacy single-file `dist/index.html` (keep this working — Netlify deploy)
 - `npm run build:kit` / `preview:kit` — SvelteKit production build (adapter-node)
 
+## AI features — הגדרת ANTHROPIC_API_KEY
+תכונות הראייה על התכנית קוראות ל-Claude: `autoZones()` (זיהוי אזורים אוטומטי) ו-`autoLayoutAI()`
+(פריסה חכמה) ב-`src/app.js`, דרך `claudeMsg()` → `POST /api/ai`. הראוט
+`src/routes/api/ai/+server.js` מחזיק את המפתח — קורא `ANTHROPIC_API_KEY` מ-.env, כך שהדפדפן
+לא רואה אותו. בלי מפתח בשרת האפליקציה נופלת לבקשת מפתח אישי מהמשתמש, שנשמר גלוי
+ב-localStorage — בדיוק מה שההגדרה הזאת באה למנוע.
+
+**זרימת ההגדרה / מפתח חסר: ראה הבאנר בראש הקובץ** — `scripts/check-env.js` רץ ב-`predev`
+וב-`prebuild:kit` ומדפיס את אותו דבר, כולל הטקסט המדויק להעברה למשתמש ופקודת ה-sed לכתיבה.
+
+משתני סביבה נוספים לראוט: `ANTHROPIC_MODEL` (אופציונלי; ברירת מחדל `claude-sonnet-5`,
+`claude-opus-5` קורא תכניות טוב יותר בפי ~2.5 במחיר) ו-`BODY_SIZE_LIMIT=10M` (חובה תחת
+adapter-node — תמונת התכנית נשלחת כ-base64 וחוצה את ברירת המחדל של 512K).
+
+**אסור** להכניס `.env` לגיט, להדביק מפתח ל-`src/`, או להדפיס מפתח בחזרה למשתמש. בבילדים
+הסטטיים ל-Netlify אין שרת, ולכן נפילה למפתח בדפדפן היא ההתנהגות הצפויה — לא באג לתקן.
+פער ידוע: `src/lite.js` (KO Studio — קורא תכנית) עוד קורא ל-Anthropic ישירות עם מפתח
+מהדפדפן, ולא הועבר ל-`/api/ai`.
+
+
 ## Rules for Claude sessions
 1. Edit `src/` and `data/` — never `dist/`.
 2. After every meaningful change: `npm run validate && npm run build`, then commit with a conventional message in the background. Do NOT ask the user about commits — just commit.
@@ -29,6 +83,7 @@ AV installation planner (Hebrew RTL). Now a SvelteKit app (strangler migration i
 4. Push to GitHub (`origin main`) after commits once credentials are available on this Mac.
 5. The app runs client-side from globals in `app.js` — migration to Svelte components should be incremental (carve pieces into `src/lib/`), keeping the legacy build green at every step.
 6. Storage model: with a server (dev/adapter-node) projects live in `data/projects.sqlite` via `/api/store`, mirrored to localStorage; on static deploys (Netlify) localStorage only, with 🗄 Full Backup / Restore in the ייצוא/ייבוא menus for moving data.
+7. מפתח AI: אם ב-.env אין `ANTHROPIC_API_KEY` — בקש מפתח מהמשתמש (הקישור והכפתורים בבאנר בראש הקובץ), כתוב אותו ל-.env והפעל מחדש את השרת בעצמך. אסור לקמט או להדפיס מפתח.
 
 ## Current product state (handoff from Cowork sessions, Aug 2026)
 Single-page AV planner, Hebrew RTL. Core flows working: plan upload+calibration, sound zones
