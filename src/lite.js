@@ -132,6 +132,34 @@ function pickSub(tier, zones, scale) {
   if (!big && !mid && area <= 60 && tier.subSmall) return { sub: tier.subSmall, big: false, small: true };
   return { sub: big && tier.subBig ? tier.subBig : tier.sub, big };
 }
+/* ---------- מקורות נגינה: סטרימר / מחשב / DJ / מיקרופון / טלוויזיה ----------
+   קובעים כמה כניסות צריך המעבד או המיקסר — ומוסיפים את הציוד האמיתי מהמלאי */
+const SRC_DEV = [
+  { id: 'streamer', icon: '📻', name: 'סטרימר / בלוטות׳', desc: 'ספוטיפיי מהטלפון או מהענן',
+    key: 'SMAD1KO', dev: 'נגן-סטרימר ALCHEMY QUARTET (BT/USB/רשת)' },
+  { id: 'pc',       icon: '💻', name: 'מחשב / כרטיס קול', desc: 'מוזיקה מנוהלת ממחשב',
+    key: 'S8224KO', dev: 'כרטיס קול ALCHEMY DUO' },
+  { id: 'dj',       icon: '🎧', name: 'עמדת DJ', desc: 'ה-DJ מגיע עם הציוד שלו — צריך נקודת חיבור',
+    key: 'CA547KO', dev: 'פאנל קיר XLR לעמדת DJ' },
+  { id: 'mic',      icon: '🎤', name: 'מיקרופון', desc: 'הכרזות, אירועים או קריוקי',
+    key: 'S5BM', dev: 'מיקרופון SHURE SM58' },
+  { id: 'tv',       icon: '📺', name: 'טלוויזיות', desc: 'קול מהמסכים (ספורט, קליפים)',
+    key: null, dev: null }
+];
+function defaultSources() {
+  const out = ['streamer'];
+  if (S.uses.includes('dj')) out.push('dj');
+  if (S.uses.includes('live') || S.uses.includes('speech')) out.push('mic');
+  if (S.uses.includes('tv')) out.push('tv');
+  return out;
+}
+function ensureSources() { if (!Array.isArray(S.sources)) S.sources = defaultSources(); return S.sources; }
+function toggleSource(id) {
+  ensureSources();
+  S.sources = S.sources.includes(id) ? S.sources.filter(x => x !== id) : S.sources.concat([id]);
+  save(); render();
+}
+
 /* קבוצות תוכן: אילו אזורים מקבלים את אותו מקור. ברירת מחדל — כל אזור לעצמו,
    והמשתמש מאחד אזורים שמנגנים אותו דבר (לרוב הפיצול נעשה בגלל עוצמה, לא תוכן) */
 function srcOf(z, i) { return z.src == null ? i : z.src; }
@@ -222,11 +250,22 @@ function buildProposal(tier) {
   push(A.cableReel.key, A.cableReel.name, reels, A.cableReel.price, 'תשתית');
   push(A.speakon.key, A.speakon.name, (totalSpk + totalSub) * 2, A.speakon.price, 'תשתית');
   if (!(tier.cut >= 3)) push(A.rack.key, A.rack.name, 1, A.rack.price, 'תשתית');
-  /* מעבד/מטריצה — רק כשבאמת יש יותר ממקור תוכן אחד */
-  if (S.sameContent === false && S.zones.length > 1 && srcCount() > 1 && !tier.cut) {
+  /* מקורות הנגינה — הציוד האמיתי מהמלאי, וכמה כניסות בכלל צריך */
+  const srcs = ensureSources().map(id => SRC_DEV.find(x => x.id === id)).filter(Boolean);
+  srcs.forEach(sd => {
+    if (!sd.key) return;
+    const it = erpItem(sd.key);
+    if (it) push(it.key, sd.dev || it.name, 1, it.price, 'מקורות נגינה');
+  });
+  /* מעבד/מטריצה — כשיש כמה קבוצות תוכן; אחרת, כשיש כמה מקורות — מיקסר שמאחד אותם */
+  const needMatrix = S.sameContent === false && S.zones.length > 1 && srcCount() > 1 && !tier.cut;
+  if (needMatrix) {
     /* מטריצת רשת אמיתית מהמלאי — 4 יציאות, שולטת בתוכן ובעוצמה לכל אזור */
     const mx = erpItem('SDIG15KO') || erpItem('SDIG5KO');
     if (mx) push(mx.key, mx.name, 1, mx.price, 'ניתוב תוכן');
+  } else if (srcs.length >= 2 && !tier.cut) {
+    const mx2 = erpItem('SAME1KO');
+    if (mx2) push(mx2.key, 'מיקסר ALCHEMY MBS6 — מאחד ' + srcs.length + ' מקורות', 1, mx2.price, 'ניתוב תוכן');
   }
   const rowsFinal = applyOfferEdits(tier.id, rows);
   if (rowsFinal !== rows) { rows.length = 0; rows.push(...rowsFinal); }
@@ -1352,6 +1391,18 @@ function stepZones() {
       <button class="ghost sm" onclick="S.zones[${i}].purpose=null;save();render()">↺ שנה מה קורה כאן</button>
     </div>`;
   }).join('')}</div>
+  <div class="content-q">
+    <b>🎛 מאיפה תגיע המוזיקה?</b>
+    <div class="srcpick">${SRC_DEV.map(sd => `
+      <button class="chip ${ensureSources().includes(sd.id) ? 'on' : ''}" onclick="toggleSource('${sd.id}')"
+        title="${esc(sd.desc)}">${sd.icon} ${esc(sd.name)}</button>`).join('')}</div>
+    <small>${(() => {
+      const n = ensureSources().length;
+      return n >= 2
+        ? n + ' מקורות — נוסיף מיקסר או מעבד עם מספיק כניסות, וזה ייכנס גם לדוח החיווט.'
+        : 'מקור אחד — חיבור ישיר למערכת, בלי ציוד נוסף.';
+    })()}</small>
+  </div>
   ${zs.length > 1 ? `<div class="content-q">
     <b>🎚 מה מתנגן בכל אזור?</b>
     <div class="chips">
@@ -2094,7 +2145,9 @@ function wiringSection(p) {
         }).join('')}
         <tr class="tot"><td>סה"כ</td><td>${srcCount()} מקור${srcCount() > 1 ? 'ות' : ''}</td>
           <td>${p.totalSpk}${p.totalSub ? ' + ' + p.totalSub : ''}</td><td>${p.lines}</td><td></td></tr></table>
-      <p>לכל אזור ערוץ (או ערוצים) משלו — כך אפשר להנמיך אזור אחד בלי לגעת באחרים.
+      <p><b>כניסות:</b> ${ensureSources().map(id => { const sd = SRC_DEV.find(x => x.id === id) || {}; return sd.icon + ' ' + sd.name; }).join(' · ') || '—'}
+      ← ${p.rows.some(r => r.note === 'ניתוב תוכן') ? (p.rows.find(r => r.note === 'ניתוב תוכן') || {}).name : 'ישירות למגבר'}.<br>
+      לכל אזור ערוץ (או ערוצים) משלו — כך אפשר להנמיך אזור אחד בלי לגעת באחרים.
       ${srcCount() > 1 ? 'המעבד מזין כל קבוצת מקור בנפרד, והמגבר מפצל לערוצים לפי אזור.' : 'מקור אחד מוזן לכל הערוצים, והעוצמה נשלטת בנפרד לכל אזור.'}</p></div>
     <div class="wsec"><h5>חשמל</h5>
       <p>• <b>${amps16}× מעגל 16A ייעודי</b> לארון (לא משותף עם תאורה או מטבח — רעש חשמלי פוגע בצליל).<br>
@@ -2252,7 +2305,7 @@ async function resetAll() {
   try { localStorage.removeItem(LS); } catch (e) {}
   S = { step: 0, venue: null, uses: [], name: '', plan: null, planW: 1400, planH: 900, scale: null,
     roomW: null, roomL: null, ceil: 4, zones: [], budget: null, tier: null, contact: {},
-    sameContent: true, cut: 0, finish: 'any', rackPos: null, layout: {}, wireEdits: {}, instPrice: {} };
+    sameContent: true, cut: 0, finish: 'any', sources: null, rackPos: null, layout: {}, wireEdits: {}, instPrice: {} };
   CAL.mode = 'width'; CAL.pts = [];
   DRAW.on = false; DRAW.from = DRAW.cur = null;
   save(); render();
