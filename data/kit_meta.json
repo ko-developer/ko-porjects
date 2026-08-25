@@ -1,0 +1,59 @@
+{
+ "note": "תיקוני קטגוריה והסתרות לקיטי ה-ERP — נקבעו בכלי ניקוי הקיטים לפי התכולה בפועל ולפי החלטת המשתמש.",
+ "kits": {
+  "Control Kit - Video": {
+   "cat": "lighting"
+  },
+  "GRIT": {
+   "cat": "lighting"
+  },
+  "ארטנט": {
+   "cat": "lighting"
+  },
+  "לד COB עם בקרה GRIT": {
+   "cat": "lighting"
+  },
+  "נאון פלקס": {
+   "cat": "lighting"
+  },
+  "סטריפים דיגיטלים": {
+   "cat": "lighting"
+  },
+  "פנס חכם": {
+   "cat": "lighting"
+  },
+  "צרפת CELTO אולם אירועים": {
+   "hidden": true
+  },
+  "מערכת סאונד להופעות celto": {
+   "hidden": true
+  },
+  "מערכת הופעות קטנה": {
+   "hidden": true
+  },
+  "קיט לבר CELTO IFIX 7": {
+   "hidden": true
+  },
+  "מערכת לבר הופעות \\ חדר חזרות": {
+   "hidden": true
+  },
+  "קיט בית קפה - בינוני": {
+   "hidden": true
+  },
+  "פלטה 1000+750": {
+   "hidden": true
+  },
+  "פלטה 900+2000": {
+   "hidden": true
+  },
+  "כרטיס קול ברינגר": {
+   "hidden": true
+  },
+  "כרטיס קול ARX": {
+   "hidden": true
+  },
+  "מיקסר DJM קטן פיוניר 250": {
+   "hidden": true
+  }
+ }
+}

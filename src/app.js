@@ -25,6 +25,7 @@ const LSKEY = 'installPlanner_v1';
 /*__DATA:ERP_PRICES__*/
 
 /*__DATA:ERP_KITS__*/
+/*__DATA:KIT_META__*/
 
 /*__DATA:ERP_CATALOG__*/
 /*__DATA:ERP_IMAGES__*/
@@ -5950,11 +5951,50 @@ let kitQ = '', kitCat = '', kitShow = 60;
 function showKits() { $('#impOv').style.display = 'flex'; renderKits(); }
 /* כל הקיטים: ERP + קיטים שנוצרו ע"י המשתמש */
 /* קיט שנערך גובר על קיט ה-ERP עם אותו שם — העריכה נשמרת לתמיד ואין כפילות ברשימה */
-function allKits() {
+/* מטא-נתונים לקיטים: קטגוריה שתוקנה לפי התכולה בפועל, והסתרה של קיטים שאינם רלוונטיים.
+   הבסיס מגיע מ-data/kit_meta.json, והמשתמש יכול להסתיר/להחזיר בתוך האפליקציה */
+function kitMeta(name) {
+  const base = (typeof KIT_META !== 'undefined' && KIT_META.kits) ? KIT_META.kits[(name || '').trim()] : null;
+  return base || null;
+}
+function kitHidden(name) {
+  const n = (name || '').trim();
+  const my = store.kitHidden || {};
+  if (my[n] != null) return !!my[n];                 /* החלטת המשתמש גוברת */
+  const m = kitMeta(n);
+  return !!(m && m.hidden);
+}
+function kitCatOf(k) {
+  const m = kitMeta(k.name);
+  return (m && m.cat) || k.cat || '';
+}
+function kitToggleHide(gi) {
+  const k = allKits(true)[gi]; if (!k) return;
+  const n = (k.name || '').trim();
+  store.kitHidden = store.kitHidden || {};
+  store.kitHidden[n] = !kitHidden(n);
+  save(); renderKits();
+  uiToast(store.kitHidden[n] ? '✕ הקיט הוסתר מהרשימה' : '↺ הקיט חזר לרשימה');
+}
+/* withHidden=true מחזיר גם קיטים מוסתרים — האינדקסים חייבים להיות יציבים */
+function allKits(withHidden) {
   const mine = store.userKits || [];
   const over = new Set(mine.map(k => (k.name || '').trim()));
   const base = (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).filter(k => !over.has((k.name || '').trim()));
   return base.concat(mine);
+}
+/* מצב המלאי של קיט שלם — כמה פריטי ליבה אזלו */
+function kitStock(k) {
+  let dead = 0, low = 0, core = 0;
+  (k.items || []).forEach(x => {
+    if (!x.key) return;
+    const inf = erpInfo(x.key);
+    const isCore = /רמקול|סאב|מגבר|פרוססור/.test(x.name || '') && !/כבל|מחבר|מתקן|תלי/.test(x.name || '');
+    if (isCore) core++;
+    if (!inf) return;
+    if (inf.qty <= 0) { if (isCore) dead++; } else if (inf.qty < 10) low++;
+  });
+  return { dead, low, core };
 }
 /* תצוגה מקדימה של קיט — לפני הוספה לרשימה */
 function kitPrev(gi) {
@@ -5964,17 +6004,19 @@ function kitPrev(gi) {
   const rows = k.items.map(x => {
     const pr = x.key && typeof ERP_PRICES !== 'undefined' && ERP_PRICES[x.key] != null ? ERP_PRICES[x.key] : null;
     if (pr != null) total += pr * (x.qty || 1);
-    return `<div style="display:flex;gap:8px;padding:4px 8px;border-bottom:1px solid #eee;font-size:12px">
+    return `<div style="display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px solid #eee;font-size:12px">
       <b style="width:28px;text-align:center">${x.qty || 1}×</b><span style="flex:1">${esc(x.name)}</span>
+      ${stockBadge(x.key)}
       <span class="muted">${pr != null ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</span></div>`;
   }).join('');
   $('#impList').innerHTML = `
     <button onclick="renderKits()">← חזרה לרשימת הקיטים</button>
-    <h3 style="margin:10px 0 4px">🧰 ${esc(k.name)} <span class="muted" style="font-size:11px">${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''}</span></h3>
+    <h3 style="margin:10px 0 4px">🧰 ${esc(k.name)} <span class="muted" style="font-size:11px">${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''} · ${esc(kitCatOf(k))}${(() => { const s2 = kitStock(k); return s2.dead ? ' · <b style="color:#a32222">' + s2.dead + ' פריטי ליבה אזלו</b>' : ''; })()}</span></h3>
     ${rows}
     <p style="text-align:left;font-weight:700;margin:6px 8px">סה"כ משוער: ₪${total.toLocaleString()}</p>
     <button class="primary" style="width:100%" onclick="pickKit(${gi})">➕ הוסף את הקיט לרשימת הפריטים</button>
     <button style="width:100%;margin-top:6px;background:#eef7f1;color:#0f6e56;font-weight:700" onclick="kitEdit(${gi})">✎ ערוך את הקיט — השינוי נשמר לתמיד${isUser ? '' : ' (מחליף את קיט ה-ERP)'}</button>
+    <button style="width:100%;margin-top:6px" onclick="kitToggleHide(${gi})">${kitHidden(k.name) ? '↺ החזר את הקיט לרשימה' : '✕ הסתר — הקיט לא רלוונטי'}</button>
     ${isUser ? `<button style="width:100%;margin-top:6px;background:#f3d9d2" onclick="kitDelete(${gi})">🗑 ${(typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim()) ? 'בטל את העריכה — חזרה לקיט ה-ERP המקורי' : 'מחק קיט'}</button>` : ''}`;
 }
 function saveKitDraft() {
@@ -6038,11 +6080,13 @@ async function kitFromOffer() {
 }
 function renderKits() {
   const q = kitQ.trim();
-  const CATS_K = [['', 'הכל'], ['audio', '🔊 סאונד'], ['lighting', '💡 תאורה'], ['video', '📺 וידאו']];
+  const CATS_K = [['', 'הכל'], ['audio', '🔊 סאונד'], ['lighting', '💡 תאורה'], ['video', '📺 וידאו'], ['hidden', '✕ מוסתרים']];
   const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const hay = k => (k.name + ' ' + (k.cat || '') + ' ' + (k.sys || '') + ' ' + (k.items || []).map(x => x.name).join(' ')).toLowerCase();
+  const hay = k => (k.name + ' ' + kitCatOf(k) + ' ' + (k.sys || '') + ' ' + (k.items || []).map(x => x.name).join(' ')).toLowerCase();
+  const hiddenCount = allKits().filter(k => kitHidden(k.name)).length;
   const list = allKits()
-    .filter(k => !kitCat || (k.cat || '') === kitCat)
+    .filter(k => kitCat === 'hidden' ? kitHidden(k.name) : !kitHidden(k.name))
+    .filter(k => !kitCat || kitCat === 'hidden' || kitCatOf(k) === kitCat)
     .filter(k => !toks.length || toks.every(t => hay(k).includes(t)));
   const chips = CATS_K.map(([v, l]) => `<button onclick="kitCat='${v}';kitShow=60;renderKits()" style="padding:3px 12px;border-radius:16px;font-size:12px;border:1px solid ${kitCat === v ? '#c9502e' : '#ccc'};background:${kitCat === v ? '#c9502e' : '#fff'};color:${kitCat === v ? '#fff' : '#333'}">${l}</button>`).join(' ');
   $('#impList').innerHTML = `
@@ -6052,14 +6096,21 @@ function renderKits() {
       <button style="flex:1" onclick="kitNew()">➕ צור קיט חדש</button>
       <button style="flex:1" onclick="kitFromOffer()">🧰 צור קיט מהצעת המחיר (✓)</button>
     </div>
-    <p class="muted" style="margin-bottom:8px">${list.length} קיטים · מוצגים ${Math.min(list.length, kitShow)} · לחיצה פותחת תצוגה מקדימה:</p>` +
+    <p class="muted" style="margin-bottom:8px">${list.length} קיטים · מוצגים ${Math.min(list.length, kitShow)} · לחיצה פותחת תצוגה מקדימה${hiddenCount ? ` · ${hiddenCount} מוסתרים` : ''}:</p>` +
     list.slice(0, kitShow).map(k => {
       const gi = allKits().indexOf(k);
       const isUser = (store.userKits || []).includes(k);
       const isOver = isUser && (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim());
-      return `<div class="crow" onclick="kitPrev(${gi})">
+      const st2 = kitStock(k), m = kitMeta(k.name), hid = kitHidden(k.name);
+      const dot = st2.dead ? '#a32222' : st2.low ? '#b8860b' : '#0a7a4b';
+      const stTxt = st2.dead ? st2.dead + ' פריטי ליבה אזלו' : st2.low ? st2.low + ' פריטים במלאי נמוך' : 'הכול במלאי';
+      return `<div class="crow" onclick="kitPrev(${gi})" style="${hid ? 'opacity:.55' : ''}">
         <span class="badge" style="background:${isUser ? '#0f6e56' : '#534ab7'}">${k.items.length}</span>
-        <span class="txt"><b>${esc(k.name)}</b>${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}<br><span class="muted" style="font-size:10px">${esc(k.cat || '')} · ${esc(k.sys || '')}</span></span>
+        <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
+          ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}<br>
+          <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
+        <button onclick="event.stopPropagation();kitToggleHide(${gi})" title="${hid ? 'החזר לרשימה' : 'הסתר — לא רלוונטי'}"
+          style="border:1px solid #ddd;background:#fff;border-radius:7px;padding:2px 7px;font-size:11px;color:#777">${hid ? '↺' : '✕'}</button>
       </div>`;
     }).join('') +
     (list.length > kitShow ? `<button style="width:100%;margin-top:8px" onclick="kitShow+=60;renderKits()">▼ הצג עוד ${Math.min(60, list.length - kitShow)} מתוך ${list.length - kitShow} שנותרו</button>` : '') +
