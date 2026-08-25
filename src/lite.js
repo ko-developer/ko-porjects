@@ -272,7 +272,11 @@ function navHTML() {
   const back = S.step > 0 ? `<button class="ghost" onclick="go(${S.step - 1})">▶ חזרה</button>` : '<span></span>';
   const okNext = [!!S.venue, S.uses.length > 0, !!S.scale, S.zones.length > 0 && S.zones.every(z => z.purpose), true, !!S.tier, true][S.step];
   const label = ['בואו נתחיל ◀', 'המשך ◀', 'המשך ◀', 'המשך לתקציב ◀', 'הצג לי הצעות ◀', 'צור דוח ◀', ''][S.step];
-  return back + (label ? `<button class="go" ${okNext ? '' : 'disabled'} onclick="go(${S.step + 1})">${label}</button>` : '');
+  /* מה חסר כדי להתקדם — תמיד מול העיניים, בלי לגלול לחפש */
+  const need = ['בחר סוג מקום', 'בחר מה קורה במקום', S.plan ? 'סמן על התכנית מידה מוכרת' : 'העלה תכנית או הזן מידות',
+    S.zones.length ? 'ענה מה קורה בכל אזור' : 'סמן אזור אחד לפחות', '', 'בחר אחת מההצעות', ''][S.step];
+  const hint = !okNext && need ? `<div class="navhint">👆 ${need}</div>` : '';
+  return hint + back + (label ? `<button class="go" ${okNext ? '' : 'disabled'} onclick="go(${S.step + 1})">${label}</button>` : '');
 }
 
 /* שלב 1 — סוג המקום */
@@ -346,35 +350,40 @@ function stepPlan() {
   if (S.plan && !S.scale) return `
     <h2>מעולה — עכשיו נדע כמה גדול המקום</h2>
     <p class="sub">בלי זה כל החישוב לא שווה כלום. הדרך המדויקת: לסמן על התכנית מידה שאתה כבר מכיר.</p>
+    ` + wb(`
     <div class="guide">
       <div class="gstep ${CAL.pts.length === 0 ? 'now' : 'done'}"><b>1</b><span>לחץ על התכנית בקצה של מידה מוכרת — קיר, דלת, או מידה שכתובה בתכנית</span></div>
       <div class="gstep ${CAL.pts.length === 1 ? 'now' : CAL.pts.length > 1 ? 'done' : ''}"><b>2</b><span>לחץ על הקצה השני</span></div>
       <div class="gstep ${CAL.pts.length === 2 ? 'now' : ''}"><b>3</b><span>הקלד כמה מטרים זה — בחלון שייפתח על התכנית</span></div>
     </div>
-    ${planBoxHTML()}
     <details class="fallback"><summary>אין לי מידה מדויקת — אעריך את רוחב התכנית</summary>
       <p class="sub" style="margin:8px 0">בחר את הרוחב הכולל של מה שרואים בתכנית:</p>
       <div class="chips">${[6, 8, 10, 12, 15, 20, 25, 30, 40].map(v => `<button class="chip" onclick="setWidth(${v})">${v} מ׳</button>`).join('')}</div>
       <label class="fld"><span>או מספר מדויק</span><input type="number" step="0.1" placeholder="למשל 23.7" oninput="setWidth(+this.value)"></label>
-    </details>`;
+    </details>`);
 
   /* מכויל — אישור ברור ומעבר הלאה */
   const wM = (S.planW * S.scale).toFixed(1);
   return `
     <h2>מצוין, החלל מכויל ✓</h2>
     <p class="sub">מכאן נדע בדיוק כמה רמקולים צריך ואיפה. אפשר להמשיך — או לתקן אם המידה לא נראית לך נכונה.</p>
+    ` + wb(`
     <div class="okcard">
       <div><b>${wM} מ׳</b><small>רוחב התכנית</small></div>
       <div><b>${(1 / S.scale).toFixed(0)}px</b><small>= מטר אחד</small></div>
     </div>
-    <div class="rulerbox">
+    <button class="ghost wide" onclick="recalibrate()">↺ המידה לא נכונה — כייל מחדש</button>`,
+    `<div class="rulerbox">
       <div class="rulerlbl">כך נראים <b>5 מטרים</b> בתכנית שלך — השווה לשולחן או לדלת בתכנית:</div>
-      <div class="ruler" style="width:${Math.min(96, (5 / S.scale) / S.planW * 100)}%"><span>5 מ׳</span></div>
+      <div class="ruler" data-m="5"><span>5 מ׳</span></div>
       <div class="rulerlbl">שולחן <b>1.5 מ׳</b>:</div>
-      <div class="ruler small" style="width:${Math.min(96, (1.5 / S.scale) / S.planW * 100)}%"></div>
-    </div>
-    ${planBoxHTML()}
-    <button class="ghost wide" onclick="recalibrate()">↺ המידה לא נכונה — כייל מחדש</button>`;
+      <div class="ruler small" data-m="1.5"></div>
+    </div>`);
+}
+/* שולחן עבודה: התכנית נשארת נעוצה במסך וההסברים והכפתורים לצידה —
+   כך אין צורך לגלול הלוך ושוב בין ההוראה לבין מה שעושים בפועל */
+function wb(side, under) {
+  return `<div class="wb"><div class="wbplan">${planBoxHTML()}${under || ''}</div><div class="wbside">${side}</div></div>`;
 }
 function planBoxHTML() {
   if (!S.plan) return '';
@@ -508,9 +517,20 @@ function afterPlan() {
     const nat = img.naturalWidth || 1400;
     S.planW = 1400; S.planH = Math.round(1400 * (img.naturalHeight || 900) / nat);
     drawPlan();
+    sizeRulers();
     if (!S.zones.length) autoDetect(img);
   };
+  addEventListener('resize', sizeRulers);
   if (img.complete) fit(); else img.onload = fit;
+}
+/* הסרגלים נמדדים מול רוחב התכנית כפי שהיא מוצגת בפועל */
+function sizeRulers() {
+  const img = $('#planImg'); if (!img || !S.scale) return;
+  const w = img.getBoundingClientRect().width; if (!w) return;
+  document.querySelectorAll('.ruler[data-m]').forEach(el => {
+    const m = +el.dataset.m;
+    el.style.width = Math.min(w, (m / S.scale) / S.planW * w) + 'px';
+  });
 }
 function autoDetect(img) {
   try {
@@ -567,13 +587,26 @@ function drawPlan() {
       <text x="${b.x + 62}" y="${b.y + 39}" font-size="26" font-weight="800" fill="${p.color}">${p.icon} ${esc(z.name)}</text>
       ${S.scale ? `<text x="${b.x + 62}" y="${b.y + 66}" font-size="20" fill="${p.color}">${Math.round(zoneAreaPx(z) * S.scale * S.scale)} מ"ר${z.poly ? ' · ' + z.poly.length + ' פינות' : ' · ' + (b.w * S.scale).toFixed(1) + '×' + (b.h * S.scale).toFixed(1) + ' מ׳'}</text>` : ''}
       </g>
-      ${(z.poly || []).map((pt, pi) => `<circle data-pt="${i}|${pi}" cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="11" fill="#fff" stroke="${p.color}" stroke-width="4" style="cursor:grab"/>`).join('')}
+      ${(z.poly || []).map((pt, pi) => {
+        const nx = z.poly[(pi + 1) % z.poly.length], c = segCtrl(pt, nx, pt.b || 0);
+        const hx = pt.b ? (pt.x + 2 * c.x + nx.x) / 4 : (pt.x + nx.x) / 2;
+        const hy = pt.b ? (pt.y + 2 * c.y + nx.y) / 4 : (pt.y + nx.y) / 2;
+        return `<circle data-pt="${i}|${pi}" cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="11" fill="#fff" stroke="${p.color}" stroke-width="4" style="cursor:grab"><title>גרור להזזה · דאבל-קליק למחיקת הפינה</title></circle>
+          <circle data-mid="${i}|${pi}" cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="8" fill="${pt.b ? p.color : '#fff'}" stroke="${p.color}" stroke-width="3" opacity="0.85" style="cursor:ns-resize"><title>גרור כדי לעגל את הצלע · דאבל-קליק להוספת פינה</title></circle>`;
+      }).join('')}
       ${z.poly ? '' : `<rect data-rs="${i}" x="${b.x + b.w - 26}" y="${b.y + b.h - 26}" width="26" height="26" rx="6" fill="#fff" stroke="${p.color}" stroke-width="4" style="cursor:nwse-resize"/>`}`;
   });
   if (DRAW.on === 'poly' && DRAW.pts.length) {
     const pts = DRAW.pts;
     out += `<polyline points="${pts.map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ')}" fill="#7c5cff1a" stroke="#7c5cff" stroke-width="4" stroke-linejoin="round"/>`;
-    if (DRAW.cur) out += `<line x1="${pts[pts.length - 1].x}" y1="${pts[pts.length - 1].y}" x2="${DRAW.cur.x}" y2="${DRAW.cur.y}" stroke="#7c5cff" stroke-width="3" stroke-dasharray="9 6" opacity="0.7"/>`;
+    if (DRAW.cur) {
+      const lp = pts[pts.length - 1];
+      out += `<line x1="${lp.x}" y1="${lp.y}" x2="${DRAW.cur.x}" y2="${DRAW.cur.y}" stroke="#7c5cff" stroke-width="3" stroke-dasharray="9 6" opacity="0.7"/>`;
+      if (S.scale) {
+        const d = Math.hypot(DRAW.cur.x - lp.x, DRAW.cur.y - lp.y) * S.scale;
+        out += `<text x="${(lp.x + DRAW.cur.x) / 2}" y="${(lp.y + DRAW.cur.y) / 2 - 12}" text-anchor="middle" font-size="22" font-weight="800" fill="#7c5cff">${d.toFixed(1)} מ׳</text>`;
+      }
+    }
     pts.forEach((p, i) => out += `<circle cx="${p.x}" cy="${p.y}" r="${i === 0 ? 14 : 9}" fill="${i === 0 ? '#fff' : '#7c5cff'}" stroke="#7c5cff" stroke-width="4"/>`);
     if (pts.length >= 3 && S.scale) {
       let a = 0;
@@ -613,8 +646,45 @@ function bindZoneDrag() {
       document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
     });
   });
+  /* ידית אמצע צלע: גרירה = עיגול הצלע · דאבל-קליק = הוספת פינה */
+  svg.querySelectorAll('[data-mid]').forEach(h => {
+    const [zi, pi] = h.dataset.mid.split('|').map(Number);
+    h.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const z = S.zones[zi], p1 = z.poly[pi], p2 = z.poly[(pi + 1) % z.poly.length];
+      z.poly.splice(pi + 1, 0, { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 });
+      p1.b = 0;
+      save(); render(); toast('➕ נוספה פינה — גרור אותה למקום');
+    });
+    h.addEventListener('pointerdown', e => {
+      if (DRAW.on) return;
+      e.stopPropagation(); e.preventDefault();
+      const z = S.zones[zi], p1 = z.poly[pi], p2 = z.poly[(pi + 1) % z.poly.length];
+      const st = toPlan(e), ob = p1.b || 0;
+      const dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.hypot(dx, dy) || 1;
+      const mv = ev => {
+        const pp = toPlan(ev);
+        /* המרחק בניצב לצלע קובע את גובה הקשת */
+        const perp = ((pp.x - st.x) * -dy + (pp.y - st.y) * dx) / len;
+        p1.b = Math.max(-0.6, Math.min(0.6, ob + perp / len / 2));
+        const b2 = zoneBox(z); z.x = b2.x; z.y = b2.y; z.w = b2.w; z.h = b2.h;
+        drawPlan();
+      };
+      const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); render(); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    });
+  });
   /* גרירת פינה בודדת של פוליגון — התאמה מדויקת לצורת החדר */
   svg.querySelectorAll('[data-pt]').forEach(h => {
+    h.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const [zi, pi] = h.dataset.pt.split('|').map(Number);
+      const z = S.zones[zi];
+      if (z.poly.length <= 3) { toast('צריך לפחות 3 פינות'); return; }
+      z.poly.splice(pi, 1);
+      const b2 = zoneBox(z); z.x = b2.x; z.y = b2.y; z.w = b2.w; z.h = b2.h;
+      save(); render(); toast('✕ הפינה נמחקה');
+    });
     h.addEventListener('pointerdown', e => {
       if (DRAW.on) return;
       const [zi, pi] = h.dataset.pt.split('|').map(Number);
@@ -654,7 +724,7 @@ function stepZones() {
     <h2>איפה צריך מוזיקה?</h2>
     <p class="sub">נסמן את השטח שבו אנשים ישמעו מוזיקה. אם יש כמה חלקים עם אופי שונה — נסמן כל אחד בנפרד,
     וכל אחד יקבל עוצמה משלו (ישיבה שקטה, רחבה חזקה).</p>
-    ${planBoxHTML()}
+    ` + wb(`
     <div class="emptyzone">
       <div class="ic">📍</div>
       <b>נתחיל מהאזור הראשון</b>
@@ -668,7 +738,7 @@ function stepZones() {
         ${S.suggest.map((r, i) => `<button class="chip" onclick="addSuggested(${i})">חלל ${i + 1}${S.scale ? ' · ' + Math.round(r.w * r.h * S.scale * S.scale) + ' מ"ר' : ''}</button>`).join('')}
         <small>לא חייבים — אפשר לסמן ידנית וזה יהיה מדויק יותר</small></div>` : ''}
     </div>
-    ${DRAW.on ? drawHint() : ''}`;
+    ${DRAW.on ? drawHint() : ''}`);
 
   /* יש אזור שעדיין לא ענו עליו — שואלים את השאלה האחת החשובה, גדול וברור */
   const pending = zs.findIndex(z => !z.purpose);
@@ -677,19 +747,24 @@ function stepZones() {
     return `
     <h2>מה קורה ב"${esc(z.name)}"?</h2>
     <p class="sub">זה קובע כמה חזק המקום הזה ינגן — וכמה רמקולים צריך בו.</p>
-    ${planBoxHTML()}
-    <div class="cards">${LITE_CATALOG.zonePurposes.map(q => `
+    ` + wb(`
+    <div class="cards zpurp">${LITE_CATALOG.zonePurposes.map(q => `
       <div class="card" onclick="setPurpose(${pending},'${q.id}')">
         <div class="ic">${q.icon}</div><b>${esc(q.name)}</b><small>${esc(q.desc)}</small>
         <span class="pill">${q.spl} dB</span></div>`).join('')}</div>
-    <button class="ghost wide" onclick="delZone(${pending})">✕ מחק את האזור הזה</button>`;
+    <button class="ghost wide" onclick="delZone(${pending})">✕ מחק את האזור הזה</button>`);
   }
 
   /* כל האזורים מוגדרים — סיכום ברור + שאלה אחת: עוד אזור או ממשיכים */
   return `
   <h2>${zs.length === 1 ? 'האזור מוגדר ✓' : zs.length + ' אזורים מוגדרים ✓'}</h2>
-  <p class="sub">אפשר לגרור אזור על התכנית או לגרור פינה כדי לדייק. כל אזור מקבל שליטת עוצמה נפרדת.</p>
-  ${planBoxHTML()}
+  <p class="sub">כל אזור מקבל שליטת עוצמה נפרדת. אפשר לדייק את הצורה ישירות על התכנית:</p>
+  ` + wb(`
+  <div class="shapehelp">
+    <span>⬤ <b>פינה</b> — גרור להזזה · דאבל-קליק למחיקה</span>
+    <span>◗ <b>אמצע צלע</b> — גרור לעיגול הקשת · דאבל-קליק להוספת פינה</span>
+    <span>✥ <b>גוף האזור</b> — גרור להזזת הצורה כולה</span>
+  </div>
   ${DRAW.on ? drawHint() : ''}
   <div class="zlist">${zs.map((z, i) => {
     const p = purposeOf(z), pl = S.scale ? planZone(z, LITE_CATALOG.tiers[1], S.ceil, S.scale) : null;
@@ -700,6 +775,7 @@ function stepZones() {
       <div class="zsum">
         <span class="ztag" style="background:${p.color}1a;color:${p.color}">${p.icon} ${esc(p.name)} · ${z.spl} dB</span>
         ${S.scale ? `<span>${Math.round(zoneAreaPx(z) * S.scale * S.scale)} מ"ר</span>` : ''}
+        ${z.poly ? `<span>${z.poly.length} פינות${z.poly.some(pt => pt.b) ? ' · ' + z.poly.filter(pt => pt.b).length + ' קשתות' : ''}</span>` : ''}
         ${pl ? `<span>🔈 ${pl.n} רמקולים${pl.subs ? ' + ' + pl.subs + ' סאב' : ''}</span>` : ''}
       </div>
       <button class="ghost sm" onclick="S.zones[${i}].purpose=null;save();render()">↺ שנה מה קורה כאן</button>
@@ -722,12 +798,13 @@ function stepZones() {
   ${S._why ? `<div class="note"><b>כי אנשים לא רוצים את אותה עוצמה בכל מקום.</b><br>
     • באזור ישיבה מוזיקה חזקה מדי גורמת לאנשים לצעוק — ולעזוב מוקדם.<br>
     • ברחבה מוזיקה חלשה מדי הורגת את האנרגיה.<br>
-    • חלוקה מאפשרת להנמיך בישיבה בלי לגעת ברחבה.</div>` : ''}`;
+    • חלוקה מאפשרת להנמיך בישיבה בלי לגעת ברחבה.</div>` : ''}`);
 }
 function drawHint() {
   return DRAW.on === 'poly'
     ? `<div class="note">✏️ <b>נקר את פינות האזור</b> — לחיצה על כל פינה, ולסיום לחיצה על הנקודה הראשונה (או דאבל-קליק).
-        ${DRAW.pts.length ? '<b>' + DRAW.pts.length + ' פינות סומנו.</b> ' : ''}Esc לביטול.</div>`
+        ${DRAW.pts.length ? '<b>' + DRAW.pts.length + ' פינות סומנו.</b> ' : ''}⌫ מבטל פינה · Esc לביטול.<br>
+        <small>אחרי הסיום אפשר לעגל צלעות ולהוסיף פינות — לכל צורה, גם עגולה.</small></div>`
     : '<div class="note">▭ גרור על התכנית מפינה לפינה. Esc לביטול.</div>';
 }
 function afterZones() {
@@ -820,38 +897,67 @@ function pickTier(id) { S.tier = id; save(); render(); go(6); }
 /* ---------- שלב 7 — הדוח ---------- */
 /* מיקומי הרמקולים בפועל: פריסה שווה סביב היקף האזור, מכוונים פנימה */
 /* ---------- גאומטריית אזור: מלבן או פוליגון חופשי (כמו באפליקציה המקצועית) ---------- */
+/* צלע יכולה להיות ישרה או מעוגלת: b = גובה הקשת ביחס לאורך הצלע (0 = ישר).
+   כל החישובים עובדים על קו המתאר המדגם — כך שעיגולים נספרים באמת. */
+function segCtrl(p1, p2, b) {
+  const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+  if (!b) return { x: mx, y: my };
+  const dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.hypot(dx, dy) || 1;
+  /* נקודת הבקרה מוסטת בניצב — ×2 כי בבזייה ריבועית הקשת מגיעה לחצי מהמרחק */
+  return { x: mx - dy / len * b * len * 2, y: my + dx / len * b * len * 2 };
+}
+function zoneOutline(z, steps) {
+  if (!z.poly || z.poly.length < 3) {
+    return [{ x: z.x, y: z.y }, { x: z.x + z.w, y: z.y }, { x: z.x + z.w, y: z.y + z.h }, { x: z.x, y: z.y + z.h }];
+  }
+  const n = steps || 14, out = [];
+  for (let i = 0; i < z.poly.length; i++) {
+    const p1 = z.poly[i], p2 = z.poly[(i + 1) % z.poly.length];
+    if (!p1.b) { out.push({ x: p1.x, y: p1.y }); continue; }
+    const c = segCtrl(p1, p2, p1.b);
+    for (let t = 0; t < 1; t += 1 / n) {
+      const u = 1 - t;
+      out.push({ x: u * u * p1.x + 2 * u * t * c.x + t * t * p2.x, y: u * u * p1.y + 2 * u * t * c.y + t * t * p2.y });
+    }
+  }
+  return out;
+}
 function zoneBox(z) {
   if (!z.poly || z.poly.length < 3) return { x: z.x, y: z.y, w: z.w, h: z.h };
-  const xs = z.poly.map(p => p.x), ys = z.poly.map(p => p.y);
+  const o = zoneOutline(z);
+  const xs = o.map(p => p.x), ys = o.map(p => p.y);
   const x = Math.min(...xs), y = Math.min(...ys);
   return { x, y, w: Math.max(1, Math.max(...xs) - x), h: Math.max(1, Math.max(...ys) - y) };
 }
 /* שטח אמיתי — נוסחת השרוכים לפוליגון, מלבן פשוט אחרת */
 function zoneAreaPx(z) {
   if (!z.poly || z.poly.length < 3) return z.w * z.h;
+  const o = zoneOutline(z);
   let a = 0;
-  for (let i = 0; i < z.poly.length; i++) {
-    const p1 = z.poly[i], p2 = z.poly[(i + 1) % z.poly.length];
-    a += p1.x * p2.y - p2.x * p1.y;
-  }
+  for (let i = 0; i < o.length; i++) { const p1 = o[i], p2 = o[(i + 1) % o.length]; a += p1.x * p2.y - p2.x * p1.y; }
   return Math.abs(a) / 2;
 }
 function zonePerimPx(z) {
   if (!z.poly || z.poly.length < 3) return 2 * (z.w + z.h);
+  const o = zoneOutline(z);
   let l = 0;
-  for (let i = 0; i < z.poly.length; i++) {
-    const p1 = z.poly[i], p2 = z.poly[(i + 1) % z.poly.length];
-    l += Math.hypot(p2.x - p1.x, p2.y - p1.y);
-  }
+  for (let i = 0; i < o.length; i++) { const p1 = o[i], p2 = o[(i + 1) % o.length]; l += Math.hypot(p2.x - p1.x, p2.y - p1.y); }
   return l;
 }
 function zoneCenter(z) {
-  if (!z.poly || z.poly.length < 3) { return { x: z.x + z.w / 2, y: z.y + z.h / 2 }; }
-  return { x: z.poly.reduce((s2, p) => s2 + p.x, 0) / z.poly.length, y: z.poly.reduce((s2, p) => s2 + p.y, 0) / z.poly.length };
+  if (!z.poly || z.poly.length < 3) return { x: z.x + z.w / 2, y: z.y + z.h / 2 };
+  const o = zoneOutline(z);
+  return { x: o.reduce((s2, p) => s2 + p.x, 0) / o.length, y: o.reduce((s2, p) => s2 + p.y, 0) / o.length };
 }
 function zonePath(z) {
   if (!z.poly || z.poly.length < 3) return `M${z.x} ${z.y} H${z.x + z.w} V${z.y + z.h} H${z.x} Z`;
-  return 'M' + z.poly.map(p => p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' L') + ' Z';
+  let d = `M${z.poly[0].x.toFixed(1)} ${z.poly[0].y.toFixed(1)}`;
+  for (let i = 0; i < z.poly.length; i++) {
+    const p1 = z.poly[i], p2 = z.poly[(i + 1) % z.poly.length];
+    if (p1.b) { const c = segCtrl(p1, p2, p1.b); d += ` Q${c.x.toFixed(1)} ${c.y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`; }
+    else d += ` L${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d + ' Z';
 }
 /* מיקומי הרמקולים נשמרים ברגע שההצעה נבחרת — ומאותו רגע ניתנים לגרירה ידנית */
 function layoutKey(z, n, subs) { return z.id + '|' + n + '|' + subs; }
@@ -876,14 +982,15 @@ function resetLayout() { S.layout = {}; save(); render(); toast('↺ המיקו�
 function speakerPts(z, n) {
   const c = zoneCenter(z), pts = [];
   if (z.poly && z.poly.length >= 3) {
-    /* פריסה שווה לאורך היקף הפוליגון, כל רמקול מוסט מעט פנימה אל המרכז */
+    /* פריסה שווה לאורך קו המתאר (כולל קשתות), כל רמקול מוסט מעט פנימה אל המרכז */
+    const out = zoneOutline(z);
     const per = zonePerimPx(z), step = per / n;
     let target = step / 2, walked = 0, i = 0;
     for (let k = 0; k < n; k++) {
-      while (i < z.poly.length) {
-        const p1 = z.poly[i], p2 = z.poly[(i + 1) % z.poly.length];
+      while (i < out.length) {
+        const p1 = out[i], p2 = out[(i + 1) % out.length];
         const seg = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        if (walked + seg >= target || i === z.poly.length - 1) {
+        if (walked + seg >= target || i === out.length - 1) {
           const t = Math.max(0, Math.min(1, (target - walked) / (seg || 1)));
           const x = p1.x + (p2.x - p1.x) * t, y = p1.y + (p2.y - p1.y) * t;
           const dx = c.x - x, dy = c.y - y, d = Math.hypot(dx, dy) || 1;
@@ -1172,5 +1279,13 @@ function toast(m) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = m;
   $('#toasts').appendChild(t); setTimeout(() => t.remove(), 4500);
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && DRAW.on) { DRAW.on = false; DRAW.from = DRAW.cur = null; DRAW.pts = []; render(); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && DRAW.on) { DRAW.on = false; DRAW.from = DRAW.cur = null; DRAW.pts = []; render(); }
+  /* ⌫ בזמן ציור — מבטל את הפינה האחרונה */
+  if ((e.key === 'Backspace' || e.key === 'Delete') && DRAW.on === 'poly' && DRAW.pts.length
+      && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) {
+    e.preventDefault(); DRAW.pts.pop(); drawPlan();
+    toast(DRAW.pts.length ? '↩ פינה בוטלה' : '↩ מתחילים מחדש');
+  }
+});
 load(); render();
