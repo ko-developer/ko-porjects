@@ -23,7 +23,14 @@ let S = {
   budget: null, tier: null, contact: {}
 };
 function save() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} }
-function load() { try { const d = JSON.parse(localStorage.getItem(LS) || 'null'); if (d && d.step != null) S = { ...S, ...d }; } catch (e) {} }
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(LS) || 'null');
+    if (d && d.step != null) S = { ...S, ...d };
+  } catch (e) {}
+  /* הגנה על שדרוגים: אם מספר השלבים השתנה, פרויקט שמור לא יקרוס את הרינדור */
+  S.step = Math.max(0, Math.min(STEPS.length - 1, +S.step || 0));
+}
 function uid() { return 'z' + Math.random().toString(36).slice(2, 8); }
 
 /* ---------- מנוע אקוסטי (גרסה קומפקטית ומדויקת של המנוע המקצועי) ---------- */
@@ -221,6 +228,8 @@ function buildProposal(tier) {
     const mx = erpItem('SDIG15KO') || erpItem('SDIG5KO');
     if (mx) push(mx.key, mx.name, 1, mx.price, 'ניתוב תוכן');
   }
+  const rowsFinal = applyOfferEdits(tier.id, rows);
+  if (rowsFinal !== rows) { rows.length = 0; rows.push(...rowsFinal); }
   const equip = rows.reduce((s, r) => s + r.total, 0);
   /* התקנה מתומחרת לפי פריט — כל פעולה והמחיר שלה, כמו בהצעת מחיר מקצועית */
   const ceilSpk = zones.reduce((n2, { z, p }) => n2 + (p.onCeil ? p.n : 0), 0);
@@ -274,6 +283,86 @@ function withFinish(entry) {
   return Object.assign({}, entry, { key: hit.key, name: entry.name + ' · ' + want, price: hit.price, finish: want });
 }
 function setFinish(f) { S.finish = f; save(); render(); toast(f === FIN_ANY ? 'נבחר: מה שמתאים ביותר' : '🎨 ' + f + ' — ההצעות מתעדכנות'); }
+
+/* ---------- עריכת הצעה: היוצר מתקן, המערכת לומדת ---------- */
+/* העריכות נשמרות לפרויקט (S.offerEdit), והלמידה — החלפות שחוזרות על עצמן —
+   נשמרת בנפרד (localStorage) כדי לשרוד "התחל מחדש" ולשמש פרויקטים הבאים */
+let OE = null;                                       /* חיפוש החלפה/הוספה פתוח */
+function oeState(tid) {
+  S.offerEdit = S.offerEdit || {};
+  return S.offerEdit[tid] = S.offerEdit[tid] || { qty: {}, repl: {}, off: {}, add: [] };
+}
+function learnDB() { try { return JSON.parse(localStorage.koStudio_learn || '{}'); } catch (e) { return {}; } }
+function learnSave(d) { try { localStorage.koStudio_learn = JSON.stringify(d); } catch (e) {} }
+function learnRepl(orig, neu) {
+  const d = learnDB(); d.repl = d.repl || {};
+  (d.repl[orig] = d.repl[orig] || {})[neu] = ((d.repl[orig] || {})[neu] || 0) + 1;
+  learnSave(d);
+}
+function learnedFor(orig) {
+  const m = (learnDB().repl || {})[orig]; if (!m) return null;
+  const best = Object.entries(m).sort((a, b) => b[1] - a[1])[0];
+  if (!best) return null;
+  const it = erpItem(best[0]);
+  return it ? { key: best[0], n: best[1], name: it.name, price: it.price } : null;
+}
+function applyOfferEdits(tid, rows) {
+  const e = (S.offerEdit || {})[tid]; if (!e) return rows;
+  let out = rows.filter(r => !e.off[r.key]).map(r => {
+    const rp = e.repl[r.key];
+    const qty = e.qty[r.key] != null ? e.qty[r.key] : r.qty;
+    const base = rp ? { ...r, key: rp.key, name: rp.name, price: rp.price, swapped: r.key } : r;
+    return { ...base, qty, total: qty * base.price, edited: rp || e.qty[r.key] != null ? true : r.edited };
+  }).filter(r => r.qty > 0);
+  (e.add || []).forEach(a => out.push({ key: a.key, name: a.name, qty: a.qty, price: a.price, total: a.qty * a.price, note: 'תוספת', edited: true }));
+  return out;
+}
+function offerQty(tid, key, v) { oeState(tid).qty[key] = Math.max(0, Math.round(+v || 0)); save(); render(); }
+function offerToggle(tid, key) {
+  const e = oeState(tid); e.off[key] = !e.off[key]; save(); render();
+  toast(e.off[key] ? '✕ הפריט הוסר מההצעה' : '↺ הפריט חזר');
+}
+function offerSwapOpen(tid, key) { OE = { tid, key, q: '' }; render(); }
+function offerAddOpen(tid) { OE = { tid, key: null, q: '' }; render(); }
+function oeSearch(q) { OE.q = q; render(); }
+function oeHits() {
+  const q = (OE && OE.q || '').trim().toLowerCase();
+  if (q.length < 2) return [];
+  const toks = q.split(/\s+/);
+  return (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : [])
+    .filter(i => { const n = (i[1] || '').toLowerCase(); return toks.every(t => n.includes(t)); })
+    .sort((a, b) => (+b[3] || 0) - (+a[3] || 0)).slice(0, 8);
+}
+function oePick(key) {
+  const it = erpItem(key); if (!it || !OE) return;
+  const e = oeState(OE.tid);
+  if (OE.key) {                                       /* החלפה — וגם למידה */
+    e.repl[OE.key] = { key: it.key, name: it.name, price: it.price };
+    learnRepl(OE.key, it.key);
+    toast('🔁 הוחלף — ונרשם: בפעם הבאה אדע להציע את זה');
+  } else {
+    e.add.push({ key: it.key, name: it.name, price: it.price, qty: 1 });
+    toast('➕ נוסף להצעה');
+  }
+  OE = null; save(); render();
+}
+function oeApplyLearned(tid, key) {
+  const l = learnedFor(key); if (!l) return;
+  oeState(tid).repl[key] = { key: l.key, name: l.name, price: l.price };
+  save(); render(); toast('✓ הוחל מה שלמדתי ממך');
+}
+function oeBox() {
+  const hits = oeHits();
+  const inner = `<div class="oebox">
+    <input placeholder="${OE.key ? 'חפש תחליף במלאי…' : 'חפש פריט להוספה…'}" value="${esc(OE.q)}" oninput="oeSearch(this.value)" autofocus>
+    ${hits.map(i => `<button class="oehit" onclick="oePick('${i[0]}')">
+      <b>${esc((i[1] || '').slice(0, 52))}</b><span>₪${(+i[2] || 0).toLocaleString()} · מלאי ${Math.round(+i[3] || 0)}</span></button>`).join('')}
+    ${OE.q.trim().length >= 2 && !hits.length ? '<small>לא נמצא — נסה מילה אחרת</small>' : ''}
+    <button class="ghost sm" onclick="OE=null;render()">סגור</button>
+  </div>`;
+  return OE.key ? `<tr class="oerow"><td colspan="4">${inner}</td></tr>` : inner;
+}
+function resetOffer(tid) { if (S.offerEdit) delete S.offerEdit[tid]; OE = null; save(); render(); toast('↺ ההצעה חזרה למקור'); }
 
 function erpItem(key) {
   const r = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).find(x => x[0] === key);
@@ -342,25 +431,25 @@ function analysePlan(img) {
 }
 
 /* ---------- ממשק: שלבים ---------- */
-const STEPS = ['מקום', 'שימוש', 'תכנית', 'אזורים', 'תקציב', 'הצעות', 'דוח'];
+const STEPS = ['מקום', 'שימוש', 'תכנית', 'אזורים', 'תקציב והצעות', 'דוח'];
 function go(i) { S.step = Math.max(0, Math.min(STEPS.length - 1, i)); save(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
 function render() {
   $('#steps').innerHTML = STEPS.map((s, i) =>
     `<div class="st ${i === S.step ? 'on' : ''} ${i < S.step ? 'done' : ''}" onclick="go(${i})">${i < S.step ? '✓ ' : ''}${s}</div>`).join('');
-  const v = [stepVenue, stepUse, stepPlan, stepZones, stepBudget, stepOffers, stepReport][S.step];
+  const v = [stepVenue, stepUse, stepPlan, stepZones, stepOffers, stepReport][S.step];
   $('#body').innerHTML = v();
-  const after = [null, null, afterPlan, afterZones, null, null, afterReport][S.step];
+  const after = [null, null, afterPlan, afterZones, null, afterReport][S.step];
   if (after) after();
   $('#nav').innerHTML = navHTML();
 }
 function navHTML() {
   const back = S.step > 0 ? `<button class="ghost" onclick="go(${S.step - 1})">▶ חזרה</button>` : '<span></span>';
-  const okNext = [!!S.venue, S.uses.length > 0, !!S.scale, S.zones.length > 0 && S.zones.every(z => z.purpose), true, !!S.tier, true][S.step];
-  const label = ['בואו נתחיל ◀', 'המשך ◀', 'המשך ◀', 'המשך לתקציב ◀', 'הצג לי הצעות ◀', 'צור דוח ◀', ''][S.step];
+  const okNext = [!!S.venue, S.uses.length > 0, !!S.scale, S.zones.length > 0 && S.zones.every(z => z.purpose), !!S.tier, true][S.step];
+  const label = ['בואו נתחיל ◀', 'המשך ◀', 'המשך ◀', 'המשך להצעות ◀', 'צור דוח ◀', ''][S.step];
   /* מה חסר כדי להתקדם — תמיד מול העיניים, בלי לגלול לחפש */
   const need = ['בחר סוג מקום', 'בחר מה קורה במקום', S.plan ? 'סמן על התכנית מידה מוכרת' : 'העלה תכנית או הזן מידות',
-    S.zones.length ? 'ענה מה קורה בכל אזור' : 'סמן אזור אחד לפחות', '', 'בחר אחת מההצעות', ''][S.step];
+    S.zones.length ? 'ענה מה קורה בכל אזור' : 'סמן אזור אחד לפחות', 'בחר אחת מההצעות', ''][S.step];
   const hint = !okNext && need ? `<div class="navhint">👆 ${need}</div>` : '';
   return hint + back + (label ? `<button class="go" ${okNext ? '' : 'disabled'} onclick="go(${S.step + 1})">${label}</button>` : '');
 }
@@ -1171,42 +1260,6 @@ function cutSummary(base, p) {
   return out;
 }
 
-function stepBudget() {
-  const props = LITE_CATALOG.tiers.map(buildProposal);
-  const lo = Math.min(...props.map(p => p.total)), hi = Math.max(...props.map(p => p.total));
-  if (S.budget == null) S.budget = Math.round(props[1].total / 1000) * 1000;
-  const belowAll = S.budget && props.every(p => p.total > S.budget * 1.05);
-  const fit = belowAll ? fitInfo(S.budget) : null;
-  return `<h2>מה התקציב שלך?</h2>
-  <p class="sub">נראה לך מה אפשר לקבל בכל טווח. המחירים לפני מע"מ וכוללים ציוד, כבילה והתקנה.</p>
-  <div class="budget">
-    <div class="bignum">${ils(S.budget)}</div>
-    <input type="range" min="${Math.floor(lo * 0.6 / 1000) * 1000}" max="${Math.ceil(hi * 1.4 / 1000) * 1000}" step="1000" value="${S.budget}" oninput="S.budget=+this.value;save();render()">
-    <div class="brange"><span>${ils(lo * 0.6)}</span><span>${ils(hi * 1.4)}</span></div>
-  </div>
-  <div class="fit">${props.map(p => {
-    const fits = p.total <= S.budget * 1.05;
-    return `<div class="fitcard2 ${fits ? 'ok' : 'over'}">
-      <div class="f2head">
-        <div><b>${esc(p.tier.name)}</b> <span class="brand">${esc(p.tier.brand)}</span></div>
-        <div class="f2amt">${ils(p.total)}<small>${fits ? '✓ בתקציב' : 'מעל התקציב ב-' + ils(p.total - S.budget)}</small></div>
-      </div>
-      <div class="f2body">
-        <ul>${mainLines(p).map(l => `<li><b>${l.qty}×</b> ${esc(l.name)}<span>${ils(l.total)}</span></li>`).join('')}</ul>
-        <ul class="f2side">
-          <li>תשתית וכבילה<span>${ils(p.rows.filter(r => r.note === 'תשתית').reduce((s2, r) => s2 + r.total, 0))}</span></li>
-          <li>התקנה וכיוונון<span>${ils(p.install)}</span></li>
-          <li class="f2sum">סה"כ<span>${ils(p.total)}</span></li>
-        </ul>
-      </div>
-      <div class="f2foot">${p.totalSpk} רמקולים · ${p.totalSub ? p.totalSub + '× סאב ' + p.sub.inch + '"' : 'בלי סאב'} ·
-        ${p.ampN}× ${esc(p.amp.name.slice(0, 22))} · ${Math.round(p.zones.reduce((s2, z) => s2 + z.p.capability, 0) / Math.max(1, p.zones.length))} dB יכולת</div>
-    </div>`;
-  }).join('')}</div>
-  ${belowAll ? fitRowHTML(fit) : ''}
-  ${finishHTML(props)}
-  <div class="note">💡 אפשר להמשיך גם אם משהו מעל התקציב — בשלב הבא נראה בדיוק מה ההבדל בין האפשרויות.</div>`;
-}
 /* שורות הציוד העיקריות — רמקולים, סאבים והגברה, מקובצות לפי פריט */
 function mainLines(p) {
   return p.rows.filter(r => ['רמקולים', 'סאבים', 'הגברה'].includes(r.note));
@@ -1262,11 +1315,19 @@ function selTier() {
 }
 function stepOffers() {
   const props = LITE_CATALOG.tiers.map(buildProposal);
+  const lo = Math.min(...props.map(p => p.total)), hi = Math.max(...props.map(p => p.total));
+  if (S.budget == null) S.budget = Math.round(props[1].total / 1000) * 1000;
   const belowAll = S.budget && props.every(p => p.total > S.budget * 1.05);
   const fit = belowAll ? fitInfo(S.budget) : null;
   const list = fit && !fit.floor ? props.concat([fit.p]) : props;
-  return `<h2>${list.length > 3 ? 'ארבע דרכים לעשות את זה' : 'שלוש דרכים לעשות את זה'}</h2>
-  <p class="sub">אותה תכנית, אותו כיסוי — רמות ציוד שונות. כל המחירים הם מחירי יחידה מהמלאי שלנו, לפני מע"מ.</p>
+  return `<h2>התקציב וההצעות — במסך אחד</h2>
+  <p class="sub">הזז את התקציב וההצעות מסתדרות מולו מיד. כל המחירים הם מחירי יחידה מהמלאי שלנו, לפני מע"מ.</p>
+  <div class="budget">
+    <div class="bignum">${ils(S.budget)}</div>
+    <input type="range" min="${Math.floor(lo * 0.6 / 1000) * 1000}" max="${Math.ceil(hi * 1.4 / 1000) * 1000}" step="1000" value="${S.budget}" oninput="S.budget=+this.value;save();render()">
+    <div class="brange"><span>${ils(lo * 0.6)}</span><span>${ils(hi * 1.4)}</span></div>
+  </div>
+  ${finishHTML(props)}
   ${fit && fit.floor ? fitRowHTML(fit) : ''}
   <div class="offers">${list.map((p, i) => {
     const isFit = p.tier.id === 'fit';
@@ -1289,10 +1350,25 @@ function stepOffers() {
       ${S.finish && S.finish !== FIN_ANY ? `<div class="finline">🎨 גימור ${esc(S.finish)}${p.rows.some(r => (r.name || '').endsWith('· ' + S.finish)) ? '' : ' — לדגם הזה אין גימור כזה, נשאר במקורי'}</div>` : ''}
       <div class="prods">${prodCards(p)}</div>
       <details class="incl"><summary>מה כלול בדיוק — ${p.rows.length} פריטי ציוד + ${p.inst.length} שורות התקנה</summary>
-        <table class="inclt"><tr><th>ציוד</th><th>כמות</th><th>סה"כ</th></tr>
-          ${p.rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.qty}</td><td>${ils(r.total)}</td></tr>`).join('')}
-          <tr class="sub2"><td>סה"כ ציוד</td><td></td><td>${ils(p.equip)}</td></tr>
+        <table class="inclt"><tr><th>ציוד</th><th>כמות</th><th>סה"כ</th><th></th></tr>
+          ${p.rows.map(r => {
+            const l = !r.swapped && learnedFor(r.key);
+            const learnRow = l && l.key !== r.key
+              ? `<tr class="learn"><td colspan="4">🧠 בפרויקטים קודמים החלפת את זה ב־<b>${esc(l.name.slice(0, 38))}</b> (${l.n}×)
+                  <button class="ghost sm" onclick="oeApplyLearned('${p.tier.id}','${r.key}')">החל</button></td></tr>` : '';
+            const swapRow = OE && OE.tid === p.tier.id && OE.key === r.key ? oeBox() : '';
+            return `<tr class="${r.edited ? 'ed' : ''}"><td>${esc(r.name)}${r.swapped ? ' <span class="edtag">🔁 הוחלף</span>' : ''}${r.note === 'תוספת' ? ' <span class="edtag">➕ תוספת</span>' : ''}</td>
+              <td><input class="instin" type="number" min="0" value="${r.qty}" onchange="offerQty('${p.tier.id}','${r.key}',this.value)"></td>
+              <td>${ils(r.total)}</td>
+              <td class="rowops"><button title="החלף בפריט אחר מהמלאי" onclick="offerSwapOpen('${p.tier.id}','${r.key}')">🔁</button><button title="הסר מההצעה" onclick="offerToggle('${p.tier.id}','${r.key}')">✕</button></td></tr>${swapRow}${learnRow}`;
+          }).join('')}
+          <tr class="sub2"><td>סה"כ ציוד</td><td></td><td>${ils(p.equip)}</td><td></td></tr>
         </table>
+        <div class="wact">
+          <button class="ghost sm" onclick="offerAddOpen('${p.tier.id}')">➕ הוסף פריט מהמלאי</button>
+          ${S.offerEdit && S.offerEdit[p.tier.id] ? `<button class="ghost sm" onclick="resetOffer('${p.tier.id}')">↺ בטל את העריכות</button>` : ''}
+        </div>
+        ${OE && OE.tid === p.tier.id && OE.key === null ? oeBox() : ''}
         <table class="inclt"><tr><th>התקנה ותשתית</th><th>כמות</th><th>מחיר</th><th>סה"כ</th></tr>
           ${p.inst.map(r => `<tr><td>${esc(r.label)}</td><td>${r.qty} ${esc(r.unit)}</td>
             <td>${editableInst(p.tier.id, r)}</td><td>${ils(r.total)}</td></tr>`).join('')}
@@ -1332,7 +1408,7 @@ function setInstPrice(k, v) {
   save(); render(); toast('מחיר ההתקנה עודכן');
 }
 function resetInst() { S.instPrice = {}; save(); render(); toast('↺ מחירי ההתקנה חזרו לברירת המחדל'); }
-function pickTier(id, cut) { S.tier = id; S.cut = cut || 0; save(); render(); go(6); }
+function pickTier(id, cut) { S.tier = id; S.cut = cut || 0; save(); render(); go(5); }
 
 /* ---------- שלב 7 — הדוח ---------- */
 /* מיקומי הרמקולים בפועל: פריסה שווה סביב היקף האזור, מכוונים פנימה */
@@ -1469,8 +1545,14 @@ function speakerPts(z, n, plan) {
   return pts;
 }
 /* מפת כיסוי: רשת נקודות עם סכימת אנרגיה מכל הרמקולים */
-/* סולם קבוע: כחול = חלש · ירוק = מאוזן · כתום/אדום = חזק */
-const BANDCOL = ['#2f6fed', '#22a6c3', '#2fbf71', '#c8d32a', '#f2a33c', '#ef6b3a', '#d7263d'];
+/* סולם ה-SPL של KO Projects (jet): כחול = חלש → ירוק → צהוב → אדום = חזק */
+function jetColor(t) {
+  t = Math.max(0, Math.min(1, t));
+  const r = Math.round(255 * Math.max(0, Math.min(1, 1.5 - Math.abs(4 * t - 3))));
+  const g = Math.round(255 * Math.max(0, Math.min(1, 1.5 - Math.abs(4 * t - 2))));
+  const b = Math.round(255 * Math.max(0, Math.min(1, 1.5 - Math.abs(4 * t - 1))));
+  return `rgb(${r},${g},${b})`;
+}
 function coverageSVG(prop, w, h) {
   calibrateLevels(prop);
   const step = Math.max(18, Math.round(w / 46));
@@ -1492,12 +1574,16 @@ function coverageSVG(prop, w, h) {
   const bandDb = 3, bands = Math.min(7, Math.max(3, Math.ceil((hi - lo) / bandDb)));
   const stepDb = (hi - lo) / bands;
   const band = c => Math.max(0, Math.min(bands - 1, Math.floor((c.db - lo) / stepDb)));
+  /* צבע אבסולוטי כמו ב-KO Projects: 70 dB = כחול · 110 dB = אדום —
+     כך אותו dB נראה אותו צבע בכל פרויקט, ורקע שקט לא נצבע כחול-לילה */
+  const FLOOR = 70, TOP = 110;
+  const bandCol = bi => jetColor((lo + (bi + 0.5) * stepDb - FLOOR) / (TOP - FLOOR));
   const byXY = {};
   cells.forEach(c => { byXY[c.x + '|' + c.y] = band(c); });
   let lines = '';
   cells.forEach(c => {
     const bi = band(c), x0 = c.x - step / 2, y0 = c.y - step / 2;
-    out += `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${step}" height="${step}" fill="${BANDCOL[bi]}" opacity="0.5"/>`;
+    out += `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${step}" height="${step}" fill="${bandCol(bi)}" opacity="0.45"/>`;
     /* קו מתאר בין מדרגות עוצמה — ההבדל בין 3 dB נראה לעין */
     const left = byXY[(c.x - step) + '|' + c.y], up = byXY[c.x + '|' + (c.y - step)];
     if (left != null && left !== bi) lines += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x0.toFixed(1)}" y2="${(y0 + step).toFixed(1)}" stroke="#ffffff" stroke-width="2.5" opacity="0.75"/>`;
@@ -1505,7 +1591,7 @@ function coverageSVG(prop, w, h) {
   });
   out += lines;
   const legend = [];
-  for (let i = 0; i < bands; i++) legend.push({ col: BANDCOL[i], from: Math.round(lo + i * stepDb), to: Math.round(lo + (i + 1) * stepDb) });
+  for (let i = 0; i < bands; i++) legend.push({ col: bandCol(i), from: Math.round(lo + i * stepDb), to: Math.round(lo + (i + 1) * stepDb) });
   return { svg: out, min: Math.round(lo), max: Math.round(hi), legend };
 }
 /* אייקונים ברורים: רמקול קיר עם כיוון הפנייה, רמקול שקוע, סאב וארון */
@@ -1613,7 +1699,7 @@ function stepReport() {
   calibrateLevels(p);
   const rk = rackPoint();
   const sched = cableSchedule(p);
-  let marks = '';
+  let marks = '', cones = '';
   /* קווי החיווט בפועל — מהארון אל כל רמקול, ממוספרים בדיוק כמו בטבלה */
   let li = 0;
   p.zones.forEach(({ z }) => {
@@ -1628,16 +1714,16 @@ function stepReport() {
     });
   });
   /* ארון הציוד */
-  marks += rackIcon(rk);
+  marks += `<g data-rack style="cursor:grab">${rackIcon(rk)}</g>`;
   p.zones.forEach(({ z, p: pz }) => {
     const col = purposeOf(z).color;
     const zb = zoneBox(z);
     marks += `<path d="${zonePath(z)}" fill="none" stroke="${col}" stroke-width="3" stroke-dasharray="9 6" stroke-linejoin="round"/>
       <text x="${zb.x + 12}" y="${zb.y + 32}" font-size="24" font-weight="800" fill="${col}">${purposeOf(z).icon} ${esc(z.name)} · ${pz.n} רמקולים</text>`;
-    /* חרוט הכיסוי מצויר לפי זווית הפתיחה של הרמקול ומרחק ההגעה */
+    /* חרוט הכיסוי מצויר לפי זווית הפתיחה של הרמקול — ונחתך לגבולות האזורים */
     const reach = pz.spacing / (S.scale || 0.02) * (pz.onCeil ? 0.75 : 1.6);
     (L[z.id].spk || []).forEach((pt, i) => {
-      marks += coneSVG(pt, pz.onCeil ? -1 : pt.aim, pz.spk.h || 90, col, reach);
+      cones += coneSVG(pt, pz.onCeil ? -1 : pt.aim, pz.spk.h || 90, col, reach);
     });
     (L[z.id].spk || []).forEach((pt, i) => {
       marks += `<g data-sp="${z.id}|${i}" style="cursor:grab">${spkIcon(pt, col, i + 1, pt.aim, pz.onCeil)}</g>`;
@@ -1685,7 +1771,7 @@ function stepReport() {
       ${S.plan ? `<img src="${S.plan}" style="width:100%">` : ''}
       <svg viewBox="0 0 ${w} ${h}" style="${S.plan ? '' : 'position:relative;background:#f7f5f0;border-radius:10px;display:block;width:100%;height:auto;aspect-ratio:' + (w / h).toFixed(3)}">
         <defs><clipPath id="zclip">${S.zones.map(z => `<path d="${zonePath(z)}"/>`).join('')}</clipPath></defs>
-        <g clip-path="url(#zclip)">${cov.svg}</g>${marks}</svg>
+        <g clip-path="url(#zclip)">${cov.svg}${cones}</g>${marks}</svg>
     </div></div>
     <div class="legend">
       <div class="scale">${(cov.legend || []).map(b => `<span class="sb" style="background:${b.col}">${b.from}–${b.to}</span>`).join('')}<b>dB</b></div>
@@ -1730,12 +1816,13 @@ function stepReport() {
     <button class="go" onclick="window.print()">🖨 הדפס / שמור PDF</button>
     <button class="ghost" onclick="shareReport()">📲 שתף</button>
     <button class="ghost" onclick="resetLayout()">↺ אפס פריסה</button>
-    <button class="ghost" onclick="go(5)">▶ חזרה להצעות</button>
+    <button class="ghost" onclick="go(4)">▶ חזרה להצעות</button>
   </div></div>`;
 }
 /* ---------- דוח חיווט מלא — ההמשך הטכני של הצעת המחיר ---------- */
 /* מיקום הארון: בפינה של האזור הראשון, מקום נגיש ומאוורר */
 function rackPoint() {
+  if (S.rackPos && isFinite(S.rackPos.x)) return S.rackPos;   /* המשתמש גרר — המיקום שלו קובע */
   const z = S.zones[0];
   if (!z) return { x: 60, y: 60 };
   const b = zoneBox(z);
@@ -1853,6 +1940,19 @@ function afterReport() {
     });
   });
   bind('[data-sp]', 'spk'); bind('[data-sub]', 'subs');
+  /* גרירת ארון הציוד — כל טבלת החיווט והקווים מחושבים מחדש מהמיקום החדש */
+  const rackG = svg.querySelector('[data-rack]');
+  if (rackG) rackG.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    const st = toPlan(e), o = rackPoint(), ox = o.x, oy = o.y;
+    const mv = ev => {
+      const p2 = toPlan(ev); if (!isFinite(p2.x)) return;
+      S.rackPos = { x: Math.max(20, ox + p2.x - st.x), y: Math.max(20, oy + p2.y - st.y) };
+      rackG.setAttribute('transform', `translate(${(S.rackPos.x - ox).toFixed(0)} ${(S.rackPos.y - oy).toFixed(0)})`);
+    };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); render(); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  });
   /* סיבוב רמקול: הזווית נקבעת מהכיוון של הגרירה סביב הרמקול */
   svg.querySelectorAll('[data-rot]').forEach(g => {
     g.addEventListener('pointerdown', e => {
@@ -1909,7 +2009,7 @@ async function resetAll() {
   try { localStorage.removeItem(LS); } catch (e) {}
   S = { step: 0, venue: null, uses: [], name: '', plan: null, planW: 1400, planH: 900, scale: null,
     roomW: null, roomL: null, ceil: 4, zones: [], budget: null, tier: null, contact: {},
-    sameContent: true, cut: 0, finish: 'any', layout: {}, wireEdits: {}, instPrice: {} };
+    sameContent: true, cut: 0, finish: 'any', rackPos: null, layout: {}, wireEdits: {}, instPrice: {} };
   CAL.mode = 'width'; CAL.pts = [];
   DRAW.on = false; DRAW.from = DRAW.cur = null;
   save(); render();
