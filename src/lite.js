@@ -525,8 +525,13 @@ function stepPlan() {
 
   if (S.plan && !S.scale) return `
     <h2>מעולה — עכשיו נדע כמה גדול המקום</h2>
-    <p class="sub">בלי זה כל החישוב לא שווה כלום. הדרך המדויקת: לסמן על התכנית מידה שאתה כבר מכיר.</p>
+    <p class="sub">בלי זה כל החישוב לא שווה כלום. אפשר לתת ל-AI לקרוא את המידות המודפסות — או לסמן ידנית.</p>
     ` + wb(`
+    <div class="aicard">
+      <b>הדרך המהירה</b>
+      <small>ה-AI קורא את המידות המודפסות בתכנית (360, 380…), מכייל לבד, ומסמן את אזורי הישיבה והבר כאזורי השמעה — הכול נשאר ניתן לעריכה.</small>
+      <button class="aibtn" ${AIBUSY ? 'disabled' : ''} onclick="readPlan()">${AIBUSY ? '🤖 קורא את התכנית…' : '🤖 תן ל-AI לקרוא את התכנית'}</button>
+    </div>
     <div class="guide">
       <div class="gstep ${CAL.pts.length === 0 ? 'now' : 'done'}"><b>1</b><span>לחץ על התכנית בקצה של מידה מוכרת — קיר, דלת, או מידה שכתובה בתכנית</span></div>
       <div class="gstep ${CAL.pts.length === 1 ? 'now' : CAL.pts.length > 1 ? 'done' : ''}"><b>2</b><span>לחץ על הקצה השני</span></div>
@@ -560,6 +565,7 @@ function stepPlan() {
       נציע אותם כאזורים בשלב הבא, ותוכל לתקן כל צורה.</div>` : ''}
     <div class="planops">
       <b>כלים לתכנית</b>
+      <button class="aibtn" ${AIBUSY ? 'disabled' : ''} onclick="readPlan()">${AIBUSY ? '🤖 קורא את התכנית…' : '🤖 תן ל-AI לקרוא את התכנית'}</button>
       <button class="ghost" onclick="cropPlan()">✂️ הסר שוליים אוטומטית</button>
       <button class="ghost ${CROP.on ? 'on' : ''}" onclick="${CROP.on ? 'cancelCrop()' : 'startCrop()'}">${CROP.on ? '✕ בטל גזירה' : '⬚ גזור בעצמי — סמן מסגרת'}</button>
       <button class="ghost" onclick="recalibrate()">↺ המידה לא נכונה — כייל מחדש</button>
@@ -677,6 +683,116 @@ let PANNED = false;
     if (PANNED) { e.stopPropagation(); e.preventDefault(); PANNED = false; }
   }, true);
 })();
+/* שאלה עם שדה קלט — לאיסוף מפתח ה-API (נשמר רק בדפדפן, משותף עם KO Projects) */
+function askText(msg, placeholder) {
+  return new Promise(res => {
+    const ov = document.createElement('div');
+    ov.className = 'askov';
+    ov.innerHTML = `<div class="askbox">
+      <p>${esc(msg)}</p>
+      <input class="askin" placeholder="${esc(placeholder || '')}" autofocus>
+      <div class="askbtns">
+        <button class="go" data-ok>אישור</button>
+        <button class="ghost" data-no>ביטול</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    const inp = ov.querySelector('input');
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelector('[data-ok]').onclick = () => done(inp.value.trim() || null);
+    ov.querySelector('[data-no]').onclick = () => done(null);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(inp.value.trim() || null); });
+    ov.addEventListener('click', e => { if (e.target === ov) done(null); });
+    setTimeout(() => inp.focus(), 50);
+  });
+}
+
+/* קורא התכנית: שולח את התכנית ל-Claude (מפתח מקומי, ישירות ל-Anthropic בלבד),
+   מקבל חזרה את המידות המודפסות עם מיקומן — ומכייל מהן —
+   ואת חללי הישיבה/הבר/הרחבה כפוליגונים, שנכנסים כאזורים רגילים וניתנים לעריכה. */
+let AIBUSY = false;
+async function readPlan() {
+  if (!S.plan) { toast('קודם העלה תכנית'); return; }
+  if (AIBUSY) return;
+  let key = '';
+  try { key = localStorage.getItem('koflow_apikey') || ''; } catch (e) {}
+  if (!key) {
+    key = await askText('חד-פעמי: מפתח API של Claude.\nנשמר רק בדפדפן שלך ונשלח רק ל-Anthropic.\nמשיגים ב-console.anthropic.com ← API Keys', 'sk-ant-…');
+    if (!key) return;
+    try { localStorage.setItem('koflow_apikey', key); } catch (e) {}
+  }
+  AIBUSY = true; render();
+  toast('🤖 קורא את התכנית… (~20 שניות)');
+  try {
+    /* הקטנה ל-jpeg שהמודל אוהב */
+    const img = new Image(); img.src = S.plan; await img.decode();
+    const m = Math.min(1, 1568 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * m); c.height = Math.round(img.naturalHeight * m);
+    const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+    cx.drawImage(img, 0, 0, c.width, c.height);
+    const b64 = c.toDataURL('image/jpeg', 0.9).split(',')[1];
+    const prompt = `זו תכנית אדריכלית (עברית, ייתכן קנה מידה 1:50). שתי משימות:
+1) כיול: מצא 2-5 מידות מודפסות על קווי מידה (מספרים כמו 360, 380, 561 — בס"מ). לכל אחת החזר את הערך במטרים ואת שתי קצוות הקטע הנמדד בקואורדינטות יחסיות (0-1) של התמונה.
+2) חללים: זהה את החללים שבהם שוהים אנשים וצריך שם מוזיקה — אולם ישיבה, בר, רחבת ריקודים, במה, כניסה/לובי, שירותים, חוץ/מרפסת. עקוב אחרי הקירות והחזר לכל חלל פוליגון (3-10 נקודות, יחסי 0-1). דלג על מטבח, מחסן ומדרגות (או החזר אותם עם music:false).
+החזר JSON בלבד:
+{"dims":[{"m":3.6,"x1":0.28,"y1":0.35,"x2":0.47,"y2":0.35}],
+ "rooms":[{"name":"אולם ישיבה","purpose":"seating|bar|dance|stage|entry|toilets|outdoor|kitchen|service","music":true,"poly":[{"x":0.1,"y":0.3},{"x":0.5,"y":0.3},{"x":0.5,"y":0.9},{"x":0.1,"y":0.9}]}]}`;
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key,
+        'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 2000,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+          { type: 'text', text: prompt }] }] })
+    });
+    const j = await res.json();
+    if (j.error) throw new Error(j.error.message || 'שגיאת API');
+    let txt = ((j.content || [])[0] || {}).text || '';
+    txt = txt.replace(/```json|```/g, '').trim();
+    txt = txt.slice(txt.indexOf('{'), txt.lastIndexOf('}') + 1);
+    applyPlanReading(JSON.parse(txt));
+  } catch (err) {
+    if (/401|invalid|authentication/i.test(String(err.message))) { try { localStorage.removeItem('koflow_apikey'); } catch (e) {} }
+    toast('❌ הקריאה נכשלה: ' + (err.message || err));
+  }
+  AIBUSY = false; render();
+}
+async function applyPlanReading(d) {
+  const W = S.planW || 1400, H = S.planH || 900;
+  /* --- כיול: חציון על כל המידות שנקראו, עם בדיקת סבירות --- */
+  const scales = (d.dims || []).map(x => {
+    const px = Math.hypot((x.x2 - x.x1) * W, (x.y2 - x.y1) * H);
+    return px > 20 && x.m > 0.4 && x.m < 60 ? x.m / px : null;
+  }).filter(v => v && v > 0.002 && v < 0.06).sort((a, b) => a - b);
+  let calMsg = '';
+  if (scales.length) {
+    S.scale = scales[Math.floor(scales.length / 2)];
+    calMsg = 'כויל מ-' + scales.length + ' מידות מודפסות (רוחב התכנית ' + (W * S.scale).toFixed(1) + ' מ׳)';
+  }
+  /* --- אזורים: פוליגונים לעריכה חופשית, בדיוק כמו אזור שסומן ידנית --- */
+  const rooms = (d.rooms || []).filter(r => r.music !== false && r.poly && r.poly.length >= 3
+    && !/kitchen|service/.test(r.purpose || ''));
+  if (rooms.length && S.zones.length) {
+    if (!await ask('זוהו ' + rooms.length + ' אזורי השמעה. להחליף את ' + S.zones.length + ' האזורים הקיימים?', 'החלף')) rooms.length = 0;
+    else S.zones = [];
+  }
+  rooms.forEach(r => {
+    const pid = ['seating', 'bar', 'dance', 'stage', 'entry', 'toilets', 'outdoor'].includes(r.purpose) ? r.purpose : 'seating';
+    const q = LITE_CATALOG.zonePurposes.find(x => x.id === pid) || {};
+    const poly = r.poly.map(pt => ({ x: Math.max(0, Math.min(1, pt.x)) * W, y: Math.max(0, Math.min(1, pt.y)) * H }));
+    const xs = poly.map(p2 => p2.x), ys = poly.map(p2 => p2.y);
+    S.zones.push({ id: uid(), name: r.name || q.name || 'אזור', purpose: pid,
+      spl: pid === 'dance' || pid === 'stage' ? Math.max(q.spl || 90, usePeak()) : (q.spl || 80),
+      mount: (pid === 'toilets' || pid === 'entry') ? 'ceil' : 'wall',
+      poly, x: Math.min(...xs), y: Math.min(...ys),
+      w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) });
+  });
+  S.layout = null; S.suggest = null;
+  save(); render();
+  toast('🤖 ' + [calMsg, rooms.length ? rooms.length + ' אזורים זוהו — גרור פינות כדי לדייק' : '']
+    .filter(Boolean).join(' · ') || 'לא זוהה מידע — נסה כיול ידני');
+}
 function recalibrate() { S.scale = null; CAL.mode = 'two'; CAL.pts = []; save(); render(); toast('סמן שוב 2 נקודות על התכנית'); }
 const CAL = { mode: 'two', pts: [] };
 const DRAW = { on: false, from: null, cur: null, pts: [], purpose: null };
@@ -1177,6 +1293,7 @@ function stepZones() {
       <b>נתחיל מהאזור הראשון</b>
       <small>לחץ, ואז נקר על התכנית את פינות השטח שבו צריך מוזיקה</small>
       <button class="go wide" onclick="startDrawZone('poly')">✏️ סמן אזור על התכנית</button>
+      <button class="aibtn" ${AIBUSY ? 'disabled' : ''} onclick="readPlan()">${AIBUSY ? '🤖 קורא את התכנית…' : '🤖 תן ל-AI לקרוא את התכנית'}</button>
       <div class="row" style="margin-top:8px">
         <button class="ghost" style="flex:1" onclick="startDrawZone('rect')">▭ מלבן מהיר</button>
         <button class="ghost" style="flex:1" onclick="addZone()">➕ כל החלל</button>

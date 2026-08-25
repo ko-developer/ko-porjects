@@ -287,6 +287,16 @@ tr.learn .ghost.sm{padding:2px 9px;font-size:11px;margin-inline-start:6px}
 .zctl button:last-child{font-size:14px;display:none}
 .zctl.zoomed button:last-child{display:block}
 @media print{.zctl{display:none!important}}
+.aicard{background:linear-gradient(135deg,#f6f4ff,#eef2ff);border:1px solid #d6d0f5;border-right:5px solid var(--violet);
+  border-radius:14px;padding:13px 14px;margin-bottom:12px}
+.aicard>b{display:block;font-size:14px;color:var(--violet);margin-bottom:4px}
+.aicard>small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-bottom:10px}
+.aibtn{width:100%;background:linear-gradient(135deg,#7c5cff,#a78bfa);color:#fff;border:none;border-radius:12px;
+  padding:11px 14px;font:inherit;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(124,92,255,.3)}
+.aibtn:hover{filter:brightness(1.06)}
+.aibtn[disabled]{opacity:.6;cursor:wait}
+.askin{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:13px;
+  margin-bottom:14px;direction:ltr;text-align:left}
 #toasts{position:fixed;bottom:86px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;width:min(420px,92vw)}
 .toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;font-size:13.5px;box-shadow:0 8px 26px rgba(0,0,0,.3)}
 @media print{header,#steps,#nav,.ract,#toasts,.navhint{display:none!important}.wb{display:block}.wb .wbplan{position:static}main{padding:0;max-width:none}#report{border:none;padding:0}}
