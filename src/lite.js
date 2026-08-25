@@ -432,7 +432,7 @@ function analysePlan(img) {
 
 /* ---------- ממשק: שלבים ---------- */
 const STEPS = ['מקום', 'שימוש', 'תכנית', 'אזורים', 'תקציב והצעות', 'דוח'];
-function go(i) { S.step = Math.max(0, Math.min(STEPS.length - 1, i)); save(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function go(i) { S.step = Math.max(0, Math.min(STEPS.length - 1, i)); ZV.z = 1; ZV.x = 0; ZV.y = 0; save(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
 function render() {
   $('#steps').innerHTML = STEPS.map((s, i) =>
@@ -442,6 +442,7 @@ function render() {
   const after = [null, null, afterPlan, afterZones, null, afterReport][S.step];
   if (after) after();
   $('#nav').innerHTML = navHTML();
+  applyPlanZoom();
 }
 function navHTML() {
   const back = S.step > 0 ? `<button class="ghost" onclick="go(${S.step - 1})">▶ חזרה</button>` : '<span></span>';
@@ -580,8 +581,102 @@ function wb(side, under) {
 }
 function planBoxHTML() {
   if (!S.plan) return '';
-  return `<div class="planbox"><div id="planWrap" class="planwrap"><img id="planImg" src="${S.plan}"><svg id="planSvg"></svg></div></div>`;
+  return `<div class="planbox">${zoomCtlHTML()}<div id="planWrap" class="planwrap"><img id="planImg" src="${S.plan}"><svg id="planSvg"></svg></div></div>`;
 }
+/* ---------- זום ופאן על התכנית ----------
+   גלגלת+Ctrl או כפתורים או צביטה בנייד; גרירה על רקע ריק מזיזה כשמוגדל.
+   ה-transform לא שובר את חישובי הקואורדינטות — toPlan עובד על getBoundingClientRect
+   של ה-SVG, שכבר כולל את הזום. */
+const ZV = { z: 1, x: 0, y: 0 };
+function zoomCtlHTML() {
+  return `<div class="zctl">
+    <button onclick="planZoom(1.45)" title="הגדל">＋</button>
+    <button onclick="planZoom(1/1.45)" title="הקטן">－</button>
+    <button onclick="planZoomReset()" title="חזרה לגודל מלא">⤢</button>
+  </div>`;
+}
+function planZoomReset() { ZV.z = 1; ZV.x = 0; ZV.y = 0; applyPlanZoom(); }
+function clampPan() {
+  const box = document.querySelector('.planbox'), wrap = box && box.querySelector('.planwrap');
+  if (!box || !wrap) return;
+  const bw = box.clientWidth, bh = box.clientHeight;
+  const ww = wrap.offsetWidth * ZV.z, wh = wrap.offsetHeight * ZV.z;
+  ZV.x = Math.min(0, Math.max(bw - ww, ZV.x));
+  ZV.y = Math.min(0, Math.max(bh - wh, ZV.y));
+}
+function applyPlanZoom() {
+  document.querySelectorAll('.planwrap').forEach(w => {
+    const on = !(ZV.z === 1 && !ZV.x && !ZV.y);
+    w.style.transformOrigin = '0 0';
+    w.style.transform = on ? `translate(${ZV.x.toFixed(1)}px,${ZV.y.toFixed(1)}px) scale(${ZV.z.toFixed(3)})` : '';
+    w.style.touchAction = ZV.z > 1 ? 'none' : '';
+  });
+  document.querySelectorAll('.zctl').forEach(c => c.classList.toggle('zoomed', ZV.z > 1.01));
+}
+function planZoom(f, cx, cy) {
+  const box = document.querySelector('.planbox'); if (!box) return;
+  const r = box.getBoundingClientRect();
+  const px = cx != null ? cx : r.width / 2, py = cy != null ? cy : r.height / 2;
+  const nz = Math.max(1, Math.min(8, ZV.z * f));
+  const k = nz / ZV.z;
+  ZV.x = px - k * (px - ZV.x); ZV.y = py - k * (py - ZV.y); ZV.z = nz;
+  if (nz === 1) { ZV.x = 0; ZV.y = 0; }
+  clampPan(); applyPlanZoom();
+}
+/* אינטראקציות — מאזין אחד לכל האפליקציה */
+let PANNED = false;
+(function bindPlanZoomOnce() {
+  document.addEventListener('wheel', e => {
+    const box = e.target.closest && e.target.closest('.planbox');
+    if (!box || !e.ctrlKey) return;
+    e.preventDefault();
+    const r = box.getBoundingClientRect();
+    planZoom(e.deltaY < 0 ? 1.18 : 1 / 1.18, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  const pts = new Map();
+  let pinch0 = null, pan0 = null;
+  const INTERACTIVE = '[data-zone],[data-pt],[data-mid],[data-rs],[data-rot],[data-sp],[data-sub],[data-rack],button,input,.zctl';
+  document.addEventListener('pointerdown', e => {
+    const box = e.target.closest && e.target.closest('.planbox');
+    if (!box) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) {                                     /* צביטה */
+      const [a, b] = [...pts.values()];
+      pinch0 = { d: Math.hypot(a.x - b.x, a.y - b.y), z: ZV.z,
+        mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, box };
+      pan0 = null;
+    } else if (ZV.z > 1 && !CROP.on && !DRAW.on && !(CAL.mode === 'two' && !S.scale) &&
+               !e.target.closest(INTERACTIVE)) {              /* פאן על רקע ריק */
+      pan0 = { x: e.clientX, y: e.clientY, ox: ZV.x, oy: ZV.y };
+      PANNED = false;
+    }
+  }, true);
+  document.addEventListener('pointermove', e => {
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch0 && pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (d > 10) {
+        const r = pinch0.box.getBoundingClientRect();
+        const target = Math.max(1, Math.min(8, pinch0.z * d / pinch0.d));
+        planZoom(target / ZV.z, pinch0.mx - r.left, pinch0.my - r.top);
+      }
+      e.preventDefault();
+    } else if (pan0) {
+      const dx = e.clientX - pan0.x, dy = e.clientY - pan0.y;
+      if (Math.hypot(dx, dy) > 6) PANNED = true;
+      ZV.x = pan0.ox + dx; ZV.y = pan0.oy + dy;
+      clampPan(); applyPlanZoom();
+    }
+  }, true);
+  const end = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch0 = null; if (!pts.size) pan0 = null; };
+  document.addEventListener('pointerup', end, true);
+  document.addEventListener('pointercancel', end, true);
+  /* אחרי פאן — הקליק שמשתחרר לא יציב נקודת כיול/ציור בטעות */
+  document.addEventListener('click', e => {
+    if (PANNED) { e.stopPropagation(); e.preventDefault(); PANNED = false; }
+  }, true);
+})();
 function recalibrate() { S.scale = null; CAL.mode = 'two'; CAL.pts = []; save(); render(); toast('סמן שוב 2 נקודות על התכנית'); }
 const CAL = { mode: 'two', pts: [] };
 const DRAW = { on: false, from: null, cur: null, pts: [], purpose: null };
@@ -1767,7 +1862,7 @@ function stepReport() {
     <div class="rlogo">KO</div>
   </div>
   <div class="rsec"><h3>📍 פריסת הרמקולים והכיסוי בחלל <span class="editable">✎ אפשר לגרור כל רמקול</span></h3>
-    <div class="planbox report"><div class="planwrap">
+    <div class="planbox report">${zoomCtlHTML()}<div class="planwrap">
       ${S.plan ? `<img src="${S.plan}" style="width:100%">` : ''}
       <svg viewBox="0 0 ${w} ${h}" style="${S.plan ? '' : 'position:relative;background:#f7f5f0;border-radius:10px;display:block;width:100%;height:auto;aspect-ratio:' + (w / h).toFixed(3)}">
         <defs><clipPath id="zclip">${S.zones.map(z => `<path d="${zonePath(z)}"/>`).join('')}</clipPath></defs>
