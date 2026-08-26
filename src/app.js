@@ -6198,6 +6198,9 @@ function renderKits() {
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button style="flex:1" onclick="kitNew()">➕ צור קיט חדש</button>
       <button style="flex:1" onclick="kitFromOffer()">🧰 צור קיט מהצעת המחיר (✓)</button>
+      <button style="flex:1;background:#efecfd;color:#6c5ce7;font-weight:700"
+        onclick="window.open('https://claude.ai/code/artifact/472d0973-17a9-4314-a5e6-40176341cb12','_blank','noopener')"
+        title="מי הולך עם מי — אישור ואיסור שילובים, נשמר ונקרא ע&quot;י המתכנן">🧩 מטריצת התאמות</button>
     </div>
     <p class="muted" style="margin-bottom:8px">${list.length} קיטים · מוצגים ${Math.min(list.length, kitShow)} · לחיצה פותחת תצוגה מקדימה${hiddenCount ? ` · ${hiddenCount} מוסתרים` : ''}:</p>` +
     list.slice(0, kitShow).map(k => {
