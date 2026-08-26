@@ -213,7 +213,7 @@ function buildProposal(tier) {
   const cands = [tier.ampSmall, tier.amp, tier.ampBig].filter(Boolean);
   /* כלל 3: מגבר משולב DSP חוסך פרוססור — העלות האמיתית של מגבר בלי DSP כוללת אותו */
   const AMP_DSP = /DSP|IPX|DPA|DYNAMIQ|PLM|משולב פרוססור/i;
-  const procAnyway = (S.sameContent === false && S.zones.length > 1 && srcCount() > 1)
+  const procAnyway = S.noise || (S.sameContent === false && S.zones.length > 1 && srcCount() > 1)
     || S.zones.some(z => z.spl >= 95) || S.zones.length >= 4 || ensureSources().length >= 2;
   const dspCost = (erpItem('SDIG5KO') || { price: 2124 }).price;
   let amp = tier.amp, ampN = 99, perCh = 1;
@@ -268,13 +268,14 @@ function buildProposal(tier) {
   /* כללי הבית ל-DSP (data/dsp_rules.json):
      עוצמות גבוהות / הרבה אזורים / פרמיום עם כמה מקורות → NST עם קיפד קיר (כלל 5+6);
      קבוצות תוכן שונות → מטריצת DIGISYNTHETIC (כלל 4); כמה מקורות → מיקסר. */
-  const wantNst = !tier.cut && S.zones.length > 1 &&
-    (S.zones.some(z => z.spl >= 95) || S.zones.length >= 4 ||
-     (tier.id === 'premium' && (srcs.length >= 2 || srcCount() > 1)));
+  const wantNst = !tier.cut &&
+    (S.noise ||
+     (S.zones.length > 1 && (S.zones.some(z => z.spl >= 95) || S.zones.length >= 4 ||
+       (tier.id === 'premium' && (srcs.length >= 2 || srcCount() > 1)))));
   if (wantNst) {
     const nst = erpItem('S10NAKOS') || erpItem('S9NAKOS');
     if (nst) {
-      push(nst.key, nst.name + ' — שליטה באפליקציה ולימיטר רעש', 1, nst.price, 'ניתוב תוכן');
+      push(nst.key, nst.name + (S.noise ? ' — לימיטר רעש נעול לפי שעות' : ' — שליטה באפליקציה ולימיטר רעש'), 1, nst.price, 'ניתוב תוכן');
       const kp = erpItem('S9NAKOS2');
       if (kp) push(kp.key, 'פנל קיר NST VR1PoE — קיפד עוצמה לכל אזור', Math.min(S.zones.length, 3), kp.price, 'ניתוב תוכן');
     }
@@ -557,6 +558,16 @@ function stepUse() {
     ${peak >= 98 ? 'רמת מועדון: צריך סאבים ורמקולים שעומדים בעוצמה לאורך זמן.'
       : peak >= 85 ? 'רמת בר: מוזיקה נוכחת בלי לצעוק, עם אפשרות להגביר בסופ״ש.'
       : 'רקע נעים: מערכת מבוזרת שנשמעת אחיד בכל פינה בלי נקודות חזקות.'}</div>` : ''}
+  <div class="content-q">
+    <b>🤫 יש מגבלת רעש?</b>
+    <div class="chips">
+      <button class="chip ${!S.noise ? 'on' : ''}" onclick="S.noise=false;save();render()">לא — אין בעיה עם שכנים</button>
+      <button class="chip ${S.noise ? 'on' : ''}" onclick="S.noise=true;save();render()">כן — שכנים / מגבלת עירייה</button>
+    </div>
+    <small>${S.noise
+      ? 'נוסיף מעבד NST עם לימיטר שנועל את העוצמה המקסימלית לפי שעות — כך אי אפשר לחרוג גם בטעות, ויש תיעוד מול פניות.'
+      : 'בלי לימיטר ייעודי — הוויסות נעשה רגיל, מהמעבד או מהמגבר.'}</small>
+  </div>
   <label class="fld"><span>גובה התקרה (מטרים)</span>
     <input type="number" step="0.1" min="2" max="12" value="${S.ceil}" oninput="S.ceil=+this.value||4;save()"></label>`;
 }
@@ -2192,6 +2203,9 @@ function wiringSection(p) {
           || (p.rows.some(r => r.key === 'SAME1KO') ? 'מיקסר ALCHEMY MBS6 (משמש גם ככרטיס קול ומקלט בלוטות׳)' : 'ישירות למגבר')}.<br>
       לכל אזור ערוץ (או ערוצים) משלו — כך אפשר להנמיך אזור אחד בלי לגעת באחרים.
       ${srcCount() > 1 ? 'המעבד מזין כל קבוצת מקור בנפרד, והמגבר מפצל לערוצים לפי אזור.' : 'מקור אחד מוזן לכל הערוצים, והעוצמה נשלטת בנפרד לכל אזור.'}</p></div>
+    ${S.noise ? `<div class="wsec"><h5>🤫 מגבלת רעש</h5>
+      <p>המערכת כוללת מעבד NST עם <b>לימיטר נעול</b>: תקרת עוצמה מוגדרת לפי שעות (למשל הנמכה אוטומטית אחרי 23:00),
+      נעולה בסיסמה כך שהצוות לא יכול לעקוף אותה. זה הכלי שמציגים לעירייה או לוועד הבית כשיש פניות.</p></div>` : ''}
     <div class="wsec"><h5>חשמל</h5>
       <p>• <b>${amps16}× מעגל 16A ייעודי</b> לארון (לא משותף עם תאורה או מטבח — רעש חשמלי פוגע בצליל).<br>
       • צריכת שיא מוערכת: <b>${ampW}W</b> · פס שקעים בארון.<br>
@@ -2348,7 +2362,7 @@ async function resetAll() {
   try { localStorage.removeItem(LS); } catch (e) {}
   S = { step: 0, venue: null, uses: [], name: '', plan: null, planW: 1400, planH: 900, scale: null,
     roomW: null, roomL: null, ceil: 4, zones: [], budget: null, tier: null, contact: {},
-    sameContent: true, cut: 0, finish: 'any', sources: null, rackPos: null, layout: {}, wireEdits: {}, instPrice: {} };
+    sameContent: true, cut: 0, finish: 'any', sources: null, noise: false, rackPos: null, layout: {}, wireEdits: {}, instPrice: {} };
   CAL.mode = 'width'; CAL.pts = [];
   DRAW.on = false; DRAW.from = DRAW.cur = null;
   save(); render();
