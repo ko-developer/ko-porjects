@@ -1,0 +1,91 @@
+{
+ "doc": "עקרונות בחירת DSP — כללי הבית (אורי, אוג׳ 2026). כל מערכת חייבת DSP.",
+ "principles": [
+  "1. תמיד צריך DSP במערכת. בקיטים קטנים מאוד עם מגבר ביתי — משתמשים ב-DSP של המגבר עצמו לכיוון.",
+  "2. למערכות KT/Unicorn יש כמה קומבינציות אפשריות.",
+  "3. מגברי DYNAMIQ (מגבר+DSP משולב) — למקום בלי הרבה כניסות: נגן אחד או מיקסר שמנתב מעליו. בר קטן / מסעדה קטנה — האפשרות המושלמת.",
+  "4. יותר מכניסה אחת, לא מבוסס DJ, עוצמה מתונה, בלי בעיות שכנים/רעש → DIGISYNTHETIC מסדרות 208 / 0808.",
+  "5. עוצמות גבוהות (דאנס-בר/מועדון) או שליטה באפליקציה על הרבה אזורים, או מגבלות רעש/שכנים → NST או XTA (אפליקציה + קיפדים לקיר), גם כשהרמקולים Unicorn זולים.",
+  "6. מקומות מבוססי סאונד (מועדונים/מיני-קלאבים) → מערכות אירופאיות: Funktion-One (עם NST או מגברי DPA) או K&F (מגברים שלהם עם DSP, ו-NST כשיש כמה מקורות)."
+ ],
+ "devices": {
+  "digi208A": {
+   "key": "SDIG5KO",
+   "name": "DIGISYNTHETIC DMX208A — 8 כניסות/יציאות, רשת",
+   "use": "ברירת מחדל לכמה כניסות בעוצמה מתונה"
+  },
+  "digi208L": {
+   "key": "SDIG15KO",
+   "name": "DIGISYNTHETIC DMX208L — מטריצה 4×4 רשת",
+   "use": "קבוצות תוכן שונות"
+  },
+  "digi808": {
+   "key": "SDIG14KO",
+   "name": "DIGISYNTHETIC DMX0808 — מטריצה 8×8 רשת",
+   "use": "הרבה אזורים בעוצמה מתונה"
+  },
+  "ds418": {
+   "key": "SSAE2KO",
+   "name": "DIGISYNTHETIC DS418E — ניהול רמקולים 4 ערוצים",
+   "use": "כיוון בסיסי כשאין DSP במגבר"
+  },
+  "nst88L": {
+   "key": "S10NAKOS",
+   "name": "NST Audio VMX88L",
+   "use": "עוצמות גבוהות / הרבה אזורים / מגבלות רעש / Funktion-One"
+  },
+  "nst88": {
+   "key": "S9NAKOS",
+   "name": "NST VMX88 MK2 + DANTE",
+   "use": "כמו VMX88L עם Dante"
+  },
+  "nstKeypad": {
+   "key": "S9NAKOS2",
+   "name": "פנל קיר NST VR1PoE",
+   "use": "קיפד שליטה לכל אזור/בר"
+  },
+  "xtaKeypad": {
+   "key": "SXTA8KOSR1",
+   "name": "קיפד XTA ACC-UN-WP2",
+   "use": "קיפד למערכות XTA"
+  }
+ },
+ "ampHasDsp": "DSP|IPX|DPA|DYNAMIQ|PLM|K&F D|משולב פרוססור",
+ "rules": [
+  {
+   "if": "amp_home",
+   "then": "use-amp-dsp",
+   "why": "כלל 1 — מגבר ביתי, ה-DSP שבו מכוון את המערכת"
+  },
+  {
+   "if": "amp_with_dsp && inputs<=1",
+   "then": "none-needed",
+   "why": "כלל 3 — DYNAMIQ/IPX: מגבר משולב DSP, כניסה אחת"
+  },
+  {
+   "if": "loud || zones>=4 || noise_limits",
+   "then": "nst88L+nstKeypad",
+   "why": "כלל 5 — NST/XTA: אפליקציה, קיפדים, לימיטר רעש"
+  },
+  {
+   "if": "brand in [funktion-one]",
+   "then": "nst88L",
+   "why": "כלל 6 — F1 מנוהל ב-NST (או מגברי DPA)"
+  },
+  {
+   "if": "brand in [k&f] && sources>=2",
+   "then": "nst88L",
+   "why": "כלל 6 — K&F: המגברים שלהם עם DSP; NST לכמה מקורות"
+  },
+  {
+   "if": "inputs>=2 && !dj_based",
+   "then": "digi208A|digi808",
+   "why": "כלל 4 — DIGISYNTHETIC 208/0808"
+  },
+  {
+   "if": "no_dsp_anywhere",
+   "then": "digi208A",
+   "why": "כלל 1 — תמיד צריך DSP"
+  }
+ ]
+}

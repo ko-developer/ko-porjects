@@ -211,6 +211,11 @@ function buildProposal(tier) {
   const mainSpk = domKey
     ? [tier.spk, tier.spkBig, tier.spkSmall, tier.spkCeil].find(x => x && x.key === domKey[0]) || tier.spk : tier.spk;
   const cands = [tier.ampSmall, tier.amp, tier.ampBig].filter(Boolean);
+  /* כלל 3: מגבר משולב DSP חוסך פרוססור — העלות האמיתית של מגבר בלי DSP כוללת אותו */
+  const AMP_DSP = /DSP|IPX|DPA|DYNAMIQ|PLM|משולב פרוססור/i;
+  const procAnyway = (S.sameContent === false && S.zones.length > 1 && srcCount() > 1)
+    || S.zones.some(z => z.spl >= 95) || S.zones.length >= 4 || ensureSources().length >= 2;
+  const dspCost = (erpItem('SDIG5KO') || { price: 2124 }).price;
   let amp = tier.amp, ampN = 99, perCh = 1;
   let pwrRatio = 0, pwrOk = false;
   let bestCost = Infinity;
@@ -224,7 +229,7 @@ function buildProposal(tier) {
     const n = Math.max(1, Math.ceil(chNeeded / (a.ch || 2)));
     /* ציון: עלות אמיתית · בונוס לזיווג מהקיטים · קנס ככל שמתרחקים מיחס ×2 */
     const pwrPenalty = cap.ok ? 1 + Math.min(0.25, Math.abs(cap.ratio - PWR_TARGET) * 0.06) : 2.5;
-    const cost = n * a.price * pwrPenalty;
+    const cost = n * a.price * pwrPenalty + (!procAnyway && !AMP_DSP.test(a.name || '') ? dspCost : 0);
     if (cost < bestCost) { bestCost = cost; amp = a; ampN = n; perCh = cap.n; pwrRatio = cap.ratio; pwrOk = cap.ok; }
   });
   const lines = (tier.cut >= 2 ? chanGroups(zones, tier.cut) : zones.map(x => [x]))
@@ -260,13 +265,32 @@ function buildProposal(tier) {
   /* מעבד/מטריצה — כשיש כמה קבוצות תוכן; אחרת, כשיש כמה מקורות — מיקסר שמאחד אותם */
   const hasMbs = srcs.some(sd => sd.key === 'SAME1KO');   /* ה-MBS6 הוא גם מקור וגם מאחד */
   const needMatrix = S.sameContent === false && S.zones.length > 1 && srcCount() > 1 && !tier.cut;
-  if (needMatrix) {
+  /* כללי הבית ל-DSP (data/dsp_rules.json):
+     עוצמות גבוהות / הרבה אזורים / פרמיום עם כמה מקורות → NST עם קיפד קיר (כלל 5+6);
+     קבוצות תוכן שונות → מטריצת DIGISYNTHETIC (כלל 4); כמה מקורות → מיקסר. */
+  const wantNst = !tier.cut && S.zones.length > 1 &&
+    (S.zones.some(z => z.spl >= 95) || S.zones.length >= 4 ||
+     (tier.id === 'premium' && (srcs.length >= 2 || srcCount() > 1)));
+  if (wantNst) {
+    const nst = erpItem('S10NAKOS') || erpItem('S9NAKOS');
+    if (nst) {
+      push(nst.key, nst.name + ' — שליטה באפליקציה ולימיטר רעש', 1, nst.price, 'ניתוב תוכן');
+      const kp = erpItem('S9NAKOS2');
+      if (kp) push(kp.key, 'פנל קיר NST VR1PoE — קיפד עוצמה לכל אזור', Math.min(S.zones.length, 3), kp.price, 'ניתוב תוכן');
+    }
+  } else if (needMatrix) {
     /* מטריצת רשת אמיתית מהמלאי — 4 יציאות, שולטת בתוכן ובעוצמה לכל אזור */
     const mx = erpItem('SDIG15KO') || erpItem('SDIG5KO');
     if (mx) push(mx.key, mx.name, 1, mx.price, 'ניתוב תוכן');
   } else if (srcs.length >= 2 && !tier.cut && !hasMbs) {
     const mx2 = erpItem('SAME1KO');
     if (mx2) push(mx2.key, 'מיקסר ALCHEMY MBS6 — מאחד ' + srcs.length + ' מקורות', 1, mx2.price, 'ניתוב תוכן');
+  }
+  /* כלל 1 — תמיד צריך DSP: אם אין פרוססור בשורות והמגבר בלי DSP מובנה, נוסף DIGISYNTHETIC */
+  const hasDspRow = rows.some(r => r.note === 'ניתוב תוכן') || (tier.xover && totalSub);
+  if (!hasDspRow && !AMP_DSP.test(amp.name || '')) {
+    const ds = erpItem('SDIG5KO') || erpItem('SSAE2KO');
+    if (ds) push(ds.key, ds.name + ' — כיוון המערכת (חובה DSP)', 1, ds.price, 'ניתוב תוכן');
   }
   const rowsFinal = applyOfferEdits(tier.id, rows);
   if (rowsFinal !== rows) { rows.length = 0; rows.push(...rowsFinal); }

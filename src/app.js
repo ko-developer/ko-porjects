@@ -6044,6 +6044,31 @@ function allKits(withHidden) {
   const base = (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).filter(k => !over.has((k.name || '').trim()));
   return base.concat(mine);
 }
+/* ---------- DSP לפי כללי הבית (data/dsp_rules.json) ---------- */
+/* לכל קיט: יש פרוססור עצמאי? DSP במגבר? מגבר ביתי (ה-DSP שלו מכוון)? או חסר */
+const DSP_STANDALONE = /פרוססור|מעבד רמקולים|DIGISYNTHETIC|NST|ICORE|מטריצ/i;
+const AMP_WITH_DSP = /DSP|IPX|DPA|DYNAMIQ|PLM|K&F D|משולב פרוססור/i;
+const HOME_AMP = /ביתי|YAMAHA.*(V4|RX)|סטרימר WIIM/i;
+function kitDsp(k) {
+  const names = (k.items || []).map(x => x.name || '');
+  const amp = names.filter(n => /מגבר/.test(n) && !/מתקן|כבל/.test(n));
+  if (names.some(n => DSP_STANDALONE.test(n) && !/מגבר|כבל|מחבר|פנל קיפד|תכנות/.test(n)))
+    return { kind: 'standalone', label: '🎚 פרוססור בקיט', cls: 'good' };
+  if (amp.some(n => AMP_WITH_DSP.test(n))) return { kind: 'inAmp', label: '🎚 DSP במגבר', cls: 'good' };
+  if (amp.some(n => HOME_AMP.test(n))) return { kind: 'home', label: '🎚 DSP ביתי (כלל 1)', cls: 'mid' };
+  return { kind: 'none', label: '⚠ חסר DSP — יושלם לפי הכללים', cls: 'warn' };
+}
+/* איזה פרוססור משלים קיט בלי DSP — לפי המותג והשימוש בפרויקט (כללים 4-6) */
+function dspCompletion(k) {
+  const txt = (k.items || []).map(x => x.name || '').join(' ');
+  const clubby = (P.zones || []).some(z => /ריקודים|מועדון/.test(z.usage || ''));
+  const manyZones = (P.zones || []).length >= 4;
+  if (/FUNKTION|K&F|KLING/i.test(txt) || clubby || manyZones)
+    return { key: 'S10NAKOS', why: clubby ? 'עוצמות גבוהות — NST עם אפליקציה וקיפדים (כלל 5)'
+      : manyZones ? 'הרבה אזורים — שליטה באפליקציה של NST (כלל 5)'
+      : 'מערכת אירופאית — מנוהלת ב-NST (כלל 6)' };
+  return { key: 'SDIG5KO', why: 'כמה כניסות בעוצמה מתונה — DIGISYNTHETIC 208 (כלל 4)' };
+}
 /* מצב המלאי של קיט שלם — כמה פריטי ליבה אזלו */
 function kitStock(k) {
   let dead = 0, low = 0, core = 0;
@@ -6073,6 +6098,9 @@ function kitPrev(gi) {
   $('#impList').innerHTML = `
     <button onclick="renderKits()">← חזרה לרשימת הקיטים</button>
     <h3 style="margin:10px 0 4px">🧰 ${esc(k.name)} <span class="muted" style="font-size:11px">${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''} · ${esc(kitCatOf(k))}${(() => { const s2 = kitStock(k); return s2.dead ? ' · <b style="color:#a32222">' + s2.dead + ' פריטי ליבה אזלו</b>' : ''; })()}</span></h3>
+    ${(() => { const d2 = kitDsp(k); if (d2.kind !== 'none') return '<p style="font-size:11px;margin:0 0 6px;color:' + (d2.cls === 'good' ? '#0a7a4b' : '#b8860b') + ';font-weight:700">' + d2.label + '</p>';
+      const c2 = dspCompletion(k), inf2 = erpInfo(c2.key);
+      return '<p style="font-size:11px;margin:0 0 6px;color:#c1121f;font-weight:700">⚠ חסר DSP — בהוספה יתווסף אוטומטית: ' + (inf2 ? '₪' + inf2.price.toLocaleString() + ' · ' : '') + esc(c2.why) + '</p>'; })()}
     ${rows}
     <p style="text-align:left;font-weight:700;margin:6px 8px">סה"כ משוער: ₪${total.toLocaleString()}</p>
     <button class="primary" style="width:100%" onclick="pickKit(${gi})">➕ הוסף את הקיט לרשימת הפריטים</button>
@@ -6176,14 +6204,15 @@ function renderKits() {
       const gi = allKits().indexOf(k);
       const isUser = (store.userKits || []).includes(k);
       const isOver = isUser && (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim());
-      const st2 = kitStock(k), m = kitMeta(k.name), hid = kitHidden(k.name);
+      const st2 = kitStock(k), m = kitMeta(k.name), hid = kitHidden(k.name), dsp = kitDsp(k);
       const dot = st2.dead ? '#a32222' : st2.low ? '#b8860b' : '#0a7a4b';
       const stTxt = st2.dead ? st2.dead + ' פריטי ליבה אזלו' : st2.low ? st2.low + ' פריטים במלאי נמוך' : 'הכול במלאי';
       return `<div class="crow" onclick="kitPrev(${gi})" style="${hid ? 'opacity:.55' : ''}">
         <span class="badge" style="background:${isUser ? '#0f6e56' : '#534ab7'}">${k.items.length}</span>
         <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
           ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}<br>
-          <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
+          <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·
+            <span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
         <button onclick="event.stopPropagation();kitToggleHide(${gi})" title="${hid ? 'החזר לרשימה' : 'הסתר — לא רלוונטי'}"
           style="border:1px solid #ddd;background:#fff;border-radius:7px;padding:2px 7px;font-size:11px;color:#777">${hid ? '↺' : '✕'}</button>
       </div>`;
@@ -6205,6 +6234,20 @@ function pickKit(i) {
         })();
     it.rack = guessRackFor(it);
     impItems.push(it);
+  }
+  /* כלל 1 — תמיד צריך DSP: קיט בלי DSP מקבל השלמה אוטומטית לפי הכללים */
+  const dspK = kitDsp(k);
+  if (dspK.kind === 'none') {
+    const c = dspCompletion(k), inf = erpInfo(c.key);
+    if (inf) {
+      const it2 = { on: true, qty: 1, name: ((typeof ERP_ITEMS !== 'undefined' && ERP_ITEMS.find(x => x[0] === c.key)) || [0, 'פרוססור'])[1],
+        src: 'השלמת DSP — כללי הבית', key: c.key, price: inf.price, dest: 'unit', cat: 'other', u: 1, iid: uid('i') };
+      it2.rack = guessRackFor(it2);
+      impItems.push(it2);
+      uiToast('🎚 לקיט אין DSP — נוסף אוטומטית: ' + c.why + ' (אפשר למחוק מהרשימה)');
+    }
+  } else if (dspK.kind === 'home') {
+    uiToast('🎚 כלל 1: משתמשים ב-DSP של המגבר הביתי לכיוון המערכת');
   }
   $('#impOv').style.display = 'none';
   renderImp();
