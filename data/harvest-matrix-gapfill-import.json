@@ -1,0 +1,235 @@
+{
+ "brand": "multi (Funktion-One / KT Audio / K&F)",
+ "series": "matrix gap-fill",
+ "source_url": "prismic api + kt-audio.com product pages + kling-freitag.com manuals",
+ "harvested": "2026-08-26",
+ "models": [
+  {
+   "model": "EVO 6E HI",
+   "class": "speaker",
+   "power_w": 75,
+   "impedance": 32,
+   "sensitivity": "114dB at 5.6V",
+   "band": "4kHz-18kHz",
+   "url": "https://funktion-one.com/products/evo-6e",
+   "verified": true,
+   "notes": "1.4\" HF way of Evo 6E; same for 7E/7T"
+  },
+  {
+   "model": "EVO 6E MID",
+   "class": "speaker",
+   "power_w": 250,
+   "impedance": 24,
+   "sensitivity": "112dB at 4.9V",
+   "band": "220Hz-4kHz",
+   "verified": true,
+   "notes": "10\" mid way"
+  },
+  {
+   "model": "EVO 6E LOW-MID",
+   "class": "speaker",
+   "power_w": 400,
+   "impedance": 8,
+   "sensitivity": "103dB at 2.8V",
+   "band": "85Hz-220Hz",
+   "verified": true,
+   "notes": "15\" low-mid way"
+  },
+  {
+   "model": "EVO X HI",
+   "class": "speaker",
+   "power_w": 100,
+   "impedance": 16,
+   "band": "5kHz-18kHz",
+   "verified": true,
+   "notes": "Evolution X is TRI-amp: 400/8 + 200/16 + 100/16"
+  },
+  {
+   "model": "PSM15 MID-HI",
+   "class": "speaker",
+   "power_w": 100,
+   "impedance": 8,
+   "band": "1kHz-up",
+   "verified": true,
+   "notes": "MHF way of PSM15"
+  },
+  {
+   "model": "PSM15 LF",
+   "class": "speaker",
+   "power_w": 600,
+   "impedance": 8,
+   "band": "60Hz-1kHz",
+   "verified": true
+  },
+  {
+   "model": "RES 1 MID-HI",
+   "class": "speaker",
+   "power_w": 75,
+   "impedance": 12,
+   "band": "520Hz-15kHz",
+   "verified": true,
+   "notes": "5\" way of Resolution 1"
+  },
+  {
+   "model": "F88",
+   "class": "speaker",
+   "power_w": 400,
+   "impedance": 6,
+   "verified": true,
+   "notes": "S/N<1462 rated 150W only"
+  },
+  {
+   "model": "TILL 15 SUB",
+   "class": "sub",
+   "power_w": 500,
+   "impedance": 8,
+   "url": "https://kt-audio.com/products/unicorn-till-15p-sub",
+   "verified": true
+  },
+  {
+   "model": "TILL 18 SUB",
+   "class": "sub",
+   "power_w": 600,
+   "impedance": 8,
+   "url": "https://kt-audio.com/products/unicorn-till-18p-sub",
+   "verified": true
+  },
+  {
+   "model": "EUPHORIA 12 SUB",
+   "class": "sub",
+   "power_w": 400,
+   "impedance": 8,
+   "verified": true
+  },
+  {
+   "model": "ARRAY SUB",
+   "class": "sub",
+   "power_w": 300,
+   "impedance": 4,
+   "verified": true,
+   "notes": "site: 300W max @4Ω; ERP name 'ARRAY SUB 1000' — ה-1000 כנראה peak, לא באתר"
+  },
+  {
+   "model": "BOLD 8",
+   "class": "speaker",
+   "power_w": 120,
+   "impedance": 8,
+   "verified": true,
+   "notes": "impedance options 4/8/16"
+  },
+  {
+   "model": "DYNAMIQ 450",
+   "class": "amp",
+   "bridge": {
+    "8": 900
+   },
+   "verified": true,
+   "notes": "stereo 2x300@8 2x450@4 (known); bridge from product page",
+   "channels": 2
+  },
+  {
+   "model": "DYNAMIQ 750",
+   "class": "amp",
+   "bridge": {
+    "8": 1500
+   },
+   "verified": true,
+   "channels": 2
+  },
+  {
+   "model": "PASSIO / PASSIO W",
+   "class": "speaker",
+   "power_w": 200,
+   "impedance": 12,
+   "dispersion": "70x60 (W:100x60)",
+   "max_spl": 121.5,
+   "verified": true
+  },
+  {
+   "model": "SPECTRA 212",
+   "class": "speaker",
+   "power_w": 500,
+   "impedance": 8,
+   "verified": true,
+   "notes": "2x8Ω — שתי סקציות לקופסה; מקס 3 בערוץ (2.7Ω); תקף ל-30-60/X60/XW"
+  },
+  {
+   "model": "GRAVIS 12",
+   "class": "speaker",
+   "power_w": 400,
+   "impedance": 8,
+   "max_spl": 134,
+   "verified": true
+  },
+  {
+   "model": "GRAVIS 15 W",
+   "class": "speaker",
+   "power_w": 500,
+   "impedance": 8,
+   "max_spl": 135,
+   "verified": true
+  },
+  {
+   "model": "GRAVIS 8 W",
+   "class": "speaker",
+   "power_w": 250,
+   "impedance": 8,
+   "max_spl": 129,
+   "verified": true
+  },
+  {
+   "model": "SONA 5",
+   "class": "speaker",
+   "power_w": 100,
+   "impedance": 16,
+   "max_spl": 115,
+   "dispersion": "120x90",
+   "verified": true
+  },
+  {
+   "model": "SCENA 15",
+   "class": "speaker",
+   "power_w": 400,
+   "impedance": 8,
+   "max_spl": 134,
+   "verified": true
+  },
+  {
+   "model": "NOMOS LS2",
+   "class": "sub",
+   "power_w": 750,
+   "impedance": 8,
+   "max_spl": 136,
+   "verified": true
+  },
+  {
+   "model": "TOPAS",
+   "class": "amp",
+   "channels": 2,
+   "min_ohm": 2,
+   "power": {
+    "8": 500,
+    "4": 1000,
+    "2": 1100
+   },
+   "bridge": {
+    "8": 2000,
+    "4": 2050
+   },
+   "verified": true,
+   "notes": "IEC 1kHz 1% THD; bridge min 4Ω"
+  },
+  {
+   "model": "VIDA L",
+   "class": "speaker",
+   "verified": false,
+   "notes": "אקטיבי (self-powered); AMP OUT 2x400W/4Ω לשרשור פסיבי — אין עכבה פסיבית"
+  },
+  {
+   "model": "CA 106",
+   "class": "speaker",
+   "verified": false,
+   "notes": "המדריך סרוק (אין שכבת טקסט) — דרוש רינדור/ידני"
+  }
+ ]
+}

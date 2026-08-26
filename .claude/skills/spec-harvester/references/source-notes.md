@@ -105,3 +105,13 @@ the `.2` suffix optional in match patterns.
 ## PDF text with subset fonts
 `scripts/pdf_text_cmap.py` extracts text from PDFs whose fonts are subset-encoded (raw string extraction
 returns garbage). It parses each font's ToUnicode CMap and decodes per font. Use it when pdftotext is absent.
+
+## Learned 2026-08-26 (matrix gap-fill run)
+- **K&F manuals**: `kling-freitag.com/content/uploads/man_<slug>_en.pdf` works for gravis-12/15/8, sona-5, scena-15, nomos-ls-2, spectra-212, vida-l, passio, ca-106. 404 for ca-1215, ca-1515, e-90. ca-106 PDF is image-only (scanned) — no text layer.
+- **PDF extraction fallback** (when scripts/extract_pdf.py can't run — system pip lacks --break-system-packages): zlib-decompress the PDF streams, then join parenthesized strings inside BT..ET blocks. Handles kerned text. pdf_text_cmap.py returned empty on these PDFs.
+- **PASSIO**: one manual covers PASSIO + PASSIO W — 200W program / 12Ω nominal, coverage 70×60 vs 100×60(W), SPL 121.5/120.
+- **SPECTRA 212**: impedance is 2×8Ω (two sections per box); K&F recommends 2/channel, max 3 (2.7Ω).
+- **VIDA L**: self-powered; the "AMP OUT 2×400W/4Ω" is its passthrough amp for chaining passives — do not record as passive impedance.
+- **KT bridge data**: DYNAMIQ 450/750 product pages state Bridge 1×900W@8Ω / 1×1500W@8Ω explicitly in the spec bullets.
+- **KT ARRAY SUB**: page says "300W max @4Ω" though ERP name is "ARRAY SUB 1000" — the 1000 is likely peak; flag, don't reconcile silently. KT-ARRAY mini RMS values look scrambled on the site (300/400/500/650 models) — treat with suspicion.
+- **F1 EVO ways** (Prismic technicalTable, one row per way): HI 1.4" = 75W/32Ω, MID 10" = 250W/24Ω, LOW-MID 15" = 400W/8Ω (6E/7E/7T share these). EVOLUTION X is TRI-amp: 400/8 + 200/16 + HI 100/16. PSM15: MHF 100W/8Ω + LF 600W/8Ω. RES 1: LF 350/8 + MID-HI 75/12. F88 note: S/N<1462 = 150W only.
