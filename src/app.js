@@ -6113,20 +6113,34 @@ let nkDraft = null;
 function kitNew() { nkDraft = { name: '', items: [], q: '' }; renderKitNew(); }
 function renderKitNew() {
   const d = nkDraft;
-  const hits = d.q.trim().length >= 2 && typeof ERP_ITEMS !== 'undefined'
-    ? ERP_ITEMS.filter(([k, n2]) => n2.includes(d.q.trim())).slice(0, 8) : [];
+  /* חיפוש שמוצא: לא תלוי רישיות, מפוצל למילים, בלי השכרות וחלקי חילוף,
+     ממוין לפי מלאי — מה שיש הרבה ממנו עולה למעלה */
+  const NOKIT = /השכר|חלקי חילוף|חלק חילוף|לתיקון|ת\.ח|דוגמא|פגום|תצוגה בלבד/;
+  const toks = d.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const hits = toks.length && typeof ERP_ITEMS !== 'undefined'
+    ? ERP_ITEMS.filter(it => { const n2 = (it[1] || '').toLowerCase(); return toks.every(t => n2.includes(t)) && !NOKIT.test(it[1] || ''); })
+        .sort((a, b) => (+b[3] || 0) - (+a[3] || 0)).slice(0, 10) : [];
   $('#impList').innerHTML = `
     <button onclick="nkDraft=null;renderKits()">← ביטול וחזרה</button>
     <h3 style="margin:10px 0 4px">➕ קיט חדש</h3>
     <div class="fld"><label>שם הקיט</label><input id="nkName" value="${esc(d.name)}" oninput="nkDraft.name=this.value"></div>
     <div class="fld"><label>חיפוש פריט בקטלוג</label><input id="nkQ" value="${esc(d.q)}" oninput="nkDraft.q=this.value;renderKitNew();const e2=document.getElementById('nkQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
-    ${hits.map(([k, n2]) => `<button style="display:block;width:100%;text-align:right;font-size:11px;margin-bottom:3px" onclick="nkDraft.items.push({name:'${esc(n2).replace(/'/g, '&#39;')}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()">➕ ${esc(n2.slice(0, 52))}</button>`).join('')}
+    ${hits.map(it => { const [k, n2] = it; const stq = Math.round(+it[3] || 0), pr = +it[2] || 0;
+      return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11px;margin-bottom:3px" onclick="nkDraft.items.push({name:'${esc(n2).replace(/'/g, '&#39;')}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">➕ ${esc(n2.slice(0, 52))}</span>
+        <b style="color:${stq > 9 ? '#0a7a4b' : stq > 0 ? '#b8860b' : '#a32222'};white-space:nowrap">מלאי ${stq}</b>
+        <span class="muted" style="white-space:nowrap">₪${pr.toLocaleString()}</span></button>`; }).join('')}
+    ${toks.length && !hits.length ? '<p class="muted" style="font-size:11px">לא נמצא — נסה מילה אחת מהשם (השכרות וחלקי חילוף מוסתרים)</p>' : ''}
     ${d.items.length ? '<h3 class="sec">פריטים בקיט (' + d.items.length + ')</h3>' : ''}
-    ${d.items.map((x, i) => `<div style="display:flex;gap:6px;align-items:center;font-size:12px;padding:3px 6px;border:1px solid #eee;border-radius:6px;margin-bottom:3px">
-      <input type="number" min="1" value="${x.qty}" style="width:44px" onchange="nkDraft.items[${i}].qty=+this.value||1">
-      <span style="flex:1">${esc(x.name.slice(0, 44))}</span>
-      <button style="padding:0 6px" onclick="nkDraft.items.splice(${i},1);renderKitNew()">✕</button></div>`).join('')}
-    ${d.items.length ? `<button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>` : ''}`;
+    ${d.items.map((x, i) => { const inf = x.key ? erpInfo(x.key) : null; const pr = inf ? inf.price : 0;
+      return `<div style="display:flex;gap:6px;align-items:center;font-size:12px;padding:3px 6px;border:1px solid #eee;border-radius:6px;margin-bottom:3px">
+      <input type="number" min="1" value="${x.qty}" style="width:44px" onchange="nkDraft.items[${i}].qty=+this.value||1;renderKitNew()">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.name.slice(0, 44))}</span>
+      <span class="muted" style="white-space:nowrap;font-size:11px">${stockBadge(x.key) || (pr ? '₪' + pr.toLocaleString() : '')}</span>
+      <b style="white-space:nowrap">${pr ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</b>
+      <button style="padding:0 6px" onclick="nkDraft.items.splice(${i},1);renderKitNew()">✕</button></div>`; }).join('')}
+    ${d.items.length ? `<p style="text-align:left;font-weight:800;margin:8px 6px 0">סה"כ הקיט: ₪${d.items.reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * (x.qty || 1); }, 0).toLocaleString()}</p>
+    <button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>` : ''}`;
 }
 /* יצירת קיט חדש מהשורות המסומנות ✓ בהצעת המחיר */
 async function kitFromOffer() {

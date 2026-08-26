@@ -135,10 +135,10 @@ function pickSub(tier, zones, scale) {
 /* ---------- מקורות נגינה: סטרימר / מחשב / DJ / מיקרופון / טלוויזיה ----------
    קובעים כמה כניסות צריך המעבד או המיקסר — ומוסיפים את הציוד האמיתי מהמלאי */
 const SRC_DEV = [
-  { id: 'streamer', icon: '📻', name: 'סטרימר / בלוטות׳', desc: 'ספוטיפיי מהטלפון או מהענן',
-    key: 'SMAD1KO', dev: 'נגן-סטרימר ALCHEMY QUARTET (BT/USB/רשת)' },
+  { id: 'streamer', icon: '📻', name: 'סטרימר / בלוטות׳', desc: 'ספוטיפיי מהטלפון — MBS6 הוא גם מקלט BT, גם כרטיס קול וגם מיקסר',
+    key: 'SAME1KO', dev: 'מיקסר ALCHEMY MBS6 — בלוטות׳ + כרטיס קול + מיקסר' },
   { id: 'pc',       icon: '💻', name: 'מחשב / כרטיס קול', desc: 'מוזיקה מנוהלת ממחשב',
-    key: 'S8224KO', dev: 'כרטיס קול ALCHEMY DUO' },
+    key: 'SMAD1KO', dev: 'כרטיס קול ALCHEMY QUARTET (BT/USB/רשת)' },
   { id: 'dj',       icon: '🎧', name: 'עמדת DJ', desc: 'ה-DJ מגיע עם הציוד שלו — צריך נקודת חיבור',
     key: 'CA547KO', dev: 'פאנל קיר XLR לעמדת DJ' },
   { id: 'mic',      icon: '🎤', name: 'מיקרופון', desc: 'הכרזות, אירועים או קריוקי',
@@ -258,12 +258,13 @@ function buildProposal(tier) {
     if (it) push(it.key, sd.dev || it.name, 1, it.price, 'מקורות נגינה');
   });
   /* מעבד/מטריצה — כשיש כמה קבוצות תוכן; אחרת, כשיש כמה מקורות — מיקסר שמאחד אותם */
+  const hasMbs = srcs.some(sd => sd.key === 'SAME1KO');   /* ה-MBS6 הוא גם מקור וגם מאחד */
   const needMatrix = S.sameContent === false && S.zones.length > 1 && srcCount() > 1 && !tier.cut;
   if (needMatrix) {
     /* מטריצת רשת אמיתית מהמלאי — 4 יציאות, שולטת בתוכן ובעוצמה לכל אזור */
     const mx = erpItem('SDIG15KO') || erpItem('SDIG5KO');
     if (mx) push(mx.key, mx.name, 1, mx.price, 'ניתוב תוכן');
-  } else if (srcs.length >= 2 && !tier.cut) {
+  } else if (srcs.length >= 2 && !tier.cut && !hasMbs) {
     const mx2 = erpItem('SAME1KO');
     if (mx2) push(mx2.key, 'מיקסר ALCHEMY MBS6 — מאחד ' + srcs.length + ' מקורות', 1, mx2.price, 'ניתוב תוכן');
   }
@@ -535,7 +536,22 @@ function stepUse() {
   <label class="fld"><span>גובה התקרה (מטרים)</span>
     <input type="number" step="0.1" min="2" max="12" value="${S.ceil}" oninput="S.ceil=+this.value||4;save()"></label>`;
 }
-function toggleUse(id) { S.uses.includes(id) ? S.uses = S.uses.filter(x => x !== id) : S.uses.push(id); save(); render(); }
+function toggleUse(id) {
+  S.uses.includes(id) ? S.uses = S.uses.filter(x => x !== id) : S.uses.push(id);
+  syncZoneSpl();
+  save(); render();
+}
+/* השימוש השתנה → העוצמות של רחבה/במה נגזרות מחדש, הפריסה וההצעות מתעדכנות */
+function syncZoneSpl() {
+  let changed = false;
+  S.zones.forEach(z => {
+    const q = LITE_CATALOG.zonePurposes.find(x => x.id === z.purpose);
+    if (!q) return;
+    const want = (z.purpose === 'dance' || z.purpose === 'stage') ? Math.max(q.spl, usePeak()) : q.spl;
+    if (want !== z.spl) { z.spl = want; changed = true; }
+  });
+  if (changed) { S.layout = null; toast('🔊 העוצמות וההצעות עודכנו לפי השימוש החדש'); }
+}
 function usePeak() { return Math.max(70, ...S.uses.map(id => (USES.find(u => u.id === id) || {}).spl || 0)); }
 
 /* שלב 3 — תכנית: העלאה + זיהוי אוטומטי, או מידות בלבד */
@@ -1580,6 +1596,8 @@ function stepOffers() {
   const props = LITE_CATALOG.tiers.map(buildProposal);
   const lo = Math.min(...props.map(p => p.total)), hi = Math.max(...props.map(p => p.total));
   if (S.budget == null) S.budget = Math.round(props[1].total / 1000) * 1000;
+  /* ההצעות השתנו (שימוש/אזורים) — התקציב נשאר בתוך הטווח החדש */
+  S.budget = Math.max(Math.floor(lo * 0.6 / 1000) * 1000, Math.min(Math.ceil(hi * 1.4 / 1000) * 1000, S.budget));
   const belowAll = S.budget && props.every(p => p.total > S.budget * 1.05);
   const fit = belowAll ? fitInfo(S.budget) : null;
   const list = fit && !fit.floor ? props.concat([fit.p]) : props;
@@ -2146,7 +2164,8 @@ function wiringSection(p) {
         <tr class="tot"><td>סה"כ</td><td>${srcCount()} מקור${srcCount() > 1 ? 'ות' : ''}</td>
           <td>${p.totalSpk}${p.totalSub ? ' + ' + p.totalSub : ''}</td><td>${p.lines}</td><td></td></tr></table>
       <p><b>כניסות:</b> ${ensureSources().map(id => { const sd = SRC_DEV.find(x => x.id === id) || {}; return sd.icon + ' ' + sd.name; }).join(' · ') || '—'}
-      ← ${p.rows.some(r => r.note === 'ניתוב תוכן') ? (p.rows.find(r => r.note === 'ניתוב תוכן') || {}).name : 'ישירות למגבר'}.<br>
+      ← ${(p.rows.find(r => r.note === 'ניתוב תוכן') || {}).name
+          || (p.rows.some(r => r.key === 'SAME1KO') ? 'מיקסר ALCHEMY MBS6 (משמש גם ככרטיס קול ומקלט בלוטות׳)' : 'ישירות למגבר')}.<br>
       לכל אזור ערוץ (או ערוצים) משלו — כך אפשר להנמיך אזור אחד בלי לגעת באחרים.
       ${srcCount() > 1 ? 'המעבד מזין כל קבוצת מקור בנפרד, והמגבר מפצל לערוצים לפי אזור.' : 'מקור אחד מוזן לכל הערוצים, והעוצמה נשלטת בנפרד לכל אזור.'}</p></div>
     <div class="wsec"><h5>חשמל</h5>
