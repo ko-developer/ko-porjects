@@ -6205,10 +6205,12 @@ function renderKits() {
       const isUser = (store.userKits || []).includes(k);
       const isOver = isUser && (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim());
       const st2 = kitStock(k), m = kitMeta(k.name), hid = kitHidden(k.name), dsp = kitDsp(k);
+      const kPrice = (k.items || []).reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * (x.qty || 1); }, 0);
       const dot = st2.dead ? '#a32222' : st2.low ? '#b8860b' : '#0a7a4b';
       const stTxt = st2.dead ? st2.dead + ' פריטי ליבה אזלו' : st2.low ? st2.low + ' פריטים במלאי נמוך' : 'הכול במלאי';
       return `<div class="crow" onclick="kitPrev(${gi})" style="${hid ? 'opacity:.55' : ''}">
         <span class="badge" style="background:${isUser ? '#0f6e56' : '#534ab7'}">${k.items.length}</span>
+        <b style="font-size:11px;white-space:nowrap;color:#333">₪${Math.round(kPrice).toLocaleString()}</b>
         <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
           ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}<br>
           <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·

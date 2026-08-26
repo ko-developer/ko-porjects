@@ -565,8 +565,8 @@ function stepUse() {
       <button class="chip ${S.noise ? 'on' : ''}" onclick="S.noise=true;save();render()">כן — שכנים / מגבלת עירייה</button>
     </div>
     <small>${S.noise
-      ? 'נוסיף מעבד NST עם לימיטר שנועל את העוצמה המקסימלית לפי שעות — כך אי אפשר לחרוג גם בטעות, ויש תיעוד מול פניות.'
-      : 'בלי לימיטר ייעודי — הוויסות נעשה רגיל, מהמעבד או מהמגבר.'}</small>
+      ? 'לימיטר איכות מעולה (NST): תקרת עוצמה נעולה לפי שעות, שליטה מאפליקציה — הכלי מול עירייה ושכנים.'
+      : 'לימיטר סטנדרטי — מהמעבד או מהמגבר שכבר במערכת.'}</small>
   </div>
   <label class="fld"><span>גובה התקרה (מטרים)</span>
     <input type="number" step="0.1" min="2" max="12" value="${S.ceil}" oninput="S.ceil=+this.value||4;save()"></label>`;
