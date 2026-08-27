@@ -5254,7 +5254,15 @@ function showCalDialog(px, p1, p2) {
   const ov = document.createElement('div');
   ov.id = 'calOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.45);z-index:120;display:flex;align-items:center;justify-content:center';
-  ov.addEventListener('click', e => { if (e.target === ov) { ov.remove(); render(); } });
+  /* סגירה רק אם הלחיצה התחילה והסתיימה על הרקע — גרירת סימון טקסט שיוצאת מהשדה לא סוגרת */
+  let downOnOv = false;
+  ov.addEventListener('pointerdown', e => { downOnOv = (e.target === ov); });
+  ov.addEventListener('click', e => { if (e.target === ov && downOnOv) { ov.remove(); render(); } });
+  /* מקשי מחיקה בתוך הדיאלוג לא מגיעים לקיצורי הדרך הגלובליים (מחיקת רמקול/היסטוריית דפדפן) */
+  ov.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if ((e.key === 'Backspace' || e.key === 'Delete') && !/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) e.preventDefault();
+  });
   ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:360px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <b style="font-size:15px">📏 כיול קנה מידה</b>
     <p style="font-size:12.5px;margin:8px 0;line-height:1.5">נמדדו <b>${Math.round(px)}px</b> בין שתי הנקודות.<br>מה המרחק האמיתי? מטרים (למשל 16) או ישר מהמידה בתכנית במ״מ (16000) — אזהה לבד.</p>
@@ -6553,9 +6561,23 @@ function erpInfo(key) {
 }
 /* תמונת מוצר מהחנות (store.kot.co.il) לפי מק"ט — נקצר ע"י scripts/harvest-store-images.js */
 function erpImg(key) { return (key && typeof ERP_IMAGES !== 'undefined' && ERP_IMAGES[key]) || ''; }
-function imgCell(key, size) {
-  const u = erpImg(key);
-  return u ? `<img src="${esc(u)}" loading="lazy" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:5px;background:#fff;flex:none" onerror="this.remove()">` : '';
+/* תמונה רשמית של היצרן לפי שם הדגם — לפריטים בלי תמונה בחנות */
+function modelImg(name) {
+  if (typeof MODEL_IMAGES === 'undefined' || !name) return '';
+  const toks = String(name).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+  let best = '', bestLen = 0;
+  for (let i = 0; i < toks.length; i++) {
+    for (let w = 1; w <= 3 && i + w <= toks.length; w++) {
+      const k = toks.slice(i, i + w).join('');
+      if (k.length >= 3 && k.length > bestLen && MODEL_IMAGES[k]) { best = MODEL_IMAGES[k]; bestLen = k.length; }
+    }
+  }
+  return best;
+}
+function imgCell(key, size, name) {
+  const u = erpImg(key) || modelImg(name);
+  return u ? `<img src="${esc(u)}" loading="lazy" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:5px;background:#fff;flex:none" onerror="this.remove()">`
+    : `<span style="width:${size}px;height:${size}px;display:inline-grid;place-items:center;background:#f3f1ec;border-radius:5px;flex:none;font-size:${Math.round(size * 0.45)}px">🔊</span>`;
 }
 function stockBadge(key) {
   const inf = erpInfo(key);
@@ -8083,7 +8105,38 @@ function zoneKitConfirm(zname, idx) {
 }
 /* בחירת רמקול אמיתי מהקטלוג לבניית מערכת — במקום "רמקול התקנה" גנרי.
    מציג רק מוצרי ERP שמזוהים בבסיס הנתונים האקוסטי (פיזור/SPL ידועים). */
-function zoneSpkPicker(zid) {
+/* ---------- בורר מערכת לאזור: 3 הצעות · קיטים · מוצרים ---------- */
+function kitPriceOf(k) {
+  return (k.items || []).reduce((s2, x) => {
+    const inf = x.key ? erpInfo(x.key) : null;
+    return s2 + (inf ? inf.price : 0) * (+x.qty || 1);
+  }, 0);
+}
+function kitThumbs(k, n) {
+  return (k.items || []).slice(0, n || 3).map(x => imgCell(x.key, 34, x.name)).join('');
+}
+/* שלוש הצעות לפי דרגות המותגים של הבית */
+function zoneTierKits() {
+  const RX = [
+    ['פרמיום', /FUNKTION|KLING|K&F|XTA|SPECTRA|GRAVIS|NOMOS|SONA|PASSIO/i, '#0b3a2e', 'עוצמה גבוהה, עמידים לשנים — Funktion-One · K&F'],
+    ['ביניים', /UNICORN|EUPHORIA|MX3|PAGAZ|DYNAMIQ|SAE|PQM/i, '#534ab7', 'צליל נקי ומכובד בכשליש מהמחיר — Unicorn'],
+    ['חסכוני', /\bKT\b|TILL|INTERPID|WR ?600|ARRAY|BOLD/i, '#a8650f', 'פתרון אמין למוזיקת רקע — מלאי גדול ומחיר נגיש — KT'],
+  ];
+  const ks = allKits().map((k, i) => ({ k, i }))
+    .filter(x => !kitHidden(x.k.name) && kitCatOf(x.k) !== 'lighting' && kitCatOf(x.k) !== 'video')
+    .filter(x => (x.k.items || []).some(it => isSpeakerItem(it.name || '')));
+  const out = [];
+  for (const [label, rx, color, blurb] of RX) {
+    const inTier = ks.filter(x => rx.test((x.k.items || []).map(it => it.name || '').join(' ') + ' ' + x.k.name));
+    if (!inTier.length) continue;
+    inTier.forEach(x => { x._price = kitPriceOf(x.k); x._stock = kitStock(x.k); });
+    /* מלאי מלא קודם, ואז הזול בדרגה */
+    inTier.sort((a, b) => (a._stock.dead - b._stock.dead) || (a._price - b._price));
+    out.push({ label, color, blurb, pick: inTier[0], alt: inTier.slice(1, 4) });
+  }
+  return out;
+}
+function zoneSpkPicker(zid, tab) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   const db = (typeof SPEAKER_DATA !== 'undefined' ? SPEAKER_DATA : []);
   const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
@@ -8091,39 +8144,98 @@ function zoneSpkPicker(zid) {
   for (const it of items) {
     const key = it[0], name = it[1];
     if (!name || seen.has(name)) continue;
+    if (/כבל|מתאם|ת\.ח|מתקן|תלי[יה]|קיט לחיבור|סט חיבור/.test(name)) continue; /* אביזרים אינם רמקולים */
     const d = db.find(x => x.re && x.re.test(name));
     if (!d) continue;
     seen.add(name);
     rows.push({ key, name, d, sub: /סאב|\bsub\b/i.test(name) });
   }
-  /* מלאי קודם — פריטים על 0 בסוף לפי הנמכרים לאחרונה; מאומתים לפני משוערים באותו דירוג */
   rows.sort((a, b) => byStockThenSold(a.key, b.key) || (b.d.ok === true) - (a.d.ok === true) || a.name.localeCompare(b.name, 'he'));
-  if (!rows.length) { alert('לא נמצאו רמקולים מוכרים בקטלוג — בחר רמקול דרך החיפוש בפאנל האזור.'); return; }
   const ov = uiModal(`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">🔊 בחר רמקול לאזור "${esc(z.name)}"</b><button data-x>✕</button></div>
-    <p class="muted" style="font-size:11px;margin:0 0 8px">מוצרים מהקטלוג עם נתונים אקוסטיים. ✓ = מאומת · המחיר נכנס להצעה אוטומטית · לחיצה על סאב מוסיפה אותו כסאב האזור.</p>
-    <input data-q placeholder="🔍 סינון…" style="width:100%;padding:6px;font-size:14px;box-sizing:border-box;margin-bottom:8px">
-    <div data-list style="max-height:46vh;overflow-y:auto"></div>`);
-  const listEl = ov.querySelector('[data-list]');
-  const paint = q => {
-    const f = rows.filter(r => !q || r.name.toLowerCase().includes(q.toLowerCase()));
-    listEl.innerHTML = f.slice(0, 80).map(r => `
-      <div data-i="${rows.indexOf(r)}" style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;cursor:pointer">
-        ${imgCell(r.key, 32)}<b style="flex:1;font-size:12.5px">${esc(r.name.slice(0, 60))}</b>
-        ${stockBadge(r.key)}
-        <span class="muted" style="font-size:10.5px;white-space:nowrap">${r.sub ? 'סאב' : r.d.h + '°×' + r.d.v + '°'} · ${r.d.max}dB ${r.d.ok ? '<span style="color:#0a7a4b">✓</span>' : '<span style="color:#a32222">לא מאומת</span>'}</span>
-      </div>`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
-    listEl.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
-      const r = rows[+el.dataset.i];
-      pickZoneSpk(zid, r.name, r.key, r.sub);
-      if (!r.sub) { ov.remove(); buildZoneSystem(zid); } /* רמקול ראשי נבחר — ממשיכים לבנייה */
-      else { uiToast('✓ ' + r.name.slice(0, 40) + ' נקבע כסאב האזור'); paint(ov.querySelector('[data-q]').value); }
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="flex:1;font-size:15px">🎛 מערכת לאזור "${esc(z.name)}"</b><button data-x>✕</button></div>
+    <div style="display:flex;gap:5px;margin-bottom:10px">
+      <button data-tab="tiers" style="flex:1;font-weight:700">⚡ 3 הצעות</button>
+      <button data-tab="kits" style="flex:1;font-weight:700">🧰 קיטים</button>
+      <button data-tab="prods" style="flex:1;font-weight:700">🔊 מוצרים</button>
+    </div>
+    <div data-body style="max-height:58vh;overflow-y:auto"></div>`);
+  const box = ov.firstElementChild; if (box) { box.style.maxWidth = '620px'; box.style.width = '94%'; }
+  const body = ov.querySelector('[data-body]');
+  let TAB = tab || 'tiers';
+  const setTab = t => { TAB = t; ov.querySelectorAll('[data-tab]').forEach(b =>
+    b.style.background = b.dataset.tab === TAB ? '#c9502e' : '', ) ; ov.querySelectorAll('[data-tab]').forEach(b => {
+      const on = b.dataset.tab === TAB; b.style.background = on ? '#c9502e' : '#fff'; b.style.color = on ? '#fff' : '#333'; });
+    paint(); };
+  const kitCard = (x, extra) => `
+    <div style="border:1.5px solid ${extra || '#e3ded6'};border-radius:12px;padding:10px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <b style="flex:1;font-size:13px">${esc(x.k.name.slice(0, 54))}</b>
+        <b style="white-space:nowrap">₪${kitPriceOf(x.k).toLocaleString()}</b></div>
+      <div style="display:flex;gap:5px;align-items:center;margin-bottom:6px">${kitThumbs(x.k, 4)}
+        <span class="muted" style="font-size:10.5px">${(x.k.items || []).length} פריטים · ${x._stock && x._stock.dead ? '<span style="color:#a32222">' + x._stock.dead + ' אזלו</span>' : '<span style="color:#0a7a4b">במלאי</span>'}</span></div>
+      <div style="display:flex;gap:6px">
+        <button class="primary" style="flex:1" data-kit="${x.i}">בחר — כמויות ובנייה</button>
+      </div></div>`;
+  const paint = () => {
+    if (TAB === 'tiers') {
+      const tiers = zoneTierKits();
+      body.innerHTML = tiers.map(t => `
+        <div style="border:2px solid ${t.color};border-radius:14px;padding:10px;margin-bottom:10px">
+          <div style="display:flex;gap:8px;align-items:baseline"><b style="color:${t.color};font-size:14px">${t.label}</b>
+          <span class="muted" style="font-size:11px;flex:1">${t.blurb}</span></div>
+          ${kitCard(t.pick, t.color + '33')}
+          ${t.alt.length ? `<details><summary style="font-size:11.5px;cursor:pointer;color:#666">עוד ${t.alt.length} באותה דרגה</summary>${t.alt.map(a => kitCard(a)).join('')}</details>` : ''}
+        </div>`).join('') || '<p class="muted">אין קיטי סאונד בקטלוג</p>';
+    } else if (TAB === 'kits') {
+      const q = (body.dataset.q || '').toLowerCase();
+      const ks = allKits().map((k, i) => ({ k, i }))
+        .filter(x => !kitHidden(x.k.name) && (x.k.items || []).some(it => isSpeakerItem(it.name || '')))
+        .filter(x => !q || x.k.name.toLowerCase().includes(q));
+      ks.forEach(x => { x._stock = kitStock(x.k); });
+      body.innerHTML = `<input data-kq placeholder="🔍 סינון קיטים…" value="${esc(body.dataset.q || '')}" style="width:100%;padding:6px;box-sizing:border-box;margin-bottom:8px">` +
+        (ks.slice(0, 30).map(x => kitCard(x)).join('') || '<p class="muted">אין תוצאות</p>');
+      const kq = body.querySelector('[data-kq]');
+      kq.oninput = e => { body.dataset.q = e.target.value; paint(); body.querySelector('[data-kq]').focus(); };
+    } else {
+      const q = (body.dataset.pq || '').toLowerCase();
+      const f = rows.filter(r => !q || r.name.toLowerCase().includes(q));
+      body.innerHTML = `<input data-pq placeholder="🔍 סינון מוצרים…" value="${esc(body.dataset.pq || '')}" style="width:100%;padding:6px;box-sizing:border-box;margin-bottom:8px">
+        <p class="muted" style="font-size:10.5px;margin:0 0 8px">לחיצה על השורה: טופ נקבע כרמקול האזור וממשיך לבנייה · סאב נקבע כסאב האזור · ➕ מוסיף להצעה כפריט נפרד (אפשר כמה).</p>` +
+        (f.slice(0, 60).map(r => `
+        <div data-i="${rows.indexOf(r)}" style="display:flex;gap:9px;align-items:center;padding:7px 9px;border:1px solid #eee;border-radius:10px;margin-bottom:5px;cursor:pointer">
+          ${imgCell(r.key, 46, r.name)}
+          <div style="flex:1;min-width:0"><b style="font-size:12.5px;display:block">${esc(r.name.slice(0, 66))}</b>
+            <span class="muted" style="font-size:10.5px">${r.sub ? 'סאב' : (r.d.h != null && r.d.v != null ? r.d.h + '°×' + r.d.v + '°' : 'כיסוי לא ידוע')} · ${r.d.max ? r.d.max + 'dB' : ''} ${r.d.ok ? '<span style="color:#0a7a4b">✓ מאומת</span>' : '<span style="color:#a32222">לא מאומת</span>'}</span></div>
+          ${stockBadge(r.key)}
+          <button data-add="${rows.indexOf(r)}" title="הוסף להצעה כפריט נפרד" style="flex:none;font-weight:800">➕</button>
+        </div>`).join('') || '<p class="muted">אין תוצאות</p>');
+      const pq = body.querySelector('[data-pq]');
+      pq.oninput = e => { body.dataset.pq = e.target.value; paint(); body.querySelector('[data-pq]').focus(); };
+      body.querySelectorAll('[data-add]').forEach(el => el.onclick = ev => {
+        ev.stopPropagation();
+        const r = rows[+el.dataset.add];
+        const it = { on: true, qty: 1, name: r.name, key: r.key, src: 'בורר המערכת · ' + z.name, dest: 'point', cat: 'other', u: 1, iid: uid('i') };
+        autoPrice(it); impItems.push(it); save();
+        uiToast('➕ ' + r.name.slice(0, 38) + ' נוסף להצעה');
+      });
+      body.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
+        const r = rows[+el.dataset.i];
+        pickZoneSpk(zid, r.name, r.key, r.sub);
+        if (!r.sub) { ov.remove(); buildZoneSystem(zid); }
+        else { uiToast('✓ ' + r.name.slice(0, 40) + ' נקבע כסאב האזור'); paint(); }
+      });
+    }
+    body.querySelectorAll('[data-kit]').forEach(el => el.onclick = () => {
+      ov.remove(); zoneKitConfirm(z.name, +el.dataset.kit);
     });
   };
-  paint('');
-  ov.querySelector('[data-q]').oninput = e => paint(e.target.value);
+  ov.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => setTab(b.dataset.tab));
   ov.querySelector('[data-x]').onclick = () => ov.remove();
-  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  let downOv = false;
+  ov.addEventListener('pointerdown', e => { downOv = (e.target === ov); });
+  ov.addEventListener('click', e => { if (e.target === ov && downOv) ov.remove(); });
+  ov.addEventListener('keydown', e => e.stopPropagation());
+  setTab(TAB);
 }
 function buildZoneSystem(zid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;

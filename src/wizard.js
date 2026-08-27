@@ -150,9 +150,10 @@ function wizStepHTML(s) {
       <option value="">— תכלית / עוצמה —</option>
       ${usages.map(u => `<option ${z.usage === u ? 'selected' : ''}>${u}</option>`).join('')}
     </select>
-    <input id="wizKitQ" placeholder="🔍 חפש קיט או רמקול…" oninput="wizKitSearch(this.value)">
+    <button class="big" style="background:#534ab7" onclick="zoneSpkPicker('${z.id}')">🎛 בחר מערכת — 3 הצעות · קיטים · מוצרים</button>
+    <input id="wizKitQ" placeholder="🔍 או חפש ישר קיט / רמקול…" oninput="wizKitSearch(this.value)">
     <div id="wizKitRes" style="max-height:150px;overflow-y:auto"></div>
-    <p class="hint" style="margin-top:4px">${z._spk ? '🔊 ' + esc(z._spk.slice(0, 42)) : 'לא נבחר רמקול — הבנייה תציע מהקטלוג'}</p>
+    <p class="hint" style="margin-top:4px">${z._spk ? '🔊 ' + esc(z._spk.slice(0, 42)) : 'לא נבחר רמקול — "בנה הכל" יפתח את הבורר'}</p>
     <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-bottom:7px"><input type="checkbox" style="width:auto" ${z._djInRack !== false ? 'checked' : ''} onchange="const zz=wizZone();zz._djInRack=this.checked;save()"> 🖥 מוזיקה ממחשב בארון (בלי עמדת DJ)</label>
     <button class="big" onclick="wizBuildAll()">🚀 בנה הכל — מערכת + ארון + חיווט</button>
     ${z._built ? `<button class="sec done">✓ נבנתה — לחיצה על "בנה הכל" תבנה מחדש</button>
