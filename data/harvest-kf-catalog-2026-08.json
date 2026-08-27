@@ -1,0 +1,158 @@
+{
+ "brand": "Kling & Freitag (+SAE gap)",
+ "source_url": "kling-freitag.com official manuals",
+ "harvested": "2026-08-27",
+ "models": [
+  {
+   "model": "GRAVIS 8 W",
+   "class": "speaker",
+   "power_w": 250,
+   "impedance": 8,
+   "max_spl": 129,
+   "dispersion": "85x55",
+   "verified": true
+  },
+  {
+   "model": "GRAVIS 8 XW",
+   "class": "speaker",
+   "power_w": 250,
+   "impedance": 8,
+   "dispersion": "110x55",
+   "verified": true,
+   "notes": "וריאנט קרן במדריך המשותף של GRAVIS 8"
+  },
+  {
+   "model": "GRAVIS 12 / 12+ (N/W/XW)",
+   "class": "speaker",
+   "power_w": 400,
+   "impedance": 8,
+   "max_spl": 136,
+   "verified": true,
+   "notes": "134dB בקרן N, 136 ב-W"
+  },
+  {
+   "model": "GRAVIS 15 (N/W/XW)",
+   "class": "speaker",
+   "power_w": 500,
+   "impedance": 8,
+   "max_spl": 136,
+   "verified": true
+  },
+  {
+   "model": "SCENA 12",
+   "class": "speaker",
+   "power_w": 550,
+   "impedance": 6,
+   "dispersion": "80x80",
+   "verified": true,
+   "notes": "מוניטור במה קואקסיאלי; מגבר עד 750Wrms"
+  },
+  {
+   "model": "SONA 6",
+   "class": "speaker",
+   "power_w": 100,
+   "impedance": 8,
+   "max_spl": 118,
+   "dispersion": "90x60",
+   "verified": true
+  },
+  {
+   "model": "SONA 8 / 8 XW",
+   "class": "speaker",
+   "power_w": 250,
+   "impedance": 8,
+   "max_spl": 124,
+   "dispersion": "85x55",
+   "verified": true,
+   "notes": "תיאור ה-ERP כותב 'סאב' בטעות — זהו טופ 2 דרכים"
+  },
+  {
+   "model": "NOMOS XLS",
+   "class": "sub",
+   "power_w": 750,
+   "impedance": 8,
+   "max_spl": 136,
+   "verified": true
+  },
+  {
+   "model": "NOMOS XLT",
+   "class": "sub",
+   "power_w": 1500,
+   "impedance": 4,
+   "max_spl": 141,
+   "verified": true,
+   "notes": "2x18\""
+  },
+  {
+   "model": "NOMOS LT",
+   "class": "sub",
+   "power_w": 1500,
+   "impedance": 4,
+   "max_spl": 141,
+   "verified": true,
+   "notes": "המדריך מדווח נתונים זהים ל-XLT — כדאי לאמת מול היחידה"
+  },
+  {
+   "model": "PIA M",
+   "class": "speaker",
+   "power_w": 150,
+   "impedance": 8,
+   "max_spl": 132,
+   "verified": true,
+   "notes": "קולונה 3 דרכים, עד 3 לערוץ"
+  },
+  {
+   "model": "PIA LFX",
+   "class": "sub",
+   "power_w": 100,
+   "impedance": 8,
+   "max_spl": 122,
+   "verified": true,
+   "notes": "הרחבת בס ל-PIA, עד 3 לערוץ"
+  },
+  {
+   "model": "SEQUENZA 5",
+   "class": "speaker",
+   "power_w": 350,
+   "impedance": 16,
+   "max_spl": 130,
+   "verified": true,
+   "notes": "גרסת W: 400W"
+  },
+  {
+   "model": "SEQUENZA 8",
+   "class": "speaker",
+   "power_w": 500,
+   "impedance": 8,
+   "max_spl": 143,
+   "verified": true,
+   "notes": "מומלץ 2 לערוץ, מקס 3"
+  },
+  {
+   "model": "SEQUENZA 8 B",
+   "class": "sub",
+   "power_w": 750,
+   "impedance": 6,
+   "max_spl": 138,
+   "verified": true,
+   "notes": "1x18\""
+  },
+  {
+   "model": "CA 106 / CA 106 PRO",
+   "class": "speaker",
+   "power_w": 200,
+   "impedance": 16,
+   "max_spl": 125,
+   "dispersion": "90x60",
+   "verified": true,
+   "notes": "סוגר את הפער מהמדריך הסרוק"
+  },
+  {
+   "model": "SAE PCM23II",
+   "class": "amp",
+   "verified": false,
+   "notes": "אין נתוני הספק ליציאה — אתר SAE לא נגיש, manuals.plus מחזיר 403; במדריך רק צריכת חשמל 3000W",
+   "channels": 2
+  }
+ ]
+}
