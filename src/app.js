@@ -29,6 +29,7 @@ const LSKEY = 'installPlanner_v1';
 
 /*__DATA:ERP_CATALOG__*/
 /*__DATA:ERP_IMAGES__*/
+/*__DATA:MODEL_IMAGES__*/
 /*__DATA:ERP_SOLD__*/
 /*__DATA:ERP_FILTERS__*/
 

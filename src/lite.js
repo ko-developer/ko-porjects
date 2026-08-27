@@ -6,6 +6,7 @@
 /*__DATA:ERP_ITEMS__*/
 /*__DATA:ERP_PRICES__*/
 /*__DATA:ERP_IMAGES__*/
+/*__DATA:MODEL_IMAGES__*/
 /*__DATA:FINISHES__*/
 
 const $ = s => document.querySelector(s);
@@ -434,7 +435,24 @@ function erpItem(key) {
   return r ? { key: r[0], name: r[1], price: +r[2] || 0, stock: +r[3] || 0 } : null;
 }
 function stockOf(key) { const r = erpItem(key); return r ? r.stock : null; }
-function imgOf(key) { return (typeof ERP_IMAGES !== 'undefined' && ERP_IMAGES[key]) || ''; }
+function imgOf(key, name) {
+  const direct = (typeof ERP_IMAGES !== 'undefined' && ERP_IMAGES[key]) || '';
+  if (direct) return direct;
+  return modelImg(name || (typeof ERP_ITEMS !== 'undefined' && (ERP_ITEMS.find(r => r[0] === key) || [])[1]) || '');
+}
+/* נפילה לתמונה הרשמית של היצרן לפי שם הדגם בתיאור ה-ERP */
+function modelImg(name) {
+  if (typeof MODEL_IMAGES === 'undefined' || !name) return '';
+  const toks = String(name).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+  let best = '', bestLen = 0;
+  for (let i = 0; i < toks.length; i++) {
+    for (let w = 1; w <= 3 && i + w <= toks.length; w++) {
+      const k = toks.slice(i, i + w).join('');
+      if (k.length >= 3 && k.length > bestLen && MODEL_IMAGES[k]) { best = MODEL_IMAGES[k]; bestLen = k.length; }
+    }
+  }
+  return best;
+}
 
 /* ---------- זיהוי תכנית (ראייה ממוחשבת בדפדפן) ---------- */
 /* ממיר לגווני אפור, מזהה את גבולות השרטוט ואת החללים הריקים הגדולים = אזורים מועמדים */
@@ -1703,7 +1721,7 @@ function stepOffers() {
 function prodCards(p) {
   const main = p.rows.filter(r => r.note === 'רמקולים' || r.note === 'סאבים' || r.note === 'הגברה').slice(0, 4);
   return main.map(r => {
-    const im = imgOf(r.key);
+    const im = imgOf(r.key, r.name);
     return `<div class="prod">
       ${im ? `<img src="${esc(im)}" alt="">` : '<div class="noimg">🔊</div>'}
       <div><b>${esc(r.name)}</b><small>${r.qty} יח׳ × ${ils(r.price)}</small></div></div>`;

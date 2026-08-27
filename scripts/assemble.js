@@ -2,7 +2,7 @@
 // המקור האחיד: src/app.js + סמני /*__DATA:NAME__*/ + src/index.template.html.
 import { readFileSync } from 'node:fs';
 
-export const DATA = ['ERP_ITEMS', 'ERP_PRICES', 'ERP_KITS', 'ERP_CATALOG', 'ERP_IMAGES', 'ERP_SOLD', 'ERP_FILTERS', 'KIT_META'];
+export const DATA = ['ERP_ITEMS', 'ERP_PRICES', 'ERP_KITS', 'ERP_CATALOG', 'ERP_IMAGES', 'MODEL_IMAGES', 'ERP_SOLD', 'ERP_FILTERS', 'KIT_META'];
 
 // JS מלא של האפליקציה עם נתוני ה-ERP מוזרקים + אשף הזרימה (V2)
 export function assembleAppJs() {
@@ -29,7 +29,7 @@ export function templateParts() {
 
 /* ===== KO Studio (גרסת משתמשי קצה) — נבנית בנפרד לגמרי מהאפליקציה המקצועית ===== */
 /* ניתוב הקיטים שייך ל-KO Projects בלבד — Studio לא טוען אותם */
-export const LITE_DATA = ['LITE_CATALOG', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_IMAGES', 'FINISHES'];
+export const LITE_DATA = ['LITE_CATALOG', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_IMAGES', 'MODEL_IMAGES', 'FINISHES'];
 
 export function assembleLiteJs() {
   let js = readFileSync('src/lite.js', 'utf8');
