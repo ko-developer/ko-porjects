@@ -726,7 +726,14 @@ function nodeBox(n) {
   return el ? { x, y, w: el.offsetWidth, h: el.offsetHeight } : { x, y, w: 172, h: 80 };
 }
 
-function uploadBg(inp) {
+/* רוחב רקע שמתאים למסך: תכנית לרוחב תמלא 1400px, תכנית לאורך תוגבל בגובה
+   כדי שלא תיפרס לקנבס ענק (צילום מסך של טאבלט = יחס לאורך) */
+function fitBgW(w, h) {
+  if (!w || !h) return 1400;
+  const MAXW = 1400, MAXH = 1000;
+  return Math.max(320, Math.round(Math.min(MAXW, MAXH * (w / h))));
+}
+function uploadBg(inp, onDone) {
   const file = inp.files[0]; inp.value = '';
   if (!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
@@ -752,11 +759,12 @@ function uploadBg(inp) {
         cv2.width = Math.round(cv.width * k); cv2.height = Math.round(cv.height * k);
         cv2.getContext('2d').drawImage(cv, 0, 0, cv2.width, cv2.height);
         P.bg = cv2.toDataURL('image/jpeg', 0.8);
-        P.bgW = P.bgW || 1400;
+        P.bgW = fitBgW(cv2.width, cv2.height);
         P.bgOp = P.bgOp ?? 0.5;
         sel = null; ui.tab = 'node';
         render();
         setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
+        if (onDone) onDone();
       } catch (err) { alert('קריאת ה-PDF נכשלה (נדרש אינטרנט לטעינת הספרייה): ' + err.message); }
     })();
     return;
@@ -769,11 +777,12 @@ function uploadBg(inp) {
     cv.height = Math.round(img.height * scale);
     cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
     P.bg = cv.toDataURL('image/jpeg', 0.72);
-    P.bgW = P.bgW || 1400;
+    P.bgW = fitBgW(cv.width, cv.height);
     P.bgOp = P.bgOp ?? 0.5;
     sel = null; ui.tab = 'node';
     render();
     setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
+    if (onDone) onDone();
   };
   img.src = URL.createObjectURL(file);
 }

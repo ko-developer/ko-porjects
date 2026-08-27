@@ -199,10 +199,12 @@ function wizStepHTML(s) {
 
 /* ---- פעולות האשף ---- */
 function wizUploadBg(inp) {
-  const f = inp.files && inp.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = () => { P.bg = r.result; P.bgW = P.bgW || 1400; render(); save(); WIZ.step = 1; wizRender(); uiToast('✓ התכנית נטענה — עכשיו כיול'); };
-  r.readAsDataURL(f);
+  if (!(inp.files && inp.files[0])) return;
+  /* אותו נתיב של האפליקציה: PDF→תמונה, הקטנה, ורוחב רקע לפי יחס הצדדים */
+  uploadBg(inp, () => {
+    save(); WIZ.step = 1; wizRender();
+    uiToast('✓ התכנית נטענה — עכשיו כיול');
+  });
 }
 function wizNewProject() { newProj(); WIZ.step = 0; wizRender(); }
 /* תצוגה מקדימה של הכיול המוצע על התכנית (בלי לשנות עדיין את קנה המידה) */
