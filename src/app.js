@@ -3081,7 +3081,7 @@ function patchOpen(z, amps, lines, leftover) {
   patchCss();
   PATCH = {
     zid: z.id, sel: null,
-    amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set() })),
+    amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set(), bridge: !!a.u.bridged })),
     slots: {}, pool: leftover.map(n => n.id)
   };
   lines.forEach(l => { PATCH.slots[amps.indexOf(l.amp) + '|' + l.ch] = [l.head.id, ...l.seg.map(s => s.to.id)]; });
@@ -3253,6 +3253,26 @@ function patchChip(id, ro) {
   return `<span class="pchip ${patchKind(n)} ${PATCH.sel === id ? 'sel' : ''}" ${ro ? `data-chipro="${id}" style="opacity:.85"` : `draggable="true" data-chip="${id}"`}
      title="${esc(full)} · ${spkOhm(n)}Ω · ${esc(n.sub || '')}"><b>${patchNum(n)}</b>${esc(shortModel(full))} <small style="opacity:.7">${spkOhm(n)}Ω</small></span>`;
 }
+/* 🌉 Bridge — גישור זוג ערוצים ליציאה אחת חזקה: הספק ≈ ×2 מהערוץ בחצי העומס,
+   אום מינימלי ×2. תואם לנתונים הרשמיים (DYNAMIQ 450: ‏2×450W@4Ω → ‏900W@8Ω גשר). */
+function patchBridge(ai) {
+  const a = PATCH.amps[ai];
+  a.bridge = !a.bridge;
+  a.u.bridged = a.bridge || undefined;   /* נשמר על המגבר בפרויקט */
+  if (a.bridge) {
+    for (let ch = 2; ch <= a.chTotal; ch += 2) {   /* זוגי מתמזג לאי-זוגי */
+      const from = ai + '|' + ch, to = ai + '|' + (ch - 1);
+      const ids = PATCH.slots[from] || [];
+      if (ids.length) { PATCH.slots[to] = (PATCH.slots[to] || []).concat(ids); PATCH.slots[from] = []; }
+    }
+  }
+  save(); patchRender();
+}
+function bridgeChW(name, z) {
+  if (!z) return null;
+  const w = ampChW(name, z / 2);
+  return w ? w * 2 : null;
+}
 function patchRender() {
   const body = document.getElementById('patchBody'); if (!body || !PATCH) return;
   let totAmpW = 0, totSpkW = 0;
@@ -3264,12 +3284,18 @@ function patchRender() {
   const amps = PATCH.amps.map((a, ai) => {
     const chs = [];
     for (let ch = 1; ch <= a.chTotal; ch++) {
+      if (a.bridge && ch % 2 === 0) {
+        chs.push(`<div class="pchCh" style="opacity:.5"><span class="pchOut">OUT ${ch}</span>
+          <div class="pchChips"><small style="color:#6c5ce7;font-size:10.5px">🌉 מגושר עם OUT ${ch - 1}</small></div><span class="pchZ emp">—</span></div>`);
+        continue;
+      }
       const key = ai + '|' + ch, ids = PATCH.slots[key] || [], locked = false;
-      const zz = patchZ(ids), w = ids.length ? ampChW(a.u.name, zz) : null;
+      const zz = patchZ(ids), w = ids.length ? (a.bridge ? bridgeChW(a.u.name, zz) : ampChW(a.u.name, zz)) : null;
       /* צריכת הרמקולים בערוץ — RMS מנתוני הדגם (150W ברירת מחדל כשלא ידוע) */
       const sw = ids.reduce((s3, id2) => { const n3 = byId(id2); const pw = n3 ? (n3.pow ?? (spkData(n3.name) || {}).w) : null; return s3 + (pw == null ? 150 : +pw); }, 0);
       if (w) totAmpW += w; totSpkW += sw;
-      const bad = ids.length && zz < a.minOhm - 0.05;
+      const minEff = a.bridge ? a.minOhm * 2 : a.minOhm;
+      const bad = ids.length && zz < minEff - 0.05;
       /* דיליי מומלץ לערוץ + פער בתוך הערוץ (ערוץ = דיליי אחד לכולם) */
       const dts = ids.map(id2 => { const n2 = byId(id2); return n2 ? delayDistM(n2, dSrc) : 0; });
       const dMs = dPlan[key] != null ? dPlan[key] : null;
@@ -3283,7 +3309,7 @@ function patchRender() {
       const wTxt = w ? ` · <b style="color:${rc}" title="${rTip}">🎚${w}W${ratio ? ' (×' + ratio.toFixed(1) + ')' : ''}</b>` : '';
       const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
-        <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${ch}
+        <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${a.bridge ? ch + '+' + (ch + 1) + ' 🌉' : ch}
           ${ids.length ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
         <div class="pchChips">${ids.map(id2 => patchChip(id2)).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
         <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" title="עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
@@ -3292,7 +3318,8 @@ function patchRender() {
         <small>
           <input type="number" min="1" max="16" value="${a.chTotal}" title="מספר ערוצי המגבר — ניתן לתיקון, נשמר לדגם" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchAmpSet(${ai},'ch',this.value)"> ערוצים ·
           מינ׳ <input type="number" min="1" max="16" step="0.1" value="${a.minOhm}" title="אום מינימלי לערוץ (סטריאו) — ניתן לתיקון, נשמר לדגם" style="width:38px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchAmpSet(${ai},'mo',this.value)">Ω ·
-          ${esc(a.rk.name.slice(0, 14))}</small></div>${chs.join('')}</div>`;
+          ${esc(a.rk.name.slice(0, 14))} ·
+          <button onclick="patchBridge(${ai})" title="Bridge — גישור כל זוג ערוצים ליציאה אחת: הספק ×2, אום מינימלי ×2 (${a.minOhm * 2}Ω)" style="font-size:10.5px;padding:1px 7px;border-radius:7px;border:1px solid ${a.bridge ? '#6c5ce7' : '#ddd'};background:${a.bridge ? '#6c5ce7' : '#fff'};color:${a.bridge ? '#fff' : '#666'};cursor:pointer;font-weight:700">🌉 Bridge${a.bridge ? ' ✓' : ''}</button></small></div>${chs.join('')}</div>`;
   }).join('');
   /* אומדן מחברים: כל קו = 2 קצוות (ספיקון / XLR-RCA לסאב אקטיבי) — מאושר כאן לפני החיבור */
   let estCables = 0;
@@ -3519,7 +3546,9 @@ async function patchApply() {
     let note = nodes.length > 1 ? 'שרשור (' + nodes.length + ' רמקולים)' : 'קו בודד';
     /* דיליי מומלץ לערוץ — נרשם על הקו כדי שיופיע במפתח הכבלים ובדוח המתקינים */
     if (dlyPlanMap[key] != null) note += ' · ⏱ דיליי ' + (dlyPlanMap[key] ? '~' + dlyPlanMap[key].toFixed(1) + 'ms' : '0ms (ייחוס)');
-    const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + ch };
+    const pOutLbl = a.bridge ? 'OUT ' + ch + '+' + (ch + 1) + ' Bridge' : 'OUT ' + ch;
+    if (a.bridge) note += ' · 🌉 Bridge';
+    const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: pOutLbl };
     if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
     if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
     if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
@@ -3546,6 +3575,7 @@ async function patchApply() {
   const addedConn = impItems.filter(it => it.dest === 'conn').reduce((s2, it) => s2 + (+it.qty || 0), 0) - beforeConn;
   render(); save();
   uiToast('✓ חוברו ' + n2 + ' כבלים' + (addedConn > 0 ? ' · נוספו ' + addedConn + ' מחברים להצעה' : '') + (left ? ' · ⚠ ' + left + ' רמקולים ללא ערוץ' : ''));
+  if (window.__patchDone) { const cb9 = window.__patchDone; window.__patchDone = null; cb9(); }
   /* הצעת קיטי התקנה/אביזרים לפרויקט — סוגרים את הפרויקט בקנייה אחת */
   setTimeout(() => patchOfferKits(zid0), 400);
 }
@@ -7905,7 +7935,7 @@ function installTbl() {
   /* המודל המסחרי: טכנאי ליום — ימים שלמים בלבד, אין חצאי ימים (עיגול מעלה) */
   const dayRate = +(store.installDayRate ?? 1500);
   const days = tMin > 0 ? Math.max(1, Math.ceil(hours / 8)) : 0;
-  const dayMode = store.installDayMode !== false;
+  const dayMode = store.installDayMode === true;
   const dayTotal = days * dayRate;
   el.innerHTML = `<table class="cablelist" style="font-size:11.5px"><tr><th></th><th>סעיף</th><th>יח׳</th><th>כמות</th><th>דק׳/יח׳</th><th>₪/יח׳</th><th>סה"כ</th><th></th></tr>${rows}</table>
     <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin-top:8px;background:#faf8f4;border-radius:8px;padding:6px 8px">
@@ -7932,7 +7962,7 @@ function installAddToOffer() {
   });
   if (!total && !tMin) { uiToast('אין סעיפי התקנה פעילים'); return; }
   /* המודל המסחרי: ימי טכנאי שלמים × התעריף היומי (ברירת מחדל) */
-  if (store.installDayMode !== false) {
+  if (store.installDayMode === true) {
     const dayRate = +(store.installDayRate ?? 1500);
     const days = Math.max(1, Math.ceil(tMin / 60 / 8));
     total = days * dayRate;
@@ -7959,7 +7989,7 @@ function installAddToOffer() {
   }
   /* מק"ט אמיתי מקבוצת INSTALL של ה-ERP — לפי מודל התמחור שנבחר */
   const days = Math.max(1, Math.ceil(tMin / 60 / 8));
-  const hit = installErpItem(store.installDayMode !== false ? 'day' : 'quote', days);
+  const hit = installErpItem(store.installDayMode === true ? 'day' : 'quote', days);
   const ex = impItems.find(it => it.iid === P._instIid);
   if (ex) { ex.price = sum; ex.note = note; }
   else {

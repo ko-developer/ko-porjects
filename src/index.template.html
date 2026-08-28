@@ -19,7 +19,7 @@
   .unit.picked { outline: 3px solid #ffb35c; outline-offset: -3px; }
   .node.wsrc { outline: 3px dashed #ff8a50; outline-offset: 2px; }
   .dd { position: relative; }
-  .ddm { display: none; position: absolute; top: calc(100% + 6px); right: 0; background: #2d3444; border: 1px solid #444d61; border-radius: 8px; padding: 6px; z-index: 120; min-width: 185px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .ddm { display: none; position: absolute; top: calc(100% + 6px); right: 0; background: #2d3444; border: 1px solid #444d61; border-radius: 8px; padding: 6px; z-index: 120; min-width: 185px; box-shadow: 0 8px 24px rgba(0,0,0,.35); max-height: min(80vh, 620px); overflow-y: auto; }
   .dd.open .ddm { display: flex; flex-direction: column; gap: 4px; }
   .ddm button { width: 100%; text-align: right; background: transparent; color: #fff; }
   .ddm button:hover { background: #3a4258; }

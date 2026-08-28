@@ -83,7 +83,7 @@ function wizRender() {
     <div class="wzbody" id="wizBody">${wizStepHTML(WIZ.step)}</div>
     <div class="wzfoot">
       <button onclick="WIZ.step=Math.max(0,WIZ.step-1);wizRender()" ${WIZ.step === 0 ? 'disabled' : ''}>▶ הקודם</button>
-      <button class="nx" onclick="WIZ.step=Math.min(${WIZ_STEPS.length - 1},WIZ.step+1);wizRender()" ${WIZ.step === WIZ_STEPS.length - 1 ? 'disabled' : ''}>הבא ◀</button>
+      <button class="nx" onclick="wizNext()" ${WIZ.step === WIZ_STEPS.length - 1 ? 'disabled' : ''}>הבא ◀</button>
     </div>`;
   document.body.appendChild(w);
   /* חלון צף — נגרר מהכותרת והמיקום נשמר */
@@ -141,8 +141,8 @@ function wizStepHTML(s) {
     <h4>סימון אזור סאונד</h4>
     ${(P.zones || []).map(zz => `<button class="sec ${zz.id === (WIZ.zid || (P.zones[0] || {}).id) ? 'done' : ''}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">🗺 ${esc(zz.name)} · ${zoneAreaM(zz).toFixed(0)} מ"ר${zz.usage ? ' · ' + esc(zz.usage) : ''}</button>`).join('')}
     <input id="wizZName" placeholder="שם האזור (למשל: מסעדה / רחבה)">
-    ${z ? `<label style="font-size:12px;font-weight:700;display:block;margin:6px 0 2px">🎯 מה עושים ב"${esc(z.name)}"? — קובע את העוצמה וההצעות</label>
-    <select onchange="setZoneField('${z.id}','usage',this.value);wizRender()">
+    ${z ? `<label style="font-size:12px;font-weight:700;display:block;margin:6px 0 2px">🎯 מה עושים ב"${esc(z.name)}"? <span style="color:#c1121f">(חובה)</span></label>
+    <select id="wizUse" style="${z.usage ? '' : 'border:1.5px solid #c1121f'}" onchange="setZoneField('${z.id}','usage',this.value);wizRender()">
       <option value="">— תכלית / עוצמה —</option>
       ${usages2.map(u => `<option ${z.usage === u ? 'selected' : ''} value="${u}">${u}${typeof USAGE_SPL !== 'undefined' && USAGE_SPL[u] ? ' · יעד ' + USAGE_SPL[u] + 'dB' : ''}</option>`).join('')}
     </select>` : ''}
@@ -207,6 +207,20 @@ function wizStepHTML(s) {
 }
 
 /* ---- פעולות האשף ---- */
+function wizNext() {
+  /* שאלת חובה: אי אפשר להתקדם מהאזור בלי תכלית — היא קובעת את המערכת */
+  if (WIZ.step === 2) {
+    const z = wizZone();
+    if (z && !z.usage) {
+      uiToast('🎯 חובה לבחור מה עושים באזור — זה קובע את העוצמה ואת ההצעות');
+      const sel = document.getElementById('wizUse');
+      if (sel) { sel.style.outline = '2px solid #c1121f'; sel.focus(); }
+      return;
+    }
+  }
+  WIZ.step = Math.min(WIZ_STEPS.length - 1, WIZ.step + 1);
+  wizRender();
+}
 function wizUploadBg(inp) {
   if (!(inp.files && inp.files[0])) return;
   /* אותו נתיב של האפליקציה: PDF→תמונה, הקטנה, ורוחב רקע לפי יחס הצדדים */
@@ -256,6 +270,7 @@ function wizKitSearch(q) {
 }
 function wizBuildAll() {
   const z = wizZone(); if (!z) return;
+  if (!z.usage) { uiToast('🎯 חובה לבחור תכלית לאזור לפני הבנייה — חזור שלב אחד'); WIZ.step = 2; wizRender(); return; }
   if (z._djInRack === undefined) z._djInRack = true;
   /* ארון ריכוז אוטומטי בפינת האזור אם אין */
   /* ארון משותף לכל האזורים — נוצר חדש רק אם אין ארון בפרויקט */
@@ -263,11 +278,17 @@ function wizBuildAll() {
     const b = zoneBounds(z);
     return { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: '', x: Math.max(10, 2200 - b.L - 60), y: Math.max(10, b.T - 10), ru: 12, units: [], min: true };
   });
-  window.__autoFlow = true;
+  window.__autoFlow = true;   /* הבנייה וההצבה אוטומטיות */
   try {
     buildZoneSystem(z.id);
     placeZoneRackItems(z);
-    setTimeout(() => { smartWire(z.id).finally?.(() => { window.__autoFlow = false; }); setTimeout(() => { window.__autoFlow = false; if (WIZ && z._built) WIZ.step = 4; wizRender(); uiToast('✓ נבנה וחווט — עכשיו קיט התקנה'); }, 1500); }, 600);
+    /* החיווט לא אוטומטי: עורך הניתוב נפתח לאישור — ורק אחרי "חבר" ממשיכים להתקנה */
+    setTimeout(() => {
+      window.__autoFlow = false;
+      window.__patchDone = () => { if (WIZ) { WIZ.step = 4; wizRender(); uiToast('✓ החיווט אושר — עכשיו קיט התקנה'); } };
+      smartWire(z.id);
+      wizRender();
+    }, 700);
   } catch (e) { window.__autoFlow = false; uiToast('⚠ ' + e.message); }
   setTimeout(() => wizRender(), 900);
 }
