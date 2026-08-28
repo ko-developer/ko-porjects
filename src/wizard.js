@@ -135,12 +135,20 @@ function wizStepHTML(s) {
     <button class="big" onclick="wizCalByWidth()">⚡ כייל לפי רוחב</button>
     <button class="sec" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
   }
-  if (s === 2) return `
+  if (s === 2) {
+    const usages2 = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];
+    return `
     <h4>סימון אזור סאונד</h4>
-    ${(P.zones || []).map(zz => `<button class="sec ${zz.id === (WIZ.zid || (P.zones[0] || {}).id) ? 'done' : ''}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">🗺 ${esc(zz.name)} · ${zoneAreaM(zz).toFixed(0)} מ"ר</button>`).join('')}
+    ${(P.zones || []).map(zz => `<button class="sec ${zz.id === (WIZ.zid || (P.zones[0] || {}).id) ? 'done' : ''}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">🗺 ${esc(zz.name)} · ${zoneAreaM(zz).toFixed(0)} מ"ר${zz.usage ? ' · ' + esc(zz.usage) : ''}</button>`).join('')}
     <input id="wizZName" placeholder="שם האזור (למשל: מסעדה / רחבה)">
+    ${z ? `<label style="font-size:12px;font-weight:700;display:block;margin:6px 0 2px">🎯 מה עושים ב"${esc(z.name)}"? — קובע את העוצמה וההצעות</label>
+    <select onchange="setZoneField('${z.id}','usage',this.value);wizRender()">
+      <option value="">— תכלית / עוצמה —</option>
+      ${usages2.map(u => `<option ${z.usage === u ? 'selected' : ''} value="${u}">${u}${typeof USAGE_SPL !== 'undefined' && USAGE_SPL[u] ? ' · יעד ' + USAGE_SPL[u] + 'dB' : ''}</option>`).join('')}
+    </select>` : ''}
     <button class="big" onclick="wizDrawZone()">➕ צייר אזור — ניקור נקודות על התכנית</button>
     <button class="sec" onclick="autoZones()">🤖 זיהוי אזורים אוטומטי (AI)</button>`;
+  }
   if (s === 3) {
     if (!z) return '<p class="hint">קודם סמן אזור בשלב הקודם.</p>';
     const usages = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];

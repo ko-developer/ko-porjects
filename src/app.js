@@ -6182,6 +6182,7 @@ function renderKitNew() {
       return `<div style="display:flex;gap:6px;align-items:center;font-size:12px;padding:3px 6px;border:1px solid #eee;border-radius:6px;margin-bottom:3px">
       <input type="number" min="1" value="${x.qty}" style="width:44px" onchange="nkDraft.items[${i}].qty=+this.value||1;renderKitNew()">
       <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.name.slice(0, 44))}</span>
+      <code style="font-size:10px;color:#666;background:#f3f1ec;border-radius:4px;padding:1px 5px;white-space:nowrap">${esc(x.key || '—')}</code>
       <span class="muted" style="white-space:nowrap;font-size:11px">${stockBadge(x.key) || (pr ? '₪' + pr.toLocaleString() : '')}</span>
       <b style="white-space:nowrap">${pr ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</b>
       <button style="padding:0 6px" onclick="nkDraft.items.splice(${i},1);renderKitNew()">✕</button></div>`; }).join('')}
@@ -6219,7 +6220,7 @@ function renderKits() {
     .filter(k => !toks.length || toks.every(t => hay(k).includes(t)));
   const chips = CATS_K.map(([v, l]) => `<button onclick="kitCat='${v}';kitShow=60;renderKits()" style="padding:3px 12px;border-radius:16px;font-size:12px;border:1px solid ${kitCat === v ? '#c9502e' : '#ccc'};background:${kitCat === v ? '#c9502e' : '#fff'};color:${kitCat === v ? '#fff' : '#333'}">${l}</button>`).join(' ');
   $('#impList').innerHTML = `
-    <div class="fld"><input placeholder="חיפוש קיט… (F1, EVO, לד, נאון)" value="${esc(kitQ)}" oninput="kitQ=this.value;kitShow=60;renderKits()" style="width:100%"></div>
+    <div class="fld"><input id="kitQIn" placeholder="חיפוש קיט… (F1, EVO, לד, נאון)" value="${esc(kitQ)}" oninput="kitQ=this.value;kitShow=60;renderKits();const e2=document.getElementById('kitQIn');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)" style="width:100%"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${chips}</div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button style="flex:1" onclick="kitNew()">➕ צור קיט חדש</button>
@@ -8115,24 +8116,50 @@ function kitPriceOf(k) {
 function kitThumbs(k, n) {
   return (k.items || []).slice(0, n || 3).map(x => imgCell(x.key, 34, x.name)).join('');
 }
-/* שלוש הצעות לפי דרגות המותגים של הבית */
-function zoneTierKits() {
+/* שלוש הצעות לפי דרגות המותגים של הבית — מסוננות לפי עוצמת היעד של האזור.
+   התקנת קבע = פסיבי בלבד: קיט עם רמקול מוגבר לא מוצע לעולם. */
+function kitMaxSpl(k) {
+  let best = 0;
+  (k.items || []).forEach(it => {
+    if (!isSpeakerItem(it.name || '')) return;
+    if (/סאב|\bsub\b/i.test(it.name || '')) return;   /* היכולת נקבעת ע"י הטופים */
+    const v = guessSpl(it.name) || 0;
+    if (v > best) best = v;
+  });
+  return best;
+}
+function zoneTierKits(z) {
   const RX = [
     ['פרמיום', /FUNKTION|KLING|K&F|XTA|SPECTRA|GRAVIS|NOMOS|SONA|PASSIO/i, '#0b3a2e', 'עוצמה גבוהה, עמידים לשנים — Funktion-One · K&F'],
     ['ביניים', /UNICORN|EUPHORIA|MX3|PAGAZ|DYNAMIQ|SAE|PQM/i, '#534ab7', 'צליל נקי ומכובד בכשליש מהמחיר — Unicorn'],
     ['חסכוני', /\bKT\b|TILL|INTERPID|WR ?600|ARRAY|BOLD/i, '#a8650f', 'פתרון אמין למוזיקת רקע — מלאי גדול ומחיר נגיש — KT'],
   ];
+  const target = (typeof USAGE_SPL !== 'undefined' && z && USAGE_SPL[z.usage]) || 90;
+  const need = target + 8;   /* מרווח לפסגות בלי קליפ */
   const ks = allKits().map((k, i) => ({ k, i }))
     .filter(x => !kitHidden(x.k.name) && kitCatOf(x.k) !== 'lighting' && kitCatOf(x.k) !== 'video')
-    .filter(x => (x.k.items || []).some(it => isSpeakerItem(it.name || '')));
+    .filter(x => (x.k.items || []).some(it => isSpeakerItem(it.name || '')))
+    /* התקנת קבע: אף פעם לא רמקולים מוגברים */
+    .filter(x => !(x.k.items || []).some(it => isSpeakerItem(it.name || '') && /מוגבר|אקטיבי/.test(it.name || '')));
+  ks.forEach(x => {
+    x._price = kitPriceOf(x.k); x._stock = kitStock(x.k); x._spl = kitMaxSpl(x.k);
+    /* דרגה לפי מותג הרמקולים בלבד — מגבר SAE בקיט KT לא הופך אותו ל"ביניים" */
+    x._spkTxt = (x.k.items || []).filter(it => isSpeakerItem(it.name || '')).map(it => it.name).join(' ');
+  });
   const out = [];
-  for (const [label, rx, color, blurb] of RX) {
-    const inTier = ks.filter(x => rx.test((x.k.items || []).map(it => it.name || '').join(' ') + ' ' + x.k.name));
+  for (let ti = 0; ti < RX.length; ti++) {
+    const [label, rx, color, blurb] = RX[ti];
+    const inTier = ks.filter(x => {
+      for (let j = 0; j < RX.length; j++) if (RX[j][1].test(x._spkTxt)) return j === ti;   /* הדרגה הראשונה שתופסת */
+      return ti === RX.length - 1;   /* מותג לא מוכר → חסכוני */
+    });
     if (!inTier.length) continue;
-    inTier.forEach(x => { x._price = kitPriceOf(x.k); x._stock = kitStock(x.k); });
-    /* מלאי מלא קודם, ואז הזול בדרגה */
-    inTier.sort((a, b) => (a._stock.dead - b._stock.dead) || (a._price - b._price));
-    out.push({ label, color, blurb, pick: inTier[0], alt: inTier.slice(1, 4) });
+    /* עומדים ביעד קודם; ביניהם — הקרוב ביותר לעוצמה הדרושה (לא מפלצת מיותרת), אז מלאי, אז מחיר */
+    const fit = inTier.filter(x => x._spl >= need);
+    const pool = fit.length ? fit : inTier;
+    pool.sort((a, b) => (a._spl - need >= 0 && b._spl - need >= 0 ? (a._spl - b._spl) : (b._spl - a._spl))
+      || (a._stock.dead - b._stock.dead) || (a._price - b._price));
+    out.push({ label, color, blurb, fits: !!fit.length, pick: pool[0], alt: pool.slice(1, 4) });
   }
   return out;
 }
@@ -8178,11 +8205,13 @@ function zoneSpkPicker(zid, tab) {
       </div></div>`;
   const paint = () => {
     if (TAB === 'tiers') {
-      const tiers = zoneTierKits();
-      body.innerHTML = tiers.map(t => `
+      const tiers = zoneTierKits(z);
+      const tgt = (typeof USAGE_SPL !== 'undefined' && USAGE_SPL[z.usage]) || 90;
+      body.innerHTML = `<p class="muted" style="font-size:11px;margin:0 0 8px">🎯 ${z.usage ? esc(z.usage) + ' · ' : ''}יעד ${tgt}dB — מוצעים קיטים פסיביים שעומדים ביעד ובלי עודף מיותר. שנה את תכלית האזור כדי לקבל הצעות אחרות.</p>` + tiers.map(t => `
         <div style="border:2px solid ${t.color};border-radius:14px;padding:10px;margin-bottom:10px">
           <div style="display:flex;gap:8px;align-items:baseline"><b style="color:${t.color};font-size:14px">${t.label}</b>
           <span class="muted" style="font-size:11px;flex:1">${t.blurb}</span></div>
+          ${t.fits === false ? '<p style="font-size:11px;color:#a32222;margin:2px 0">⚠ אין בדרגה זו קיט שעומד ביעד — מוצג הקרוב ביותר</p>' : ''}
           ${kitCard(t.pick, t.color + '33')}
           ${t.alt.length ? `<details><summary style="font-size:11.5px;cursor:pointer;color:#666">עוד ${t.alt.length} באותה דרגה</summary>${t.alt.map(a => kitCard(a)).join('')}</details>` : ''}
         </div>`).join('') || '<p class="muted">אין קיטי סאונד בקטלוג</p>';
