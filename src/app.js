@@ -3212,6 +3212,13 @@ function zoneSourceRef(z) {
     || P.nodes.find(n => n.kind === 'point' && /עמדת נגינה|\bDJ\b|במה|stage/i.test(n.name)) || null;
 }
 /* הצבת נקודת ייחוס לדיליי מתוך עורך החיווט */
+/* פתיחת טבלת החיווט מהפאנל של רמקול — לפי האזור שהוא שייך אליו */
+function openWireFor(nid) {
+  const n = byId(nid); if (!n) return;
+  const z = (P.zones || []).find(z2 => (n.sub || '').includes(z2.name)) || (P.zones || [])[0];
+  if (!z) { uiToast('אין אזור בתכנית — סמן אזור קודם'); return; }
+  smartWire(z.id);
+}
 function dlyMicPlace() {
   window.__micPlace = true;
   const w = document.getElementById('patchBox');
@@ -4920,7 +4927,7 @@ function renderPanel() {
     </div>
     <div class="fld"><label>אימפדנס (Ω)</label><input type="number" min="1" max="32" value="${n.ohm ?? (spkData(n.name)?.o ?? '')}" placeholder="8" onchange="byId('${n.id}').ohm=this.value?+this.value:undefined;save()"></div>
     <button style="width:100%;margin:4px 0 6px;background:#0f6e56;color:#fff;font-weight:700" onclick="wireMode={from:{nid:'${n.id}'}};wireStock=null;pinMode=null;connPin=null;render()">🔌 חבר כבל מכאן — ואז לחץ על מוצר היעד בתכנית</button>
-    <button style="width:100%;margin:0 0 4px;background:#0f6e56;color:#fff;font-weight:700" onclick="autoChainFrom('${n.id}')">🔗 שרשר אוטומטית לפי קרבה — כל הרמקולים הקרובים בשרשרת אחת</button>
+    <button style="width:100%;margin:0 0 4px;background:#534ab7;color:#fff;font-weight:700" onclick="openWireFor('${n.id}')">🔌 טבלת החיווט — ניתוב, אום, הספק ודיליי</button>
     <button style="width:100%;margin:0 0 6px;background:#e65100;color:#fff;font-weight:700" onclick="wireMode={from:{nid:'${n.id}'},chain:true};wireStock=null;pinMode=null;connPin=null;render()">🔗 או ידני — לחץ על הרמקול הבא</button>
     <div class="fld"><label>SPL מקס @1מ׳ (דריסה ידנית)</label><input type="number" min="90" max="150" value="${n.spl ?? ''}" placeholder="${effSpl(n).toFixed(0)} (מחושב)" onchange="byId('${n.id}').spl=this.value?+this.value:undefined;render();save()"></div>
     <p class="muted" style="font-size:10px;margin:-2px 0 4px">SPL אפקטיבי בשימוש: <b>${effSpl(n).toFixed(0)} dB</b> ${(n.sens ?? guessSens(n.name)) != null && n.pow ? '(רגישות + 10·log₁₀·הספק)' : '(Max SPL)'}</p>
@@ -7313,6 +7320,7 @@ function closeZonePoly() {
   zoneNameNext = '';
   P.zones.push(z);
   selZone = z.id; sel = null; ui.tab = 'node';
+  if (typeof WIZ !== 'undefined' && WIZ) { WIZ.zid = z.id; setTimeout(() => wizRender(), 50); }
   render();
 }
 document.addEventListener('dblclick', e => {

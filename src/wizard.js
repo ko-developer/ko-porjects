@@ -278,6 +278,11 @@ function wizBuildAll() {
     const b = zoneBounds(z);
     return { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: '', x: Math.max(10, 2200 - b.L - 60), y: Math.max(10, b.T - 10), ru: 12, units: [], min: true };
   });
+  /* 🎙 מיקרופון מדידה במרכז האזור — נקודת הייחוס לדיליי (אם אין כבר) */
+  if (!P.nodes.some(n => n.ptype === 'mic' && (n.sub || '').includes(z.name))) {
+    const bm = zoneBounds(z);
+    P.nodes.push({ id: uid('n'), kind: 'point', ptype: 'mic', name: 'מיקרופון מדידה', sub: 'נק׳ מדידה · ' + z.name, x: 2200 - (bm.L + bm.W / 2) - 20, y: (bm.T + bm.H / 2) - 24, mini: true, noCov: true });
+  }
   window.__autoFlow = true;   /* הבנייה וההצבה אוטומטיות */
   try {
     buildZoneSystem(z.id);
