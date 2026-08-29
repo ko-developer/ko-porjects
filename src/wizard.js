@@ -486,10 +486,17 @@ async function installerReport() {
   const planImg = await repPlanSnapshot(LBL);
   const coverImg = await repCoverSnapshot();
   const zsum = (P.zones || []).map(z => `<tr><td>${esc(z.name)}</td><td>${esc(z.usage || '—')}</td><td>${zoneAreaM(z).toFixed(0)} מ"ר</td><td>${z.ceil ?? P.room?.ceil ?? '—'} מ׳</td></tr>`).join('');
+  /* מספר סידורי לכל מגבר בארון — לפי מיקום ה-U */
+  const ampNo = {};
+  P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
+    (rk.units || []).filter(u => /מגבר|amp|DNA|DPA|DYNAMIQ|PLM|MX3|PQM|IPD/i.test(u.name))
+      .sort((a, b) => a.pos - b.pos)
+      .forEach((u, i) => { ampNo[u.id] = { n: i + 1, pos: u.pos }; });
+  });
   const racks = P.nodes.filter(n => n.kind === 'rack').map(rk => `
     <h3>🗄 ${esc(rk.name)} · ${rk.ru}U</h3>
     <table><tr><th>מיקום U</th><th>יחידה</th><th>גובה</th></tr>
-      ${(rk.units || []).slice().sort((a, b) => a.pos - b.pos).map(u => `<tr><td>${u.pos + 1}–${u.pos + u.u}</td><td>${esc(u.name)}</td><td>${u.u}U</td></tr>`).join('') || '<tr><td colspan="3">ריק</td></tr>'}
+      ${(rk.units || []).slice().sort((a, b) => a.pos - b.pos).map(u => `<tr><td>${u.pos + 1}–${u.pos + u.u}</td><td>${ampNo[u.id] ? '<b>מגבר ' + ampNo[u.id].n + '</b> · ' : ''}${esc(u.name)}</td><td>${u.u}U</td></tr>`).join('') || '<tr><td colspan="3">ריק</td></tr>'}
     </table>`).join('');
   const spk = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')).map(n => `
     <tr><td>${esc(n.name.slice(0, 40))}</td><td>${esc((n.sub || '').slice(0, 24))}</td><td>${n.hgt ?? '—'} מ׳</td><td>${esc(n.mount || '—')}</td><td>${n.aim != null ? n.aim + '°' : '—'}</td></tr>`).join('');
@@ -511,12 +518,14 @@ async function installerReport() {
     const by = {};
     heads.forEach(c => {
       const rk = byId(c.from); const u = rk && (rk.units || []).find(x => x.id === c.fromUnit);
-      const k = (u ? shortModel(u.name) : 'מגבר') + '|' + c.pOut;
+      const a = u && ampNo[u.id];
+      const lbl = u ? `מגבר ${a ? a.n : '?'} · ${shortModel(u.name)}${a ? ` · U${a.pos + 1}` : ''}` : 'מגבר';
+      const k = (u ? u.id : 'x') + '|' + c.pOut + '|' + lbl;
       (by[k] = by[k] || []).push(c);
     });
     const spN = id => { const n0 = byId(id); const m0 = n0 && (n0.name || '').match(/\((\d+)\)/); return m0 ? m0[1] : '—'; };
-    const trs = Object.entries(by).map(([k, cs]) => {
-      const [amp, out] = k.split('|');
+    const trs = Object.entries(by).sort((a, b) => a[0].localeCompare(b[0])).map(([k, cs]) => {
+      const parts = k.split('|'); const out = parts[1], amp = parts[2];
       return cs.map((c, i) => { const tn = byId(c.to);
         return `<tr>${i === 0 ? `<td rowspan="${cs.length}" style="font-weight:800">${esc(amp)}</td><td rowspan="${cs.length}" style="font-weight:700">${esc(out)}</td>` : ''}<td style="text-align:center"><b>${LBL[c.id] || ''}</b></td><td style="text-align:center"><b>${spN(c.to)}</b></td><td>${esc(tn ? tn.name.slice(0, 40) : '')}</td></tr>`; }).join('');
     }).join('');
@@ -529,12 +538,12 @@ async function installerReport() {
   const ampCnt = P.nodes.filter(n => n.kind === 'rack').reduce((s2, rk) => s2 + (rk.units || []).filter(u => /מגבר|amp|DNA|DPA|DYNAMIQ|PLM|MX3|PQM|IPD/i.test(u.name)).length, 0);
   const prPull = (store.installRates || []).find(r => r.k === 'pull');
   const pullCharged = !!(prPull && !prPull.off);
-  const repHtml = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>דוח מתקינים — ${esc(P.name)}</title>
+  const repHtml = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>דוח הכנות, תשתיות ותכנית פרויקט — ${esc(P.name)}</title>
     <style>body{font-family:-apple-system,'Segoe UI',Arial;margin:24px;color:#1a1e28;font-size:12.5px}
     h1{font-size:20px;border-bottom:3px solid #c9502e;padding-bottom:6px}h2{font-size:16px;margin:22px 0 6px;background:#f4f2ec;padding:5px 10px;border-radius:7px}h3{font-size:13.5px;margin:12px 0 4px}
     table{border-collapse:collapse;width:100%;margin-bottom:8px}th,td{border:1px solid #ccc;padding:4px 7px;text-align:right;font-size:11.5px}th{background:#f4f2ec}
     .meta{color:#777;font-size:11px}@media print{h2{break-after:avoid}}</style></head><body>
-    <h1>🔧 דוח מתקינים — ${esc(P.name)}</h1>
+    <h1>🔧 דוח הכנות, תשתיות ותכנית פרויקט — ${esc(P.name)}</h1>
     <p class="meta">הופק ${new Date().toLocaleString('he-IL')} · KO Projects V2</p>
 
     <h2>על הפרויקט</h2>
@@ -575,7 +584,7 @@ async function installerReport() {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.55);z-index:130;display:flex;align-items:center;justify-content:center';
   ov.innerHTML = `<div style="background:#fff;border-radius:14px;width:min(960px,96vw);height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.4)">
     <div style="display:flex;gap:8px;align-items:center;padding:10px 14px;background:#1a1e28;color:#fff">
-      <b style="flex:1">🔧 דוח מתקינים — ${esc(P.name.slice(0, 30))}</b>
+      <b style="flex:1">🔧 דוח הכנות, תשתיות ותכנית פרויקט — ${esc(P.name.slice(0, 22))}</b>
       <button id="repPrint" style="background:#c9502e;color:#fff;border:none;border-radius:8px;padding:6px 16px;font-weight:700;cursor:pointer">🖨 הדפסה / PDF</button>
       <button id="repClose" style="background:transparent;border:none;color:#fff;font-size:17px;cursor:pointer">✕</button></div>
     <iframe id="repIfr" style="flex:1;border:none;width:100%"></iframe></div>`;
