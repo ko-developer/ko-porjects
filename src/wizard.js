@@ -156,7 +156,7 @@ function wizStepHTML(s) {
       <option value="">— תכלית / עוצמה —</option>
       ${usages2.map(u => `<option ${z.usage === u ? 'selected' : ''} value="${u}">${u}${typeof USAGE_SPL !== 'undefined' && USAGE_SPL[u] ? ' · יעד ' + USAGE_SPL[u] + 'dB' : ''}</option>`).join('')}
     </select>` : ''}
-    <button class="big" onclick="wizDrawZone()">➕ צייר אזור — ניקור נקודות על התכנית</button>
+    <button class="big" onclick="wizDrawZone()">➕ ${(P.zones || []).length ? 'צייר אזור נוסף' : 'צייר אזור'} — ניקור נקודות על התכנית</button>
     <button class="sec" onclick="autoZones()">🤖 זיהוי אזורים אוטומטי (AI)</button>`;
   }
   if (s === 3) {

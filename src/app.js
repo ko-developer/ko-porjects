@@ -3674,10 +3674,24 @@ function addTuneLine() {
   const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
   const cands = items.filter(([, n]) => n && /כיוון סאונד|תכנות פרוססור/.test(n));
   cands.sort((a, b) => byStockThenSold(a[0], b[0]));
-  const hit = cands[0];
-  const it = { on: true, qty: 1, name: hit ? hit[1] : 'כיוון ותכנות מערכת סאונד', key: hit ? hit[0] : undefined, src: 'בדיקת שלמות', dest: 'work', cat: 'other', u: 1, iid: uid('i') };
-  autoPrice(it); impItems.push(it); save(); render();
-  uiToast('🎛 נוסף סעיף כיוון: ' + it.name.slice(0, 40));
+  if (!cands.length) { uiToast('אין פריטי כיוון בקטלוג'); return; }
+  const ov = uiModal(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">🎛 בחר סעיף כיוון / תכנות</b><button data-x>✕</button></div>
+    <p class="muted" style="font-size:11px;margin:0 0 8px">בחר את הסעיף שמתאים למקום — הוא נכנס להצעה עם המחיר מהקטלוג.</p>
+    ${cands.map(([k, n], i) => { const inf = erpInfo(k); return `
+      <div data-t="${i}" style="display:flex;gap:8px;align-items:center;padding:7px 9px;border:1px solid #eee;border-radius:9px;margin-bottom:5px;cursor:pointer">
+        <b style="flex:1;font-size:12.5px">${esc(n.slice(0, 64))}</b>
+        <span style="background:#f0ede8;border-radius:5px;padding:1px 6px;font-size:10px">${esc(String(k))}</span>
+        ${inf && inf.price ? `<b style="white-space:nowrap">₪${inf.price.toLocaleString()}</b>` : ''}</div>`; }).join('')}`);
+  ov.querySelectorAll('[data-t]').forEach(el => el.onclick = () => {
+    const [k, n] = cands[+el.dataset.t];
+    const it = { on: true, qty: 1, name: n, key: k, src: 'בדיקת שלמות', dest: 'work', cat: 'other', u: 1, iid: uid('i') };
+    autoPrice(it); impItems.push(it); save(); render();
+    ov.remove();
+    uiToast('🎛 נוסף סעיף כיוון: ' + n.slice(0, 40));
+  });
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
 /* 🤔 "האם שכחתי משהו?" — סריקת שלמות: עובר על התכנית וההצעה ומציע את מה שחסר.
    כל ממצא עם כפתור פעולה שמתקן במקום — כך שההצעה יוצאת שלמה בלחיצה. */
@@ -3741,7 +3755,7 @@ function projGapCheck() {
   const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
   if (racks.length && !qsum(it => /פס שקעים|פס חשמל|שקעים לארון|PDU/i.test(it.name))) finds.push({ i: '⚡', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: 'חפש פס שקעים', fn: "gapSearch('פס שקעים')" });
   /* 6. שורת התקנה */
-  if (!rows.some(it => it.dest === 'work' || /התקנה/.test(it.name))) finds.push({ i: '🔧', t: 'אין שורת התקנה/עבודה בהצעה', b: 'פתח טבלת התקנה ותמחור', fn: 'installManager()' });
+  if (!impItems.some(it => it.dest === 'work' || /התקנה|עבודה/.test(it.name || ''))) finds.push({ i: '🔧', t: 'אין שורת התקנה/עבודה בהצעה', b: 'פתח טבלת התקנה ותמחור', fn: 'installManager()' });
   /* 7. קיט התקנה (תשתיות עמדה/ארון) */
   if (!P._instKit && installKitList().length) finds.push({ i: '🧰', t: 'לא נבחר קיט התקנה (עמדה/ארון/סטנדרט)', b: 'בחר קיט התקנה', fn: `patchOfferKits('${(P.zones && P.zones[0] || {}).id || ''}')` });
   /* 8. שורות בלי מק"ט — לא ייכנסו להזמנת ERP */
@@ -7271,7 +7285,7 @@ function renderImp() {
       </div>
       <button class="primary" style="width:100%;margin-top:8px" onclick="addImported()">הוסף את המסומנים לתכנית</button>
       <button style="width:100%;margin-top:6px;background:#f3d9d2;color:#8c2f16" onclick="deleteMarked()">🗑 מחק את השורות המסומנות (✓)</button>
-      <button style="width:100%;margin-top:6px" onclick="suggestRack()">🗄 הצע ארון מסד לפי ה-U הנדרש</button>
+      <button style="width:100%;margin-top:6px" onclick="installerReport()">📑 צפה בדוח התקנה — מתקינים וחשמלאים</button>
       <button style="width:100%;margin-top:6px" onclick="showBom()">🧾 כתב כמויות מהתכנית</button>
       <button style="width:100%;margin-top:8px;background:#0f6e56;color:#fff;font-weight:800;padding:10px" onclick="sendOffer()">📤 שלח הצעה ל-ERP</button>`
     : '<p class="muted">חפש למעלה מוצר או קיט, לחץ עליו — ונקר אותו על התכנית. כל נעיצה נרשמת כאן עם האזור והמחיר.</p>';
