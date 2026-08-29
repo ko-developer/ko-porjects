@@ -8184,21 +8184,44 @@ function zoneTierKits(z) {
     /* דרגה לפי מותג הרמקולים בלבד — מגבר SAE בקיט KT לא הופך אותו ל"ביניים" */
     x._spkTxt = (x.k.items || []).filter(it => isSpeakerItem(it.name || '')).map(it => it.name).join(' ');
   });
+  /* סולם כלכלי: חסכוני = הזול שעומד ביעד · ביניים ≥ ×1.25 ממנו · פרמיום ≥ ×1.3 מהביניים.
+     כולם באותה סקלת יכולת (עומדים ביעד בלי עודף ענק) — הפער הוא פער מותג, לא פער עוצמה. */
+  const tiersOf = ks.map(x => {
+    for (let j = 0; j < RX.length; j++) if (RX[j][1].test(x._spkTxt)) return j;
+    return RX.length - 1;
+  });
+  const byTier = ti => ks.filter((x, i2) => tiersOf[i2] === ti);
+  /* המחיר הזול שעומד ביעד בכל דרגה — משמש כתקרה: דרגה נמוכה לא תעלה על הגבוהות ממנה */
+  const cheapFit = [0, 1, 2].map(ti => {
+    const f = byTier(ti).filter(x => x._spl >= need);
+    return f.length ? Math.min(...f.map(x => x._price)) : Infinity;
+  });
+  const pickIn = (ti, floor, cap) => {
+    const inTier = byTier(ti);
+    if (!inTier.length) return null;
+    const fit = inTier.filter(x => x._spl >= need)
+      .sort((a, b) => (a._price - b._price) || (a._stock.dead - b._stock.dead));
+    const above = fit.filter(x => x._price >= floor);
+    /* קיט שעומד ביעד אבל יקר מהדרגות שמעליו = נתון חשוד/מוצר לא מתאים — נופלים לקרוב ביותר */
+    if (above.length && above[0]._price <= cap) {
+      const pick = above[0];
+      return { pick, alt: fit.filter(x => x !== pick && x._price >= pick._price).slice(0, 3), fits: true, gap: true };
+    }
+    const near0 = inTier.slice().sort((a, b) => (b._spl - a._spl) || (a._price - b._price));
+    const near = near0.filter(x => x._price <= cap).length ? near0.filter(x => x._price <= cap) : near0;
+    const pick = fit[0] && fit[0]._price <= cap ? fit[0] : near[0];
+    return { pick, alt: near.filter(x => x !== pick).slice(0, 3), fits: !!(fit.length && pick._spl >= need), gap: !!above.length && above[0]._price <= cap };
+  };
+  /* בונים מלמטה למעלה כדי לכפות את הסולם; התקרה חוסמת רק חריגות קיצוניות (דרגה נמוכה יקרה בהרבה מהגבוהות) */
+  const bud = pickIn(2, 0, (Math.min(cheapFit[0], cheapFit[1]) * 1.5) || Infinity);
+  const mid = pickIn(1, bud ? bud.pick._price * 1.25 : 0, (cheapFit[0] * 1.5) || Infinity);
+  const prm = pickIn(0, mid ? mid.pick._price * 1.3 : (bud ? bud.pick._price * 1.6 : 0), Infinity);
   const out = [];
-  for (let ti = 0; ti < RX.length; ti++) {
-    const [label, rx, color, blurb] = RX[ti];
-    const inTier = ks.filter(x => {
-      for (let j = 0; j < RX.length; j++) if (RX[j][1].test(x._spkTxt)) return j === ti;   /* הדרגה הראשונה שתופסת */
-      return ti === RX.length - 1;   /* מותג לא מוכר → חסכוני */
-    });
-    if (!inTier.length) continue;
-    /* עומדים ביעד קודם; ביניהם — הקרוב ביותר לעוצמה הדרושה (לא מפלצת מיותרת), אז מלאי, אז מחיר */
-    const fit = inTier.filter(x => x._spl >= need);
-    const pool = fit.length ? fit : inTier;
-    pool.sort((a, b) => (a._spl - need >= 0 && b._spl - need >= 0 ? (a._spl - b._spl) : (b._spl - a._spl))
-      || (a._stock.dead - b._stock.dead) || (a._price - b._price));
-    out.push({ label, color, blurb, fits: !!fit.length, pick: pool[0], alt: pool.slice(1, 4) });
-  }
+  [[0, prm], [1, mid], [2, bud]].forEach(([ti, r]) => {
+    if (!r) return;
+    const [label, , color, blurb] = RX[ti];
+    out.push({ label, color, blurb, fits: r.fits, gap: r.gap, pick: r.pick, alt: r.alt });
+  });
   return out;
 }
 function zoneSpkPicker(zid, tab) {
@@ -8235,7 +8258,8 @@ function zoneSpkPicker(zid, tab) {
     <div style="border:1.5px solid ${extra || '#e3ded6'};border-radius:12px;padding:10px;margin-bottom:8px">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
         <b style="flex:1;font-size:13px">${esc(x.k.name.slice(0, 54))}</b>
-        <b style="white-space:nowrap">₪${kitPriceOf(x.k).toLocaleString()}</b></div>
+        ${x._spl ? `<span class="muted" style="font-size:10.5px;white-space:nowrap">יכולת ~${x._spl}dB</span>` : ''}
+        <b style="white-space:nowrap">₪${Math.round(kitPriceOf(x.k)).toLocaleString()}</b></div>
       <div style="display:flex;gap:5px;align-items:center;margin-bottom:6px">${kitThumbs(x.k, 4)}
         <span class="muted" style="font-size:10.5px">${(x.k.items || []).length} פריטים · ${x._stock && x._stock.dead ? '<span style="color:#a32222">' + x._stock.dead + ' אזלו</span>' : '<span style="color:#0a7a4b">במלאי</span>'}</span></div>
       <div style="display:flex;gap:6px">
@@ -8250,6 +8274,7 @@ function zoneSpkPicker(zid, tab) {
           <div style="display:flex;gap:8px;align-items:baseline"><b style="color:${t.color};font-size:14px">${t.label}</b>
           <span class="muted" style="font-size:11px;flex:1">${t.blurb}</span></div>
           ${t.fits === false ? '<p style="font-size:11px;color:#a32222;margin:2px 0">⚠ אין בדרגה זו קיט שעומד ביעד — מוצג הקרוב ביותר</p>' : ''}
+          ${t.gap === false ? '<p style="font-size:11px;color:#c96a13;margin:2px 0">⚠ אין בקטלוג קיט בדרגה זו במחיר גבוה מהדרגה שמתחתיו — מוצג היקר שבנמצא</p>' : ''}
           ${kitCard(t.pick, t.color + '33')}
           ${t.alt.length ? `<details><summary style="font-size:11.5px;cursor:pointer;color:#666">עוד ${t.alt.length} באותה דרגה</summary>${t.alt.map(a => kitCard(a)).join('')}</details>` : ''}
         </div>`).join('') || '<p class="muted">אין קיטי סאונד בקטלוג</p>';
