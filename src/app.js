@@ -3335,6 +3335,10 @@ function patchRender() {
   body.innerHTML = amps + `
     <div style="font-size:12px;font-weight:700;margin:10px 0 5px">${PATCH.pool.length ? '⚠ ' : '✓ '}רמקולים ללא ערוץ (${PATCH.pool.length})</div>
     <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(id2 => patchChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>
+    ${PATCH.pool.length ? `<div style="display:flex;gap:6px;margin-top:6px">
+      ${PATCH.amps.length ? `<button onclick="patchAddAmp()" style="flex:1;background:#0f6e56;color:#fff;border:none;border-radius:9px;padding:7px;font-weight:700;cursor:pointer;font-size:12px">⚡ עוד ${esc(shortModel(PATCH.amps[PATCH.amps.length - 1].u.name).slice(0, 16))} — הוסף להצעה</button>` : ''}
+      <button onclick="patchAmpPicker()" style="flex:1;background:#534ab7;color:#fff;border:none;border-radius:9px;padding:7px;font-weight:700;cursor:pointer;font-size:12px">🎚 בחר מגבר מהקטלוג</button>
+    </div>` : ''}
     ${estCables ? `<div style="font-size:11px;color:#8a8377;margin-top:6px;background:#f7f5f0;border-radius:8px;padding:6px 8px">🔌 בעת החיבור ייווצרו ${estCables} קווים · ~${estCables * 2} מחברים ייצרכו/יתווספו להצעה אוטומטית</div>` : ''}
     ${totSpkW ? `<div style="font-size:11px;color:#8a8377;margin-top:4px;background:#f7f5f0;border-radius:8px;padding:6px 8px">⚡ סיכום הספקים: 🎚 מגברים ${totAmpW ? totAmpW.toLocaleString() + 'W' : '—'} זמינים בערוצים המאוישים · 🔊 רמקולים צורכים ${totSpkW.toLocaleString()}W RMS<br>
       <span style="font-size:10.5px">יחס הספק לערוץ: <b style="color:#c1121f">אדום</b> = מגבר חלש מהרמקולים · <b style="color:#c96a13">כתום</b> = פחות מ-×2 · <b style="color:#0f8a5f">ירוק</b> = ×2 ומעלה · <b style="color:#b7900f">זהב</b> = ×3 ומעלה</span></div>` : ''}
@@ -3492,20 +3496,57 @@ function patchAutoFill() {
   uiToast('⚡ חולקו ' + assigned.reduce((s2, x) => s2 + x.ids.length, 0) + ' רמקולים על ' + assigned.length + ' ערוצים' + (leftover.length ? ' · נשארו ' + leftover.length : ''));
 }
 /* הוספת מגבר נוסף (משכפל את האחרון) — לארון, להצעה ולמטריצה */
-function patchAddAmp() {
+function patchAddAmp(name, key) {
   const last = PATCH.amps[PATCH.amps.length - 1];
-  if (!last) { uiToast('אין מגבר לשכפול — הוסף מגבר לארון'); return; }
+  const rk = last ? last.rk : P.nodes.find(n => n.kind === 'rack');
+  if (!rk) { uiToast('אין ארון בתכנית — הוסף ארון קודם'); return; }
+  const nm = name || (last && last.u.name);
+  if (!nm) { uiToast('אין מגבר לשכפול — בחר מגבר מהקטלוג'); return; }
   const z = (P.zones || []).find(x => x.id === PATCH.zid);
-  const nu = { id: uid('u'), name: last.u.name, u: last.u.u || 2, cat: last.u.cat || 'amp', pos: (last.rk.units || []).reduce((s, x) => Math.max(s, x.pos + x.u), 0) };
-  if (nu.pos + nu.u > last.rk.ru) last.rk.ru = nu.pos + nu.u;
-  last.rk.units.push(nu);
-  let it = impItems.find(x => x.name === last.u.name && x.dest === 'unit');
+  const nu = { id: uid('u'), name: nm, u: (last && last.u.name === nm ? last.u.u : 2) || 2, cat: 'amp', pos: (rk.units || []).reduce((s, x) => Math.max(s, x.pos + x.u), 0) };
+  if (nu.pos + nu.u > rk.ru) rk.ru = nu.pos + nu.u;
+  (rk.units = rk.units || []).push(nu);
+  let it = impItems.find(x => x.name === nm && x.dest === 'unit');
   if (it) { it.qty = (+it.qty || 1) + 1; it.placed = (it.placed || 0) + 1; if (z) { it.zones = it.zones || {}; it.zones[z.name] = (it.zones[z.name] || 0) + 1; } }
-  else { it = { on: true, qty: 1, name: last.u.name, src: 'חיווט · ' + (z ? z.name : ''), dest: 'unit', cat: 'amp', u: nu.u, iid: uid('i'), added: true, placed: 1, zones: z ? { [z.name]: 1 } : undefined }; autoPrice(it); impItems.push(it); }
-  PATCH.amps.push({ rk: last.rk, u: nu, minOhm: ampMinOhm(nu.name), chTotal: ampChCount(nu.name), pre: new Set() });
+  else { it = { on: true, qty: 1, name: nm, key: key || undefined, src: 'חיווט · ' + (z ? z.name : ''), dest: 'unit', cat: 'amp', u: nu.u, iid: uid('i'), added: true, placed: 1, zones: z ? { [z.name]: 1 } : undefined }; autoPrice(it); impItems.push(it); }
+  PATCH.amps.push({ rk, u: nu, minOhm: ampMinOhm(nu.name), chTotal: ampChCount(nu.name), pre: new Set() });
   render(); save();
   patchRender();
-  uiToast('✓ נוסף מגבר "' + nu.name.slice(0, 26) + '" לארון ולהצעה');
+  uiToast('✓ נוסף מגבר "' + nu.name.slice(0, 26) + '" לארון ולהצעה — ' + ampChCount(nu.name) + ' ערוצים פנויים');
+}
+/* בורר מגבר מהקטלוג — לרמקולים שנשארו בלי ערוץ */
+function patchAmpPicker() {
+  const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
+  const AMP_RX = /מגבר|amplifier/i;
+  const NOT_RX = /כרטיס|card|מתקן|תושבת|כבל|מחבר|ערכת|מדף|מאוורר|ת\.ח|רסיבר|ביתי|שנאי|בורר|למגבר|דוגמא|חלופי|לתיקון|פגום/;
+  const seen = new Set(); const rows = [];
+  for (const it of items) {
+    const key = it[0], name = it[1];
+    if (!name || seen.has(name) || !AMP_RX.test(name) || NOT_RX.test(name)) continue;
+    seen.add(name); rows.push({ key, name });
+  }
+  rows.sort((a, b) => byStockThenSold(a.key, b.key) || a.name.localeCompare(b.name, 'he'));
+  const last = PATCH.amps[PATCH.amps.length - 1];
+  const ov = uiModal(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">🎚 הוסף מגבר להצעה ולארון</b><button data-x>✕</button></div>
+    ${last ? `<button class="primary" data-dup style="width:100%;margin-bottom:8px;font-weight:700">⚡ מומלץ — עוד ${esc(shortModel(last.u.name))} (כמו הקיים · ${ampChCount(last.u.name)} ערוצים)</button>` : ''}
+    <input data-q placeholder="🔍 סינון מגברים…" style="width:100%;padding:6px;font-size:14px;box-sizing:border-box;margin-bottom:8px">
+    <div data-list style="max-height:44vh;overflow-y:auto"></div>`);
+  const listEl = ov.querySelector('[data-list]');
+  const paint = q => {
+    const f = rows.filter(r => !q || r.name.toLowerCase().includes(q.toLowerCase()));
+    listEl.innerHTML = f.slice(0, 50).map(r => `
+      <div data-i="${rows.indexOf(r)}" style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;cursor:pointer">
+        ${imgCell(r.key, 36, r.name)}<b style="flex:1;font-size:12.5px">${esc(r.name.slice(0, 58))}</b>
+        <span class="muted" style="font-size:10.5px;white-space:nowrap">${ampChCount(r.name)} ער׳</span>
+        ${stockBadge(r.key)}</div>`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
+    listEl.querySelectorAll('[data-i]').forEach(el => el.onclick = () => { const r = rows[+el.dataset.i]; ov.remove(); patchAddAmp(r.name, r.key); });
+  };
+  paint('');
+  ov.querySelector('[data-q]').oninput = e => paint(e.target.value);
+  if (ov.querySelector('[data-dup]')) ov.querySelector('[data-dup]').onclick = () => { ov.remove(); patchAddAmp(); };
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
 /* אפשרויות מקור כבל הרמקולים — גלילים מהמלאי ומהצעת המחיר; ההמלצה נבחרת אוטומטית */
 function patchCableOpts() {
