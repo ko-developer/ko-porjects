@@ -442,6 +442,22 @@ async function installerReport() {
     <h2>אזורים</h2><table><tr><th>אזור</th><th>תכלית</th><th>שטח</th><th>תקרה</th></tr>${zsum || '<tr><td colspan="4">—</td></tr>'}</table>
     <h2>ארונות — סדר הרכבה</h2>${racks || '<p>אין ארונות</p>'}
     <h2>רמקולים — תלייה וכיוון</h2><table><tr><th>רמקול</th><th>מיקום</th><th>גובה</th><th>תושבת</th><th>כיוון</th></tr>${spk || '<tr><td colspan="5">—</td></tr>'}</table>
+    <h2>⚡ הכנות חשמל — לביצוע ע"י חשמלאי מוסמך, לפני יום ההתקנה</h2>
+    ${(() => {
+      const amps = P.nodes.filter(n => n.kind === 'rack').reduce((s2, rk) => s2 + (rk.units || []).filter(u => /מגבר|amp|DNA|DPA|DYNAMIQ|PLM|MX3|PQM|IPD/i.test(u.name)).length, 0);
+      const rms = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')).reduce((s2, n) => s2 + (n.pow ?? (spkData(n.name) || {}).w ?? 150), 0);
+      const heavy = rms > 2000;
+      const rackNm = (P.nodes.find(n => n.kind === 'rack') || {}).name || 'ריכוז המגברים';
+      const pulls = P.cables.filter(c => c.inst === 'pull').length;
+      return `<ul style="margin:4px 0;padding-right:18px;line-height:1.7">
+        <li><b>קו הזנה ייעודי לארון "${esc(rackNm)}":</b> מעגל ${heavy ? '2×16A נפרדים (או 1×25A)' : '16A'} מהלוח, עם מפסק פחת ייעודי — לא משותף למטבח/מיזוג. בארון ${amps || '—'} מגברים, צריכה מרבית משוערת ~${Math.round(rms * 1.3 / 100) / 10}kW (רמקולים ${rms.toLocaleString()}W RMS).</li>
+        <li><b>נקודות חשמל בארון:</b> פס שקעים מוארק בתוך הארון (6 שקעים לפחות), מוזן מהקו הייעודי בלבד.</li>
+        <li><b>הארקה:</b> כל השקעים מוארקים ובדוקים. הפרשי הארקה בין עמדות = זמזום במערכת.</li>
+        <li><b>תשתיות וצנרת:</b> השחלת צינורות/תעלות לקווי הרמקולים בהתאם ללוח משיכת הכבלים שמטה${pulls ? ` (${pulls} קווים מסומנים "העברה")` : ''} — קווי רמקול בהפרדה מקווי חשמל (הצלבה ב-90° בלבד).</li>
+        <li><b>עמדת נגינה/DJ (אם קיימת):</b> שקע מוארק + צינור 25מ"מ פנוי אל הארון.</li>
+        <li><b>תיאום:</b> כל הכנות החשמל באחריות הלקוח ומסתיימות לפני הגעת צוות ההתקנה. שינויים — בתיאום מראש עם KO.</li>
+      </ul>`;
+    })()}
     <h2>לוח משיכת כבלים</h2><table><tr><th>#</th><th>מ־</th><th>אל</th><th>סוג</th><th>אורך</th><th>מחברים</th><th>סטטוס</th><th>הערה</th></tr>${cbl || '<tr><td colspan="8">—</td></tr>'}</table>
     <h2>רשימת ציוד מלאה</h2><table><tr><th></th><th>פריט</th><th>מק"ט</th><th>כמות</th><th>אזור</th></tr>${items || '<tr><td colspan="4">—</td></tr>'}</table>
     </body></html>`;
