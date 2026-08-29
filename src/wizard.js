@@ -381,8 +381,7 @@ function installerReport() {
       <td>${c.inst === 'exist' ? 'קיים' : c.inst === 'pull' ? 'העברה' : 'חדש'}</td><td>${esc(c.note || '')}</td></tr>`;
   }).join('');
   const items = impItems.filter(it => it.on !== false).map(it => `<tr><td>${esc(it.name.slice(0, 55))}</td><td>${esc(it.key || '—')}</td><td>${it.qty}</td><td>${it.zones ? esc(Object.keys(it.zones).join(', ')) : '—'}</td></tr>`).join('');
-  const win = window.open('', '_blank');
-  win.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>דוח מתקינים — ${esc(P.name)}</title>
+  const repHtml = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>דוח מתקינים — ${esc(P.name)}</title>
     <style>body{font-family:-apple-system,'Segoe UI',Arial;margin:24px;color:#1a1e28;font-size:12.5px}
     h1{font-size:20px;border-bottom:3px solid #c9502e;padding-bottom:6px}h2{font-size:16px;margin:22px 0 6px;background:#f4f2ec;padding:5px 10px;border-radius:7px}h3{font-size:13.5px;margin:12px 0 4px}
     table{border-collapse:collapse;width:100%;margin-bottom:8px}th,td{border:1px solid #ccc;padding:4px 7px;text-align:right;font-size:11.5px}th{background:#f4f2ec}
@@ -394,6 +393,22 @@ function installerReport() {
     <h2>רמקולים — תלייה וכיוון</h2><table><tr><th>רמקול</th><th>מיקום</th><th>גובה</th><th>תושבת</th><th>כיוון</th></tr>${spk || '<tr><td colspan="5">—</td></tr>'}</table>
     <h2>לוח משיכת כבלים</h2><table><tr><th>#</th><th>מ־</th><th>אל</th><th>סוג</th><th>אורך</th><th>מחברים</th><th>סטטוס</th><th>הערה</th></tr>${cbl || '<tr><td colspan="8">—</td></tr>'}</table>
     <h2>רשימת ציוד מלאה</h2><table><tr><th>פריט</th><th>מק"ט</th><th>כמות</th><th>אזור</th></tr>${items || '<tr><td colspan="4">—</td></tr>'}</table>
-    <script>window.print()<\/script></body></html>`);
-  win.document.close();
+    </body></html>`;
+  /* חלון קופץ נחסם בדפדפנים משובצים — הדוח נפתח בשכבה בתוך הדף עם הדפסה מ-iframe */
+  const old2 = document.getElementById('repOv'); if (old2) old2.remove();
+  const ov = document.createElement('div');
+  ov.id = 'repOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.55);z-index:130;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = `<div style="background:#fff;border-radius:14px;width:min(960px,96vw);height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.4)">
+    <div style="display:flex;gap:8px;align-items:center;padding:10px 14px;background:#1a1e28;color:#fff">
+      <b style="flex:1">🔧 דוח מתקינים — ${esc(P.name.slice(0, 30))}</b>
+      <button id="repPrint" style="background:#c9502e;color:#fff;border:none;border-radius:8px;padding:6px 16px;font-weight:700;cursor:pointer">🖨 הדפסה / PDF</button>
+      <button id="repClose" style="background:transparent;border:none;color:#fff;font-size:17px;cursor:pointer">✕</button></div>
+    <iframe id="repIfr" style="flex:1;border:none;width:100%"></iframe></div>`;
+  document.body.appendChild(ov);
+  const ifr = ov.querySelector('#repIfr');
+  ifr.srcdoc = repHtml;
+  ov.querySelector('#repPrint').onclick = () => { try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch (e) { window.print(); } };
+  ov.querySelector('#repClose').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
