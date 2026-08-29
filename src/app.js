@@ -3667,7 +3667,17 @@ async function patchApply() {
   uiToast('✓ חוברו ' + n2 + ' כבלים' + (addedConn > 0 ? ' · נוספו ' + addedConn + ' מחברים להצעה' : '') + (left ? ' · ⚠ ' + left + ' רמקולים ללא ערוץ' : ''));
   if (window.__patchDone) { const cb9 = window.__patchDone; window.__patchDone = null; cb9(); }
   /* הצעת קיטי התקנה/אביזרים לפרויקט — סוגרים את הפרויקט בקנייה אחת */
-  setTimeout(() => patchOfferKits(zid0), 400);
+  if (typeof WIZ === 'undefined' || !WIZ) setTimeout(() => patchOfferKits(zid0), 400);
+}
+/* סעיף כיוון/תכנות מערכת סאונד מהקטלוג — נבחר לפי מלאי/מכירות */
+function addTuneLine() {
+  const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
+  const cands = items.filter(([, n]) => n && /תכנות|כיוון/.test(n) && /סאונד|פרוססור|מערכת/.test(n) && !/ת\.ח|כרטיס/.test(n));
+  cands.sort((a, b) => byStockThenSold(a[0], b[0]));
+  const hit = cands[0];
+  const it = { on: true, qty: 1, name: hit ? hit[1] : 'כיוון ותכנות מערכת סאונד', key: hit ? hit[0] : undefined, src: 'בדיקת שלמות', dest: 'work', cat: 'other', u: 1, iid: uid('i') };
+  autoPrice(it); impItems.push(it); save(); render();
+  uiToast('🎛 נוסף סעיף כיוון: ' + it.name.slice(0, 40));
 }
 /* 🤔 "האם שכחתי משהו?" — סריקת שלמות: עובר על התכנית וההצעה ומציע את מה שחסר.
    כל ממצא עם כפתור פעולה שמתקן במקום — כך שההצעה יוצאת שלמה בלחיצה. */
@@ -3682,6 +3692,10 @@ function projGapCheck() {
     const un = spkN.filter(n => (n.sub || '').includes(z.name) && !fed.has(n.id)).length;
     if (un) finds.push({ i: '🔌', t: un + ' רמקולים לא מחווטים באזור "' + esc(z.name) + '"', b: 'חווט עכשיו', fn: `smartWire('${z.id}')` });
   });
+  /* 1ב. אין סעיף כיוון/תכנות מערכת סאונד — חובה בכל הצעה עם רמקולים */
+  if (spkN.length && !rows.some(it => /כיוון|תכנות/.test(it.name || ''))) {
+    finds.push({ i: '🎛', t: 'אין סעיף כיוון/תכנות מערכת סאונד בהצעה', b: 'הוסף סעיף כיוון', fn: 'addTuneLine()' });
+  }
   /* 2. קווים בלי מוצר כבל בהצעה */
   const noRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && +c.len > 0).length;
   if (noRef) finds.push({ i: '🧵', t: noRef + ' קווים ללא שורת כבל בהצעה', b: 'השלם גלילי כבל (+15% רזרבה)', fn: 'wizFillCables()' });
@@ -7986,6 +8000,11 @@ const INSTALL_DEFAULTS = [
 ];
 function installRates() {
   if (!store.installRates || !store.installRates.length) store.installRates = JSON.parse(JSON.stringify(INSTALL_DEFAULTS));
+  /* ניקוי חד-פעמי: שורות עבודה גנריות שיובאו בעבר מקיטים */
+  const GEN = /צוות טכנאים|טכנאי בודד|לשעת עבודה|ליום עבודה|לפי הצעת מחיר/;
+  const before = store.installRates.length;
+  store.installRates = store.installRates.filter(r => !(r.kit && GEN.test(r.label || '')));
+  if (store.installRates.length !== before) save();
   return store.installRates;
 }
 /* כמויות מהפרויקט הנוכחי — לפי מה שבאמת הוצב ותוכנן */
@@ -8010,8 +8029,10 @@ function installKitRows(ctx) {
   if (!ctx || !ctx.items) return 0;
   const rates = installRates();
   let n = 0;
+  const GENERIC_LABOR = /צוות טכנאים|טכנאי בודד|לשעת עבודה|ליום עבודה|לפי הצעת מחיר/;
   ctx.items.forEach(x => {
     if (!INSTALL_ITEM_RE.test(x.name || '')) return;
+    if (GENERIC_LABOR.test(x.name || '')) return;   /* שורת עבודה גנרית — התמחור בטבלה, לא כסעיף מהקיט */
     const key = 'kit_' + rearKey(x.name).slice(0, 24);
     const ex = rates.find(r => r.k === key);
     const price = (x.key && typeof ERP_PRICES !== 'undefined' && ERP_PRICES[x.key] != null) ? +ERP_PRICES[x.key] : 0;
@@ -8172,6 +8193,12 @@ function zoneKitConfirm(zname, idx) {
   const z = (P.zones || []).find(x => x.name === zname);
   /* כמויות ומק"טים עריכים בפופאפ — 🔄 מחליף פריט מהקטלוג לפני שהקיט נכנס להצעה */
   const cur = k.items.map(x => ({ ...x, qty: +x.qty || 1 }));
+  /* סעיף ההתקנה היחיד בשימוש: "התקנה לפי הצעת מחיר" (214) — שורות טכנאי גנריות מוחלפות בו */
+  {
+    const GEN = /התקנה.*(צוות טכנאים|טכנאי בודד|לשעת עבודה|ליום עבודה)/;
+    const std = installErpItem('quote', 1);
+    cur.forEach(x => { if (std && GEN.test(x.name || '')) { x.name = std[1]; x.key = std[0]; x._swapped214 = true; } });
+  }
   const ov = uiModal(`
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
@@ -8188,6 +8215,7 @@ function zoneKitConfirm(zname, idx) {
       <div style="display:flex;gap:6px;align-items:center">
         <input data-kq="${i}" type="number" min="0" value="${x.qty}" style="width:48px;font-size:12px;padding:2px 4px;flex:none">
         <span style="flex:1;font-size:11.5px;text-align:right">${esc((x.name || '').slice(0, 46))}</span>
+        ${(() => { const inf = x.key ? erpInfo(x.key) : null; const pr = inf ? inf.price : 0; return pr ? `<b style="white-space:nowrap;font-size:11px">₪${Math.round(pr * (x.qty || 1)).toLocaleString()}</b><span class="muted" style="font-size:9.5px;white-space:nowrap">₪${Math.round(pr).toLocaleString()}/יח׳</span>` : '<span class="muted" style="font-size:10px">—</span>'; })()}
         ${x.key ? `<span style="background:#f0ede8;border-radius:5px;padding:1px 6px;font-size:10px;white-space:nowrap" title="מק&quot;ט ERP">${esc(String(x.key))}</span>` : '<span style="color:#c1121f;font-size:10px;white-space:nowrap">ללא מק"ט</span>'}
         <button data-swap="${i}" title="החלף פריט מהקטלוג" style="padding:1px 6px;font-size:11px;flex:none">🔄</button>
       </div>

@@ -184,7 +184,7 @@ function wizStepHTML(s) {
     <h4>חיווט — אישור הניתוב לכל אזור</h4>
     <p class="hint">לכל אזור: טבלת הניתוב מציגה ערוצים, אום, יחס הספק, דיליי ו-Bridge. אשר "חבר" בכל אזור — ורק אז ממשיכים לקיט ההתקנה.</p>
     ${zs.map(zz => { const w2 = wizWireStat(zz); const ok = w2.tot && w2.fed >= w2.tot;
-      return `<button class="sec ${ok ? 'done' : ''}" onclick="wizEnsureMic('${zz.id}');window.__patchDone=function(){wizRender();};smartWire('${zz.id}')">${ok ? '✓' : '🔌'} ${esc(zz.name)} — ${w2.fed}/${w2.tot} רמקולים מחווטים${ok ? '' : ' · פתח לאישור'}</button>`; }).join('') || '<p class="hint">אין עדיין אזורים בנויים — חזור לשלב המערכת.</p>'}
+      return `<button class="sec ${ok ? 'done' : ''}" onclick="wizEnsureMic('${zz.id}');window.__patchDone=wizWireStepDone;smartWire('${zz.id}')">${ok ? '✓' : '🔌'} ${esc(zz.name)} — ${w2.fed}/${w2.tot} רמקולים מחווטים${ok ? '' : ' · פתח לאישור'}</button>`; }).join('') || '<p class="hint">אין עדיין אזורים בנויים — חזור לשלב המערכת.</p>'}
     ${allOk ? '<button class="big" style="background:#0f6e56" onclick="WIZ.step=5;wizRender()">✓ הכל מחווט — המשך לקיט ההתקנה</button>' : ''}`;
   }
   if (s === 5) {
@@ -295,6 +295,13 @@ function wizEnsureMic(zid) {
   const bm = zoneBounds(z);
   P.nodes.push({ id: uid('n'), kind: 'point', ptype: 'mic', name: 'מיקרופון מדידה', sub: 'נק׳ מדידה · ' + z.name, x: 2200 - (bm.L + bm.W / 2) - 20, y: (bm.T + bm.H / 2) - 24, mini: true, noCov: true });
   render(); save();
+}
+/* אישור "חבר" בשלב החיווט: אם כל האזורים מחווטים — מתקדמים אוטומטית לקיט ההתקנה */
+function wizWireStepDone() {
+  if (!WIZ) return;
+  const allOk = (P.zones || []).every(zz => { const w = wizWireStat(zz); return !w.tot || w.fed >= w.tot; });
+  if (allOk) { WIZ.step = 5; wizRender(); uiToast('✓ כל האזורים מחווטים — עוברים לקיט ההתקנה'); }
+  else wizRender();
 }
 /* המשך אחרי אישור חיווט של אזור: האזור הבא אם יש, אחרת שלב החיווט המרוכז */
 function wizAfterWire(z) {
