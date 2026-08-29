@@ -3672,7 +3672,7 @@ async function patchApply() {
 /* סעיף כיוון/תכנות מערכת סאונד מהקטלוג — נבחר לפי מלאי/מכירות */
 function addTuneLine() {
   const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
-  const cands = items.filter(([, n]) => n && /תכנות|כיוון/.test(n) && /סאונד|פרוססור|מערכת/.test(n) && !/ת\.ח|כרטיס/.test(n));
+  const cands = items.filter(([, n]) => n && /כיוון סאונד|תכנות פרוססור/.test(n));
   cands.sort((a, b) => byStockThenSold(a[0], b[0]));
   const hit = cands[0];
   const it = { on: true, qty: 1, name: hit ? hit[1] : 'כיוון ותכנות מערכת סאונד', key: hit ? hit[0] : undefined, src: 'בדיקת שלמות', dest: 'work', cat: 'other', u: 1, iid: uid('i') };
