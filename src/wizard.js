@@ -493,9 +493,10 @@ async function installerReport() {
     </table>`).join('');
   const spk = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')).map(n => `
     <tr><td>${esc(n.name.slice(0, 40))}</td><td>${esc((n.sub || '').slice(0, 24))}</td><td>${n.hgt ?? '—'} מ׳</td><td>${esc(n.mount || '—')}</td><td>${n.aim != null ? n.aim + '°' : '—'}</td></tr>`).join('');
+  const spkNumOf = id => { const n0 = byId(id); const m0 = n0 && (n0.name || '').match(/\((\d+)\)/); return m0 ? m0[1] : ''; };
   const cbl = P.cables.map(c => {
     const conns = (c.conn ? (CONNS[c.conn]?.n || c.conn) : '') + (c.conn2 && c.conn2 !== c.conn ? ' ← ' + (CONNS[c.conn2]?.n || c.conn2) : '');
-    return `<tr><td><b>${LBL[c.id]}</b></td><td>${esc(endNameTxt(c.from, c.fromUnit))}${c.pOut ? ' · ' + esc(c.pOut) : c.fromHole ? ' · חור ' + c.fromHole : ''}</td>
+    return `<tr><td><b>${LBL[c.id]}</b></td><td style="text-align:center"><b>${spkNumOf(c.to) || '—'}</b></td><td>${esc(endNameTxt(c.from, c.fromUnit))}${c.pOut ? ' · ' + esc(c.pOut) : c.fromHole ? ' · חור ' + c.fromHole : ''}</td>
       <td>${esc(endNameTxt(c.to, c.toUnit))}${c.pIn ? ' · ' + esc(c.pIn) : c.toHole ? ' · חור ' + c.toHole : ''}</td>
       <td>${CTYPES[c.type]?.n || c.type}${c.cores ? ' ×' + c.cores : ''}</td><td>${c.len ? c.len + ' מ׳' : '—'}</td><td>${esc(conns)}</td>
       <td>${c.inst === 'exist' ? 'קיים' : c.inst === 'pull' ? 'העברה' : 'חדש'}</td><td>${esc(c.note || '')}</td></tr>`;
@@ -504,6 +505,25 @@ async function installerReport() {
     const u = (typeof erpImg === 'function' && erpImg(it.key)) || (typeof modelImg === 'function' && modelImg(it.name)) || '';
     return `<tr><td style="width:46px;text-align:center">${u ? `<img src="${esc(u)}" style="width:42px;height:42px;object-fit:contain">` : ''}</td><td>${esc(it.name.slice(0, 55))}</td><td>${esc(it.key || '—')}</td><td>${it.qty}</td><td>${it.zones ? esc(Object.keys(it.zones).join(', ')) : '—'}</td></tr>`;
   }).join('');
+  const rackConn = (() => {
+    const heads = P.cables.filter(c => c.pOut && c.fromUnit);
+    if (!heads.length) return '';
+    const by = {};
+    heads.forEach(c => {
+      const rk = byId(c.from); const u = rk && (rk.units || []).find(x => x.id === c.fromUnit);
+      const k = (u ? shortModel(u.name) : 'מגבר') + '|' + c.pOut;
+      (by[k] = by[k] || []).push(c);
+    });
+    const spN = id => { const n0 = byId(id); const m0 = n0 && (n0.name || '').match(/\((\d+)\)/); return m0 ? m0[1] : '—'; };
+    const trs = Object.entries(by).map(([k, cs]) => {
+      const [amp, out] = k.split('|');
+      return cs.map((c, i) => { const tn = byId(c.to);
+        return `<tr>${i === 0 ? `<td rowspan="${cs.length}" style="font-weight:800">${esc(amp)}</td><td rowspan="${cs.length}" style="font-weight:700">${esc(out)}</td>` : ''}<td style="text-align:center"><b>${LBL[c.id] || ''}</b></td><td style="text-align:center"><b>${spN(c.to)}</b></td><td>${esc(tn ? tn.name.slice(0, 40) : '')}</td></tr>`; }).join('');
+    }).join('');
+    return `<h2>חיבורי קווים לארון — איזה רמקול, דרך איזה קו, לאיזה מגבר</h2>
+      <p class="meta">כל שורה = קו אחד: מהמגבר והיציאה שבצד ימין, דרך הקו הממוספר, אל הרמקול הממוספר בתכנית.</p>
+      <table><tr><th>מגבר</th><th>יציאה</th><th>קו מס׳</th><th>רמקול מס׳</th><th>רמקול</th></tr>${trs}</table>`;
+  })();
   const spkCnt = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')).length;
   const rackN = P.nodes.find(n => n.kind === 'rack');
   const ampCnt = P.nodes.filter(n => n.kind === 'rack').reduce((s2, rk) => s2 + (rk.units || []).filter(u => /מגבר|amp|DNA|DPA|DYNAMIQ|PLM|MX3|PQM|IPD/i.test(u.name)).length, 0);
@@ -522,14 +542,6 @@ async function installerReport() {
       ${(P.zones || []).length} אזורי סאונד · <b>${spkCnt}</b> רמקולים וסאבים · ארון "${esc((rackN || {}).name || '—')}" עם <b>${ampCnt}</b> מגברים · <b>${P.cables.length}</b> קווים בתכנית.</p>
     <table><tr><th>אזור</th><th>תכלית</th><th>שטח</th><th>תקרה</th></tr>${zsum || '<tr><td colspan="4">—</td></tr>'}</table>
 
-    <h2>כתב כמויות</h2><table><tr><th></th><th>פריט</th><th>מק"ט</th><th>כמות</th><th>אזור</th></tr>${items || '<tr><td colspan="5">—</td></tr>'}</table>
-
-    ${planImg}
-    ${coverImg}
-
-    <h2>ארונות — סדר הרכבה</h2>${racks || '<p>אין ארונות</p>'}
-    <h2>רמקולים — תלייה וכיוון</h2><table><tr><th>רמקול</th><th>מיקום</th><th>גובה</th><th>תושבת</th><th>כיוון</th></tr>${spk || '<tr><td colspan="5">—</td></tr>'}</table>
-
     <h2>⚡ הכנות חשמל ותשתית — דרישות מחייבות (ביצוע ע"י חשמלאי מוסמך, לפני יום ההתקנה)</h2>
     <h3>הזנת חשמל</h3>
     <ul style="margin:4px 0;padding-right:18px;line-height:1.75">
@@ -545,7 +557,16 @@ async function installerReport() {
       <li><b>ה · שלמות הקו:</b> לא יבוצעו הארכות או חיבורי ביניים על הדרך בשום צורה — קו רציף מקצה לקצה.</li>
     </ul>
 
-    <h2>לוח משיכת כבלים</h2><table><tr><th>#</th><th>מ־</th><th>אל</th><th>סוג</th><th>אורך</th><th>מחברים</th><th>סטטוס</th><th>הערה</th></tr>${cbl || '<tr><td colspan="8">—</td></tr>'}</table>
+
+    ${planImg}
+    <h2>לוח משיכת כבלים</h2><table><tr><th>קו מס׳</th><th>רמקול מס׳</th><th>מ־</th><th>אל</th><th>סוג</th><th>אורך</th><th>מחברים</th><th>סטטוס</th><th>הערה</th></tr>${cbl || '<tr><td colspan="9">—</td></tr>'}</table>
+
+    ${coverImg}
+    <h2>רמקולים — תלייה וכיוון</h2><table><tr><th>רמקול</th><th>מיקום</th><th>גובה</th><th>תושבת</th><th>כיוון</th></tr>${spk || '<tr><td colspan="5">—</td></tr>'}</table>
+    ${rackConn}
+    <h2>ארונות — סדר הרכבה</h2>${racks || '<p>אין ארונות</p>'}
+    <h2>כתב כמויות</h2><table><tr><th></th><th>פריט</th><th>מק"ט</th><th>כמות</th><th>אזור</th></tr>${items || '<tr><td colspan="5">—</td></tr>'}</table>
+
     </body></html>`;
   /* חלון קופץ נחסם בדפדפנים משובצים — הדוח נפתח בשכבה בתוך הדף עם הדפסה מ-iframe */
   const old2 = document.getElementById('repOv'); if (old2) old2.remove();
