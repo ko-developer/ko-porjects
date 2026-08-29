@@ -885,6 +885,7 @@ function renderHeader() {
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
     <button onclick="mergeOfferDupes()">🧹 אחד שורות כפולות בהצעה</button>
     <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
+    <button onclick="openLogic()">🎯 לוגיקת תכלית ← מערכת — טבלאות ההיגיון</button>
     <button onclick="verManager()">🕘 היסטוריית גרסאות — שחזור מצב קודם</button>
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>
     <button onclick="rearLibManager()">🛠 ספריית גבי מוצרים</button>
@@ -6239,6 +6240,12 @@ async function kitFromOffer() {
 }
 // מעבר למטריצת ההתאמות באותה לשונית — כדי שחזרה תהיה טבעית (Back או הכפתור במטריצה)
 const MATRIX_URL = 'https://claude.ai/code/artifact/472d0973-17a9-4314-a5e6-40176341cb12';
+const LOGIC_URL = 'https://claude.ai/code/artifact/67c32ed8-7770-4937-99f7-60c83f9279a0';
+function openLogic() {
+  try { localStorage.setItem('koReturn', location.href); } catch (e) {}
+  location.href = LOGIC_URL;
+}
+window.openLogic = openLogic;
 function openMatrix() {
   try { localStorage.setItem('koReturn', location.href); } catch (e) {}
   location.href = MATRIX_URL;
