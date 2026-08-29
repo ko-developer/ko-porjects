@@ -7,9 +7,16 @@ let WIZ = null; /* { step } */
 
 const WIZ_STEPS = [
   ['plan', '🖼 תכנית'], ['cal', '📏 כיול'], ['zone', '🗺 אזור'],
-  ['sys', '🔊 מערכת'], ['kit', '🧰 קיט התקנה'], ['gap', '🤔 שכחתי משהו?'],
-  ['offer', '🧾 הצעה'], ['report', '📑 דוח']
+  ['sys', '🔊 מערכת'], ['wire', '🔌 חיווט'], ['kit', '🧰 קיט התקנה'],
+  ['gap', '🤔 שכחתי משהו?'], ['offer', '🧾 הצעה'], ['report', '📑 דוח']
 ];
+/* מצב חיווט של אזור: כמה רמקולים ניזונים מקו */
+function wizWireStat(z) {
+  const fed = new Set(); P.cables.forEach(c => { if (c.to) fed.add(c.to); });
+  const spks = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')
+    && (n.sub || '').includes(z.name) && !/עמדת נגינה|מגבר|פרוססור|מיקרופון/i.test(n.name));
+  return { tot: spks.length, fed: spks.filter(n => fed.has(n.id)).length };
+}
 
 function wizardStart() {
   WIZ = { step: wizAutoStep() };
@@ -54,15 +61,18 @@ function wizAutoStep() {
   if (!P.bg) return 0;
   if (!P.scale) return 1;
   if (!(P.zones || []).length) return 2;
-  if (!(P.zones || []).some(z => z._built)) return 3;
-  if (!P._instKit) return 4;
-  if (!P._gapOk) return 5;
-  return 6;
+  if (!(P.zones || []).every(z => z._built)) return 3;
+  if ((P.zones || []).some(z => { const w = wizWireStat(z); return w.tot && w.fed < w.tot; })) return 4;
+  if (!P._instKit) return 5;
+  if (!P._gapOk) return 6;
+  return 7;
 }
 function wizZone() { return (P.zones || []).find(z => z.id === WIZ?.zid) || (P.zones || [])[0]; }
 function wizDone(i) {
-  const z = wizZone();
-  return [!!P.bg, !!P.scale, !!(P.zones || []).length, !!(z && z._built), !!P._instKit, !!P._gapOk, impItems.length > 0, false][i];
+  const zs = P.zones || [];
+  const allBuilt = zs.length > 0 && zs.every(z => z._built);
+  const allWired = zs.length > 0 && zs.every(z => { const w = wizWireStat(z); return !w.tot || w.fed >= w.tot; }) && zs.some(z => wizWireStat(z).tot);
+  return [!!P.bg, !!P.scale, !!zs.length, allBuilt, allWired, !!P._instKit, !!P._gapOk, impItems.length > 0, false][i];
 }
 function wizRefreshBadges() {
   document.querySelectorAll('#wiz .wzstep').forEach((el, i) => el.classList.toggle('done', wizDone(i) && i !== WIZ.step));
@@ -154,6 +164,7 @@ function wizStepHTML(s) {
     const usages = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];
     return `
     <h4>מערכת לאזור "${esc(z.name)}"</h4>
+    ${(P.zones || []).length > 1 ? (P.zones || []).map(zz => `<button class="sec ${zz.id === z.id ? 'done' : ''}" style="${zz.id === z.id ? 'font-weight:800' : ''}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">${zz._built ? '✓' : '○'} ${esc(zz.name)}${zz.usage ? ' · ' + esc(zz.usage) : ''}${zz._built ? ' — נבנה' : ''}</button>`).join('') : ''}
     <select onchange="setZoneField('${z.id}','usage',this.value)">
       <option value="">— תכלית / עוצמה —</option>
       ${usages.map(u => `<option ${z.usage === u ? 'selected' : ''}>${u}</option>`).join('')}
@@ -168,20 +179,30 @@ function wizStepHTML(s) {
       <button class="sec" style="background:#eef7f1;border-color:#bfe0cd;color:#0f6e56;font-weight:700" onclick="smartWire('${z.id}')">🔌 פתח את טבלת החיווט — ניתוב, אום, הספק ודיליי</button>` : ''}`;
   }
   if (s === 4) {
+    const zs = (P.zones || []).filter(zz => zz._built || wizWireStat(zz).tot);
+    const allOk = zs.length && zs.every(zz => { const w2 = wizWireStat(zz); return !w2.tot || w2.fed >= w2.tot; });
+    return `
+    <h4>חיווט — אישור הניתוב לכל אזור</h4>
+    <p class="hint">לכל אזור: טבלת הניתוב מציגה ערוצים, אום, יחס הספק, דיליי ו-Bridge. אשר "חבר" בכל אזור — ורק אז ממשיכים לקיט ההתקנה.</p>
+    ${zs.map(zz => { const w2 = wizWireStat(zz); const ok = w2.tot && w2.fed >= w2.tot;
+      return `<button class="sec ${ok ? 'done' : ''}" onclick="window.__patchDone=function(){wizRender();};smartWire('${zz.id}')">${ok ? '✓' : '🔌'} ${esc(zz.name)} — ${w2.fed}/${w2.tot} רמקולים מחווטים${ok ? '' : ' · פתח לאישור'}</button>`; }).join('') || '<p class="hint">אין עדיין אזורים בנויים — חזור לשלב המערכת.</p>'}
+    ${allOk ? '<button class="big" style="background:#0f6e56" onclick="WIZ.step=5;wizRender()">✓ הכל מחווט — המשך לקיט ההתקנה</button>' : ''}`;
+  }
+  if (s === 5) {
     const kits = installKitList();
     return `
     <h4>קיט התקנה לפרויקט</h4>
     <p class="hint">קיטי התשתית שסוגרים את הפרויקט — עמדה, ארון, מולטי, פנלים ומחברים. הכמויות ניתנות לעריכה לפני ההוספה.</p>
     ${kits.map(x => `<button class="sec" onclick="P._instKit=1;save();zoneKitConfirm('${esc((z || {}).name || '').replace(/'/g, '&#39;')}',${x.i});wizRender()">🧰 ${esc(x.k.name.slice(0, 44))} · ${(x.k.items || []).length} פריטים</button>`).join('') || '<p class="hint">אין קיטי התקנה בקטלוג</p>'}
-    ${P._instKit ? '<button class="sec done">✓ נבחר קיט התקנה</button>' : `<button class="sec" onclick="P._instKit=1;save();WIZ.step=5;wizRender()">דלג — בלי קיט</button>`}
+    ${P._instKit ? '<button class="sec done">✓ נבחר קיט התקנה</button>' : `<button class="sec" onclick="P._instKit=1;save();WIZ.step=6;wizRender()">דלג — בלי קיט</button>`}
     <button class="big" onclick="installManager()">🔧 טבלת התקנה ותמחור (זמנים ומחירים)</button>`;
   }
-  if (s === 5) return `
+  if (s === 6) return `
     <h4>האם שכחתי משהו?</h4>
     <p class="hint">סריקה אוטומטית של התכנית מול ההצעה: חיווט, גלילי כבל, מחברים, תושבות, פס שקעים, שורת התקנה ומק"טים — כל ממצא עם תיקון בלחיצה.</p>
     <button class="big" onclick="projGapCheck();setTimeout(wizRender,300)">🤔 הרץ בדיקת שלמות</button>
     ${P._gapOk ? '<button class="sec done">✓ הבדיקה הורצה — אפשר להמשיך להצעה</button>' : ''}`;
-  if (s === 6) {
+  if (s === 7) {
     const rows = impItems.filter(it => it.on !== false);
     const total = rows.reduce((s2, it) => s2 + (+it.price || 0) * (+it.qty || 0), 0);
     const noKey = rows.filter(it => !it.key).length;
@@ -290,7 +311,12 @@ function wizBuildAll() {
     /* החיווט לא אוטומטי: עורך הניתוב נפתח לאישור — ורק אחרי "חבר" ממשיכים להתקנה */
     setTimeout(() => {
       window.__autoFlow = false;
-      window.__patchDone = () => { if (WIZ) { WIZ.step = 4; wizRender(); uiToast('✓ החיווט אושר — עכשיו קיט התקנה'); } };
+      window.__patchDone = () => {
+        if (!WIZ) return;
+        const nxt = (P.zones || []).find(zz => !zz._built);
+        if (nxt) { WIZ.zid = nxt.id; selZone = nxt.id; WIZ.step = 3; render(); wizRender(); uiToast('✓ "' + z.name + '" נבנה וחווט — עוברים לאזור "' + nxt.name + '"'); }
+        else { WIZ.step = 4; wizRender(); uiToast('✓ כל האזורים נבנו — אישור חיווט מרוכז'); }
+      };
       smartWire(z.id);
       wizRender();
     }, 700);
