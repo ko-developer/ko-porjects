@@ -184,7 +184,7 @@ function wizStepHTML(s) {
     <h4>חיווט — אישור הניתוב לכל אזור</h4>
     <p class="hint">לכל אזור: טבלת הניתוב מציגה ערוצים, אום, יחס הספק, דיליי ו-Bridge. אשר "חבר" בכל אזור — ורק אז ממשיכים לקיט ההתקנה.</p>
     ${zs.map(zz => { const w2 = wizWireStat(zz); const ok = w2.tot && w2.fed >= w2.tot;
-      return `<button class="sec ${ok ? 'done' : ''}" onclick="window.__patchDone=function(){wizRender();};smartWire('${zz.id}')">${ok ? '✓' : '🔌'} ${esc(zz.name)} — ${w2.fed}/${w2.tot} רמקולים מחווטים${ok ? '' : ' · פתח לאישור'}</button>`; }).join('') || '<p class="hint">אין עדיין אזורים בנויים — חזור לשלב המערכת.</p>'}
+      return `<button class="sec ${ok ? 'done' : ''}" onclick="wizEnsureMic('${zz.id}');window.__patchDone=function(){wizRender();};smartWire('${zz.id}')">${ok ? '✓' : '🔌'} ${esc(zz.name)} — ${w2.fed}/${w2.tot} רמקולים מחווטים${ok ? '' : ' · פתח לאישור'}</button>`; }).join('') || '<p class="hint">אין עדיין אזורים בנויים — חזור לשלב המערכת.</p>'}
     ${allOk ? '<button class="big" style="background:#0f6e56" onclick="WIZ.step=5;wizRender()">✓ הכל מחווט — המשך לקיט ההתקנה</button>' : ''}`;
   }
   if (s === 5) {
@@ -288,6 +288,14 @@ function wizKitSearch(q) {
     spks.map(r => `<button class="sec" onclick="pickZoneSpk('${z.id}','${esc(r.name).replace(/'/g, '&#39;')}','${r.key}',${/סאב|\bsub\b/i.test(r.name)});wizRender()">🔊 ${esc(r.name.slice(0, 40))} ${erpInfo(r.key) ? '· מלאי ' + erpInfo(r.key).qty : ''}</button>`).join('') ||
     '<p class="hint">אין תוצאות</p>';
 }
+/* 🎙 מיקרופון מדידה במרכז האזור — נקודת הייחוס לדיליי; נוצר אוטומטית לפני כל פתיחת חיווט */
+function wizEnsureMic(zid) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  if (P.nodes.some(n => n.ptype === 'mic' && (n.sub || '').includes(z.name))) return;
+  const bm = zoneBounds(z);
+  P.nodes.push({ id: uid('n'), kind: 'point', ptype: 'mic', name: 'מיקרופון מדידה', sub: 'נק׳ מדידה · ' + z.name, x: 2200 - (bm.L + bm.W / 2) - 20, y: (bm.T + bm.H / 2) - 24, mini: true, noCov: true });
+  render(); save();
+}
 /* המשך אחרי אישור חיווט של אזור: האזור הבא אם יש, אחרת שלב החיווט המרוכז */
 function wizAfterWire(z) {
   return () => {
@@ -302,6 +310,7 @@ function wizBuildAll(force) {
   if (!z.usage) { uiToast('🎯 חובה לבחור תכלית לאזור לפני הבנייה — חזור שלב אחד'); WIZ.step = 2; wizRender(); return; }
   /* מערכת כבר נבחרה ונבנתה — לא בונים שוב: ישר לטבלת החיווט */
   if (!force && z._built && wizWireStat(z).tot) {
+    wizEnsureMic(z.id);
     window.__autoFlow = false;
     window.__patchDone = wizAfterWire(z);
     smartWire(z.id);
@@ -316,11 +325,7 @@ function wizBuildAll(force) {
     const b = zoneBounds(z);
     return { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: '', x: Math.max(10, 2200 - b.L - 60), y: Math.max(10, b.T - 10), ru: 12, units: [], min: true };
   });
-  /* 🎙 מיקרופון מדידה במרכז האזור — נקודת הייחוס לדיליי (אם אין כבר) */
-  if (!P.nodes.some(n => n.ptype === 'mic' && (n.sub || '').includes(z.name))) {
-    const bm = zoneBounds(z);
-    P.nodes.push({ id: uid('n'), kind: 'point', ptype: 'mic', name: 'מיקרופון מדידה', sub: 'נק׳ מדידה · ' + z.name, x: 2200 - (bm.L + bm.W / 2) - 20, y: (bm.T + bm.H / 2) - 24, mini: true, noCov: true });
-  }
+  wizEnsureMic(z.id);
   window.__autoFlow = true;   /* הבנייה וההצבה אוטומטיות */
   try {
     buildZoneSystem(z.id);

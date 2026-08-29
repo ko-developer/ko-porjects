@@ -3281,6 +3281,13 @@ function bridgeChW(name, z) {
   const w = ampChW(name, z / 2);
   return w ? w * 2 : null;
 }
+/* טופולוגיית ערוץ: direct = כל רמקול בכבל משלו מהריכוז (ברירת מחדל) · chain = שרשור */
+function patchTopo(key) { return (PATCH.topo || {})[key] || 'direct'; }
+function patchTopoToggle(key) {
+  PATCH.topo = PATCH.topo || {};
+  PATCH.topo[key] = patchTopo(key) === 'direct' ? 'chain' : 'direct';
+  patchRender();
+}
 function patchRender() {
   const body = document.getElementById('patchBody'); if (!body || !PATCH) return;
   let totAmpW = 0, totSpkW = 0;
@@ -3318,6 +3325,7 @@ function patchRender() {
       const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
         <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${a.bridge ? ch + '+' + (ch + 1) + ' 🌉' : ch}
+          ${ids.length > 1 ? `<button onclick="patchTopoToggle('${key}')" title="${patchTopo(key) === 'direct' ? 'כל רמקול בכבל נפרד ישירות מהריכוז (מקביל על אותו ערוץ) — לחץ לשרשור' : 'הרמקולים משורשרים זה לזה בכבל אחד — לחץ לקווים ישירים'}" style="border:1px solid ${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};background:${patchTopo(key) === 'direct' ? '#eef7f1' : '#fdf3e6'};color:${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};border-radius:6px;cursor:pointer;font-size:9.5px;padding:1px 6px;font-weight:800">${patchTopo(key) === 'direct' ? '⫘ ישיר' : '🔗 שרשור'}</button>` : ''}
           ${ids.length ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
         <div class="pchChips">${ids.map(id2 => patchChip(id2)).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
         <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" title="עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
@@ -3591,22 +3599,34 @@ async function patchApply() {
     }
     const nodes = ids.map(byId).filter(Boolean);
     if (!nodes.length) continue;
-    const head = nodes[0];
-    let note = nodes.length > 1 ? 'שרשור (' + nodes.length + ' רמקולים)' : 'קו בודד';
-    /* דיליי מומלץ לערוץ — נרשם על הקו כדי שיופיע במפתח הכבלים ובדוח המתקינים */
-    if (dlyPlanMap[key] != null) note += ' · ⏱ דיליי ' + (dlyPlanMap[key] ? '~' + dlyPlanMap[key].toFixed(1) + 'ms' : '0ms (ייחוס)');
+    const topo = nodes.length > 1 ? patchTopo(key) : 'direct';
+    const dlyTxt = dlyPlanMap[key] != null ? ' · ⏱ דיליי ' + (dlyPlanMap[key] ? '~' + dlyPlanMap[key].toFixed(1) + 'ms' : '0ms (ייחוס)') : '';
     const pOutLbl = a.bridge ? 'OUT ' + ch + '+' + (ch + 1) + ' Bridge' : 'OUT ' + ch;
-    if (a.bridge) note += ' · 🌉 Bridge';
-    const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: pOutLbl };
-    if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
-    if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
-    if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
-    P.cables.push(cc); n2++; made.push(cc);
-    for (let i = 1; i < nodes.length; i++) {
-      const cb = { id: uid('c'), from: nodes[i - 1].id, to: nodes[i].id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' };
-      if (P.scale) cb.len = +(dist(nodes[i - 1], nodes[i]) * P.scale).toFixed(1);
-      if (cblRef) applyStockRef(cblRef, null, cb);
-      P.cables.push(cb); n2++; made.push(cb);
+    const brTxt = a.bridge ? ' · 🌉 Bridge' : '';
+    if (topo === 'chain') {
+      const head = nodes[0];
+      const note = 'שרשור (' + nodes.length + ' רמקולים)' + dlyTxt + brTxt;
+      const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: pOutLbl };
+      if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
+      if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
+      if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
+      P.cables.push(cc); n2++; made.push(cc);
+      for (let i = 1; i < nodes.length; i++) {
+        const cb = { id: uid('c'), from: nodes[i - 1].id, to: nodes[i].id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' };
+        if (P.scale) cb.len = +(dist(nodes[i - 1], nodes[i]) * P.scale).toFixed(1);
+        if (cblRef) applyStockRef(cblRef, null, cb);
+        P.cables.push(cb); n2++; made.push(cb);
+      }
+    } else {
+      /* ברירת המחדל: כל רמקול בכבל משלו ישירות מהריכוז — מקביל על אותו ערוץ */
+      nodes.forEach((nd, i) => {
+        const note = (nodes.length > 1 ? 'קו ישיר ' + (i + 1) + '/' + nodes.length + ' (מקביל בערוץ)' : 'קו בודד') + (i === 0 ? dlyTxt : '') + brTxt;
+        const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: nd.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: pOutLbl };
+        if (isActiveSub(nd.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
+        if (P.scale) cc.len = +(dist(a.rk, nd) * P.scale).toFixed(1);
+        if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
+        P.cables.push(cc); n2++; made.push(cc);
+      });
     }
   }
   /* ערוצים שרוקנו לגמרי — הקווים הישנים שלהם נמחקים */
@@ -3818,13 +3838,15 @@ async function smartWire(zid) {
   if (bg.length) uiToast('⚠ ' + bg.length + ' רמקולים ללא ערוץ — הוסף מגבר');
   const made2 = [];
   lines.forEach(l => {
-    const cc = { id: uid('c'), from: l.amp.rk.id, fromUnit: l.amp.u.id, to: l.head.id, type: 'nl4', qty: '1', spec: '', note: l.label, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + l.ch };
-    /* סאב מוגבר: כבל סיגנל (XLR→RCA, עד ~10 מ׳) במקום קו רמקול */
-    if (isActiveSub(l.head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
-    if (P.scale) cc.len = +(dist(l.amp.rk, l.head) * P.scale).toFixed(1);
-    P.cables.push(cc);
-    made2.push(cc);
-    l.seg.forEach(sg => { const cb = { id: uid('c'), from: sg.from.id, to: sg.to.id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' }; if (P.scale) cb.len = +(dist(sg.from, sg.to) * P.scale).toFixed(1); P.cables.push(cb); made2.push(cb); });
+    /* ברירת המחדל: כל רמקול בקו ישיר מהריכוז (מקביל על הערוץ) */
+    const all = [l.head, ...l.seg.map(sg => sg.to)];
+    all.forEach((nd, i) => {
+      const cc = { id: uid('c'), from: l.amp.rk.id, fromUnit: l.amp.u.id, to: nd.id, type: 'nl4', qty: '1', spec: '', note: all.length > 1 ? 'קו ישיר ' + (i + 1) + '/' + all.length + ' (מקביל בערוץ)' : l.label, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + l.ch };
+      if (isActiveSub(nd.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
+      if (P.scale) cc.len = +(dist(l.amp.rk, nd) * P.scale).toFixed(1);
+      P.cables.push(cc);
+      made2.push(cc);
+    });
   });
   /* גם במסלול האוטומטי — המחברים נצרכים/נוספים להצעה כמו בעורך הגרפי */
   for (const c of made2) { try { await autoConnectors(c); } catch (e) {} }
