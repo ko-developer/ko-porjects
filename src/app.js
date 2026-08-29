@@ -5832,8 +5832,41 @@ document.addEventListener('pointerup', e => {
     dragC = null; render();
     return;
   }
-  if (drag) { const moved = drag; drag = null; recalcCableLengths(); render(); save(); }
+  if (drag) {
+    const moved = drag; drag = null;
+    /* רמקול של אזור שנגרר החוצה מגבולות האזור — מאשרים או מחזירים */
+    const n = moved.n;
+    const movedFar = Math.abs(n.x - moved.ox) > 3 || Math.abs(n.y - moved.oy) > 3;
+    if (movedFar && n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')) {
+      const z = (P.zones || []).find(zz => (n.sub || '').includes(zz.name));
+      if (z) {
+        const cx = 2200 - n.x - 20, cy = n.y + 24;
+        const wasIn = ptInZone(z, 2200 - moved.ox - 20, moved.oy + 24);
+        if (wasIn && !ptInZone(z, cx, cy)) {
+          uiConfirm('הרמקול "' + (n.name || '').slice(0, 30) + '" נגרר אל מחוץ לאזור "' + z.name + '".\nלהשאיר אותו מחוץ לאזור?').then(ok => {
+            if (!ok) { n.x = moved.ox; n.y = moved.oy; }
+            recalcCableLengths(); render(); save();
+          });
+          return;
+        }
+      }
+    }
+    recalcCableLengths(); render(); save();
+  }
 });
+/* נקודה בתוך אזור — פוליגון (ray casting) או מלבן */
+function ptInZone(z, x, y) {
+  if (z.poly && z.poly.length > 2) {
+    let inside = false;
+    for (let i = 0, j = z.poly.length - 1; i < z.poly.length; j = i++) {
+      const a = z.poly[i], b = z.poly[j];
+      if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+  }
+  const b = zoneBounds(z);
+  return x >= b.L && x <= b.L + b.W && y >= b.T && y <= b.T + b.H;
+}
 /* מחשב מחדש אורכי כבלים לפי מיקומי המוקדים הנוכחיים (אחרי הזזה) + מעדכן ניצול גלילים */
 function recalcCableLengths() {
   if (!P.scale) return;
