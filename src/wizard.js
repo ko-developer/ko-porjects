@@ -363,8 +363,55 @@ function wizFillCables() {
 }
 
 /* ---- דוח מתקינים — כל מה שצוות ההתקנה צריך, מוכן להדפסה ---- */
-function installerReport() {
+/* צילום התכנית עם החיווט — רקע, אזורים, קווים ממוספרים ומוקדים */
+function repPlanSnapshot(LBL) {
+  return new Promise(res => {
+    if (!P.bg) return res('');
+    const img = new Image();
+    img.onload = () => {
+      const W = P.bgW || 1400, H = Math.round(W * img.naturalHeight / img.naturalWidth);
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const g = cv.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+      g.globalAlpha = 0.8; g.drawImage(img, 0, 0, W, H); g.globalAlpha = 1;
+      /* הרקע יושב בצד ימין של קנבס העבודה (right:0, רוחב 2200) — מזיזים הכל למערכת הצירים של התמונה */
+      const offX = 2200 - W;
+      const cx = n => 2200 - n.x - 20 - offX, cy = n => n.y + 24;
+      (P.zones || []).forEach(z => {
+        g.strokeStyle = '#378ADD'; g.setLineDash([8, 5]); g.lineWidth = 2.5;
+        if (z.poly) { g.beginPath(); z.poly.forEach((pt, i) => i ? g.lineTo(pt.x - offX, pt.y) : g.moveTo(pt.x - offX, pt.y)); g.closePath(); g.stroke(); }
+        else { const b = zoneBounds(z); g.strokeRect(b.L - offX, b.T, b.W, b.H); }
+        g.setLineDash([]);
+      });
+      g.font = 'bold 12px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      P.cables.forEach(c => {
+        const a = byId(c.from), b = byId(c.to); if (!a || !b) return;
+        g.strokeStyle = c.type === 'xlr' ? '#7F77DD' : '#E2571B'; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(cx(a), cy(a)); g.lineTo(cx(b), cy(b)); g.stroke();
+        const lb = LBL[c.id]; if (!lb) return;
+        const mx = (cx(a) + cx(b)) / 2, my = (cy(a) + cy(b)) / 2;
+        g.fillStyle = '#fff'; g.fillRect(mx - 11, my - 9, 22, 17);
+        g.strokeStyle = '#E2571B'; g.lineWidth = 1; g.strokeRect(mx - 11, my - 9, 22, 17);
+        g.fillStyle = '#E2571B'; g.fillText(String(lb), mx, my);
+      });
+      P.nodes.filter(n => n.kind === 'point' || n.kind === 'rack').forEach(n => {
+        const x = cx(n), y = cy(n), isR = n.kind === 'rack';
+        g.fillStyle = isR ? '#1a1e28' : n.ptype === 'mic' ? '#0f6e56' : /סאב|\bsub\b/i.test(n.name) ? '#6c5ce7' : '#c9502e';
+        g.beginPath(); g.arc(x, y, isR ? 14 : 11, 0, 7); g.fill();
+        g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke();
+        g.fillStyle = '#fff';
+        const m = (n.name || '').match(/\((\d+)\)/);
+        g.fillText(isR ? 'R' : n.ptype === 'mic' ? 'M' : (m ? m[1] : '•'), x, y);
+      });
+      res('<h2>תכנית החיווט</h2><img src="' + cv.toDataURL('image/jpeg', 0.85) + '" style="width:100%;border:1px solid #ccc;border-radius:8px"><p class="meta">R = ריכוז מגברים · M = נקודת מדידה · מספר על קו = מספר הכבל בלוח המשיכה</p>');
+    };
+    img.onerror = () => res('');
+    img.src = P.bg;
+  });
+}
+async function installerReport() {
   const LBL = cableLabels();
+  const planImg = await repPlanSnapshot(LBL);
   const zsum = (P.zones || []).map(z => `<tr><td>${esc(z.name)}</td><td>${esc(z.usage || '—')}</td><td>${zoneAreaM(z).toFixed(0)} מ"ר</td><td>${z.ceil ?? P.room?.ceil ?? '—'} מ׳</td></tr>`).join('');
   const racks = P.nodes.filter(n => n.kind === 'rack').map(rk => `
     <h3>🗄 ${esc(rk.name)} · ${rk.ru}U</h3>
@@ -380,7 +427,10 @@ function installerReport() {
       <td>${CTYPES[c.type]?.n || c.type}${c.cores ? ' ×' + c.cores : ''}</td><td>${c.len ? c.len + ' מ׳' : '—'}</td><td>${esc(conns)}</td>
       <td>${c.inst === 'exist' ? 'קיים' : c.inst === 'pull' ? 'העברה' : 'חדש'}</td><td>${esc(c.note || '')}</td></tr>`;
   }).join('');
-  const items = impItems.filter(it => it.on !== false).map(it => `<tr><td>${esc(it.name.slice(0, 55))}</td><td>${esc(it.key || '—')}</td><td>${it.qty}</td><td>${it.zones ? esc(Object.keys(it.zones).join(', ')) : '—'}</td></tr>`).join('');
+  const items = impItems.filter(it => it.on !== false).map(it => {
+    const u = (typeof erpImg === 'function' && erpImg(it.key)) || (typeof modelImg === 'function' && modelImg(it.name)) || '';
+    return `<tr><td style="width:46px;text-align:center">${u ? `<img src="${esc(u)}" style="width:42px;height:42px;object-fit:contain">` : ''}</td><td>${esc(it.name.slice(0, 55))}</td><td>${esc(it.key || '—')}</td><td>${it.qty}</td><td>${it.zones ? esc(Object.keys(it.zones).join(', ')) : '—'}</td></tr>`;
+  }).join('');
   const repHtml = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>דוח מתקינים — ${esc(P.name)}</title>
     <style>body{font-family:-apple-system,'Segoe UI',Arial;margin:24px;color:#1a1e28;font-size:12.5px}
     h1{font-size:20px;border-bottom:3px solid #c9502e;padding-bottom:6px}h2{font-size:16px;margin:22px 0 6px;background:#f4f2ec;padding:5px 10px;border-radius:7px}h3{font-size:13.5px;margin:12px 0 4px}
@@ -388,11 +438,12 @@ function installerReport() {
     .meta{color:#777;font-size:11px}@media print{h2{break-after:avoid}}</style></head><body>
     <h1>🔧 דוח מתקינים — ${esc(P.name)}</h1>
     <p class="meta">הופק ${new Date().toLocaleString('he-IL')} · KO Projects V2 · ${P.cables.length} כבלים · ${impItems.length} פריטים</p>
+    ${planImg}
     <h2>אזורים</h2><table><tr><th>אזור</th><th>תכלית</th><th>שטח</th><th>תקרה</th></tr>${zsum || '<tr><td colspan="4">—</td></tr>'}</table>
     <h2>ארונות — סדר הרכבה</h2>${racks || '<p>אין ארונות</p>'}
     <h2>רמקולים — תלייה וכיוון</h2><table><tr><th>רמקול</th><th>מיקום</th><th>גובה</th><th>תושבת</th><th>כיוון</th></tr>${spk || '<tr><td colspan="5">—</td></tr>'}</table>
     <h2>לוח משיכת כבלים</h2><table><tr><th>#</th><th>מ־</th><th>אל</th><th>סוג</th><th>אורך</th><th>מחברים</th><th>סטטוס</th><th>הערה</th></tr>${cbl || '<tr><td colspan="8">—</td></tr>'}</table>
-    <h2>רשימת ציוד מלאה</h2><table><tr><th>פריט</th><th>מק"ט</th><th>כמות</th><th>אזור</th></tr>${items || '<tr><td colspan="4">—</td></tr>'}</table>
+    <h2>רשימת ציוד מלאה</h2><table><tr><th></th><th>פריט</th><th>מק"ט</th><th>כמות</th><th>אזור</th></tr>${items || '<tr><td colspan="4">—</td></tr>'}</table>
     </body></html>`;
   /* חלון קופץ נחסם בדפדפנים משובצים — הדוח נפתח בשכבה בתוך הדף עם הדפסה מ-iframe */
   const old2 = document.getElementById('repOv'); if (old2) old2.remove();
