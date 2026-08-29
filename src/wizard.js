@@ -136,7 +136,7 @@ function wizStepHTML(s) {
     <button class="sec" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
   }
   if (s === 2) {
-    const usages2 = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];
+    const usages2 = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];
     return `
     <h4>סימון אזור סאונד</h4>
     ${(P.zones || []).map(zz => `<button class="sec ${zz.id === (WIZ.zid || (P.zones[0] || {}).id) ? 'done' : ''}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">🗺 ${esc(zz.name)} · ${zoneAreaM(zz).toFixed(0)} מ"ר${zz.usage ? ' · ' + esc(zz.usage) : ''}</button>`).join('')}
@@ -151,7 +151,7 @@ function wizStepHTML(s) {
   }
   if (s === 3) {
     if (!z) return '<p class="hint">קודם סמן אזור בשלב הקודם.</p>';
-    const usages = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];
+    const usages = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];
     return `
     <h4>מערכת לאזור "${esc(z.name)}"</h4>
     <select onchange="setZoneField('${z.id}','usage',this.value)">
