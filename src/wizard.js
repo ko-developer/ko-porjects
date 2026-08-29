@@ -431,35 +431,48 @@ async function installerReport() {
     const u = (typeof erpImg === 'function' && erpImg(it.key)) || (typeof modelImg === 'function' && modelImg(it.name)) || '';
     return `<tr><td style="width:46px;text-align:center">${u ? `<img src="${esc(u)}" style="width:42px;height:42px;object-fit:contain">` : ''}</td><td>${esc(it.name.slice(0, 55))}</td><td>${esc(it.key || '—')}</td><td>${it.qty}</td><td>${it.zones ? esc(Object.keys(it.zones).join(', ')) : '—'}</td></tr>`;
   }).join('');
+  const spkCnt = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')).length;
+  const rackN = P.nodes.find(n => n.kind === 'rack');
+  const ampCnt = P.nodes.filter(n => n.kind === 'rack').reduce((s2, rk) => s2 + (rk.units || []).filter(u => /מגבר|amp|DNA|DPA|DYNAMIQ|PLM|MX3|PQM|IPD/i.test(u.name)).length, 0);
+  const offTotal = impItems.filter(it => it.on !== false).reduce((s2, it) => s2 + (+it.price || 0) * (+it.qty || 0), 0);
+  const prPull = (store.installRates || []).find(r => r.k === 'pull');
+  const pullCharged = !!(prPull && !prPull.off);
   const repHtml = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>דוח מתקינים — ${esc(P.name)}</title>
     <style>body{font-family:-apple-system,'Segoe UI',Arial;margin:24px;color:#1a1e28;font-size:12.5px}
     h1{font-size:20px;border-bottom:3px solid #c9502e;padding-bottom:6px}h2{font-size:16px;margin:22px 0 6px;background:#f4f2ec;padding:5px 10px;border-radius:7px}h3{font-size:13.5px;margin:12px 0 4px}
     table{border-collapse:collapse;width:100%;margin-bottom:8px}th,td{border:1px solid #ccc;padding:4px 7px;text-align:right;font-size:11.5px}th{background:#f4f2ec}
     .meta{color:#777;font-size:11px}@media print{h2{break-after:avoid}}</style></head><body>
     <h1>🔧 דוח מתקינים — ${esc(P.name)}</h1>
-    <p class="meta">הופק ${new Date().toLocaleString('he-IL')} · KO Projects V2 · ${P.cables.length} כבלים · ${impItems.length} פריטים</p>
+    <p class="meta">הופק ${new Date().toLocaleString('he-IL')} · KO Projects V2</p>
+
+    <h2>על הפרויקט</h2>
+    <p style="font-size:13px;line-height:1.7">
+      ${(P.zones || []).length} אזורי סאונד · <b>${spkCnt}</b> רמקולים וסאבים · ארון "${esc((rackN || {}).name || '—')}" עם <b>${ampCnt}</b> מגברים · <b>${P.cables.length}</b> קווים בתכנית · היקף הצעה: <b>₪${Math.round(offTotal).toLocaleString()}</b> (לפני מע"מ).</p>
+    <table><tr><th>אזור</th><th>תכלית</th><th>שטח</th><th>תקרה</th></tr>${zsum || '<tr><td colspan="4">—</td></tr>'}</table>
+
+    <h2>כתב כמויות</h2><table><tr><th></th><th>פריט</th><th>מק"ט</th><th>כמות</th><th>אזור</th></tr>${items || '<tr><td colspan="5">—</td></tr>'}</table>
+
     ${planImg}
-    <h2>אזורים</h2><table><tr><th>אזור</th><th>תכלית</th><th>שטח</th><th>תקרה</th></tr>${zsum || '<tr><td colspan="4">—</td></tr>'}</table>
+
     <h2>ארונות — סדר הרכבה</h2>${racks || '<p>אין ארונות</p>'}
     <h2>רמקולים — תלייה וכיוון</h2><table><tr><th>רמקול</th><th>מיקום</th><th>גובה</th><th>תושבת</th><th>כיוון</th></tr>${spk || '<tr><td colspan="5">—</td></tr>'}</table>
-    <h2>⚡ הכנות חשמל — לביצוע ע"י חשמלאי מוסמך, לפני יום ההתקנה</h2>
-    ${(() => {
-      const amps = P.nodes.filter(n => n.kind === 'rack').reduce((s2, rk) => s2 + (rk.units || []).filter(u => /מגבר|amp|DNA|DPA|DYNAMIQ|PLM|MX3|PQM|IPD/i.test(u.name)).length, 0);
-      const rms = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')).reduce((s2, n) => s2 + (n.pow ?? (spkData(n.name) || {}).w ?? 150), 0);
-      const heavy = rms > 2000;
-      const rackNm = (P.nodes.find(n => n.kind === 'rack') || {}).name || 'ריכוז המגברים';
-      const pulls = P.cables.filter(c => c.inst === 'pull').length;
-      return `<ul style="margin:4px 0;padding-right:18px;line-height:1.7">
-        <li><b>קו הזנה ייעודי לארון "${esc(rackNm)}":</b> מעגל ${heavy ? '2×16A נפרדים (או 1×25A)' : '16A'} מהלוח, עם מפסק פחת ייעודי — לא משותף למטבח/מיזוג. בארון ${amps || '—'} מגברים, צריכה מרבית משוערת ~${Math.round(rms * 1.3 / 100) / 10}kW (רמקולים ${rms.toLocaleString()}W RMS).</li>
-        <li><b>נקודות חשמל בארון:</b> פס שקעים מוארק בתוך הארון (6 שקעים לפחות), מוזן מהקו הייעודי בלבד.</li>
-        <li><b>הארקה:</b> כל השקעים מוארקים ובדוקים. הפרשי הארקה בין עמדות = זמזום במערכת.</li>
-        <li><b>תשתיות וצנרת:</b> השחלת צינורות/תעלות לקווי הרמקולים בהתאם ללוח משיכת הכבלים שמטה${pulls ? ` (${pulls} קווים מסומנים "העברה")` : ''} — קווי רמקול בהפרדה מקווי חשמל (הצלבה ב-90° בלבד).</li>
-        <li><b>עמדת נגינה/DJ (אם קיימת):</b> שקע מוארק + צינור 25מ"מ פנוי אל הארון.</li>
-        <li><b>תיאום:</b> כל הכנות החשמל באחריות הלקוח ומסתיימות לפני הגעת צוות ההתקנה. שינויים — בתיאום מראש עם KO.</li>
-      </ul>`;
-    })()}
+
+    <h2>⚡ הכנות חשמל ותשתית — דרישות מחייבות (ביצוע ע"י חשמלאי מוסמך, לפני יום ההתקנה)</h2>
+    <h3>הזנת חשמל</h3>
+    <ul style="margin:4px 0;padding-right:18px;line-height:1.75">
+      <li><b>שדה חשמל נפרד למערכת הסאונד — דרישת מינימום:</b> בלוח החשמל יוקצה שדה ייעודי לסאונד בלבד — מאמ"ת ראשי לסאונד בלבד ומפסק פחת לסאונד בלבד. אין לשתף את השדה עם אף צרכן אחר.</li>
+      <li><b>כל צרכני הסאונד מאותו שדה:</b> שקעי ארון המגברים וכן עמדת הנגינה / עמדת ה-DJ יוזנו כולם מאותו שדה הסאונד. הזנה מעורבת גורמת להפרשי הארקה, זמזומים ותקלות.</li>
+    </ul>
+    <h3>הכנת קווי הרמקולים${pullCharged ? '' : ' — ההעברות אינן כלולות בהצעה ומבוצעות באחריות הלקוח'}</h3>
+    <ul style="margin:4px 0;padding-right:18px;line-height:1.75">
+      <li><b>א · תוואי מסודר:</b> הקווים יושחלו בצינור מגן, בצינור שרשורי או בתעלת תקשורת — לא בצמוד לקווי חשמל (הצלבה ב-90° בלבד).</li>
+      <li><b>ב · נקודת רמקול / סאב:</b> הקו יגיע לנקודה המסומנת בגובה המבוקש ותושאר בו יתרה של כ-1 מ׳ לפחות מנקודת הציון. לדוגמה: גובה 260 — הקו יוצא ב-260 עם רזרבה של ≥1 מ׳.</li>
+      <li><b>ג · נקודת ארון המגברים:</b> כל הקווים המגיעים לארון ירדו עד הרצפה שמתחת לארון, ותושאר בהם יתרה של כ-2 מ׳ לפחות לכל קו.</li>
+      <li><b>ד · סימון:</b> כל קו יסומן בשני קצותיו לפי המספור המופיע בתכנית החיווט ובלוח המשיכה שבדוח זה.</li>
+      <li><b>ה · שלמות הקו:</b> לא יבוצעו הארכות או חיבורי ביניים על הדרך בשום צורה — קו רציף מקצה לקצה.</li>
+    </ul>
+
     <h2>לוח משיכת כבלים</h2><table><tr><th>#</th><th>מ־</th><th>אל</th><th>סוג</th><th>אורך</th><th>מחברים</th><th>סטטוס</th><th>הערה</th></tr>${cbl || '<tr><td colspan="8">—</td></tr>'}</table>
-    <h2>רשימת ציוד מלאה</h2><table><tr><th></th><th>פריט</th><th>מק"ט</th><th>כמות</th><th>אזור</th></tr>${items || '<tr><td colspan="4">—</td></tr>'}</table>
     </body></html>`;
   /* חלון קופץ נחסם בדפדפנים משובצים — הדוח נפתח בשכבה בתוך הדף עם הדפסה מ-iframe */
   const old2 = document.getElementById('repOv'); if (old2) old2.remove();
