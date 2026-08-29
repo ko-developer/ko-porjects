@@ -409,9 +409,82 @@ function repPlanSnapshot(LBL) {
     img.src = P.bg;
   });
 }
+/* תכנית הכיסוי: כל רמקול עם אלומת הפיזור שלו וכיוון — למתקין ברור לאן לכוון */
+function repCoverSnapshot() {
+  return new Promise(res => {
+    if (!P.bg) return res('');
+    const img = new Image();
+    img.onload = () => {
+      const W = P.bgW || 1400, H = Math.round(W * img.naturalHeight / img.naturalWidth);
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const g = cv.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+      g.globalAlpha = 0.65; g.drawImage(img, 0, 0, W, H); g.globalAlpha = 1;
+      const offX = 2200 - W;
+      const cx = n => 2200 - n.x - 20 - offX, cy = n => n.y + 24;
+      (P.zones || []).forEach(z => {
+        g.strokeStyle = '#378ADD'; g.setLineDash([8, 5]); g.lineWidth = 2;
+        if (z.poly) { g.beginPath(); z.poly.forEach((pt, i) => i ? g.lineTo(pt.x - offX, pt.y) : g.moveTo(pt.x - offX, pt.y)); g.closePath(); g.stroke(); }
+        else { const b = zoneBounds(z); g.strokeRect(b.L - offX, b.T, b.W, b.H); }
+        g.setLineDash([]);
+      });
+      const R = P.scale ? Math.max(45, Math.min(240, 3.5 / P.scale)) : 90;   /* ~3.5 מ׳ אלומה */
+      const spks = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub'));
+      g.font = 'bold 12px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      spks.forEach(n => {
+        const x = cx(n), y = cy(n);
+        const isSub = /סאב|\bsub\b/i.test(n.name);
+        const disp = isSub ? 360 : (n.disp ?? guessDisp(n.name) ?? 90);
+        const aim = ((n.aim ?? 0) * Math.PI) / 180;
+        g.fillStyle = isSub ? 'rgba(108,92,231,.16)' : 'rgba(201,80,46,.18)';
+        g.strokeStyle = isSub ? 'rgba(108,92,231,.55)' : 'rgba(201,80,46,.6)';
+        g.lineWidth = 1.5;
+        if (disp >= 300) { g.beginPath(); g.arc(x, y, R * 0.7, 0, 7); g.fill(); g.stroke(); }
+        else {
+          const half = (Math.min(disp, 175) * Math.PI) / 360;
+          g.beginPath(); g.moveTo(x, y); g.arc(x, y, R, aim - half, aim + half); g.closePath(); g.fill(); g.stroke();
+          /* חץ כיוון במרכז האלומה */
+          const ax = x + Math.cos(aim) * R * 0.85, ay = y + Math.sin(aim) * R * 0.85;
+          g.strokeStyle = '#c9502e'; g.lineWidth = 2.5;
+          g.beginPath(); g.moveTo(x, y); g.lineTo(ax, ay); g.stroke();
+          g.beginPath();
+          g.moveTo(ax, ay);
+          g.lineTo(ax - 9 * Math.cos(aim - 0.4), ay - 9 * Math.sin(aim - 0.4));
+          g.lineTo(ax - 9 * Math.cos(aim + 0.4), ay - 9 * Math.sin(aim + 0.4));
+          g.closePath(); g.fillStyle = '#c9502e'; g.fill();
+        }
+      });
+      /* סמני הרמקולים מעל האלומות + תווית כיוון ופיזור */
+      spks.forEach(n => {
+        const x = cx(n), y = cy(n);
+        const isSub = /סאב|\bsub\b/i.test(n.name);
+        const disp = isSub ? 360 : (n.disp ?? guessDisp(n.name) ?? 90);
+        g.fillStyle = isSub ? '#6c5ce7' : '#c9502e';
+        g.beginPath(); g.arc(x, y, 11, 0, 7); g.fill();
+        g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke();
+        g.fillStyle = '#fff';
+        const m = (n.name || '').match(/\((\d+)\)/);
+        g.fillText(m ? m[1] : '•', x, y);
+        if (!isSub) {
+          const lbl = (n.aim ?? 0) + '° · ' + disp + '°';
+          g.font = 'bold 10px Arial';
+          const tw = g.measureText(lbl).width + 8;
+          g.fillStyle = '#fff'; g.fillRect(x - tw / 2, y + 14, tw, 14);
+          g.strokeStyle = '#c9502e'; g.lineWidth = 1; g.strokeRect(x - tw / 2, y + 14, tw, 14);
+          g.fillStyle = '#c9502e'; g.fillText(lbl, x, y + 21);
+          g.font = 'bold 12px Arial';
+        }
+      });
+      res('<h2>תכנית כיסוי — כיוון ופיזור לכל רמקול</h2><img src="' + cv.toDataURL('image/jpeg', 0.85) + '" style="width:100%;border:1px solid #ccc;border-radius:8px"><p class="meta">החץ = כיוון הרמקול · האלומה = זווית הפיזור · תווית: כיוון° · פיזור° (0°=ימין, 90°=מטה) · סגול = סאב (היקפי)</p>');
+    };
+    img.onerror = () => res('');
+    img.src = P.bg;
+  });
+}
 async function installerReport() {
   const LBL = cableLabels();
   const planImg = await repPlanSnapshot(LBL);
+  const coverImg = await repCoverSnapshot();
   const zsum = (P.zones || []).map(z => `<tr><td>${esc(z.name)}</td><td>${esc(z.usage || '—')}</td><td>${zoneAreaM(z).toFixed(0)} מ"ר</td><td>${z.ceil ?? P.room?.ceil ?? '—'} מ׳</td></tr>`).join('');
   const racks = P.nodes.filter(n => n.kind === 'rack').map(rk => `
     <h3>🗄 ${esc(rk.name)} · ${rk.ru}U</h3>
@@ -434,7 +507,6 @@ async function installerReport() {
   const spkCnt = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')).length;
   const rackN = P.nodes.find(n => n.kind === 'rack');
   const ampCnt = P.nodes.filter(n => n.kind === 'rack').reduce((s2, rk) => s2 + (rk.units || []).filter(u => /מגבר|amp|DNA|DPA|DYNAMIQ|PLM|MX3|PQM|IPD/i.test(u.name)).length, 0);
-  const offTotal = impItems.filter(it => it.on !== false).reduce((s2, it) => s2 + (+it.price || 0) * (+it.qty || 0), 0);
   const prPull = (store.installRates || []).find(r => r.k === 'pull');
   const pullCharged = !!(prPull && !prPull.off);
   const repHtml = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>דוח מתקינים — ${esc(P.name)}</title>
@@ -447,12 +519,13 @@ async function installerReport() {
 
     <h2>על הפרויקט</h2>
     <p style="font-size:13px;line-height:1.7">
-      ${(P.zones || []).length} אזורי סאונד · <b>${spkCnt}</b> רמקולים וסאבים · ארון "${esc((rackN || {}).name || '—')}" עם <b>${ampCnt}</b> מגברים · <b>${P.cables.length}</b> קווים בתכנית · היקף הצעה: <b>₪${Math.round(offTotal).toLocaleString()}</b> (לפני מע"מ).</p>
+      ${(P.zones || []).length} אזורי סאונד · <b>${spkCnt}</b> רמקולים וסאבים · ארון "${esc((rackN || {}).name || '—')}" עם <b>${ampCnt}</b> מגברים · <b>${P.cables.length}</b> קווים בתכנית.</p>
     <table><tr><th>אזור</th><th>תכלית</th><th>שטח</th><th>תקרה</th></tr>${zsum || '<tr><td colspan="4">—</td></tr>'}</table>
 
     <h2>כתב כמויות</h2><table><tr><th></th><th>פריט</th><th>מק"ט</th><th>כמות</th><th>אזור</th></tr>${items || '<tr><td colspan="5">—</td></tr>'}</table>
 
     ${planImg}
+    ${coverImg}
 
     <h2>ארונות — סדר הרכבה</h2>${racks || '<p>אין ארונות</p>'}
     <h2>רמקולים — תלייה וכיוון</h2><table><tr><th>רמקול</th><th>מיקום</th><th>גובה</th><th>תושבת</th><th>כיוון</th></tr>${spk || '<tr><td colspan="5">—</td></tr>'}</table>
