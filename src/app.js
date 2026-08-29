@@ -3281,12 +3281,35 @@ function bridgeChW(name, z) {
   const w = ampChW(name, z / 2);
   return w ? w * 2 : null;
 }
-/* טופולוגיית ערוץ: direct = כל רמקול בכבל משלו מהריכוז (ברירת מחדל) · chain = שרשור */
-function patchTopo(key) { return (PATCH.topo || {})[key] || 'direct'; }
-function patchTopoToggle(key) {
-  PATCH.topo = PATCH.topo || {};
-  PATCH.topo[key] = patchTopo(key) === 'direct' ? 'chain' : 'direct';
+/* טופולוגיה בתוך ערוץ: כברירת מחדל כל רמקול בקו ישיר מהריכוז.
+   כפתור 🔗 בין שני רמקולים סמוכים משרשר אותם — אפשר לערבב: A+B משורשרים ו-C בקו משלו. */
+function chLinked(key, a, b) { return !!(((PATCH.links || {})[key] || {})[a + '>' + b]); }
+function chLinkToggle(key, a, b) {
+  PATCH.links = PATCH.links || {};
+  const m = PATCH.links[key] = PATCH.links[key] || {};
+  const k = a + '>' + b;
+  if (m[k]) delete m[k]; else m[k] = 1;
   patchRender();
+}
+function patchTopo(key) {
+  const ids = PATCH.slots[key] || [];
+  if (ids.length < 2) return 'direct';
+  let n = 0;
+  for (let i = 1; i < ids.length; i++) if (chLinked(key, ids[i - 1], ids[i])) n++;
+  return n === 0 ? 'direct' : n === ids.length - 1 ? 'chain' : 'mix';
+}
+function patchTopoToggle(key) {
+  const ids = PATCH.slots[key] || [];
+  PATCH.links = PATCH.links || {};
+  const all = patchTopo(key) === 'chain';
+  const m = {};
+  if (!all) for (let i = 1; i < ids.length; i++) m[ids[i - 1] + '>' + ids[i]] = 1;
+  PATCH.links[key] = m;
+  patchRender();
+}
+function chLinkBtn(key, a, b) {
+  const on = chLinked(key, a, b);
+  return `<button onclick="event.stopPropagation();chLinkToggle('${key}','${a}','${b}')" title="${on ? 'משורשרים — כבל אחד עובר מהראשון לשני · לחץ לניתוק לקווים ישירים' : 'קווים ישירים נפרדים · לחץ לשרשור השניים בכבל אחד'}" style="border:1px ${on ? 'solid #0f6e56' : 'dashed #bbb'};background:${on ? '#0f6e56' : '#fff'};color:${on ? '#fff' : '#999'};border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:10px;padding:0;flex:none;line-height:1">${on ? '🔗' : '∥'}</button>`;
 }
 function patchRender() {
   const body = document.getElementById('patchBody'); if (!body || !PATCH) return;
@@ -3325,9 +3348,9 @@ function patchRender() {
       const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
         <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${a.bridge ? ch + '+' + (ch + 1) + ' 🌉' : ch}
-          ${ids.length > 1 ? `<button onclick="patchTopoToggle('${key}')" title="${patchTopo(key) === 'direct' ? 'כל רמקול בכבל נפרד ישירות מהריכוז (מקביל על אותו ערוץ) — לחץ לשרשור' : 'הרמקולים משורשרים זה לזה בכבל אחד — לחץ לקווים ישירים'}" style="border:1px solid ${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};background:${patchTopo(key) === 'direct' ? '#eef7f1' : '#fdf3e6'};color:${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};border-radius:6px;cursor:pointer;font-size:9.5px;padding:1px 6px;font-weight:800">${patchTopo(key) === 'direct' ? '⫘ ישיר' : '🔗 שרשור'}</button>` : ''}
+          ${ids.length > 1 ? `<button onclick="patchTopoToggle('${key}')" title="${patchTopo(key) === 'direct' ? 'כל רמקול בכבל נפרד ישירות מהריכוז — לחץ לשרשור כולם · אפשר גם לשרשר זוגות עם ה-🔗 שבין הרמקולים' : 'לחץ להחזרת כולם לקווים ישירים'}" style="border:1px solid ${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};background:${patchTopo(key) === 'direct' ? '#eef7f1' : '#fdf3e6'};color:${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};border-radius:6px;cursor:pointer;font-size:9.5px;padding:1px 6px;font-weight:800">${patchTopo(key) === 'direct' ? '⫘ ישיר' : patchTopo(key) === 'chain' ? '🔗 שרשור' : '⛓ מעורב'}</button>` : ''}
           ${ids.length ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
-        <div class="pchChips">${ids.map(id2 => patchChip(id2)).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
+        <div class="pchChips">${ids.map((id2, i2) => patchChip(id2) + (i2 < ids.length - 1 ? chLinkBtn(key, ids[i2], ids[i2 + 1]) : '')).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
         <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" title="עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
     }
     return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(a.u.name)}">🎚 ${esc(shortModel(a.u.name))}
@@ -3599,35 +3622,33 @@ async function patchApply() {
     }
     const nodes = ids.map(byId).filter(Boolean);
     if (!nodes.length) continue;
-    const topo = nodes.length > 1 ? patchTopo(key) : 'direct';
     const dlyTxt = dlyPlanMap[key] != null ? ' · ⏱ דיליי ' + (dlyPlanMap[key] ? '~' + dlyPlanMap[key].toFixed(1) + 'ms' : '0ms (ייחוס)') : '';
     const pOutLbl = a.bridge ? 'OUT ' + ch + '+' + (ch + 1) + ' Bridge' : 'OUT ' + ch;
     const brTxt = a.bridge ? ' · 🌉 Bridge' : '';
-    if (topo === 'chain') {
-      const head = nodes[0];
-      const note = 'שרשור (' + nodes.length + ' רמקולים)' + dlyTxt + brTxt;
+    /* ריצות לפי כפתורי ה-🔗: רמקולים מקושרים = שרשרת אחת; כל ריצה מקבלת קו משלה מהריכוז */
+    const runs = [];
+    let cur = [nodes[0]];
+    for (let i = 1; i < nodes.length; i++) {
+      if (chLinked(key, ids[i - 1], ids[i])) cur.push(nodes[i]);
+      else { runs.push(cur); cur = [nodes[i]]; }
+    }
+    runs.push(cur);
+    runs.forEach((run, ri) => {
+      const head = run[0];
+      const base = run.length > 1 ? 'שרשור (' + run.length + ' רמקולים)' : (runs.length > 1 || nodes.length > 1 ? 'קו ישיר (מקביל בערוץ)' : 'קו בודד');
+      const note = base + (ri === 0 ? dlyTxt : '') + brTxt;
       const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: pOutLbl };
       if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
       if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
       if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
       P.cables.push(cc); n2++; made.push(cc);
-      for (let i = 1; i < nodes.length; i++) {
-        const cb = { id: uid('c'), from: nodes[i - 1].id, to: nodes[i].id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' };
-        if (P.scale) cb.len = +(dist(nodes[i - 1], nodes[i]) * P.scale).toFixed(1);
+      for (let i = 1; i < run.length; i++) {
+        const cb = { id: uid('c'), from: run[i - 1].id, to: run[i].id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' };
+        if (P.scale) cb.len = +(dist(run[i - 1], run[i]) * P.scale).toFixed(1);
         if (cblRef) applyStockRef(cblRef, null, cb);
         P.cables.push(cb); n2++; made.push(cb);
       }
-    } else {
-      /* ברירת המחדל: כל רמקול בכבל משלו ישירות מהריכוז — מקביל על אותו ערוץ */
-      nodes.forEach((nd, i) => {
-        const note = (nodes.length > 1 ? 'קו ישיר ' + (i + 1) + '/' + nodes.length + ' (מקביל בערוץ)' : 'קו בודד') + (i === 0 ? dlyTxt : '') + brTxt;
-        const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: nd.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: pOutLbl };
-        if (isActiveSub(nd.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
-        if (P.scale) cc.len = +(dist(a.rk, nd) * P.scale).toFixed(1);
-        if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
-        P.cables.push(cc); n2++; made.push(cc);
-      });
-    }
+    });
   }
   /* ערוצים שרוקנו לגמרי — הקווים הישנים שלהם נמחקים */
   Object.entries(PATCH.preCables || {}).forEach(([k5, cids]) => {
