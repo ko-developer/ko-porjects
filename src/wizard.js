@@ -146,7 +146,7 @@ function wizStepHTML(s) {
     <button class="sec" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
   }
   if (s === 2) {
-    const usages2 = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];
+    const usages2 = typeof USAGES !== 'undefined' ? USAGES : [];
     return `
     <h4>סימון אזור סאונד</h4>
     ${(P.zones || []).map(zz => `<button class="sec ${zz.id === (WIZ.zid || (P.zones[0] || {}).id) ? 'done' : ''}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">🗺 ${esc(zz.name)} · ${zoneAreaM(zz).toFixed(0)} מ"ר${zz.usage ? ' · ' + esc(zz.usage) : ''}</button>`).join('')}
@@ -156,12 +156,17 @@ function wizStepHTML(s) {
       <option value="">— תכלית / עוצמה —</option>
       ${usages2.map(u => `<option ${z.usage === u ? 'selected' : ''} value="${u}">${u}${typeof USAGE_SPL !== 'undefined' && USAGE_SPL[u] ? ' · יעד ' + USAGE_SPL[u] + 'dB' : ''}</option>`).join('')}
     </select>` : ''}
+    ${z ? `<label style="font-size:12px;font-weight:700;display:block;margin:8px 0 3px">🎚 מה מנגן באזור? <span style="color:#c1121f">(חובה)</span> — קובע מיקסר / כרטיס קול / פרוססור</label>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+      ${SOURCES.map(([k, l]) => `<button class="sec" style="width:auto;flex:0 0 auto;margin:0;padding:5px 9px;font-size:11.5px;${(z.sources || []).includes(k) ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700' : ''}" onclick="wizSrcToggle('${z.id}','${k}')">${(z.sources || []).includes(k) ? '✓ ' : ''}${l}</button>`).join('')}
+    </div>
+    ${(() => { const nd = sourceNeeds(z); return nd.length ? `<p class="hint" style="margin:-2px 0 8px;color:#0f6e56">נדרש בארון: ${esc(nd.join(' · '))}</p>` : ''; })()}` : ''}
     <button class="big" onclick="wizDrawZone()">➕ ${(P.zones || []).length ? 'צייר אזור נוסף' : 'צייר אזור'} — ניקור נקודות על התכנית</button>
     <button class="sec" onclick="autoZones()">🤖 זיהוי אזורים אוטומטי (AI)</button>`;
   }
   if (s === 3) {
     if (!z) return '<p class="hint">קודם סמן אזור בשלב הקודם.</p>';
-    const usages = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];
+    const usages = typeof USAGES !== 'undefined' ? USAGES : [];
     return `
     <h4>מערכת לאזור "${esc(z.name)}"</h4>
     ${(P.zones || []).length > 1 ? (P.zones || []).map(zz => `<button class="sec ${zz.id === z.id ? 'done' : ''}" style="${zz.id === z.id ? 'font-weight:800' : ''}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">${zz._built ? '✓' : '○'} ${esc(zz.name)}${zz.usage ? ' · ' + esc(zz.usage) : ''}${zz._built ? ' — נבנה' : ''}</button>`).join('') : ''}
@@ -227,6 +232,14 @@ function wizStepHTML(s) {
 }
 
 /* ---- פעולות האשף ---- */
+function wizSrcToggle(zid, k) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  z.sources = z.sources || [];
+  const i = z.sources.indexOf(k);
+  if (i >= 0) z.sources.splice(i, 1); else z.sources.push(k);
+  /* מיקרופון נבחר → מוסיפים אותו כמקור גם אם התכלית לא דרשה */
+  save(); wizRender();
+}
 function wizNext() {
   /* שאלת חובה: אי אפשר להתקדם מהאזור בלי תכלית — היא קובעת את המערכת */
   if (WIZ.step === 2) {
@@ -235,6 +248,10 @@ function wizNext() {
       uiToast('🎯 חובה לבחור מה עושים באזור — זה קובע את העוצמה ואת ההצעות');
       const sel = document.getElementById('wizUse');
       if (sel) { sel.style.outline = '2px solid #c1121f'; sel.focus(); }
+      return;
+    }
+    if (z && !(z.sources || []).length) {
+      uiToast('🎚 חובה לבחור מה מנגן באזור — זה קובע מיקסר / כרטיס קול / פרוססור');
       return;
     }
   }

@@ -4950,7 +4950,7 @@ function renderPanel() {
         <div class="fld"><label>ספיגה אקוסטית 0-10</label><input type="number" min="0" max="10" value="${P.room?.absorb ?? ''}" onchange="P.room=P.room||{};P.room.absorb=+this.value;save()"></div>
       </div>
       <div class="fld"><label>אופי שימוש כללי (כשאין אזורים)</label><select onchange="P.room=P.room||{};P.room.usage=this.value;save()">
-        ${['— בחר —', 'מוזיקת רקע', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'].map(u => `<option value="${u}" ${P.room?.usage === u ? 'selected' : ''}>${u}${typeof USAGE_SPL!=='undefined'&&USAGE_SPL[u]?' · '+USAGE_SPL[u]+'dB':''}</option>`).join('')}
+        ${['— בחר —'].concat(typeof USAGES !== 'undefined' ? USAGES : []).map(u => `<option value="${u}" ${P.room?.usage === u ? 'selected' : ''}>${u}${typeof USAGE_SPL!=='undefined'&&USAGE_SPL[u]?' · '+USAGE_SPL[u]+'dB':''}</option>`).join('')}
       </select></div>
       `;
     let bgc = `<h3 class="sec">🗺 אזורי סאונד — תכלית שונה לכל אזור</h3>
@@ -7577,8 +7577,36 @@ function autoZonesHint() {
   alert('📋 הבקשה הועתקה ללוח!\n\n1. צלם את התכנית (צילום מסך של הקנבס)\n2. שלח ל-Claude את הצילום + הדבק את הבקשה\n3. את קובץ ה-JSON שיחזור ייבא דרך ייבוא ▾ ← 📦 ייבוא פריטים מ-ERP (JSON)\n\nהאזורים ייכנסו ישר לתכנית.');
 }
 /* עוצמת נגינה יעד (dB) לפי תכלית */
-const USAGE_SPL = { 'מוזיקת רקע': 72, 'בית קפה': 85, 'מסעדה': 90, 'מוזיקה לבר': 95, 'מסעדה + DJ': 98, 'הופעות חיות': 100, 'מוזיקת ריקודים': 110, 'מועדון על מלא': 115 };
-const USAGES = ['מוזיקת רקע', 'בית קפה', 'מסעדה', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'מוזיקת ריקודים', 'מועדון על מלא'];
+const USAGE_SPL = { 'מוזיקת רקע': 72, 'בית קפה': 85, 'חדר כושר — חלל כללי': 80, 'מסעדה': 90, 'סטודיו בחדר כושר': 90, 'מוזיקה לבר': 95, 'מסעדה + DJ': 98, 'הופעות חיות': 100, 'סטודיו ספינינג': 100, 'מוזיקת ריקודים': 110, 'מועדון על מלא': 115 };
+const USAGES = ['מוזיקת רקע', 'חדר כושר — חלל כללי', 'בית קפה', 'מסעדה', 'סטודיו בחדר כושר', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'סטודיו ספינינג', 'מוזיקת ריקודים', 'מועדון על מלא'];
+/* תכליות שדורשות מיקרופון מובנה בתכנון (מדריך/מנחה) */
+const USAGE_MIC = { 'סטודיו בחדר כושר': 1, 'סטודיו ספינינג': 1, 'הופעות חיות': 1 };
+/* מקורות נגינה אפשריים לאזור — קובעים מה נדרש בארון (מיקסר / כרטיס קול / פרוססור עם כניסת מיק) */
+const SOURCES = [
+  ['stream', '🎵 סטרימר / מוזיקה מסופקת'],
+  ['pc', '🖥 מחשב / נגן בארון'],
+  ['dj', '🎧 עמדת DJ'],
+  ['micWired', '🎤 מיקרופון קווי'],
+  ['micWl', '📡 מיקרופון אלחוטי'],
+  ['inst', '🎸 כלי נגינה / במה'],
+  ['tv', '📺 טלוויזיות'],
+  ['phone', '📱 טלפון / בלוטות׳'],
+];
+/* מה המקורות מחייבים — מוצג למשתמש ומזין את בניית הארון */
+function sourceNeeds(z) {
+  const s2 = (z && z.sources) || [];
+  const mic = s2.includes('micWired') || s2.includes('micWl') || (z && USAGE_MIC[z.usage]);
+  const line = s2.filter(x => ['stream', 'pc', 'tv', 'phone', 'dj'].includes(x)).length;
+  const out = [];
+  if (mic && (line > 1 || s2.includes('inst'))) out.push('מיקסר / פרוססור עם כניסות מיק ופנטום');
+  else if (mic) out.push('כניסת מיקרופון בפרוססור (או מיקסר קטן)');
+  if (s2.includes('pc')) out.push('כרטיס קול / ממשק USB בארון');
+  if (s2.includes('dj')) out.push('כניסות ליין לעמדת DJ');
+  if (s2.includes('micWl')) out.push('מקלט אלחוטי + אנטנה');
+  if (s2.includes('tv')) out.push('ממיר אודיו מהטלוויזיה (ARC/אופטי)');
+  if (line > 2) out.push('בורר מקורות / מטריצה');
+  return out;
+}
 const BRANDS = ['— ללא העדפה —', 'KT Audio', 'Kling & Freitag', 'Funktion-One', 'Lambda Labs'];
 function zoneAreaM(z) { return P.scale ? zoneArea(z) * P.scale * P.scale : 0; }
 /* רמקולים לפי מותג — מבסיס הידע + אינדקס ה-ERP */
