@@ -131,12 +131,18 @@ function wizStepHTML(s) {
     const mine = sig(P);
     const twin = mine ? (store.projects || []).find(p2 => p2 !== P && p2.scale && sig(p2) === mine) : null;
     const guess = twin ? +(P.bgW * twin.scale).toFixed(1) : null;
+    const curW = P.scale ? P.bgW * P.scale : 0;
+    const odd = curW && (curW < 4 || curW > 200);
     return `
     <h4>כיול קנה מידה</h4>
-    ${P.scale ? `<div class="kpi" style="margin-bottom:7px"><div style="background:#eef7f1;outline:2px solid #0f6e56">
-        <b style="color:#0f6e56">✓ מכויל</b><small>1 מ׳ = ${(1 / P.scale).toFixed(1)}px · רוחב התכנית ${(P.bgW * P.scale).toFixed(1)} מ׳${P.calLine ? ' · 📏 קו ייחוס על התכנית' : ''}</small></div></div>`
+    <button class="sec" onclick="cropStart()">✂️ חתוך את התכנית — סמן את החלק הרלוונטי</button>
+    ${P.scale ? `<div class="kpi" style="margin-bottom:7px"><div style="background:${P.calOk ? '#eef7f1' : '#fdf3e6'};outline:2px solid ${P.calOk ? '#0f6e56' : '#c96a13'}">
+        <b style="color:${P.calOk ? '#0f6e56' : '#c96a13'}">${P.calOk ? '✓ מכויל ומאושר' : '⏳ כיול לא מאושר'}</b><small>1 מ׳ = ${(1 / P.scale).toFixed(1)}px · רוחב התכנית ${curW.toFixed(1)} מ׳${P.calLine ? ' · 📏 קו ייחוס על התכנית' : ''}</small></div></div>
+      ${odd ? `<p class="hint" style="color:#c1121f;font-weight:700">⚠ רוחב תכנית של ${curW.toFixed(1)} מ׳ אינו סביר — כייל מחדש לפני שממשיכים.</p>` : ''}
+      ${!P.calOk ? `<p class="hint">📏 קו הייחוס הסגול מוצג על התכנית ברוחב המלא + סרגל 5 מ׳. השווה מול שולחן (~0.8 מ׳), דלת (~0.9 מ׳) או מידה מודפסת — ורק אז אשר.</p>
+        <button class="big" style="background:#0f6e56" onclick="wizCalConfirm()">✓ הכיול נכון — אשר והמשך</button>` : ''}`
       : `<p class="hint">הדרך המהירה: הקלד את רוחב השטח המצולם במטרים. לדיוק מלא — שתי לחיצות על מידה ידועה בתכנית (מידות בתכנית בנייה בד"כ במ״מ: 23700 = 23.7 מ׳).</p>`}
-    ${twin ? `<button class="sec" style="background:#eef7f1;border-color:#bfe0cd;color:#0f6e56;font-weight:700" onmouseenter="wizCalPreview(${guess})" onmouseleave="wizCalPreview(0)" onclick="wizCalPreview(${guess});P.scale=${twin.scale};recalcCableLengths();save();render();wizRender();uiToast('✓ הועתק קנה המידה מהפרויקט \'${esc((twin.name || '').slice(0, 18)).replace(/'/g, '&#39;')}\'')">♻ אותה תכנית כויּלה כבר — השתמש (${guess} מ׳ רוחב)</button>` : ''}
+    ${twin ? `<button class="sec" style="background:#eef7f1;border-color:#bfe0cd;color:#0f6e56;font-weight:700" onmouseenter="wizCalPreview(${guess})" onmouseleave="wizCalPreview(0)" onclick="wizCalPreview(${guess});P.scale=${twin.scale};P.calOk=0;recalcCableLengths();save();render();wizRender();uiToast('♻ הועתק קנה המידה — בדוק את קו הייחוס ואשר')">♻ אותה תכנית כויּלה כבר — השתמש (${guess} מ׳ רוחב)</button>` : ''}
     <input id="wizWidthM" type="number" step="0.1" placeholder="רוחב התכנית במטרים (למשל 23.7)" value="${guess || ''}" oninput="wizCalPreview(this.value)" onmouseenter="wizCalPreview(this.value)" onfocus="wizCalPreview(this.value)" onmouseleave="if(document.activeElement!==this)wizCalPreview(0)">
     <p class="hint" style="margin:-2px 0 6px">📐 ההצעה מוצגת על התכנית — קו סגול ברוחב המלא וסרגל 5 מ׳ להשוואה מול שולחן או דלת.</p>
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px">
@@ -240,7 +246,80 @@ function wizSrcToggle(zid, k) {
   /* מיקרופון נבחר → מוסיפים אותו כמקור גם אם התכלית לא דרשה */
   save(); wizRender();
 }
+function wizCalConfirm() {
+  if (!P.scale) { uiToast('כייל קודם'); return; }
+  P.calOk = 1; save();
+  WIZ.step = 2; wizRender();
+  uiToast('✓ הכיול אושר — עכשיו סימון אזור');
+}
+/* ✂️ חיתוך התכנית — סימון מלבן על הרקע וחיתוך בפועל */
+function cropStart() {
+  if (!P.bg) { uiToast('אין תכנית לחתוך'); return; }
+  const wrap = document.getElementById('canvasWrap'); if (!wrap) return;
+  const old = document.getElementById('cropOv'); if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'cropOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:95;cursor:crosshair;background:rgba(20,24,32,.25)';
+  ov.innerHTML = `<div id="cropBox" style="position:fixed;border:2px dashed #c9502e;background:rgba(201,80,46,.12);display:none"></div>
+    <div style="position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#1a1e28;color:#fff;padding:8px 16px;border-radius:10px;font-size:13px">
+      ✂️ גרור מלבן סביב החלק הרלוונטי בתכנית · <button id="cropCancel" style="background:#c9502e;border:none;color:#fff;border-radius:7px;padding:3px 10px;cursor:pointer;font-size:12px">ביטול</button></div>`;
+  document.body.appendChild(ov);
+  const box = ov.querySelector('#cropBox');
+  ov.querySelector('#cropCancel').onclick = () => ov.remove();
+  let st = null;
+  ov.addEventListener('pointerdown', e => {
+    if (e.target.id === 'cropCancel') return;
+    st = { x: e.clientX, y: e.clientY };
+    box.style.display = 'block';
+    box.style.left = st.x + 'px'; box.style.top = st.y + 'px'; box.style.width = '0px'; box.style.height = '0px';
+  });
+  ov.addEventListener('pointermove', e => {
+    if (!st) return;
+    box.style.left = Math.min(st.x, e.clientX) + 'px';
+    box.style.top = Math.min(st.y, e.clientY) + 'px';
+    box.style.width = Math.abs(e.clientX - st.x) + 'px';
+    box.style.height = Math.abs(e.clientY - st.y) + 'px';
+  });
+  ov.addEventListener('pointerup', e => {
+    if (!st) return;
+    const r = box.getBoundingClientRect();
+    st = null;
+    if (r.width < 20 || r.height < 20) { ov.remove(); uiToast('החיתוך קטן מדי — נסה שוב'); return; }
+    const im = document.getElementById('bgimg');
+    const ir = im.getBoundingClientRect();
+    const fx = (r.left - ir.left) / ir.width, fy = (r.top - ir.top) / ir.height;
+    const fw = r.width / ir.width, fh = r.height / ir.height;
+    ov.remove();
+    if (fw <= 0.02 || fh <= 0.02) { uiToast('החיתוך מחוץ לתכנית'); return; }
+    const img = new Image();
+    img.onload = () => {
+      const sx = Math.max(0, fx * img.naturalWidth), sy = Math.max(0, fy * img.naturalHeight);
+      const sw = Math.min(img.naturalWidth - sx, fw * img.naturalWidth), sh = Math.min(img.naturalHeight - sy, fh * img.naturalHeight);
+      const cv = document.createElement('canvas'); cv.width = Math.round(sw); cv.height = Math.round(sh);
+      cv.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+      P.bg = cv.toDataURL('image/jpeg', 0.85);
+      /* קנה המידה נשמר — הרוחב החדש פרופורציונלי לחלק שנחתך */
+      const oldW = P.bgW || 1400;
+      const oldH = oldW * img.naturalHeight / img.naturalWidth;
+      const newW = Math.round(oldW * fw);
+      /* הרקע מוצמד לימין הקנבס, לכן ההיסט האופקי לקואורדינטת ה-right של מוקד: */
+      const dxR = newW + fx * oldW - oldW;
+      const dyT = fy * oldH;
+      P.bgW = newW;
+      P.calLine = null; P.calOk = 0;
+      (P.nodes || []).forEach(n => { n.x += dxR; n.y -= dyT; });
+      (P.zones || []).forEach(z2 => {
+        if (z2.poly) z2.poly.forEach(pt => { pt.x -= dxR; pt.y -= dyT; });
+        else { z2.x += dxR; z2.y -= dyT; }
+      });
+      render(); save(); wizRender();
+      uiToast('✂️ התכנית נחתכה — ודא את הכיול ואשר');
+    };
+    img.src = P.bg;
+  });
+}
 function wizNext() {
+  if (WIZ.step === 1 && P.scale && !P.calOk) { uiToast('📏 אשר את הכיול לפני שממשיכים — השווה מול שולחן או דלת'); return; }
   /* שאלת חובה: אי אפשר להתקדם מהאזור בלי תכלית — היא קובעת את המערכת */
   if (WIZ.step === 2) {
     const z = wizZone();
@@ -277,6 +356,7 @@ function wizCalByWidth() {
   const m = parseFloat(document.getElementById('wizWidthM').value);
   if (!(m > 1)) { uiToast('הקלד רוחב במטרים'); return; }
   P.scale = m / (P.bgW || 1400);
+  P.calOk = 0;             /* דורש אישור ויזואלי לפני שממשיכים */
   window.__calPrev = 0; /* התצוגה המקדימה מתחלפת בקו הייחוס הקבוע */
   /* קו ייחוס אדום על התכנית — בודקים בעין מול חדר/דלת מוכרים שהכיול הגיוני */
   const w = P.bgW || 1400;
@@ -284,8 +364,8 @@ function wizCalByWidth() {
   const h = bgEl && bgEl.offsetHeight ? bgEl.offsetHeight : Math.round(w * 0.6);
   P.calLine = { p1: { x: Math.round(w * 0.25), y: Math.round(h / 2) }, p2: { x: Math.round(w * 0.75), y: Math.round(h / 2) } };
   recalcCableLengths(); save(); render();
-  WIZ.step = 2; wizRender();
-  uiToast('✓ כויל: 1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px · 📏 הקו האדום שבאמצע התכנית = ' + (m / 2).toFixed(1) + ' מ׳ — ודא שזה נראה נכון מול חדר או דלת מוכרים; לדיוק מלא כייל ב-2 נקודות', 7000);
+  wizRender();
+  uiToast('📏 כויל: 1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px · 📏 הקו האדום שבאמצע התכנית = ' + (m / 2).toFixed(1) + ' מ׳ — ודא שזה נראה נכון מול חדר או דלת מוכרים; לדיוק מלא כייל ב-2 נקודות', 7000);
 }
 function wizDrawZone() {
   const nm = document.getElementById('wizZName').value.trim();
