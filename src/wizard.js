@@ -427,7 +427,9 @@ function wizBuildAll(force) {
   /* ארון משותף לכל האזורים — נוצר חדש רק אם אין ארון בפרויקט */
   zoneRack(z, () => {
     const b = zoneBounds(z);
-    return { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: '', x: Math.max(10, 2200 - b.L - 60), y: Math.max(10, b.T - 10), ru: 12, units: [], min: true };
+    /* בתוך האזור — בפינה הימנית-עליונה, מרווח קטן מהקיר */
+    const px = b.L + b.W - 46, py = b.T + 34;
+    return { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: z.name, x: 2200 - px - 20, y: py - 24, ru: 12, units: [], min: true };
   });
   wizEnsureMic(z.id);
   window.__autoFlow = true;   /* הבנייה וההצבה אוטומטיות */

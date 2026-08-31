@@ -3290,6 +3290,29 @@ function chLinkToggle(key, a, b) {
   const k = a + '>' + b;
   if (m[k]) delete m[k]; else m[k] = 1;
   patchRender();
+  if (m[k]) chLinkShow(a, b);   /* מציג על התכנית את הכבל שנוצר בין השניים */
+}
+/* קו השרשור על התכנית — נצבע ומודגש לרגע כדי לראות בדיוק איפה הוא עובר */
+function chLinkShow(a, b) {
+  const na = byId(a), nb = byId(b);
+  if (!na || !nb) return;
+  const svg = document.getElementById('wires'); if (!svg) return;
+  document.querySelectorAll('.chPrev').forEach(e => e.remove());
+  const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  const cx = n => 2200 - n.x - 20, cy = n => n.y + 24;
+  ln.setAttribute('x1', cx(na)); ln.setAttribute('y1', cy(na));
+  ln.setAttribute('x2', cx(nb)); ln.setAttribute('y2', cy(nb));
+  ln.setAttribute('stroke', '#0f6e56'); ln.setAttribute('stroke-width', '4');
+  ln.setAttribute('stroke-dasharray', '10 6'); ln.setAttribute('stroke-linecap', 'round');
+  ln.setAttribute('class', 'chPrev');
+  svg.appendChild(ln);
+  patchHi(a, true); patchHi(b, true);
+  [na, nb].forEach(n => { const el = document.getElementById('nd_' + n.id); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); });
+  clearTimeout(window.__chPrevT);
+  window.__chPrevT = setTimeout(() => {
+    document.querySelectorAll('.chPrev').forEach(e => e.remove());
+    patchHi(a, false); patchHi(b, false);
+  }, 2600);
 }
 function patchTopo(key) {
   const ids = PATCH.slots[key] || [];
@@ -3669,6 +3692,44 @@ async function patchApply() {
   /* הצעת קיטי התקנה/אביזרים לפרויקט — סוגרים את הפרויקט בקנייה אחת */
   if (typeof WIZ === 'undefined' || !WIZ) setTimeout(() => patchOfferKits(zid0), 400);
 }
+/* בורר כללי לפריט מהקטלוג לפי סינון — מחזיר בחירה להצעה */
+function pickCatalogLine(title, rx, notRx, dest) {
+  const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
+  const seen = new Set(); const cands = [];
+  for (const it of items) {
+    const k = it[0], n = it[1];
+    if (!n || seen.has(n) || !rx.test(n) || (notRx && notRx.test(n))) continue;
+    seen.add(n); cands.push([k, n]);
+  }
+  cands.sort((a, b) => byStockThenSold(a[0], b[0]));
+  if (!cands.length) { uiToast('אין פריטים מתאימים בקטלוג'); return; }
+  const ov = uiModal(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">${esc(title)}</b><button data-x>✕</button></div>
+    <input data-q placeholder="🔍 סינון…" style="width:100%;padding:6px;box-sizing:border-box;margin-bottom:8px">
+    <div data-list style="max-height:46vh;overflow-y:auto"></div>`);
+  const listEl = ov.querySelector('[data-list]');
+  const paint = q => {
+    const f = cands.filter(c => !q || c[1].toLowerCase().includes(q.toLowerCase()));
+    listEl.innerHTML = f.slice(0, 60).map(c => { const inf = erpInfo(c[0]); return `
+      <div data-i="${cands.indexOf(c)}" style="display:flex;gap:8px;align-items:center;padding:6px 9px;border:1px solid #eee;border-radius:9px;margin-bottom:4px;cursor:pointer">
+        ${imgCell(c[0], 36, c[1])}<b style="flex:1;font-size:12.5px">${esc(c[1].slice(0, 60))}</b>
+        ${stockBadge(c[0])}${inf && inf.price ? `<b style="white-space:nowrap">₪${inf.price.toLocaleString()}</b>` : ''}</div>`; }).join('') || '<p class="muted">אין תוצאות</p>';
+    listEl.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
+      const [k, n] = cands[+el.dataset.i];
+      const it = { on: true, qty: 1, name: n, key: k, src: 'בדיקת שלמות', dest: dest || 'unit', cat: 'other', u: 1, iid: uid('i') };
+      autoPrice(it); impItems.push(it); save(); render(); ov.remove();
+      uiToast('✓ נוסף להצעה: ' + n.slice(0, 40));
+      if (window.__gapReopen) setTimeout(projGapCheck, 250);
+    });
+  };
+  paint('');
+  ov.querySelector('[data-q]').oninput = e => paint(e.target.value);
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
+const NOT_PROD = /כבל|מתקן|תושבת|סטנד|חצובה|ספוג|מסנן|ת\.ח|כיסוי|פנל|ארון|קייס|תיק|סוללה|מטען|חלופי|דוגמא|טסט|שלט|מחבר|ראש|קליפס|זרוע|לתיקון|פגום|שקע|קופס/;
+function addMicLine() { pickCatalogLine('🎤 בחר מיקרופון להצעה', /מיקרופון/, NOT_PROD, 'unit'); }
+function addMixerLine() { pickCatalogLine('🎛 בחר מיקסר / פרוססור עם כניסת מיק', /מיקסר|mixer|SYMETRIX|JUPITER|ICORE|\bK7\b|DMX ?208|מטריצת שמע/i, NOT_PROD, 'unit'); }
 /* סעיף כיוון/תכנות מערכת סאונד מהקטלוג — נבחר לפי מלאי/מכירות */
 function addTuneLine() {
   const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
@@ -3706,6 +3767,17 @@ function projGapCheck() {
     const un = spkN.filter(n => (n.sub || '').includes(z.name) && !fed.has(n.id)).length;
     if (un) finds.push({ i: '🔌', t: un + ' רמקולים לא מחווטים באזור "' + esc(z.name) + '"', b: 'חווט עכשיו', fn: `smartWire('${z.id}')` });
   });
+  /* 1א. מיקרופון נדרש — יש מיקרופון בהצעה? והאם הפרוססור יודע לנהל אותו? */
+  const micZones = (P.zones || []).filter(z => zoneMic(z));
+  if (micZones.length) {
+    if (!impItems.some(it => /מיקרופון|microphone|\bmic\b/i.test(it.name || ''))) {
+      finds.push({ i: '🎤', t: 'נבחר מיקרופון כמקור אך אין מיקרופון בהצעה', b: 'בחר מיקרופון', fn: 'addMicLine()' });
+    }
+    const proc = impItems.filter(it => /פרוססור|מעבד|מיקסר|mixer|processor|DSP/i.test(it.name || ''));
+    if (proc.length && !proc.some(it => MIC_CAPABLE.test(it.name || ''))) {
+      finds.push({ i: '🎛', t: 'הפרוססור שנבחר לא מנהל כניסת מיקרופון — נדרש מיקסר / פרוססור עם כניסת מיק', b: 'בחר מיקסר/פרוססור', fn: 'addMixerLine()' });
+    }
+  }
   /* 1ב. אין סעיף כיוון/תכנות מערכת סאונד — חובה בכל הצעה עם רמקולים */
   if (spkN.length && !rows.some(it => /כיוון|תכנות/.test(it.name || ''))) {
     finds.push({ i: '🎛', t: 'אין סעיף כיוון/תכנות מערכת סאונד בהצעה', b: 'הוסף סעיף כיוון', fn: 'addTuneLine()' });
@@ -3769,12 +3841,12 @@ function projGapCheck() {
         <div style="display:flex;gap:8px;align-items:center;border:1px solid #eee;border-radius:9px;padding:7px 9px;margin-bottom:5px;background:#faf8f4">
           <span style="font-size:16px">${f.i}</span>
           <span style="flex:1;font-size:12px">${f.t}</span>
-          <button style="white-space:nowrap;font-size:11.5px;background:#0f6e56;color:#fff;border:none;border-radius:7px;padding:5px 9px;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
-          ${f.alt ? `<button style="white-space:nowrap;font-size:11px;background:#f0ede8;border:1px solid #ddd;border-radius:7px;padding:5px 8px;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();${f.alt.fn}">${f.alt.b}</button>` : ''}
+          <button style="white-space:nowrap;font-size:11.5px;background:#0f6e56;color:#fff;border:none;border-radius:7px;padding:5px 9px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
+          ${f.alt ? `<button style="white-space:nowrap;font-size:11px;background:#f0ede8;border:1px solid #ddd;border-radius:7px;padding:5px 8px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.alt.fn}">${f.alt.b}</button>` : ''}
         </div>`).join('')}</div>`
       : '<p style="font-size:13px;color:#0f6e56;margin:10px 0">✓ לא נמצאו חוסרים — התכנית וההצעה שלמות: חיווט, כבלים, מחברים, תושבות, התקנה ומק"טים.</p>'}
-    <button style="width:100%;margin-top:6px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove()">סגור</button>`);
-  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+    <button style="width:100%;margin-top:6px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer" onclick="window.__gapReopen=0;document.querySelector('.uiDlgOv')?.remove()">סגור</button>`);
+  ov.addEventListener('click', e => { if (e.target === ov) { window.__gapReopen = 0; ov.remove(); } });
 }
 /* משלים מחברים לכל הקווים שקיימים — צריכה של 2 לקו דרך אותו מנגנון של החיבור */
 async function gapFixConnectors() {
@@ -5949,6 +6021,16 @@ document.addEventListener('pointerup', e => {
     /* רמקול של אזור שנגרר החוצה מגבולות האזור — מאשרים או מחזירים */
     const n = moved.n;
     const movedFar = Math.abs(n.x - moved.ox) > 3 || Math.abs(n.y - moved.oy) > 3;
+    if (movedFar && n.kind === 'rack') {
+      const zr = (P.zones || []).find(zz => ptInZone(zz, 2200 - moved.ox - 20, moved.oy + 24));
+      if (zr && !ptInZone(zr, 2200 - n.x - 20, n.y + 24)) {
+        uiConfirm('ארון "' + (n.name || '').slice(0, 24) + '" נגרר אל מחוץ לאזור "' + zr.name + '".\nלהשאיר אותו בחוץ?').then(ok => {
+          if (!ok) { n.x = moved.ox; n.y = moved.oy; }
+          recalcCableLengths(); render(); save();
+        });
+        return;
+      }
+    }
     if (movedFar && n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')) {
       const z = (P.zones || []).find(zz => (n.sub || '').includes(zz.name));
       if (z) {
@@ -7586,27 +7668,26 @@ const SOURCES = [
   ['stream', '🎵 סטרימר / מוזיקה מסופקת'],
   ['pc', '🖥 מחשב / נגן בארון'],
   ['dj', '🎧 עמדת DJ'],
-  ['micWired', '🎤 מיקרופון קווי'],
-  ['micWl', '📡 מיקרופון אלחוטי'],
+  ['mic', '🎤 מיקרופון'],
   ['inst', '🎸 כלי נגינה / במה'],
-  ['tv', '📺 טלוויזיות'],
   ['phone', '📱 טלפון / בלוטות׳'],
 ];
 /* מה המקורות מחייבים — מוצג למשתמש ומזין את בניית הארון */
+function zoneMic(z) { return !!(z && (((z.sources || []).includes('mic')) || USAGE_MIC[z.usage])); }
 function sourceNeeds(z) {
   const s2 = (z && z.sources) || [];
-  const mic = s2.includes('micWired') || s2.includes('micWl') || (z && USAGE_MIC[z.usage]);
-  const line = s2.filter(x => ['stream', 'pc', 'tv', 'phone', 'dj'].includes(x)).length;
+  const mic = zoneMic(z);
+  const line = s2.filter(x => ['stream', 'pc', 'phone', 'dj'].includes(x)).length;
   const out = [];
   if (mic && (line > 1 || s2.includes('inst'))) out.push('מיקסר / פרוססור עם כניסות מיק ופנטום');
   else if (mic) out.push('כניסת מיקרופון בפרוססור (או מיקסר קטן)');
   if (s2.includes('pc')) out.push('כרטיס קול / ממשק USB בארון');
   if (s2.includes('dj')) out.push('כניסות ליין לעמדת DJ');
-  if (s2.includes('micWl')) out.push('מקלט אלחוטי + אנטנה');
-  if (s2.includes('tv')) out.push('ממיר אודיו מהטלוויזיה (ARC/אופטי)');
   if (line > 2) out.push('בורר מקורות / מטריצה');
   return out;
 }
+/* פרוססורים שיודעים לנהל מיקרופון (כניסת מיק/פנטום/מיקסר) */
+const MIC_CAPABLE = /מיקסר|mixer|SYMETRIX|JUPITER|ICORE|MTX|MRX|K7|DMX\s?208|מטריצ/i;
 const BRANDS = ['— ללא העדפה —', 'KT Audio', 'Kling & Freitag', 'Funktion-One', 'Lambda Labs'];
 function zoneAreaM(z) { return P.scale ? zoneArea(z) * P.scale * P.scale : 0; }
 /* רמקולים לפי מותג — מבסיס הידע + אינדקס ה-ERP */
