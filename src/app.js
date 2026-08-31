@@ -6480,7 +6480,7 @@ async function kitFromOffer() {
   renderKits();
 }
 // מעבר למטריצת ההתאמות באותה לשונית — כדי שחזרה תהיה טבעית (Back או הכפתור במטריצה)
-const MATRIX_URL = 'https://claude.ai/code/artifact/472d0973-17a9-4314-a5e6-40176341cb12';
+const MATRIX_URL = 'https://claude.ai/code/artifact/cec363db-c3c1-492b-b54c-bb297aa0f667';
 const LOGIC_URL = 'https://claude.ai/code/artifact/67c32ed8-7770-4937-99f7-60c83f9279a0';
 /* פתיחת דף חיצוני (מטריצה/לוגיקה): לשונית חדשה, ואם חסומה — ניווט באותה לשונית;
    בכל מקרה הקישור מועתק ללוח כדי שאפשר יהיה להדביק ידנית. */
