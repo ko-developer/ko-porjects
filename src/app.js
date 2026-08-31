@@ -6292,7 +6292,21 @@ function parseSpecText(text, src) {
 }
 /* 🧰 קיטים מוכנים מה-ERP */
 let kitQ = '', kitCat = '', kitShow = 60;
-function showKits() { $('#impOv').style.display = 'flex'; renderKits(); }
+function showKits() {
+  const ov = $('#impOv');
+  ov.style.display = 'flex';
+  /* במצב האשף (body.v2) חלק מהשכבות מוסתרות — מוודאים שהחלון באמת נראה ומעל הכל */
+  document.body.classList.add('wzdock');
+  ov.style.zIndex = '140';
+  const w = document.getElementById('wiz'); if (w) w.style.opacity = '0.25';
+  renderKits();
+  const box = ov.querySelector('#impList'); if (box) box.scrollTop = 0;
+}
+/* סגירת חלון הקיטים מחזירה את האשף */
+function closeKits() {
+  const ov = $('#impOv'); if (ov) ov.style.display = 'none';
+  const w = document.getElementById('wiz'); if (w) w.style.opacity = '';
+}
 /* כל הקיטים: ERP + קיטים שנוצרו ע"י המשתמש */
 /* קיט שנערך גובר על קיט ה-ERP עם אותו שם — העריכה נשמרת לתמיד ואין כפילות ברשימה */
 /* מטא-נתונים לקיטים: קטגוריה שתוקנה לפי התכולה בפועל, והסתרה של קיטים שאינם רלוונטיים.
