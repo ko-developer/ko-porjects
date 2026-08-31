@@ -6468,12 +6468,23 @@ async function kitFromOffer() {
 // מעבר למטריצת ההתאמות באותה לשונית — כדי שחזרה תהיה טבעית (Back או הכפתור במטריצה)
 const MATRIX_URL = 'https://claude.ai/code/artifact/472d0973-17a9-4314-a5e6-40176341cb12';
 const LOGIC_URL = 'https://claude.ai/code/artifact/67c32ed8-7770-4937-99f7-60c83f9279a0';
-function openLogic() {
+/* פתיחת דף חיצוני (מטריצה/לוגיקה): לשונית חדשה, ואם חסומה — ניווט באותה לשונית;
+   בכל מקרה הקישור מועתק ללוח כדי שאפשר יהיה להדביק ידנית. */
+function openExternal(url, label) {
   try { localStorage.setItem('koReturn', location.href); } catch (e) {}
-  location.href = LOGIC_URL;
+  try { navigator.clipboard && navigator.clipboard.writeText(url); } catch (e) {}
+  let w = null;
+  try { w = window.open(url, '_blank', 'noopener'); } catch (e) {}
+  if (!w) { uiToast('פותח ' + label + '…'); setTimeout(() => { location.href = url; }, 120); }
+  else uiToast('↗ ' + label + ' נפתח בלשונית חדשה · הקישור הועתק');
 }
+function openLogic() { openExternal(LOGIC_URL, 'לוגיקת תכלית ← מערכת'); }
 window.openLogic = openLogic;
 function openMatrix() {
+  openExternal(MATRIX_URL, 'מטריצת ההתאמות');
+  return;
+}
+function openMatrixOld() {
   try { localStorage.setItem('koReturn', location.href); } catch (e) {}
   location.href = MATRIX_URL;
 }
