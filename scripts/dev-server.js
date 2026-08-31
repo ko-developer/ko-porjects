@@ -41,9 +41,11 @@ createServer((req, res) => {
     }
     return;
   }
+  /* KO Studio — נתיב /studio מגיש את גרסת משתמשי הקצה (build:studio) */
+  const isStudio = /^\/studio\/?(\?|$)/.test(req.url || '');
   try {
-    execFileSync(process.execPath, ['scripts/build.js'], { stdio: 'pipe' });
-    const html = readFileSync('dist/index.html');
+    execFileSync(process.execPath, [isStudio ? 'scripts/build-lite.js' : 'scripts/build.js'], { stdio: 'pipe' });
+    const html = readFileSync(isStudio ? 'dist/studio.html' : 'dist/index.html');
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
     res.end(html);
   } catch (e) {
