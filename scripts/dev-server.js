@@ -41,6 +41,17 @@ createServer((req, res) => {
     }
     return;
   }
+  /* קיצורי דרך לטבלאות החיות — הפניה מהשרת עצמה, עובדת גם כשחלונות קופצים חסומים */
+  const SHORTCUTS = {
+    '/matrix': 'https://claude.ai/code/artifact/cec363db-c3c1-492b-b54c-bb297aa0f667',
+    '/logic': 'https://claude.ai/code/artifact/67c32ed8-7770-4937-99f7-60c83f9279a0',
+  };
+  const scKey = (req.url || '').replace(/\/$/, '').split('?')[0];
+  if (SHORTCUTS[scKey]) {
+    res.writeHead(302, { location: SHORTCUTS[scKey], 'cache-control': 'no-store' });
+    res.end();
+    return;
+  }
   /* KO Studio — נתיב /studio מגיש את גרסת משתמשי הקצה (build:studio) */
   const isStudio = /^\/studio\/?(\?|$)/.test(req.url || '');
   try {
