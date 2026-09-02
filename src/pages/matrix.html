@@ -95,6 +95,7 @@ tr.mblk-last>th,tr.mblk-last>td{border-bottom:2.5px solid var(--deep)}
 tr.bgroup th{text-align:right;position:sticky;right:-6px;z-index:3;background:var(--surface);cursor:pointer;
   font-family:Assistant;font-size:12px;font-weight:800;color:var(--deep);padding:6px 8px;border-top:2px solid var(--line);user-select:none}
 tr.bgroup th small{font-weight:400;color:var(--muted);margin-right:6px}
+tr.bgroup th .glab{position:sticky;right:0;display:inline-block;background:var(--surface);padding-left:10px}
 td.cell{width:36px;min-width:36px;height:30px;text-align:center;direction:ltr;border:1px solid var(--paper);
   font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:11px;cursor:pointer;position:relative;user-select:none}
 td.cell:hover{outline:2px solid var(--violet);outline-offset:-2px}
@@ -342,8 +343,8 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
         return !MSET[r] && !MHIDE[r];
       });
       var nBlocks = (kind !== 'sub') ? (D.multi || []).filter(function (mm) { return mm.brand === g.b; }).length : 0;
-      body += '<tr class="bgroup"><th colspan="' + (cols.length + 2) + '" data-grp="' + esc(kind + '~' + g.b) + '">' +
-        (open ? '\u25be ' : '\u25c2 ') + esc(g.b) + ' <small>' + (models.length + nBlocks) + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd</small></th></tr>';
+      body += '<tr class="bgroup"><th colspan="' + (cols.length + 2) + '" data-grp="' + esc(kind + '~' + g.b) + '"><span class="glab">' +
+        (open ? '\u25be ' : '\u25c2 ') + esc(g.b) + ' <small>' + (models.length + nBlocks) + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd</small></span></th></tr>';
       if (open) {
         models.forEach(function (r) {
           body += '<tr><th class="rowh' + ((ST.noKit || {})[r] ? ' nkh" title="\u05de\u05d5\u05d7\u05e8\u05d2 \u05de\u05e7\u05d9\u05d8\u05d9\u05dd \u2014 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d1\u05dc\u05d1\u05d3' : '') + '" colspan="2" data-m="' + esc(r) + '" data-kind="spk">' + esc(disp(r)) + roleB(r) + kindB(r) + stkB(r) + '</th>' +
