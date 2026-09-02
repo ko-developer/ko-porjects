@@ -3768,7 +3768,7 @@ function projGapCheck() {
   const fed = new Set(); P.cables.forEach(c => { if (c.to) fed.add(c.to); });
   (P.zones || []).forEach(z => {
     const un = spkN.filter(n => (n.sub || '').includes(z.name) && !fed.has(n.id)).length;
-    if (un) finds.push({ i: '🔌', t: un + ' רמקולים לא מחווטים באזור "' + esc(z.name) + '"', b: 'חווט עכשיו', fn: `smartWire('${z.id}')` });
+    if (un) finds.push({ i: '🔌', k: 'wire|' + z.id, t: un + ' רמקולים לא מחווטים באזור "' + esc(z.name) + '"', b: 'חווט עכשיו', fn: `smartWire('${z.id}')` });
   });
   /* 1א. מיקרופון נדרש — יש מיקרופון בהצעה? והאם הפרוססור יודע לנהל אותו? */
   const micZones = (P.zones || []).filter(z => zoneMic(z));
@@ -3836,21 +3836,41 @@ function projGapCheck() {
   /* 8. שורות בלי מק"ט — לא ייכנסו להזמנת ERP */
   const noKey = rows.filter(it => !it.key).length;
   if (noKey) finds.push({ i: '🏷', t: noKey + ' שורות ללא מק"ט ERP — לא ייקלטו בהצעה', b: 'פתח את ההצעה להשלמה', fn: 'openImported()' });
-  P._gapOk = true; save();
+  P._gapAck = P._gapAck || {};
+  /* מפתח לפי הקריאה המלאה — שני ממצאים שונים יכולים לחלוק את אותה פונקציה
+     (gapSearch('מתקן') מול gapSearch('פס שקעים')), ואישור אחד לא יאשר את השני.
+     גרשיים מוסרים כדי שהמפתח יעבור בבטחה ל-onclick. */
+  finds.forEach(f => { f.k = f.k || (f.fn || '').replace(/['"\\]/g, ''); f.ack = !!P._gapAck[f.k]; });
+  /* מה שאושר יורד לתחתית הרשימה — הפתוחים תמיד למעלה */
+  finds.sort((a, b) => (a.ack ? 1 : 0) - (b.ack ? 1 : 0));
+  const nAck = finds.filter(f => f.ack).length, nOpen = finds.length - nAck;
+  P._gapOk = nOpen === 0; save();
   const ov = uiModal(`
     <b style="font-size:14px">🤔 האם שכחתי משהו? — בדיקת שלמות</b>
-    ${finds.length ? `<p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">${finds.length} ממצאים — כל אחד עם תיקון בלחיצה:</p>
+    ${finds.length ? `<p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">${nOpen} ממצאים פתוחים${nAck ? ' · ' + nAck + ' אושרו כנלקחו בחשבון' : ''} — תקן בלחיצה, או אשר שלקחת בחשבון והמשך:</p>
       <div style="max-height:52vh;overflow-y:auto">${finds.map(f => `
-        <div style="display:flex;gap:8px;align-items:center;border:1px solid #eee;border-radius:9px;padding:7px 9px;margin-bottom:5px;background:#faf8f4">
+        <div style="display:flex;gap:8px;align-items:center;border:1px solid ${f.ack ? '#dfe9e2' : '#eee'};border-radius:9px;padding:7px 9px;margin-bottom:5px;background:${f.ack ? '#f2f7f4' : '#faf8f4'};${f.ack ? 'opacity:.72' : ''}">
+          <button title="${f.ack ? 'בטל אישור' : 'לקחתי בחשבון — אפשר להמשיך'}" style="flex:none;width:26px;height:26px;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;border:1px solid ${f.ack ? '#0f6e56' : '#d8d2c6'};background:${f.ack ? '#0f6e56' : '#fff'};color:${f.ack ? '#fff' : '#b9b2a5'}" onclick="gapAck('${esc(f.k)}')">✓</button>
           <span style="font-size:16px">${f.i}</span>
-          <span style="flex:1;font-size:12px">${f.t}</span>
-          <button style="white-space:nowrap;font-size:11.5px;background:#0f6e56;color:#fff;border:none;border-radius:7px;padding:5px 9px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
+          <span style="flex:1;font-size:12px;${f.ack ? 'text-decoration:line-through;color:#6b7d73' : ''}">${f.t}</span>
+          <button style="white-space:nowrap;font-size:11.5px;background:${f.ack ? '#8aa79a' : '#0f6e56'};color:#fff;border:none;border-radius:7px;padding:5px 9px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
           ${f.alt ? `<button style="white-space:nowrap;font-size:11px;background:#f0ede8;border:1px solid #ddd;border-radius:7px;padding:5px 8px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.alt.fn}">${f.alt.b}</button>` : ''}
-        </div>`).join('')}</div>`
+        </div>`).join('')}</div>
+      ${nOpen ? '' : '<p style="font-size:12px;color:#0f6e56;margin:8px 0 0">✓ כל הממצאים טופלו או אושרו — אפשר להמשיך להצעה.</p>'}`
       : '<p style="font-size:13px;color:#0f6e56;margin:10px 0">✓ לא נמצאו חוסרים — התכנית וההצעה שלמות: חיווט, כבלים, מחברים, תושבות, התקנה ומק"טים.</p>'}
     <button style="width:100%;margin-top:6px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer" onclick="window.__gapReopen=0;document.querySelector('.uiDlgOv')?.remove()">סגור</button>`);
   ov.addEventListener('click', e => { if (e.target === ov) { window.__gapReopen = 0; ov.remove(); } });
 }
+/* אישור ממצא: "לקחתי בחשבון" — לא מתקנים, אבל זה לא חוסם את המעבר להצעה */
+function gapAck(k) {
+  P._gapAck = P._gapAck || {};
+  if (P._gapAck[k]) delete P._gapAck[k]; else P._gapAck[k] = 1;
+  save();
+  document.querySelector('.uiDlgOv')?.remove();
+  projGapCheck();
+  if (typeof wizRender === 'function' && document.getElementById('wizPanel')) wizRender();
+}
+window.gapAck = gapAck;
 /* משלים מחברים לכל הקווים שקיימים — צריכה של 2 לקו דרך אותו מנגנון של החיבור */
 async function gapFixConnectors() {
   let n = 0;

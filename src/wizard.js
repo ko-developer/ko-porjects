@@ -126,11 +126,6 @@ function wizStepHTML(s) {
     <input type="file" accept="image/*" onchange="wizUploadBg(this)">
     <button class="sec" onclick="wizNewProject()">🗂 התחל פרויקט חדש נקי</button>`;
   if (s === 1) {
-    /* אותה תכנית כויּלה כבר בפרויקט אחר? מציעים את אותו קנה מידה — חוסך את כל התהליך */
-    const sig = p2 => p2 && p2.bg ? (p2.bg.length + '|' + p2.bg.slice(-24)) : '';
-    const mine = sig(P);
-    const twin = mine ? (store.projects || []).find(p2 => p2 !== P && p2.scale && sig(p2) === mine) : null;
-    const guess = twin ? +(P.bgW * twin.scale).toFixed(1) : null;
     const curW = P.scale ? P.bgW * P.scale : 0;
     const odd = curW && (curW < 4 || curW > 200);
     return `
@@ -141,15 +136,8 @@ function wizStepHTML(s) {
       ${odd ? `<p class="hint" style="color:#c1121f;font-weight:700">⚠ רוחב תכנית של ${curW.toFixed(1)} מ׳ אינו סביר — כייל מחדש לפני שממשיכים.</p>` : ''}
       ${!P.calOk ? `<p class="hint">📏 קו הייחוס הסגול מוצג על התכנית ברוחב המלא + סרגל 5 מ׳. השווה מול שולחן (~0.8 מ׳), דלת (~0.9 מ׳) או מידה מודפסת — ורק אז אשר.</p>
         <button class="big" style="background:#0f6e56" onclick="wizCalConfirm()">✓ הכיול נכון — אשר והמשך</button>` : ''}`
-      : `<p class="hint">הדרך המהירה: הקלד את רוחב השטח המצולם במטרים. לדיוק מלא — שתי לחיצות על מידה ידועה בתכנית (מידות בתכנית בנייה בד"כ במ״מ: 23700 = 23.7 מ׳).</p>`}
-    ${twin ? `<button class="sec" style="background:#eef7f1;border-color:#bfe0cd;color:#0f6e56;font-weight:700" onmouseenter="wizCalPreview(${guess})" onmouseleave="wizCalPreview(0)" onclick="wizCalPreview(${guess});P.scale=${twin.scale};P.calOk=0;recalcCableLengths();save();render();wizRender();uiToast('♻ הועתק קנה המידה — בדוק את קו הייחוס ואשר')">♻ אותה תכנית כויּלה כבר — השתמש (${guess} מ׳ רוחב)</button>` : ''}
-    <input id="wizWidthM" type="number" step="0.1" placeholder="רוחב התכנית במטרים (למשל 23.7)" value="${guess || ''}" oninput="wizCalPreview(this.value)" onmouseenter="wizCalPreview(this.value)" onfocus="wizCalPreview(this.value)" onmouseleave="if(document.activeElement!==this)wizCalPreview(0)">
-    <p class="hint" style="margin:-2px 0 6px">📐 ההצעה מוצגת על התכנית — קו סגול ברוחב המלא וסרגל 5 מ׳ להשוואה מול שולחן או דלת.</p>
-    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px">
-      ${[8, 10, 12, 16, 20, 23.7, 30, 40].map(v => `<button class="sec" style="flex:1;min-width:52px;margin:0;padding:5px 4px;font-size:12px" onclick="document.getElementById('wizWidthM').value=${v};wizCalPreview(${v})" ondblclick="wizCalByWidth()">${v} מ׳</button>`).join('')}
-    </div>
-    <button class="big" onclick="wizCalByWidth()">⚡ כייל לפי רוחב</button>
-    <button class="sec" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
+      : `<p class="hint">כייל בשתי לחיצות על מידה ידועה בתכנית — קיר, פתח או מידה מודפסת (מידות בתכנית בנייה בד"כ במ״מ: 23700 = 23.7 מ׳).</p>`}
+    <button class="big" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
   }
   if (s === 2) {
     const usages2 = typeof USAGES !== 'undefined' ? USAGES : [];
@@ -209,9 +197,9 @@ function wizStepHTML(s) {
   }
   if (s === 6) return `
     <h4>האם שכחתי משהו?</h4>
-    <p class="hint">סריקה אוטומטית של התכנית מול ההצעה: חיווט, גלילי כבל, מחברים, תושבות, פס שקעים, שורת התקנה ומק"טים — כל ממצא עם תיקון בלחיצה.</p>
+    <p class="hint">סריקה אוטומטית של התכנית מול ההצעה: חיווט, גלילי כבל, מחברים, תושבות, פס שקעים, שורת התקנה ומק"טים. כל ממצא — או שמתקנים אותו בלחיצה, או מסמנים ✓ "לקחתי בחשבון" וממשיכים.</p>
     <button class="big" onclick="projGapCheck();setTimeout(wizRender,300)">🤔 הרץ בדיקת שלמות</button>
-    ${P._gapOk ? '<button class="sec done">✓ הבדיקה הורצה — אפשר להמשיך להצעה</button>' : ''}`;
+    ${P._gapOk ? '<button class="sec done">✓ אין ממצאים פתוחים — אפשר להמשיך להצעה</button>' : ''}`;
   if (s === 7) {
     const rows = impItems.filter(it => it.on !== false);
     const total = rows.reduce((s2, it) => s2 + (+it.price || 0) * (+it.qty || 0), 0);
@@ -228,6 +216,7 @@ function wizStepHTML(s) {
       ${P.erpOfferCode ? '<br>✅ נשלחה כבר: <b>' + esc(P.erpOfferCode) + '</b>' : ''}
     </div>
     <button class="sec" onclick="document.body.classList.toggle('wzdock');dockOpen=true;dockMin=false;renderImp()">🧾 הצג/הסתר את ההצעה המלאה</button>
+    <button class="sec" style="background:#f3ede2;border-color:#e0cfae;color:#8a5a12;font-weight:700" onclick="installerReport()">🔧 דוח הכנות, תשתיות ותכנית פרויקט — לחשמלאים ולמתקינים</button>
     <button class="big" style="background:#0f6e56" onclick="sendOffer()">📤 ${P.erpOfferCode ? 'שלח הצעה נוספת ל-ERP' : 'שלח הצעה ל-ERP'}</button>`;
   }
   return `
@@ -346,27 +335,6 @@ function wizUploadBg(inp) {
   });
 }
 function wizNewProject() { newProj(); WIZ.step = 0; wizRender(); }
-/* תצוגה מקדימה של הכיול המוצע על התכנית (בלי לשנות עדיין את קנה המידה) */
-function wizCalPreview(v) {
-  const m = parseFloat(v);
-  window.__calPrev = (m > 0.5 && m < 500) ? m : 0;
-  renderWires();
-}
-function wizCalByWidth() {
-  const m = parseFloat(document.getElementById('wizWidthM').value);
-  if (!(m > 1)) { uiToast('הקלד רוחב במטרים'); return; }
-  P.scale = m / (P.bgW || 1400);
-  P.calOk = 0;             /* דורש אישור ויזואלי לפני שממשיכים */
-  window.__calPrev = 0; /* התצוגה המקדימה מתחלפת בקו הייחוס הקבוע */
-  /* קו ייחוס אדום על התכנית — בודקים בעין מול חדר/דלת מוכרים שהכיול הגיוני */
-  const w = P.bgW || 1400;
-  const bgEl = document.getElementById('bgimg');
-  const h = bgEl && bgEl.offsetHeight ? bgEl.offsetHeight : Math.round(w * 0.6);
-  P.calLine = { p1: { x: Math.round(w * 0.25), y: Math.round(h / 2) }, p2: { x: Math.round(w * 0.75), y: Math.round(h / 2) } };
-  recalcCableLengths(); save(); render();
-  wizRender();
-  uiToast('📏 כויל: 1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px · 📏 הקו האדום שבאמצע התכנית = ' + (m / 2).toFixed(1) + ' מ׳ — ודא שזה נראה נכון מול חדר או דלת מוכרים; לדיוק מלא כייל ב-2 נקודות', 7000);
-}
 function wizDrawZone() {
   const nm = document.getElementById('wizZName').value.trim();
   zoneNameNext = nm || 'אזור ' + ((P.zones || []).length + 1);
