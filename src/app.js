@@ -871,14 +871,9 @@ function render() {
   save();
 }
 
-/* אם הדפדפן חוסם פתיחת לשונית — הקישור מועתק ללוח כדי להדביק ידנית */
-function linkFallback(ev, url) {
-  try { navigator.clipboard && navigator.clipboard.writeText(url); } catch (e) {}
-  setTimeout(() => uiToast('↗ נפתח בלשונית חדשה · אם לא — הקישור הועתק ללוח, הדבק בשורת הכתובת', 5000), 400);
-}
-/* דפי הטבלאות החיים — קישורים אמיתיים, נפתחים בלשונית חדשה */
-const MATRIX_URL = 'https://claude.ai/code/artifact/cec363db-c3c1-492b-b54c-bb297aa0f667';
-const LOGIC_URL = 'https://claude.ai/code/artifact/67c32ed8-7770-4937-99f7-60c83f9279a0';
+/* דפי הטבלאות — עמודים מקומיים של האפליקציה עצמה (src/pages), נשמרים ב-data/page_state */
+const MATRIX_URL = '/matrix';
+const LOGIC_URL = '/logic';
 function renderHeader() {
   $('#projSel').innerHTML = store.projects.map(p =>
     `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
@@ -893,7 +888,7 @@ function renderHeader() {
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
     <button onclick="mergeOfferDupes()">🧹 אחד שורות כפולות בהצעה</button>
     <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
-    <a class="ddlink" href="/logic" target="_blank" rel="noopener" onclick="linkFallback(event, LOGIC_URL)">🎯 לוגיקת תכלית ← מערכת — טבלאות ההיגיון</a>
+    <a class="ddlink" href="/logic">🎯 לוגיקת תכלית ← מערכת — טבלאות ההיגיון</a>
     <button onclick="verManager()">🕘 היסטוריית גרסאות — שחזור מצב קודם</button>
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>
     <button onclick="rearLibManager()">🛠 ספריית גבי מוצרים</button>
@@ -6487,28 +6482,15 @@ async function kitFromOffer() {
   alert('הקיט "' + nm + '" נוצר ונוסף לרשימת הקיטים (מסומן "קיט שלי").');
   renderKits();
 }
-// מעבר למטריצת ההתאמות באותה לשונית — כדי שחזרה תהיה טבעית (Back או הכפתור במטריצה)
-
-/* פתיחת דף חיצוני (מטריצה/לוגיקה): לשונית חדשה, ואם חסומה — ניווט באותה לשונית;
-   בכל מקרה הקישור מועתק ללוח כדי שאפשר יהיה להדביק ידנית. */
-function openExternal(url, label) {
+/* מעבר לטבלאות: אותו מקור, אותה לשונית — חזרה טבעית ב-Back או בכפתור שבטבלה */
+function openPage(url, label) {
   try { localStorage.setItem('koReturn', location.href); } catch (e) {}
-  try { navigator.clipboard && navigator.clipboard.writeText(url); } catch (e) {}
-  let w = null;
-  try { w = window.open(url, '_blank', 'noopener'); } catch (e) {}
-  if (!w) { uiToast('פותח ' + label + '…'); setTimeout(() => { location.href = url; }, 120); }
-  else uiToast('↗ ' + label + ' נפתח בלשונית חדשה · הקישור הועתק');
+  uiToast('פותח ' + label + '…');
+  location.href = url;
 }
-function openLogic() { openExternal(LOGIC_URL, 'לוגיקת תכלית ← מערכת'); }
+function openLogic() { openPage(LOGIC_URL, 'לוגיקת תכלית ← מערכת'); }
+function openMatrix() { openPage(MATRIX_URL, 'מטריצת ההתאמות'); }
 window.openLogic = openLogic;
-function openMatrix() {
-  openExternal(MATRIX_URL, 'מטריצת ההתאמות');
-  return;
-}
-function openMatrixOld() {
-  try { localStorage.setItem('koReturn', location.href); } catch (e) {}
-  location.href = MATRIX_URL;
-}
 window.openMatrix = openMatrix;
 
 function renderKits() {
@@ -6529,7 +6511,7 @@ function renderKits() {
       <button style="flex:1" onclick="kitNew()">➕ צור קיט חדש</button>
       <button style="flex:1" onclick="kitFromOffer()">🧰 צור קיט מהצעת המחיר (✓)</button>
       <a style="flex:1;background:#efecfd;color:#6c5ce7;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:1px solid #ddd;border-radius:8px;padding:6px 10px;text-decoration:none;font-size:13px;cursor:pointer"
-        href="/matrix" target="_blank" rel="noopener" onclick="linkFallback(event, MATRIX_URL)"
+        href="/matrix"
         title="מי הולך עם מי — אישור ואיסור שילובים, נשמר ונקרא ע&quot;י המתכנן">🧩 מטריצת התאמות</a>
     </div>
     <p class="muted" style="margin-bottom:8px">${list.length} קיטים · מוצגים ${Math.min(list.length, kitShow)} · לחיצה פותחת תצוגה מקדימה${hiddenCount ? ` · ${hiddenCount} מוסתרים` : ''}:</p>` +
