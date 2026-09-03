@@ -3825,10 +3825,10 @@ function projGapCheck() {
   /* 4. תושבות ומתקנים לרמקולים תלויים */
   const hung = spkN.filter(n => patchKind(n) !== 'sub' && !/שקוע|תקרת גבס/.test((n.name || '') + (n.mount || ''))).length;
   const mounts = qsum(it => /מתקן|תושבת|יוקה|YOKE|ברקט|bracket/i.test(it.name));
-  if (hung > mounts) finds.push({ i: '🔧', t: hung + ' רמקולים תלויים · רק ' + mounts + ' תושבות/מתקנים בהצעה', b: 'חפש מתקן בקטלוג', fn: "gapSearch('מתקן לרמקול')" });
+  if (hung > mounts) finds.push({ i: '🔧', k: 'mounts', t: hung + ' רמקולים תלויים · רק ' + mounts + ' תושבות/מתקנים בהצעה', b: '➕ הוסף ' + (hung - mounts) + ' תושבות', fn: 'gapAddMounts(' + (hung - mounts) + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מתקן לרמקול')" } });
   /* 5. ארון בלי פס שקעים */
   const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
-  if (racks.length && !qsum(it => /פס שקעים|פס חשמל|שקעים לארון|PDU/i.test(it.name))) finds.push({ i: '⚡', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: 'חפש פס שקעים', fn: "gapSearch('פס שקעים')" });
+  if (racks.length && !qsum(it => /פס שקעים|פס חשמל|שקעים לארון|PDU/i.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
   /* 6. שורת התקנה */
   if (!impItems.some(it => it.dest === 'work' || /התקנה|עבודה/.test(it.name || ''))) finds.push({ i: '🔧', t: 'אין שורת התקנה/עבודה בהצעה', b: 'פתח טבלת התקנה ותמחור', fn: 'installManager()' });
   /* 7. קיט התקנה (תשתיות עמדה/ארון) */
@@ -3848,24 +3848,67 @@ function projGapCheck() {
   const ov = uiModal(`
     <b style="font-size:14px">🤔 האם שכחתי משהו? — בדיקת שלמות</b>
     ${finds.length ? `<p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">${nOpen} ממצאים פתוחים${nAck ? ' · ' + nAck + ' אושרו כנלקחו בחשבון' : ''} — תקן בלחיצה, או אשר שלקחת בחשבון והמשך:</p>
-      <div style="display:flex;gap:8px;align-items:center;padding:0 9px 3px;font-size:10.5px;color:#8a8377;font-weight:700">
-        <span style="flex:none;width:78px;text-align:center">סמן שנלקח בחשבון</span>
-        <span style="flex:1">ממצא</span>
-        <span>תיקון בלחיצה</span>
+      <div style="display:flex;gap:8px;align-items:flex-end;padding:0 9px 3px;font-size:10.5px;color:#8a8377;font-weight:700">
+        <span style="flex:none;width:62px;text-align:center;line-height:1.25">סמן שנלקח<br>בחשבון</span>
+        <span style="flex:1;min-width:0">ממצא</span>
+        <span style="flex:none;width:150px;text-align:center">תיקון בלחיצה</span>
       </div>
       <div style="max-height:52vh;overflow-y:auto">${finds.map(f => `
-        <div style="display:flex;gap:8px;align-items:center;border:1px solid ${f.ack ? '#dfe9e2' : '#eee'};border-radius:9px;padding:7px 9px;margin-bottom:5px;background:${f.ack ? '#f2f7f4' : '#faf8f4'};${f.ack ? 'opacity:.72' : ''}">
-          <span style="flex:none;width:78px;text-align:center"><button title="${f.ack ? 'בטל אישור' : 'לקחתי בחשבון — אפשר להמשיך'}" style="width:26px;height:26px;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;border:1px solid ${f.ack ? '#0f6e56' : '#d8d2c6'};background:${f.ack ? '#0f6e56' : '#fff'};color:${f.ack ? '#fff' : '#b9b2a5'}" onclick="gapAck('${esc(f.k)}')">✓</button></span>
-          <span style="font-size:16px">${f.i}</span>
-          <span style="flex:1;font-size:12px;${f.ack ? 'text-decoration:line-through;color:#6b7d73' : ''}">${f.t}</span>
-          <button style="white-space:nowrap;font-size:11.5px;background:${f.ack ? '#8aa79a' : '#0f6e56'};color:#fff;border:none;border-radius:7px;padding:5px 9px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
-          ${f.alt ? `<button style="white-space:nowrap;font-size:11px;background:#f0ede8;border:1px solid #ddd;border-radius:7px;padding:5px 8px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.alt.fn}">${f.alt.b}</button>` : ''}
+        <div style="display:flex;gap:8px;align-items:flex-start;border:1px solid ${f.ack ? '#dfe9e2' : '#eee'};border-radius:9px;padding:8px 9px;margin-bottom:5px;background:${f.ack ? '#f2f7f4' : '#faf8f4'};${f.ack ? 'opacity:.72' : ''}">
+          <span style="flex:none;width:62px;text-align:center"><button title="${f.ack ? 'בטל אישור' : 'לקחתי בחשבון — אפשר להמשיך'}" style="width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:15px;line-height:1;border:1px solid ${f.ack ? '#0f6e56' : '#d8d2c6'};background:${f.ack ? '#0f6e56' : '#fff'};color:${f.ack ? '#fff' : '#b9b2a5'}" onclick="gapAck('${esc(f.k)}')">✓</button></span>
+          <span style="font-size:16px;line-height:1.5">${f.i}</span>
+          <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;${f.ack ? 'text-decoration:line-through;color:#6b7d73' : ''}">${f.t}</span>
+          <span style="flex:none;width:150px;display:flex;flex-direction:column;gap:4px">
+            <button style="font-size:11.5px;background:${f.ack ? '#8aa79a' : '#0f6e56'};color:#fff;border:none;border-radius:7px;padding:6px 8px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
+            ${f.alt ? `<button style="font-size:11px;background:#f0ede8;border:1px solid #ddd;border-radius:7px;padding:5px 8px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.alt.fn}">${f.alt.b}</button>` : ''}
+          </span>
         </div>`).join('')}</div>
       ${nOpen ? '' : '<p style="font-size:12px;color:#0f6e56;margin:8px 0 0">✓ כל הממצאים טופלו או אושרו — אפשר להמשיך להצעה.</p>'}`
       : '<p style="font-size:13px;color:#0f6e56;margin:10px 0">✓ לא נמצאו חוסרים — התכנית וההצעה שלמות: חיווט, כבלים, מחברים, תושבות, התקנה ומק"טים.</p>'}
-    <button style="width:100%;margin-top:6px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer" onclick="window.__gapReopen=0;document.querySelector('.uiDlgOv')?.remove()">סגור</button>`);
-  ov.addEventListener('click', e => { if (e.target === ov) { window.__gapReopen = 0; ov.remove(); } });
+    <button style="width:100%;margin-top:6px;padding:8px;border-radius:9px;border:1px solid ${nOpen ? '#e0cfae' : '#ddd'};background:${nOpen ? '#fdf7ec' : '#fff'};color:${nOpen ? '#8a5a12' : ''};cursor:pointer" onclick="window.__gapReopen=0;document.querySelector('.uiDlgOv')?.remove()">${nOpen ? 'סגור בכל זאת — ' + nOpen + ' ממצאים עדיין פתוחים' : 'סגור'}</button>`);
+  ov.firstElementChild.style.maxWidth = '560px';
+  /* לחיצה בחוץ לא סוגרת כל עוד יש ממצאים פתוחים — קל מדי לסגור בטעות בלי לטפל */
+  ov.addEventListener('click', e => {
+    if (e.target !== ov) return;
+    if (nOpen) { uiToast('⚠ נשארו ' + nOpen + ' ממצאים פתוחים — תקן, או סמן ✓ "נלקח בחשבון". לסגירה בכל זאת: הכפתור למטה', 4000); return; }
+    window.__gapReopen = 0; ov.remove();
+  });
 }
+/* אחרי תיקון מיידי — חזרה לחלון הבדיקה, כדי לראות מה עוד פתוח */
+function gapBack() { if (window.__gapReopen) setTimeout(projGapCheck, 250); }
+window.gapBack = gapBack;
+/* השלמת פריט חסר: קודם מגדילים שורה קיימת (המוצר הנכון כבר נבחר),
+   ואם אין — לוקחים את המתאים ביותר מהקטלוג לפי מלאי. תמיד יש גם "בחר מקטלוג". */
+function gapAddFromCatalog(rx, want, dest, label, prefer) {
+  const q = Math.max(1, +want || 1);
+  const ex = impItems.find(it => rx.test(it.name || ''));
+  if (ex) { ex.qty = (+ex.qty || 0) + q; render(); save(); uiToast('➕ ' + q + ' ' + label + ' נוספו לשורה הקיימת (' + ex.qty + ' סה"כ)'); gapBack(); return; }
+  /* מעדיפים מוצר ששמו מזכיר דגם רמקול שכבר בהצעה — מתקן של F5 לרמקול F5 */
+  const hit = n2 => (prefer || []).some(m => m && n2.toUpperCase().includes(m.toUpperCase())) ? 0 : 1;
+  const cand = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : [])
+    /* NOT_PROD פוסל בכוונה אביזרים (מתקן/תושבת/שקע) — כאן מחפשים דווקא אותם,
+       ולכן מסננים רק השכרות, שירותים וחלקי חילוף */
+    .filter(([, n2]) => n2 && rx.test(n2) && !/השכר|שירות|משלוח|לתיקון|פגום|דוגמא|חלקי חילוף/.test(n2))
+    .sort((a, b) => (hit(a[1]) - hit(b[1])) || byStockThenSold(a[0], b[0]))[0];
+  if (!cand) { uiToast('⚠ לא נמצא ' + label + ' בקטלוג — בחר ידנית'); gapBack(); return; }
+  const it = { on: true, qty: q, name: cand[1], key: cand[0], src: 'בדיקת שלמות', dest, cat: 'other', u: 1, iid: uid('i') };
+  autoPrice(it); impItems.push(it); render(); save();
+  uiToast('➕ נוסף מהקטלוג: ' + cand[1].slice(0, 46) + ' ×' + q + ' — החלף אם צריך דגם אחר', 5000);
+  gapBack();
+}
+/* מתקן חייב להיות מתקן *לרמקול* — "תושבת E27" של תאורה היא לא תושבת רמקול */
+const MOUNT_RX = /(מתקן|תושבת|ברקט|יוקה|YOKE|BRACKET|WALL MOUNT).{0,40}(רמקול|SPEAKER)|(רמקול|SPEAKER).{0,40}(מתקן|תושבת|ברקט|יוקה|YOKE|BRACKET|WALL MOUNT)/i;
+function gapAddMounts(n) {
+  /* דגמי הרמקולים שבהצעה — כדי להעדיף את המתקן של אותו דגם */
+  const models = [];
+  impItems.forEach(it => {
+    if (it.on === false || !/רמקול/.test(it.name || '')) return;
+    ((it.name || '').match(/\b[A-Z]{1,5}\s?\d{1,4}[A-Z]?\b/g) || []).forEach(m => models.push(m.trim()));
+  });
+  gapAddFromCatalog(MOUNT_RX, n, 'unit', 'תושבות', models);
+}
+function gapAddPdu(n) { gapAddFromCatalog(/פס שקעים|פס חשמל|שקעים לארון|PDU|רב שקע|מפצל.{0,12}שקע/i, n, 'unit', 'פס שקעים'); }
+window.gapAddMounts = gapAddMounts; window.gapAddPdu = gapAddPdu;
 /* אישור ממצא: "לקחתי בחשבון" — לא מתקנים, אבל זה לא חוסם את המעבר להצעה */
 function gapAck(k) {
   P._gapAck = P._gapAck || {};
@@ -3885,12 +3928,13 @@ async function gapFixConnectors() {
   }
   render(); save();
   uiToast('🔩 עודכנו מחברים ל-' + n + ' קווים');
+  gapBack();
 }
 /* הוספת מחברים ישירות מהמלאי/קטלוג — בלי לחפש ידנית */
 function gapAddConn(n) {
   const want = Math.max(1, +n || 1);
   const ex = impItems.find(it => /XLR/i.test(it.name) && /מחבר|connector/i.test(it.name));
-  if (ex) { ex.qty = (+ex.qty || 0) + want; render(); save(); uiToast('➕ ' + want + ' מחברים נוספו לשורה הקיימת (' + ex.qty + ' סה"כ)'); return; }
+  if (ex) { ex.qty = (+ex.qty || 0) + want; render(); save(); uiToast('➕ ' + want + ' מחברים נוספו לשורה הקיימת (' + ex.qty + ' סה"כ)'); gapBack(); return; }
   const cand = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : [])
     .filter(([, n2]) => n2 && /מחבר/.test(n2) && /XLR/i.test(n2))
     .sort((a, b) => byStockThenSold(a[0], b[0]));
@@ -3905,19 +3949,21 @@ function gapAddConn(n) {
   const added = add(male, female ? half : want) + (female ? add(female, want - half) : 0);
   render(); save();
   uiToast(added ? '➕ נוספו ' + added + ' מחברי XLR מהקטלוג (לפי מלאי)' : '⚠ לא נמצא מחבר XLR בקטלוג');
+  gapBack();
 }
 /* הוספת גלילי כבל חסרים */
 function gapAddReel(n) {
   const want = Math.max(1, +n || 1);
   const ex = impItems.find(it => it.dest === 'reel' || /גליל/.test(it.name));
-  if (ex) { ex.qty = (+ex.qty || 1) + want; render(); save(); uiToast('➕ ' + want + ' גלילים נוספו (' + ex.qty + ' סה"כ)'); return; }
+  if (ex) { ex.qty = (+ex.qty || 1) + want; render(); save(); uiToast('➕ ' + want + ' גלילים נוספו (' + ex.qty + ' סה"כ)'); gapBack(); return; }
   const cand = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : [])
     .filter(([, n2]) => n2 && /כבל רמקול/.test(n2) && /גליל|מטר/.test(n2))
     .sort((a, b) => byStockThenSold(a[0], b[0]))[0];
-  if (!cand) { uiToast('⚠ לא נמצא גליל בקטלוג'); return; }
+  if (!cand) { uiToast('⚠ לא נמצא גליל בקטלוג'); gapBack(); return; }
   const it = { on: true, qty: want, name: cand[1], key: cand[0], src: 'בדיקת שלמות', dest: 'reel', type: 'nl4', cat: 'cable', u: 1, iid: uid('i') };
   autoPrice(it); impItems.push(it); render(); save();
   uiToast('➕ נוסף ' + want + ' גליל כבל רמקול להצעה');
+  gapBack();
 }
 /* פתיחת חיפוש הקטלוג עם שאילתה מוכנה — לבחירת פריט משלים */
 function gapSearch(q) {
