@@ -3848,9 +3848,14 @@ function projGapCheck() {
   const ov = uiModal(`
     <b style="font-size:14px">🤔 האם שכחתי משהו? — בדיקת שלמות</b>
     ${finds.length ? `<p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">${nOpen} ממצאים פתוחים${nAck ? ' · ' + nAck + ' אושרו כנלקחו בחשבון' : ''} — תקן בלחיצה, או אשר שלקחת בחשבון והמשך:</p>
+      <div style="display:flex;gap:8px;align-items:center;padding:0 9px 3px;font-size:10.5px;color:#8a8377;font-weight:700">
+        <span style="flex:none;width:78px;text-align:center">סמן שנלקח בחשבון</span>
+        <span style="flex:1">ממצא</span>
+        <span>תיקון בלחיצה</span>
+      </div>
       <div style="max-height:52vh;overflow-y:auto">${finds.map(f => `
         <div style="display:flex;gap:8px;align-items:center;border:1px solid ${f.ack ? '#dfe9e2' : '#eee'};border-radius:9px;padding:7px 9px;margin-bottom:5px;background:${f.ack ? '#f2f7f4' : '#faf8f4'};${f.ack ? 'opacity:.72' : ''}">
-          <button title="${f.ack ? 'בטל אישור' : 'לקחתי בחשבון — אפשר להמשיך'}" style="flex:none;width:26px;height:26px;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;border:1px solid ${f.ack ? '#0f6e56' : '#d8d2c6'};background:${f.ack ? '#0f6e56' : '#fff'};color:${f.ack ? '#fff' : '#b9b2a5'}" onclick="gapAck('${esc(f.k)}')">✓</button>
+          <span style="flex:none;width:78px;text-align:center"><button title="${f.ack ? 'בטל אישור' : 'לקחתי בחשבון — אפשר להמשיך'}" style="width:26px;height:26px;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;border:1px solid ${f.ack ? '#0f6e56' : '#d8d2c6'};background:${f.ack ? '#0f6e56' : '#fff'};color:${f.ack ? '#fff' : '#b9b2a5'}" onclick="gapAck('${esc(f.k)}')">✓</button></span>
           <span style="font-size:16px">${f.i}</span>
           <span style="flex:1;font-size:12px;${f.ack ? 'text-decoration:line-through;color:#6b7d73' : ''}">${f.t}</span>
           <button style="white-space:nowrap;font-size:11.5px;background:${f.ack ? '#8aa79a' : '#0f6e56'};color:#fff;border:none;border-radius:7px;padding:5px 9px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
