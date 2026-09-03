@@ -123,7 +123,7 @@ function wizStepHTML(s) {
     <h4>העלאת תכנית</h4>
     <p class="hint">גרור/בחר צילום או PDF-תמונה של התכנית. אפשר גם להמשיך עם התכנית הקיימת.</p>
     ${P.bg ? `<button class="sec done">✓ יש תכנית בפרויקט — אפשר להמשיך</button>` : ''}
-    <input type="file" accept="image/*" onchange="wizUploadBg(this)">
+    <input type="file" accept="image/*,application/pdf,.pdf,.dxf,.dwg" onchange="wizUploadBg(this)">
     <button class="sec" onclick="wizNewProject()">🗂 התחל פרויקט חדש נקי</button>`;
   if (s === 1) {
     const curW = P.scale ? P.bgW * P.scale : 0;
