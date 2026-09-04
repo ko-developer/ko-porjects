@@ -8711,7 +8711,8 @@ function zoneKitConfirm(zname, idx) {
     cur.forEach(x => { if (std && GEN.test(x.name || '')) { x.name = std[1]; x.key = std[0]; x._swapped214 = true; } });
   }
   /* קיט התקנה/תשתיות בלי רמקולים — שאלת הפריסה והבנייה האוטומטית לא רלוונטיות */
-  const kitHasSpk = cur.some(x => /רמקול|סאב|speaker|subwoofer/i.test(x.name || ''));
+  /* isSpeakerItem — "כבל רמקול" או "מתקן לרמקול" אינם רמקול */
+  const kitHasSpk = cur.some(x => isSpeakerItem(x.name || ''));
   const ov = uiModal(`
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
