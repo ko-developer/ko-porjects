@@ -1687,10 +1687,15 @@ function drawRearCables(n, d) {
   P.cables.filter(c => c.from === n.id && c.to === n.id && c.fromUnit && c.toUnit && !n.hideInt && cableVisible(c) && window.__rearFilter !== 'ext').forEach((c, k) => {
     const pa = port[c.fromUnit + '|' + (c.pOut || '')], pb = port[c.toUnit + '|' + (c.pIn || '')];
     if (!pa || !pb) return;
-    const col = cableColor(c), dir = pb.y > pa.y ? 1 : -1, tb = ubox[c.toUnit] || { top: pb.y - 40, bottom: pb.y + 40 };
-    /* התעלה האופקית רצה ברווח שבין המכשירים — לא על מכשיר */
-    const laneY = (dir > 0 ? tb.top - 8 : tb.bottom + 8) - dir * (k % 3) * 6;
-    out += `<path d="M ${pa.x} ${pa.y} L ${pa.x} ${laneY} L ${pb.x} ${laneY} L ${pb.x} ${pb.y}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="square"/>`;
+    const col = cableColor(c), dir = pb.y > pa.y ? 1 : -1;
+    const sa = ubox[c.fromUnit] || { top: pa.y - 40, bottom: pa.y + 40 }, tb = ubox[c.toUnit] || { top: pb.y - 40, bottom: pb.y + 40 };
+    /* כבל לעולם לא עובר על פני מחבר של מכשיר אחר: יורד/עולה לרווח שליד המכשיר שלו,
+       רץ אופקית לתעלה שבצד ימין (בין הפאנל לתווית), יורד בתעלה, וחוזר ברווח שליד היעד */
+    const panelEl = d.querySelector('.runit-panel');
+    const chanX = (panelEl ? panelEl.offsetWidth : cr.width / ZK - 220) + 8 + 24 - 14 + (k % 7) * 4;
+    const sy = (dir > 0 ? sa.bottom + 6 : sa.top - 6) + dir * (k % 3) * 5;
+    const laneY = (dir > 0 ? tb.top - 8 : tb.bottom + 8) - dir * (k % 3) * 5;
+    out += `<path d="M ${pa.x} ${pa.y} L ${pa.x} ${sy} L ${chanX} ${sy} L ${chanX} ${laneY} L ${pb.x} ${laneY} L ${pb.x} ${pb.y}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="round"/>`;
     out += `<circle cx="${pa.x}" cy="${pa.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/><circle cx="${pb.x}" cy="${pb.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/>`;
     out += badge(pa.x, pa.y + dir * 15, LBL[c.id], col, c.id) + badge(pb.x, pb.y - dir * 15, LBL[c.id], col, c.id);
   });
@@ -3968,7 +3973,11 @@ async function patchApply() {
       chs.forEach(ch => {
         const pIn = 'IN ' + ch;
         const ex = P.cables.find(c => c.from === a.rk.id && c.to === a.rk.id && c.toUnit === a.u.id && c.pIn === pIn && c.fromUnit === proc.id);
-        if (ex) return;
+        if (ex) {
+          /* פאץ׳ שנוצר לפני שהגב נמשך מהספרייה — יציאה שלא קיימת בגב מוחלפת ביציאה אמיתית פנויה */
+          if (ex.pOut && !outs.includes(ex.pOut)) { taken.delete(ex.pOut); const np = outs.find(o => !taken.has(o)); if (np) { ex.pOut = np; taken.add(np); ex.note = 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + np + ' → ' + shortModel(a.u.name) + ' ' + pIn; } }
+          return;
+        }
         let pOut = outs.find(o => !taken.has(o));
         if (pOut) taken.add(pOut);
         P.cables.push({ id: uid('c'), from: a.rk.id, fromUnit: proc.id, pOut: pOut || undefined, to: a.rk.id, toUnit: a.u.id, pIn, type: 'xlr', qty: '1', spec: '', len: 1, conn: 'xlrm', conn2: 'xlrf', internal: 'proc-amp',
