@@ -10,7 +10,7 @@ const CATS = {
 };
 const CTYPES = {
   xlr:   { n: 'XLR בודד',    c: '#c2185b' },
-  multi: { n: 'מולטי XLR',   c: '#d32f2f' },
+  multi: { n: 'מולטי XLR',   c: '#1976d2' },
   nl4:   { n: 'NL4 רמקול',   c: '#e65100' },
   cat:   { n: 'Cat6 רשת',    c: '#6a4fc9' },
   fiber: { n: 'אופטי',       c: '#0f8a6d' },
@@ -2521,7 +2521,7 @@ function renderWires() {
   for (const it of items) {
     const { c, i, pa, pb } = it;
     const col = cableColor(c);
-    const selw = c.id === selCable ? 4 : 2.2;
+    const selw = c.id === selCable ? 4 : (c.type === 'multi' ? 3.2 : 2.2);   /* מולטי עבה יותר — נבדל גם בלי צבע */
     let dpath;
     if (ortho) {
       /* קצה שנכנס בשפת פאנל/ארון והיעד בצד הנגדי — בורח החוצה ועוקף את הקופסה
@@ -4022,6 +4022,15 @@ function projGapCheck() {
       finds.push({ i: '🎛', t: 'הפרוססור שנבחר לא מנהל כניסת מיקרופון — נדרש מיקסר / פרוססור עם כניסת מיק', b: 'בחר מיקסר/פרוססור', fn: 'addMixerLine()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מיקסר')" } });
     }
   }
+  /* 1ד. מקור שנבחר ואין לו מוצר בהצעה — סטרימר, מקלט בלוטות׳ */
+  {
+    const kinds = new Set(); (P.zones || []).forEach(z => (z.sources || []).forEach(k => kinds.add(k)));
+    const has = rx => impItems.some(it => it.on !== false && rx.test(it.name || ''));
+    if (kinds.has('stream') && !has(/סטרימר|streamer|musiccast|sonos|wiim|נגן רשת|network player/i))
+      finds.push({ i: '🎵', k: 'need-stream', t: 'נבחר סטרימר כמקור נגינה — אין סטרימר בהצעה', b: '🔍 בחר סטרימר מהקטלוג', fn: "gapSearch('סטרימר')" });
+    if (kinds.has('phone') && !has(/בלוטות|bluetooth|\bBT\b/i))
+      finds.push({ i: '📱', k: 'need-bt', t: 'נבחר טלפון/בלוטות׳ כמקור — אין מקלט בלוטות׳ בהצעה', b: '🔍 בחר מקלט בלוטות׳', fn: "gapSearch('בלוטוס')" });
+  }
   /* 1ג. כניסות בפרוססור מול מספר המקורות השונים — מקור משותף נספר פעם אחת */
   {
     const zs2 = P.zones || [];
@@ -4030,7 +4039,7 @@ function projGapCheck() {
     const inUnits = P.nodes.filter(n => n.kind === 'rack').flatMap(n => (n.units || []).filter(u => IN_UNIT_RE.test(u.name || '')));
     const haveIn = inUnits.reduce((s3, u) => s3 + patchInChips(u), 0);
     if (inUnits.length && need > haveIn) finds.push({ i: '🎛', k: 'proc-in', t: 'המקורות דורשים ' + need + ' כניסות (סטריאו = 2) · לפרוססור/מיקסר שבארון רק ' + haveIn, b: '🔍 בחר פרוססור עם יותר כניסות', fn: "gapSearch('פרוססור')" });
-    const nShared = zs2.filter(z => z._srcShare).length;
+    const nShared = zs2.filter(z => z._srcShare && (z._srcShared || []).length).length;
     if (nShared) finds.push({ i: '🔗', k: 'proc-zones', t: (nShared + 1) + ' אזורים על מקורות משותפים — הפרוססור/מיקסר צריך ' + (nShared + 1) + ' יציאות‑אזור בשליטה נפרדת', b: '🔍 בחר מקטלוג', fn: "gapSearch('מיקסר אזורים')" });
   }
   /* 1ב. אין סעיף כיוון/תכנות מערכת סאונד — חובה בכל הצעה עם רמקולים */

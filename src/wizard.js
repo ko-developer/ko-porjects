@@ -155,11 +155,11 @@ function wizStepHTML(s) {
       return `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px">
         ${others.map(o => `<button class="sec" style="margin:0;text-align:right;${from === o ? 'background:#efecfd;border-color:#6c5ce7;color:#4b3fb8;font-weight:700' : ''}" onclick="wizSrcShare('${z.id}','${o.id}')">${from === o ? '◉' : '○'} 🔗 אותם מקורות כמו "${esc(o.name)}" — ${esc((o.sources || []).map(lbl).join(', '))}</button>`).join('')}
         <button class="sec" style="margin:0;text-align:right;${!from ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700' : ''}" onclick="wizSrcShare('${z.id}','')">${!from ? '◉' : '○'} 🎛 מקורות משלו לאזור הזה</button>
-        ${from ? `<p class="hint" style="margin:0 0 2px">המשותפים מסומנים 🔗 ולא ניתנים לשינוי מכאן · צ׳יפ נוסף = מקור <b>מקומי</b> של "${esc(z.name)}" — רק לו תוצב עמדה/פאנל</p>` : ''}
+        ${from ? `<p class="hint" style="margin:0 0 2px">לכל מקור בנפרד: 🔗 <b>משותף</b> = אותו מוקד ואותה כניסה כמו ב"${esc(from.name)}" · ✓ <b>נפרד</b> = מופע משלו ל"${esc(z.name)}" (מוקד וכניסה נוספים) · לחיצה מסובבת</p>` : ''}
       </div>`; })()}
     ${(() => {
       const from = wizSharedFrom(z), sh = from ? (from.sources || []) : [];
-      const chip = ([k, l]) => { const on = (z.sources || []).includes(k), shared = sh.includes(k); return `<button class="sec" style="width:auto;flex:0 0 auto;margin:0;padding:5px 9px;font-size:11.5px;${shared ? 'background:#efecfd;border-color:#c9c0f5;color:#4b3fb8;font-weight:700;cursor:default' : on ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700' : ''}" onclick="wizSrcToggle('${z.id}','${k}')">${shared ? '🔗 ' : on ? '✓ ' : ''}${l}</button>`; };
+      const chip = ([k, l]) => { const st = wizSrcState(z, k), inOrigin = sh.includes(k); return `<button class="sec" title="${from && inOrigin ? 'לחיצה: משותף → נפרד לאזור → כבוי' : ''}" style="width:auto;flex:0 0 auto;margin:0;padding:5px 9px;font-size:11.5px;${st === 'shared' ? 'background:#efecfd;border-color:#c9c0f5;color:#4b3fb8;font-weight:700' : st === 'own' ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700' : ''}" onclick="wizSrcToggle('${z.id}','${k}')">${st === 'shared' ? '🔗 משותף · ' : st === 'own' ? (from && inOrigin ? '✓ נפרד · ' : '✓ ') : ''}${l}</button>`; };
       return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${SOURCES.map(chip).join('')}</div>${wizSourcePlacesHTML(z)}`; })()}
     ${(() => { const nd = sourceNeeds(z); return nd.length ? `<p class="hint" style="margin:-2px 0 8px;color:#0f6e56">נדרש בארון: ${esc(nd.join(' · '))}</p>` : ''; })()}` : ''}
     <button class="big" onclick="wizDrawZone()">➕ ${(P.zones || []).length ? 'צייר אזור נוסף' : 'צייר אזור'} — ניקור נקודות על התכנית</button>
@@ -252,7 +252,7 @@ function wizSourcePlacesHTML(z) {
       <span style="flex:1;font-size:12px;font-weight:700">${SRC_LBL[k] || k}${STEREO_SRC[k] ? ' <small style="font-weight:400;color:#8a8377">L/R</small>' : ''}</span>${seg(k)}</div>`;
     if (srcLocOf(z, k) === 'plan') h += wizSrcPlaceRow(z, k);
   });
-  if (from) { const shPlan = (from.sources || []).filter(k => srcLocOf(from, k) === 'plan'); if (shPlan.length) h += `<p class="hint" style="margin:5px 0 0;color:#4b3fb8">🔗 המוקדים של ${esc(shPlan.map(k => SRC_LBL[k] || k).join(' · '))} נמצאים ב"${esc(from.name)}"</p>`; }
+  if (from) { const shPlan = (z._srcShared || []).filter(k => srcLocOf(from, k) === 'plan'); if (shPlan.length) h += `<p class="hint" style="margin:5px 0 0;color:#4b3fb8">🔗 המוקדים של ${esc(shPlan.map(k => SRC_LBL[k] || k).join(' · '))} נמצאים ב"${esc(from.name)}"</p>`; }
   return h + '</div>';
 }
 function wizSrcSetLoc(zid, k, loc) {
@@ -272,30 +272,43 @@ function wizSharedFrom(z) { return z && z._srcShare ? (P.zones || []).find(x => 
 function wizOwnSources(z) { return z._srcShare ? (z._srcLocal || []) : (z.sources || []); }
 function wizSyncSources(z) {
   const from = wizSharedFrom(z);
-  if (!from) { if (z._srcShare) { z._srcShare = undefined; } return; }
-  z.sources = [...new Set([...(from.sources || []), ...(z._srcLocal || [])])];
+  if (!from) { if (z._srcShare) { z._srcShare = undefined; z._srcShared = undefined; } return; }
+  /* משותף = רק מה שעדיין קיים באזור המקור; מקומי = מופע נפרד של האזור הזה */
+  z._srcShared = (z._srcShared || []).filter(k => (from.sources || []).includes(k));
+  z._srcLocal = (z._srcLocal || []).filter(k => !z._srcShared.includes(k));
+  z.sources = [...new Set([...z._srcShared, ...z._srcLocal])];
 }
 function wizSrcShare(zid, fromZid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   if (fromZid) {
     const from = (P.zones || []).find(x => x.id === fromZid);
     if (!from || !(from.sources || []).length) { uiToast('לאזור המקור אין מקורות מוגדרים'); return; }
-    z._srcShare = fromZid; z._srcLocal = (z._srcLocal || []).filter(k => !(from.sources || []).includes(k));
+    /* ברירת מחדל: הכול משותף — ואז לכל מקור בנפרד אפשר לעבור ל"נפרד לאזור" */
+    z._srcShare = fromZid; z._srcShared = (from.sources || []).slice();
+    z._srcLocal = (z._srcLocal || z.sources || []).filter(k => !z._srcShared.includes(k));
     wizSyncSources(z);
   } else {
-    /* מקורות משלו — מתחילים ממה שהיה אפקטיבי, כדי לא להתחיל מאפס */
-    z.sources = (z.sources || []).slice(); z._srcShare = undefined; z._srcLocal = undefined;
+    z.sources = (z.sources || []).slice(); z._srcShare = undefined; z._srcShared = undefined; z._srcLocal = undefined;
   }
-  save(); wizRender();
+  wizPlaceSources(z); save(); render(); wizRender();
+}
+/* מצב מקור באזור ששואב מאזור אחר: 'shared' 🔗 · 'own' ✓ מופע נפרד · '' כבוי */
+function wizSrcState(z, k) {
+  if (!wizSharedFrom(z)) return (z.sources || []).includes(k) ? 'own' : '';
+  if ((z._srcShared || []).includes(k)) return 'shared';
+  return (z._srcLocal || []).includes(k) ? 'own' : '';
 }
 function wizSrcToggle(zid, k) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   const from = wizSharedFrom(z);
   if (from) {
-    if ((from.sources || []).includes(k)) { uiToast('🔗 מקור משותף מ"' + from.name + '" — כדי לשנות אותו ערוך את "' + from.name + '" או עבור ל"מקורות משלו"'); return; }
-    z._srcLocal = z._srcLocal || [];
-    const j = z._srcLocal.indexOf(k);
-    if (j >= 0) { z._srcLocal.splice(j, 1); wizUnplaceSource(z, k); } else z._srcLocal.push(k);
+    const st = wizSrcState(z, k), inOrigin = (from.sources || []).includes(k);
+    z._srcShared = z._srcShared || []; z._srcLocal = z._srcLocal || [];
+    /* מקור שקיים באזור המקור מסתובב: משותף → נפרד לאזור → כבוי → משותף */
+    if (st === 'shared') { z._srcShared = z._srcShared.filter(x => x !== k); z._srcLocal.push(k); uiToast((SRC_LBL[k] || k) + ' — מופע נפרד ל"' + z.name + '": מוקד/כניסה משלו'); }
+    else if (st === 'own') { z._srcLocal = z._srcLocal.filter(x => x !== k); wizUnplaceSource(z, k); if (inOrigin) uiToast((SRC_LBL[k] || k) + ' — כבוי באזור הזה · לחיצה נוספת = משותף עם "' + from.name + '"'); }
+    else if (inOrigin) { z._srcShared.push(k); }
+    else z._srcLocal.push(k);
     wizSyncSources(z); wizPlaceSources(z); save(); render(); wizRender(); return;
   }
   z.sources = z.sources || [];
@@ -506,7 +519,7 @@ function wizPlacementsHTML(z) {
   const own = wizOwnSources(z), from = wizSharedFrom(z);
   const rk = zoneRack(z);
   let h = `<p class="hint" style="margin:8px 0 3px;font-weight:700">📍 מיקומים על התכנית</p>`;
-  if (from) h += `<p class="hint" style="margin:2px 0 4px;color:#4b3fb8">🔗 ${esc((from.sources || []).map(k => SRC_LBL[k] || k).join(' · '))} — משותפים מ"${esc(from.name)}", המוקדים שלהם שם · הפרוססור צריך יציאת‑אזור נפרדת ל"${esc(z.name)}"</p>`;
+  if (from && (z._srcShared || []).length) h += `<p class="hint" style="margin:2px 0 4px;color:#4b3fb8">🔗 ${esc(z._srcShared.map(k => SRC_LBL[k] || k).join(' · '))} — משותפים מ"${esc(from.name)}", המוקדים שלהם שם · הפרוססור צריך יציאת‑אזור נפרדת ל"${esc(z.name)}"</p>`;
   const rkOut = rk && !inZone(z, { x: 2200 - rk.x - 24, y: rk.y + 24 });
   h += rkOut
     ? `<button class="sec" style="text-align:right;border-color:#c96a13;color:#8a5a12;background:#fdf3e6" onclick="wizRackInside(wizZone(), zoneRack(wizZone()), true);save();render();wizRender()">🗄 ריכוז מגברים — ⚠ מחוץ לאזור · לחץ להכנסה לפינה הפנימית</button>`
