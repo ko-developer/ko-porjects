@@ -378,16 +378,21 @@ function cropStart() {
       const oldW = P.bgW || 1400;
       const oldH = oldW * img.naturalHeight / img.naturalWidth;
       const newW = Math.round(oldW * fw);
-      /* הרקע מוצמד לימין הקנבס, לכן ההיסט האופקי לקואורדינטת ה-right של מוקד: */
-      const dxR = newW + fx * oldW - oldW;
-      const dyT = fy * oldH;
       P.bgW = newW;
       P.calLine = null; P.calOk = 0;
-      (P.nodes || []).forEach(n => { n.x += dxR; n.y -= dyT; });
-      (P.zones || []).forEach(z2 => {
-        if (z2.poly) z2.poly.forEach(pt => { pt.x -= dxR; pt.y -= dyT; });
-        else { z2.x += dxR; z2.y -= dyT; }
-      });
+      if (P.bgOff) {
+        /* התכנית יושבת לפי עוגן: החלק שנחתך נשאר בדיוק במקומו, והמוקדים לא זזים */
+        P.bgOff = { x: Math.round(P.bgOff.x + fx * oldW), y: Math.round(P.bgOff.y + fy * oldH) };
+      } else {
+        /* פרויקט ישן — הרקע מוצמד לימין הקנבס, לכן מזיזים את המוקדים כדי שיישארו על התכנית */
+        const dxR = newW + fx * oldW - oldW;
+        const dyT = fy * oldH;
+        (P.nodes || []).forEach(n => { n.x += dxR; n.y -= dyT; });
+        (P.zones || []).forEach(z2 => {
+          if (z2.poly) z2.poly.forEach(pt => { pt.x -= dxR; pt.y -= dyT; });
+          else { z2.x += dxR; z2.y -= dyT; }
+        });
+      }
       render(); save(); wizRender();
       uiToast('✂️ התכנית נחתכה — ודא את הכיול ואשר');
     };
@@ -705,12 +710,12 @@ function repPlanSnapshot(LBL) {
       g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
       g.globalAlpha = 0.8; g.drawImage(img, 0, 0, W, H); g.globalAlpha = 1;
       /* הרקע יושב בצד ימין של קנבס העבודה (right:0, רוחב 2200) — מזיזים הכל למערכת הצירים של התמונה */
-      const offX = 2200 - W;
-      const cx = n => 2200 - n.x - 20 - offX, cy = n => n.y + 24;
+      const offX = bgLeft(), offY = bgTop();   /* התכנית יושבת בקנבס לפי bgOff — הכול מומר למערכת הצירים של התמונה */
+      const cx = n => 2200 - n.x - 20 - offX, cy = n => n.y + 24 - offY;
       (P.zones || []).forEach(z => {
         g.strokeStyle = '#378ADD'; g.setLineDash([8, 5]); g.lineWidth = 2.5;
-        if (z.poly) { g.beginPath(); z.poly.forEach((pt, i) => i ? g.lineTo(pt.x - offX, pt.y) : g.moveTo(pt.x - offX, pt.y)); g.closePath(); g.stroke(); }
-        else { const b = zoneBounds(z); g.strokeRect(b.L - offX, b.T, b.W, b.H); }
+        if (z.poly) { g.beginPath(); z.poly.forEach((pt, i) => i ? g.lineTo(pt.x - offX, pt.y - offY) : g.moveTo(pt.x - offX, pt.y - offY)); g.closePath(); g.stroke(); }
+        else { const b = zoneBounds(z); g.strokeRect(b.L - offX, b.T - offY, b.W, b.H); }
         g.setLineDash([]);
       });
       g.font = 'bold 12px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -767,12 +772,12 @@ function repCoverSnapshot() {
       const g = cv.getContext('2d');
       g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
       g.globalAlpha = 0.65; g.drawImage(img, 0, 0, W, H); g.globalAlpha = 1;
-      const offX = 2200 - W;
-      const cx = n => 2200 - n.x - 20 - offX, cy = n => n.y + 24;
+      const offX = bgLeft(), offY = bgTop();   /* התכנית יושבת בקנבס לפי bgOff — הכול מומר למערכת הצירים של התמונה */
+      const cx = n => 2200 - n.x - 20 - offX, cy = n => n.y + 24 - offY;
       (P.zones || []).forEach(z => {
         g.strokeStyle = '#378ADD'; g.setLineDash([8, 5]); g.lineWidth = 2;
-        if (z.poly) { g.beginPath(); z.poly.forEach((pt, i) => i ? g.lineTo(pt.x - offX, pt.y) : g.moveTo(pt.x - offX, pt.y)); g.closePath(); g.stroke(); }
-        else { const b = zoneBounds(z); g.strokeRect(b.L - offX, b.T, b.W, b.H); }
+        if (z.poly) { g.beginPath(); z.poly.forEach((pt, i) => i ? g.lineTo(pt.x - offX, pt.y - offY) : g.moveTo(pt.x - offX, pt.y - offY)); g.closePath(); g.stroke(); }
+        else { const b = zoneBounds(z); g.strokeRect(b.L - offX, b.T - offY, b.W, b.H); }
         g.setLineDash([]);
       });
       const R = P.scale ? Math.max(45, Math.min(240, 3.5 / P.scale)) : 90;   /* ~3.5 מ׳ אלומה */

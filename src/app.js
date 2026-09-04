@@ -771,6 +771,7 @@ function uploadBg(inp, onDone) {
         cv2.getContext('2d').drawImage(cv, 0, 0, cv2.width, cv2.height);
         P.bg = cv2.toDataURL('image/jpeg', 0.8);
         P.bgW = fitBgW(cv2.width, cv2.height);
+        P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv2.height / cv2.width));
         P.bgOp = P.bgOp ?? 0.5;
         sel = null; ui.tab = 'node';
         render();
@@ -789,6 +790,7 @@ function uploadBg(inp, onDone) {
     cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
     P.bg = cv.toDataURL('image/jpeg', 0.72);
     P.bgW = fitBgW(cv.width, cv.height);
+    P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv.height / cv.width));
     P.bgOp = P.bgOp ?? 0.5;
     sel = null; ui.tab = 'node';
     render();
@@ -827,10 +829,33 @@ function rotateBg() {
   };
   img.src = P.bg;
 }
+/* מיקום תכנית הרקע בקנבס (2200×1400): P.bgOff = פינה שמאלית-עליונה. פרויקטים ישנים
+   בלי bgOff נשארים מוצמדים לימין-למעלה — ולא זזים. תכנית חדשה נטענת למרכז. */
+function bgLeft() { return P.bgOff ? P.bgOff.x : 2200 - (P.bgW || 1400); }
+function bgTop() { return P.bgOff ? P.bgOff.y : 0; }
+function bgHeightPx() { const el = document.getElementById('bgimg'); return el && el.offsetHeight ? el.offsetHeight : Math.round((P.bgW || 1400) * 0.7); }
+function bgCenteredOff(W, H) { return { x: Math.round(Math.max(0, (2200 - W) / 2)), y: Math.round(Math.max(0, (1400 - H) / 2)) }; }
+/* מרכוז התכנית: הרקע זז, וכל מה שעליו — מוקדים, אזורים, שרטוט, קו כיול — זז איתו,
+   כך ששום דבר לא משנה את מקומו יחסית לתכנית */
+function centerPlan() {
+  const W = P.bgW || 1400, H = bgHeightPx();
+  const from = { x: bgLeft(), y: bgTop() }, to = bgCenteredOff(W, H);
+  const dx = to.x - from.x, dy = to.y - from.y;
+  (P.nodes || []).forEach(n => { n.x -= dx; n.y += dy; });
+  (P.zones || []).forEach(z => { if (z.poly) z.poly.forEach(pt => { pt.x += dx; pt.y += dy; }); else { z.x -= dx; z.y += dy; } });
+  if (P.sketch && P.sketch.walls) P.sketch.walls.forEach(w => w.forEach(pt => { pt.x += dx; pt.y += dy; }));
+  if (P.calLine) { [P.calLine.p1, P.calLine.p2].forEach(pt => { if (pt) { pt.x += dx; pt.y += dy; } }); }
+  P.bgOff = to;
+  render(); save();
+  setTimeout(fitView, 60);   /* התצוגה עוקבת — התכנית שזזה נשארת מול העיניים */
+  uiToast('⌖ התכנית מורכזת בקנבס — הכול זז יחד איתה');
+}
+window.centerPlan = centerPlan;
 function renderBg() {
   const im = $('#bgimg');
   if (P.bg) {
     im.src = P.bg;
+    im.style.right = ''; im.style.left = bgLeft() + 'px'; im.style.top = bgTop() + 'px';
     im.style.width = (P.bgW || 1400) + 'px';
     im.style.opacity = P.bgOp ?? 0.5;
     im.style.display = 'block';
@@ -862,7 +887,7 @@ function fitView() {
     ymax = Math.max(ymax, n.y + (el ? el.offsetHeight : 120));
   }
   const bg = $('#bgimg');
-  if (P.bg && bg.offsetHeight) { xmax = Math.max(xmax, P.bgW || 1400); ymax = Math.max(ymax, bg.offsetHeight); }
+  if (P.bg && bg.offsetHeight) { xmax = Math.max(xmax, P.bgW || 1400); ymax = Math.max(ymax, bgTop() + bg.offsetHeight); }
   const wrap = $('#canvasWrap');
   /* ממלא את כל הקנבס הפנוי — מקטין או מגדיל לפי הצורך */
   P.zoom = Math.min(3, Math.max(0.15, Math.min(wrap.clientWidth / (xmax + 40), wrap.clientHeight / (ymax + 40))));
@@ -2647,14 +2672,14 @@ function renderWires() {
     const mPrev = window.__calPrev, sc = mPrev / P.bgW;
     const bgEl2 = document.getElementById('bgimg');
     const H2 = bgEl2 && bgEl2.offsetHeight ? bgEl2.offsetHeight : P.bgW * 0.6;
-    const yTop = Math.round(H2 * 0.14), fzp = Math.max(13, 20 / (getZ() || 1));
-    out += `<line x1="4" y1="${yTop}" x2="${P.bgW - 4}" y2="${yTop}" stroke="#534ab7" stroke-width="2.5" stroke-dasharray="9 6"/>
-      <line x1="4" y1="${yTop - 9}" x2="4" y2="${yTop + 9}" stroke="#534ab7" stroke-width="2.5"/>
-      <line x1="${P.bgW - 4}" y1="${yTop - 9}" x2="${P.bgW - 4}" y2="${yTop + 9}" stroke="#534ab7" stroke-width="2.5"/>`;
+    const yTop = bgTop() + Math.round(H2 * 0.14), fzp = Math.max(13, 20 / (getZ() || 1)), bgx = bgLeft();
+    out += `<line x1="${bgx + 4}" y1="${yTop}" x2="${bgx + P.bgW - 4}" y2="${yTop}" stroke="#534ab7" stroke-width="2.5" stroke-dasharray="9 6"/>
+      <line x1="${bgx + 4}" y1="${yTop - 9}" x2="${bgx + 4}" y2="${yTop + 9}" stroke="#534ab7" stroke-width="2.5"/>
+      <line x1="${bgx + P.bgW - 4}" y1="${yTop - 9}" x2="${bgx + P.bgW - 4}" y2="${yTop + 9}" stroke="#534ab7" stroke-width="2.5"/>`;
     const t1 = 'רוחב מוצע: ' + mPrev.toFixed(1) + ' מ׳';
-    out += `<rect x="${P.bgW / 2 - t1.length * fzp * 0.34}" y="${yTop - fzp - 12}" width="${t1.length * fzp * 0.68}" height="${fzp + 10}" rx="6" fill="#534ab7"/>
-      <text x="${P.bgW / 2}" y="${yTop - 6}" text-anchor="middle" font-size="${fzp}" font-weight="800" fill="#fff">${t1}</text>`;
-    const barPx = 5 / sc, bx = P.bgW / 2 - barPx / 2, by = yTop + 46;
+    out += `<rect x="${bgx + P.bgW / 2 - t1.length * fzp * 0.34}" y="${yTop - fzp - 12}" width="${t1.length * fzp * 0.68}" height="${fzp + 10}" rx="6" fill="#534ab7"/>
+      <text x="${bgx + P.bgW / 2}" y="${yTop - 6}" text-anchor="middle" font-size="${fzp}" font-weight="800" fill="#fff">${t1}</text>`;
+    const barPx = 5 / sc, bx = bgLeft() + P.bgW / 2 - barPx / 2, by = yTop + 46;
     out += `<line x1="${bx}" y1="${by}" x2="${bx + barPx}" y2="${by}" stroke="#c9502e" stroke-width="4"/>
       <line x1="${bx}" y1="${by - 8}" x2="${bx}" y2="${by + 8}" stroke="#c9502e" stroke-width="4"/>
       <line x1="${bx + barPx}" y1="${by - 8}" x2="${bx + barPx}" y2="${by + 8}" stroke="#c9502e" stroke-width="4"/>
@@ -4170,6 +4195,15 @@ function projGapCheck() {
   /* 5. ארון בלי פס שקעים */
   const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
   if (racks.length && !qsum(it => /פס שקעים|פס חשמל|שקעים לארון|PDU/i.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
+  /* 5ב. יחידה בארון שאף כבל לא נוגע בה — כנראה מיותרת; מציעים להסיר מהארון ומההצעה */
+  P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
+    (rk.units || []).forEach(u => {
+      if (u.panel || /פאנל|פנל|panel|פס שקעים|PDU|מדף|shelf|blank/i.test(u.name || '')) return;
+      const touched = P.cables.some(c => (c.from === rk.id && c.fromUnit === u.id) || (c.to === rk.id && c.toUnit === u.id));
+      if (touched) return;
+      finds.push({ i: '🗄', k: 'idle-unit|' + u.id, t: 'בארון "' + rk.name.slice(0, 18) + '": ' + shortModel(u.name).slice(0, 30) + ' (U' + ((u.pos || 0) + 1) + ') — אין אליו שום חיבור', b: '🗑 הסר מהארון ומההצעה', fn: `gapRemoveUnit('${rk.id}','${u.id}')` });
+    });
+  });
   /* 6. שורת התקנה */
   if (!impItems.some(it => it.dest === 'work' || /התקנה|עבודה/.test(it.name || ''))) finds.push({ i: '🔧', t: 'אין שורת התקנה/עבודה בהצעה', b: 'פתח טבלת התקנה ותמחור', fn: 'installManager()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('התקנה')" } });
   /* 7. קיט התקנה (תשתיות עמדה/ארון) */
@@ -4215,6 +4249,23 @@ function projGapCheck() {
     window.__gapReopen = 0; ov.remove();
   });
 }
+/* הסרת יחידה מיותרת: יורדת מהארון, ושורת ההצעה שלה יורדת ביחידה אחת (או נמחקת) */
+function gapRemoveUnit(rkId, uId) {
+  const rk = byId(rkId); if (!rk) return;
+  const u = (rk.units || []).find(x => x.id === uId); if (!u) return;
+  rk.units = rk.units.filter(x => x !== u);
+  const key = rearKey(u.name).toLowerCase();
+  const it = impItems.find(x => x.on !== false && (x.dest === 'unit' || x.dest === 'panelUnit') && rearKey(x.name || '').toLowerCase().startsWith(key.slice(0, 30)));
+  let msg = '🗑 ' + shortModel(u.name) + ' הוסר מהארון';
+  if (it) {
+    it.qty = Math.max(0, (+it.qty || 1) - 1); it.placed = Math.max(0, (it.placed || 1) - 1);
+    if (it.qty === 0) { impItems.splice(impItems.indexOf(it), 1); msg += ' ומההצעה'; }
+    else msg += ' · בהצעה נשארו ' + it.qty;
+  }
+  rackArrange(rk); render(); save(); uiToast(msg);
+  gapBack();
+}
+window.gapRemoveUnit = gapRemoveUnit;
 /* אחרי תיקון מיידי — חזרה לחלון הבדיקה, כדי לראות מה עוד פתוח */
 function gapBack() { if (window.__gapReopen) setTimeout(projGapCheck, 250); }
 window.gapBack = gapBack;
@@ -5423,6 +5474,7 @@ function renderPanel() {
           <button class="primary" style="width:100%;${calMode ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : (P.scale ? 'כייל מחדש' : 'כייל עכשיו')}</button>
         </div>
         <button style="width:100%;margin-bottom:6px" title="הוספת קירות ואובייקטים משורטטים מעל תכנית הרקע" onclick="sketchStart()">🖊 ${P.sketch && ((P.sketch.walls || []).length || (P.sketch.objs || []).length) ? 'ערוך את השרטוט' : 'שרטט מעל התכנית — קירות ואובייקטים'}</button>
+        <button style="width:100%;margin-bottom:6px" onclick="centerPlan()" title="מזיז את התכנית למרכז הקנבס — וכל המוקדים, האזורים והקווים זזים איתה">⌖ מרכז את התכנית בקנבס</button>
         <button style="width:100%;margin-bottom:6px;background:#f3d9d2;color:#8c2f16" onclick="removeBg()">הסר רקע</button>`;
     } else {
       bgTop = `<h3 class="sec">🗺 תכנית רקע</h3>
@@ -8028,7 +8080,7 @@ function applyZonesJson(zs) {
   P.zones = P.zones || [];
   for (const zz of zs) {
     const w = Math.max(80, (zz.rw || 0.2) * W), h = Math.max(50, (zz.rh || 0.2) * H);
-    const left = (zz.rx || 0) * W, top = (zz.ry || 0) * H;
+    const left = bgLeft() + (zz.rx || 0) * W, top = bgTop() + (zz.ry || 0) * H;
     P.zones.push({ id: uid('z'), name: zz.name || 'אזור', usage: zz.usage || '', x: Math.max(0, 2200 - left - w), y: Math.max(0, top), w, h });
   }
   render();
@@ -8812,7 +8864,7 @@ function zoneKitConfirm(zname, idx) {
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
-    ${INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
+    ${!kitHasSpk && INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
     ${z && kitHasSpk ? `<div style="background:#f4f2ec;border-radius:8px;padding:7px 9px;margin-bottom:7px">
       <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px">🔊 סוג פריסה ב"${esc(z.name)}" — קובע איך יוצבו הרמקולים</label>
       <select data-place style="width:100%;font-size:12px;padding:4px">${placeOptsHTML(z._place)}</select>
@@ -9351,9 +9403,9 @@ async function autoLayoutAI(zid) {
   if (!P.scale) { alert('כייל את התכנית קודם — הפריסה תלויה במרחקים אמיתיים.'); return; }
   const img = $('#bgimg');
   const imgW = img.offsetWidth || P.bgW || 1400, imgH = img.offsetHeight || 900;
-  const imgLeft = 2200 - imgW;
+  const imgLeft = bgLeft(), imgTop = bgTop();
   const b = zoneBounds(z);
-  const rz = { rx: +((b.L - imgLeft) / imgW).toFixed(3), ry: +(b.T / imgH).toFixed(3), rw: +(b.W / imgW).toFixed(3), rh: +(b.H / imgH).toFixed(3) };
+  const rz = { rx: +((b.L - imgLeft) / imgW).toFixed(3), ry: +((b.T - imgTop) / imgH).toFixed(3), rw: +(b.W / imgW).toFixed(3), rh: +(b.H / imgH).toFixed(3) };
   const spk = z._spk || 'רמקול התקנה', disp = guessDisp(spk);
   const areaM = zoneAreaM(z).toFixed(0), ceil = z.ceil ?? P.room?.ceil ?? 3;
   const spread = z._spread || 'surround';
@@ -9372,7 +9424,7 @@ async function autoLayoutAI(zid) {
     let nS = 0, nSub = 0, sit = null;
     if (z._sub) { sit = { on: true, qty: 0, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') }; autoPrice(sit); impItems.push(sit); }
     sp.forEach(s => {
-      const xL = imgLeft + s.rx * imgW, y = s.ry * imgH;
+      const xL = imgLeft + s.rx * imgW, y = imgTop + s.ry * imgH;
       const isSub = s.type === 'sub';
       const base = isSub && sit ? sit : it;
       const nm = isSub && z._sub ? z._sub : spk;
