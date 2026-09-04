@@ -1521,7 +1521,8 @@ function renderNodes() {
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}${n.mount ? ' · ' + esc(n.mount) : ''} · לחץ לפתיחה" style="cursor:grab;position:relative">
         <div class="mnum" style="background:#c9502e">${p.holes.length}</div>
         <div class="mic" style="border-color:#c9502e"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="#c9502e" stroke-width="2"/><circle cx="8" cy="12" r="2" fill="#c9502e"/><circle cx="14" cy="12" r="2" fill="#c9502e"/></svg></div>
-        ${cnt ? `<div class="mnum" style="background:#0f6e56;left:auto;right:-6px;top:-6px">${cnt}</div>` : ''}</div>`;
+        ${cnt ? `<div class="mnum" style="background:#0f6e56;left:auto;right:-6px;top:-6px">${cnt}</div>` : ''}</div>
+        ${isDjNode(n) ? `<div title="${DJ_POWER_TXT}" style="position:absolute;left:50%;top:100%;transform:translate(-50%,3px);white-space:nowrap;background:#fff3cd;color:#7a4b00;border:1.5px solid #e0a100;border-radius:6px;font-size:9.5px;font-weight:800;padding:1px 5px;line-height:1.3;pointer-events:none;z-index:3">⚡ שקע 16A · שדה סאונד</div>` : ''}`;
       d.addEventListener('pointerdown', e => {
         if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
         sel = n.id; ui.tab = 'node';
@@ -3629,6 +3630,9 @@ function purgeServiceUnits() {
   (P.nodes || []).forEach(rk => { if (rk.kind !== 'rack' || !rk.units) return; const before = rk.units.length; rk.units = rk.units.filter(u => !isServiceItem(u.name)); n += before - rk.units.length; if (before !== rk.units.length) rackArrange(rk); });
   return n;
 }
+function isDjNode(n) { return !!n && (n.srcKind === 'dj' || (n.kind === 'panel' && /עמדת נגינה|\bDJ\b/i.test(n.name || ''))); }
+/* דרישת החשמל של עמדת DJ — טקסט אחד לתכנית, לדוח ולבדיקה */
+const DJ_POWER_TXT = 'שקע חשמל 16A ליד העמדה — מוזן משדה הסאונד בלבד';
 function isSrcNode(n) {
   if (!n || n.kind === 'rack') return false;
   if (n.srcKind) return true;

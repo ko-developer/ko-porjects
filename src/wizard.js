@@ -746,6 +746,15 @@ function repPlanSnapshot(LBL) {
         });
         g.font = 'bold 12px Arial'; g.textAlign = 'center';
       }
+      /* עמדת DJ: ריבוע ⚡ צהוב — דרישת שקע חשמל משדה הסאונד, כמו ברשימת ההכנות */
+      P.nodes.filter(isDjNode).forEach(n => {
+        const x = cx(n), y = cy(n);
+        g.fillStyle = '#fff3cd'; g.strokeStyle = '#e0a100'; g.lineWidth = 2;
+        g.fillRect(x - 13, y - 13, 26, 26); g.strokeRect(x - 13, y - 13, 26, 26);
+        g.fillStyle = '#7a4b00'; g.font = 'bold 13px Arial'; g.fillText('⚡', x, y + 1);
+        g.font = 'bold 10px Arial'; g.fillStyle = '#7a4b00'; g.fillText('DJ · שקע 16A שדה סאונד', x, y + 24);
+        g.font = 'bold 12px Arial';
+      });
       P.nodes.filter(n => n.kind === 'point' || n.kind === 'rack').forEach(n => {
         const x = cx(n), y = cy(n), isR = n.kind === 'rack';
         g.fillStyle = isR ? '#1a1e28' : n.ptype === 'mic' ? '#0f6e56' : /סאב|\bsub\b/i.test(n.name) ? '#6c5ce7' : '#c9502e';
@@ -933,6 +942,7 @@ async function installerReport() {
     <h3>הזנת חשמל</h3>
     <ul style="margin:4px 0;padding-right:18px;line-height:1.75">
       <li><b>שדה חשמל נפרד למערכת הסאונד — דרישת מינימום:</b> בלוח החשמל יוקצה שדה ייעודי לסאונד בלבד — מאמ"ת ראשי לסאונד בלבד ומפסק פחת לסאונד בלבד. אין לשתף את השדה עם אף צרכן אחר.</li>
+      ${P.nodes.filter(isDjNode).map(dj => `<li style="background:#fff3cd;border-radius:6px;padding:2px 6px"><b>⚡ עמדת DJ — "${esc(dj.name.slice(0, 30))}":</b> ${DJ_POWER_TXT} (אותו מאמ"ת/RCD של מערכת הסאונד, לא משדה התאורה או השקעים הכלליים). המיקום מסומן ⚡ על תכנית החיווט.</li>`).join('')}
       <li><b>כל צרכני הסאונד מאותו שדה:</b> שקעי ארון המגברים וכן עמדת הנגינה / עמדת ה-DJ יוזנו כולם מאותו שדה הסאונד. הזנה מעורבת גורמת להפרשי הארקה, זמזומים ותקלות.</li>
     </ul>
     <h3>הכנת קווי הרמקולים${pullCharged ? '' : ' — ההעברות אינן כלולות בהצעה ומבוצעות באחריות הלקוח'}</h3>
