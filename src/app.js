@@ -3975,7 +3975,11 @@ async function patchApply() {
         const ex = P.cables.find(c => c.from === a.rk.id && c.to === a.rk.id && c.toUnit === a.u.id && c.pIn === pIn && c.fromUnit === proc.id);
         if (ex) {
           /* פאץ׳ שנוצר לפני שהגב נמשך מהספרייה — יציאה שלא קיימת בגב מוחלפת ביציאה אמיתית פנויה */
-          if (ex.pOut && !outs.includes(ex.pOut)) { taken.delete(ex.pOut); const np = outs.find(o => !taken.has(o)); if (np) { ex.pOut = np; taken.add(np); ex.note = 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + np + ' → ' + shortModel(a.u.name) + ' ' + pIn; } }
+          if (ex.pOut && !outs.includes(ex.pOut)) {
+            taken.delete(ex.pOut); const np = outs.find(o => !taken.has(o));
+            if (np) { ex.pOut = np; taken.add(np); ex.note = 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + np + ' → ' + shortModel(a.u.name) + ' ' + pIn; }
+            else { ex.pOut = undefined; ex.note = 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ⚠ אין יציאה פנויה (לפי הגב בספרייה) → ' + shortModel(a.u.name) + ' ' + pIn; uiToast('⚠ ל' + shortModel(proc.name) + ' אין יציאה פנויה עבור ' + shortModel(a.u.name) + ' ' + pIn + ' — בדוק את גב הדגם בספרייה', 6000); }
+          }
           return;
         }
         let pOut = outs.find(o => !taken.has(o));
