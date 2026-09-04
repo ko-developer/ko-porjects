@@ -787,24 +787,24 @@ function repPlanSnapshot(LBL) {
         g.fillStyle = '#1a1e28'; g.font = 'bold 10px Arial'; g.fillText((n.name || 'ארון').slice(0, 16), x, y + 32);
         g.font = 'bold 12px Arial';
       });
-      /* מקורות — עמדת DJ / קופסת במה / פאנלים: ריבוע עם סמל */
-      P.nodes.filter(n => isSrcNode(n) && n.kind !== 'point').forEach(n => {
+      /* דרישת חשמל — צמוד למוקד, בצהוב, כמו ברשימת ההכנות. תמיד בתוך התמונה: בקצה התחתון — מעל המוקד */
+      const pwrBox = (x, y) => {
+        const t = '⚡ נקודת חשמל 16A-N6 · שדה סאונד', tw = t.length * 6.2 + 10;
+        let bx = Math.max(2, Math.min(W - tw - 2, x - tw / 2)), by = (y + 34 + 16 > H - 2) ? y - 34 - 16 : y + 34; let tries = 0;
+        while (hits(bx, by, tw, 16) && tries++ < 6) by += (by > y ? 18 : -18);
+        claim(bx, by, tw, 16);
+        g.fillStyle = '#fff3cd'; g.strokeStyle = '#e0a100'; g.lineWidth = 1.5; g.fillRect(bx, by, tw, 16); g.strokeRect(bx, by, tw, 16);
+        g.fillStyle = '#7a4b00'; g.font = 'bold 10px Arial'; g.fillText(t, bx + tw / 2, by + 8);
+      };
+      /* מקורות ופאנלים — עמדת DJ / קופסת במה / פאנל מולטי: ריבוע עם סמל */
+      P.nodes.filter(n => (isSrcNode(n) || n.kind === 'panel') && n.kind !== 'point').forEach(n => {
         const x = cx(n), y = cy(n), k = n.srcKind;
         const ic = k === 'dj' ? '🎧' : k === 'inst' ? '🎸' : k === 'mic' ? '🎤' : k === 'stream' ? '🎵' : k === 'pc' ? '🖥' : k === 'phone' ? '📱' : '🎚';
         g.fillStyle = '#fff'; g.strokeStyle = '#c9502e'; g.lineWidth = 2.5;
         g.beginPath(); g.roundRect ? g.roundRect(x - 15, y - 15, 30, 30, 6) : g.rect(x - 15, y - 15, 30, 30); g.fill(); g.stroke();
         g.font = '16px Arial'; g.fillStyle = '#000'; g.fillText(ic, x, y + 1);
         g.font = 'bold 10px Arial'; g.fillStyle = '#c9502e'; g.fillText((n.name || '').replace(/·.*$/, '').trim().slice(0, 18), x, y + 26);
-        if (isDjNode(n)) {
-          /* דרישת החשמל — צמוד לעמדה, בצהוב, כמו ברשימת ההכנות */
-          const t = '⚡ נקודת חשמל 16A-N6 · שדה סאונד', tw = t.length * 6.2 + 10;
-          /* בתוך התמונה תמיד: ליד קצה תחתון — מעל העמדה; ליד קצה צדדי — נדחף פנימה */
-          let bx = Math.max(2, Math.min(W - tw - 2, x - tw / 2)), by = (y + 34 + 16 > H - 2) ? y - 34 - 16 : y + 34; let tries = 0;
-          while (hits(bx, by, tw, 16) && tries++ < 6) by += (by > y ? 18 : -18);
-          claim(bx, by, tw, 16);
-          g.fillStyle = '#fff3cd'; g.strokeStyle = '#e0a100'; g.lineWidth = 1.5; g.fillRect(bx, by, tw, 16); g.strokeRect(bx, by, tw, 16);
-          g.fillStyle = '#7a4b00'; g.font = 'bold 10px Arial'; g.fillText(t, x, by + 8);
-        }
+        if (needsPower(n)) pwrBox(x, y);
         g.font = 'bold 12px Arial';
         drawnPts.push({ x, y });
       });
@@ -997,9 +997,17 @@ async function installerReport() {
     <h3>הזנת חשמל</h3>
     <ul style="margin:4px 0;padding-right:18px;line-height:1.75">
       <li><b>שדה חשמל נפרד למערכת הסאונד — דרישת מינימום:</b> בלוח החשמל יוקצה שדה ייעודי לסאונד בלבד — מאמ"ת ראשי לסאונד בלבד ומפסק פחת לסאונד בלבד. אין לשתף את השדה עם אף צרכן אחר.</li>
-      ${P.nodes.filter(isDjNode).map(dj => `<li style="background:#fff3cd;border-radius:6px;padding:2px 6px"><b>⚡ עמדת DJ — "${esc(dj.name.slice(0, 30))}":</b> ${DJ_POWER_TXT} (אותו מאמ"ת/RCD של מערכת הסאונד — לא משדה התאורה או השקעים הכלליים). המיקום מסומן ⚡ על תכנית החיווט.</li>`).join('')}
+      ${P.nodes.filter(n => n.kind === 'rack').map(rk => { const r = rackPowerReq(rk); return `<li style="background:#fff3cd;border-radius:6px;padding:2px 6px"><b>⚡ ארון "${esc((rk.name || 'ארון').slice(0, 30))}":</b> ${r.txt} <small>(${r.why})</small></li>`; }).join('')}
+      ${P.nodes.filter(needsPower).map(n => `<li style="background:#fff3cd;border-radius:6px;padding:2px 6px"><b>⚡ ${isDjNode(n) ? 'עמדת DJ' : 'מוקד'} — "${esc((n.name || '').slice(0, 30))}":</b> ${DJ_POWER_TXT} (אותו מאמ"ת/RCD של מערכת הסאונד — לא משדה התאורה או השקעים הכלליים). המיקום מסומן ⚡ על תכנית החיווט.</li>`).join('')}
       <li><b>כל צרכני הסאונד מאותו שדה:</b> שקעי ארון המגברים וכן עמדת הנגינה / עמדת ה-DJ יוזנו כולם מאותו שדה הסאונד. הזנה מעורבת גורמת להפרשי הארקה, זמזומים ותקלות.</li>
     </ul>
+    <h3>פירוט דרישות חשמל — לחשמלאי</h3>
+    <table><tr><th>מיקום</th><th>דרישה</th><th>הסבר</th></tr>
+      ${P.nodes.filter(n => n.kind === 'rack').map(rk => { const r = rackPowerReq(rk); return `<tr><td>🗄 ארון "${esc((rk.name || 'ארון').slice(0, 30))}"</td><td><b>${r.txt}</b></td><td>${r.why} · שקעי הארון בגובה גב הארון</td></tr>`; }).join('')}
+      ${P.nodes.filter(needsPower).map(n => `<tr><td>${isDjNode(n) ? '🎧 עמדת DJ' : n.kind === 'panel' ? '🎚 מוקד' : '📍 מוקד'} "${esc((n.name || '').slice(0, 30))}"</td><td><b>${DJ_POWER_TXT}</b></td><td>${isDjNode(n) ? 'עמדת נגינה' : 'מוקד עם מולטי / חשמל'} — מסומן ⚡ על תכנית החיווט</td></tr>`).join('')}
+      ${!P.nodes.some(n => n.kind === 'rack') && !P.nodes.some(needsPower) ? '<tr><td colspan="3">— אין ארון ואין מוקד שדורש נקודת חשמל —</td></tr>' : ''}
+    </table>
+    <p class="meta">הכלל: עד 3 מגברים + פרוססור = הזנה 16A-N6 בגובה גב הארון · יותר מ-3 מגברים = הזנה 3×16A (3×N4). כל עמדת נגינה או מוקד חיצוני עם מולטי / חשמל יכול לדרוש נקודת חשמל באותם תנאים (נבחר בתכונות המוקד). הכול משדה הסאונד בלבד.</p>
     <h3>הכנת קווי הרמקולים${pullCharged ? '' : ' — ההעברות אינן כלולות בהצעה ומבוצעות באחריות הלקוח'}</h3>
     <ul style="margin:4px 0;padding-right:18px;line-height:1.75">
       <li><b>א · תוואי מסודר:</b> הקווים יושחלו בצינור מגן, בצינור שרשורי או בתעלת תקשורת — לא בצמוד לקווי חשמל (הצלבה ב-90° בלבד).</li>

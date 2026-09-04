@@ -1522,7 +1522,7 @@ function renderNodes() {
         <div class="mnum" style="background:#c9502e">${p.holes.length}</div>
         <div class="mic" style="border-color:#c9502e"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="#c9502e" stroke-width="2"/><circle cx="8" cy="12" r="2" fill="#c9502e"/><circle cx="14" cy="12" r="2" fill="#c9502e"/></svg></div>
         ${cnt ? `<div class="mnum" style="background:#0f6e56;left:auto;right:-6px;top:-6px">${cnt}</div>` : ''}</div>
-        ${isDjNode(n) ? `<div title="${DJ_POWER_TXT}" style="position:absolute;left:50%;top:100%;transform:translate(-50%,3px);white-space:nowrap;background:#fff3cd;color:#7a4b00;border:1.5px solid #e0a100;border-radius:6px;font-size:9.5px;font-weight:800;padding:1px 5px;line-height:1.3;pointer-events:none;z-index:3">⚡ נקודת חשמל 16A-N6 · שדה סאונד</div>` : ''}`;
+        ${needsPower(n) ? `<div title="${DJ_POWER_TXT}" style="position:absolute;left:50%;top:100%;transform:translate(-50%,3px);white-space:nowrap;background:#fff3cd;color:#7a4b00;border:1.5px solid #e0a100;border-radius:6px;font-size:9.5px;font-weight:800;padding:1px 5px;line-height:1.3;pointer-events:none;z-index:3">⚡ נקודת חשמל 16A-N6 · שדה סאונד</div>` : ''}`;
       d.addEventListener('pointerdown', e => {
         if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
         sel = n.id; ui.tab = 'node';
@@ -3633,6 +3633,19 @@ function purgeServiceUnits() {
 function isDjNode(n) { return !!n && (n.srcKind === 'dj' || (n.kind === 'panel' && /עמדת נגינה|\bDJ\b/i.test(n.name || ''))); }
 /* דרישת החשמל של עמדת DJ — טקסט אחד לתכנית, לדוח ולבדיקה */
 const DJ_POWER_TXT = 'נקודת חשמל 16A-N6 ליד העמדה — משדה סאונד בלבד';
+/* דרישת חשמל למוקד: עמדת DJ — כברירת מחדל; כל פאנל / קופסת במה / מוקד חיצוני עם מולטי או חשמל — לפי בחירת אורי (n.pwrReq) */
+function needsPower(n) { return !!n && n.kind !== 'rack' && (n.pwrReq === true || (isDjNode(n) && n.pwrReq !== false)); }
+function canReqPower(n) { return !!n && n.kind !== 'rack' && (n.kind === 'panel' || !!n.srcKind || (P.cables || []).some(c => (c.from === n.id || c.to === n.id) && /multi|pwr/.test(c.type || ''))); }
+/* הזנת ארון מגברים — הכלל של אורי: עד 3 מגברים + פרוססור = 16A-N6 בגובה גב הארון; יותר מ-3 = 3×16A (3×N4). תמיד משדה סאונד בלבד */
+const RACK_PWR_SMALL = 'הזנת חשמל 16A-N6 בגובה גב הארון — על שדה סאונד בלבד';
+const RACK_PWR_BIG = 'הזנה 3×16A (3×N4) — משדה סאונד בלבד';
+function rackPowerReq(rk) {
+  const amps = (rk.units || []).filter(u => unitRank(u) === 3).length;
+  const procs = (rk.units || []).filter(u => u.cat === 'proc' || /פרוססור|processor|\bDSP\b/i.test(u.name || '')).length;
+  const big = amps > 3;
+  const w = `${amps} מגבר${amps === 1 ? '' : 'ים'}${procs ? ' + פרוססור' : ''}`;
+  return { amps, procs, big, txt: big ? RACK_PWR_BIG : RACK_PWR_SMALL, why: big ? w + ' — יותר מ-3 מגברים' : w + ' — עד 3 מגברים' };
+}
 function isSrcNode(n) {
   if (!n || n.kind === 'rack') return false;
   if (n.srcKind) return true;
@@ -5724,6 +5737,14 @@ function renderPanel() {
     <p class="muted" style="font-size:11px">🔌 ${n.panel.holes.length} חורים · ${cnt} חיבורים · <a href="#" onclick="event.preventDefault();multiView('${n.id}')">תצוגת ניתוב מלאה ⤢</a></p>
     <h3 class="sec">עיצוב הפאנל</h3>` + panelEditor(n.panel, n.id, -1) +
       `<p class="muted" style="margin-top:6px">לחיצה על חור בקנבס מחילה את המברשת. במצב חופשי — גרור חורים למיקום הרצוי.</p>`;
+  }
+  if (n.kind === 'rack') {
+    const r = rackPowerReq(n);
+    html += `<div style="background:#fff3cd;border:1px solid #e0a100;border-radius:8px;padding:6px 8px;margin:6px 0;font-size:12px;color:#7a4b00"><b>⚡ הזנת חשמל לארון:</b> ${r.txt}<br><small>${r.why} · מופיע בדוח ההכנות</small></div>`;
+  } else if (canReqPower(n)) {
+    html += `<label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;background:#fff3cd;border:1px solid #e0a100;border-radius:8px;padding:6px 8px;margin:6px 0;color:#7a4b00">
+      <input type="checkbox" style="width:auto" ${needsPower(n) ? 'checked' : ''} onchange="byId('${n.id}').pwrReq=this.checked;render();save()">
+      <span>⚡ דרוש נקודת חשמל 16A-N6 ליד המוקד — משדה סאונד בלבד${isDjNode(n) ? ' <small style="opacity:.8">(ברירת מחדל לעמדת DJ)</small>' : ''}</span></label>`;
   }
   html += `<h3 class="sec"></h3><button style="width:100%;background:#f3d9d2;color:#8c2f16" onclick="delNode('${n.id}')">מחק מוקד</button>`;
   p.innerHTML = html;
