@@ -720,6 +720,12 @@ function repPlanSnapshot(LBL) {
       });
       g.font = 'bold 12px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
       const kinds = new Map();   /* מקרא: סוג + חתך → צבע */
+      /* שום תווית לא מסתירה תווית אחרת: כל תיבה נרשמת, ותווית חדשה מחפשת מקום פנוי */
+      const boxes = [];
+      const hits = (x, y, w, h) => boxes.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y);
+      const claim = (x, y, w, h) => { boxes.push({ x, y, w, h }); };
+      /* מוקדים תופסים מקום לפני הקווים — כדי שמספרי קווים לא ייפלו על עיגולי מוקדים */
+      P.nodes.filter(n => n.kind === 'point' || n.kind === 'rack' || isSrcNode(n)).forEach(n => { const r = n.kind === 'rack' ? 18 : 13; claim(cx(n) - r, cy(n) - r, 2 * r, 2 * r); });
       P.cables.forEach(c => {
         const a = byId(c.from), b = byId(c.to); if (!a || !b || a === b) return;
         const col = cableColor(c); kinds.set(cableKindLabel(c), col);
@@ -728,10 +734,26 @@ function repPlanSnapshot(LBL) {
         g.beginPath(); g.moveTo(cx(a), cy(a)); g.lineTo(cx(b), cy(b)); g.stroke();
         g.setLineDash([]);
         const lb = LBL[c.id]; if (!lb) return;
-        const mx = (cx(a) + cx(b)) / 2, my = (cy(a) + cy(b)) / 2;
-        g.fillStyle = '#fff'; g.fillRect(mx - 11, my - 9, 22, 17);
-        g.strokeStyle = col; g.lineWidth = 1; g.strokeRect(mx - 11, my - 9, 22, 17);
-        g.fillStyle = col; g.fillText(String(lb), mx, my);
+        const txt = String(lb), bw = Math.max(22, txt.length * 8 + 8), bh = 17;
+        /* מועמדים לאורך הקו: אמצע, ואז מתרחקים לשני הצדדים — הראשון הפנוי זוכה */
+        const ts = [0.5, 0.4, 0.6, 0.3, 0.7, 0.25, 0.75, 0.2, 0.8, 0.15, 0.85, 0.35, 0.65, 0.1, 0.9];
+        let px = null, py = null;
+        for (const t of ts) {
+          const x = cx(a) + (cx(b) - cx(a)) * t - bw / 2, y = cy(a) + (cy(b) - cy(a)) * t - bh / 2;
+          if (!hits(x, y, bw, bh)) { px = x; py = y; break; }
+        }
+        if (px == null) {   /* צפוף לגמרי — מזיזים בניצב לקו עד שפנוי */
+          const dx = cx(b) - cx(a), dy = cy(b) - cy(a), L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
+          for (let k = 1; k <= 8 && px == null; k++) for (const sgn of [1, -1]) {
+            const x = (cx(a) + cx(b)) / 2 + nx * sgn * k * 14 - bw / 2, y = (cy(a) + cy(b)) / 2 + ny * sgn * k * 14 - bh / 2;
+            if (!hits(x, y, bw, bh)) { px = x; py = y; break; }
+          }
+          if (px == null) { px = (cx(a) + cx(b)) / 2 - bw / 2; py = (cy(a) + cy(b)) / 2 - bh / 2; }
+        }
+        claim(px, py, bw, bh);
+        g.fillStyle = '#fff'; g.fillRect(px, py, bw, bh);
+        g.strokeStyle = col; g.lineWidth = 1; g.strokeRect(px, py, bw, bh);
+        g.fillStyle = col; g.fillText(txt, px + bw / 2, py + bh / 2);
       });
       /* מקרא צבעים — שמאל למעלה */
       if (kinds.size) {
@@ -746,23 +768,55 @@ function repPlanSnapshot(LBL) {
         });
         g.font = 'bold 12px Arial'; g.textAlign = 'center';
       }
-      /* עמדת DJ: ריבוע ⚡ צהוב — דרישת שקע חשמל משדה הסאונד, כמו ברשימת ההכנות */
-      P.nodes.filter(isDjNode).forEach(n => {
+      /* מוקדים: אייקון אמיתי לכל סוג. מוקד שנופל על מוקד אחר — המספר שלו יוצא הצידה עם קו מוביל */
+      const drawnPts = [];
+      const nodeLabelPos = (x, y) => {
+        if (!drawnPts.some(p => Math.hypot(p.x - x, p.y - y) < 24)) { drawnPts.push({ x, y }); return { x, y, lead: false }; }
+        for (let k = 1; k <= 12; k++) { const ang = k * Math.PI / 4, r = 26 + Math.floor(k / 8) * 22; const lx = x + Math.cos(ang) * r, ly = y + Math.sin(ang) * r;
+          if (!drawnPts.some(p => Math.hypot(p.x - lx, p.y - ly) < 24) && !hits(lx - 11, ly - 11, 22, 22)) { drawnPts.push({ x: lx, y: ly }); claim(lx - 11, ly - 11, 22, 22); return { x: lx, y: ly, lead: true }; } }
+        return { x, y, lead: false };
+      };
+      const circle = (x, y, r, fill) => { g.fillStyle = fill; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); };
+      /* ארונות — אייקון ארון: מלבן כהה עם פסי U */
+      P.nodes.filter(n => n.kind === 'rack').forEach(n => {
         const x = cx(n), y = cy(n);
-        g.fillStyle = '#fff3cd'; g.strokeStyle = '#e0a100'; g.lineWidth = 2;
-        g.fillRect(x - 13, y - 13, 26, 26); g.strokeRect(x - 13, y - 13, 26, 26);
-        g.fillStyle = '#7a4b00'; g.font = 'bold 13px Arial'; g.fillText('⚡', x, y + 1);
-        g.font = 'bold 10px Arial'; g.fillStyle = '#7a4b00'; g.fillText('DJ · שקע 16A שדה סאונד', x, y + 24);
+        g.fillStyle = '#1a1e28'; g.strokeStyle = '#fff'; g.lineWidth = 2;
+        g.beginPath(); g.roundRect ? g.roundRect(x - 16, y - 20, 32, 40, 5) : g.rect(x - 16, y - 20, 32, 40); g.fill(); g.stroke();
+        g.strokeStyle = '#c9c2b4'; g.lineWidth = 1.2; for (let k = -12; k <= 12; k += 8) { g.beginPath(); g.moveTo(x - 11, y + k); g.lineTo(x + 11, y + k); g.stroke(); }
+        g.fillStyle = '#ffcbb3'; g.font = 'bold 11px Arial'; g.fillText('R', x, y + 30 - 4);
+        g.fillStyle = '#1a1e28'; g.font = 'bold 10px Arial'; g.fillText((n.name || 'ארון').slice(0, 16), x, y + 32);
         g.font = 'bold 12px Arial';
       });
-      P.nodes.filter(n => n.kind === 'point' || n.kind === 'rack').forEach(n => {
-        const x = cx(n), y = cy(n), isR = n.kind === 'rack';
-        g.fillStyle = isR ? '#1a1e28' : n.ptype === 'mic' ? '#0f6e56' : /סאב|\bsub\b/i.test(n.name) ? '#6c5ce7' : '#c9502e';
-        g.beginPath(); g.arc(x, y, isR ? 14 : 11, 0, 7); g.fill();
-        g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke();
-        g.fillStyle = '#fff';
-        const m = (n.name || '').match(/\((\d+)\)/);
-        g.fillText(isR ? 'R' : n.ptype === 'mic' ? 'M' : (m ? m[1] : '•'), x, y);
+      /* מקורות — עמדת DJ / קופסת במה / פאנלים: ריבוע עם סמל */
+      P.nodes.filter(n => isSrcNode(n) && n.kind !== 'point').forEach(n => {
+        const x = cx(n), y = cy(n), k = n.srcKind;
+        const ic = k === 'dj' ? '🎧' : k === 'inst' ? '🎸' : k === 'mic' ? '🎤' : k === 'stream' ? '🎵' : k === 'pc' ? '🖥' : k === 'phone' ? '📱' : '🎚';
+        g.fillStyle = '#fff'; g.strokeStyle = '#c9502e'; g.lineWidth = 2.5;
+        g.beginPath(); g.roundRect ? g.roundRect(x - 15, y - 15, 30, 30, 6) : g.rect(x - 15, y - 15, 30, 30); g.fill(); g.stroke();
+        g.font = '16px Arial'; g.fillStyle = '#000'; g.fillText(ic, x, y + 1);
+        g.font = 'bold 10px Arial'; g.fillStyle = '#c9502e'; g.fillText((n.name || '').replace(/·.*$/, '').trim().slice(0, 18), x, y + 26);
+        if (isDjNode(n)) {
+          /* דרישת החשמל — צמוד לעמדה, בצהוב, כמו ברשימת ההכנות */
+          const t = '⚡ נקודת חשמל 16A-N6 · שדה סאונד', tw = t.length * 6.2 + 10;
+          let bx = x - tw / 2, by = y + 34; let tries = 0;
+          while (hits(bx, by, tw, 16) && tries++ < 6) by += 18;
+          claim(bx, by, tw, 16);
+          g.fillStyle = '#fff3cd'; g.strokeStyle = '#e0a100'; g.lineWidth = 1.5; g.fillRect(bx, by, tw, 16); g.strokeRect(bx, by, tw, 16);
+          g.fillStyle = '#7a4b00'; g.font = 'bold 10px Arial'; g.fillText(t, x, by + 8);
+        }
+        g.font = 'bold 12px Arial';
+        drawnPts.push({ x, y });
+      });
+      /* רמקולים, סאבים, מיקרופון */
+      P.nodes.filter(n => n.kind === 'point').forEach(n => {
+        const x = cx(n), y = cy(n);
+        const fill = n.ptype === 'mic' ? '#0f6e56' : /סאב|\bsub\b/i.test(n.name) ? '#6c5ce7' : '#c9502e';
+        const m = (n.name || '').match(/\((\d+)\)/); const num = n.ptype === 'mic' ? 'M' : (m ? m[1] : '•');
+        circle(x, y, 7, fill);
+        const lp = nodeLabelPos(x, y);
+        if (lp.lead) { g.strokeStyle = fill; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y); g.lineTo(lp.x, lp.y); g.stroke(); }
+        circle(lp.x, lp.y, 11, fill);
+        g.fillStyle = '#fff'; g.fillText(num, lp.x, lp.y);
       });
       res('<h2>תכנית החיווט</h2><img src="' + cv.toDataURL('image/jpeg', 0.85) + '" style="width:100%;border:1px solid #ccc;border-radius:8px"><p class="meta">R = ריכוז מגברים · M = נקודת מדידה · מספר על קו = מספר הכבל בלוח המשיכה</p>');
     };
@@ -942,7 +996,7 @@ async function installerReport() {
     <h3>הזנת חשמל</h3>
     <ul style="margin:4px 0;padding-right:18px;line-height:1.75">
       <li><b>שדה חשמל נפרד למערכת הסאונד — דרישת מינימום:</b> בלוח החשמל יוקצה שדה ייעודי לסאונד בלבד — מאמ"ת ראשי לסאונד בלבד ומפסק פחת לסאונד בלבד. אין לשתף את השדה עם אף צרכן אחר.</li>
-      ${P.nodes.filter(isDjNode).map(dj => `<li style="background:#fff3cd;border-radius:6px;padding:2px 6px"><b>⚡ עמדת DJ — "${esc(dj.name.slice(0, 30))}":</b> ${DJ_POWER_TXT} (אותו מאמ"ת/RCD של מערכת הסאונד, לא משדה התאורה או השקעים הכלליים). המיקום מסומן ⚡ על תכנית החיווט.</li>`).join('')}
+      ${P.nodes.filter(isDjNode).map(dj => `<li style="background:#fff3cd;border-radius:6px;padding:2px 6px"><b>⚡ עמדת DJ — "${esc(dj.name.slice(0, 30))}":</b> ${DJ_POWER_TXT} (אותו מאמ"ת/RCD של מערכת הסאונד — לא משדה התאורה או השקעים הכלליים). המיקום מסומן ⚡ על תכנית החיווט.</li>`).join('')}
       <li><b>כל צרכני הסאונד מאותו שדה:</b> שקעי ארון המגברים וכן עמדת הנגינה / עמדת ה-DJ יוזנו כולם מאותו שדה הסאונד. הזנה מעורבת גורמת להפרשי הארקה, זמזומים ותקלות.</li>
     </ul>
     <h3>הכנת קווי הרמקולים${pullCharged ? '' : ' — ההעברות אינן כלולות בהצעה ומבוצעות באחריות הלקוח'}</h3>
