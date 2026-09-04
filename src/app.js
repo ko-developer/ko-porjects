@@ -3840,8 +3840,20 @@ function allocBalanced(freeSlots, speakerNodes, dRef) {
   return { assigned: out, leftover: spk.map(n => n.id) };
 }
 function patchAutoFill() {
+  /* מקורות → כניסות פרוססור/מיקסר: כל שבב ממתין נכנס לכניסה הפנויה הבאה (L ואז R צמוד אליו) */
+  let nIn = 0;
+  if ((PATCH.srcPool || []).length && (PATCH.ins || []).length) {
+    const freeIn = () => {
+      for (let ii = 0; ii < PATCH.ins.length; ii++) { const t = PATCH.ins[ii];
+        for (let ch = 1; ch <= (t.inTotal || 0); ch++) { const k = 'i' + ii + '|' + ch; if (!(PATCH.inSlots[k] || []).length && !((PATCH.inPre || {})[k] || []).length) return k; } }
+      return null;
+    };
+    const order = [...PATCH.srcPool].sort((a, b) => (srcCh(a) === 'R') - (srcCh(b) === 'R'));
+    for (const id of order) { if (!PATCH.srcPool.includes(id)) continue; const k = freeIn(); if (!k) break; patchMove(id, k); nIn++; }
+    if (PATCH.srcPool.length) uiToast('⚠ אין כניסות פנויות ל-' + PATCH.srcPool.length + ' מקורות — הגדל את מספר הכניסות או הוסף מיקסר');
+  }
   const pool = PATCH.pool.map(byId).filter(Boolean);
-  if (!pool.length) { uiToast('אין רמקולים ממתינים'); return; }
+  if (!pool.length) { uiToast(nIn ? '⚡ ' + nIn + ' מקורות חוברו לכניסות' : 'אין רמקולים ממתינים'); return; }
   const free = [];
   PATCH.amps.forEach((a, ai) => { for (let ch = 1; ch <= a.chTotal; ch++) { const key = ai + '|' + ch; if (!a.pre.has(ch) && !(PATCH.slots[key] || []).length) free.push({ a, ai, ch, key }); } });
   if (!free.length) { uiToast('אין ערוצים פנויים — הוסף מגבר'); return; }
