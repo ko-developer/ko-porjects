@@ -473,13 +473,34 @@ function wizPlacementsHTML(z) {
   const rk = zoneRack(z);
   let h = `<p class="hint" style="margin:8px 0 3px;font-weight:700">📍 מיקומים על התכנית</p>`;
   if (from) { const lbl = k => (SOURCES.find(s => s[0] === k) || [k, k])[1]; h += `<p class="hint" style="margin:2px 0 4px;color:#4b3fb8">🔗 ${esc((from.sources || []).map(lbl).join(' · '))} — משותפים מ"${esc(from.name)}", העמדה שלהם שם · הפרוססור צריך יציאת‑אזור נפרדת ל"${esc(z.name)}"</p>`; }
-  h += row('🗄', 'ריכוז מגברים', rk, `window.__rackPlace={zid:'${z.id}'};uiToast('לחץ על התכנית במקום הארון');render()`);
+  const rkOut = rk && !inZone(z, { x: 2200 - rk.x - 24, y: rk.y + 24 });
+  h += rkOut
+    ? `<button class="sec" style="text-align:right;border-color:#c96a13;color:#8a5a12;background:#fdf3e6" onclick="wizRackInside(wizZone(), zoneRack(wizZone()), true);save();render();wizRender()">🗄 ריכוז מגברים — ⚠ מחוץ לאזור · לחץ להכנסה לפינה הפנימית</button>`
+    : row('🗄', 'ריכוז מגברים', rk, `window.__rackPlace={zid:'${z.id}'};uiToast('לחץ על התכנית במקום הארון');render()`);
   if (src.includes('dj')) h += row('🎧', 'עמדת נגינה (DJ)', z._djNodeId && byId(z._djNodeId), `window.__djPlace={zid:'${z.id}'};uiToast('לחץ על התכנית במקום עמדת ה-DJ');render()`);
   if (src.includes('inst')) h += row('🎸', 'קופסת במה', z._stageBoxId && byId(z._stageBoxId), `window.__nodePlace={id:'${z._stageBoxId || ''}',zid:'${z.id}',field:'_stageBoxId'};uiToast('לחץ על התכנית במקום קופסת הבמה');render()`);
   if (src.includes('mic') && !src.includes('dj') && !src.includes('inst')) h += row('🎤', 'פאנל חיבורים (XLR)', z._micPanelId && byId(z._micPanelId), `window.__nodePlace={id:'${z._micPanelId || ''}',zid:'${z.id}',field:'_micPanelId'};uiToast('לחץ על התכנית במקום הפאנל');render()`);
   if (!from && !src.includes('dj') && !src.includes('inst')) h += `<p class="hint" style="margin:2px 0 6px">🖥 המוזיקה מהמחשב/סטרימר שבארון — אין עמדת נגינה (שינוי: שלב האזור, "מה מנגן")</p>`;
   return h;
 }
+/* הארון חייב לשבת בתוך האזור: פינה פנימית עם מרווח 1.2 מ׳ מהקירות. באזור פוליגוני
+   פינת המסגרת עלולה להיות מחוץ לצורה — לכן מנסים פינות לפי סדר ואז המרכז.
+   ארון משותף שכבר יושב בתוך אזור אחר לא מוזז (הוא במקומו שם). */
+function wizRackInside(z, rk, force) {
+  if (!z || !rk) return false;
+  const c = { x: 2200 - rk.x - 24, y: rk.y + 24 };
+  if (!force && inZone(z, c)) return true;
+  if (!force) {
+    const other = (P.zones || []).find(x => x !== z && x._rackNodeId === rk.id && inZone(x, c));
+    if (other) return true;
+  }
+  const b = zoneBounds(z), ins = Math.max(46, P.scale ? 1.2 / P.scale : 46);
+  const cands = [[b.L + b.W - ins, b.T + ins], [b.L + ins, b.T + ins], [b.L + b.W - ins, b.T + b.H - ins], [b.L + ins, b.T + b.H - ins], [b.L + b.W / 2, b.T + b.H / 2]];
+  const pt = cands.find(([x, y]) => inZone(z, { x, y })) || cands[4];
+  rk.x = 2200 - pt[0] - 24; rk.y = pt[1] - 24;
+  return true;
+}
+window.wizRackInside = wizRackInside;
 function wizBuildAll(force) {
   const z = wizZone(); if (!z) return;
   if (!z.usage) { uiToast('🎯 חובה לבחור תכלית לאזור לפני הבנייה — חזור שלב אחד'); WIZ.step = 2; wizRender(); return; }
@@ -496,12 +517,13 @@ function wizBuildAll(force) {
   if (z._djInRack === undefined) z._djInRack = true;
   /* ארון ריכוז אוטומטי בפינת האזור אם אין */
   /* ארון משותף לכל האזורים — נוצר חדש רק אם אין ארון בפרויקט */
-  zoneRack(z, () => {
+  const rk0 = zoneRack(z, () => {
     const b = zoneBounds(z);
     /* בתוך האזור — בפינה הימנית-עליונה, מרווח קטן מהקיר */
     const px = b.L + b.W - 46, py = b.T + 34;
     return { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: z.name, x: 2200 - px - 20, y: py - 24, ru: 12, units: [], min: true };
   });
+  wizRackInside(z, rk0);       /* ארון קיים שנשאר מחוץ לאזור נכנס פנימה */
   wizEnsureMic(z.id);
   wizPlaceSources(z);           /* עמדת DJ / קופסת במה / פאנל — לפי "מה מנגן" */
   window.__autoFlow = true;   /* הבנייה וההצבה אוטומטיות */

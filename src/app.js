@@ -3120,13 +3120,14 @@ function patchOpen(z, amps, lines, leftover) {
       const ch = +(String(c.pIn).match(/\d+/) || [0])[0];
       if (!ch || ch > t.inTotal) return;
       const key = 'i' + ii + '|' + ch;
-      (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.from);
+      (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.vsrc || c.from);
       (PATCH.inPre[key] = PATCH.inPre[key] || []).push(c.id);
     });
   });
   Object.keys(PATCH.inSlots).forEach(k => { PATCH.inOrig[k] = PATCH.inSlots[k].join(','); });
   const usedSrc = new Set(Object.values(PATCH.inSlots).flat());
-  PATCH.srcPool = P.nodes.filter(n => isSrcNode(n) && !usedSrc.has(n.id)).map(n => n.id);
+  PATCH.srcPool = P.nodes.filter(n => isSrcNode(n) && !usedSrc.has(n.id)).map(n => n.id)
+    .concat(vsrcList().filter(id => !usedSrc.has(id)));
   const ov = document.createElement('div');
   ov.id = 'patchOv';
   ov.innerHTML = `<div id="patchBox">
@@ -3560,9 +3561,27 @@ function patchInSet(ii, val) {
   uiToast('✓ ' + v + ' כניסות — נשמר לדגם "' + shortModel(t.u.name) + '"');
 }
 window.patchInSet = patchInSet;
-/* מקורות נגינה שעדיין אין להם קו לכניסה בארון */
+/* מקור שיושב בארון (סטרימר / מחשב-נגן / בלוטות׳) — אין לו מוקד על התכנית, אבל הוא
+   כן צריך כניסה בפרוססור. מזוהה כ-'vsrc|<אזור>|<סוג>' ומתחבר בפאץ׳ פנימי בארון. */
+const RACK_SRC = { stream: '🎵 סטרימר', pc: '🖥 מחשב / נגן', phone: '📱 בלוטות׳' };
+const isVsrc = id => typeof id === 'string' && id.startsWith('vsrc|');
+function vsrcList() {
+  const out = [];
+  (P.zones || []).forEach(z => {
+    const own = z._srcShare ? (z._srcLocal || []) : (z.sources || []);
+    own.forEach(k => { if (RACK_SRC[k]) out.push('vsrc|' + z.id + '|' + k); });
+  });
+  return out;
+}
+function vsrcLabel(id) {
+  const [, zid, k] = id.split('|'); const z = (P.zones || []).find(x => x.id === zid);
+  return (RACK_SRC[k] || k) + (z && (P.zones || []).length > 1 ? ' · ' + z.name : '');
+}
+/* מקורות נגינה שעדיין אין להם קו לכניסה בארון — מוקדים על התכנית וגם מקורות בארון */
 function srcUnwired() {
-  return P.nodes.filter(isSrcNode).filter(n => !P.cables.some(c => c.from === n.id && /^IN/.test(c.pIn || ''))).length;
+  const nodes = P.nodes.filter(isSrcNode).filter(n => !P.cables.some(c => c.from === n.id && /^IN/.test(c.pIn || ''))).length;
+  const vs = vsrcList().filter(id => !P.cables.some(c => c.vsrc === id)).length;
+  return nodes + vs;
 }
 /* טבלת חיווט של המקורות בלבד (מקורות → פרוססור/מיקסר). מעל חלונות אחרים כדי
    שאפשר לפתוח אותה מתוך חלון הקיט ולחזור אליו כשסוגרים. */
@@ -3578,6 +3597,10 @@ function openSrcWire(zid, onClose) {
 }
 window.openSrcWire = openSrcWire;
 function patchSrcChip(id) {
+  if (isVsrc(id)) {
+    return `<span class="pchip src ${PATCH.sel === id ? 'sel' : ''}" draggable="true" data-chip="${id}"
+       title="מקור שיושב בארון — מתחבר לפרוססור בפאץ׳ פנימי · ${esc(vsrcLabel(id))}">${esc(vsrcLabel(id))} <small style="opacity:.7">בארון</small></span>`;
+  }
   const n = byId(id); if (!n) return '';
   const full = nodeFullName(n);
   const ic = n.ptype === 'mic' ? '🎤' : /עמדת נגינה|\bDJ\b/i.test(n.name || '') ? '🎧' : /במה|stage/i.test(n.name || '') ? '🎸' : /מחשב|נגן|סטרימר/i.test(n.name || '') ? '🖥' : '🎚';
@@ -3587,7 +3610,7 @@ function patchSrcChip(id) {
 function patchMove(id, slot) {
   if (!id || !PATCH) return;
   /* מקורות וכניסות הם עולם נפרד מרמקולים ויציאות — אין ערבוב בין השניים */
-  const srcSide = isSrcNode(byId(id));
+  const srcSide = isVsrc(id) || isSrcNode(byId(id));
   const inSide = slot === 'srcpool' || /^i\d+\|/.test(slot);
   if (srcSide !== inSide) { uiToast(srcSide ? '🎧 מקור נגינה מתחבר רק לכניסה של פרוססור/מיקסר' : '🔊 רמקול מתחבר רק ליציאת מגבר'); return; }
   if (srcSide) {
@@ -3762,7 +3785,20 @@ async function patchApply() {
     const t = PATCH.ins[ii]; if (!t) continue;
     if ((PATCH.inOrig || {})[key] === ids.join(',')) continue;
     if ((PATCH.inPre || {})[key]) { const del = new Set(PATCH.inPre[key]); P.cables = P.cables.filter(c => !del.has(c.id)); }
-    ids.map(byId).filter(Boolean).forEach(src => {
+    ids.filter(isVsrc).forEach(vid => {
+      /* מקור בארון: פאץ׳ פנימי מהיחידה (אם כבר בארון) אל כניסת הפרוססור */
+      const [, , kind] = vid.split('|');
+      const uRx = { stream: /סטרימר|streamer|musiccast|sonos|נגן רשת/i, pc: /מחשב|נגן|player|מדיה|media/i, phone: /בלוטות|bluetooth|BT\b/i }[kind] || /$^/;
+      const unit = (t.rk.units || []).find(u => uRx.test(u.name || ''));
+      const cc = {
+        id: uid('c'), from: t.rk.id, fromUnit: unit ? unit.id : undefined, to: t.rk.id, toUnit: t.u.id, pIn: 'IN ' + ch,
+        type: 'xlr', qty: '1', spec: '', len: 1, vsrc: vid,
+        note: (RACK_SRC[kind] || kind) + ' → ' + shortModel(t.u.name) + ' · פאץ׳ פנימי בארון' + (unit ? '' : ' · היחידה טרם נבחרה להצעה'),
+        conn: 'xlrm', conn2: 'xlrf',
+      };
+      P.cables.push(cc); n2++; made.push(cc);
+    });
+    ids.filter(id => !isVsrc(id)).map(byId).filter(Boolean).forEach(src => {
       /* עמדה עם פאנל = מולטי-קייבל · מיקרופון/נגן בודד = XLR */
       const multi = src.kind === 'panel' || /עמדת נגינה|\bDJ\b|במה|stage/i.test(src.name || '');
       const cc = {
