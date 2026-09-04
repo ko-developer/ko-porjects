@@ -495,6 +495,7 @@ function addU(id, f) {
   const isPanel = f.isp && f.isp.checked;
   if (isPanel) { unit.panel = defPanel(8, 1); if (f.cat.value === 'other') unit.cat = 'patch'; }
   r.units.push(unit);
+  rackArrange(r);
   if (isPanel) panelEdit = { nid: id, ui: r.units.length - 1 };
   render();
 }
@@ -1071,21 +1072,48 @@ const REAR_KB = [
   { re: /מיקסר|mixer|console/i, items: [{ t: 'power', label: 'AC' }, { t: 'xlrf', label: 'IN1', port: 'IN 1' }, { t: 'xlrf', label: 'IN2', port: 'IN 2' }, { t: 'xlrf', label: 'IN3', port: 'IN 3' }, { t: 'xlrf', label: 'IN4', port: 'IN 4' }, { t: 'xlrm', label: 'MAIN L', port: 'OUT 1' }, { t: 'xlrm', label: 'MAIN R', port: 'OUT 2' }, { t: 'xlrm', label: 'AUX', port: 'OUT 3' }] },
 ];
 function rearKey(name) { return (name || '').replace(/\s*\(\d+\)\s*$/, '').trim(); }
-function rearLayout(name) {
+/* מקור הגב: 'lib' = ספריית גבי המוצרים (מאומת) · 'kb' = בסיס ידע מובנה · 'io' / 'generic' = ניחוש.
+   רק 'lib' נחשב מידע מאומת על המחברים — השאר מסומנים כלא-מאומתים בתכנית ובדוח. */
+function rearLibKey(name) {
   const lib = (store && store.rearLib) || {};
   const key = rearKey(name);
-  if (lib[key]) return lib[key];
+  if (lib[key]) return key;
+  /* יחידה בארון נשמרת ב-40 תווים; מפתח הספרייה הוא השם המלא — מתאימים לפי קידומת */
+  const k2 = key.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (k2.length >= 12) {
+    const hit = Object.keys(lib).find(k => { const kk = k.replace(/\s+/g, ' ').trim().toLowerCase(); return kk.startsWith(k2) || k2.startsWith(kk); });
+    if (hit) return hit;
+  }
+  return null;
+}
+function rearLayoutSrc(name) {
+  const lib = (store && store.rearLib) || {};
+  const lk = rearLibKey(name);
+  if (lk) return { items: lib[lk], src: 'lib', key: lk };
   const hit = REAR_KB.find(e => e.re.test(name || ''));
-  if (hit) return hit.items;
-  /* ברירת מחדל מבסיס ה-IO אם קיים, אחרת גנרי */
+  if (hit) return { items: hit.items, src: 'kb' };
   const io = ioFor(name);
   const cnt = t => { const m = t && t.match(/(\d+)\s*[-×x]/i); return m ? Math.min(+m[1], 8) : 2; };
-  if (io) {
-    const isAmp = /ספיקון|NL4|בורג/i.test(io.o);
-    return ampRear(cnt(io.o), cnt(io.i), { dip: /מגבר|amp/i.test(name), net: /Dante|OMNEO|רשת/i.test(io.x || '') ? 'NET' : null });
-  }
-  return [{ t: 'power', label: 'AC' }, { t: 'xlrf', label: 'IN', port: 'IN 1' }, { t: 'xlrm', label: 'OUT', port: 'OUT 1' }];
+  if (io) return { items: ampRear(cnt(io.o), cnt(io.i), { dip: /מגבר|amp/i.test(name), net: /Dante|OMNEO|רשת/i.test(io.x || '') ? 'NET' : null }), src: 'io' };
+  return { items: [{ t: 'power', label: 'AC' }, { t: 'xlrf', label: 'IN', port: 'IN 1' }, { t: 'xlrm', label: 'OUT', port: 'OUT 1' }], src: 'generic' };
 }
+function rearLayout(name) { return rearLayoutSrc(name).items; }
+function rearVerified(name) { return rearLayoutSrc(name).src === 'lib'; }
+/* ---------- סדר הרכבה סטנדרטי בארון: נגנים למעלה → פרוססורים/ניתוב → מגברים למטה ---------- */
+function unitRank(u) {
+  const n = u.name || '';
+  if (u.cat === 'amp' || /מגבר|\bamp/i.test(n)) return 3;
+  if (/סטרימר|streamer|נגן|player|מחשב|bluetooth|בלוטות|musiccast|sonos|כרטיס קול|interface|מקלט|receiver|tuner/i.test(n)) return 0;
+  if (IN_UNIT_RE.test(n) || u.cat === 'patch' || u.cat === 'net' || /ניתוב|patch|פאנל|panel|router|switch|רשת/i.test(n)) return 1;
+  return 2;
+}
+function rackArrange(rk) {
+  if (!rk || !rk.units) return;
+  const us = rk.units.slice().sort((x, y) => (unitRank(x) - unitRank(y)) || ((x.pos || 0) - (y.pos || 0)));
+  let pos = 0; us.forEach(u => { u.pos = pos; pos += u.u || 1; });
+  if (pos > (rk.ru || 0)) rk.ru = pos;
+}
+window.rackArrange = rackArrange;
 function rearGlyph(t) {
   if (['speakon', 'xlrf', 'xlrm', 'rj45', 'bnc', 'pwr', 'hdmi', 'fiber'].includes(t)) return connGlyph(t);
   if (t === 'multi') return connGlyph('xlrm');
@@ -1416,7 +1444,7 @@ function renderNodes() {
           rows += `<div class="runit${picked}" data-runit="${u.id}" style="top:${top}px;height:${h}px">
             <div class="runit-panel" style="width:${panelW}px;height:${h}px;flex:none">${conns}</div>
             <div style="width:${CHW}px;flex:none"></div>
-            <div class="runit-lbl" style="background:${CATS[u.cat].c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>
+            <div class="runit-lbl" style="background:${CATS[u.cat].c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>${rearVerified(u.name) ? '<small style="display:block;color:#bfe6d6">✓ גב מהספרייה</small>' : '<small style="display:block;color:#ffcbb3;font-weight:800" title="המחברים המוצגים הם ניחוש — הגדר את גב הדגם בספריית גבי המוצרים">⚠ גב לא מאומת</small>'}
               <button class="runit-edit" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="ערוך את פריסת הגב של הדגם" style="position:absolute;bottom:3px;left:3px">✎ גב</button></div></div>`;
           used += u.u;
           yCur += h + GAPV;
@@ -5535,6 +5563,7 @@ function renderPanel() {
         </div>
         <div class="fld"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="isp" style="width:auto"> 🧩 זהו פאנל מחברים (ייפתח עורך החורים)</label></div>
         <button class="primary" style="width:100%">הוסף יחידה</button>
+        <button type="button" style="width:100%;margin-top:6px" onclick="rackArrange(byId(sel));render();save();uiToast('⇅ הארון סודר לפי הסטנדרט: נגנים למעלה · פרוססורים וניתוב · מגברים למטה')">⇅ סדר לפי הסטנדרט — נגנים ↑ · פרוססורים · מגברים ↓</button>
       </form>`;
   } else if (n.kind === 'panel') {
     const cnt = P.cables.filter(c => c.from === n.id || c.to === n.id).length;
@@ -8502,6 +8531,7 @@ function buildZoneFromItems(zid) {
           rk.ru = std;
         }
         rk.units.push({ id: uid('u'), name: it.name.slice(0, 40), u: uH, cat: /פרוססור|processor|מטריצ|matrix|DSP/i.test(it.name) ? 'audio' : 'amp', pos });
+        rackArrange(rk);
         nRack++;
       }
       it.placed = (it.placed || 0) + q; it.added = true;
@@ -8731,6 +8761,7 @@ function placeZoneRackItems(z) {
       const pos = (rk.units || []).reduce((m, x) => Math.max(m, x.pos + x.u), 0);
       if (pos + uH > rk.ru) rk.ru = pos + uH;
       rk.units.push({ id: uid('u'), name: it.name.slice(0, 40), u: uH, cat: /פרוססור|processor|מטריצ|matrix|DSP/i.test(it.name) ? 'audio' : 'amp', pos });
+        rackArrange(rk);
       n2++;
     }
     if (rem) { it.placed = (it.placed || 0) + rem; it.added = true; }
@@ -9464,7 +9495,7 @@ function dropImported(it, pt, nel, clientY) {
       if (pos < 0) { r.ru += uu; pos = firstFree(r, uu); }
       const unit = { id: uid('u'), name: it.name + num, u: uu, cat: it.cat || 'other', pos, srcIid: it.iid, key: it.key };
       if (it.dest === 'panelUnit') unit.panel = panelFromItem(it, uu);
-      r.units.push(unit);
+      r.units.push(unit); rackArrange(r);
       bumpPlaced(it);
       break;
     }
@@ -9511,7 +9542,7 @@ function addImported() {
         if (pos < 0) { r.ru += uu; pos = firstFree(r, uu); }
         const unit = { id: uid('u'), name: it.name + (it.qty > 1 ? ` (${k + 1})` : ''), u: uu, cat: it.cat || 'other', pos, srcIid: it.iid, key: it.key };
         if (it.dest === 'panelUnit') unit.panel = panelFromItem(it, uu);
-        r.units.push(unit);
+        r.units.push(unit); rackArrange(r);
         it.placed = (it.placed || 0) + 1;
       }
     } else if (it.dest === 'point') {

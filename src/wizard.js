@@ -865,8 +865,9 @@ async function installerReport() {
     ${rackImgs[rk.id] && rackImgs[rk.id].fallback ? `<img src="${rackImgs[rk.id].fallback}" style="max-width:100%;border:1px solid #ddd;border-radius:6px;margin:4px 0 8px">` : ''}
     <h4 style="margin:6px 0 2px">חיבורים פנימיים בארון — טבלה</h4>${rackInternal(rk)}
     <h4 style="margin:10px 0 2px">סדר הרכבה</h4>
-    <table><tr><th>מיקום U</th><th>יחידה</th><th>גובה</th></tr>
-      ${(rk.units || []).slice().sort((a, b) => a.pos - b.pos).map(u => `<tr><td>${u.pos + 1}–${u.pos + u.u}</td><td>${ampNo[u.id] ? '<b>מגבר ' + ampNo[u.id].n + '</b> · ' : ''}${esc(u.name)}</td><td>${u.u}U</td></tr>`).join('') || '<tr><td colspan="3">ריק</td></tr>'}
+    <p class="meta">סדר סטנדרטי מלמעלה למטה: נגנים/מקורות → פרוססורים וניתוב → מגברים. "גב" = מקור פריסת המחברים: ✓ מספריית גבי המוצרים, ⚠ ניחוש — יש לאמת מול המכשיר.</p>
+    <table><tr><th>מיקום U</th><th>יחידה</th><th>גובה</th><th>גב</th></tr>
+      ${(rk.units || []).slice().sort((a, b) => a.pos - b.pos).map(u => `<tr><td>${u.pos + 1}–${u.pos + u.u}</td><td>${ampNo[u.id] ? '<b>מגבר ' + ampNo[u.id].n + '</b> · ' : ''}${esc(u.name)}</td><td>${u.u}U</td><td>${rearVerified(u.name) ? '<span style="color:#0f6e56;font-weight:700">✓ מהספרייה</span>' : '<span style="color:#c1121f;font-weight:700">⚠ לא מאומת</span>'}</td></tr>`).join('') || '<tr><td colspan="4">ריק</td></tr>'}
     </table>`).join('');
   const spk = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')).map(n => `
     <tr><td>${esc(n.name.slice(0, 40))}</td><td>${esc((n.sub || '').slice(0, 24))}</td><td>${n.hgt ?? '—'} מ׳</td><td>${esc(n.mount || '—')}</td><td>${n.aim != null ? n.aim + '°' : '—'}</td></tr>`).join('');
