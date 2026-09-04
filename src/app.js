@@ -1379,6 +1379,9 @@ function renderNodes() {
             let cc = null, role = '';
             if (it.port && /^(OUT|LNK)/.test(it.port)) { role = 'out'; cc = P.cables.find(c => c.from === n.id && c.fromUnit === u.id && c.pOut === it.port); }
             else if (it.port && /^IN/.test(it.port)) { role = 'in'; cc = P.cables.find(c => c.to === n.id && c.toUnit === u.id && c.pIn === it.port); }
+            /* צילום לדוח: תמונה של הפנימיים בלבד / של היוצאים בלבד — המחבר מסומן רק בכבל הרלוונטי */
+            if (cc && window.__rearFilter === 'int' && cc.from !== cc.to) cc = null;
+            if (cc && window.__rearFilter === 'ext' && cc.from === cc.to) cc = null;
             const tt = cc
               ? `${it.label} ${role === 'out' ? '⟶ אל' : '⟵ מ'}: ${endNameTxt(cc[role === 'out' ? 'to' : 'from'], cc[role === 'out' ? 'toUnit' : 'fromUnit'])} · כבל ${LBL2[cc.id]}`
               : (it.port ? `${it.label} — לחץ לחיבור (מכל סדר)` : it.label);
@@ -1653,7 +1656,7 @@ function drawRearCables(n, d) {
   const badge = (x, y, t, c, id) => `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${id}')"><circle cx="${x}" cy="${y}" r="9" fill="#fff" stroke="${c}" stroke-width="1.8"/><text x="${x}" y="${y + 3.4}" text-anchor="middle" font-size="10" font-weight="800" fill="${c}">${t}</text></g>`;
   let out = '';
   /* פנימי: OUT → מטה → אופקי במרווח מעל היעד → מטה לתוך IN מלמעלה. אות בשני הקצוות. */
-  P.cables.filter(c => c.from === n.id && c.to === n.id && c.fromUnit && c.toUnit && !n.hideInt && cableVisible(c)).forEach((c, k) => {
+  P.cables.filter(c => c.from === n.id && c.to === n.id && c.fromUnit && c.toUnit && !n.hideInt && cableVisible(c) && window.__rearFilter !== 'ext').forEach((c, k) => {
     const pa = port[c.fromUnit + '|' + (c.pOut || '')], pb = port[c.toUnit + '|' + (c.pIn || '')];
     if (!pa || !pb) return;
     const col = cableColor(c), dir = pb.y > pa.y ? 1 : -1, tb = ubox[c.toUnit] || { top: pb.y - 40, bottom: pb.y + 40 };
@@ -1664,7 +1667,7 @@ function drawRearCables(n, d) {
     out += badge(pa.x, pa.y + dir * 15, LBL[c.id], col, c.id) + badge(pb.x, pb.y - dir * 15, LBL[c.id], col, c.id);
   });
   /* חיצוני לרמקולים: מטה לתחתית המגבר → שמאלה החוצה. מספר על הכבל. */
-  P.cables.filter(c => (c.from === n.id) !== (c.to === n.id) && (c.fromUnit || c.toUnit) && cableVisible(c)).forEach((c, k) => {
+  P.cables.filter(c => (c.from === n.id) !== (c.to === n.id) && (c.fromUnit || c.toUnit) && cableVisible(c) && window.__rearFilter !== 'int').forEach((c, k) => {
     const isFrom = c.from === n.id, uid = isFrom ? c.fromUnit : c.toUnit, p = isFrom ? c.pOut : c.pIn;
     const ub = ubox[uid];
     if (!ub) return;

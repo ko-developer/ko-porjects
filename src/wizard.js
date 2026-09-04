@@ -650,6 +650,50 @@ function repRackSnapshot(rk, LBL) {
   if (!cs.length) { g.fillStyle = '#999'; g.font = '11px Arial'; g.textAlign = 'left'; g.fillText('אין חיבורים פנימיים רשומים', left + uw + 20, top + 12); }
   return cv.toDataURL('image/png');
 }
+/* צילום DOM לתמונה: ה-HTML נעטף ב-SVG foreignObject עם ה-CSS של הדף. התוצאה היא
+   data-URL של SVG שנכנס ל-<img> בדוח ישירות — בלי קנבס (קנבס עם foreignObject
+   נחשב "נגוע" בכרום ואי אפשר לייצא אותו). משאבים חיצוניים (url/@import/img) מוסרים
+   כי בתוך <img> הם חסומים ממילא. */
+function repDomToPng(el, w, h) {
+  return new Promise((res, rej) => {
+    try {
+      const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n')
+        .replace(/@import[^;]*;/g, '').replace(/url\([^)]*\)/g, 'none') +
+        '\n.rep-cap .runit-edit,.rep-cap .rearhint,.rep-cap .flip{display:none!important}.rep-cap{direction:rtl;font-family:Arial,Helvetica,sans-serif}';
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('img,video,iframe,script').forEach(x => x.remove());
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" class="rep-cap" style="width:${w}px;height:${h}px;background:#0d0f14;overflow:hidden"><style>${css.replace(/</g, '\\3c ')}</style>${html}</div></foreignObject></svg>`;
+      const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      /* מוודאים שהתמונה נטענת (XML תקין) לפני שמחזירים אותה לדוח */
+      const img = new Image();
+      img.onload = () => res(url);
+      img.onerror = e => rej(new Error('svg image failed to load'));
+      img.src = url;
+    } catch (e) { rej(e); }
+  });
+}
+/* גב הארון כמו בתכנה — שתי תמונות: חיבורים פנימיים בלבד, וקווים היוצאים מהארון בלבד */
+async function repRackRearImages(rk) {
+  const keep = { rear: rk.rear, min: rk.min, hideInt: rk.hideInt };
+  const out = { int: '', ext: '' };
+  try {
+    rk.rear = true; rk.min = false; rk.hideInt = false;
+    for (const f of ['int', 'ext']) {
+      window.__rearFilter = f; render();
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const d = document.getElementById('nd_' + rk.id); const ch = d && d.querySelector('.rearchassis');
+      if (!ch) continue;
+      const K = d._rearK || 1, Z = getZ() || 1, cr = ch.getBoundingClientRect();
+      const w = Math.round(cr.width / (K * Z)), h = Math.round(cr.height / (K * Z));
+      const clone = ch.cloneNode(true);
+      clone.style.transform = 'none'; clone.style.position = 'relative'; clone.style.width = w + 'px'; clone.style.height = h + 'px';
+      out[f] = await repDomToPng(clone, w, h);
+    }
+  } catch (e) { console.warn('rack rear capture failed', e); }
+  finally { window.__rearFilter = null; rk.rear = keep.rear; rk.min = keep.min; rk.hideInt = keep.hideInt; render(); }
+  return out;
+}
 function repPlanSnapshot(LBL) {
   return new Promise(res => {
     if (!P.bg) return res('');
@@ -806,11 +850,20 @@ async function installerReport() {
       <td><span style="color:${cableColor(c)};font-weight:700">${cableKindLabel(c)}</span></td><td>${esc((c.note || '').slice(0, 60))}</td></tr>`).join('')}</table>`;
   };
   const rackImgs = {};
-  P.nodes.filter(n => n.kind === 'rack').forEach(rk => { try { rackImgs[rk.id] = repRackSnapshot(rk, LBL); } catch (e) { rackImgs[rk.id] = ''; } });
+  for (const rk of P.nodes.filter(n => n.kind === 'rack')) {
+    const real = await repRackRearImages(rk);
+    rackImgs[rk.id] = (real.int || real.ext) ? real : { int: '', ext: '', fallback: (() => { try { return repRackSnapshot(rk, LBL); } catch (e) { return ''; } })() };
+  }
   const racks = P.nodes.filter(n => n.kind === 'rack').map(rk => `
     <h3>🗄 ${esc(rk.name)} · ${rk.ru}U</h3>
-    ${rackImgs[rk.id] ? `<img src="${rackImgs[rk.id]}" style="max-width:100%;border:1px solid #ddd;border-radius:6px;margin:4px 0 8px">` : ''}
-    <h4 style="margin:6px 0 2px">חיבורים פנימיים בארון</h4>${rackInternal(rk)}
+    ${rackImgs[rk.id] && rackImgs[rk.id].int ? `<h4 style="margin:6px 0 2px">🔌 חיבורים פנימיים בארון — מקורות → פרוססור → מגברים</h4>
+      <p class="meta">פאץ׳ בתוך הארון בלבד. כל קו מסומן במספרו על שני המחברים.</p>
+      <img src="${rackImgs[rk.id].int}" style="max-width:100%;border:1px solid #ddd;border-radius:6px;margin:4px 0 8px">` : ''}
+    ${rackImgs[rk.id] && rackImgs[rk.id].ext ? `<h4 style="margin:6px 0 2px">🔊 קווים היוצאים מהארון — אל הרמקולים והעמדות</h4>
+      <p class="meta">כל קו יוצא מהמחבר שלו עם מספרו; המספר תואם ללוח המשיכה ולתכנית החיווט.</p>
+      <img src="${rackImgs[rk.id].ext}" style="max-width:100%;border:1px solid #ddd;border-radius:6px;margin:4px 0 8px">` : ''}
+    ${rackImgs[rk.id] && rackImgs[rk.id].fallback ? `<img src="${rackImgs[rk.id].fallback}" style="max-width:100%;border:1px solid #ddd;border-radius:6px;margin:4px 0 8px">` : ''}
+    <h4 style="margin:6px 0 2px">חיבורים פנימיים בארון — טבלה</h4>${rackInternal(rk)}
     <h4 style="margin:10px 0 2px">סדר הרכבה</h4>
     <table><tr><th>מיקום U</th><th>יחידה</th><th>גובה</th></tr>
       ${(rk.units || []).slice().sort((a, b) => a.pos - b.pos).map(u => `<tr><td>${u.pos + 1}–${u.pos + u.u}</td><td>${ampNo[u.id] ? '<b>מגבר ' + ampNo[u.id].n + '</b> · ' : ''}${esc(u.name)}</td><td>${u.u}U</td></tr>`).join('') || '<tr><td colspan="3">ריק</td></tr>'}
