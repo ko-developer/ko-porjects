@@ -273,6 +273,8 @@ function wizOwnSources(z) { return z._srcShare ? (z._srcLocal || []) : (z.source
 function wizSyncSources(z) {
   const from = wizSharedFrom(z);
   if (!from) { if (z._srcShare) { z._srcShare = undefined; z._srcShared = undefined; } return; }
+  /* אזור ששותף לפני שהיה שיתוף לכל מקור — הכול משותף חוץ ממה שכבר היה מקומי */
+  if (z._srcShared === undefined) z._srcShared = (from.sources || []).filter(k => !(z._srcLocal || []).includes(k));
   /* משותף = רק מה שעדיין קיים באזור המקור; מקומי = מופע נפרד של האזור הזה */
   z._srcShared = (z._srcShared || []).filter(k => (from.sources || []).includes(k));
   z._srcLocal = (z._srcLocal || []).filter(k => !z._srcShared.includes(k));
