@@ -3827,6 +3827,7 @@ async function patchApply() {
     const it = impItems.find(x => x.on !== false && (x.dest === 'reel' || x.dest === 'cable' || /^\s*כבל/.test(x.name || '')) && rx.test(x.name || '') && !/^\s*(מחבר|פנל|קופס)/i.test(x.name || ''));
     if (!it) return null;
     if (!it.dest || (it.dest !== 'reel' && it.dest !== 'cable')) it.dest = 'cable';
+    if (!it.type) it.type = type;   /* נמצא לפי הסוג — לא ניתן לו להפוך את הקו למשהו אחר */
     const st = ensureStockItem(it);
     return st ? (it.dest === 'reel' ? 'reel|' : 'cable|') + st.id : null;
   };
@@ -9331,6 +9332,19 @@ function delUnit(nid, idx) {
   byId(nid).units.splice(idx, 1);
   render();
 }
+/* סוג כבל מהשם — כשלפריט ההצעה אין type מפורש */
+function cableTypeFromName(nm) {
+  const n = nm || '';
+  if (/מולטי|multi/i.test(n)) return 'multi';
+  if (/XLR|סאונד|סיגנל|מיקרופון/i.test(n)) return 'xlr';
+  if (/רמקול|NL4|ספיקון|speakon/i.test(n)) return 'nl4';
+  if (/DMX/i.test(n)) return 'dmx';
+  if (/CAT|רשת|LAN|ethernet/i.test(n)) return 'cat';
+  if (/אופטי|fiber/i.test(n)) return 'fiber';
+  if (/SDI|BNC|HDMI|וידאו/i.test(n)) return 'sdi';
+  if (/חשמל|power/i.test(n)) return 'pwr';
+  return 'multi';
+}
 function ensureStockItem(it) {
   ensureStock(P);
   if (it.stockId) {
@@ -9339,7 +9353,7 @@ function ensureStockItem(it) {
     if (ex) return ex;
   }
   let s;
-  if (it.dest === 'cable') { s = { id: uid('s'), name: it.name, type: it.type || 'multi', len: it.len, mm: it.mm, conn: it.conn, qty: it.qty, used: 0 }; P.stock.cables.push(s); }
+  if (it.dest === 'cable') { s = { id: uid('s'), name: it.name, type: it.type || cableTypeFromName(it.name), len: it.len, mm: it.mm, conn: it.conn, qty: it.qty, used: 0 }; P.stock.cables.push(s); }
   else if (it.dest === 'reel') { s = { id: uid('s'), name: it.name, type: it.type || 'nl4', mm: it.mm, total: (it.len || 100) * (it.qty || 1), used: 0 }; P.stock.reels.push(s); }
   else { s = { id: uid('s'), name: it.name, kind: it.kind || 'xlrf', qty: it.qty, used: 0 }; P.stock.conns.push(s); }
   it.stockId = s.id;
