@@ -798,8 +798,9 @@ function repPlanSnapshot(LBL) {
         if (isDjNode(n)) {
           /* דרישת החשמל — צמוד לעמדה, בצהוב, כמו ברשימת ההכנות */
           const t = '⚡ נקודת חשמל 16A-N6 · שדה סאונד', tw = t.length * 6.2 + 10;
-          let bx = x - tw / 2, by = y + 34; let tries = 0;
-          while (hits(bx, by, tw, 16) && tries++ < 6) by += 18;
+          /* בתוך התמונה תמיד: ליד קצה תחתון — מעל העמדה; ליד קצה צדדי — נדחף פנימה */
+          let bx = Math.max(2, Math.min(W - tw - 2, x - tw / 2)), by = (y + 34 + 16 > H - 2) ? y - 34 - 16 : y + 34; let tries = 0;
+          while (hits(bx, by, tw, 16) && tries++ < 6) by += (by > y ? 18 : -18);
           claim(bx, by, tw, 16);
           g.fillStyle = '#fff3cd'; g.strokeStyle = '#e0a100'; g.lineWidth = 1.5; g.fillRect(bx, by, tw, 16); g.strokeRect(bx, by, tw, 16);
           g.fillStyle = '#7a4b00'; g.font = 'bold 10px Arial'; g.fillText(t, x, by + 8);
