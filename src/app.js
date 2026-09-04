@@ -3927,6 +3927,17 @@ function projGapCheck() {
       finds.push({ i: '🎛', t: 'הפרוססור שנבחר לא מנהל כניסת מיקרופון — נדרש מיקסר / פרוססור עם כניסת מיק', b: 'בחר מיקסר/פרוססור', fn: 'addMixerLine()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מיקסר')" } });
     }
   }
+  /* 1ג. כניסות בפרוססור מול מספר המקורות השונים — מקור משותף נספר פעם אחת */
+  {
+    const zs2 = P.zones || [];
+    const need = new Set();
+    zs2.forEach(z => { const own = z._srcShare ? (z._srcLocal || []) : (z.sources || []); own.forEach(k => need.add(z.id + '|' + k)); });
+    const inUnits = P.nodes.filter(n => n.kind === 'rack').flatMap(n => (n.units || []).filter(u => IN_UNIT_RE.test(u.name || '')));
+    const haveIn = inUnits.reduce((s3, u) => s3 + patchInChips(u), 0);
+    if (inUnits.length && need.size > haveIn) finds.push({ i: '🎛', k: 'proc-in', t: need.size + ' מקורות שונים בפרויקט · לפרוססור/מיקסר שבארון רק ' + haveIn + ' כניסות', b: '🔍 בחר פרוססור עם יותר כניסות', fn: "gapSearch('פרוססור')" });
+    const nShared = zs2.filter(z => z._srcShare).length;
+    if (nShared) finds.push({ i: '🔗', k: 'proc-zones', t: (nShared + 1) + ' אזורים על מקורות משותפים — הפרוססור/מיקסר צריך ' + (nShared + 1) + ' יציאות‑אזור בשליטה נפרדת', b: '🔍 בחר מקטלוג', fn: "gapSearch('מיקסר אזורים')" });
+  }
   /* 1ב. אין סעיף כיוון/תכנות מערכת סאונד — חובה בכל הצעה עם רמקולים */
   if (spkN.length && !rows.some(it => /כיוון|תכנות/.test(it.name || ''))) {
     finds.push({ i: '🎛', t: 'אין סעיף כיוון/תכנות מערכת סאונד בהצעה', b: 'הוסף סעיף כיוון', fn: 'addTuneLine()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כיוון')" } });
