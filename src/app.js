@@ -5858,6 +5858,18 @@ document.addEventListener('pointerdown', e => {
     e.preventDefault();
     return;
   }
+  /* מיקום מחדש של מוקד לפי מזהה (קופסת במה / פאנל חיבורים) — קליק על התכנית */
+  if (window.__nodePlace && e.target.closest('#canvasWrap')) {
+    const pt = canvasPt(e), np = window.__nodePlace; window.__nodePlace = null;
+    let n = np.id && byId(np.id);
+    if (!n && np.zid && np.field) {
+      const z = (P.zones || []).find(x => x.id === np.zid);
+      if (z && typeof wizPlaceSources === 'function') { wizPlaceSources(z); n = z[np.field] && byId(z[np.field]); }
+    }
+    if (n) { n.x = 2200 - pt.x - 24; n.y = pt.y - 24; sel = n.id; render(); save(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender(); }
+    e.preventDefault();
+    return;
+  }
   /* מיקום ריכוז מגברים לאזור — קליק על התכנית */
   if (window.__rackPlace && e.target.closest('#canvasWrap')) {
     const pt = canvasPt(e);

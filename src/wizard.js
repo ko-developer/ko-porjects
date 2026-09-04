@@ -172,9 +172,9 @@ function wizStepHTML(s) {
     <input id="wizKitQ" placeholder="🔍 או חפש ישר קיט / רמקול…" oninput="wizKitSearch(this.value)">
     <div id="wizKitRes" style="max-height:150px;overflow-y:auto"></div>
     <p class="hint" style="margin-top:4px">${z._spk ? '🔊 ' + esc(z._spk.slice(0, 42)) : 'לא נבחר רמקול — "בנה הכל" יפתח את הבורר'}</p>
-    <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-bottom:7px"><input type="checkbox" style="width:auto" ${z._djInRack !== false ? 'checked' : ''} onchange="const zz=wizZone();zz._djInRack=this.checked;save()"> 🖥 מוזיקה ממחשב בארון (בלי עמדת DJ)</label>
-    <button class="big" onclick="wizBuildAll()">${z._built ? '🔌 המשך — טבלת החיווט (המערכת כבר בנויה)' : '🚀 בנה הכל — מערכת + ארון + חיווט'}</button>
-    ${z._built ? `<button class="sec" onclick="wizBuildAll(true)">🔄 בנה מחדש מאפס — מחליף את המערכת הקיימת</button>` : ''}`;
+    <button class="big" onclick="wizBuildAll()">${z._built ? '🔌 המשך — טבלת החיווט (המערכת כבר בנויה)' : '🚀 בנה הכל — מערכת + ארון + עמדה/קופסת במה + חיווט'}</button>
+    ${z._built ? `<button class="sec" onclick="wizBuildAll(true)">🔄 בנה מחדש מאפס — מחליף את המערכת הקיימת</button>` : ''}
+    ${z._built ? wizPlacementsHTML(z) : ''}`;
   }
   if (s === 4) {
     const zs = (P.zones || []).filter(zz => zz._built || wizWireStat(zz).tot);
@@ -323,6 +323,13 @@ function wizNext() {
       return;
     }
   }
+  if (WIZ.step === 3) {
+    const z3 = wizZone(), s3 = (z3 && z3.sources) || [];
+    if (z3 && z3._built) {
+      if (s3.includes('dj') && !(z3._djNodeId && byId(z3._djNodeId))) { uiToast('🎧 נבחר DJ באזור — מקם את עמדת הנגינה על התכנית לפני החיווט'); return; }
+      if (s3.includes('inst') && !(z3._stageBoxId && byId(z3._stageBoxId))) { uiToast('🎸 נבחרה במה — מקם את קופסת הבמה על התכנית לפני החיווט'); return; }
+    }
+  }
   WIZ.step = Math.min(WIZ_STEPS.length - 1, WIZ.step + 1);
   wizRender();
 }
@@ -377,6 +384,61 @@ function wizAfterWire(z) {
     else { WIZ.step = 4; wizRender(); uiToast('✓ החיווט אושר — ודא שכל האזורים ירוקים והמשך לקיט ההתקנה'); }
   };
 }
+/* הצבת נקודות החיבור של המקורות לפי התשובה מהאזור ("מה מנגן"):
+   🎧 DJ → פאנל עמדת נגינה · 🎸 במה → קופסת במה · 🎤 מיקרופון בלבד → פאנל חיבורים XLR ·
+   רק סטרימר/מחשב/טלפון → המוזיקה מהמחשב שבארון, אין עמדה. הארון עצמו מוצב ב-zoneRack. */
+function wizPlaceSources(z) {
+  const src = z.sources || [];
+  const hasDj = src.includes('dj'), hasStage = src.includes('inst'), hasMic = src.includes('mic');
+  z._djInRack = !hasDj;
+  const b = zoneBounds(z), m = P.scale ? 1 / P.scale : 40;          /* פיקסלים למטר */
+  const seg = (typeof zoneWallSeg === 'function') ? zoneWallSeg(z) : null;
+  /* נקודה על קיר הבמה (או הקיר הארוך) במרחק t לאורכו, נסוגה מטר פנימה */
+  const onWall = (t, inset) => {
+    if (!seg) return null;
+    const ux = (seg.x2 - seg.x1) / seg.len, uy = (seg.y2 - seg.y1) / seg.len;
+    return { x: seg.x1 + ux * seg.len * t + seg.nx * inset, y: seg.y1 + uy * seg.len * t + seg.ny * inset };
+  };
+  const mk = (idField, name, sub, holes, pt, mount) => {
+    let n = z[idField] && byId(z[idField]);
+    if (n) return n;                                                  /* כבר מוצב — לא מזיזים */
+    n = { id: uid('n'), kind: 'panel', name: name + ' · ' + z.name, sub, x: 2200 - pt.x - 24, y: pt.y - 24, pmin: true, mount,
+      panel: { mode: 'matrix', holes } };
+    P.nodes.push(n); z[idField] = n.id; return n;
+  };
+  const rk = zoneRack(z);
+  if (hasDj) {
+    /* עמדת DJ: על קיר הבמה אם הוגדר, אחרת בפינה שמאלית-עליונה (הארון בימנית) */
+    const pt = onWall(0.5, m) || { x: b.L + 46, y: b.T + 34 };
+    mk('_djNodeId', 'עמדת נגינה (DJ)', 'פאנל מולטי בעמדה',
+      Array.from({ length: 8 }, (_, i) => ({ conn: i < 6 ? 'xlrf' : 'rj45' })), pt, 'עמדה');
+  }
+  if (hasStage) {
+    /* קופסת במה: בחזית הבמה, ואם יש גם DJ — מוסטת 2 מ׳ לצד */
+    const pt = onWall(hasDj ? 0.5 + Math.min(0.25, 2 * m / (seg ? seg.len : 1)) : 0.5, m * 0.8) || { x: b.L + b.W / 2, y: b.T + 34 };
+    mk('_stageBoxId', 'קופסת במה', 'קופסת במה — כניסות XLR + חזרות',
+      Array.from({ length: 12 }, (_, i) => ({ conn: i < 8 ? 'xlrf' : 'xlrm' })), pt, 'רצפת במה');
+  }
+  if (hasMic && !hasDj && !hasStage) {
+    /* מיקרופון בלבד: פאנל חיבורים קטן ליד הארון */
+    const pt = rk ? { x: 2200 - rk.x - 20 - 2 * m, y: rk.y + 24 } : { x: b.L + b.W / 2, y: b.T + 34 };
+    mk('_micPanelId', 'פאנל חיבורים', 'פאנל XLR בקיר',
+      Array.from({ length: 4 }, () => ({ conn: 'xlrf' })), pt, 'קיר');
+  }
+}
+/* שורות המיקומים בשלב המערכת — מה הוצב ואיפה, עם מיקום מחדש בלחיצה על התכנית */
+function wizPlacementsHTML(z) {
+  const src = z.sources || [];
+  const row = (ic, lbl, node, onPlace) => `<button class="sec ${node ? 'done' : ''}" style="text-align:right" onclick="${onPlace}">${ic} ${lbl} — ${node ? '✓ ממוקם · לחץ למיקום מחדש על התכנית' : '⚠ לא ממוקם · לחץ ואז על התכנית'}</button>`;
+  const rk = zoneRack(z);
+  let h = `<p class="hint" style="margin:8px 0 3px;font-weight:700">📍 מיקומים על התכנית</p>`;
+  h += row('🗄', 'ריכוז מגברים', rk, `window.__rackPlace={zid:'${z.id}'};uiToast('לחץ על התכנית במקום הארון');render()`);
+  if (src.includes('dj')) h += row('🎧', 'עמדת נגינה (DJ)', z._djNodeId && byId(z._djNodeId), `window.__djPlace={zid:'${z.id}'};uiToast('לחץ על התכנית במקום עמדת ה-DJ');render()`);
+  if (src.includes('inst')) h += row('🎸', 'קופסת במה', z._stageBoxId && byId(z._stageBoxId), `window.__nodePlace={id:'${z._stageBoxId || ''}',zid:'${z.id}',field:'_stageBoxId'};uiToast('לחץ על התכנית במקום קופסת הבמה');render()`);
+  if (src.includes('mic') && !src.includes('dj') && !src.includes('inst')) h += row('🎤', 'פאנל חיבורים (XLR)', z._micPanelId && byId(z._micPanelId), `window.__nodePlace={id:'${z._micPanelId || ''}',zid:'${z.id}',field:'_micPanelId'};uiToast('לחץ על התכנית במקום הפאנל');render()`);
+  if (!src.includes('dj') && !src.includes('inst')) h += `<p class="hint" style="margin:2px 0 6px">🖥 המוזיקה מהמחשב/סטרימר שבארון — אין עמדת נגינה (שינוי: שלב האזור, "מה מנגן")</p>`;
+  return h;
+}
 function wizBuildAll(force) {
   const z = wizZone(); if (!z) return;
   if (!z.usage) { uiToast('🎯 חובה לבחור תכלית לאזור לפני הבנייה — חזור שלב אחד'); WIZ.step = 2; wizRender(); return; }
@@ -400,6 +462,7 @@ function wizBuildAll(force) {
     return { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: z.name, x: 2200 - px - 20, y: py - 24, ru: 12, units: [], min: true };
   });
   wizEnsureMic(z.id);
+  wizPlaceSources(z);           /* עמדת DJ / קופסת במה / פאנל — לפי "מה מנגן" */
   window.__autoFlow = true;   /* הבנייה וההצבה אוטומטיות */
   try {
     buildZoneSystem(z.id);
