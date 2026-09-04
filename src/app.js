@@ -3166,7 +3166,12 @@ function patchOpen(z, amps, lines, leftover) {
   });
   patchRender();
 }
-function patchClose() { if (PATCH) PATCH.solo = null; PATCH = null; patchHiClear(); const o = document.getElementById('patchOv'); if (o) o.remove(); }
+function patchClose() {
+  const after = PATCH && PATCH.onClose;   /* המשך זרימה שממתין לסגירת הטבלה (למשל הוספת קיט) */
+  if (PATCH) PATCH.solo = null; PATCH = null; patchHiClear();
+  const o = document.getElementById('patchOv'); if (o) o.remove();
+  if (after) setTimeout(after, 60);
+}
 function patchHi(id, on) { const el = document.getElementById('nd_' + id); if (el) el.classList.toggle('pchHi', on); }
 function patchHiClear() { document.querySelectorAll('.node.pchHi').forEach(e => e.classList.remove('pchHi')); }
 /* נקודת הייחוס לדיליי — עמדת הנגינה/DJ של האזור (מקור הסאונד), אחרת ריכוז המגברים */
@@ -3890,20 +3895,20 @@ function projGapCheck() {
   const micZones = (P.zones || []).filter(z => zoneMic(z));
   if (micZones.length) {
     if (!impItems.some(it => /מיקרופון|microphone|\bmic\b/i.test(it.name || ''))) {
-      finds.push({ i: '🎤', t: 'נבחר מיקרופון כמקור אך אין מיקרופון בהצעה', b: 'בחר מיקרופון', fn: 'addMicLine()' });
+      finds.push({ i: '🎤', t: 'נבחר מיקרופון כמקור אך אין מיקרופון בהצעה', b: 'בחר מיקרופון', fn: 'addMicLine()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מיקרופון')" } });
     }
     const proc = impItems.filter(it => /פרוססור|מעבד|מיקסר|mixer|processor|DSP/i.test(it.name || ''));
     if (proc.length && !proc.some(it => MIC_CAPABLE.test(it.name || ''))) {
-      finds.push({ i: '🎛', t: 'הפרוססור שנבחר לא מנהל כניסת מיקרופון — נדרש מיקסר / פרוססור עם כניסת מיק', b: 'בחר מיקסר/פרוססור', fn: 'addMixerLine()' });
+      finds.push({ i: '🎛', t: 'הפרוססור שנבחר לא מנהל כניסת מיקרופון — נדרש מיקסר / פרוססור עם כניסת מיק', b: 'בחר מיקסר/פרוססור', fn: 'addMixerLine()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מיקסר')" } });
     }
   }
   /* 1ב. אין סעיף כיוון/תכנות מערכת סאונד — חובה בכל הצעה עם רמקולים */
   if (spkN.length && !rows.some(it => /כיוון|תכנות/.test(it.name || ''))) {
-    finds.push({ i: '🎛', t: 'אין סעיף כיוון/תכנות מערכת סאונד בהצעה', b: 'הוסף סעיף כיוון', fn: 'addTuneLine()' });
+    finds.push({ i: '🎛', t: 'אין סעיף כיוון/תכנות מערכת סאונד בהצעה', b: 'הוסף סעיף כיוון', fn: 'addTuneLine()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כיוון')" } });
   }
   /* 2. קווים בלי מוצר כבל בהצעה */
   const noRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && +c.len > 0).length;
-  if (noRef) finds.push({ i: '🧵', t: noRef + ' קווים ללא שורת כבל בהצעה', b: 'השלם גלילי כבל (+15% רזרבה)', fn: 'wizFillCables()' });
+  if (noRef) finds.push({ i: '🧵', t: noRef + ' קווים ללא שורת כבל בהצעה', b: 'השלם גלילי כבל (+15% רזרבה)', fn: 'wizFillCables()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כבל רמקול')" } });
   /* 3. מחברים — 2 לכל קו חדש מול מה שבהצעה */
   let needC = 0;
   P.cables.forEach(c => {
@@ -3912,7 +3917,7 @@ function projGapCheck() {
     if ((c.conn2 || c.conn || connFor(c.type)) !== 'empty') needC++;
   });
   const haveC = qsum(it => it.dest === 'conn' || /מחבר|קונקטור|connector/i.test(it.name));
-  if (needC > haveC) finds.push({ i: '🔩', t: 'דרושים ~' + needC + ' מחברים לקצוות · בהצעה ' + haveC, b: 'הוסף מחברים לכל הקווים', fn: 'gapFixConnectors()' });
+  if (needC > haveC) finds.push({ i: '🔩', t: 'דרושים ~' + needC + ' מחברים לקצוות · בהצעה ' + haveC, b: 'הוסף מחברים לכל הקווים', fn: 'gapFixConnectors()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מחבר')" } });
   /* 3c. גלילי כבל — האם יש מספיק מטרים בהצעה למה שמתוכנן */
   {
     const needM = Math.ceil(P.cables.filter(c => c.inst !== 'exist').reduce((s3, c) => s3 + (+c.len || 0), 0) * 1.1);
@@ -3924,7 +3929,7 @@ function projGapCheck() {
     });
     if (needM && haveM && needM > haveM) {
       const extra = Math.ceil((needM - haveM) / 100);
-      finds.push({ i: '🧵', t: 'התכנית דורשת ~' + needM + ' מ׳ כבל · בהצעה ' + haveM + ' מ׳ — חסרים ' + (needM - haveM) + ' מ׳', b: '➕ הוסף ' + extra + ' גליל', fn: 'gapAddReel(' + extra + ')' });
+      finds.push({ i: '🧵', t: 'התכנית דורשת ~' + needM + ' מ׳ כבל · בהצעה ' + haveM + ' מ׳ — חסרים ' + (needM - haveM) + ' מ׳', b: '➕ הוסף ' + extra + ' גליל', fn: 'gapAddReel(' + extra + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('גליל כבל רמקול')" } });
     }
   }
   /* 3b. מולטי-קייבל: לכל גיד דרוש מחבר בכל קצה — וקופסת XLR מרובה סופרת כגידים */
@@ -3946,7 +3951,7 @@ function projGapCheck() {
   const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
   if (racks.length && !qsum(it => /פס שקעים|פס חשמל|שקעים לארון|PDU/i.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
   /* 6. שורת התקנה */
-  if (!impItems.some(it => it.dest === 'work' || /התקנה|עבודה/.test(it.name || ''))) finds.push({ i: '🔧', t: 'אין שורת התקנה/עבודה בהצעה', b: 'פתח טבלת התקנה ותמחור', fn: 'installManager()' });
+  if (!impItems.some(it => it.dest === 'work' || /התקנה|עבודה/.test(it.name || ''))) finds.push({ i: '🔧', t: 'אין שורת התקנה/עבודה בהצעה', b: 'פתח טבלת התקנה ותמחור', fn: 'installManager()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('התקנה')" } });
   /* 7. קיט התקנה (תשתיות עמדה/ארון) */
   if (!P._instKit && installKitList().length) finds.push({ i: '🧰', t: 'לא נבחר קיט התקנה (עמדה/ארון/סטנדרט)', b: 'בחר קיט התקנה', fn: `patchOfferKits('${(P.zones && P.zones[0] || {}).id || ''}')` });
   /* 8. שורות בלי מק"ט — לא ייכנסו להזמנת ERP */
@@ -8628,11 +8633,11 @@ function zoneKitConfirm(zname, idx) {
       impItems.push(it);
     }
   };
-  ov.querySelector('[data-asis]').onclick = () => {
+  const doAsis = (pre) => {
     /* הוספה עמידה: גם אם שלב ההצבה נכשל, הפריטים כבר נכנסו להצעה והמשתמש מקבל דיווח */
     let items = [], placed = 0, err = null;
     try {
-      items = edited(); done();
+      items = pre || edited(); done();
       addItems(items, false);
       const hasSpk = items.some(x => isSpeakerItem(x.name));
       const nBefore = P.nodes.length;
@@ -8646,6 +8651,19 @@ function zoneKitConfirm(zname, idx) {
     render(); save();
     if (err) uiToast('🧰 נוספו ' + items.length + ' פריטים להצעה · ⚠ ההצבה על התכנית נכשלה: ' + (err.message || err));
     else uiToast('🧰 נוספו ' + items.length + ' פריטים מהקיט "' + k.name.slice(0, 26) + '" להצעה' + (placed > 0 ? ' · הוצבו ' + placed + ' על התכנית' : ' · פתח את ההצעה בצד לראות אותם'));
+  };
+  ov.querySelector('[data-asis]').onclick = () => {
+    /* קיט התקנה (עמדה/ארון): לפני שהקיט נכנס להצעה — טבלת החיווט של מקורות
+       השמע אל הארון. כשהיא נסגרת (חבר או ביטול) ההוספה ממשיכה מעצמה. */
+    const hasSrc = P.nodes.some(isSrcNode);
+    const hasIn = P.nodes.some(n => n.kind === 'rack' && (n.units || []).some(u => IN_UNIT_RE.test(u.name || '')));
+    if (!kitHasSpk && z && hasSrc && hasIn && typeof smartWire === 'function') {
+      const pre = edited(); done();
+      uiToast('🎧 חווט קודם את מקורות השמע אל הארון — ההוספה להצעה תמשיך כשתסגור את הטבלה', 5000);
+      Promise.resolve(smartWire(z.id)).then(() => { if (PATCH) PATCH.onClose = () => doAsis(pre); else doAsis(pre); });
+      return;
+    }
+    doAsis();
   };
   const autoBtn = ov.querySelector('[data-auto]');
   if (autoBtn) autoBtn.onclick = () => {
