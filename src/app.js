@@ -1129,7 +1129,7 @@ function unitRank(u) {
   const n = u.name || '';
   if (u.cat === 'amp' || /מגבר|\bamp/i.test(n)) return 3;
   if (/סטרימר|streamer|נגן|player|מחשב|bluetooth|בלוטות|musiccast|sonos|כרטיס קול|interface|מקלט|receiver|tuner/i.test(n)) return 0;
-  if (IN_UNIT_RE.test(n) || u.cat === 'patch' || u.cat === 'net' || /ניתוב|patch|פאנל|panel|router|switch|רשת/i.test(n)) return 1;
+  if (isInUnit(n) || u.cat === 'patch' || u.cat === 'net' || /ניתוב|patch|פאנל|panel|router|switch|רשת/i.test(n)) return 1;
   return 2;
 }
 function rackArrange(rk) {
@@ -3157,6 +3157,7 @@ function dbSpkType(prodName) {
 const patchKind = n => dbSpkType(n.name) === 'סאב' || isActiveSub(n.name) || /סאב|\bsub\b|NOMOS|MB2|BR\s?1|F118|F221/i.test(n.name) ? 'sub' : PREMIUM_RE.test(n.name) ? 'prem' : '';
 function patchOpen(z, amps, lines, leftover) {
   patchCss();
+  purgeServiceUnits();
   PATCH = {
     zid: z.id, sel: null, mode: 'spk',
     amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set(), bridge: !!a.u.bridged })),
@@ -3183,13 +3184,24 @@ function patchOpen(z, amps, lines, leftover) {
   PATCH.ins = []; PATCH.inSlots = {}; PATCH.inOrig = {}; PATCH.inPre = {};
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
     (rk.units || []).forEach(u => {
-      if (!IN_UNIT_RE.test(u.name || '')) return;
+      if (!isInUnit(u.name)) return;
       PATCH.ins.push({ rk, u, inTotal: patchInChips(u) });
     });
   });
   PATCH.ins.forEach((t, ii) => {
     P.cables.filter(c => c.to === t.rk.id && c.toUnit === t.u.id && /^IN/.test(c.pIn || '')).forEach(c => {
-      const ch = +(String(c.pIn).match(/\d+/) || [0])[0];
+      const nums = String(c.pIn).match(/\d+/g) || [];
+      if (c.srcCh === 'LR' && nums.length === 2) {
+        /* מולטי אחד שנושא L+R — שני צ׳יפים על שתי כניסות, אותו כבל */
+        [['L', +nums[0]], ['R', +nums[1]]].forEach(([chn, n3]) => {
+          if (!n3 || n3 > t.inTotal) return;
+          const key = 'i' + ii + '|' + n3;
+          (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.from + '#' + chn);
+          (PATCH.inPre[key] = PATCH.inPre[key] || []).push(c.id);
+        });
+        return;
+      }
+      const ch = +(nums[0] || 0);
       if (!ch || ch > t.inTotal) return;
       const key = 'i' + ii + '|' + ch;
       (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.vsrc || (c.from + (c.srcCh ? '#' + c.srcCh : '')));
@@ -3606,7 +3618,17 @@ function patchUnlock(key) {
 }
 /* יחידה שמקבלת כניסות — פרוססור, מיקסר, מטריצה, כרטיס קול */
 const IN_UNIT_RE = /פרוססור|מעבד|מטריצ|מיקסר|קונסול|כרטיס קול|processor|matrix|mixer|console|interface|DSP/i;
+/* סעיף שירות — "תכנות פרוססור", "כיוון מערכת", "התקנה" — הוא לא מוצר: לא יחידה בארון ולא מקור/פרוססור */
+const SERVICE_RE = /^\s*(תכנות|הגדרת|כיוון|כיול|תכנון|שירות|התקנה|הדרכה|תמיכה|אחריות|יצירת|העברת|עבודה|שעות|נסיע)/;
+function isServiceItem(name) { return SERVICE_RE.test(name || ''); }
+function isInUnit(name) { return IN_UNIT_RE.test(name || '') && !isServiceItem(name); }
 /* מקור נגינה — מה שמזין את הארון: עמדת DJ, במה, מיקרופון, מחשב/נגן */
+/* ניקוי: שורות שירות שנכנסו לארון כיחידות (גרסאות קודמות) יורדות ממנו */
+function purgeServiceUnits() {
+  let n = 0;
+  (P.nodes || []).forEach(rk => { if (rk.kind !== 'rack' || !rk.units) return; const before = rk.units.length; rk.units = rk.units.filter(u => !isServiceItem(u.name)); n += before - rk.units.length; if (before !== rk.units.length) rackArrange(rk); });
+  return n;
+}
 function isSrcNode(n) {
   if (!n || n.kind === 'rack') return false;
   if (n.srcKind) return true;
@@ -3895,6 +3917,7 @@ async function patchApply() {
     if (!it.dest || (it.dest !== 'reel' && it.dest !== 'cable')) it.dest = 'cable';
     if (!it.type) it.type = type;   /* נמצא לפי הסוג — לא ניתן לו להפוך את הקו למשהו אחר */
     const st = ensureStockItem(it);
+    if (st) it.added = true;        /* ההצעה מציגה כמה מטרים מהגליל נוצלו בתכנית */
     return st ? (it.dest === 'reel' ? 'reel|' : 'cable|') + st.id : null;
   };
   const inRefs = {}, inMissing = new Set();
@@ -3922,12 +3945,31 @@ async function patchApply() {
     ids.filter(id => !isVsrc(id)).forEach(sid => {
       const src = byId(srcBase(sid)); if (!src) return;
       const sch = srcCh(sid);
-      /* עמדה עם פאנל = מולטי-קייבל · מיקרופון/נגן בודד = XLR · ערוץ R של סטריאו נוסע באותו מולטי */
+      /* עמדה עם פאנל = מולטי-קייבל · מיקרופון/נגן בודד = XLR */
       const multi = (src.kind === 'panel' && !src.srcKind) || /עמדת נגינה|\bDJ\b|במה|stage/i.test(src.name || '');
+      /* סטריאו על מולטי: L ו-R נוסעים באותו כבל — קו אחד, 2 גידים בשימוש, שתי כניסות */
+      if (multi && sch) {
+        const partnerCh = sch === 'L' ? 'R' : 'L', partnerId = srcBase(sid) + '#' + partnerCh;
+        let partnerIn = null;
+        Object.entries(PATCH.inSlots || {}).forEach(([k2, ids2]) => { if (ids2.includes(partnerId)) { const [ii2, ch2] = k2.slice(1).split('|').map(Number); if (ii2 === ii) partnerIn = ch2; } });
+        if (partnerIn != null) {
+          if (sch === 'R') return;                 /* ה-L יוצר את הכבל המשותף */
+          const cc2 = {
+            id: uid('c'), from: src.id, to: t.rk.id, toUnit: t.u.id, pIn: 'IN ' + ch + '+' + partnerIn, srcCh: 'LR', cores: 2,
+            type: 'multi', qty: '1', spec: '',
+            note: 'מקור נגינה L/R ← ' + shortModel(t.u.name) + ' IN ' + ch + '/' + partnerIn + ' · מולטי אחד מהעמדה, 2 גידים בשימוש',
+            conn: 'multi', conn2: 'multi',
+          };
+          if (P.scale) cc2.len = +(dist(src, t.rk) * P.scale).toFixed(1);
+          const ref2 = inRef('multi'); if (ref2) applyStockRef(ref2, null, cc2);
+          P.cables.push(cc2); n2++; made.push(cc2);
+          return;
+        }
+      }
       const cc = {
         id: uid('c'), from: src.id, to: t.rk.id, toUnit: t.u.id, pIn: 'IN ' + ch, srcCh: sch || undefined,
         type: multi ? 'multi' : 'xlr', qty: '1', spec: '',
-        note: 'מקור נגינה' + (sch ? ' ' + sch : '') + ' ← ' + shortModel(t.u.name) + (multi ? (sch === 'R' ? ' · ערוץ R באותו מולטי' : ' · מולטי מהעמדה') : ' · קו סיגנל'),
+        note: 'מקור נגינה' + (sch ? ' ' + sch : '') + ' ← ' + shortModel(t.u.name) + (multi ? ' · מולטי מהעמדה' : ' · קו סיגנל'),
         conn: multi ? 'multi' : 'xlrm', conn2: multi ? 'multi' : 'xlrf',
       };
       if (P.scale) cc.len = +(dist(src, t.rk) * P.scale).toFixed(1);
@@ -3991,7 +4033,7 @@ async function patchApply() {
     const outIdx = {};   /* לכל פרוססור: כמה יציאות כבר נוצלו */
     PATCH.amps.forEach((a, ai) => {
       const chs = (used[ai] || []).sort((x, y) => x - y); if (!chs.length) return;
-      const proc = (a.rk.units || []).find(u => IN_UNIT_RE.test(u.name || '')); if (!proc) return;
+      const proc = (a.rk.units || []).find(u => isInUnit(u.name)); if (!proc) return;
       /* יציאות הפרוססור לפי הגב שלו (מהספרייה) — לא מניחים OUT 1..N */
       const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))];
       const taken = new Set(P.cables.filter(c => c.from === a.rk.id && c.to === a.rk.id && c.fromUnit === proc.id && c.pOut).map(c => c.pOut));
@@ -4107,6 +4149,7 @@ function addTuneLine() {
    כל ממצא עם כפתור פעולה שמתקן במקום — כך שההצעה יוצאת שלמה בלחיצה. */
 function projGapCheck() {
   const finds = [];
+  purgeServiceUnits();
   const spkN = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/עמדת נגינה|מגבר|פרוססור/i.test(n.name));
   const rows = impItems.filter(it => it.on !== false);
   const qsum = f => rows.filter(f).reduce((s2, it) => s2 + (+it.qty || 0), 0);
@@ -4141,7 +4184,7 @@ function projGapCheck() {
     const zs2 = P.zones || [];
     let need = 0;
     zs2.forEach(z => zoneOwnSources(z).forEach(k => { need += STEREO_SRC[k] ? 2 : 1; }));
-    const inUnits = P.nodes.filter(n => n.kind === 'rack').flatMap(n => (n.units || []).filter(u => IN_UNIT_RE.test(u.name || '')));
+    const inUnits = P.nodes.filter(n => n.kind === 'rack').flatMap(n => (n.units || []).filter(u => isInUnit(u.name)));
     const haveIn = inUnits.reduce((s3, u) => s3 + patchInChips(u), 0);
     if (inUnits.length && need > haveIn) finds.push({ i: '🎛', k: 'proc-in', t: 'המקורות דורשים ' + need + ' כניסות (סטריאו = 2) · לפרוססור/מיקסר שבארון רק ' + haveIn, b: '🔍 בחר פרוססור עם יותר כניסות', fn: "gapSearch('פרוססור')" });
     const nShared = zs2.filter(z => z._srcShare && (z._srcShared || []).length).length;
@@ -8605,6 +8648,7 @@ function buildZoneFromItems(zid) {
           if (std !== rk.ru) uiToast('🗄 הארון המשותף גדל ל-' + std + 'U — ודא ארון בגודל הזה בהצעה');
           rk.ru = std;
         }
+        if (isServiceItem(it.name)) continue;
         rk.units.push({ id: uid('u'), name: it.name.slice(0, 40), u: uH, cat: /פרוססור|processor|מטריצ|matrix|DSP/i.test(it.name) ? 'audio' : 'amp', pos });
         rackArrange(rk);
         nRack++;
@@ -8835,6 +8879,7 @@ function placeZoneRackItems(z) {
       const uH = it.u || 1;
       const pos = (rk.units || []).reduce((m, x) => Math.max(m, x.pos + x.u), 0);
       if (pos + uH > rk.ru) rk.ru = pos + uH;
+      if (isServiceItem(it.name)) continue;
       rk.units.push({ id: uid('u'), name: it.name.slice(0, 40), u: uH, cat: /פרוססור|processor|מטריצ|matrix|DSP/i.test(it.name) ? 'audio' : 'amp', pos });
         rackArrange(rk);
       n2++;
@@ -8976,7 +9021,7 @@ function zoneKitConfirm(zname, idx) {
     /* קיט התקנה (עמדה/ארון): לפני שהקיט נכנס להצעה — טבלת החיווט של מקורות
        השמע אל הארון. כשהיא נסגרת (חבר או ביטול) ההוספה ממשיכה מעצמה. */
     const hasSrc = P.nodes.some(isSrcNode);
-    const hasIn = P.nodes.some(n => n.kind === 'rack' && (n.units || []).some(u => IN_UNIT_RE.test(u.name || '')));
+    const hasIn = P.nodes.some(n => n.kind === 'rack' && (n.units || []).some(u => isInUnit(u.name)));
     if (!kitHasSpk && z && hasSrc && hasIn && srcUnwired() > 0) {
       const pre = edited(); done();
       uiToast('🎧 חווט קודם את מקורות השמע אל הארון — ההוספה להצעה תמשיך כשתסגור את הטבלה', 5000);

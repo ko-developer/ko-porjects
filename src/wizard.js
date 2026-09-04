@@ -629,7 +629,7 @@ function repRackSnapshot(rk, LBL) {
   const ubox = {};
   units.forEach(u => {
     const y = top + u.pos * RU, h = u.u * RU;
-    const isAmp = /מגבר|amp/i.test(u.name), isProc = IN_UNIT_RE.test(u.name || '');
+    const isAmp = /מגבר|amp/i.test(u.name), isProc = isInUnit(u.name);
     g.fillStyle = isAmp ? '#2c3e50' : isProc ? '#1f5e3a' : '#555'; g.fillRect(left + 2, y + 2, uw - 4, h - 4);
     g.fillStyle = '#fff'; g.font = 'bold 11px Arial'; g.textAlign = 'right';
     g.fillText(shortModel(u.name).slice(0, 34), left + uw - 8, y + h / 2);
