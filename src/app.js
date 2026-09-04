@@ -8551,12 +8551,14 @@ function zoneKitConfirm(zname, idx) {
     const std = installErpItem('quote', 1);
     cur.forEach(x => { if (std && GEN.test(x.name || '')) { x.name = std[1]; x.key = std[0]; x._swapped214 = true; } });
   }
+  /* קיט התקנה/תשתיות בלי רמקולים — שאלת הפריסה והבנייה האוטומטית לא רלוונטיות */
+  const kitHasSpk = cur.some(x => /רמקול|סאב|speaker|subwoofer/i.test(x.name || ''));
   const ov = uiModal(`
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
     ${INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
-    ${z ? `<div style="background:#f4f2ec;border-radius:8px;padding:7px 9px;margin-bottom:7px">
+    ${z && kitHasSpk ? `<div style="background:#f4f2ec;border-radius:8px;padding:7px 9px;margin-bottom:7px">
       <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px">🔊 סוג פריסה ב"${esc(z.name)}" — קובע איך יוצבו הרמקולים</label>
       <select data-place style="width:100%;font-size:12px;padding:4px">${placeOptsHTML(z._place)}</select>
       <div data-clwrap style="margin-top:5px;${z._place === 'cluster' ? '' : 'display:none'}">
@@ -8565,7 +8567,7 @@ function zoneKitConfirm(zname, idx) {
       </div>
     </div>` : ''}
     <button class="primary" data-asis style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף את הקיט להצעה והצב על התכנית</button>
-    <button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>
+    ${kitHasSpk ? `<button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>` : ''}
     <button data-cancel style="width:100%">ביטול</button>`);
   const done = () => ov.remove();
   /* שינוי הפיזור נשמר על האזור מיד — גם "הוסף כמו שהוא" וגם הבנייה האוטומטית משתמשים בו */
@@ -8645,7 +8647,8 @@ function zoneKitConfirm(zname, idx) {
     if (err) uiToast('🧰 נוספו ' + items.length + ' פריטים להצעה · ⚠ ההצבה על התכנית נכשלה: ' + (err.message || err));
     else uiToast('🧰 נוספו ' + items.length + ' פריטים מהקיט "' + k.name.slice(0, 26) + '" להצעה' + (placed > 0 ? ' · הוצבו ' + placed + ' על התכנית' : ' · פתח את ההצעה בצד לראות אותם'));
   };
-  ov.querySelector('[data-auto]').onclick = () => {
+  const autoBtn = ov.querySelector('[data-auto]');
+  if (autoBtn) autoBtn.onclick = () => {
     const items = edited(); done();
     if (!z) return;
     /* הרמקול/סאב מהקיט נבחרים לאזור והכמות מחושבת; מגברים/עיבוד נכנסים להצעה ולארון הריכוז */
@@ -8928,7 +8931,12 @@ function buildZoneSystem(zid) {
     const baseSp = ({ sparse: 10, edge: 7, min: 5, full: 3 })[z._dens || 'edge'] || 7;
     const spM = baseSp * Math.min(2.4, Math.sqrt(360 / Math.max(60, Math.min(disp, 180))));
     const pts = zoneGridPts(z, spM * pxPerM);
-    const rPx = P.scale ? 0.35 / P.scale : 12;   /* חצי מטר בין מרכזי הרמקולים בצביר */
+    /* רדיוס הצביר: המרחק הפיזי האמיתי (~0.35 מ׳ מהמרכז). מותר להרחיב עד 1 מ׳
+       כדי שאייקוני הרמקולים לא יכסו זה את זה, אבל לא מעבר — המיקום קובע
+       אורכי כבלים וכיסוי, ואסור שהתצוגה תזיז רמקול ממקומו האמיתי. */
+    const rPhys = P.scale ? 0.35 / P.scale : 12;
+    const rMax = P.scale ? 1.0 / P.scale : 34;
+    const rPx = Math.min(Math.max(rPhys, (N * 36) / (2 * Math.PI)), Math.max(rPhys, rMax));
     const it = { on: true, qty: 1, name: spk, src: 'מערכת אוטו · ' + z.name, key: z._spkKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') };
     autoPrice(it); impItems.push(it);
     let idx = 0;
