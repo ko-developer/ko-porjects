@@ -4243,16 +4243,20 @@ function projGapCheck() {
     finds.push({ i: '🎛', t: 'אין סעיף כיוון/תכנות מערכת סאונד בהצעה', b: 'הוסף סעיף כיוון', fn: 'addTuneLine()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כיוון')" } });
   }
   /* 2. קווים בלי מוצר כבל בהצעה */
-  const noRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && +c.len > 0).length;
+  const noRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0).length;
+  /* 2ב. פאצ'ים פנימיים בארון (פרוססור→מגבר) — כבלי XLR קצרים מוכנים, לא גליל */
+  const intN = P.cables.filter(c => c.internal && c.inst !== 'exist').length;
+  const shortXlr = qsum(it => /XLR/i.test(it.name) && /כבל/.test(it.name) && (/\b(0\.5|1|1\.5|2)\s*מטר|קצר|patch/i.test(it.name)));
+  if (intN > shortXlr) finds.push({ i: '🔌', k: 'int-xlr', t: intN + ' פאצ\'ים פנימיים בארון (פרוססור→מגבר) · בהצעה ' + shortXlr + ' כבלי XLR קצרים', b: '➕ הוסף ' + (intN - shortXlr) + ' כבלי XLR קצרים', fn: 'gapAddShortXlr(' + (intN - shortXlr) + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כבל XLR 1 מטר')" } });
   if (noRef) finds.push({ i: '🧵', t: noRef + ' קווים ללא שורת כבל בהצעה', b: 'השלם גלילי כבל (+15% רזרבה)', fn: 'wizFillCables()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כבל רמקול')" } });
   /* 3. מחברים — 2 לכל קו חדש מול מה שבהצעה */
   let needC = 0;
   P.cables.forEach(c => {
-    if (c.inst === 'exist') return;
+    if (c.inst === 'exist' || c.internal) return;   /* פאצ' פנימי = כבל מוכן עם מחברים */
     if ((c.conn || connFor(c.type)) !== 'empty') needC++;
     if ((c.conn2 || c.conn || connFor(c.type)) !== 'empty') needC++;
   });
-  const haveC = qsum(it => it.dest === 'conn' || /מחבר|קונקטור|connector/i.test(it.name));
+  const haveC = qsum(it => (it.dest === 'conn' || /מחבר|קונקטור|connector/i.test(it.name)) && !/^כבל|כבל .{0,20}XLR - XLR/.test(it.name || ''));
   if (needC > haveC) finds.push({ i: '🔩', t: 'דרושים ~' + needC + ' מחברים לקצוות · בהצעה ' + haveC, b: 'הוסף מחברים לכל הקווים', fn: 'gapFixConnectors()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מחבר')" } });
   /* 3c. גלילי כבל — האם יש מספיק מטרים בהצעה למה שמתוכנן */
   {
@@ -4285,7 +4289,7 @@ function projGapCheck() {
   if (hung > mounts) finds.push({ i: '🔧', k: 'mounts', t: hung + ' רמקולים תלויים · רק ' + mounts + ' תושבות/מתקנים בהצעה', b: '➕ הוסף ' + (hung - mounts) + ' תושבות', fn: 'gapAddMounts(' + (hung - mounts) + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מתקן לרמקול')" } });
   /* 5. ארון בלי פס שקעים */
   const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
-  if (racks.length && !qsum(it => /פס שקעים|פס חשמל|שקעים לארון|PDU/i.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
+  if (racks.length && !qsum(it => PDU_RX.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
   /* 5ב. יחידה בארון שאף כבל לא נוגע בה — כנראה מיותרת; מציעים להסיר מהארון ומההצעה */
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
     (rk.units || []).forEach(u => {
@@ -4403,8 +4407,12 @@ function gapAddMounts(n) {
   });
   gapAddFromCatalog(MOUNT_RX, n, 'unit', 'תושבות', models);
 }
-function gapAddPdu(n) { gapAddFromCatalog(/פס שקעים|פס חשמל|שקעים לארון|PDU|רב שקע|מפצל.{0,12}שקע/i, n, 'unit', 'פס שקעים'); }
+/* אותו ביטוי לבדיקה ולתיקון — אחרת הפס שנוסף לא מזוהה והממצא נשאר */
+const PDU_RX = /פס שקעים|פס חשמל|שקעים לארון|PDU|רב שקע|מפצל.{0,12}שקע|רבעיית חשמל/i;
+function gapAddPdu(n) { gapAddFromCatalog(PDU_RX, n, 'unit', 'פס שקעים'); }
 window.gapAddMounts = gapAddMounts; window.gapAddPdu = gapAddPdu;
+function gapAddShortXlr(n) { gapAddFromCatalog(/XLR.{0,30}(1|0\.5|1\.5|2)\s*מטר|XLR.{0,20}קצר|patch.{0,10}XLR/i, n, 'conn', 'כבל XLR קצר'); }
+window.gapAddShortXlr = gapAddShortXlr;
 function gapDjNet(djId) {
   const dj = byId(djId); const rk = P.nodes.find(n => n.kind === 'rack'); if (!dj || !rk) { uiToast('אין ארון בתכנית'); return; }
   const refOf = type => { const it = impItems.find(x => x.on !== false && /CAT\s?[5-7]|רשת|LAN|ethernet|תקשורת/i.test(x.name || '') && /כבל|גליל/.test(x.name || '')); if (!it) return null; if (!it.dest || (it.dest !== 'reel' && it.dest !== 'cable')) it.dest = 'cable'; if (!it.type) it.type = 'cat'; const st = ensureStockItem(it); if (st) it.added = true; return st ? (it.dest === 'reel' ? 'reel|' : 'cable|') + st.id : null; };
