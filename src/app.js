@@ -3909,7 +3909,7 @@ async function patchApply() {
   /* קווי כניסה נגזרים קודם מכבל שכבר בהצעה (בד״כ מקיט ההתקנה): מולטי → כבל מולטי,
      XLR → כבל XLR. אין כזה — הקו נשאר בלי שיוך ובדיקת השלמות מציעה להשלים. */
   const inRefFor = type => {
-    const rx = type === 'multi' ? /מולטי|multi/i : /XLR/i;
+    const rx = type === 'multi' ? /מולטי|multi/i : type === 'cat' ? /CAT\s?[5-7]|רשת|LAN|ethernet|תקשורת/i : /XLR/i;
     /* "כבל XLR עם מחברי ניוטריק" הוא כבל — רק פריט שהוא עצמו מחבר/פנל/קופסה נפסל */
     /* גם "כבל XLR 1 מ׳" שסווג בקיט כ-conn הוא כבל — השם קובע; רק מחבר/פנל/קופסה נפסלים */
     const it = impItems.find(x => x.on !== false && (x.dest === 'reel' || x.dest === 'cable' || /^\s*כבל/.test(x.name || '')) && rx.test(x.name || '') && !/^\s*(מחבר|פנל|קופס)/i.test(x.name || ''));
@@ -3963,6 +3963,7 @@ async function patchApply() {
           if (P.scale) cc2.len = +(dist(src, t.rk) * P.scale).toFixed(1);
           const ref2 = inRef('multi'); if (ref2) applyStockRef(ref2, null, cc2);
           P.cables.push(cc2); n2++; made.push(cc2);
+          const net2 = djNetCable(t.rk, src, inRef); if (net2) { n2++; made.push(net2); }
           return;
         }
       }
@@ -3975,6 +3976,7 @@ async function patchApply() {
       if (P.scale) cc.len = +(dist(src, t.rk) * P.scale).toFixed(1);
       const ref = inRef(cc.type); if (ref) applyStockRef(ref, null, cc);
       P.cables.push(cc); n2++; made.push(cc);
+      const net = djNetCable(t.rk, src, inRef); if (net) { n2++; made.push(net); }
     });
   }
   if (inMissing.size) setTimeout(() => uiToast('🧵 לקווי ' + [...inMissing].map(t => CTYPES[t] ? CTYPES[t].n : t).join(' · ') + ' אין כבל בהצעה — בדיקת השלמות תציע להשלים מהקטלוג', 6000), 400);
@@ -4179,6 +4181,11 @@ function projGapCheck() {
     if (kinds.has('phone') && !has(/בלוטות|bluetooth|\bBT\b/i))
       finds.push({ i: '📱', k: 'need-bt', t: 'נבחר טלפון/בלוטות׳ כמקור — אין מקלט בלוטות׳ בהצעה', b: '🔍 בחר מקלט בלוטות׳', fn: "gapSearch('בלוטוס')" });
   }
+  /* 1ה. עמדת DJ בלי כבל רשת מהארון */
+  P.nodes.filter(n => n.srcKind === 'dj' || (n.kind === 'panel' && /עמדת נגינה|\bDJ\b/i.test(n.name || ''))).forEach(dj => {
+    const hasNet = P.cables.some(c => c.type === 'cat' && (c.from === dj.id || c.to === dj.id));
+    if (!hasNet) finds.push({ i: '🌐', k: 'dj-net|' + dj.id, t: 'ל"' + dj.name.slice(0, 26) + '" אין כבל רשת מהארון (Cat6 — שליטה/סטרימינג)', b: '➕ פרוס כבל רשת מהארון', fn: `gapDjNet('${dj.id}')`, alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כבל רשת')" } });
+  });
   /* 1ג. כניסות בפרוססור מול מספר המקורות השונים — מקור משותף נספר פעם אחת */
   {
     const zs2 = P.zones || [];
@@ -4312,6 +4319,19 @@ window.gapRemoveUnit = gapRemoveUnit;
 /* אחרי תיקון מיידי — חזרה לחלון הבדיקה, כדי לראות מה עוד פתוח */
 function gapBack() { if (window.__gapReopen) setTimeout(projGapCheck, 250); }
 window.gapBack = gapBack;
+/* עמדת DJ מקבלת תמיד גם כבל רשת (Cat6) מהארון — שליטה, סטרימינג, רשת לציוד העמדה */
+function djNetCable(rk, dj, refFn) {
+  if (!rk || !dj) return null;
+  const isDj = dj.srcKind === 'dj' || /עמדת נגינה|\bDJ\b/i.test(dj.name || '');
+  if (!isDj) return null;
+  const ex = P.cables.find(c => c.type === 'cat' && ((c.from === rk.id && c.to === dj.id) || (c.from === dj.id && c.to === rk.id)));
+  if (ex) return null;
+  const cc = { id: uid('c'), from: rk.id, to: dj.id, type: 'cat', qty: '1', spec: '', conn: 'rj45', conn2: 'rj45', note: 'רשת לעמדת DJ — שליטה / סטרימינג / רשת לציוד העמדה, מהארון' };
+  if (P.scale) cc.len = +(Math.hypot(rk.x - dj.x, rk.y - dj.y) * P.scale).toFixed(1);
+  const ref = refFn ? refFn('cat') : null; if (ref) applyStockRef(ref, null, cc);
+  P.cables.push(cc);
+  return cc;
+}
 /* השלמת פריט חסר: קודם מגדילים שורה קיימת (המוצר הנכון כבר נבחר),
    ואם אין — לוקחים את המתאים ביותר מהקטלוג לפי מלאי. תמיד יש גם "בחר מקטלוג". */
 function gapAddFromCatalog(rx, want, dest, label, prefer) {
@@ -4344,6 +4364,15 @@ function gapAddMounts(n) {
 }
 function gapAddPdu(n) { gapAddFromCatalog(/פס שקעים|פס חשמל|שקעים לארון|PDU|רב שקע|מפצל.{0,12}שקע/i, n, 'unit', 'פס שקעים'); }
 window.gapAddMounts = gapAddMounts; window.gapAddPdu = gapAddPdu;
+function gapDjNet(djId) {
+  const dj = byId(djId); const rk = P.nodes.find(n => n.kind === 'rack'); if (!dj || !rk) { uiToast('אין ארון בתכנית'); return; }
+  const refOf = type => { const it = impItems.find(x => x.on !== false && /CAT\s?[5-7]|רשת|LAN|ethernet|תקשורת/i.test(x.name || '') && /כבל|גליל/.test(x.name || '')); if (!it) return null; if (!it.dest || (it.dest !== 'reel' && it.dest !== 'cable')) it.dest = 'cable'; if (!it.type) it.type = 'cat'; const st = ensureStockItem(it); if (st) it.added = true; return st ? (it.dest === 'reel' ? 'reel|' : 'cable|') + st.id : null; };
+  const c = djNetCable(rk, dj, refOf);
+  render(); save();
+  uiToast(c ? '🌐 נפרס כבל רשת מהארון לעמדת ה-DJ' + (c.len ? ' · ' + c.len + ' מ׳' : '') + (c.stockRef ? '' : ' · אין כבל רשת בהצעה — בדיקת השלמות תציע') : 'כבר יש כבל רשת לעמדה');
+  gapBack();
+}
+window.gapDjNet = gapDjNet;
 /* אישור ממצא: "לקחתי בחשבון" — לא מתקנים, אבל זה לא חוסם את המעבר להצעה */
 function gapAck(k) {
   P._gapAck = P._gapAck || {};
