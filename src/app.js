@@ -3045,6 +3045,8 @@ function patchCss() {
     .pchip.sel{border-color:#ff8a50;box-shadow:0 0 0 2px rgba(255,138,80,.35)}
     .pchip.sub{background:#6a4fc9}.pchip.prem{background:#0f6e56}
     .pchip b{font-size:12px}
+    .pchip.src{background:#efecfd;border-color:#c9c0f5;color:#4b3fb8}
+    .pchip.src.sel{background:#6c5ce7;color:#fff;border-color:#6c5ce7}
     .pchPool{background:#fff;border:2px dashed #d9d2c4;border-radius:11px;padding:8px 10px;min-height:44px}
     .pchPool.drop{background:#eef7f1;border-color:#0f6e56}
     #patchBox .pf{padding:9px 14px;border-top:1px solid #eee;display:flex;gap:7px;background:#fff}
@@ -3105,10 +3107,30 @@ function patchOpen(z, amps, lines, leftover) {
     });
     a.pre = new Set(); /* אין ערוצים נעולים — הכול ניתן לעריכה בכל שלב */
   });
+  /* צד הכניסות: מקורות הנגינה אל הפרוססור/מיקסר שבארון */
+  PATCH.ins = []; PATCH.inSlots = {}; PATCH.inOrig = {}; PATCH.inPre = {};
+  P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
+    (rk.units || []).forEach(u => {
+      if (!IN_UNIT_RE.test(u.name || '')) return;
+      PATCH.ins.push({ rk, u, inTotal: patchInChips(u) });
+    });
+  });
+  PATCH.ins.forEach((t, ii) => {
+    P.cables.filter(c => c.to === t.rk.id && c.toUnit === t.u.id && /^IN/.test(c.pIn || '')).forEach(c => {
+      const ch = +(String(c.pIn).match(/\d+/) || [0])[0];
+      if (!ch || ch > t.inTotal) return;
+      const key = 'i' + ii + '|' + ch;
+      (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.from);
+      (PATCH.inPre[key] = PATCH.inPre[key] || []).push(c.id);
+    });
+  });
+  Object.keys(PATCH.inSlots).forEach(k => { PATCH.inOrig[k] = PATCH.inSlots[k].join(','); });
+  const usedSrc = new Set(Object.values(PATCH.inSlots).flat());
+  PATCH.srcPool = P.nodes.filter(n => isSrcNode(n) && !usedSrc.has(n.id)).map(n => n.id);
   const ov = document.createElement('div');
   ov.id = 'patchOv';
   ov.innerHTML = `<div id="patchBox">
-      <div class="ph" id="patchDrag"><span style="opacity:.6">⠿</span><b>🔌 חיווט — ניתוב רמקולים למגברים</b>
+      <div class="ph" id="patchDrag"><span style="opacity:.6">⠿</span><b>🔌 חיווט — מקורות אל הארון ורמקולים למגברים</b>
         <small style="opacity:.8;font-size:11px">גרור צ׳יפ ליציאה · הקש עליו כדי לראות אותו על התכנית</small>
         <button onclick="patchClose()" style="background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button></div>
       <div class="pb" id="patchBody"></div>
@@ -3391,7 +3413,27 @@ function patchRender() {
   /* אומדן מחברים: כל קו = 2 קצוות (ספיקון / XLR-RCA לסאב אקטיבי) — מאושר כאן לפני החיבור */
   let estCables = 0;
   Object.keys(PATCH.slots).forEach(k => { estCables += (PATCH.slots[k] || []).length; });
-  body.innerHTML = amps + `
+  /* כניסות — עמדות נגינה ומקורות אל הפרוססור/מיקסר שבארון */
+  const insHtml = (PATCH.ins || []).map((t, ii) => {
+    const rows = [];
+    for (let ch = 1; ch <= t.inTotal; ch++) {
+      const key = 'i' + ii + '|' + ch, ids = PATCH.inSlots[key] || [];
+      rows.push(`<div class="pchCh" data-slot="${key}">
+        <span class="pchOut">IN ${ch}</span>
+        <div class="pchChips">${ids.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>'}</div>
+        <span class="pchZ ${ids.length ? 'ok' : 'emp'}">${ids.length ? ids.length + ' מקור' + (ids.length > 1 ? 'ות' : '') : '—'}</span></div>`);
+    }
+    return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(t.u.name)}">🎛 ${esc(shortModel(t.u.name))}
+      <small><input type="number" min="1" max="32" value="${t.inTotal}" title="מספר הכניסות של היחידה — נשמר לדגם" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchInSet(${ii},this.value)"> כניסות · ${esc(t.rk.name.slice(0, 14))}</small></div>${rows.join('')}</div>`;
+  }).join('');
+  const insBlock = (PATCH.ins || []).length ? `
+    <div style="font-size:12px;font-weight:700;margin:2px 0 5px">🎧 מקורות נגינה אל הארון</div>
+    ${insHtml}
+    <div style="font-size:12px;font-weight:700;margin:8px 0 5px">${PATCH.srcPool.length ? '⚠ ' : '✓ '}מקורות ללא כניסה (${PATCH.srcPool.length})</div>
+    <div class="pchPool ${PATCH.srcPool.length ? '' : 'ok'}" data-slot="srcpool">${PATCH.srcPool.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל המקורות מחוברים ✓</small>'}</div>
+    <div style="height:1px;background:#e3ded3;margin:12px 0"></div>` :
+    ((PATCH.srcPool || []).length ? `<div style="font-size:11.5px;color:#c96a13;background:#fdf3e6;border-radius:9px;padding:7px 9px;margin-bottom:9px">🎧 יש ${PATCH.srcPool.length} מקורות נגינה בתכנית, אבל אין בארון פרוססור/מיקסר לחבר אליו — הוסף אחד להצעה ולארון.</div>` : '');
+  body.innerHTML = insBlock + amps + `
     <div style="font-size:12px;font-weight:700;margin:10px 0 5px">${PATCH.pool.length ? '⚠ ' : '✓ '}רמקולים ללא ערוץ (${PATCH.pool.length})</div>
     <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(id2 => patchChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>
     ${PATCH.pool.length ? `<div style="display:flex;gap:6px;margin-top:6px">
@@ -3478,8 +3520,53 @@ function patchUnlock(key) {
   patchRender();
   uiToast('🔓 הערוץ שוחרר — אפשר לגרור; בעת החיבור הניתוב הישן יוחלף בחדש');
 }
+/* יחידה שמקבלת כניסות — פרוססור, מיקסר, מטריצה, כרטיס קול */
+const IN_UNIT_RE = /פרוססור|מעבד|מטריצ|מיקסר|קונסול|כרטיס קול|processor|matrix|mixer|console|interface|DSP/i;
+/* מקור נגינה — מה שמזין את הארון: עמדת DJ, במה, מיקרופון, מחשב/נגן */
+function isSrcNode(n) {
+  if (!n || n.kind === 'rack') return false;
+  if (n.ptype === 'mic') return true;
+  return /עמדת נגינה|\bDJ\b|במה|stage|מיקרופון|מיקסר|מחשב|נגן|סטרימר|streamer|playback/i.test(n.name || '');
+}
+function patchInChips(u) {
+  const k = rearKey(u.name), lib = (store.ampLib || {})[k];
+  return u.inCh || (lib && lib.inCh) || 4;
+}
+function patchInSet(ii, val) {
+  const t = PATCH.ins[ii]; if (!t) return;
+  const v = +val; if (!(v > 0)) return;
+  t.inTotal = v; t.u.inCh = v;
+  store.ampLib = store.ampLib || {};
+  const k = rearKey(t.u.name);
+  store.ampLib[k] = { ...(store.ampLib[k] || {}), inCh: v };
+  Object.keys(PATCH.inSlots).forEach(kk => {
+    const [ii2, ch2] = kk.slice(1).split('|').map(Number);
+    if (ii2 === ii && ch2 > v) { PATCH.srcPool.push(...PATCH.inSlots[kk]); delete PATCH.inSlots[kk]; }
+  });
+  save(); patchRender();
+  uiToast('✓ ' + v + ' כניסות — נשמר לדגם "' + shortModel(t.u.name) + '"');
+}
+window.patchInSet = patchInSet;
+function patchSrcChip(id) {
+  const n = byId(id); if (!n) return '';
+  const full = nodeFullName(n);
+  const ic = n.ptype === 'mic' ? '🎤' : /עמדת נגינה|\bDJ\b/i.test(n.name || '') ? '🎧' : /במה|stage/i.test(n.name || '') ? '🎸' : /מחשב|נגן|סטרימר/i.test(n.name || '') ? '🖥' : '🎚';
+  return `<span class="pchip src ${PATCH.sel === id ? 'sel' : ''}" draggable="true" data-chip="${id}"
+     title="${esc(full)} · ${esc(n.sub || '')}">${ic} ${esc(shortModel(full).slice(0, 22))}</span>`;
+}
 function patchMove(id, slot) {
   if (!id || !PATCH) return;
+  /* מקורות וכניסות הם עולם נפרד מרמקולים ויציאות — אין ערבוב בין השניים */
+  const srcSide = isSrcNode(byId(id));
+  const inSide = slot === 'srcpool' || /^i\d+\|/.test(slot);
+  if (srcSide !== inSide) { uiToast(srcSide ? '🎧 מקור נגינה מתחבר רק לכניסה של פרוססור/מיקסר' : '🔊 רמקול מתחבר רק ליציאת מגבר'); return; }
+  if (srcSide) {
+    Object.keys(PATCH.inSlots).forEach(k => { PATCH.inSlots[k] = PATCH.inSlots[k].filter(x => x !== id); });
+    PATCH.srcPool = PATCH.srcPool.filter(x => x !== id);
+    if (slot === 'srcpool') PATCH.srcPool.push(id);
+    else (PATCH.inSlots[slot] = PATCH.inSlots[slot] || []).push(id);
+    PATCH.sel = null; patchRender(); return;
+  }
   const a = PATCH.slots;
   for (const k of Object.keys(a)) a[k] = a[k].filter(x => x !== id);
   PATCH.pool = PATCH.pool.filter(x => x !== id);
@@ -3638,6 +3725,33 @@ async function patchApply() {
     } else cblRef = srcSel.value.slice(4);
   }
   let n2 = 0;
+  /* כניסות: מקור נגינה ← כניסת הפרוססור/מיקסר שבארון. אותה לוגיקה כמו ביציאות —
+     כניסה שלא נגעו בה נשארת, כניסה ששונתה מחליפה את הקווים שלה. */
+  for (const [key, ids] of Object.entries(PATCH.inSlots || {})) {
+    const [ii, ch] = key.slice(1).split('|').map(Number);
+    const t = PATCH.ins[ii]; if (!t) continue;
+    if ((PATCH.inOrig || {})[key] === ids.join(',')) continue;
+    if ((PATCH.inPre || {})[key]) { const del = new Set(PATCH.inPre[key]); P.cables = P.cables.filter(c => !del.has(c.id)); }
+    ids.map(byId).filter(Boolean).forEach(src => {
+      /* עמדה עם פאנל = מולטי-קייבל · מיקרופון/נגן בודד = XLR */
+      const multi = src.kind === 'panel' || /עמדת נגינה|\bDJ\b|במה|stage/i.test(src.name || '');
+      const cc = {
+        id: uid('c'), from: src.id, to: t.rk.id, toUnit: t.u.id, pIn: 'IN ' + ch,
+        type: multi ? 'multi' : 'xlr', qty: '1', spec: '',
+        note: 'מקור נגינה ← ' + shortModel(t.u.name) + (multi ? ' · מולטי מהעמדה' : ' · קו סיגנל'),
+        conn: multi ? 'multi' : 'xlrm', conn2: multi ? 'multi' : 'xlrf',
+      };
+      if (P.scale) cc.len = +(dist(src, t.rk) * P.scale).toFixed(1);
+      P.cables.push(cc); n2++; made.push(cc);
+    });
+  }
+  /* כניסות שרוקנו — הקווים הישנים שלהן נמחקים */
+  Object.entries(PATCH.inPre || {}).forEach(([k6, cids]) => {
+    if ((PATCH.inOrig || {})[k6] === (PATCH.inSlots[k6] || []).join(',')) return;
+    if ((PATCH.inSlots[k6] || []).length) return;
+    const del = new Set(cids);
+    P.cables = P.cables.filter(c => !del.has(c.id));
+  });
   for (const [key, ids] of Object.entries(PATCH.slots)) {
     if (!ids.length) continue;
     const [ai, ch] = key.split('|').map(Number);
