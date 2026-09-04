@@ -790,11 +790,17 @@ function repPlanSnapshot(LBL) {
       /* דרישת חשמל — צמוד למוקד, בצהוב, כמו ברשימת ההכנות. תמיד בתוך התמונה: בקצה התחתון — מעל המוקד */
       const pwrBox = (x, y) => {
         const t = '⚡ נקודת חשמל 16A-N6 · שדה סאונד', tw = t.length * 6.2 + 10;
-        let bx = Math.max(2, Math.min(W - tw - 2, x - tw / 2)), by = (y + 34 + 16 > H - 2) ? y - 34 - 16 : y + 34; let tries = 0;
-        while (hits(bx, by, tw, 16) && tries++ < 6) by += (by > y ? 18 : -18);
+        const inside = (bx, by) => bx >= 2 && by >= 2 && bx + tw <= W - 2 && by + 16 <= H - 2;
+        /* מועמדים: מתחת, מעל, ימין, שמאל — ואז רחוק יותר. הראשון שפנוי ובתוך התמונה מנצח */
+        const cands = [[x - tw / 2, y + 34], [x - tw / 2, y - 50], [x + 22, y - 8], [x - 22 - tw, y - 8],
+          [x - tw / 2, y + 54], [x - tw / 2, y - 70], [x + 22, y + 14], [x - 22 - tw, y + 14], [x + 22, y - 30], [x - 22 - tw, y - 30]];
+        let pos = cands.find(([bx, by]) => inside(bx, by) && !hits(bx, by, tw, 16))
+          || [Math.max(2, Math.min(W - tw - 2, x - tw / 2)), Math.max(2, Math.min(H - 18, y + 34))];
+        const [bx, by] = pos;
         claim(bx, by, tw, 16);
         g.fillStyle = '#fff3cd'; g.strokeStyle = '#e0a100'; g.lineWidth = 1.5; g.fillRect(bx, by, tw, 16); g.strokeRect(bx, by, tw, 16);
-        g.fillStyle = '#7a4b00'; g.font = 'bold 10px Arial'; g.fillText(t, bx + tw / 2, by + 8);
+        /* טקסט מעורב עברית/לטינית — חייב כיוון RTL, אחרת הקנבס הופך את הסדר */
+        g.direction = 'rtl'; g.fillStyle = '#7a4b00'; g.font = 'bold 10px Arial'; g.fillText(t, bx + tw / 2, by + 8); g.direction = 'ltr';
       };
       /* מקורות ופאנלים — עמדת DJ / קופסת במה / פאנל מולטי: ריבוע עם סמל */
       P.nodes.filter(n => (isSrcNode(n) || n.kind === 'panel') && n.kind !== 'point').forEach(n => {
