@@ -803,9 +803,7 @@ function resetView100() {
   P.zoom = 1;
   applyZoom();
   save();
-  const w = $('#canvasWrap');
-  w.scrollTop = 0;
-  w.scrollLeft = 0;
+  scrollToBox(contentBox(), 40);   /* 100% — והתכנית מול העיניים, לא פינה ריקה של הקנבס */
 }
 async function removeBg() {
   delete P.bg;
@@ -879,20 +877,34 @@ function zoomBy(f) {
   P.zoom = Math.min(5, Math.max(0.15, getZ() * f));
   applyZoom(); save();
 }
-function fitView() {
-  let xmax = 400, ymax = 300;
+/* תיבת התוכן בקואורדינטות הקנבס (2200×1400, x משמאל): התכנית + כל המוקדים והאזורים.
+   מאז שהתכנית יושבת במרכז הקנבס, "התאם לתצוגה" חייב להתאים לתוכן — לא לקנבס כולו */
+function contentBox() {
+  let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+  const add = (x, y, w, h) => { L = Math.min(L, x); T = Math.min(T, y); R = Math.max(R, x + w); B = Math.max(B, y + h); };
+  if (P.bg) add(bgLeft(), bgTop(), P.bgW || 1400, bgHeightPx());
   for (const n of P.nodes) {
     const el = document.getElementById('nd_' + n.id);
-    xmax = Math.max(xmax, n.x + (el ? el.offsetWidth : 180));
-    ymax = Math.max(ymax, n.y + (el ? el.offsetHeight : 120));
+    const w = el ? el.offsetWidth : 40, h = el ? el.offsetHeight : 40;
+    add(2200 - n.x - w, n.y, w, h);
   }
-  const bg = $('#bgimg');
-  if (P.bg && bg.offsetHeight) { xmax = Math.max(xmax, P.bgW || 1400); ymax = Math.max(ymax, bgTop() + bg.offsetHeight); }
-  const wrap = $('#canvasWrap');
-  /* ממלא את כל הקנבס הפנוי — מקטין או מגדיל לפי הצורך */
-  P.zoom = Math.min(3, Math.max(0.15, Math.min(wrap.clientWidth / (xmax + 40), wrap.clientHeight / (ymax + 40))));
+  (P.zones || []).forEach(z => { if (z.poly) z.poly.forEach(pt => add(pt.x, pt.y, 0, 0)); else { const b = zoneBounds(z); add(b.L, b.T, b.W, b.H); } });
+  if (L === Infinity) return { L: 1200, T: 0, R: 2200, B: 700 };
+  return { L, T, R, B };
+}
+/* גלילה כך שהתיבה תיראה: הקנבס ב-RTL — scrollLeft שלילי ככל שגוללים שמאלה, והמקור (2200,0) בפינה הימנית-עליונה */
+function scrollToBox(b, pad) {
+  const wrap = $('#canvasWrap'), Z = getZ();
+  const bw = (b.R - b.L) * Z, bh = (b.B - b.T) * Z;
+  const gx = Math.max(0, (wrap.clientWidth - bw) / 2), gy = Math.max(0, (wrap.clientHeight - bh) / 2);
+  wrap.scrollLeft = -Math.max(0, (2200 - b.R) * Z - gx);
+  wrap.scrollTop = Math.max(0, b.T * Z - gy);
+}
+function fitView() {
+  const b = contentBox(), wrap = $('#canvasWrap'), pad = 40;
+  P.zoom = Math.min(3, Math.max(0.15, Math.min(wrap.clientWidth / (b.R - b.L + pad * 2), wrap.clientHeight / (b.B - b.T + pad * 2))));
   applyZoom(); save();
-  wrap.scrollTop = 0; wrap.scrollLeft = 0;
+  scrollToBox(b, pad);
 }
 document.addEventListener('wheel', e => {
   if (!e.ctrlKey || !e.target.closest('#canvasWrap')) return;
