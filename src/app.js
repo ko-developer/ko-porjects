@@ -3586,7 +3586,12 @@ function isSrcNode(n) {
 }
 function patchInChips(u) {
   const k = rearKey(u.name), lib = (store.ampLib || {})[k];
-  return u.inCh || (lib && lib.inCh) || 4;
+  if (u.inCh) return u.inCh;
+  if (lib && lib.inCh) return lib.inCh;
+  /* הגב מהספרייה הוא המקור האמין למספר הכניסות */
+  const r = rearLayoutSrc(u.name);
+  if (r.src === 'lib') { const n = new Set(r.items.filter(i => /^IN/.test(i.port || '')).map(i => i.port)).size; if (n) return n; }
+  return 4;
 }
 function patchInSet(ii, val) {
   const t = PATCH.ins[ii]; if (!t) return;
@@ -3953,17 +3958,22 @@ async function patchApply() {
   {
     const used = {};
     Object.entries(PATCH.slots).forEach(([key, ids]) => { if (ids.length) { const [ai, ch] = key.split('|').map(Number); (used[ai] = used[ai] || []).push(ch); } });
-    let outN = 0;
+    const outIdx = {};   /* לכל פרוססור: כמה יציאות כבר נוצלו */
     PATCH.amps.forEach((a, ai) => {
       const chs = (used[ai] || []).sort((x, y) => x - y); if (!chs.length) return;
       const proc = (a.rk.units || []).find(u => IN_UNIT_RE.test(u.name || '')); if (!proc) return;
+      /* יציאות הפרוססור לפי הגב שלו (מהספרייה) — לא מניחים OUT 1..N */
+      const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))];
+      const taken = new Set(P.cables.filter(c => c.from === a.rk.id && c.to === a.rk.id && c.fromUnit === proc.id && c.pOut).map(c => c.pOut));
       chs.forEach(ch => {
-        outN++;
         const pIn = 'IN ' + ch;
         const ex = P.cables.find(c => c.from === a.rk.id && c.to === a.rk.id && c.toUnit === a.u.id && c.pIn === pIn && c.fromUnit === proc.id);
         if (ex) return;
-        P.cables.push({ id: uid('c'), from: a.rk.id, fromUnit: proc.id, pOut: 'OUT ' + outN, to: a.rk.id, toUnit: a.u.id, pIn, type: 'xlr', qty: '1', spec: '', len: 1, conn: 'xlrm', conn2: 'xlrf', internal: 'proc-amp',
-          note: 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' OUT ' + outN + ' → ' + shortModel(a.u.name) + ' ' + pIn });
+        let pOut = outs.find(o => !taken.has(o));
+        if (pOut) taken.add(pOut);
+        P.cables.push({ id: uid('c'), from: a.rk.id, fromUnit: proc.id, pOut: pOut || undefined, to: a.rk.id, toUnit: a.u.id, pIn, type: 'xlr', qty: '1', spec: '', len: 1, conn: 'xlrm', conn2: 'xlrf', internal: 'proc-amp',
+          note: 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + (pOut || '⚠ אין יציאה פנויה') + ' → ' + shortModel(a.u.name) + ' ' + pIn });
+        if (!pOut) uiToast('⚠ ל' + shortModel(proc.name) + ' אין יציאה פנויה עבור ' + shortModel(a.u.name) + ' ' + pIn + ' — לפי הגב שבספרייה', 5000);
       });
     });
     /* ערוץ שהתרוקן — הפאץ׳ שלו יורד */
