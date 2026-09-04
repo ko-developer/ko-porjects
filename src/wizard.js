@@ -611,16 +611,33 @@ function repPlanSnapshot(LBL) {
         g.setLineDash([]);
       });
       g.font = 'bold 12px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      const kinds = new Map();   /* מקרא: סוג + חתך → צבע */
       P.cables.forEach(c => {
-        const a = byId(c.from), b = byId(c.to); if (!a || !b) return;
-        g.strokeStyle = c.type === 'xlr' ? '#7F77DD' : '#E2571B'; g.lineWidth = 2;
+        const a = byId(c.from), b = byId(c.to); if (!a || !b || a === b) return;
+        const col = cableColor(c); kinds.set(cableKindLabel(c), col);
+        g.strokeStyle = col; g.lineWidth = c.type === 'multi' ? 3 : 2;
+        g.setLineDash(c.inst === 'exist' ? [6, 4] : []);
         g.beginPath(); g.moveTo(cx(a), cy(a)); g.lineTo(cx(b), cy(b)); g.stroke();
+        g.setLineDash([]);
         const lb = LBL[c.id]; if (!lb) return;
         const mx = (cx(a) + cx(b)) / 2, my = (cy(a) + cy(b)) / 2;
         g.fillStyle = '#fff'; g.fillRect(mx - 11, my - 9, 22, 17);
-        g.strokeStyle = '#E2571B'; g.lineWidth = 1; g.strokeRect(mx - 11, my - 9, 22, 17);
-        g.fillStyle = '#E2571B'; g.fillText(String(lb), mx, my);
+        g.strokeStyle = col; g.lineWidth = 1; g.strokeRect(mx - 11, my - 9, 22, 17);
+        g.fillStyle = col; g.fillText(String(lb), mx, my);
       });
+      /* מקרא צבעים — שמאל למעלה */
+      if (kinds.size) {
+        g.font = '11px Arial'; g.textAlign = 'left'; g.textBaseline = 'middle';
+        const rows = [...kinds.entries()], lw = 200, lh = rows.length * 16 + 10;
+        g.fillStyle = 'rgba(255,255,255,.92)'; g.fillRect(8, 8, lw, lh);
+        g.strokeStyle = '#ccc'; g.lineWidth = 1; g.strokeRect(8, 8, lw, lh);
+        rows.forEach(([lbl, col], i) => {
+          const y = 8 + 5 + 8 + i * 16;
+          g.strokeStyle = col; g.lineWidth = 3; g.beginPath(); g.moveTo(14, y); g.lineTo(40, y); g.stroke();
+          g.fillStyle = '#222'; g.fillText(lbl, 46, y);
+        });
+        g.font = 'bold 12px Arial'; g.textAlign = 'center';
+      }
       P.nodes.filter(n => n.kind === 'point' || n.kind === 'rack').forEach(n => {
         const x = cx(n), y = cy(n), isR = n.kind === 'rack';
         g.fillStyle = isR ? '#1a1e28' : n.ptype === 'mic' ? '#0f6e56' : /סאב|\bsub\b/i.test(n.name) ? '#6c5ce7' : '#c9502e';
@@ -730,9 +747,9 @@ async function installerReport() {
   const spkNumOf = id => { const n0 = byId(id); const m0 = n0 && (n0.name || '').match(/\((\d+)\)/); return m0 ? m0[1] : ''; };
   const cbl = P.cables.map(c => {
     const conns = (c.conn ? (CONNS[c.conn]?.n || c.conn) : '') + (c.conn2 && c.conn2 !== c.conn ? ' ← ' + (CONNS[c.conn2]?.n || c.conn2) : '');
-    return `<tr><td><b>${LBL[c.id]}</b></td><td style="text-align:center"><b>${spkNumOf(c.to) || '—'}</b></td><td>${esc(endNameTxt(c.from, c.fromUnit))}${c.pOut ? ' · ' + esc(c.pOut) : c.fromHole ? ' · חור ' + c.fromHole : ''}</td>
+    return `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${cableColor(c)};vertical-align:middle;margin-left:4px"></span><b>${LBL[c.id]}</b></td><td style="text-align:center"><b>${spkNumOf(c.to) || '—'}</b></td><td>${esc(endNameTxt(c.from, c.fromUnit))}${c.pOut ? ' · ' + esc(c.pOut) : c.fromHole ? ' · חור ' + c.fromHole : ''}</td>
       <td>${esc(endNameTxt(c.to, c.toUnit))}${c.pIn ? ' · ' + esc(c.pIn) : c.toHole ? ' · חור ' + c.toHole : ''}</td>
-      <td>${CTYPES[c.type]?.n || c.type}${c.cores ? ' ×' + c.cores : ''}</td><td>${c.len ? c.len + ' מ׳' : '—'}</td><td>${esc(conns)}</td>
+      <td><span style="color:${cableColor(c)};font-weight:700">${cableKindLabel(c)}</span>${c.cores ? ' ×' + c.cores : ''}</td><td>${c.len ? c.len + ' מ׳' : '—'}</td><td>${esc(conns)}</td>
       <td>${c.inst === 'exist' ? 'קיים' : c.inst === 'pull' ? 'העברה' : 'חדש'}</td><td>${esc(c.note || '')}</td></tr>`;
   }).join('');
   const items = impItems.filter(it => it.on !== false).map(it => {
