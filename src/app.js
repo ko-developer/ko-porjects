@@ -3917,6 +3917,32 @@ async function patchApply() {
       }
     });
   }
+  /* פאץ׳ פנימי פרוססור → מגבר: כל ערוץ מגבר שמזין רמקולים מקבל קו מיציאת הפרוססור
+     (OUT n רץ לפי סדר הערוצים בארון) אל כניסת המגבר — כדי שגב הארון בדוח יהיה שלם */
+  {
+    const used = {};
+    Object.entries(PATCH.slots).forEach(([key, ids]) => { if (ids.length) { const [ai, ch] = key.split('|').map(Number); (used[ai] = used[ai] || []).push(ch); } });
+    let outN = 0;
+    PATCH.amps.forEach((a, ai) => {
+      const chs = (used[ai] || []).sort((x, y) => x - y); if (!chs.length) return;
+      const proc = (a.rk.units || []).find(u => IN_UNIT_RE.test(u.name || '')); if (!proc) return;
+      chs.forEach(ch => {
+        outN++;
+        const pIn = 'IN ' + ch;
+        const ex = P.cables.find(c => c.from === a.rk.id && c.to === a.rk.id && c.toUnit === a.u.id && c.pIn === pIn && c.fromUnit === proc.id);
+        if (ex) return;
+        P.cables.push({ id: uid('c'), from: a.rk.id, fromUnit: proc.id, pOut: 'OUT ' + outN, to: a.rk.id, toUnit: a.u.id, pIn, type: 'xlr', qty: '1', spec: '', len: 1, conn: 'xlrm', conn2: 'xlrf', internal: 'proc-amp',
+          note: 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' OUT ' + outN + ' → ' + shortModel(a.u.name) + ' ' + pIn });
+      });
+    });
+    /* ערוץ שהתרוקן — הפאץ׳ שלו יורד */
+    P.cables = P.cables.filter(c => {
+      if (c.internal !== 'proc-amp') return true;
+      const ai = PATCH.amps.findIndex(a => a.rk.id === c.to && a.u.id === c.toUnit); if (ai < 0) return true;
+      const ch = +(String(c.pIn).match(/\d+/) || [0])[0];
+      return (PATCH.slots[ai + '|' + ch] || []).length > 0;
+    });
+  }
   /* ערוצים שרוקנו לגמרי — הקווים הישנים שלהם נמחקים */
   Object.entries(PATCH.preCables || {}).forEach(([k5, cids]) => {
     if (PATCH.orig[k5] === (PATCH.slots[k5] || []).join(',')) return;

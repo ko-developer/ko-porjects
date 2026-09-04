@@ -611,7 +611,7 @@ function repRackSnapshot(rk, LBL) {
   const units = (rk.units || []).slice().sort((a, b) => a.pos - b.pos);
   const cs = P.cables.filter(c => c.from === rk.id && c.to === rk.id);
   if (!units.length) return '';
-  const RU = 26, W = 640, top = 34, left = 40, uw = 300, H = top + Math.max(rk.ru || 12, units.reduce((m, u) => Math.max(m, u.pos + u.u), 0)) * RU + 20;
+  const RU = 26, W = 640, top = 34 + 14 * Math.min(4, cs.filter(c => !(rk.units || []).some(u => u.id === c.fromUnit)).length), left = 40, uw = 300, H = top + Math.max(rk.ru || 12, units.reduce((m, u) => Math.max(m, u.pos + u.u), 0)) * RU + 20;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const g = cv.getContext('2d');
   g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
@@ -632,8 +632,15 @@ function repRackSnapshot(rk, LBL) {
   });
   /* קווי פאץ׳ — מהיחידה המקורית ליחידת היעד, בצד שמאל של הארון, במסלולים מדורגים */
   g.font = 'bold 10px Arial'; g.textAlign = 'left';
+  let extY = top - 10;   /* מקור שעדיין לא יחידה בארון (סטרימר שטרם נבחר) — נקודה מסומנת מעל הארון */
   cs.forEach((c, i) => {
-    const a = ubox[c.fromUnit], b = ubox[c.toUnit]; if (!a || !b) return;
+    let a = ubox[c.fromUnit]; const b = ubox[c.toUnit]; if (!b) return;
+    if (!a) {
+      const lbl = ((c.note || '').split('→')[0] || 'מקור בארון').trim().slice(0, 26);
+      a = { y: extY }; extY -= 14;
+      g.fillStyle = '#c96a13'; g.font = 'bold 10px Arial'; g.textAlign = 'right';
+      g.fillText(lbl + ' (טרם בארון)', left + uw - 4, a.y);
+    }
     const col = cableColor(c), lane = left + uw + 22 + (i % 8) * 24;
     g.strokeStyle = col; g.lineWidth = 2;
     g.beginPath(); g.moveTo(left + uw, a.y); g.lineTo(lane, a.y); g.lineTo(lane, b.y); g.lineTo(left + uw, b.y); g.stroke();
