@@ -160,16 +160,7 @@ function wizStepHTML(s) {
     ${(() => {
       const from = wizSharedFrom(z), sh = from ? (from.sources || []) : [];
       const chip = ([k, l]) => { const on = (z.sources || []).includes(k), shared = sh.includes(k); return `<button class="sec" style="width:auto;flex:0 0 auto;margin:0;padding:5px 9px;font-size:11.5px;${shared ? 'background:#efecfd;border-color:#c9c0f5;color:#4b3fb8;font-weight:700;cursor:default' : on ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700' : ''}" onclick="wizSrcToggle('${z.id}','${k}')">${shared ? '🔗 ' : on ? '✓ ' : ''}${l}</button>`; };
-      const inRack = SOURCES.filter(s => WIZ_RACK_SRC.includes(s[0])), onPlan = SOURCES.filter(s => !WIZ_RACK_SRC.includes(s[0]));
-      return `<div style="background:#f7f5f0;border-radius:9px;padding:6px 8px;margin-bottom:5px">
-        <div style="font-size:11px;font-weight:700;color:#6b6257;margin-bottom:3px">🗄 בתוך הארון — בלי מוקד על התכנית</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">${inRack.map(chip).join('')}</div>
-      </div>
-      <div style="background:#fdf7ec;border-radius:9px;padding:6px 8px;margin-bottom:6px">
-        <div style="font-size:11px;font-weight:700;color:#8a5a12;margin-bottom:3px">📍 מחוץ לארון — מוקד על התכנית, מוצב מיד וממוקם סופית בלחיצה</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">${onPlan.map(chip).join('')}</div>
-        ${wizSourcePlacesHTML(z)}
-      </div>`; })()}
+      return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${SOURCES.map(chip).join('')}</div>${wizSourcePlacesHTML(z)}`; })()}
     ${(() => { const nd = sourceNeeds(z); return nd.length ? `<p class="hint" style="margin:-2px 0 8px;color:#0f6e56">נדרש בארון: ${esc(nd.join(' · '))}</p>` : ''; })()}` : ''}
     <button class="big" onclick="wizDrawZone()">➕ ${(P.zones || []).length ? 'צייר אזור נוסף' : 'צייר אזור'} — ניקור נקודות על התכנית</button>
     <button class="sec" onclick="autoZones()">🤖 זיהוי אזורים אוטומטי (AI)</button>`;
@@ -246,27 +237,35 @@ function wizStepHTML(s) {
 /* מקורות משותפים בין אזורים: אזור יכול לשאוב את המקורות של אזור אחר (_srcShare)
    ולהוסיף מקורות מקומיים משלו (_srcLocal). z.sources נשאר הרשימה האפקטיבית —
    כך שכל שאר האפליקציה (תכלית, פרוססור, בדיקות) ממשיכה לעבוד בלי לדעת על השיתוף. */
-const WIZ_RACK_SRC = ['stream', 'pc', 'phone'];
-/* מקורות שעל התכנית: מה מוצב, ואיפה ממקמים סופית */
+/* לכל מקור שנבחר: איפה הוא יושב (בארון / על התכנית) — בחירה חופשית, ומיקום אם על התכנית */
 function wizSourcePlacesHTML(z) {
   const own = wizOwnSources(z), from = wizSharedFrom(z);
-  const rows = [];
-  const row = (ic, lbl, node, onPlace) => `<button class="sec ${node ? 'done' : ''}" style="margin:5px 0 0;text-align:right;font-size:11.5px" onclick="${onPlace}">${ic} ${lbl} — ${node ? '✓ הוצב אוטומטית · לחץ ואז על התכנית למיקום הסופי' : '⚠ לא הוצב · לחץ ואז על התכנית'}</button>`;
-  if (own.includes('dj')) rows.push(row('🎧', 'עמדת נגינה (DJ)', z._djNodeId && byId(z._djNodeId), `window.__djPlace={zid:'${z.id}'};uiToast('לחץ על התכנית במקום עמדת ה-DJ');render()`));
-  if (own.includes('inst')) rows.push(row('🎸', 'קופסת במה', z._stageBoxId && byId(z._stageBoxId), `window.__nodePlace={id:'${z._stageBoxId || ''}',zid:'${z.id}',field:'_stageBoxId'};uiToast('לחץ על התכנית במקום קופסת הבמה');render()`));
-  if (own.includes('mic')) {
-    if (own.includes('dj') || own.includes('inst')) rows.push(`<p class="hint" style="margin:5px 0 0">🎤 מיקרופון — מתחבר לפאנל של ${own.includes('dj') ? 'עמדת ה-DJ' : 'קופסת הבמה'}, אין מוקד נפרד</p>`);
-    else rows.push(row('🎤', 'פאנל חיבורים (XLR)', z._micPanelId && byId(z._micPanelId), `window.__nodePlace={id:'${z._micPanelId || ''}',zid:'${z.id}',field:'_micPanelId'};uiToast('לחץ על התכנית במקום הפאנל');render()`));
-  }
-  if (from) { const shPlan = (from.sources || []).filter(k => !WIZ_RACK_SRC.includes(k)); if (shPlan.length) rows.push(`<p class="hint" style="margin:5px 0 0;color:#4b3fb8">🔗 המוקדים של ${esc(shPlan.map(k => (SOURCES.find(s => s[0] === k) || [k, k])[1]).join(' · '))} נמצאים ב"${esc(from.name)}"</p>`); }
-  return rows.join('');
+  if (!own.length && !from) return '';
+  const seg = (k, loc) => { const cur = srcLocOf(z, k); const on = v => cur === v; return `<span style="display:inline-flex;border:1px solid #d8d2c6;border-radius:7px;overflow:hidden;flex:none">
+      <button style="margin:0;border:none;border-radius:0;padding:3px 8px;font-size:11px;${on('rack') ? 'background:#6b6257;color:#fff;font-weight:700' : 'background:#fff;color:#6b6257'}" onclick="wizSrcSetLoc('${z.id}','${k}','rack')">🗄 בארון</button>
+      <button style="margin:0;border:none;border-radius:0;padding:3px 8px;font-size:11px;${on('plan') ? 'background:#c96a13;color:#fff;font-weight:700' : 'background:#fff;color:#8a5a12'}" onclick="wizSrcSetLoc('${z.id}','${k}','plan')">📍 על התכנית</button></span>`; };
+  let h = `<div style="background:#f7f5f0;border-radius:9px;padding:6px 8px;margin:4px 0 6px">
+    <div style="font-size:11px;font-weight:700;color:#6b6257;margin-bottom:4px">איפה יושב כל מקור? בארון = פאץ׳ פנימי · על התכנית = מוקד שממקמים סופית${own.some(k => STEREO_SRC[k]) ? ' · סטריאו = 2 כניסות (L/R)' : ''}</div>`;
+  own.forEach(k => {
+    const sp = SRC_NODE[k], node = sp && z[sp.f] && byId(z[sp.f]);
+    h += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:3px 0;border-top:1px solid #ece7dd">
+      <span style="flex:1;font-size:12px;font-weight:700">${SRC_LBL[k] || k}${STEREO_SRC[k] ? ' <small style="font-weight:400;color:#8a8377">L/R</small>' : ''}</span>${seg(k)}</div>`;
+    if (srcLocOf(z, k) === 'plan') h += wizSrcPlaceRow(z, k);
+  });
+  if (from) { const shPlan = (from.sources || []).filter(k => srcLocOf(from, k) === 'plan'); if (shPlan.length) h += `<p class="hint" style="margin:5px 0 0;color:#4b3fb8">🔗 המוקדים של ${esc(shPlan.map(k => SRC_LBL[k] || k).join(' · '))} נמצאים ב"${esc(from.name)}"</p>`; }
+  return h + '</div>';
+}
+function wizSrcSetLoc(zid, k, loc) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  z._srcLoc = z._srcLoc || {}; z._srcLoc[k] = loc;
+  wizPlaceSources(z); save(); render(); wizRender();
 }
 /* הסרת המוקד של מקור שבוטל — רק אם אין עליו כבלים */
 function wizUnplaceSource(z, k) {
-  const f = { dj: '_djNodeId', inst: '_stageBoxId', mic: '_micPanelId' }[k]; if (!f) return;
-  const n = z[f] && byId(z[f]); if (!n) { delete z[f]; return; }
+  const sp = SRC_NODE[k]; if (!sp) return;
+  const n = z[sp.f] && byId(z[sp.f]); if (!n) { delete z[sp.f]; return; }
   if (P.cables.some(c => c.from === n.id || c.to === n.id)) { uiToast('המוקד "' + n.name.slice(0, 24) + '" מחובר בכבלים — נשאר על התכנית, מחק ידנית אם צריך'); return; }
-  P.nodes = P.nodes.filter(x => x !== n); delete z[f];
+  P.nodes = P.nodes.filter(x => x !== n); delete z[sp.f];
 }
 function wizSrcZones(z) { return (P.zones || []).filter(x => x !== z && (x.sources || []).length && !x._srcShare); }
 function wizSharedFrom(z) { return z && z._srcShare ? (P.zones || []).find(x => x.id === z._srcShare) : null; }
@@ -302,8 +301,6 @@ function wizSrcToggle(zid, k) {
   z.sources = z.sources || [];
   const i = z.sources.indexOf(k);
   if (i >= 0) { z.sources.splice(i, 1); wizUnplaceSource(z, k); } else z.sources.push(k);
-  /* מיקרופון שהיה לו פאנל משלו — כשנוספה עמדה/במה הוא עובר אליהן */
-  if ((k === 'dj' || k === 'inst') && i < 0 && z._micPanelId) wizUnplaceSource(z, 'mic');
   /* אזורים שמשתפים מהאזור הזה מתעדכנים איתו */
   (P.zones || []).forEach(x => { if (x._srcShare === z.id) wizSyncSources(x); });
   /* מקור שעל התכנית מוצב מיד — כדי שאפשר יהיה למקם אותו סופית */
@@ -401,8 +398,8 @@ function wizNext() {
   if (WIZ.step === 3) {
     const z3 = wizZone(), s3 = z3 ? wizOwnSources(z3) : [];
     if (z3 && z3._built) {
-      if (s3.includes('dj') && !(z3._djNodeId && byId(z3._djNodeId))) { uiToast('🎧 נבחר DJ באזור — מקם את עמדת הנגינה על התכנית לפני החיווט'); return; }
-      if (s3.includes('inst') && !(z3._stageBoxId && byId(z3._stageBoxId))) { uiToast('🎸 נבחרה במה — מקם את קופסת הבמה על התכנית לפני החיווט'); return; }
+      const miss = s3.find(k => srcLocOf(z3, k) === 'plan' && SRC_NODE[k] && !(z3[SRC_NODE[k].f] && byId(z3[SRC_NODE[k].f])));
+      if (miss) { uiToast((SRC_LBL[miss] || miss) + ' מסומן "על התכנית" אבל אין לו מוקד — מקם אותו לפני החיווט'); return; }
     }
   }
   WIZ.step = Math.min(WIZ_STEPS.length - 1, WIZ.step + 1);
@@ -459,64 +456,64 @@ function wizAfterWire(z) {
     else { WIZ.step = 4; wizRender(); uiToast('✓ החיווט אושר — ודא שכל האזורים ירוקים והמשך לקיט ההתקנה'); }
   };
 }
-/* הצבת נקודות החיבור של המקורות לפי התשובה מהאזור ("מה מנגן"):
-   🎧 DJ → פאנל עמדת נגינה · 🎸 במה → קופסת במה · 🎤 מיקרופון בלבד → פאנל חיבורים XLR ·
-   רק סטרימר/מחשב/טלפון → המוזיקה מהמחשב שבארון, אין עמדה. הארון עצמו מוצב ב-zoneRack. */
+/* מפרט המוקד של כל סוג מקור כשהוא על התכנית */
+const SRC_NODE = {
+  dj:     { f: '_djNodeId',        name: 'עמדת נגינה (DJ)',  sub: 'פאנל מולטי בעמדה',              mount: 'עמדה',     pos: 'wall',     holes: () => Array.from({ length: 8 }, (_, i) => ({ conn: i < 6 ? 'xlrf' : 'rj45' })) },
+  inst:   { f: '_stageBoxId',      name: 'קופסת במה',        sub: 'קופסת במה — כניסות XLR + חזרות', mount: 'רצפת במה', pos: 'wall2',    holes: () => Array.from({ length: 12 }, (_, i) => ({ conn: i < 8 ? 'xlrf' : 'xlrm' })) },
+  mic:    { f: '_micPanelId',      name: 'פאנל חיבורים (XLR)', sub: 'פאנל XLR בקיר',                mount: 'קיר',      pos: 'nearRack', holes: () => Array.from({ length: 4 }, () => ({ conn: 'xlrf' })) },
+  stream: { f: '_srcNode_stream',  name: 'סטרימר',            sub: 'נקודת סטרימר — יציאת L/R',       mount: 'עמדה',     pos: 'nearRack', holes: () => [{ conn: 'xlrf' }, { conn: 'xlrf' }] },
+  pc:     { f: '_srcNode_pc',      name: 'מחשב / נגן',        sub: 'נקודת נגן — יציאת L/R',          mount: 'עמדה',     pos: 'nearRack', holes: () => [{ conn: 'xlrf' }, { conn: 'xlrf' }] },
+  phone:  { f: '_srcNode_phone',   name: 'נקודת בלוטות׳',     sub: 'מקלט בלוטות׳ — יציאת L/R',      mount: 'קיר',      pos: 'nearRack', holes: () => [{ conn: 'xlrf' }, { conn: 'xlrf' }] },
+};
+/* מקור שנבחר "על התכנית" מקבל מוקד; מקור "בארון" לא — ואם היה לו מוקד לא מחווט, הוא מוסר.
+   מוקד שכבר מוצב לא מוזז. משותף מאזור אחר — המוקד שלו שם. */
 function wizPlaceSources(z) {
   wizSyncSources(z);
-  const src = wizOwnSources(z);          /* משותף מאזור אחר — העמדה שלו כבר קיימת שם */
-  const hasDj = src.includes('dj'), hasStage = src.includes('inst'), hasMic = src.includes('mic');
-  z._djInRack = !(z.sources || []).includes('dj');
-  const b = zoneBounds(z), m = P.scale ? 1 / P.scale : 40;          /* פיקסלים למטר */
+  const own = wizOwnSources(z);
+  z._djInRack = !(own.includes('dj') && srcLocOf(z, 'dj') === 'plan');
+  const b = zoneBounds(z), m = P.scale ? 1 / P.scale : 40;
   const seg = (typeof zoneWallSeg === 'function') ? zoneWallSeg(z) : null;
-  /* נקודה על קיר הבמה (או הקיר הארוך) במרחק t לאורכו, נסוגה מטר פנימה */
   const onWall = (t, inset) => {
     if (!seg) return null;
     const ux = (seg.x2 - seg.x1) / seg.len, uy = (seg.y2 - seg.y1) / seg.len;
     return { x: seg.x1 + ux * seg.len * t + seg.nx * inset, y: seg.y1 + uy * seg.len * t + seg.ny * inset };
   };
-  const mk = (idField, name, sub, holes, pt, mount) => {
-    let n = z[idField] && byId(z[idField]);
-    if (n) return n;                                                  /* כבר מוצב — לא מזיזים */
-    n = { id: uid('n'), kind: 'panel', name: name + ' · ' + z.name, sub, x: 2200 - pt.x - 24, y: pt.y - 24, pmin: true, mount,
-      panel: { mode: 'matrix', holes } };
-    P.nodes.push(n); z[idField] = n.id; return n;
-  };
   const rk = zoneRack(z);
-  if (hasDj) {
-    /* עמדת DJ: על קיר הבמה אם הוגדר, אחרת בפינה שמאלית-עליונה (הארון בימנית) */
-    const pt = onWall(0.5, m) || { x: b.L + 46, y: b.T + 34 };
-    mk('_djNodeId', 'עמדת נגינה (DJ)', 'פאנל מולטי בעמדה',
-      Array.from({ length: 8 }, (_, i) => ({ conn: i < 6 ? 'xlrf' : 'rj45' })), pt, 'עמדה');
-  }
-  if (hasStage) {
-    /* קופסת במה: בחזית הבמה, ואם יש גם DJ — מוסטת 2 מ׳ לצד */
-    const pt = onWall(hasDj ? 0.5 + Math.min(0.25, 2 * m / (seg ? seg.len : 1)) : 0.5, m * 0.8) || { x: b.L + b.W / 2, y: b.T + 34 };
-    mk('_stageBoxId', 'קופסת במה', 'קופסת במה — כניסות XLR + חזרות',
-      Array.from({ length: 12 }, (_, i) => ({ conn: i < 8 ? 'xlrf' : 'xlrm' })), pt, 'רצפת במה');
-  }
-  if (hasMic && !hasDj && !hasStage) {
-    /* מיקרופון בלבד: פאנל חיבורים קטן ליד הארון */
-    const pt = rk ? { x: 2200 - rk.x - 20 - 2 * m, y: rk.y + 24 } : { x: b.L + b.W / 2, y: b.T + 34 };
-    mk('_micPanelId', 'פאנל חיבורים', 'פאנל XLR בקיר',
-      Array.from({ length: 4 }, () => ({ conn: 'xlrf' })), pt, 'קיר');
-  }
+  let near = 0;
+  Object.keys(SRC_NODE).forEach(k => {
+    const sp = SRC_NODE[k], onPlan = own.includes(k) && srcLocOf(z, k) === 'plan';
+    let n = z[sp.f] && byId(z[sp.f]);
+    if (!onPlan) { if (n) wizUnplaceSource(z, k); else delete z[sp.f]; return; }
+    if (n) { if (!n.srcKind) n.srcKind = k; return; }
+    let pt;
+    if (sp.pos === 'wall') pt = onWall(0.5, m) || { x: b.L + 46, y: b.T + 34 };
+    else if (sp.pos === 'wall2') pt = onWall(own.includes('dj') ? 0.5 + Math.min(0.25, 2 * m / (seg ? seg.len : 1)) : 0.5, m * 0.8) || { x: b.L + b.W / 2, y: b.T + 34 };
+    else { pt = rk ? { x: 2200 - rk.x - 20 - (2 + near * 1.3) * m, y: rk.y + 24 } : { x: b.L + b.W / 2 + near * 1.3 * m, y: b.T + 34 }; near++; }
+    if (!inZone(z, pt)) pt = { x: b.L + b.W / 2, y: b.T + b.H / 2 };
+    n = { id: uid('n'), kind: 'panel', srcKind: k, name: sp.name + ' · ' + z.name, sub: sp.sub, x: 2200 - pt.x - 24, y: pt.y - 24, pmin: true, mount: sp.mount,
+      panel: { mode: 'matrix', holes: sp.holes() } };
+    P.nodes.push(n); z[sp.f] = n.id;
+  });
 }
 /* שורות המיקומים בשלב המערכת — מה הוצב ואיפה, עם מיקום מחדש בלחיצה על התכנית */
+function wizSrcPlaceRow(z, k) {
+  const sp = SRC_NODE[k]; if (!sp) return '';
+  const node = z[sp.f] && byId(z[sp.f]); const ic = (SRC_LBL[k] || '').split(' ')[0];
+  const go = k === 'dj' ? `window.__djPlace={zid:'${z.id}'}` : `window.__nodePlace={id:'${z[sp.f] || ''}',zid:'${z.id}',field:'${sp.f}'}`;
+  return `<button class="sec ${node ? 'done' : ''}" style="margin:5px 0 0;text-align:right;font-size:11.5px" onclick="${go};uiToast('לחץ על התכנית במקום ${sp.name}');render()">${ic} ${sp.name} — ${node ? '✓ הוצב אוטומטית · לחץ ואז על התכנית למיקום הסופי' : '⚠ לא הוצב · לחץ ואז על התכנית'}</button>`;
+}
 function wizPlacementsHTML(z) {
-  const src = wizOwnSources(z), from = wizSharedFrom(z);
-  const row = (ic, lbl, node, onPlace) => `<button class="sec ${node ? 'done' : ''}" style="text-align:right" onclick="${onPlace}">${ic} ${lbl} — ${node ? '✓ ממוקם · לחץ למיקום מחדש על התכנית' : '⚠ לא ממוקם · לחץ ואז על התכנית'}</button>`;
+  const own = wizOwnSources(z), from = wizSharedFrom(z);
   const rk = zoneRack(z);
   let h = `<p class="hint" style="margin:8px 0 3px;font-weight:700">📍 מיקומים על התכנית</p>`;
-  if (from) { const lbl = k => (SOURCES.find(s => s[0] === k) || [k, k])[1]; h += `<p class="hint" style="margin:2px 0 4px;color:#4b3fb8">🔗 ${esc((from.sources || []).map(lbl).join(' · '))} — משותפים מ"${esc(from.name)}", העמדה שלהם שם · הפרוססור צריך יציאת‑אזור נפרדת ל"${esc(z.name)}"</p>`; }
+  if (from) h += `<p class="hint" style="margin:2px 0 4px;color:#4b3fb8">🔗 ${esc((from.sources || []).map(k => SRC_LBL[k] || k).join(' · '))} — משותפים מ"${esc(from.name)}", המוקדים שלהם שם · הפרוססור צריך יציאת‑אזור נפרדת ל"${esc(z.name)}"</p>`;
   const rkOut = rk && !inZone(z, { x: 2200 - rk.x - 24, y: rk.y + 24 });
   h += rkOut
     ? `<button class="sec" style="text-align:right;border-color:#c96a13;color:#8a5a12;background:#fdf3e6" onclick="wizRackInside(wizZone(), zoneRack(wizZone()), true);save();render();wizRender()">🗄 ריכוז מגברים — ⚠ מחוץ לאזור · לחץ להכנסה לפינה הפנימית</button>`
-    : row('🗄', 'ריכוז מגברים', rk, `window.__rackPlace={zid:'${z.id}'};uiToast('לחץ על התכנית במקום הארון');render()`);
-  if (src.includes('dj')) h += row('🎧', 'עמדת נגינה (DJ)', z._djNodeId && byId(z._djNodeId), `window.__djPlace={zid:'${z.id}'};uiToast('לחץ על התכנית במקום עמדת ה-DJ');render()`);
-  if (src.includes('inst')) h += row('🎸', 'קופסת במה', z._stageBoxId && byId(z._stageBoxId), `window.__nodePlace={id:'${z._stageBoxId || ''}',zid:'${z.id}',field:'_stageBoxId'};uiToast('לחץ על התכנית במקום קופסת הבמה');render()`);
-  if (src.includes('mic') && !src.includes('dj') && !src.includes('inst')) h += row('🎤', 'פאנל חיבורים (XLR)', z._micPanelId && byId(z._micPanelId), `window.__nodePlace={id:'${z._micPanelId || ''}',zid:'${z.id}',field:'_micPanelId'};uiToast('לחץ על התכנית במקום הפאנל');render()`);
-  if (!from && !src.includes('dj') && !src.includes('inst')) h += `<p class="hint" style="margin:2px 0 6px">🖥 המוזיקה מהמחשב/סטרימר שבארון — אין עמדת נגינה (שינוי: שלב האזור, "מה מנגן")</p>`;
+    : `<button class="sec ${rk ? 'done' : ''}" style="text-align:right" onclick="window.__rackPlace={zid:'${z.id}'};uiToast('לחץ על התכנית במקום הארון');render()">🗄 ריכוז מגברים — ${rk ? '✓ ממוקם · לחץ למיקום מחדש על התכנית' : '⚠ לא ממוקם · לחץ ואז על התכנית'}</button>`;
+  const plan = own.filter(k => srcLocOf(z, k) === 'plan'), rack = own.filter(k => srcLocOf(z, k) === 'rack');
+  plan.forEach(k => { h += wizSrcPlaceRow(z, k); });
+  if (rack.length) h += `<p class="hint" style="margin:5px 0 6px">🗄 בארון: ${esc(rack.map(k => SRC_LBL[k] || k).join(' · '))} — בלי מוקד, מתחברים בפאץ׳ פנימי</p>`;
   return h;
 }
 /* הארון חייב לשבת בתוך האזור: פינה פנימית עם מרווח 1.2 מ׳ מהקירות. באזור פוליגוני

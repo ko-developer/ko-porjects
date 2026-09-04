@@ -3120,14 +3120,13 @@ function patchOpen(z, amps, lines, leftover) {
       const ch = +(String(c.pIn).match(/\d+/) || [0])[0];
       if (!ch || ch > t.inTotal) return;
       const key = 'i' + ii + '|' + ch;
-      (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.vsrc || c.from);
+      (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.vsrc || (c.from + (c.srcCh ? '#' + c.srcCh : '')));
       (PATCH.inPre[key] = PATCH.inPre[key] || []).push(c.id);
     });
   });
   Object.keys(PATCH.inSlots).forEach(k => { PATCH.inOrig[k] = PATCH.inSlots[k].join(','); });
   const usedSrc = new Set(Object.values(PATCH.inSlots).flat());
-  PATCH.srcPool = P.nodes.filter(n => isSrcNode(n) && !usedSrc.has(n.id)).map(n => n.id)
-    .concat(vsrcList().filter(id => !usedSrc.has(id)));
+  PATCH.srcPool = srcAllChipIds().filter(id => !usedSrc.has(id));
   const ov = document.createElement('div');
   ov.id = 'patchOv';
   ov.innerHTML = `<div id="patchBox">
@@ -3563,26 +3562,43 @@ function patchInSet(ii, val) {
 window.patchInSet = patchInSet;
 /* מקור שיושב בארון (סטרימר / מחשב-נגן / בלוטות׳) — אין לו מוקד על התכנית, אבל הוא
    כן צריך כניסה בפרוססור. מזוהה כ-'vsrc|<אזור>|<סוג>' ומתחבר בפאץ׳ פנימי בארון. */
-const RACK_SRC = { stream: '🎵 סטרימר', pc: '🖥 מחשב / נגן', phone: '📱 בלוטות׳' };
+const SRC_LBL = { stream: '🎵 סטרימר', pc: '🖥 מחשב / נגן', phone: '📱 בלוטות׳', dj: '🎧 עמדת DJ', inst: '🎸 במה', mic: '🎤 מיקרופון' };
+const RACK_SRC = { stream: 1, pc: 1, phone: 1 };          /* ברירת מחדל: יושבים בארון */
+const STEREO_SRC = { stream: 1, pc: 1, phone: 1, dj: 1 };  /* יציאה סטריאופונית — L/R, שתי כניסות */
+/* איפה המקור יושב — בחירה חופשית לכל מקור; ברירת מחדל לפי הסוג */
+function srcLocOf(z, k) { return ((z && z._srcLoc) || {})[k] || (RACK_SRC[k] ? 'rack' : 'plan'); }
+function zoneOwnSources(z) { return z._srcShare ? (z._srcLocal || []) : (z.sources || []); }
 const isVsrc = id => typeof id === 'string' && id.startsWith('vsrc|');
+/* מזהה צ׳יפ: '<בסיס>#L' / '#R' למקור סטריאו, אחרת הבסיס עצמו */
+const srcBase = id => String(id).split('#')[0];
+const srcCh = id => String(id).split('#')[1] || '';
+function srcIsStereo(baseId) {
+  if (isVsrc(baseId)) return !!STEREO_SRC[baseId.split('|')[2]];
+  const n = byId(baseId); return !!(n && (STEREO_SRC[n.srcKind] || /עמדת נגינה|\bDJ\b/i.test(n.name || '')));
+}
+function srcChipIds(baseId) { return srcIsStereo(baseId) ? [baseId + '#L', baseId + '#R'] : [baseId]; }
 function vsrcList() {
   const out = [];
-  (P.zones || []).forEach(z => {
-    const own = z._srcShare ? (z._srcLocal || []) : (z.sources || []);
-    own.forEach(k => { if (RACK_SRC[k]) out.push('vsrc|' + z.id + '|' + k); });
-  });
+  (P.zones || []).forEach(z => zoneOwnSources(z).forEach(k => { if (srcLocOf(z, k) === 'rack') out.push('vsrc|' + z.id + '|' + k); }));
   return out;
 }
 function vsrcLabel(id) {
-  const [, zid, k] = id.split('|'); const z = (P.zones || []).find(x => x.id === zid);
-  return (RACK_SRC[k] || k) + (z && (P.zones || []).length > 1 ? ' · ' + z.name : '');
+  const [, zid, k] = srcBase(id).split('|'); const z = (P.zones || []).find(x => x.id === zid);
+  return (SRC_LBL[k] || k) + (z && (P.zones || []).length > 1 ? ' · ' + z.name : '');
 }
-/* מקורות נגינה שעדיין אין להם קו לכניסה בארון — מוקדים על התכנית וגם מקורות בארון */
-function srcUnwired() {
-  const nodes = P.nodes.filter(isSrcNode).filter(n => !P.cables.some(c => c.from === n.id && /^IN/.test(c.pIn || ''))).length;
-  const vs = vsrcList().filter(id => !P.cables.some(c => c.vsrc === id)).length;
-  return nodes + vs;
+/* כל צ׳יפי המקורות בפרויקט (סטריאו = שניים) */
+function srcAllChipIds() {
+  const ids = [];
+  P.nodes.filter(isSrcNode).forEach(n => ids.push(...srcChipIds(n.id)));
+  vsrcList().forEach(v => ids.push(...srcChipIds(v)));
+  return ids;
 }
+function srcChipWired(id) {
+  const b = srcBase(id), ch = srcCh(id);
+  return P.cables.some(c => /^IN/.test(c.pIn || '') && (isVsrc(b) ? c.vsrc === id : (c.from === b && (c.srcCh || '') === ch)));
+}
+/* צ׳יפי מקור שעדיין אין להם כניסה בארון */
+function srcUnwired() { return srcAllChipIds().filter(id => !srcChipWired(id)).length; }
 /* טבלת חיווט של המקורות בלבד (מקורות → פרוססור/מיקסר). מעל חלונות אחרים כדי
    שאפשר לפתוח אותה מתוך חלון הקיט ולחזור אליו כשסוגרים. */
 function openSrcWire(zid, onClose) {
@@ -3597,27 +3613,38 @@ function openSrcWire(zid, onClose) {
 }
 window.openSrcWire = openSrcWire;
 function patchSrcChip(id) {
+  const ch = srcCh(id), chTag = ch ? ` <b style="font-size:9.5px;background:rgba(0,0,0,.08);border-radius:4px;padding:0 4px">${ch}</b>` : '';
   if (isVsrc(id)) {
     return `<span class="pchip src ${PATCH.sel === id ? 'sel' : ''}" draggable="true" data-chip="${id}"
-       title="מקור שיושב בארון — מתחבר לפרוססור בפאץ׳ פנימי · ${esc(vsrcLabel(id))}">${esc(vsrcLabel(id))} <small style="opacity:.7">בארון</small></span>`;
+       title="מקור שיושב בארון — מתחבר לפרוססור בפאץ׳ פנימי · ${esc(vsrcLabel(id))}${ch ? ' · ערוץ ' + ch : ''}">${esc(vsrcLabel(id))}${chTag} <small style="opacity:.7">בארון</small></span>`;
   }
-  const n = byId(id); if (!n) return '';
+  const n = byId(srcBase(id)); if (!n) return '';
   const full = nodeFullName(n);
-  const ic = n.ptype === 'mic' ? '🎤' : /עמדת נגינה|\bDJ\b/i.test(n.name || '') ? '🎧' : /במה|stage/i.test(n.name || '') ? '🎸' : /מחשב|נגן|סטרימר/i.test(n.name || '') ? '🖥' : '🎚';
+  const k = n.srcKind; const ic = k && SRC_LBL[k] ? SRC_LBL[k].split(' ')[0] : n.ptype === 'mic' ? '🎤' : /עמדת נגינה|\bDJ\b/i.test(n.name || '') ? '🎧' : /במה|stage/i.test(n.name || '') ? '🎸' : /מחשב|נגן|סטרימר/i.test(n.name || '') ? '🖥' : '🎚';
   return `<span class="pchip src ${PATCH.sel === id ? 'sel' : ''}" draggable="true" data-chip="${id}"
-     title="${esc(full)} · ${esc(n.sub || '')}">${ic} ${esc(shortModel(full).slice(0, 22))}</span>`;
+     title="${esc(full)} · ${esc(n.sub || '')}${ch ? ' · ערוץ ' + ch : ''}">${ic} ${esc(shortModel(full).slice(0, 22))}${chTag}</span>`;
 }
 function patchMove(id, slot) {
   if (!id || !PATCH) return;
   /* מקורות וכניסות הם עולם נפרד מרמקולים ויציאות — אין ערבוב בין השניים */
-  const srcSide = isVsrc(id) || isSrcNode(byId(id));
+  const srcSide = isVsrc(id) || isSrcNode(byId(srcBase(id)));
   const inSide = slot === 'srcpool' || /^i\d+\|/.test(slot);
   if (srcSide !== inSide) { uiToast(srcSide ? '🎧 מקור נגינה מתחבר רק לכניסה של פרוססור/מיקסר' : '🔊 רמקול מתחבר רק ליציאת מגבר'); return; }
   if (srcSide) {
     Object.keys(PATCH.inSlots).forEach(k => { PATCH.inSlots[k] = PATCH.inSlots[k].filter(x => x !== id); });
     PATCH.srcPool = PATCH.srcPool.filter(x => x !== id);
     if (slot === 'srcpool') PATCH.srcPool.push(id);
-    else (PATCH.inSlots[slot] = PATCH.inSlots[slot] || []).push(id);
+    else {
+      (PATCH.inSlots[slot] = PATCH.inSlots[slot] || []).push(id);
+      /* סטריאו: גררו את L — ה-R נכנס לבד לכניסה הבאה אם היא פנויה */
+      if (srcCh(id) === 'L') {
+        const rId = srcBase(id) + '#R', [ii, ch] = slot.slice(1).split('|').map(Number), t = PATCH.ins[ii];
+        const nxt = 'i' + ii + '|' + (ch + 1);
+        if (t && ch + 1 <= t.inTotal && PATCH.srcPool.includes(rId) && !(PATCH.inSlots[nxt] || []).length) {
+          PATCH.srcPool = PATCH.srcPool.filter(x => x !== rId); PATCH.inSlots[nxt] = [rId];
+        }
+      }
+    }
     PATCH.sel = null; patchRender(); return;
   }
   const a = PATCH.slots;
@@ -3787,24 +3814,26 @@ async function patchApply() {
     if ((PATCH.inPre || {})[key]) { const del = new Set(PATCH.inPre[key]); P.cables = P.cables.filter(c => !del.has(c.id)); }
     ids.filter(isVsrc).forEach(vid => {
       /* מקור בארון: פאץ׳ פנימי מהיחידה (אם כבר בארון) אל כניסת הפרוססור */
-      const [, , kind] = vid.split('|');
+      const [, , kind] = srcBase(vid).split('|'); const vch = srcCh(vid);
       const uRx = { stream: /סטרימר|streamer|musiccast|sonos|נגן רשת/i, pc: /מחשב|נגן|player|מדיה|media/i, phone: /בלוטות|bluetooth|BT\b/i }[kind] || /$^/;
       const unit = (t.rk.units || []).find(u => uRx.test(u.name || ''));
       const cc = {
         id: uid('c'), from: t.rk.id, fromUnit: unit ? unit.id : undefined, to: t.rk.id, toUnit: t.u.id, pIn: 'IN ' + ch,
         type: 'xlr', qty: '1', spec: '', len: 1, vsrc: vid,
-        note: (RACK_SRC[kind] || kind) + ' → ' + shortModel(t.u.name) + ' · פאץ׳ פנימי בארון' + (unit ? '' : ' · היחידה טרם נבחרה להצעה'),
+        note: (SRC_LBL[kind] || kind) + (vch ? ' ' + vch : '') + ' → ' + shortModel(t.u.name) + ' · פאץ׳ פנימי בארון' + (unit ? '' : ' · היחידה טרם נבחרה להצעה'),
         conn: 'xlrm', conn2: 'xlrf',
       };
       P.cables.push(cc); n2++; made.push(cc);
     });
-    ids.filter(id => !isVsrc(id)).map(byId).filter(Boolean).forEach(src => {
-      /* עמדה עם פאנל = מולטי-קייבל · מיקרופון/נגן בודד = XLR */
-      const multi = src.kind === 'panel' || /עמדת נגינה|\bDJ\b|במה|stage/i.test(src.name || '');
+    ids.filter(id => !isVsrc(id)).forEach(sid => {
+      const src = byId(srcBase(sid)); if (!src) return;
+      const sch = srcCh(sid);
+      /* עמדה עם פאנל = מולטי-קייבל · מיקרופון/נגן בודד = XLR · ערוץ R של סטריאו נוסע באותו מולטי */
+      const multi = (src.kind === 'panel' && !src.srcKind) || /עמדת נגינה|\bDJ\b|במה|stage/i.test(src.name || '');
       const cc = {
-        id: uid('c'), from: src.id, to: t.rk.id, toUnit: t.u.id, pIn: 'IN ' + ch,
+        id: uid('c'), from: src.id, to: t.rk.id, toUnit: t.u.id, pIn: 'IN ' + ch, srcCh: sch || undefined,
         type: multi ? 'multi' : 'xlr', qty: '1', spec: '',
-        note: 'מקור נגינה ← ' + shortModel(t.u.name) + (multi ? ' · מולטי מהעמדה' : ' · קו סיגנל'),
+        note: 'מקור נגינה' + (sch ? ' ' + sch : '') + ' ← ' + shortModel(t.u.name) + (multi ? (sch === 'R' ? ' · ערוץ R באותו מולטי' : ' · מולטי מהעמדה') : ' · קו סיגנל'),
         conn: multi ? 'multi' : 'xlrm', conn2: multi ? 'multi' : 'xlrf',
       };
       if (P.scale) cc.len = +(dist(src, t.rk) * P.scale).toFixed(1);
@@ -3966,11 +3995,11 @@ function projGapCheck() {
   /* 1ג. כניסות בפרוססור מול מספר המקורות השונים — מקור משותף נספר פעם אחת */
   {
     const zs2 = P.zones || [];
-    const need = new Set();
-    zs2.forEach(z => { const own = z._srcShare ? (z._srcLocal || []) : (z.sources || []); own.forEach(k => need.add(z.id + '|' + k)); });
+    let need = 0;
+    zs2.forEach(z => zoneOwnSources(z).forEach(k => { need += STEREO_SRC[k] ? 2 : 1; }));
     const inUnits = P.nodes.filter(n => n.kind === 'rack').flatMap(n => (n.units || []).filter(u => IN_UNIT_RE.test(u.name || '')));
     const haveIn = inUnits.reduce((s3, u) => s3 + patchInChips(u), 0);
-    if (inUnits.length && need.size > haveIn) finds.push({ i: '🎛', k: 'proc-in', t: need.size + ' מקורות שונים בפרויקט · לפרוססור/מיקסר שבארון רק ' + haveIn + ' כניסות', b: '🔍 בחר פרוססור עם יותר כניסות', fn: "gapSearch('פרוססור')" });
+    if (inUnits.length && need > haveIn) finds.push({ i: '🎛', k: 'proc-in', t: 'המקורות דורשים ' + need + ' כניסות (סטריאו = 2) · לפרוססור/מיקסר שבארון רק ' + haveIn, b: '🔍 בחר פרוססור עם יותר כניסות', fn: "gapSearch('פרוססור')" });
     const nShared = zs2.filter(z => z._srcShare).length;
     if (nShared) finds.push({ i: '🔗', k: 'proc-zones', t: (nShared + 1) + ' אזורים על מקורות משותפים — הפרוססור/מיקסר צריך ' + (nShared + 1) + ' יציאות‑אזור בשליטה נפרדת', b: '🔍 בחר מקטלוג', fn: "gapSearch('מיקסר אזורים')" });
   }
