@@ -3823,7 +3823,8 @@ async function patchApply() {
   const inRefFor = type => {
     const rx = type === 'multi' ? /מולטי|multi/i : /XLR/i;
     /* "כבל XLR עם מחברי ניוטריק" הוא כבל — רק פריט שהוא עצמו מחבר/פנל/קופסה נפסל */
-    const it = impItems.find(x => x.on !== false && x.dest !== 'conn' && (x.dest === 'reel' || x.dest === 'cable' || /כבל/.test(x.name || '')) && rx.test(x.name || '') && !/^\s*(מחבר|פנל|קופס)/i.test(x.name || ''));
+    /* גם "כבל XLR 1 מ׳" שסווג בקיט כ-conn הוא כבל — השם קובע; רק מחבר/פנל/קופסה נפסלים */
+    const it = impItems.find(x => x.on !== false && (x.dest === 'reel' || x.dest === 'cable' || /^\s*כבל/.test(x.name || '')) && rx.test(x.name || '') && !/^\s*(מחבר|פנל|קופס)/i.test(x.name || ''));
     if (!it) return null;
     if (!it.dest || (it.dest !== 'reel' && it.dest !== 'cable')) it.dest = 'cable';
     const st = ensureStockItem(it);
