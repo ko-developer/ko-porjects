@@ -7452,8 +7452,8 @@ function renderImp() {
       </div>
       <button class="primary" style="width:100%;margin-top:8px" onclick="addImported()">הוסף את המסומנים לתכנית</button>
       <button style="width:100%;margin-top:6px;background:#f3d9d2;color:#8c2f16" onclick="deleteMarked()">🗑 מחק את השורות המסומנות (✓)</button>
+      <button style="width:100%;margin-top:6px;${P._gapOk ? 'background:#eef7f1;color:#0f6e56' : 'background:#b7761f;color:#fff;font-weight:700'}" onclick="projGapCheck()">🤔 ${P._gapOk ? '✓ אין ממצאים פתוחים — לחץ לבדיקה חוזרת' : 'האם שכחתי משהו? — בדיקת שלמות'}</button>
       <button style="width:100%;margin-top:6px" onclick="installerReport()">📑 צפה בדוח התקנה — מתקינים וחשמלאים</button>
-      <button style="width:100%;margin-top:6px" onclick="showBom()">🧾 כתב כמויות מהתכנית</button>
       <button style="width:100%;margin-top:8px;background:#0f6e56;color:#fff;font-weight:800;padding:10px" onclick="sendOffer()">📤 שלח הצעה ל-ERP</button>`
     : '<p class="muted">חפש למעלה מוצר או קיט, לחץ עליו — ונקר אותו על התכנית. כל נעיצה נרשמת כאן עם האזור והמחיר.</p>';
   const q = dockQ.trim();
