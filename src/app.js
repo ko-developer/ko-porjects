@@ -3360,6 +3360,8 @@ function patchRender() {
       if (w) totAmpW += w; totSpkW += sw;
       const minEff = a.bridge ? a.minOhm * 2 : a.minOhm;
       const bad = ids.length && zz < minEff - 0.05;
+      /* בדיוק על המינימום — חוקי, אבל בלי מרווח: כל רמקול נוסף יפיל את המגבר */
+      const tight = ids.length && !bad && zz <= minEff * 1.02;
       /* דיליי מומלץ לערוץ + פער בתוך הערוץ (ערוץ = דיליי אחד לכולם) */
       const dts = ids.map(id2 => { const n2 = byId(id2); return n2 ? delayDistM(n2, dSrc) : 0; });
       const dMs = dPlan[key] != null ? dPlan[key] : null;
@@ -3371,13 +3373,13 @@ function patchRender() {
       const rc = ratio == null ? '' : ratio < 1 ? '#c1121f' : ratio < 2 ? '#c96a13' : ratio < 3 ? '#0f8a5f' : '#b7900f';
       const rTip = ratio == null ? '' : ratio < 1 ? 'המגבר חלש מהרמקולים — סכנת קליפ/שריפה' : ratio < 2 ? 'פחות מ-×2 — headroom נמוך' : ratio < 3 ? '×2 ומעלה — תקין (3dB headroom)' : '×3 ומעלה — headroom נדיב';
       const wTxt = w ? ` · <b style="color:${rc}" title="${rTip}">🎚${w}W${ratio ? ' (×' + ratio.toFixed(1) + ')' : ''}</b>` : '';
-      const zTxt = ids.length ? (bad ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
+      const zTxt = ids.length ? (bad ? '⚠ ' : tight ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
         <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${a.bridge ? ch + '+' + (ch + 1) + ' 🌉' : ch}
           ${ids.length > 1 ? `<button onclick="patchTopoToggle('${key}')" title="${patchTopo(key) === 'direct' ? 'כל רמקול בכבל נפרד ישירות מהריכוז — לחץ לשרשור כולם · אפשר גם לשרשר זוגות עם ה-🔗 שבין הרמקולים' : 'לחץ להחזרת כולם לקווים ישירים'}" style="border:1px solid ${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};background:${patchTopo(key) === 'direct' ? '#eef7f1' : '#fdf3e6'};color:${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};border-radius:6px;cursor:pointer;font-size:9.5px;padding:1px 6px;font-weight:800">${patchTopo(key) === 'direct' ? '⫘ ישיר' : patchTopo(key) === 'chain' ? '🔗 שרשור' : '⛓ מעורב'}</button>` : ''}
           ${ids.length ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
         <div class="pchChips">${ids.map((id2, i2) => patchChip(id2) + (i2 < ids.length - 1 ? chLinkBtn(key, ids[i2], ids[i2 + 1]) : '')).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
-        <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" title="עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
+        <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" ${tight ? 'style="color:#c96a13"' : ''} title="${tight ? `⚠ ${zz.toFixed(1)}Ω = בדיוק המינימום של המגבר (${minEff}Ω) — חוקי אבל בלי מרווח: ${ids.length}× ${spkOhm(byId(ids[0])) || 8}Ω במקביל. רמקול נוסף על הערוץ יוריד מתחת למינימום.\n` : ''}עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
     }
     return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(a.u.name)}">🎚 ${esc(shortModel(a.u.name))}
         <small>
@@ -5595,7 +5597,7 @@ document.addEventListener('pointerdown', e => {
   const zd = e.target.closest('[data-zdrag]');
   if (zd) {
     const z = (P.zones || []).find(z => z.id === zd.dataset.zdrag);
-    if (z) { selZone = z.id; dragZ = { z, sx: e.clientX, sy: e.clientY, ox: z.x, oy: z.y, opoly: z.poly ? z.poly.map(p => ({ ...p })) : null }; e.preventDefault(); return; }
+    if (z) { selZone = z.id; dragZ = { z, sx: e.clientX, sy: e.clientY, ox: z.x, oy: z.y, opoly: z.poly ? z.poly.map(p => ({ ...p })) : null, moved: false, lbl: !!e.target.closest('.zlbl') }; e.preventDefault(); return; }
   }
   const zs = e.target.closest('[data-zsize]');
   if (zs) {
@@ -5870,6 +5872,7 @@ document.addEventListener('pointerdown', e => {
 document.addEventListener('pointermove', e => {
   const Z = getZ();
   if (dragZ) {
+    if (Math.hypot(e.clientX - dragZ.sx, e.clientY - dragZ.sy) > 3) dragZ.moved = true;
     const dx = (e.clientX - dragZ.sx) / Z, dy = (e.clientY - dragZ.sy) / Z;
     dragZ.z.x = Math.max(0, dragZ.ox - dx);
     dragZ.z.y = Math.max(0, dragZ.oy + dy);
@@ -5995,7 +5998,13 @@ document.addEventListener('pointerup', e => {
     if (had) { sel = null; selCable = null; render(); showMultiBar(); }
     return;
   }
-  if (dragZ || sizeZ) { dragZ = sizeZ = null; render(); return; }
+  if (dragZ || sizeZ) {
+    const click = dragZ && dragZ.lbl && !dragZ.moved && dragZ.z;
+    const zid = click ? dragZ.z.id : null;
+    dragZ = sizeZ = null; render();
+    if (zid) zonePlanBack(zid);
+    return;
+  }
   if (dragU) {
     const du = dragU; dragU = null;
     if (uGhost) { uGhost.remove(); uGhost = null; }
@@ -7609,6 +7618,8 @@ function renderZones() {
       const topPt = z.poly.reduce((m, p) => p.y < m.y ? p : m, z.poly[0]);
       lbl.style.cssText = `position:absolute;left:${topPt.x}px;top:${Math.max(0, topPt.y - 26)}px;background:${c};z-index:1`;
       lbl.textContent = `🗺 ${z.name}${z.usage ? ' · ' + z.usage : ''}${dims}`;
+      lbl.title = 'לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור';
+      lbl.style.cursor = 'pointer';
       lbl.addEventListener('pointerdown', e => { if (zoneMode) return; });
       host.appendChild(lbl);
       return;
@@ -7616,7 +7627,7 @@ function renderZones() {
     const d = document.createElement('div');
     d.className = 'zone';
     d.style.cssText = `right:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;border-color:${c};background:${c}1f;${selZone === z.id ? 'box-shadow:0 0 0 3px ' + c + '66;' : ''}`;
-    d.innerHTML = `<span class="zlbl" data-zdrag="${z.id}" style="background:${c}">🗺 ${esc(z.name)}${z.usage ? ' · ' + esc(z.usage) : ''}${dims}</span>
+    d.innerHTML = `<span class="zlbl" data-zdrag="${z.id}" title="לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור" style="background:${c};cursor:pointer">🗺 ${esc(z.name)}${z.usage ? ' · ' + esc(z.usage) : ''}${dims}</span>
       <span data-zdrag="${z.id}" title="גרור להזזת האזור" style="position:absolute;left:-9px;top:-9px;width:20px;height:20px;border-radius:50%;background:${c};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:grab;box-shadow:0 1px 3px rgba(0,0,0,.35);z-index:2">✥</span>
       <span class="zsz" data-zsize="${z.id}" style="background:${c}"></span>`;
     d.addEventListener('pointerdown', e => {
@@ -7775,6 +7786,21 @@ function sourceNeeds(z) {
 const MIC_CAPABLE = /מיקסר|mixer|SYMETRIX|JUPITER|ICORE|MTX|MRX|K7|DMX\s?208|מטריצ/i;
 const BRANDS = ['— ללא העדפה —', 'KT Audio', 'Kling & Freitag', 'Funktion-One', 'Lambda Labs'];
 function zoneAreaM(z) { return P.scale ? zoneArea(z) * P.scale * P.scale : 0; }
+/* שיטות ההצבה — מוגדרות פעם אחת ומשמשות גם בפאנל האזור וגם בחלון הקיט */
+const PLACE_OPTS = [
+  ['ring', '🔄 היקפי — כל הקירות, מרווח קבוע (ברירת מחדל)'],
+  ['corners', '4 פינות — פורגראונד/רחבה (Funktion-One)'],
+  ['cluster', '🎯 קלאסטר — צביר מרכזי, רמקולים גב אל גב לכל הכיוונים'],
+  ['ceiling', 'תקרה — פריסה מבוזרת'],
+  ['live', '🎤 במה — מיינים L/R + סאבים + דיליי'],
+];
+const CLUSTER_N = [2, 3, 4, 6, 8];
+function placeOptsHTML(cur) {
+  return PLACE_OPTS.map(([v, l]) => `<option value="${v}" ${(cur || 'ring') === v ? 'selected' : ''}>${l}</option>`).join('');
+}
+function clusterNHTML(cur) {
+  return CLUSTER_N.map(n => `<option value="${n}" ${(+cur || 4) === n ? 'selected' : ''}>${n} רמקולים · ${Math.round(360 / n)}° לכל אחד</option>`).join('');
+}
 /* רמקולים לפי מותג — מבסיס הידע + אינדקס ה-ERP */
 const BRAND_KW = { 'KT Audio': /KT |UNICORN|PAGAZ|TILL|EUPHORIA|NIKO|WR ?600|CA\/KT/i, 'Kling & Freitag': /SPECTRA|GRAVIS|NOMOS|CA\s?-?106|SEQUENZA|PASSIO|K&F|KLING/i, 'Funktion-One': /FUNKTION|F81|F55|F101|F5\b|RES\d|EVO|BR1|F12\d/i, 'Lambda Labs': /LAMBDA|CX-?\d|TX-?\d|QX|MF-?\d/i };
 function brandSpeakers(brand) {
@@ -7800,11 +7826,11 @@ function zoneSystemBuilder(z) {
     </select>${tgt ? `<span class="muted" style="font-size:11px"> SPL יעד: ${tgt} dB</span>` : ''}</div>
 
     <div class="fld"><label>סוג התקנה</label><select onchange="setZoneField('${zid}','_place',this.value)">
-      <option value="corners" ${z._place === 'corners' ? 'selected' : ''}>4 פינות — פורגראונד/רחבה (Funktion-One)</option>
-      <option value="ceiling" ${z._place === 'ceiling' ? 'selected' : ''}>תקרה — פריסה מבוזרת</option>
-      <option value="live" ${z._place === 'live' ? 'selected' : ''}>🎤 במה — מיינים L/R + סאבים + דיליי</option>
-      <option value="ring" ${(z._place || 'ring') === 'ring' ? 'selected' : ''}>🔄 היקפי — כל הקירות, מרווח קבוע (ברירת מחדל)</option>
+      ${placeOptsHTML(z._place)}
     </select></div>
+    ${z._place === 'cluster' ? `<div class="fld"><label>כמה רמקולים בכל קלאסטר</label>
+      <select onchange="setZoneField('${zid}','_clusterN',+this.value)">${clusterNHTML(z._clusterN)}</select>
+      <p class="muted" style="font-size:10px;margin-top:3px">הרמקולים מוצבים גב אל גב סביב נקודה מרכזית ומפזרים לכל הכיוונים · מספר הקלאסטרים נקבע מהצפיפות</p></div>` : ''}
     ${['wall', 'live'].includes(z._place) ? `<div class="fld"><label>${z._place === 'live' ? 'קיר הבמה' : 'מאילו קירות להקרין'} — ניתן לבחור כמה (ריחוף מאיר בתכנית)</label>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
         <button onmouseenter="wallHint('${zid}','')" onmouseleave="wallHint(null)" onclick="setZoneWall('${zid}','')" style="padding:3px 10px;font-size:11px;${!(z._walls && z._walls.length) && !z._wall ? 'background:#c9502e;color:#fff;font-weight:700' : ''}">הארוך (מומלץ)</button>
@@ -7938,7 +7964,7 @@ function zoneBounds(z) {
   return { L: 2200 - z.x - z.w, T: z.y, W: z.w, H: z.h };
 }
 /* פיזור רמקולים מדורג (staggered rows) — לפי מתודולוגיית distributed systems, לא גריד */
-function placeZoneSpeakers(z, name, spacingPx, iid, extra) {
+function zoneGridPts(z, spacingPx) {
   const b = zoneBounds(z);
   const rowH = spacingPx * 0.87; /* שורות מדורגות — צפיפות אריחי משושה */
   const pts = [];
@@ -7950,6 +7976,10 @@ function placeZoneSpeakers(z, name, spacingPx, iid, extra) {
     j++;
   }
   if (!pts.length) pts.push({ cx: b.L + b.W / 2, cy: b.T + b.H / 2 });
+  return pts;
+}
+function placeZoneSpeakers(z, name, spacingPx, iid, extra) {
+  const pts = zoneGridPts(z, spacingPx);
   pts.forEach((p, k) => {
     P.nodes.push({ id: uid('n'), kind: 'point', name: name + (pts.length > 1 ? ` (${k + 1})` : ''), sub: 'מערכת אוטו · ' + z.name, x: 2200 - p.cx - 20, y: p.cy - 24, srcIid: iid, mini: true, ...extra });
   });
@@ -8412,10 +8442,27 @@ function zoneKitConfirm(zname, idx) {
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
     ${INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
+    ${z ? `<div style="background:#f4f2ec;border-radius:8px;padding:7px 9px;margin-bottom:7px">
+      <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px">🔊 סוג פריסה ב"${esc(z.name)}" — קובע איך יוצבו הרמקולים</label>
+      <select data-place style="width:100%;font-size:12px;padding:4px">${placeOptsHTML(z._place)}</select>
+      <div data-clwrap style="margin-top:5px;${z._place === 'cluster' ? '' : 'display:none'}">
+        <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px">כמה רמקולים בכל קלאסטר</label>
+        <select data-cln style="width:100%;font-size:12px;padding:4px">${clusterNHTML(z._clusterN)}</select>
+      </div>
+    </div>` : ''}
     <button class="primary" data-asis style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף את הקיט להצעה והצב על התכנית</button>
     <button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>
     <button data-cancel style="width:100%">ביטול</button>`);
   const done = () => ov.remove();
+  /* שינוי הפיזור נשמר על האזור מיד — גם "הוסף כמו שהוא" וגם הבנייה האוטומטית משתמשים בו */
+  const plSel = ov.querySelector('[data-place]');
+  if (plSel) plSel.onchange = () => {
+    setZoneField(z.id, '_place', plSel.value);
+    const w = ov.querySelector('[data-clwrap]');
+    if (w) w.style.display = plSel.value === 'cluster' ? '' : 'none';
+  };
+  const clSel = ov.querySelector('[data-cln]');
+  if (clSel) clSel.onchange = () => setZoneField(z.id, '_clusterN', +clSel.value);
   const rowsEl = ov.querySelector('[data-kitrows]');
   let swapIdx = null, swapQ = '';
   const renderRows = () => {
@@ -8759,6 +8806,44 @@ function buildZoneSystem(zid) {
     zoneBuildBar(`נבנתה מערכת הופעה חיה ל"${z.name}": 2× ${spk} (מיינים L/R)${subMsg2}${dlyMsg}`, () => undoZoneBuild(z));
     return;
   }
+  if (mode === 'cluster') {
+    /* קלאסטר — צביר רמקולים גב אל גב בנקודה מרכזית, מפזר 360°.
+       צביר מכסה מעגל מלא במקום גזרה אחת, ולכן המרווח בין צבירים גדל
+       בשורש היחס בין 360° לפיזור של רמקול בודד. */
+    const N = Math.max(2, Math.min(12, +z._clusterN || 4));
+    const baseSp = ({ sparse: 10, edge: 7, min: 5, full: 3 })[z._dens || 'edge'] || 7;
+    const spM = baseSp * Math.min(2.4, Math.sqrt(360 / Math.max(60, Math.min(disp, 180))));
+    const pts = zoneGridPts(z, spM * pxPerM);
+    const rPx = P.scale ? 0.35 / P.scale : 12;   /* חצי מטר בין מרכזי הרמקולים בצביר */
+    const it = { on: true, qty: 1, name: spk, src: 'מערכת אוטו · ' + z.name, key: z._spkKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') };
+    autoPrice(it); impItems.push(it);
+    let idx = 0;
+    pts.forEach((p, ci) => {
+      for (let k = 0; k < N; k++) {
+        const ang = k * 360 / N, rad = ang * Math.PI / 180;
+        P.nodes.push({
+          id: uid('n'), kind: 'point', name: spk + ' (' + (++idx) + ')',
+          sub: 'קלאסטר ' + (ci + 1) + ' · ' + z.name,
+          x: 2200 - (p.cx + Math.cos(rad) * rPx) - 20, y: (p.cy + Math.sin(rad) * rPx) - 24,
+          srcIid: it.iid, mini: true, mount: 'תלייה מרכזית', hgt: Math.max(2.6, ceil - 0.4),
+          aim: Math.round(ang), disp, spl,
+        });
+      }
+    });
+    it.qty = idx; it.placed = idx; it.zones = { [z.name]: idx }; it.added = true;
+    let subMsgC = '';
+    if (z._sub) {
+      const sit = { on: true, qty: pts.length, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i'), zones: { [z.name]: pts.length }, placed: pts.length, added: true };
+      autoPrice(sit); impItems.push(sit);
+      /* סאב אחד מתחת לכל צביר — באותה נקודה, כדי לשמור צימוד עם הטופים */
+      pts.forEach((p, ci) => P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (' + (ci + 1) + ')', sub: 'סאב קלאסטר ' + (ci + 1) + ' · ' + z.name, x: 2200 - p.cx - 20, y: p.cy - 24, srcIid: sit.iid, mini: true, mount: 'רצפה', hgt: 0, disp: 360, spl: guessSpl(z._sub) }));
+      subMsgC = ` + ${pts.length}× ${z._sub} (סאב מתחת לכל צביר)`;
+    }
+    P.showCoverage = true;
+    z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
+    zoneBuildBar(`נבנתה מערכת קלאסטרים ל"${z.name}": ${pts.length} צבירים × ${N} רמקולים = ${idx}× ${spk}${subMsgC} · מרווח בין צבירים ~${spM.toFixed(1)} מ׳`, () => undoZoneBuild(z));
+    return;
+  }
   if (mode === 'ring') {
     /* היקפי — רמקולים סביב כל הקירות הסגורים במרווח קבוע, מכוונים פנימה */
     const spacingM = ({ sparse: 10, edge: 7, min: 5, full: 3 })[z._dens || 'edge'] || 7;
@@ -8811,6 +8896,29 @@ function buildZoneSystem(zid) {
   zoneBuildBar(`נבנתה מערכת ל"${z.name}" (${wall ? 'קיר — מכוונים לחלל' : 'תקרה'}): ${nSpk}× ${spk}${subMsg} · שטח ${area.toFixed(0)} מ"ר · מרווח ~${spacingM.toFixed(1)} מ׳ · ${densName}`, () => undoZoneBuild(z));
 }
 /* הסרת מערכת אוטומטית שנבנתה לאזור — מוקדים + פריטי הצעה */
+/* חזרה לתכנון אזור — מהתווית שעל התכנית. עם כמה אזורים, בוחרים לאיזה לחזור. */
+function zonePlanBack(zid) {
+  const zs = P.zones || [];
+  if (!zs.length) { uiToast('אין אזורים בתכנית'); return; }
+  if (!zid && zs.length > 1) {
+    const ov = uiModal(`
+      <b style="font-size:14px">🗺 לאיזה אזור לחזור?</b>
+      <p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">בחר את האזור שתרצה לתכנן</p>
+      ${zs.map(z2 => `<button data-z="${esc(z2.id)}" style="width:100%;margin-bottom:5px;text-align:right;padding:8px 10px;border:1px solid #e2ded4;border-radius:9px;background:#faf8f4;cursor:pointer;font-size:12.5px">🗺 ${esc(z2.name)}${z2.usage ? ' · ' + esc(z2.usage) : ''} · ${zoneAreaM(z2).toFixed(0)} מ"ר${z2._built ? ' · ✓ נבנתה מערכת' : ''}</button>`).join('')}
+      <button data-x style="width:100%;margin-top:4px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">ביטול</button>`);
+    ov.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { ov.remove(); zonePlanBack(b.dataset.z); });
+    ov.querySelector('[data-x]').onclick = () => ov.remove();
+    ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+    return;
+  }
+  const z = zs.find(x => x.id === zid) || zs[0];
+  selZone = z.id;
+  /* באשף — קופצים לשלב האזור עצמו */
+  if (typeof WIZ === 'object' && WIZ && document.getElementById('wiz')) { WIZ.zid = z.id; WIZ.step = 2; if (typeof wizRender === 'function') wizRender(); }
+  render(); save();
+  uiToast('🗺 חזרה לתכנון "' + z.name + '"');
+}
+window.zonePlanBack = zonePlanBack;
 /* הארת קיר בתכנית בעת ריחוף על הכפתור */
 function wallHint(zid, side) {
   const old = document.getElementById('wallHintEl'); if (old) old.remove();
