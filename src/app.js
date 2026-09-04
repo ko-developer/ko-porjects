@@ -7741,8 +7741,11 @@ function renderImp() {
       `<div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px;background:#f4f2ec;border-radius:8px">
         <b style="flex:1">סה"כ הצעת מחיר:</b><b style="font-size:16px;color:#c96f4a">₪${quoteTotal().toLocaleString()}</b>
       </div>
-      <button class="primary" style="width:100%;margin-top:8px" onclick="addImported()">הוסף את המסומנים לתכנית</button>
-      <button style="width:100%;margin-top:6px;background:#f3d9d2;color:#8c2f16" onclick="deleteMarked()">🗑 מחק את השורות המסומנות (✓)</button>
+      <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+        <span class="muted" style="flex:1;font-size:11px">שורות מסומנות (✓):</span>
+        <button class="primary" title="הוסף את המסומנים לתכנית" onclick="addImported()" style="padding:5px 12px;font-size:13px;line-height:1">📍 הוסף לתכנית</button>
+        <button title="מחק את השורות המסומנות" onclick="deleteMarked()" style="padding:5px 10px;font-size:13px;line-height:1;background:#f3d9d2;color:#8c2f16">🗑</button>
+      </div>
       <button style="width:100%;margin-top:6px;${P._gapOk ? 'background:#eef7f1;color:#0f6e56' : 'background:#b7761f;color:#fff;font-weight:700'}" onclick="projGapCheck()">🤔 ${P._gapOk ? '✓ אין ממצאים פתוחים — לחץ לבדיקה חוזרת' : 'האם שכחתי משהו? — בדיקת שלמות'}</button>
       <button style="width:100%;margin-top:6px" onclick="installerReport()">📑 צפה בדוח התקנה — מתקינים וחשמלאים</button>
       <button style="width:100%;margin-top:8px;background:#0f6e56;color:#fff;font-weight:800;padding:10px" onclick="sendOffer()">📤 שלח הצעה ל-ERP</button>`
@@ -8807,6 +8810,21 @@ function zoneKitConfirm(zname, idx) {
       items = pre || edited(); done();
       addItems(items, false);
       const hasSpk = items.some(x => isSpeakerItem(x.name));
+      /* קיט התקנה עם פנל/קופסת XLR: זהו פאנל העמדה — המוצר מוצמד למוקד המקור שכבר על התכנית
+         (עמדת DJ / קופסת במה / פאנל חיבורים), ומשם המולטי מהקיט רץ לארון */
+      try {
+        const zz0 = z || (P.zones || []).find(x => x.id === selZone) || (P.zones || [])[0];
+        const panelIt = zz0 && items.find(x => /פנל|קופס|panel|box/i.test(x.name || '') && /XLR/i.test(x.name || '') && !isSpeakerItem(x.name));
+        if (panelIt) {
+          const live = impItems.slice().reverse().find(x => x.name === panelIt.name && !x.placed) || panelIt;
+          const node = [zz0._djNodeId, zz0._stageBoxId, zz0._micPanelId].map(id => id && byId(id)).find(n => n && !n.srcIid);
+          if (node && live) {
+            node.srcIid = live.iid; node.sub = (node.sub || '') + ' · ' + live.name.slice(0, 36);
+            live.dest = 'panelNode'; live.placed = 1; live.added = true; live.zones = { [zz0.name]: 1 };
+            uiToast('🎛 ' + live.name.slice(0, 30) + ' הוצמד ל"' + node.name.slice(0, 26) + '" — המולטי מהקיט רץ ממנו לארון', 5000);
+          }
+        }
+      } catch (e2) {}
       const nBefore = P.nodes.length;
       /* אזור לפי שם, ואם השם השתנה — האזור הנבחר או הראשון */
       const zz = z || (P.zones || []).find(x => x.id === selZone) || (P.zones || [])[0];

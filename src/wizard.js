@@ -606,6 +606,43 @@ function wizFillCables() {
 
 /* ---- דוח מתקינים — כל מה שצוות ההתקנה צריך, מוכן להדפסה ---- */
 /* צילום התכנית עם החיווט — רקע, אזורים, קווים ממוספרים ומוקדים */
+/* גב ארון לדוח: כל יחידה בשורת ה-U שלה, וקווי הפאץ׳ הפנימיים ביניהן (סטרימר→פרוססור→מגברים) */
+function repRackSnapshot(rk, LBL) {
+  const units = (rk.units || []).slice().sort((a, b) => a.pos - b.pos);
+  const cs = P.cables.filter(c => c.from === rk.id && c.to === rk.id);
+  if (!units.length) return '';
+  const RU = 26, W = 640, top = 34, left = 40, uw = 300, H = top + Math.max(rk.ru || 12, units.reduce((m, u) => Math.max(m, u.pos + u.u), 0)) * RU + 20;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#222'; g.font = 'bold 13px Arial'; g.textAlign = 'right'; g.textBaseline = 'middle';
+  g.fillText('גב הארון — ' + rk.name, W - 12, 16);
+  /* שלד: שורות U */
+  g.strokeStyle = '#ddd'; g.lineWidth = 1; g.font = '10px Arial'; g.fillStyle = '#999';
+  for (let i = 0; i < (rk.ru || 12); i++) { const y = top + i * RU; g.strokeRect(left, y, uw, RU); g.textAlign = 'left'; g.fillText('U' + (i + 1), left - 26, y + RU / 2); }
+  /* יחידות */
+  const ubox = {};
+  units.forEach(u => {
+    const y = top + u.pos * RU, h = u.u * RU;
+    const isAmp = /מגבר|amp/i.test(u.name), isProc = IN_UNIT_RE.test(u.name || '');
+    g.fillStyle = isAmp ? '#2c3e50' : isProc ? '#1f5e3a' : '#555'; g.fillRect(left + 2, y + 2, uw - 4, h - 4);
+    g.fillStyle = '#fff'; g.font = 'bold 11px Arial'; g.textAlign = 'right';
+    g.fillText(shortModel(u.name).slice(0, 34), left + uw - 8, y + h / 2);
+    ubox[u.id] = { y: y + h / 2, top: y, bottom: y + h };
+  });
+  /* קווי פאץ׳ — מהיחידה המקורית ליחידת היעד, בצד שמאל של הארון, במסלולים מדורגים */
+  g.font = 'bold 10px Arial'; g.textAlign = 'left';
+  cs.forEach((c, i) => {
+    const a = ubox[c.fromUnit], b = ubox[c.toUnit]; if (!a || !b) return;
+    const col = cableColor(c), lane = left + uw + 22 + (i % 8) * 24;
+    g.strokeStyle = col; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(left + uw, a.y); g.lineTo(lane, a.y); g.lineTo(lane, b.y); g.lineTo(left + uw, b.y); g.stroke();
+    g.fillStyle = col; g.beginPath(); g.arc(left + uw, a.y, 3, 0, 7); g.fill(); g.beginPath(); g.arc(left + uw, b.y, 3, 0, 7); g.fill();
+    const lb = (c.pOut ? c.pOut + '→' : '') + (c.pIn || ''); if (lb) { g.fillStyle = col; g.fillText(lb, lane + 3, (a.y + b.y) / 2 - 7); }
+  });
+  if (!cs.length) { g.fillStyle = '#999'; g.font = '11px Arial'; g.textAlign = 'left'; g.fillText('אין חיבורים פנימיים רשומים', left + uw + 20, top + 12); }
+  return cv.toDataURL('image/png');
+}
 function repPlanSnapshot(LBL) {
   return new Promise(res => {
     if (!P.bg) return res('');
@@ -752,15 +789,31 @@ async function installerReport() {
       .sort((a, b) => a.pos - b.pos)
       .forEach((u, i) => { ampNo[u.id] = { n: i + 1, pos: u.pos }; });
   });
+  /* חיבורים פנימיים בארון: פאץ׳ בין יחידות (סטרימר→פרוססור, פרוססור→מגברים) */
+  const rackInternal = rk => {
+    const cs = P.cables.filter(c => c.from === rk.id && c.to === rk.id);
+    if (!cs.length) return '<p class="meta">אין חיבורים פנימיים רשומים בארון הזה</p>';
+    const un = id => { const u = (rk.units || []).find(x => x.id === id); return u ? shortModel(u.name) + (typeof u.pos === 'number' ? ' · U' + (u.pos + 1) : '') : '—'; };
+    return `<table><tr><th>מ־ (יחידה · יציאה)</th><th>אל (יחידה · כניסה)</th><th>סוג</th><th>הערה</th></tr>${cs.map(c => `<tr>
+      <td>${esc(un(c.fromUnit))}${c.pOut ? ' · ' + esc(c.pOut) : ''}</td><td>${esc(un(c.toUnit))}${c.pIn ? ' · ' + esc(c.pIn) : ''}</td>
+      <td><span style="color:${cableColor(c)};font-weight:700">${cableKindLabel(c)}</span></td><td>${esc((c.note || '').slice(0, 60))}</td></tr>`).join('')}</table>`;
+  };
+  const rackImgs = {};
+  P.nodes.filter(n => n.kind === 'rack').forEach(rk => { try { rackImgs[rk.id] = repRackSnapshot(rk, LBL); } catch (e) { rackImgs[rk.id] = ''; } });
   const racks = P.nodes.filter(n => n.kind === 'rack').map(rk => `
     <h3>🗄 ${esc(rk.name)} · ${rk.ru}U</h3>
+    ${rackImgs[rk.id] ? `<img src="${rackImgs[rk.id]}" style="max-width:100%;border:1px solid #ddd;border-radius:6px;margin:4px 0 8px">` : ''}
+    <h4 style="margin:6px 0 2px">חיבורים פנימיים בארון</h4>${rackInternal(rk)}
+    <h4 style="margin:10px 0 2px">סדר הרכבה</h4>
     <table><tr><th>מיקום U</th><th>יחידה</th><th>גובה</th></tr>
       ${(rk.units || []).slice().sort((a, b) => a.pos - b.pos).map(u => `<tr><td>${u.pos + 1}–${u.pos + u.u}</td><td>${ampNo[u.id] ? '<b>מגבר ' + ampNo[u.id].n + '</b> · ' : ''}${esc(u.name)}</td><td>${u.u}U</td></tr>`).join('') || '<tr><td colspan="3">ריק</td></tr>'}
     </table>`).join('');
   const spk = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')).map(n => `
     <tr><td>${esc(n.name.slice(0, 40))}</td><td>${esc((n.sub || '').slice(0, 24))}</td><td>${n.hgt ?? '—'} מ׳</td><td>${esc(n.mount || '—')}</td><td>${n.aim != null ? n.aim + '°' : '—'}</td></tr>`).join('');
   const spkNumOf = id => { const n0 = byId(id); const m0 = n0 && (n0.name || '').match(/\((\d+)\)/); return m0 ? m0[1] : ''; };
-  const cbl = P.cables.map(c => {
+  /* לוח המשיכה = קווים שנמשכים בחלל. פאץ׳ פנימי בארון (מ=אל) שייך לגב הארון, לא למשיכה */
+  const isInternal = c => c.from === c.to;
+  const cbl = P.cables.filter(c => !isInternal(c)).map(c => {
     const conns = (c.conn ? (CONNS[c.conn]?.n || c.conn) : '') + (c.conn2 && c.conn2 !== c.conn ? ' ← ' + (CONNS[c.conn2]?.n || c.conn2) : '');
     return `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${cableColor(c)};vertical-align:middle;margin-left:4px"></span><b>${LBL[c.id]}</b></td><td style="text-align:center"><b>${spkNumOf(c.to) || '—'}</b></td><td>${esc(endNameTxt(c.from, c.fromUnit))}${c.pOut ? ' · ' + esc(c.pOut) : c.fromHole ? ' · חור ' + c.fromHole : ''}</td>
       <td>${esc(endNameTxt(c.to, c.toUnit))}${c.pIn ? ' · ' + esc(c.pIn) : c.toHole ? ' · חור ' + c.toHole : ''}</td>
