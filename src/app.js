@@ -3086,7 +3086,7 @@ const patchKind = n => dbSpkType(n.name) === 'סאב' || isActiveSub(n.name) || 
 function patchOpen(z, amps, lines, leftover) {
   patchCss();
   PATCH = {
-    zid: z.id, sel: null,
+    zid: z.id, sel: null, mode: 'spk',
     amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set(), bridge: !!a.u.bridged })),
     slots: {}, pool: leftover.map(n => n.id)
   };
@@ -3130,7 +3130,7 @@ function patchOpen(z, amps, lines, leftover) {
   const ov = document.createElement('div');
   ov.id = 'patchOv';
   ov.innerHTML = `<div id="patchBox">
-      <div class="ph" id="patchDrag"><span style="opacity:.6">⠿</span><b>🔌 חיווט — מקורות אל הארון ורמקולים למגברים</b>
+      <div class="ph" id="patchDrag"><span style="opacity:.6">⠿</span><b id="patchTitle">🔌 חיווט — ניתוב רמקולים למגברים</b>
         <small style="opacity:.8;font-size:11px">גרור צ׳יפ ליציאה · הקש עליו כדי לראות אותו על התכנית</small>
         <button onclick="patchClose()" style="background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button></div>
       <div class="pb" id="patchBody"></div>
@@ -3438,7 +3438,7 @@ function patchRender() {
     <div class="pchPool ${PATCH.srcPool.length ? '' : 'ok'}" data-slot="srcpool">${PATCH.srcPool.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל המקורות מחוברים ✓</small>'}</div>
     <div style="height:1px;background:#e3ded3;margin:12px 0"></div>` :
     ((PATCH.srcPool || []).length ? `<div style="font-size:11.5px;color:#c96a13;background:#fdf3e6;border-radius:9px;padding:7px 9px;margin-bottom:9px">🎧 יש ${PATCH.srcPool.length} מקורות נגינה בתכנית, אבל אין בארון פרוססור/מיקסר לחבר אליו — הוסף אחד להצעה ולארון.</div>` : '');
-  body.innerHTML = insBlock + amps + `
+  const spkBlock = amps + `
     <div style="font-size:12px;font-weight:700;margin:10px 0 5px">${PATCH.pool.length ? '⚠ ' : '✓ '}רמקולים ללא ערוץ (${PATCH.pool.length})</div>
     <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(id2 => patchChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>
     ${PATCH.pool.length ? `<div style="display:flex;gap:6px;margin-top:6px">
@@ -3461,6 +3461,13 @@ function patchRender() {
       ${dMode !== 'off' && dSrc && dSrc.ptype === 'mic' ? `<div style="margin-top:3px">🎙 <b>נקודת האזנה</b> — כל הרמקולים אמורים להגיע למיקרופון יחד: הערוץ ה<b>רחוק</b> ביותר = 0ms והקרובים ממתינים לו (2.92ms/מ׳)${anySpread ? ' · <b style="color:#c1121f">⚠ ערוץ עם פער >5ms בין רמקוליו</b>' : ''}</div>`
         : dMode !== 'off' && dSrc ? `<div style="margin-top:3px">הערוץ הקרוב לייחוס = 0ms, השאר מתעכבים ביחס אליו (2.92ms/מ׳)${dMode === 'haas' ? ' + 15ms קדימות' : ''}${anySpread ? ' · <b style="color:#c1121f">⚠ ערוץ עם פער >5ms בין רמקוליו — ערוץ מקבל דיליי אחד, עדיף לקבץ לפי מרחק</b>' : ''}</div>` : ''}
     </div>`;
+  /* שתי טבלאות נפרדות: רמקולים→מגברים, או מקורות→ארון (נפתחת מקיט ההתקנה) */
+  const inMode = PATCH.mode === 'in';
+  body.innerHTML = inMode
+    ? (insBlock || '<div style="font-size:12px;color:#8a8377;background:#f7f5f0;border-radius:9px;padding:9px 10px">אין בתכנית מקורות נגינה או פרוססור/מיקסר בארון — אין מה לחווט כאן.</div>')
+    : spkBlock;
+  const tt = document.getElementById('patchTitle');
+  if (tt) tt.textContent = inMode ? '🎧 חיווט — מקורות שמע אל הארון' : '🔌 חיווט — ניתוב רמקולים למגברים';
   /* גרירה + הקשה */
   body.querySelectorAll('[data-chipro]').forEach(el => {
     const id = el.dataset.chipro;
@@ -3530,6 +3537,7 @@ const IN_UNIT_RE = /פרוססור|מעבד|מטריצ|מיקסר|קונסול|�
 /* מקור נגינה — מה שמזין את הארון: עמדת DJ, במה, מיקרופון, מחשב/נגן */
 function isSrcNode(n) {
   if (!n || n.kind === 'rack') return false;
+  if (/מדידה|measure/i.test(n.name || '')) return false;
   if (n.ptype === 'mic') return true;
   return /עמדת נגינה|\bDJ\b|במה|stage|מיקרופון|מיקסר|מחשב|נגן|סטרימר|streamer|playback/i.test(n.name || '');
 }
@@ -3552,6 +3560,23 @@ function patchInSet(ii, val) {
   uiToast('✓ ' + v + ' כניסות — נשמר לדגם "' + shortModel(t.u.name) + '"');
 }
 window.patchInSet = patchInSet;
+/* מקורות נגינה שעדיין אין להם קו לכניסה בארון */
+function srcUnwired() {
+  return P.nodes.filter(isSrcNode).filter(n => !P.cables.some(c => c.from === n.id && /^IN/.test(c.pIn || ''))).length;
+}
+/* טבלת חיווט של המקורות בלבד (מקורות → פרוססור/מיקסר). מעל חלונות אחרים כדי
+   שאפשר לפתוח אותה מתוך חלון הקיט ולחזור אליו כשסוגרים. */
+function openSrcWire(zid, onClose) {
+  const z = (P.zones || []).find(x => x.id === zid) || (P.zones || [])[0];
+  if (!z) { uiToast('אין אזור בתכנית'); return Promise.resolve(); }
+  return Promise.resolve(smartWire(z.id)).then(() => {
+    if (!PATCH) { if (onClose) onClose(); return; }
+    PATCH.mode = 'in'; if (onClose) PATCH.onClose = onClose;
+    const o = document.getElementById('patchOv'); if (o) o.style.zIndex = 140;
+    patchRender();
+  });
+}
+window.openSrcWire = openSrcWire;
 function patchSrcChip(id) {
   const n = byId(id); if (!n) return '';
   const full = nodeFullName(n);
@@ -8571,6 +8596,7 @@ function zoneKitConfirm(zname, idx) {
         <select data-cln style="width:100%;font-size:12px;padding:4px">${clusterNHTML(z._clusterN)}</select>
       </div>
     </div>` : ''}
+    ${!kitHasSpk && z ? `<button data-srcwire style="width:100%;margin-bottom:6px;background:#efecfd;color:#4b3fb8;border:1px solid #c9c0f5;font-weight:700">🎧 חיווט מקורות שמע אל הארון — טבלת המקורות בלבד</button>` : ''}
     <button class="primary" data-asis style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף את הקיט להצעה והצב על התכנית</button>
     ${kitHasSpk ? `<button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>` : ''}
     <button data-cancel style="width:100%">ביטול</button>`);
@@ -8584,6 +8610,8 @@ function zoneKitConfirm(zname, idx) {
   };
   const clSel = ov.querySelector('[data-cln]');
   if (clSel) clSel.onchange = () => setZoneField(z.id, '_clusterN', +clSel.value);
+  const swBtn = ov.querySelector('[data-srcwire]');
+  if (swBtn) swBtn.onclick = () => openSrcWire(z.id);
   const rowsEl = ov.querySelector('[data-kitrows]');
   let swapIdx = null, swapQ = '';
   const renderRows = () => {
@@ -8657,10 +8685,10 @@ function zoneKitConfirm(zname, idx) {
        השמע אל הארון. כשהיא נסגרת (חבר או ביטול) ההוספה ממשיכה מעצמה. */
     const hasSrc = P.nodes.some(isSrcNode);
     const hasIn = P.nodes.some(n => n.kind === 'rack' && (n.units || []).some(u => IN_UNIT_RE.test(u.name || '')));
-    if (!kitHasSpk && z && hasSrc && hasIn && typeof smartWire === 'function') {
+    if (!kitHasSpk && z && hasSrc && hasIn && srcUnwired() > 0) {
       const pre = edited(); done();
       uiToast('🎧 חווט קודם את מקורות השמע אל הארון — ההוספה להצעה תמשיך כשתסגור את הטבלה', 5000);
-      Promise.resolve(smartWire(z.id)).then(() => { if (PATCH) PATCH.onClose = () => doAsis(pre); else doAsis(pre); });
+      openSrcWire(z.id, () => doAsis(pre));
       return;
     }
     doAsis();
