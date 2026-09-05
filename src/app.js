@@ -4434,13 +4434,16 @@ function gapAck(k) {
 window.gapAck = gapAck;
 /* משלים מחברים לכל הקווים שקיימים — צריכה של 2 לקו דרך אותו מנגנון של החיבור */
 async function gapFixConnectors() {
-  let n = 0;
+  /* רק קווים שעוד לא קיבלו מחברים (connUse) — אחרת כל לחיצה מכפילה את הכמויות.
+     פאצ' פנימי = כבל מוכן, בלי מחברים נפרדים */
+  let n = 0, skip = 0;
   for (const c of P.cables) {
-    if (c.inst === 'exist') continue;
+    if (c.inst === 'exist' || c.internal) continue;
+    if (c.connUse && impItems.some(it => it.iid === c.connUse)) { skip++; continue; }
     try { await autoConnectors(c); n++; } catch (e) {}
   }
   render(); save();
-  uiToast('🔩 עודכנו מחברים ל-' + n + ' קווים');
+  uiToast(n ? '🔩 נוספו מחברים ל-' + n + ' קווים' + (skip ? ' · ' + skip + ' קווים כבר היו עם מחברים' : '') : '✓ לכל הקווים כבר יש מחברים בהצעה');
   gapBack();
 }
 /* הוספת מחברים ישירות מהמלאי/קטלוג — בלי לחפש ידנית */
