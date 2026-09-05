@@ -211,7 +211,7 @@ function wizStepHTML(s) {
     const rows = impItems.filter(it => it.on !== false);
     const total = rows.reduce((s2, it) => s2 + (+it.price || 0) * (+it.qty || 0), 0);
     const noKey = rows.filter(it => !it.key).length;
-    const cablesNoRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && +c.len > 0).length;
+    const cablesNoRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0).length;
     return `
     <h4>הצעת מחיר מלאה</h4>
     <div class="kpi"><div><b>${rows.length}</b><small>שורות</small></div><div><b>₪${Math.round(total).toLocaleString()}</b><small>לפני מע"מ</small></div><div><b>${P.cables.length}</b><small>כבלים</small></div></div>

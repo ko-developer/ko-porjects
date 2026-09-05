@@ -2086,17 +2086,40 @@ const CONN_SEARCH = {
   speakon: /ספיקון|speakon|NL4/i, xlrf: /XLR/i, xlrm: /XLR/i,
   rj45: /keystone|קיסטון|RJ ?45/i, hdmi: /HDMI/i, bnc: /BNC/i, fiber: /אופטי|LC |SC /i, pwr: /פאוור|powercon/i
 };
+/* פאץ׳ פנימי בארון (פרוססור→מגבר, סטרימר→פרוססור) = כבל XLR קצר מוכן אחד — לא 2 מחברים.
+   נצרך משורת "כבל XLR 1 מטר" בהצעה (או נוסף מהקטלוג), ומקושר לקו כדי שהניצול יימדד */
+const SHORT_XLR_RX = /XLR.{0,40}\b(0\.5|1|1\.5|2)\s*מטר|XLR.{0,20}קצר|patch.{0,10}XLR/i;
+function usePatchCable(c) {
+  let it = impItems.find(x => /כבל/.test(x.name || '') && SHORT_XLR_RX.test(x.name || ''));
+  if (!it && typeof ERP_ITEMS !== 'undefined') {
+    const hit = ERP_ITEMS.filter(([, n]) => n && /כבל/.test(n) && SHORT_XLR_RX.test(n)).sort((a, b) => byStockThenSold(a[0], b[0]))[0];
+    if (hit) { it = { on: true, qty: 0, name: hit[1], key: hit[0], src: 'אוטומטי — פאץ׳ פנימי', dest: 'conn', cat: 'other', u: 1, iid: uid('i') }; impItems.push(it); autoPrice(it); }
+  }
+  if (!it) return;
+  const s = ensureStockItem(it);
+  s.used = (s.used || 0) + 1;
+  if (s.used > (s.qty || 0)) { s.qty = s.used; it.qty = s.used; }
+  bumpPlaced(it);
+  c.stockRef = 'cable|' + s.id; c.spec = c.spec || it.name.slice(0, 42);
+}
 async function autoConnectors(c) {
-  const kind = c.conn || connFor(c.type);
+  /* קצה מולטי = פיצול XLR — מחבר XLR לכל גיד בכל קצה (לא ספיקון) */
+  let kind = c.conn || connFor(c.type);
+  if (kind === 'multi') kind = 'xlrm';
   if (kind === 'empty') return;
+  const per = c.type === 'multi' && +c.cores > 0 ? +c.cores : 1;
   const re = CONN_SEARCH[kind] || /מחבר/i;
   /* 1. מחבר קיים ברשימת הפריטים — מאותו סוג בדיוק */
-  let it = impItems.find(x => x.dest === 'conn' && ((x.kind || connKindOf(x.name)) === kind))
-    || impItems.find(x => /מחבר|קונקטור|connector|keystone|קיסטון/i.test(x.name) && re.test(x.name));
+  /* שורת "כבל …" (כבל XLR מוכן) היא לא מחבר — גם אם יושבת תחת dest 'conn' */
+  const notCable = x => !/^כבל/.test(x.name || '');
+  let it = impItems.find(x => x.dest === 'conn' && notCable(x) && ((x.kind || connKindOf(x.name)) === kind))
+    || impItems.find(x => notCable(x) && /מחבר|קונקטור|connector|keystone|קיסטון/i.test(x.name) && re.test(x.name));
   if (it && it.dest !== 'conn') { it.dest = 'conn'; it.kind = it.kind || kind; }
   /* 2. חיפוש בקטלוג ה-ERP — מחבר מתאים אמיתי (למשל keystone זכר לרשת) */
   if (!it && typeof ERP_ITEMS !== 'undefined') {
-    const hit = ERP_ITEMS.find(([k, n]) => /מחבר|קונקטור|connector|keystone|קיסטון/i.test(n) && re.test(n));
+    /* מחבר בודד לפני פנל/קופסה "כולל קונקטור" */
+    const hit = ERP_ITEMS.filter(([k, n]) => n && /מחבר|קונקטור|connector|keystone|קיסטון/i.test(n) && re.test(n))
+      .sort((a, b) => ((/^מחבר|^connector/i.test(a[1]) ? 0 : 1) - (/^מחבר|^connector/i.test(b[1]) ? 0 : 1)) || byStockThenSold(a[0], b[0]))[0];
     if (hit) {
       it = { on: true, qty: 0, name: hit[1], key: hit[0], src: 'אוטומטי — קטלוג', dest: 'conn', kind, cat: 'other', u: 1, iid: uid('i') };
       impItems.push(it); autoPrice(it);
@@ -2111,9 +2134,9 @@ async function autoConnectors(c) {
   }
   const s = ensureStockItem(it);
   s.kind = s.kind || kind;
-  s.used = (s.used || 0) + 2;
+  s.used = (s.used || 0) + 2 * per;
   if (s.used > (s.qty || 0)) s.qty = s.used;
-  bumpPlaced(it); bumpPlaced(it); /* ההערה נשארת ריקה — המחברים מוצגים בשדות המחבר */
+  for (let k = 0; k < 2 * per; k++) bumpPlaced(it); /* ההערה נשארת ריקה — המחברים מוצגים בשדות המחבר */
   c.connUse = it.iid; /* נשמר כדי להחזיר 2 מחברים אם הכבל יימחק */
 }
 function wireStockName() {
@@ -3730,7 +3753,8 @@ function srcAllChipIds() {
 }
 function srcChipWired(id) {
   const b = srcBase(id), ch = srcCh(id);
-  return P.cables.some(c => /^IN/.test(c.pIn || '') && (isVsrc(b) ? c.vsrc === id : (c.from === b && (c.srcCh || '') === ch)));
+  /* סטריאו על מולטי אחד: כבל אחד עם srcCh 'LR' מכסה את שני הצ׳יפים */
+  return P.cables.some(c => /^IN/.test(c.pIn || '') && (isVsrc(b) ? c.vsrc === id : (c.from === b && ((c.srcCh || '') === ch || c.srcCh === 'LR'))));
 }
 /* צ׳יפי מקור שעדיין אין להם כניסה בארון */
 function srcUnwired() { return srcAllChipIds().filter(id => !srcChipWired(id)).length; }
@@ -3983,7 +4007,7 @@ async function patchApply() {
       const unit = (t.rk.units || []).find(u => uRx.test(u.name || ''));
       const cc = {
         id: uid('c'), from: t.rk.id, fromUnit: unit ? unit.id : undefined, to: t.rk.id, toUnit: t.u.id, pIn: 'IN ' + ch,
-        type: 'xlr', qty: '1', spec: '', len: 1, vsrc: vid,
+        type: 'xlr', qty: '1', spec: '', len: 1, vsrc: vid, internal: 'src-proc',
         note: (SRC_LBL[kind] || kind) + (vch ? ' ' + vch : '') + ' → ' + shortModel(t.u.name) + ' · פאץ׳ פנימי בארון' + (unit ? '' : ' · היחידה טרם נבחרה להצעה'),
         conn: 'xlrm', conn2: 'xlrf',
       };
@@ -4124,7 +4148,7 @@ async function patchApply() {
   patchClose();
   /* מחברים: כל קו צורך 2 מחברים מתאימים (ספיקון/RCA) — נוספים להצעה אוטומטית */
   const beforeConn = impItems.filter(it => it.dest === 'conn').reduce((s2, it) => s2 + (+it.qty || 0), 0);
-  for (const c of made) { try { await autoConnectors(c); } catch (e) {} }
+  for (const c of made) { try { if (c.internal) usePatchCable(c); else await autoConnectors(c); } catch (e) {} }
   const addedConn = impItems.filter(it => it.dest === 'conn').reduce((s2, it) => s2 + (+it.qty || 0), 0) - beforeConn;
   render(); save();
   uiToast('✓ חוברו ' + n2 + ' כבלים' + (addedConn > 0 ? ' · נוספו ' + addedConn + ' מחברים להצעה' : '') + (left ? ' · ⚠ ' + left + ' רמקולים ללא ערוץ' : ''));
@@ -4243,6 +4267,14 @@ function projGapCheck() {
     if (inUnits.length && need > haveIn) finds.push({ i: '🎛', k: 'proc-in', t: 'המקורות דורשים ' + need + ' כניסות (סטריאו = 2) · לפרוססור/מיקסר שבארון רק ' + haveIn, b: '🔍 בחר פרוססור עם יותר כניסות', fn: "gapSearch('פרוססור')" });
     const nShared = zs2.filter(z => z._srcShare && (z._srcShared || []).length).length;
     if (nShared) finds.push({ i: '🔗', k: 'proc-zones', t: (nShared + 1) + ' אזורים על מקורות משותפים — הפרוססור/מיקסר צריך ' + (nShared + 1) + ' יציאות‑אזור בשליטה נפרדת', b: '🔍 בחר מקטלוג', fn: "gapSearch('מיקסר אזורים')" });
+  }
+  /* 1א. מקורות שנבחרו אבל עוד לא חוברו לכניסה בארון — הטבלה נפתחת ישר מהממצא */
+  {
+    const un = srcUnwired();
+    if (un) {
+      const z1 = (P.zones || []).find(z => (z.sources || []).length) || (P.zones || [])[0];
+      finds.push({ i: '🎧', k: 'src-wire', t: un + ' מקורות (L/R נספרים בנפרד) עדיין לא מחוברים לכניסות הפרוססור/מיקסר', b: '🔌 חווט מקורות אל הארון', fn: "window.__gapReopen=1;openSrcWire('" + (z1 ? z1.id : '') + "', gapBack)" });
+    }
   }
   /* 1ב. אין סעיף כיוון/תכנות מערכת סאונד — חובה בכל הצעה עם רמקולים */
   if (spkN.length && !rows.some(it => /כיוון|תכנות/.test(it.name || ''))) {
@@ -4445,7 +4477,7 @@ async function gapFixConnectors() {
   let n = 0, skip = 0;
   for (const c of P.cables) {
     if (c.inst === 'exist' || c.internal) continue;
-    if (c.connUse && impItems.some(it => it.iid === c.connUse)) { skip++; continue; }
+    if (c.connUse && impItems.some(it => it.iid === c.connUse && !/^כבל/.test(it.name || ''))) { skip++; continue; }
     try { await autoConnectors(c); n++; } catch (e) {}
   }
   render(); save();
