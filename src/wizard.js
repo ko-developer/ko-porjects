@@ -596,17 +596,27 @@ function wizBuildAll(force) {
 }
 /* השלמת כבלים: כל קו בלי מוצר מקבל שורת "גליל" מהקטלוג לפי סוג, עם המטרים */
 function wizFillCables() {
+  /* קווים בלי מוצר כבל — לפי סוג. פאצ'ים פנימיים בארון הם כבלים מוכנים ולא נחתכים מגליל */
+  const open = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0);
   const need = {};
-  P.cables.forEach(c => { if (!c.stockRef && c.inst !== 'exist' && +c.len > 0) need[c.type] = (need[c.type] || 0) + Math.ceil(+c.len * 1.15); /* +15% רזרבה */ });
-  let added = 0;
+  open.forEach(c => { need[c.type] = (need[c.type] || 0) + Math.ceil(+c.len * 1.15); /* +15% רזרבה */ });
+  let added = 0, linked = 0;
   for (const [t, meters] of Object.entries(need)) {
     const kw = { dmx: 'DMX', cat: 'רשת', nl4: 'רמקול', multi: 'מולטי', xlr: 'XLR', fiber: 'אופטי', sdi: 'BNC', hdmi: 'HDMI', pwr: 'חשמל' }[t] || t;
     const hit = (typeof ERP_ITEMS !== 'undefined') && ERP_ITEMS.find(([k, n]) => n && /גליל|לפי מטר|כבל/i.test(n) && n.toLowerCase().includes(kw.toLowerCase()));
-    const it = { on: true, qty: meters, name: hit ? hit[1] : 'כבל ' + (CTYPES[t]?.n || t) + ' (לפי מטר)', key: hit ? hit[0] : undefined, src: 'אשף V2 — השלמת כבלים', dest: 'reel', type: t, cat: 'cable', u: 1, iid: uid('i'), note: meters + ' מ׳ כולל 15% רזרבה' };
+    /* גליל של N מטר → כמות בגלילים; מוצר לפי מטר → כמות במטרים */
+    const m = hit && (/(\d{2,4})\s*מטר/.exec(hit[1]) || /של\s*(\d{2,4})/.exec(hit[1]));
+    const rollLen = m ? +m[1] : 0;
+    const it = { on: true, qty: rollLen ? Math.ceil(meters / rollLen) : meters, len: rollLen || 1, name: hit ? hit[1] : 'כבל ' + (CTYPES[t]?.n || t) + ' (לפי מטר)', key: hit ? hit[0] : undefined, src: 'אשף V2 — השלמת כבלים', dest: 'reel', type: t, cat: 'cable', u: 1, iid: uid('i') };
     autoPrice(it); impItems.push(it); added++;
+    /* מקשרים את הקווים לגליל — כך הם לא יופיעו שוב כ"ללא שורת כבל" והניצול נמדד */
+    const st = ensureStockItem(it); st.type = t;
+    open.filter(c => c.type === t).forEach(c => { applyStockRef('reel|' + st.id, null, c); linked++; });
   }
-  render(); save(); wizRender();
-  uiToast('✓ נוספו ' + added + ' שורות כבלים לפי סוג (עם 15% רזרבה)');
+  render(); save(); if (WIZ) wizRender();
+  uiToast(added ? '✓ נוספו ' + added + ' שורות כבלים לפי סוג (15% רזרבה) · ' + linked + ' קווים קושרו לגלילים' : '✓ לכל הקווים כבר יש שורת כבל');
+  /* נקרא גם מבדיקת השלמות — חוזרים לדיאלוג עם הממצאים המעודכנים */
+  if (typeof gapBack === 'function') gapBack();
 }
 
 /* ---- דוח מתקינים — כל מה שצוות ההתקנה צריך, מוכן להדפסה ---- */

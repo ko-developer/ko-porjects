@@ -138,7 +138,7 @@ let SRV = false, srvT = null;
       sel = null; selCable = null; selMulti.clear(); normalizeAll();
       if (typeof impItems !== 'undefined') impItems = P.impSaved || [];
       try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
-      render();
+      render(); if (typeof viewToContent === 'function') viewToContent();
     } else {
       pushSrv(); // DB ריק — זרע אותו ממה שיש בדפדפן
     }
@@ -379,7 +379,7 @@ async function delProj() {
   store.projects = store.projects.filter(p => p.id !== P.id);
   P = store.projects[0]; sel = selCable = null; impItems = P.impSaved || []; render();
 }
-function switchProj(id) { P = store.projects.find(p => p.id === id) || P; sel = selCable = null; impItems = P.impSaved || []; render(); }
+function switchProj(id) { P = store.projects.find(p => p.id === id) || P; sel = selCable = null; impItems = P.impSaved || []; render(); viewToContent(); }
 /* ===== מנהל פרויקטים — חיפוש, לקוח, בחירה מרובה ומחיקה ===== */
 function projManager() {
   const old = document.getElementById('pmOv'); if (old) old.remove();
@@ -899,6 +899,12 @@ function scrollToBox(b, pad) {
   const gx = Math.max(0, (wrap.clientWidth - bw) / 2), gy = Math.max(0, (wrap.clientHeight - bh) / 2);
   wrap.scrollLeft = -Math.max(0, (2200 - b.R) * Z - gx);
   wrap.scrollTop = Math.max(0, b.T * Z - gy);
+}
+/* פתיחת פרויקט: הזום נשמר, אבל הגלילה חייבת להביא את התכנית מול העיניים —
+   תכנית שיושבת במרכז הקנבס לא נראית בגלילה 0,0. שתי פעימות: לפני ואחרי טעינת תמונת הרקע */
+function viewToContent() {
+  const go = () => { try { scrollToBox(contentBox(), 40); } catch (e) {} };
+  setTimeout(go, 60); setTimeout(go, 450);
 }
 function fitView() {
   const b = contentBox(), wrap = $('#canvasWrap'), pad = 40;
@@ -9969,7 +9975,7 @@ function reportPreview() {
 window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
 
 impItems = P.impSaved || [];
-render();
+render(); viewToContent();
 /* מצב פתיחה נכנס להיסטוריה מיד, אחרת אין לאן לחזור בביטול הראשון */
 HIST.past.push(snapProject());
 renderHistBtns();
