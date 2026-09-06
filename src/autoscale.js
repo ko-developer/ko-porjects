@@ -106,7 +106,7 @@ function asChainEstimate(lines, unit) {
       if (d < Math.max(4, a.tk.h * 1.2) || real < 0.3 || real > 80) continue;
       const k = d / real;
       const vt = a.tk.frame !== 'h';   /* טקסט אנכי: הרוחב רץ לאורך y */
-      ks.push(k); samples.push({ a: a.tk.t, b: b.tk.t, d, real, k, ax: a.tk.x, ay: a.tk.y, aw: vt ? a.tk.h : a.tk.w, ah: vt ? a.tk.w : a.tk.h, bx: b.tk.x, by: b.tk.y, bw: vt ? b.tk.h : b.tk.w, bh: vt ? b.tk.w : b.tk.h });
+      ks.push(k); samples.push({ a: a.tk.t, b: b.tk.t, va: a.v, vb: b.v, vert: vt, d, real, k, ax: a.tk.x, ay: a.tk.y, aw: vt ? a.tk.h : a.tk.w, ah: vt ? a.tk.w : a.tk.h, bx: b.tk.x, by: b.tk.y, bw: vt ? b.tk.h : b.tk.w, bh: vt ? b.tk.w : b.tk.h });
     }
   }
   if (ks.length < 2) return null;
@@ -180,8 +180,22 @@ function asSummaryHTML() {
   const r = P.autoScale; if (!r) return '';
   const col = r.conf === 'high' ? '#0f6e56' : r.conf === 'medium' ? '#b7791f' : '#c9502e';
   const over = P.scale && (P.calSrc === 'manual' || P.calSrc === undefined);
+  /* שדה קנה המידה: מה שנמצא בכיתוב (ניתן לעריכה) ואימות מול המידות שנמדדו */
+  let ratioRow = '';
+  if (P.scale) {
+    const cur = 1 / P.scale;
+    let verify = '';
+    if (r.ratio && r.pageMm) {
+      const pxR = (P.bgW || 1400) / (r.pageMm[0] * r.ratio / 1000);
+      const d = Math.abs(pxR - cur) / cur;
+      verify = d <= 0.03 ? `<span style="color:#0f6e56;font-weight:700">✓ תואם למידות שנמדדו (סטייה ${(d * 100).toFixed(1)}%)</span>` : `<span style="color:#c9502e;font-weight:700">✗ לא תואם למידות (סטייה ${(d * 100).toFixed(0)}%) — כנראה הודפס בהתאמה לדף</span>`;
+    } else if (r.ratio && !r.pageMm) verify = '<span class="muted">בתמונה אין גודל דף — הכיתוב לא ניתן לאימות מספרי</span>';
+    else if (!r.ratio) verify = '<span class="muted">לא נמצא כיתוב 1:N בשכבת הטקסט — הקלד אם כתוב בשרטוט</span>';
+    ratioRow = `<div style="display:flex;align-items:center;gap:6px;margin:4px 0"><span>קנה מידה בשרטוט:</span>
+      <span style="direction:ltr;display:inline-flex;align-items:center;gap:3px;font-weight:700">1 : <input type="number" min="1" max="5000" value="${r.ratio || ''}" placeholder="50" style="width:64px;padding:3px 5px;margin:0;font-size:12px" onchange="asSetRatio(this.value)"></span></div><div>${verify}</div>`;
+  }
   return `<div style="border:1.5px solid ${col};border-radius:9px;padding:7px 9px;margin:0 0 8px;background:#fff;font-size:11.5px;line-height:1.5">
-    <b style="color:${col}">🔍 זיהוי אוטומטי${over ? ' (נדרס בכיול ידני)' : ''}:</b> ${esc(asLabel(r))}<br>
+    <b style="color:${col}">🔍 זיהוי אוטומטי${over ? ' (נדרס בכיול ידני)' : ''}:</b> ${esc(asLabel(r))}<br>${ratioRow}
     <span class="muted">${esc(r.note || '')}${r.pxPerM ? ' · 1 מ׳ = ' + r.pxPerM.toFixed(1) + 'px' : ''}</span>
     ${r.marks && r.marks.length ? `<button style="width:100%;margin-top:6px;${r.show === false ? '' : 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56'}" onclick="P.autoScale.show=!(P.autoScale.show!==false);save();render()">👁 ${r.show === false ? 'הצג' : 'מוצג'} על התכנית: ${r.marks.length} זוגות המידות ששימשו לזיהוי</button>` : ''}
     ${r.chain && r.chain.samples && r.chain.samples.length ? `<details style="margin-top:3px"><summary class="muted" style="cursor:pointer">המידות ששימשו לאימות</summary>
@@ -213,12 +227,14 @@ async function autoScalePdf(pg, bgW) {
     }
     const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v')].map(l => l.text);
     const ratio = asFindRatio(lines);
+    /* דגימת טקסט — לבדוק מה נמצא בשכבת הטקסט (למשל למה לא זוהה 1:N) */
+    const textSample = lines.filter(t => /[:\/]/.test(t) || /1\s*[:\/]\s*\d/.test(t)).slice(0, 25);
     /* נקודות למטר לפי הכיתוב: דף בנקודות ↔ אמיתי = דף × N */
     const ptPerM_ratio = ratio ? (1000 * AS_PT_PER_MM) / ratio.n : null;
     const r = asDecide(tokens, ratio, ptPerM_ratio);
     const pxPerM = r.unitPerM ? r.unitPerM * (bgW / pageW) : null;
     asNormMarks(r, pageW, vp.height, true);
-    r.tokens = tokens.length; r.pageMm = [Math.round(pageW / AS_PT_PER_MM), Math.round(vp.height / AS_PT_PER_MM)];
+    r.tokens = tokens.length; r.pageMm = [Math.round(pageW / AS_PT_PER_MM), Math.round(vp.height / AS_PT_PER_MM)]; r.textSample = textSample;
     asApply(r, pxPerM, 'pdf');
     uiToast(pxPerM ? '🔍 קנה מידה זוהה אוטומטית: ' + asLabel(r) : '🔍 לא זוהה קנה מידה אוטומטית — ' + r.note, 6000);
     return r;
@@ -290,30 +306,54 @@ window.autoScaleFromBg = autoScaleFromBg;
 /* --- סימון על התכנית: איזה זוגות מידות שימשו — כדי שאפשר יהיה לוודא בעין --- */
 function asNormMarks(r, srcW, srcH, yUp) {
   const mk = (r.chain && r.chain.marks) || [];
-  r.marks = mk.map(m => ({ a: m.a, b: m.b, real: m.real,
+  r.marks = mk.map(m => ({ a: m.a, b: m.b, va: m.va, vb: m.vb, vert: !!m.vert, real: m.real,
     au: m.ax / srcW, av: yUp ? 1 - m.ay / srcH : m.ay / srcH, aw: m.aw / srcW, ah: m.ah / srcH,
     bu: m.bx / srcW, bv: yUp ? 1 - m.by / srcH : m.by / srcH, bw: m.bw / srcW, bh: m.bh / srcH }));
   if (r.chain) delete r.chain.marks;
   r.show = true;
 }
 function asMarksSVG() {
+  /* לכל מידה ששימשה: קו אדום עם קצוות באורך המידה לפי קנה המידה הנוכחי — הקצוות
+     חייבים לנחות בדיוק על סימוני המידה שבשרטוט. הערך כתוב באדום ליד המספר המקורי. */
   const r = P.autoScale;
-  if (!r || !r.marks || !r.marks.length || r.show === false || !P.bg || calMode) return '';
-  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
-  const fz = Math.max(10, 12 / getZ());
-  const esc2 = t => String(t).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
+  if (!r || !r.marks || !r.marks.length || r.show === false || !P.bg || !P.scale || calMode) return '';
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(), k = 1 / P.scale;
+  const fz = Math.max(9, 11 / getZ()), sw = Math.max(1.2, 1.8 / getZ());
+  const seen = new Set();
   let out = '';
-  r.marks.forEach(m => {
-    const x1 = L + m.au * W, y1 = T + m.av * H, x2 = L + m.bu * W, y2 = T + m.bv * H;
-    const box = (cx, cy, w, h) => `<rect x="${cx - Math.max(w * W, 14) / 2}" y="${cy - Math.max(h * H, 8) / 2}" width="${Math.max(w * W, 14)}" height="${Math.max(h * H, 8)}" rx="2" fill="none" stroke="#0f6e56" stroke-width="1.6"/>`;
-    out += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#0f6e56" stroke-width="1.6" stroke-dasharray="5 4" opacity="0.9"/>`;
-    out += box(x1, y1, m.aw, m.ah) + box(x2, y2, m.bw, m.bh);
-    const vert = Math.abs(x2 - x1) < Math.abs(y2 - y1);
-    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    const txt = m.a + ' + ' + m.b + ' → ' + m.real.toFixed(2) + ' מ׳';
-    const bw = txt.length * fz * 0.58 + 10;
-    const tx = vert ? mx + fz * 1.2 + bw / 2 : mx, ty = vert ? my : my - fz * 1.1;
-    out += `<rect x="${tx - bw / 2}" y="${ty - fz * 0.8}" width="${bw}" height="${fz * 1.3}" rx="3" fill="#0f6e56" opacity="0.9"/><text x="${tx}" y="${ty + fz * 0.25}" text-anchor="middle" direction="ltr" unicode-bidi="embed" font-size="${fz}" font-weight="700" fill="#fff">${esc2(txt)}</text>`;
-  });
+  const one = (u, v, w, h, txt, val, vert) => {
+    if (!(val > 0) || !(u >= 0) || !(v >= 0)) return;   /* סימונים מגרסה ישנה בלי ערך — מדלגים */
+    const key = Math.round(u * 1000) + '|' + Math.round(v * 1000); if (seen.has(key)) return; seen.add(key);
+    const x = L + u * W, y = T + v * H, len = val * k, half = len / 2;
+    const lw = Math.max(w * W, 12), lh = Math.max(h * H, 7);
+    const tick = fz * 0.6;
+    if (!vert) {
+      const ly = y + lh * 0.9;
+      out += `<line x1="${x - half}" y1="${ly}" x2="${x + half}" y2="${ly}" stroke="#e02020" stroke-width="${sw}"/>`;
+      out += `<line x1="${x - half}" y1="${ly - tick}" x2="${x - half}" y2="${ly + tick}" stroke="#e02020" stroke-width="${sw}"/><line x1="${x + half}" y1="${ly - tick}" x2="${x + half}" y2="${ly + tick}" stroke="#e02020" stroke-width="${sw}"/>`;
+      out += `<text x="${x + lw / 2 + fz * 0.4}" y="${y + fz * 0.35}" font-size="${fz}" font-weight="700" fill="#e02020" direction="ltr" unicode-bidi="embed">${txt} = ${val.toFixed(2)}m</text>`;
+    } else {
+      const lx = x - lh * 0.9;
+      out += `<line x1="${lx}" y1="${y - half}" x2="${lx}" y2="${y + half}" stroke="#e02020" stroke-width="${sw}"/>`;
+      out += `<line x1="${lx - tick}" y1="${y - half}" x2="${lx + tick}" y2="${y - half}" stroke="#e02020" stroke-width="${sw}"/><line x1="${lx - tick}" y1="${y + half}" x2="${lx + tick}" y2="${y + half}" stroke="#e02020" stroke-width="${sw}"/>`;
+      out += `<text x="${x + lh * 0.9 + fz * 0.3}" y="${y + fz * 0.35}" font-size="${fz}" font-weight="700" fill="#e02020" direction="ltr" unicode-bidi="embed">${txt} = ${val.toFixed(2)}m</text>`;
+    }
+  };
+  r.marks.forEach(m => { one(m.au, m.av, m.aw, m.ah, m.a, m.va, m.vert); one(m.bu, m.bv, m.bw, m.bh, m.b, m.vb, m.vert); });
   return `<g pointer-events="none">${out}</g>`;
 }
+
+/* קנה מידה שהוקלד ידנית ("1 : 50") — מאומת מול המידות, ואם אין מידות מוחל לפי גודל הדף */
+function asSetRatio(v) {
+  const n = +v; const r = P.autoScale || (P.autoScale = { conf: 'none', marks: [], src: 'manual' });
+  if (!(n > 0)) { r.ratio = null; save(); render(); return; }
+  r.ratio = n; r.ratioSrc = 'user';
+  if (r.pageMm) {
+    const pxR = (P.bgW || 1400) / (r.pageMm[0] * n / 1000);
+    if (P.scale) { r.dev = Math.abs(pxR - 1 / P.scale) / (1 / P.scale); }
+    if (!P.scale || (!r.chain && P.calSrc !== 'manual')) { P.scale = 1 / pxR; P.calSrc = 'auto'; P.calOk = 0; r.pxPerM = pxR; r.conf = 'medium'; r.method = 'ratio'; r.note = 'לפי 1:' + n + ' שהוקלד וגודל הדף — אשר או כייל ידנית'; if (typeof recalcCableLengths === 'function') recalcCableLengths(); }
+    uiToast(r.dev != null ? '1:' + n + ' מול המידות: סטייה ' + (r.dev * 100).toFixed(1) + '%' : '1:' + n + ' הוחל לפי גודל הדף');
+  } else uiToast('1:' + n + ' נשמר — בתמונה אין גודל דף לאימות');
+  save(); render(); if (typeof WIZ !== 'undefined' && WIZ) wizRender();
+}
+window.asSetRatio = asSetRatio;

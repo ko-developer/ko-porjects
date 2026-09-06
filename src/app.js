@@ -207,7 +207,8 @@ function save() {
   store.cur = P.id;
   if (typeof impItems !== 'undefined') P.impSaved = impItems;
   verSnapshot();
-  try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
+  /* ה-PDF המקורי (bgPdf) גדול — נשמר בשרת בלבד, לא במראה של localStorage */
+  try { localStorage.setItem(LSKEY, JSON.stringify(store, (k, v) => k === 'bgPdf' ? undefined : v)); } catch (e) {}
   pushSrv();
   pushHistory();
 }
@@ -765,11 +766,15 @@ function uploadBg(inp, onDone) {
         const cv = document.createElement('canvas');
         cv.width = vp.width; cv.height = vp.height;
         await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
-        const k = Math.min(1, 1800 / cv.width);
+        const k = Math.min(1, 2400 / cv.width);
         const cv2 = document.createElement('canvas');
         cv2.width = Math.round(cv.width * k); cv2.height = Math.round(cv.height * k);
         cv2.getContext('2d').drawImage(cv, 0, 0, cv2.width, cv2.height);
         P.bg = cv2.toDataURL('image/jpeg', 0.8);
+        /* ה-PDF עצמו נשמר (עד 8MB) — האזור הנראה מעובד מחדש בכל זום, בלי טשטוש (bgsharp.js) */
+        if (file.size <= 8 * 1024 * 1024) { P.bgPdf = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).replace(/^data:[^,]*,/, '')); fr.readAsDataURL(file); }); P.bgPdfPage = 1; }
+        else delete P.bgPdf;
+        if (typeof bgSharpReset === 'function') bgSharpReset();
         P.bgW = fitBgW(cv2.width, cv2.height);
         P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv2.height / cv2.width));
         P.bgOp = P.bgOp ?? 0.5;
@@ -786,12 +791,13 @@ function uploadBg(inp, onDone) {
   }
   const img = new Image();
   img.onload = () => {
-    const scale = Math.min(1, 1800 / img.width);
+    const scale = Math.min(1, 3000 / img.width);
     const cv = document.createElement('canvas');
     cv.width = Math.round(img.width * scale);
     cv.height = Math.round(img.height * scale);
     cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-    P.bg = cv.toDataURL('image/jpeg', 0.72);
+    P.bg = cv.toDataURL('image/jpeg', 0.82);
+    delete P.bgPdf; if (typeof bgSharpReset === 'function') bgSharpReset();
     P.bgW = fitBgW(cv.width, cv.height);
     P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv.height / cv.width));
     P.bgOp = P.bgOp ?? 0.5;
@@ -812,7 +818,8 @@ function resetView100() {
   scrollToBox(contentBox(), 40);   /* 100% — והתכנית מול העיניים, לא פינה ריקה של הקנבס */
 }
 async function removeBg() {
-  delete P.bg;
+  delete P.bg; delete P.bgPdf;
+  if (typeof bgSharpReset === 'function') bgSharpReset();
   delete P.calLine;
   if ((P.zones || []).length && await uiConfirm('להסיר גם את ' + P.zones.length + ' האזורים המסומנים על הרקע?')) P.zones = [];
   render();
@@ -864,6 +871,8 @@ function renderBg() {
     im.style.opacity = P.bgOp ?? 0.5;
     im.style.display = 'block';
   } else im.style.display = 'none';
+  const tl = document.getElementById('bgtile'); if (tl && !P.bgPdf) tl.style.display = 'none';
+  if (typeof bgSharpSchedule === 'function') bgSharpSchedule();
 }
 const getZ = () => P.zoom || 1;
 function applyZoom() {
@@ -873,6 +882,7 @@ function applyZoom() {
   $('#zoomer').style.height = 1400 * Z + 'px';
   const zl = $('#zlab');
   if (document.activeElement !== zl) zl.value = Math.round(Z * 100);
+  if (typeof bgSharpSchedule === 'function') bgSharpSchedule();
 }
 function setZoomPct(v) {
   const p = parseFloat(String(v).replace('%', ''));
