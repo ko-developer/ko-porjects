@@ -2745,6 +2745,8 @@ function renderWires() {
     const bw = txt.length * fz * 0.62 + 18;
     out += `<rect x="${mx - bw / 2}" y="${my - fz - 8}" width="${bw}" height="${fz + 10}" rx="6" fill="#e24b4a" opacity="0.92"/><text x="${mx}" y="${my - 4}" text-anchor="middle" font-size="${fz}" font-weight="700" fill="#fff">${txt}</text>`;
   }
+  /* המידות ששימשו לזיהוי האוטומטי — לוודא בעין שהוא נכון */
+  if (typeof asMarksSVG === 'function') out += asMarksSVG();
   /* קו כיול חי — רואים בדיוק מה מודדים */
   if (calMode && calMode.pts.length) {
     const p1 = calMode.pts[0];

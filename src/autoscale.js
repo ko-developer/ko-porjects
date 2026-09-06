@@ -105,7 +105,8 @@ function asChainEstimate(lines, unit) {
       const real = (a.v + b.v) / 2;
       if (d < Math.max(4, a.tk.h * 1.2) || real < 0.3 || real > 80) continue;
       const k = d / real;
-      ks.push(k); samples.push({ a: a.tk.t, b: b.tk.t, d, real, k });
+      const vt = a.tk.frame !== 'h';   /* טקסט אנכי: הרוחב רץ לאורך y */
+      ks.push(k); samples.push({ a: a.tk.t, b: b.tk.t, d, real, k, ax: a.tk.x, ay: a.tk.y, aw: vt ? a.tk.h : a.tk.w, ah: vt ? a.tk.w : a.tk.h, bx: b.tk.x, by: b.tk.y, bw: vt ? b.tk.h : b.tk.w, bh: vt ? b.tk.w : b.tk.h });
     }
   }
   if (ks.length < 2) return null;
@@ -114,7 +115,7 @@ function asChainEstimate(lines, unit) {
   if (inl.length < 2) return null;
   const k2 = asMedian(inl.map(s => s.k));
   const mad = asMedian(inl.map(s => Math.abs(s.k - k2))) / k2;
-  return { unit, k: k2, n: inl.length, total: ks.length, mad, samples: inl.slice(0, 6) };
+  return { unit, k: k2, n: inl.length, total: ks.length, mad, samples: inl.slice(0, 6), marks: inl.slice(0, 60) };
 }
 
 /* --- החלטה: הצלבה של "1:N" עם שרשרות המידות ---
@@ -131,7 +132,7 @@ function asDecide(tokens, ratio, unitPerM_ratio) {
     chain = pool.sort((a, b) => b.n - a.n || a.mad - b.mad)[0];
   }
   const r = { ratio: ratio ? ratio.n : null, ratioVotes: ratio ? ratio.votes : 0, unitPerM_ratio: unitPerM_ratio || null,
-    chain: chain ? { unit: chain.unit, n: chain.n, total: chain.total, mad: chain.mad, k: chain.k, samples: chain.samples } : null,
+    chain: chain ? { unit: chain.unit, n: chain.n, total: chain.total, mad: chain.mad, k: chain.k, samples: chain.samples.map(x => ({ a: x.a, b: x.b, real: x.real, k: x.k })), marks: chain.marks } : null,
     unitPerM: null, conf: 'none', method: '', note: '', dev: null };
   const strongChain = chain && chain.n >= 6 && chain.mad <= 0.02;
   if (chain && unitPerM_ratio) {
@@ -182,6 +183,7 @@ function asSummaryHTML() {
   return `<div style="border:1.5px solid ${col};border-radius:9px;padding:7px 9px;margin:0 0 8px;background:#fff;font-size:11.5px;line-height:1.5">
     <b style="color:${col}">🔍 זיהוי אוטומטי${over ? ' (נדרס בכיול ידני)' : ''}:</b> ${esc(asLabel(r))}<br>
     <span class="muted">${esc(r.note || '')}${r.pxPerM ? ' · 1 מ׳ = ' + r.pxPerM.toFixed(1) + 'px' : ''}</span>
+    ${r.marks && r.marks.length ? `<button style="width:100%;margin-top:6px;${r.show === false ? '' : 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56'}" onclick="P.autoScale.show=!(P.autoScale.show!==false);save();render()">👁 ${r.show === false ? 'הצג' : 'מוצג'} על התכנית: ${r.marks.length} זוגות המידות ששימשו לזיהוי</button>` : ''}
     ${r.chain && r.chain.samples && r.chain.samples.length ? `<details style="margin-top:3px"><summary class="muted" style="cursor:pointer">המידות ששימשו לאימות</summary>
       <div class="muted" style="font-size:10.5px">${r.chain.samples.map(s => esc(s.a) + ' ↔ ' + esc(s.b) + ' → ' + s.real.toFixed(2) + ' מ׳').join('<br>')}</div></details>` : ''}
     ${r.pxPerM && over ? `<button style="width:100%;margin-top:6px" onclick="P.calSrc='';asApply(P.autoScale,P.autoScale.pxPerM,P.autoScale.src,true);uiToast('✓ הוחל קנה המידה שזוהה — במקום הכיול הידני')">↺ השתמש בזיהוי (1 מ׳ = ${r.pxPerM.toFixed(1)}px) במקום הכיול הידני (${(1 / P.scale).toFixed(1)}px)</button>` : ''}
@@ -215,6 +217,7 @@ async function autoScalePdf(pg, bgW) {
     const ptPerM_ratio = ratio ? (1000 * AS_PT_PER_MM) / ratio.n : null;
     const r = asDecide(tokens, ratio, ptPerM_ratio);
     const pxPerM = r.unitPerM ? r.unitPerM * (bgW / pageW) : null;
+    asNormMarks(r, pageW, vp.height, true);
     r.tokens = tokens.length; r.pageMm = [Math.round(pageW / AS_PT_PER_MM), Math.round(vp.height / AS_PT_PER_MM)];
     asApply(r, pxPerM, 'pdf');
     uiToast(pxPerM ? '🔍 קנה מידה זוהה אוטומטית: ' + asLabel(r) : '🔍 לא זוהה קנה מידה אוטומטית — ' + r.note, 6000);
@@ -268,6 +271,7 @@ async function autoScaleImage(img, bgW) {
     const ratio = asFindRatio(lines);
     const r = asDecide(tokens, ratio, null);   /* בתמונה אין גודל דף — רק המידות */
     const pxPerM = r.unitPerM ? r.unitPerM * (bgW / cv.width) : null;
+    asNormMarks(r, cv.width, cv.height, false);
     r.tokens = tokens.length;
     asApply(r, pxPerM, 'ocr');
     uiToast(pxPerM ? '🔍 קנה מידה זוהה מהתמונה: ' + asLabel(r) : '🔍 לא זוהה קנה מידה מהתמונה — ' + r.note, 6000);
@@ -282,3 +286,34 @@ function autoScaleFromBg() {
   img.src = P.bg;
 }
 window.autoScaleFromBg = autoScaleFromBg;
+
+/* --- סימון על התכנית: איזה זוגות מידות שימשו — כדי שאפשר יהיה לוודא בעין --- */
+function asNormMarks(r, srcW, srcH, yUp) {
+  const mk = (r.chain && r.chain.marks) || [];
+  r.marks = mk.map(m => ({ a: m.a, b: m.b, real: m.real,
+    au: m.ax / srcW, av: yUp ? 1 - m.ay / srcH : m.ay / srcH, aw: m.aw / srcW, ah: m.ah / srcH,
+    bu: m.bx / srcW, bv: yUp ? 1 - m.by / srcH : m.by / srcH, bw: m.bw / srcW, bh: m.bh / srcH }));
+  if (r.chain) delete r.chain.marks;
+  r.show = true;
+}
+function asMarksSVG() {
+  const r = P.autoScale;
+  if (!r || !r.marks || !r.marks.length || r.show === false || !P.bg || calMode) return '';
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
+  const fz = Math.max(10, 12 / getZ());
+  const esc2 = t => String(t).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
+  let out = '';
+  r.marks.forEach(m => {
+    const x1 = L + m.au * W, y1 = T + m.av * H, x2 = L + m.bu * W, y2 = T + m.bv * H;
+    const box = (cx, cy, w, h) => `<rect x="${cx - Math.max(w * W, 14) / 2}" y="${cy - Math.max(h * H, 8) / 2}" width="${Math.max(w * W, 14)}" height="${Math.max(h * H, 8)}" rx="2" fill="none" stroke="#0f6e56" stroke-width="1.6"/>`;
+    out += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#0f6e56" stroke-width="1.6" stroke-dasharray="5 4" opacity="0.9"/>`;
+    out += box(x1, y1, m.aw, m.ah) + box(x2, y2, m.bw, m.bh);
+    const vert = Math.abs(x2 - x1) < Math.abs(y2 - y1);
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const txt = m.a + ' + ' + m.b + ' → ' + m.real.toFixed(2) + ' מ׳';
+    const bw = txt.length * fz * 0.58 + 10;
+    const tx = vert ? mx + fz * 1.2 + bw / 2 : mx, ty = vert ? my : my - fz * 1.1;
+    out += `<rect x="${tx - bw / 2}" y="${ty - fz * 0.8}" width="${bw}" height="${fz * 1.3}" rx="3" fill="#0f6e56" opacity="0.9"/><text x="${tx}" y="${ty + fz * 0.25}" text-anchor="middle" direction="ltr" unicode-bidi="embed" font-size="${fz}" font-weight="700" fill="#fff">${esc2(txt)}</text>`;
+  });
+  return `<g pointer-events="none">${out}</g>`;
+}
