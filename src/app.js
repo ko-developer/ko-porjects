@@ -5652,7 +5652,7 @@ function renderPanel() {
           <div style="font-weight:800;color:${P.scale ? '#0f6e56' : '#c9502e'};margin-bottom:4px">${P.scale ? '✓ קנה מידה מכויל' : '⚠ התכנית עדיין לא מכוילת'}</div>
           <p class="muted" style="margin:0 0 8px">${P.scale ? `1 מ׳ = ${(1 / P.scale).toFixed(1)}px · מרחקי כבלים נמדדים אוטומטית מהתכנית` : 'בלי כיול מרחקי הכבלים לא יחושבו נכון. כייל פעם אחת לפי מידה ידועה בתכנית.'}</p>
           ${typeof asSummaryHTML === 'function' ? asSummaryHTML() : ''}
-          <button class="primary" style="width:100%;${calMode ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : (P.scale ? 'כייל מחדש' : 'כייל עכשיו')}</button>
+          <button class="primary" style="width:100%;${calMode ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : 'בצע כיול ידני'}</button>
           ${P.bg && !P.autoScale && typeof autoScaleFromBg === 'function' ? `<button style="width:100%;margin-top:6px" onclick="autoScaleFromBg()">🔍 זהה קנה מידה אוטומטית (OCR מקומי, בלי AI)</button>` : ''}
         </div>
         <button style="width:100%;margin-bottom:6px" title="הוספת קירות ואובייקטים משורטטים מעל תכנית הרקע" onclick="sketchStart()">🖊 ${P.sketch && ((P.sketch.walls || []).length || (P.sketch.objs || []).length) ? 'ערוך את השרטוט' : 'שרטט מעל התכנית — קירות ואובייקטים'}</button>
