@@ -773,9 +773,12 @@ function uploadBg(inp, onDone) {
         P.bgW = fitBgW(cv2.width, cv2.height);
         P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv2.height / cv2.width));
         P.bgOp = P.bgOp ?? 0.5;
+        delete P.calOk; P.calSrc = ''; delete P.autoScale;
         sel = null; ui.tab = 'node';
         render();
         setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
+        /* קנה מידה מהטקסט של ה-PDF — בלי AI; רץ לפני ההמשך כדי שהאשף יראה את התוצאה */
+        if (typeof autoScalePdf === 'function') await autoScalePdf(pg, P.bgW);
         if (onDone) onDone();
       } catch (err) { alert('קריאת ה-PDF נכשלה (נדרש אינטרנט לטעינת הספרייה): ' + err.message); }
     })();
@@ -792,10 +795,13 @@ function uploadBg(inp, onDone) {
     P.bgW = fitBgW(cv.width, cv.height);
     P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv.height / cv.width));
     P.bgOp = P.bgOp ?? 0.5;
+    delete P.calOk; P.calSrc = ''; delete P.autoScale;
     sel = null; ui.tab = 'node';
     render();
     setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
     if (onDone) onDone();
+    /* OCR מקומי ברקע — התוצאה נכנסת כשמוכנה */
+    if (typeof autoScaleImage === 'function') autoScaleImage(img, P.bgW);
   };
   img.src = URL.createObjectURL(file);
 }
@@ -5633,7 +5639,9 @@ function renderPanel() {
         <div style="border:2px solid ${P.scale ? '#0f6e56' : '#c9502e'};border-radius:10px;padding:10px;margin:0 0 8px;background:${P.scale ? '#eef7f1' : '#fdeee8'}">
           <div style="font-weight:800;color:${P.scale ? '#0f6e56' : '#c9502e'};margin-bottom:4px">${P.scale ? '✓ קנה מידה מכויל' : '⚠ התכנית עדיין לא מכוילת'}</div>
           <p class="muted" style="margin:0 0 8px">${P.scale ? `1 מ׳ = ${(1 / P.scale).toFixed(1)}px · מרחקי כבלים נמדדים אוטומטית מהתכנית` : 'בלי כיול מרחקי הכבלים לא יחושבו נכון. כייל פעם אחת לפי מידה ידועה בתכנית.'}</p>
+          ${typeof asSummaryHTML === 'function' ? asSummaryHTML() : ''}
           <button class="primary" style="width:100%;${calMode ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : (P.scale ? 'כייל מחדש' : 'כייל עכשיו')}</button>
+          ${P.bg && !P.autoScale && typeof autoScaleFromBg === 'function' ? `<button style="width:100%;margin-top:6px" onclick="autoScaleFromBg()">🔍 זהה קנה מידה אוטומטית (OCR מקומי, בלי AI)</button>` : ''}
         </div>
         <button style="width:100%;margin-bottom:6px" title="הוספת קירות ואובייקטים משורטטים מעל תכנית הרקע" onclick="sketchStart()">🖊 ${P.sketch && ((P.sketch.walls || []).length || (P.sketch.objs || []).length) ? 'ערוך את השרטוט' : 'שרטט מעל התכנית — קירות ואובייקטים'}</button>
         <button style="width:100%;margin-bottom:6px" onclick="centerPlan()" title="מזיז את התכנית למרכז הקנבס — וכל המוקדים, האזורים והקווים זזים איתה">⌖ מרכז את התכנית בקנבס</button>
@@ -6153,6 +6161,7 @@ function showCalDialog(px, p1, p2) {
       if (m >= 1000) m = m / 1000;
       else if (m >= 100) m = m / 100;
       P.scale = m / px;
+      P.calSrc = 'manual'; P.calOk = 1;
       P.calLine = { p1, p2 }; /* קו הכיול נשאר על התכנית */
       recalcCableLengths();
       save();

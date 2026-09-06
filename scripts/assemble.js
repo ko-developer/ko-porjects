@@ -13,6 +13,7 @@ export function assembleAppJs() {
     if (!app.includes(marker)) throw new Error(`marker missing: ${name}`);
     app = app.replace(marker, `const ${name} = ${json};`);
   }
+  try { app += '\n' + readFileSync('src/autoscale.js', 'utf8'); } catch (e) { /* זיהוי קנה מידה אופציונלי */ }
   try { app += '\n' + readFileSync('src/wizard.js', 'utf8'); } catch (e) { /* אשף אופציונלי */ }
   return app;
 }
