@@ -998,8 +998,18 @@ function shareDialog() {
   };
 }
 window.shareDialog = shareDialog; window.authLogout = authLogout;
+/* מוזמן (לא בעלים): בלי ייצוא/ייבוא/גיבוי, בלי KO Studio, בלי ERP ובלי הטבלאות הפנימיות —
+   רואה ועורך את הפרויקט ששותף איתו בלבד */
+function applySharedMode() {
+  if (!AUTH || !AUTH.user || AUTH.user.role === 'owner') return;
+  document.body.classList.add('shared');
+  document.querySelectorAll('header .dd > button').forEach(b => { if (/^(ייצוא|ייבוא)/.test(b.textContent.trim())) b.parentElement.style.display = 'none'; });
+  const st = document.getElementById('studioLink'); if (st) st.style.display = 'none';
+  document.querySelectorAll('header button').forEach(b => { if (/הדפסה|הגדרות תכנית/.test(b.textContent)) b.style.display = 'none'; });
+}
 function renderHeader() {
   const ab = document.getElementById('authBox'); if (ab) ab.innerHTML = authBoxHTML();
+  applySharedMode();
   $('#projSel').innerHTML = store.projects.map(p =>
     `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   $('#projName').value = P.name;
