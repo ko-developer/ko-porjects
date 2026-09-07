@@ -86,6 +86,13 @@ th.nkh{opacity:.45}
 .rr .cell.none{color:#8a93a6;font-weight:400}
 .rr .how{color:#8a93a6;font-size:11.5px;line-height:1.6;margin:4px 0 8px}
 .rr .mods{display:flex;gap:18px;flex-wrap:wrap}
+.rrview{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 10px;font-size:12.5px}
+.rrview select{padding:4px 8px;border-radius:8px;border:1px solid #cfd5e0;font-size:12.5px}
+.rrview .rrsum{color:#556;font-size:12px}
+td.cell.rrv{background:#e3f0ff !important;color:#1a4d8f !important;font-weight:700}
+td.cell.rrv.rrcap{background:#ffe9d6 !important;color:#9a4b00 !important}
+td.cell.rrv.rrq{background:#eef1f6 !important;color:#556 !important;font-weight:500}
+td.cell.rrv.rrnone{background:#f4f4f4 !important;color:#999 !important;font-weight:400}
 
 h2{font-family:"Frank Ruhl Libre",Georgia,serif;font-size:21px;color:var(--deep);margin:0 0 4px}
 .note{font-size:12.5px;color:var(--muted);margin:0 0 8px}
@@ -299,6 +306,18 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
     if (sug) tip += '\n\u05d4\u05d7\u05d9\u05e9\u05d5\u05d1 \u05e9\u05dc\u05d9: ' + sug + (kind === 'amp' ? ' \u05dc\u05e2\u05e8\u05d5\u05e5' : '');
     var why = (D.why || {})[kind + '|' + rc];
     if (why) tip += '\n' + why;
+    /* מצב תצוגה לפי תכלית: התא מציג את היחס המומלץ לחלל, מוגבל במה שהסאב יכול להזין */
+    var RV = (ST.ui || {}).rrView;
+    if (kind === 'sub' && RV && RV.u && v !== 'no' && !rn) {
+      var rec = rrCalc(RV.u, +RV.h || 0, +RV.a || 0).idx;
+      var capV = rrRatioVal(v);
+      if (rec === 0) { cls += ' rrv rrnone'; txt = '—'; tip += '\nלפי הכלל: ' + RV.u + ' — ללא סאב'; }
+      else if (v && capV != null) {
+        var recV = RR_VALS[rec];
+        if (recV <= capV) { cls += ' rrv'; txt = RR_LADDER[rec]; tip += '\nמומלץ לחלל: ' + RR_LADDER[rec] + ' (הסאב יכול עד ' + v + ')'; }
+        else { cls += ' rrv rrcap'; txt = v; tip += '\nהכלל מבקש ' + RR_LADDER[rec] + ' אבל הסאב מזין לכל היותר ' + v + ' — מוגבל ע"י הסאב'; }
+      } else if (v === 'ok' || n || t) { cls += ' rrv rrq'; txt = RR_LADDER[rec] + '?'; tip += '\nלפי הכלל בלבד: ' + RR_LADDER[rec] + ' — אין ערך מאומת לזוג הזה'; }
+    }
     if (rn && !v) tip += '\n\u05d0\u05e1\u05d5\u05e8 \u05dc\u05e4\u05d9 \u05db\u05dc\u05dc \u05de\u05d5\u05ea\u05d2: ' + rn + ' \u2014 \u05d4\u05d6\u05e0\u05ea \u05e2\u05e8\u05da \u05ea\u05d7\u05e8\u05d5\u05d2 \u05de\u05d4\u05db\u05dc\u05dc';
     tip += '\n\u05dc\u05d7\u05d9\u05e6\u05d4 = \u05e2\u05e8\u05d9\u05db\u05d4 \u00b7 \u05e7\u05dc\u05d9\u05e7 \u05d9\u05de\u05e0\u05d9 = \u05d0\u05e1\u05d5\u05e8 \u2715 \u00b7 \u05e8\u05d9\u05e7 = \u05dc\u05d0 \u05d4\u05d5\u05d6\u05df \u05e2\u05d3\u05d9\u05d9\u05df';
     return '<td class="' + cls + '" data-key="' + esc(key) + '" title="' + esc(tip) + '">' + esc(txt) + '</td>';
@@ -340,6 +359,7 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
       return '<span class="chip' + (colOn(kind, g.b) ? ' on' : '') + '" data-chip="' + esc(kind + '~' + g.b) +
         '">' + esc(g.b) + ' (' + g.models.length + ')</span>';
     }).join('') + '</div>';
+    if (kind === 'sub') chips += rrViewBarHTML();
     var head = '<tr><th class="corner" colspan="2">' + esc(m.title) + '</th>' + cols.map(function (c) {
       return '<th' + ((kind === 'amp' && (ST.noKit || {})[c]) ? ' class="nkh" title="\u05de\u05d5\u05d7\u05e8\u05d2 \u05de\u05e7\u05d9\u05d8\u05d9\u05dd \u2014 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d1\u05dc\u05d1\u05d3"' : '') + ' data-m="' + esc(c) + '" data-kind="' + (kind === 'amp' ? 'amp' : (kind === 'sub' ? 'spk' : 'dsp')) + '"><span class="col"><i>' + esc(brand(c)) + '</i>' + esc(disp(c)) + stkB(c) + '</span></th>'; }).join('') + '</tr>';
     var MSET = {}, MHIDE = {};
@@ -1074,8 +1094,30 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
     h += '</table></div></div>';
     return h;
   }
+  /* ערך מספרי של יחס: כמה טופים לכל סאב ("2:1"→2, "1"→1, "4:3"→1.33, "1:2"→0.5) */
+  var RR_VALS = [Infinity, 6, 4, 3, 2, 1, 0.5];
+  function rrRatioVal(v) {
+    if (!v || v === 'no' || v === 'ok') return null;
+    var m = /^(\d+(?:\.\d+)?)(?:\s*:\s*(\d+(?:\.\d+)?))?$/.exec(String(v).trim());
+    if (!m) return null;
+    return m[2] ? (+m[1]) / (+m[2]) : +m[1];
+  }
+  function rrViewBarHTML() {
+    var RV = (ST.ui || {}).rrView || {};
+    var h = '<div class="rrview"><span class="lbl">הצג יחס מומלץ לפי:</span> <select data-rr-view="u"><option value="">— ערכי המטריצה (בלי כלל) —</option>' +
+      RR_USAGES.map(function (u) { return '<option value="' + esc(u[0]) + '"' + (RV.u === u[0] ? ' selected' : '') + '>' + esc(u[0]) + ' · ' + u[1] + ' dB</option>'; }).join('') + '</select>';
+    h += ' <select data-rr-view="h"' + (RV.u ? '' : ' disabled') + '>' + RR_H.map(function (x, i) { return '<option value="' + i + '"' + ((+RV.h || 0) === i ? ' selected' : '') + '>תקרה ' + x[0] + '</option>'; }).join('') + '</select>';
+    h += ' <select data-rr-view="a"' + (RV.u ? '' : ' disabled') + '>' + RR_A.map(function (x, i) { return '<option value="' + i + '"' + ((+RV.a || 0) === i ? ' selected' : '') + '>שטח ' + x[0] + '</option>'; }).join('') + '</select>';
+    if (RV.u) { var rec = rrCalc(RV.u, +RV.h || 0, +RV.a || 0); h += ' <span class="rrsum">המלצת הכלל: <b>' + RR_LADDER[rec.idx] + '</b>' + (rec.ov ? ' (דריסה ידנית)' : '') + ' · בתאים: כחול = מומלץ, כתום = מוגבל ע"י הסאב, "?" = לפי הכלל בלבד</span>'; }
+    return h + '</div>';
+  }
   app.addEventListener('change', function (e) {
     var t = e.target; if (!t || t.tagName !== 'SELECT') return;
+    if (t.hasAttribute('data-rr-view')) {
+      ST.ui = ST.ui || {}; var RV = ST.ui.rrView = ST.ui.rrView || {};
+      RV[t.getAttribute('data-rr-view')] = t.value;
+      render(); schedule(); return;
+    }
     var R = rrState();
     if (t.hasAttribute('data-rr-base')) R.base[t.getAttribute('data-rr-base')] = +t.value;
     else if (t.hasAttribute('data-rr-h')) R.hMod[t.getAttribute('data-rr-h')] = +t.value;
