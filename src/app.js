@@ -977,12 +977,21 @@ function shareDialog() {
       const names = store.projects.filter(p => projects.includes(p.id)).map(p => p.name).join(', ');
       const msg = `שלום${label ? ' ' + label.split(/\s|—|-/)[0] : ''},\nשיתפתי איתך ב-KO Projects את: ${names}.\nהיכנס לקישור, הירשם עם המייל והסיסמה שלך והתכנית תיפתח:\n${j.url}\n(הקישור תקף 14 יום)`;
       out.innerHTML = `<div style="background:#eef7f1;border:1px solid #bfe0cd;border-radius:8px;padding:8px;margin-top:6px">
-        <div style="font-size:11px;word-break:break-all;font-family:ui-monospace,Menlo,monospace;direction:ltr;text-align:left">${esc(j.url)}</div>
+        <input id="shUrl" readonly value="${esc(j.url)}" style="width:100%;font-size:11px;font-family:ui-monospace,Menlo,monospace;direction:ltr;text-align:left;padding:5px;box-sizing:border-box;margin:0">
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-          <button onclick="navigator.clipboard.writeText(${JSON.stringify(j.url)});this.textContent='הועתק ✓'">📋 העתק קישור</button>
-          <button onclick="location.href='mailto:${esc(email)}?subject=' + encodeURIComponent('שיתוף פרויקט — KO Projects') + '&body=' + encodeURIComponent(${JSON.stringify(msg)})">✉️ שלח במייל</button>
-          <button onclick="window.open('https://wa.me/?text=' + encodeURIComponent(${JSON.stringify(msg)}))">💬 שלח בוואטסאפ</button>
+          <button type="button" id="shCopy">📋 העתק קישור</button>
+          <button type="button" id="shMail">✉️ שלח במייל</button>
+          <button type="button" id="shWa">💬 שלח בוואטסאפ</button>
         </div></div>`;
+      /* ההנדלרים בקוד, לא במאפייני HTML — הקישור וההודעה מכילים מרכאות ושורות */
+      const urlIn = out.querySelector('#shUrl');
+      out.querySelector('#shCopy').onclick = async function () {
+        try { await navigator.clipboard.writeText(j.url); } catch (e) { urlIn.select(); document.execCommand('copy'); }
+        this.textContent = 'הועתק ✓';
+      };
+      out.querySelector('#shMail').onclick = () => { window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent('שיתוף פרויקט — KO Projects') + '&body=' + encodeURIComponent(msg), '_self'); };
+      out.querySelector('#shWa').onclick = () => { window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank'); };
+      urlIn.onclick = () => urlIn.select();
       ov.querySelector('#shGo').textContent = 'צור קישור נוסף';
     } catch (e) { out.innerHTML = `<p style="color:#c1121f;font-size:12.5px">${esc(String(e))}</p>`; }
   };
