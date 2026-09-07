@@ -1,0 +1,69 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KO Projects — משתמשים ושיתופים</title>
+<style>
+body{margin:0;font-family:-apple-system,'Segoe UI',Assistant,Arial,sans-serif;background:#f4f2ec;color:#1a1e28;direction:rtl;padding:22px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px}
+.top{display:flex;align-items:center;gap:12px}.top a{color:#534ab7;text-decoration:none;font-size:13px}
+table{border-collapse:collapse;width:100%;background:#fff;border-radius:10px;overflow:hidden;font-size:12.5px}
+th,td{border-bottom:1px solid #eee;padding:8px 10px;text-align:right;vertical-align:top}th{background:#faf8f4;font-weight:700}
+.b{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:#eef7f1;color:#0f6e56}
+.b.no{background:#fdeee8;color:#8c2f16}.b.own{background:#efecfd;color:#4b3fb8}.b.v{background:#f4f2ec;color:#556}
+button{padding:5px 9px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:12px;margin:2px}
+button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{background:#eef7f1;color:#0f6e56;border-color:#bfe0cd}
+.url{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#556;word-break:break-all}
+.muted{color:#8a8377;font-size:11.5px}
+</style>
+<div class="top"><h1>👥 משתמשים ושיתופים</h1><a href="/">← חזרה לאפליקציה</a></div>
+<p class="muted">כאן רואים מי נרשם דרך קישורי השיתוף, מה מותר לו, ואפשר לחסום מיד (החסימה מנתקת גם סשן פעיל). קישור שיתוף הוא חד-פעמי ותקף 14 יום.</p>
+<h2>משתמשים</h2>
+<div id="users">טוען…</div>
+<h2>קישורי שיתוף</h2>
+<div id="invites"></div>
+<script>
+(function () {
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+  var fmt = function (t) { if (!t) return '—'; var d = new Date(t); return isNaN(d) ? '—' : d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }); };
+  function post(url, b) { return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then(function (r) { return r.json(); }); }
+  function load() {
+    fetch('/api/admin/users').then(function (r) { if (r.status === 403) { location.href = '/login'; throw new Error('forbidden'); } return r.json(); }).then(function (d) {
+      var uh = '<table><tr><th>שם</th><th>מייל</th><th>תפקיד</th><th>פרויקטים והרשאה</th><th>נרשם</th><th>כניסה אחרונה</th><th>מצב</th><th></th></tr>';
+      d.users.forEach(function (u) {
+        var own = u.role === 'owner';
+        uh += '<tr><td><b>' + esc(u.name) + '</b></td><td>' + esc(u.email) + '</td><td>' + (own ? '<span class="b own">בעלים</span>' : '<span class="b v">מוזמן</span>') + '</td>' +
+          '<td>' + (own ? '<span class="muted">הכל</span>' : (u.projects.length ? u.projects.map(function (p) {
+            return '<div>' + esc(p.name) + ' <select data-grant="' + esc(u.id) + '|' + esc(p.id) + '"><option value="edit"' + (p.perm === 'edit' ? ' selected' : '') + '>עריכה</option><option value="view"' + (p.perm === 'view' ? ' selected' : '') + '>צפייה</option><option value="none">הסר</option></select></div>';
+          }).join('') : '<span class="muted">אין</span>')) + '</td>' +
+          '<td>' + fmt(u.createdAt) + '</td><td>' + fmt(u.lastLogin) + '</td>' +
+          '<td>' + (u.blocked ? '<span class="b no">חסום</span>' : '<span class="b">פעיל</span>') + '</td>' +
+          '<td>' + (own ? '' : (u.blocked ? '<button class="ok" data-act="unblock" data-id="' + esc(u.id) + '">בטל חסימה</button>' : '<button class="warn" data-act="block" data-id="' + esc(u.id) + '">🚫 חסום</button>') +
+            '<button data-act="delete" data-id="' + esc(u.id) + '">מחק</button>') + '</td></tr>';
+      });
+      document.getElementById('users').innerHTML = uh + '</table>';
+      var ih = '<table><tr><th>למי</th><th>פרויקטים</th><th>הרשאה</th><th>נוצר</th><th>תוקף</th><th>מצב</th><th>קישור</th><th></th></tr>';
+      if (!d.invites.length) ih += '<tr><td colspan="8" class="muted">עוד לא נוצרו קישורי שיתוף — הכפתור "🔗 שתף" בכותרת האפליקציה.</td></tr>';
+      d.invites.slice().reverse().forEach(function (i) {
+        var st = i.usedBy ? '<span class="b">נוצל: ' + esc(i.usedBy) + '</span>' : i.revoked ? '<span class="b no">בוטל</span>' : i.exp < Date.now() ? '<span class="b no">פג</span>' : '<span class="b v">ממתין</span>';
+        ih += '<tr><td>' + esc(i.label || i.email || '—') + (i.email && i.label ? '<br><span class="muted">' + esc(i.email) + '</span>' : '') + '</td><td>' + i.projects.map(esc).join('<br>') + '</td><td>' + (i.perm === 'view' ? 'צפייה' : 'עריכה') + '</td>' +
+          '<td>' + fmt(i.createdAt) + '</td><td>' + fmt(i.exp) + '</td><td>' + st + '</td><td class="url">' + (i.usedBy || i.revoked ? '—' : esc(i.url)) + '</td>' +
+          '<td>' + (!i.usedBy && !i.revoked ? '<button data-copy="' + esc(i.url) + '">העתק</button><button class="warn" data-inv="revoke" data-token="' + esc(i.token) + '">בטל</button>' : '<button data-inv="delete" data-token="' + esc(i.token) + '">מחק</button>') + '</td></tr>';
+      });
+      document.getElementById('invites').innerHTML = ih + '</table>';
+    }).catch(function () {});
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t.dataset.act) {
+      if (t.dataset.act === 'delete' && !confirm('למחוק את המשתמש? הוא לא יוכל להיכנס יותר.')) return;
+      post('/api/admin/user', { id: t.dataset.id, action: t.dataset.act }).then(load);
+    } else if (t.dataset.inv) post('/api/admin/invite', { token: t.dataset.token, action: t.dataset.inv }).then(load);
+    else if (t.dataset.copy) { navigator.clipboard.writeText(t.dataset.copy); t.textContent = 'הועתק ✓'; }
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t.dataset.grant) return;
+    var p = t.dataset.grant.split('|');
+    post('/api/admin/user', { id: p[0], action: 'grant', project: p[1], perm: t.value }).then(load);
+  });
+  load();
+})();
+</script>

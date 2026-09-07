@@ -1,0 +1,74 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KO Projects — כניסה</title>
+<style>
+body{margin:0;font-family:-apple-system,'Segoe UI',Assistant,Arial,sans-serif;background:#f4f2ec;color:#1a1e28;direction:rtl;display:flex;min-height:100vh;align-items:center;justify-content:center}
+.card{background:#fff;border-radius:16px;box-shadow:0 14px 44px rgba(15,20,30,.14);width:min(420px,92vw);padding:26px 26px 20px}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.mark{width:40px;height:40px;border-radius:10px;background:#1a1e28;color:#ffcbb3;font-weight:800;display:flex;align-items:center;justify-content:center}
+h1{font-size:18px;margin:0}small{color:#8a8377}
+label{display:block;font-size:12px;color:#556;margin:10px 0 4px}
+input{width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:14px;font-family:inherit}
+button{width:100%;padding:11px;border:none;border-radius:10px;background:#c9502e;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:14px}
+button.sec{background:#faf8f4;color:#1a1e28;border:1px solid #ddd;font-weight:500}
+.err{background:#fdeee8;color:#8c2f16;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:10px;display:none}
+.inv{background:#eef7f1;border:1px solid #bfe0cd;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.6;margin-bottom:6px}
+.inv b{color:#0f6e56}
+.tabs{display:flex;gap:6px;margin:6px 0 4px}
+.tabs span{flex:1;text-align:center;padding:7px;border-radius:9px;background:#f4f2ec;font-size:13px;cursor:pointer}
+.tabs span.on{background:#1a1e28;color:#fff;font-weight:700}
+.hint{font-size:11.5px;color:#8a8377;line-height:1.5;margin-top:10px}
+</style>
+<div class="card">
+  <div class="logo"><div class="mark">KO</div><div><h1>KO Projects</h1><small>מתכנן הקמות וחיווט</small></div></div>
+  <div id="invBox" class="inv" style="display:none"></div>
+  <div id="tabs" class="tabs"><span data-t="login" class="on">כניסה</span><span data-t="register">הרשמה</span></div>
+  <form id="f" onsubmit="return false">
+    <div id="nameRow" style="display:none"><label>שם</label><input id="name" autocomplete="name" placeholder="השם שיופיע לבעל המערכת"></div>
+    <label>מייל</label><input id="email" type="email" autocomplete="username" required>
+    <label>סיסמה</label><input id="pw" type="password" autocomplete="current-password" required minlength="8" placeholder="לפחות 8 תווים">
+    <div class="err" id="err"></div>
+    <button id="go">כניסה</button>
+  </form>
+  <p class="hint" id="hint"></p>
+</div>
+<script>
+(function () {
+  var qs = new URLSearchParams(location.search);
+  var token = qs.get('t') || (location.pathname.match(/^\/join\/([^/]+)/) || [])[1] || '';
+  var mode = 'login';
+  var $ = function (id) { return document.getElementById(id); };
+  function setMode(m) {
+    mode = m;
+    [].forEach.call(document.querySelectorAll('#tabs span'), function (s) { s.classList.toggle('on', s.getAttribute('data-t') === m); });
+    $('nameRow').style.display = m === 'register' ? '' : 'none';
+    $('go').textContent = m === 'register' ? 'הרשמה וכניסה' : 'כניסה';
+    $('pw').autocomplete = m === 'register' ? 'new-password' : 'current-password';
+  }
+  document.querySelectorAll('#tabs span').forEach(function (s) { s.onclick = function () { setMode(s.getAttribute('data-t')); }; });
+  fetch('/api/auth/me').then(function (r) { return r.json(); }).then(function (me) {
+    if (me.user && !token) { location.href = '/'; return; }
+    if (token) {
+      fetch('/api/invite?t=' + encodeURIComponent(token)).then(function (r) { return r.json(); }).then(function (inv) {
+        $('invBox').style.display = '';
+        if (inv.error) { $('invBox').innerHTML = '⚠ ' + inv.error; return; }
+        if (!inv.ok) { $('invBox').innerHTML = '⚠ הקישור ' + (inv.used ? 'כבר נוצל' : inv.revoked ? 'בוטל' : 'פג תוקף') + ' — בקש קישור חדש מ' + (inv.by || 'בעל המערכת') + '. אם כבר נרשמת, פשוט התחבר.'; return; }
+        $('invBox').innerHTML = '<b>' + (inv.by || 'בעל המערכת') + '</b> שיתף איתך ' + inv.projects.length + ' פרויקט' + (inv.projects.length > 1 ? 'ים' : '') + ' בהרשאת <b>' + (inv.perm === 'view' ? 'צפייה' : 'עריכה') + '</b>:<br>' +
+          inv.projects.map(function (n) { return '• ' + n; }).join('<br>') + '<br>הירשם עם מייל וסיסמה כדי להיכנס.';
+        if (inv.email) $('email').value = inv.email;
+        setMode('register');
+      });
+    }
+    $('hint').textContent = token ? 'יש לך כבר חשבון? עבור לכניסה — ההזמנה תתווסף בפעם הבאה שהבעלים ישתף.' : 'הכניסה למוזמנים בלבד — קישור שיתוף מגיע מבעל המערכת.';
+  });
+  $('f').onsubmit = function () {
+    var err = $('err'); err.style.display = 'none';
+    var payload = { email: $('email').value, password: $('pw').value, name: $('name').value, token: token };
+    fetch(mode === 'register' ? '/api/auth/register' : '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j.error) { err.textContent = j.error; err.style.display = ''; return; } location.href = '/'; })
+      .catch(function (e) { err.textContent = String(e); err.style.display = ''; });
+    return false;
+  };
+})();
+</script>

@@ -944,7 +944,52 @@ function render() {
 /* דפי הטבלאות — עמודים מקומיים של האפליקציה עצמה (src/pages), נשמרים ב-data/page_state */
 const MATRIX_URL = '/matrix';
 const LOGIC_URL = '/logic';
+/* ===== שיתוף ומשתמשים — נגיש רק כשהשרת מפעיל אימות (window.__AUTH מוזרק ע"י השרת) ===== */
+const AUTH = window.__AUTH || null;
+function authBoxHTML() {
+  if (!AUTH || !AUTH.enabled || !AUTH.user) return '';
+  const u = AUTH.user;
+  if (u.role === 'owner') return `<button onclick="shareDialog()" title="יצירת קישור שיתוף — המוזמן נרשם עם מייל וסיסמה, ואפשר לחסום אותו בכל רגע" style="background:#0f6e56;color:#fff;font-weight:700">🔗 שתף</button>
+    <button onclick="location.href='/admin'" title="משתמשים, הרשאות, חסימה וקישורי שיתוף">👥</button>${u.local ? '' : `<button onclick="authLogout()" title="${esc(u.email)} · יציאה">👤 ${esc(u.name || '')}</button>`}`;
+  const perm = (P && P._perm) === 'view' ? ' <small style="opacity:.8">· צפייה בלבד</small>' : '';
+  return `<button onclick="authLogout()" title="${esc(u.email)} · יציאה" style="background:#efecfd;color:#4b3fb8">👤 ${esc(u.name || '')}${perm}</button>`;
+}
+async function authLogout() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {} location.href = '/login'; }
+function shareDialog() {
+  const rows = store.projects.map(p => `<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;padding:2px 0;cursor:pointer"><input type="checkbox" class="shP" value="${p.id}" ${p.id === P.id ? 'checked' : ''} style="width:auto"> ${esc(p.name)}</label>`).join('');
+  const ov = uiModal(`<b style="font-size:15px">🔗 שיתוף פרויקטים</b>
+    <p class="muted" style="font-size:12px;margin:6px 0 8px;line-height:1.5">המוזמן מקבל קישור חד-פעמי (תקף 14 יום), נרשם עם מייל וסיסמה ורואה רק את הפרויקטים שסימנת. אפשר לחסום אותו בכל רגע ב-👥.</p>
+    <div style="max-height:180px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:6px 8px;margin-bottom:8px">${rows}</div>
+    <div class="row2"><div class="fld"><label>הרשאה</label><select id="shPerm"><option value="edit">עריכה</option><option value="view">צפייה בלבד</option></select></div>
+      <div class="fld"><label>למי (שם / הערה)</label><input id="shLabel" placeholder="למשל: יוסי — חשמלאי"></div></div>
+    <div class="fld"><label>מייל המוזמן (לא חובה — אם מוזן, הקישור יעבוד רק לכתובת הזו)</label><input id="shEmail" type="email" placeholder="name@example.com"></div>
+    <div id="shOut"></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button class="primary" id="shGo" style="flex:1">צור קישור</button><button id="shX" style="flex:1">סגור</button></div>`);
+  ov.querySelector('#shX').onclick = () => ov.remove();
+  ov.querySelector('#shGo').onclick = async () => {
+    const projects = [...ov.querySelectorAll('.shP:checked')].map(c => c.value);
+    const perm = ov.querySelector('#shPerm').value, label = ov.querySelector('#shLabel').value, email = ov.querySelector('#shEmail').value.trim();
+    const out = ov.querySelector('#shOut');
+    try {
+      const r = await fetch('/api/share', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ projects, perm, label, email }) });
+      const j = await r.json();
+      if (j.error) { out.innerHTML = `<p style="color:#c1121f;font-size:12.5px">${esc(j.error)}</p>`; return; }
+      const names = store.projects.filter(p => projects.includes(p.id)).map(p => p.name).join(', ');
+      const msg = `שלום${label ? ' ' + label.split(/\s|—|-/)[0] : ''},\nשיתפתי איתך ב-KO Projects את: ${names}.\nהיכנס לקישור, הירשם עם המייל והסיסמה שלך והתכנית תיפתח:\n${j.url}\n(הקישור תקף 14 יום)`;
+      out.innerHTML = `<div style="background:#eef7f1;border:1px solid #bfe0cd;border-radius:8px;padding:8px;margin-top:6px">
+        <div style="font-size:11px;word-break:break-all;font-family:ui-monospace,Menlo,monospace;direction:ltr;text-align:left">${esc(j.url)}</div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button onclick="navigator.clipboard.writeText(${JSON.stringify(j.url)});this.textContent='הועתק ✓'">📋 העתק קישור</button>
+          <button onclick="location.href='mailto:${esc(email)}?subject=' + encodeURIComponent('שיתוף פרויקט — KO Projects') + '&body=' + encodeURIComponent(${JSON.stringify(msg)})">✉️ שלח במייל</button>
+          <button onclick="window.open('https://wa.me/?text=' + encodeURIComponent(${JSON.stringify(msg)}))">💬 שלח בוואטסאפ</button>
+        </div></div>`;
+      ov.querySelector('#shGo').textContent = 'צור קישור נוסף';
+    } catch (e) { out.innerHTML = `<p style="color:#c1121f;font-size:12.5px">${esc(String(e))}</p>`; }
+  };
+}
+window.shareDialog = shareDialog; window.authLogout = authLogout;
 function renderHeader() {
+  const ab = document.getElementById('authBox'); if (ab) ab.innerHTML = authBoxHTML();
   $('#projSel').innerHTML = store.projects.map(p =>
     `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   $('#projName').value = P.name;

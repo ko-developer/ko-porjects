@@ -76,6 +76,16 @@ adapter-node — תמונת התכנית נשלחת כ-base64 וחוצה את ב
 מהדפדפן, ולא הועבר ל-`/api/ai`.
 
 
+## שיתוף ומשתמשים (scripts/auth.js — רק בשרת הלגאסי `npm run dev:legacy`)
+- הבעלים (אורי) לא נרשם אף פעם: בקשה מ-localhost = בעלים אוטומטית. מבחוץ (או מאחורי פרוקסי עם
+  x-forwarded-for) חייבים סשן של מוזמן, אחרת `/login`.
+- `🔗 שתף` בכותרת → `POST /api/share` → קישור חד-פעמי `/join/<token>` (14 יום) לפרויקטים נבחרים,
+  הרשאת עריכה/צפייה. המוזמן נרשם עם מייל+סיסמה (scrypt) ורואה רק את הפרויקטים שלו
+  (`filterStore`/`mergeStore`). `/admin` (בעלים): חסימה/ביטול/מחיקה, שינוי הרשאות, ביטול קישורים.
+- אחסון: `data/users.json` (gitignored). הטבלאות הפנימיות (`/matrix`, `/logic`) — בעלים בלבד.
+- כדי שמוזמנים יגיעו בפועל השרת חייב להיות נגיש מהאינטרנט (VPS / Cloudflare Tunnel); Netlify
+  הסטטי לא יודע לאמת. הראוטים של SvelteKit (`src/routes/api/store`) עדיין בלי אימות.
+
 ## Rules for Claude sessions
 1. Edit `src/` and `data/` — never `dist/`.
 2. After every meaningful change: `npm run validate && npm run build`, then commit with a conventional message in the background. Do NOT ask the user about commits — just commit.
