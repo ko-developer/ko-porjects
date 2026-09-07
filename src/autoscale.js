@@ -197,7 +197,7 @@ function asSummaryHTML() {
   return `<div style="border:1.5px solid ${col};border-radius:9px;padding:7px 9px;margin:0 0 8px;background:#fff;font-size:11.5px;line-height:1.5">
     <b style="color:${col}">🔍 זיהוי אוטומטי${over ? ' (נדרס בכיול ידני)' : ''}:</b> ${esc(asLabel(r))}<br>${ratioRow}
     <span class="muted">${esc(r.note || '')}${r.pxPerM ? ' · 1 מ׳ = ' + r.pxPerM.toFixed(1) + 'px' : ''}</span>
-    ${r.marks && r.marks.length ? `<button style="width:100%;margin-top:6px;${r.show === false ? '' : 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56'}" onclick="P.autoScale.show=!(P.autoScale.show!==false);save();render()">👁 ${r.show === false ? 'הצג' : 'מוצג'} על התכנית: ${r.marks.length} זוגות המידות ששימשו לזיהוי</button>` : ''}
+    ${r.marks && r.marks.length ? `<div style="display:flex;gap:4px;margin-top:6px"><button style="flex:1;${r.show === false ? '' : 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56'}" onclick="P.autoScale.show=!(P.autoScale.show!==false);save();render()">👁 ${r.show === false ? 'הצג סימון אימות' : 'סימון אימות מוצג'}</button><button style="flex:1;${r.showAll ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56' : ''}" onclick="P.autoScale.showAll=!P.autoScale.showAll;save();render()">${r.showAll ? 'רק אחד' : 'הצג את כל ' + r.marks.length}</button></div>` : ''}
     ${r.chain && r.chain.samples && r.chain.samples.length ? `<details style="margin-top:3px"><summary class="muted" style="cursor:pointer">המידות ששימשו לאימות</summary>
       <div class="muted" style="font-size:10.5px">${r.chain.samples.map(s => esc(s.a) + ' ↔ ' + esc(s.b) + ' → ' + s.real.toFixed(2) + ' מ׳').join('<br>')}</div></details>` : ''}
     ${r.pxPerM && over ? `<button style="width:100%;margin-top:6px" onclick="P.calSrc='';asApply(P.autoScale,P.autoScale.pxPerM,P.autoScale.src,true);uiToast('✓ הוחל קנה המידה שזוהה — במקום הכיול הידני')">↺ השתמש בזיהוי (1 מ׳ = ${r.pxPerM.toFixed(1)}px) במקום הכיול הידני (${(1 / P.scale).toFixed(1)}px)</button>` : ''}
@@ -318,7 +318,7 @@ function asMarksSVG() {
   const r = P.autoScale;
   if (!r || !r.marks || !r.marks.length || r.show === false || !P.bg || !P.scale || calMode) return '';
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(), k = 1 / P.scale;
-  const fz = Math.max(9, 11 / getZ()), sw = Math.max(1.2, 1.8 / getZ());
+  const fz = Math.max(10, 13 / getZ()), sw = Math.max(1.6, 2.4 / getZ());
   const seen = new Set();
   let out = '';
   const one = (u, v, w, h, txt, val, vert) => {
@@ -339,7 +339,13 @@ function asMarksSVG() {
       out += `<text x="${x + lh * 0.9 + fz * 0.3}" y="${y + fz * 0.35}" font-size="${fz}" font-weight="700" fill="#e02020" direction="ltr" unicode-bidi="embed">${txt} = ${val.toFixed(2)}m</text>`;
     }
   };
-  r.marks.forEach(m => { one(m.au, m.av, m.aw, m.ah, m.a, m.va, m.vert); one(m.bu, m.bv, m.bw, m.bh, m.b, m.vb, m.vert); });
+  /* ברירת מחדל: סימון אחד בלבד — המידה הארוכה ביותר (הכי קל לוודא בעין); "הצג את כולם" מציג הכל */
+  if (r.showAll) r.marks.forEach(m => { one(m.au, m.av, m.aw, m.ah, m.a, m.va, m.vert); one(m.bu, m.bv, m.bw, m.bh, m.b, m.vb, m.vert); });
+  else {
+    let best = null;
+    r.marks.forEach(m => { [[m.au, m.av, m.aw, m.ah, m.a, m.va], [m.bu, m.bv, m.bw, m.bh, m.b, m.vb]].forEach(c => { if (c[5] > 0 && (!best || c[5] > best[5])) best = c.concat([m.vert]); }); });
+    if (best) one(...best);
+  }
   return `<g pointer-events="none">${out}</g>`;
 }
 
