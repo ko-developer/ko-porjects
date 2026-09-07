@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { openDb, readStore, writeStore } from './db.js';
 import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser } from './auth.js';
+import { erpQuotes, erpQuoteItems } from './erp-client.js';
 
 const PORT = process.env.PORT || 4177;
 const db = openDb();
@@ -38,6 +39,22 @@ createServer(async (req, res) => {
     res.writeHead(302, { location: '/login' }); res.end(); return;
   }
   const isOwner = me.role === 'owner';
+  /* --- הצעות מחיר מה-ERP (חי, דרך MCP) — בעלים בלבד --- */
+  if (path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') {
+    if (!isOwner) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"owner only"}'); return; }
+    const sp = new URL(req.url, 'http://x').searchParams;
+    try {
+      const out = path0 === '/api/erp/quotes'
+        ? { quotes: await erpQuotes({ q: sp.get('q') || '', all: sp.get('all') === '1' }) }
+        : { items: await erpQuoteItems(sp.get('order_id') || '') };
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(out));
+    } catch (e) {
+      res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: String(e.message || e) }));
+    }
+    return;
+  }
   if (req.url === '/api/store') {
     if (req.method === 'GET') {
       try {

@@ -7440,6 +7440,91 @@ function pickErp(i) {
   $('#impOv').style.display = 'none';
   renderImp();
 }
+/* ===== משיכת הצעת מחיר מה-ERP — רשימת ההצעות הפתוחות, בחירה, והפריטים נכנסים להצעה כמו כל ייבוא ===== */
+function erpLineToItem(x, src) {
+  const name = String(x.name || '').slice(0, 70);
+  const st = classifyStock(name);
+  let it;
+  if (st) it = { on: true, qty: +x.qty || 1, name, src, cat: 'other', u: 1, ...st };
+  else {
+    const d = SPEC_DICT.find(d => d.re.test(name));
+    const dest = d ? d.dest : (/שירות|התקנה|משלוח|כיוון|תכנות|הובלה|עבודה|שעות/.test(name) ? 'ignore' : 'unit');
+    it = { on: dest !== 'ignore', qty: +x.qty || 1, name, dest, cat: d?.cat || 'other', u: d?.u || 1, src };
+  }
+  if (x.key) it.key = x.key;
+  if (x.price > 0) it.price = x.price;
+  it.rack = guessRackFor(it);
+  return it;
+}
+let erpQState = { q: '', all: false, quotes: null, sel: null, items: null, busy: false };
+function erpQuotesDialog() {
+  const ov = uiModal(`<div id="erpQBox"><b style="font-size:15px">🧾 הצעת מחיר מה-ERP → לתכנית</b>
+    <p class="muted" style="font-size:12px;margin:6px 0 8px;line-height:1.5">בחר הצעת מחיר קיימת — הפריטים שלה נכנסים להצעה בפרויקט הזה, ומשם מציבים אותם על התכנית (גרירה או 📍).</p>
+    <div id="erpQBody">טוען הצעות מה-ERP…</div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button id="erpQX" style="flex:1">סגור</button></div></div>`);
+  ov.querySelector('div').style.maxWidth = '560px';
+  ov.querySelector('#erpQX').onclick = () => ov.remove();
+  ov.__render = () => erpQRender(ov);
+  erpQState.sel = null; erpQState.items = null;
+  erpQLoad(ov);
+}
+async function erpQLoad(ov) {
+  erpQState.busy = true; erpQRender(ov);
+  try {
+    const r = await fetch('/api/erp/quotes?q=' + encodeURIComponent(erpQState.q) + (erpQState.all ? '&all=1' : ''));
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    erpQState.quotes = j.quotes || [];
+  } catch (e) { erpQState.quotes = null; erpQState.err = String(e.message || e); }
+  erpQState.busy = false; erpQRender(ov);
+}
+async function erpQPick(ov, id) {
+  erpQState.sel = erpQState.quotes.find(x => x.id === id) || null; erpQState.items = null; erpQState.busy = true; erpQRender(ov);
+  try {
+    const r = await fetch('/api/erp/quote-items?order_id=' + encodeURIComponent(id));
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    erpQState.items = (j.items || []).map(x => ({ ...x, on: true }));
+  } catch (e) { erpQState.err = String(e.message || e); }
+  erpQState.busy = false; erpQRender(ov);
+}
+function erpQImport(ov) {
+  const q = erpQState.sel, lines = (erpQState.items || []).filter(x => x.on);
+  if (!q || !lines.length) return;
+  const src = 'ERP · ' + (q.name || q.code);
+  let n = 0;
+  for (const x of lines) { impItems.push(erpLineToItem(x, src)); n++; }
+  /* הלקוח וההצעה נרשמים על הפרויקט — ההצעה ב-ERP היא המקור */
+  if (q.accountKey) { P.accountKey = q.accountKey; P.accountName = q.account; }
+  P.erpQuoteFrom = q.code;
+  dockOpen = true; dockMin = false;
+  ov.remove(); render(); renderImp(); save();
+  uiToast('✓ ' + n + ' פריטים נטענו מהצעת מחיר ' + q.code + ' — עכשיו הצב אותם על התכנית (📍 או גרירה)');
+}
+function erpQRender(ov) {
+  const S = erpQState, body = ov.querySelector('#erpQBody'); if (!body) return;
+  const money = v => '₪' + Math.round(+v || 0).toLocaleString();
+  if (S.sel) {
+    const items = S.items;
+    body.innerHTML = `<div style="background:#f7f5f0;border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:8px"><b>${esc(S.sel.name || S.sel.code)}</b> · ${esc(S.sel.account)} · ${esc(S.sel.date)} · ${money(S.sel.total)}<br>
+      <a href="#" onclick="event.preventDefault();erpQState.sel=null;erpQState.items=null;erpQRender(this.closest('.uiDlgOv'))">← חזרה לרשימה</a></div>` +
+      (S.busy ? '<p class="muted">טוען פריטים…</p>' : !items ? `<p style="color:#c1121f;font-size:12.5px">${esc(S.err || 'שגיאה')}</p>` :
+      `<div style="max-height:300px;overflow:auto;border:1px solid #eee;border-radius:8px">${items.map((x, i) => `<label style="display:flex;gap:8px;align-items:center;padding:5px 8px;border-bottom:1px solid #f0ede6;font-size:12.5px;cursor:pointer">
+          <input type="checkbox" style="width:auto" ${x.on ? 'checked' : ''} onchange="erpQState.items[${i}].on=this.checked">
+          <span style="flex:1">${esc(x.name)}${x.key ? ` <small class="muted">· ${esc(x.key)}</small>` : ''}</span><b>×${x.qty}</b><span class="muted" style="width:70px;text-align:left">${money(x.price)}</span></label>`).join('') || '<p class="muted" style="padding:8px">אין פריטים בהצעה</p>'}</div>
+       <button class="primary" style="width:100%;margin-top:8px" onclick="erpQImport(this.closest('.uiDlgOv'))">📥 טען ${items.filter(x => x.on).length} פריטים להצעה בפרויקט</button>`);
+    return;
+  }
+  body.innerHTML = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <input placeholder="חיפוש לפי שם הצעה, לקוח או קוד…" value="${esc(S.q)}" style="flex:1;margin:0" onkeydown="if(event.key==='Enter'){erpQState.q=this.value;erpQLoad(this.closest('.uiDlgOv'))}">
+      <label style="font-size:11.5px;white-space:nowrap;display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" style="width:auto" ${S.all ? 'checked' : ''} onchange="erpQState.all=this.checked;erpQLoad(this.closest('.uiDlgOv'))"> כולל מאושרות</label></div>` +
+    (S.busy ? '<p class="muted">טוען הצעות מה-ERP…</p>' : !S.quotes ? `<p style="color:#c1121f;font-size:12.5px">${esc(S.err || 'שגיאה')}</p>` :
+    `<p class="muted" style="font-size:11.5px;margin:0 0 6px">${S.quotes.length} הצעות${S.all ? '' : ' פתוחות (ממתינות לאישור לקוח)'} — לחץ על הצעה כדי לראות את הפריטים</p>
+     <div style="max-height:320px;overflow:auto;border:1px solid #eee;border-radius:8px">${S.quotes.map(q => `<div class="crow" style="padding:7px 9px;border-bottom:1px solid #f0ede6;cursor:pointer" onclick="erpQPick(this.closest('.uiDlgOv'),'${q.id}')">
+        <span class="badge" style="background:${q.confirmed ? '#0f6e56' : '#c96a13'}">${q.items}</span>
+        <span class="txt"><b>${esc(q.name || q.code)}</b> · ${esc(q.account)}<br><span class="muted">${esc(q.date)} · ${esc(q.code)} · ${money(q.total)}${q.confirmed ? ' · מאושרת' : ''}</span></span></div>`).join('') || '<p class="muted" style="padding:8px">לא נמצאו הצעות</p>'}</div>`);
+}
+window.erpQuotesDialog = erpQuotesDialog; window.erpQPick = erpQPick; window.erpQImport = erpQImport; window.erpQRender = erpQRender; window.erpQLoad = erpQLoad;
 function importItemsJSON(inp) {
   const files = [...inp.files];
   inp.value = '';
