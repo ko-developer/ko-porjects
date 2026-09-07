@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { openDb, readStore, writeStore } from './db.js';
-import { isLocal, requestUser, sessionUser, handleAuth, filterStore, mergeStore, publicUser } from './auth.js';
+import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser } from './auth.js';
 
 const PORT = process.env.PORT || 4177;
 const db = openDb();
@@ -24,6 +24,7 @@ createServer(async (req, res) => {
     if (await handleAuth(req, res, path0, storeNow)) return;
   }
   if (path0 === '/login' || path0.startsWith('/join/')) { sendPage(res, AUTH_PAGES['/login']); return; }
+  if (handleOwnerLink(req, res, path0)) return;
   if (path0 === '/admin') {
     const u = requestUser(req);
     if (!u || u.role !== 'owner') { res.writeHead(302, { location: '/login' }); res.end(); return; }

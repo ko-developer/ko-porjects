@@ -20,8 +20,14 @@ function load() {
   try { DB = existsSync(FILE) ? JSON.parse(readFileSync(FILE, 'utf8')) : null; } catch { DB = null; }
   DB = DB || { users: [], invites: [], sessions: {} };
   DB.users = DB.users || []; DB.invites = DB.invites || []; DB.sessions = DB.sessions || {};
+  /* config: כתובת חיצונית לקישורי שיתוף + מפתח הבעלים לגישה מבחוץ בלי הרשמה */
+  DB.config = DB.config || {};
+  if (!DB.config.ownerKey) { DB.config.ownerKey = randomBytes(18).toString('base64url'); persistNow(DB); }
   return DB;
 }
+function persistNow(db) { try { writeFileSync(FILE, JSON.stringify(db, null, 1)); } catch {} }
+export function config() { return load().config; }
+export function publicUrl() { return (process.env.PUBLIC_URL || load().config.publicUrl || '').replace(/\/$/, ''); }
 function persist() { writeFileSync(FILE, JSON.stringify(load(), null, 1)); }
 const now = () => Date.now();
 const uid = p => p + randomBytes(8).toString('hex');
@@ -61,8 +67,23 @@ export function sessionUser(req) {
   if (!u || u.blocked) return null;
   return u;
 }
-/* המשתמש של הבקשה: סשן אם יש (גם מקומית — כדי לבדוק מה מוזמן רואה), אחרת בעלים מקומי */
-export function requestUser(req) { return sessionUser(req) || (isLocal(req) ? OWNER : null); }
+/* המשתמש של הבקשה: סשן אם יש (גם מקומית — כדי לבדוק מה מוזמן רואה), אחרת בעלים מקומי,
+   או בעלים מבחוץ עם עוגיית המפתח (קישור הבעלים מדף /admin — בלי הרשמה) */
+export function requestUser(req) {
+  const s = sessionUser(req); if (s) return s;
+  if (isLocal(req)) return OWNER;
+  const k = cookies(req).ko_owner;
+  if (k && k === load().config.ownerKey) return { ...OWNER, local: false };
+  return null;
+}
+/* /owner/<key> → עוגייה לשנה וחזרה לאפליקציה */
+export function handleOwnerLink(req, res, path) {
+  const m = /^\/owner\/([A-Za-z0-9_-]+)$/.exec(path); if (!m) return false;
+  if (m[1] !== load().config.ownerKey) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); res.end('קישור בעלים לא תקף'); return true; }
+  const secure = (req.headers['x-forwarded-proto'] || '').includes('https') ? '; Secure' : '';
+  res.writeHead(302, { location: '/', 'set-cookie': `ko_owner=${m[1]}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 86400}${secure}` });
+  res.end(); return true;
+}
 function setSession(res, user, req) {
   const db = load(), sid = token();
   db.sessions[sid] = { uid: user.id, exp: now() + SESSION_DAYS * 864e5, at: now(), ua: String(req.headers['user-agent'] || '').slice(0, 80) };
@@ -109,9 +130,11 @@ function body(req) {
   });
 }
 function origin(req) {
+  const pub = publicUrl(); if (pub) return pub;
   const proto = (req.headers['x-forwarded-proto'] || 'http').split(',')[0];
   return `${proto}://${req.headers['x-forwarded-host'] || req.headers.host}`;
 }
+const isLocalUrl = u => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:|\/|$)/i.test(u || '');
 
 /* מחזיר true אם הבקשה טופלה */
 export async function handleAuth(req, res, path, store) {
@@ -120,7 +143,8 @@ export async function handleAuth(req, res, path, store) {
   const method = req.method;
   try {
     if (path === '/api/auth/me' && method === 'GET') {
-      return json(res, 200, { enabled: true, user: publicUser(me), owner: !!(me && me.role === 'owner'), local: isLocal(req) }), true;
+      const isOw = !!(me && me.role === 'owner');
+      return json(res, 200, { enabled: true, user: publicUser(me), owner: isOw, local: isLocal(req), publicUrl: isOw ? publicUrl() : undefined, ownerLink: isOw ? origin(req) + '/owner/' + db.config.ownerKey : undefined, localOnly: isOw ? isLocalUrl(origin(req)) : undefined }), true;
     }
     if (path === '/api/auth/register' && method === 'POST') {
       const b = await body(req);
@@ -169,7 +193,8 @@ export async function handleAuth(req, res, path, store) {
       if (!projects.length) return json(res, 400, { error: 'בחר לפחות פרויקט אחד' }), true;
       const inv = { token: token(), projects, perm: b.perm === 'view' ? 'view' : 'edit', email: normEmail(b.email) || '', label: String(b.label || '').slice(0, 60), by: me.id, createdAt: new Date().toISOString(), exp: now() + INVITE_DAYS * 864e5, usedBy: null };
       db.invites.push(inv); persist();
-      return json(res, 200, { ok: true, url: origin(req) + '/join/' + inv.token, exp: inv.exp, invite: inv }), true;
+      const url = origin(req) + '/join/' + inv.token;
+      return json(res, 200, { ok: true, url, exp: inv.exp, invite: inv, localOnly: isLocalUrl(url) }), true;
     }
     if (path === '/api/admin/users' && method === 'GET') {
       if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
@@ -191,6 +216,18 @@ export async function handleAuth(req, res, path, store) {
       else return json(res, 400, { error: 'unknown action' }), true;
       persist();
       return json(res, 200, { ok: true }), true;
+    }
+    if (path === '/api/admin/config' && method === 'GET') {
+      if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
+      return json(res, 200, { publicUrl: db.config.publicUrl || '', envPublicUrl: process.env.PUBLIC_URL || '', effective: publicUrl(), ownerLink: origin(req) + '/owner/' + db.config.ownerKey, localOnly: isLocalUrl(origin(req)) }), true;
+    }
+    if (path === '/api/admin/config' && method === 'POST') {
+      if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
+      const b = await body(req);
+      const u = String(b.publicUrl || '').trim().replace(/\/$/, '');
+      if (u && !/^https?:\/\/[^\s/]+/.test(u)) return json(res, 400, { error: 'כתובת לא תקינה — למשל https://ko.example.com' }), true;
+      db.config.publicUrl = u; persist();
+      return json(res, 200, { ok: true, effective: publicUrl(), ownerLink: origin(req) + '/owner/' + db.config.ownerKey }), true;
     }
     if (path === '/api/admin/invite' && method === 'POST') {
       if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;

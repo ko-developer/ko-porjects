@@ -975,8 +975,9 @@ function shareDialog() {
       const j = await r.json();
       if (j.error) { out.innerHTML = `<p style="color:#c1121f;font-size:12.5px">${esc(j.error)}</p>`; return; }
       const names = store.projects.filter(p => projects.includes(p.id)).map(p => p.name).join(', ');
+      const warn = j.localOnly ? `<div style="background:#fdeee8;border:1px solid #f3c9bd;border-radius:8px;padding:8px;margin-top:6px;font-size:12px;line-height:1.5;color:#8c2f16"><b>⚠ הקישור הזה עובד רק במחשב שלך.</b> השרת רץ על localhost ואינו נגיש מהאינטרנט, אז מוזמן שיפתח אותו יקבל "האתר לא זמין". צריך כתובת חיצונית לשרת (מנהרה או שרת מארח) ולהגדיר אותה ב-<a href="/admin">👥 משתמשים → גישה מבחוץ</a>; אחר כך "צור קישור" מחדש.</div>` : '';
       const msg = `שלום${label ? ' ' + label.split(/\s|—|-/)[0] : ''},\nשיתפתי איתך ב-KO Projects את: ${names}.\nהיכנס לקישור, הירשם עם המייל והסיסמה שלך והתכנית תיפתח:\n${j.url}\n(הקישור תקף 14 יום)`;
-      out.innerHTML = `<div style="background:#eef7f1;border:1px solid #bfe0cd;border-radius:8px;padding:8px;margin-top:6px">
+      out.innerHTML = warn + `<div style="background:#eef7f1;border:1px solid #bfe0cd;border-radius:8px;padding:8px;margin-top:6px">
         <input id="shUrl" readonly value="${esc(j.url)}" style="width:100%;font-size:11px;font-family:ui-monospace,Menlo,monospace;direction:ltr;text-align:left;padding:5px;box-sizing:border-box;margin:0">
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <button type="button" id="shCopy">📋 העתק קישור</button>

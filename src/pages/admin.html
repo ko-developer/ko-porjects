@@ -16,6 +16,11 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
 </style>
 <div class="top"><h1>👥 משתמשים ושיתופים</h1><a href="/">← חזרה לאפליקציה</a></div>
 <p class="muted">כאן רואים מי נרשם דרך קישורי השיתוף, מה מותר לו, ואפשר לחסום מיד (החסימה מנתקת גם סשן פעיל). קישור שיתוף הוא חד-פעמי ותקף 14 יום.</p>
+<h2>גישה מבחוץ</h2>
+<div id="cfg" style="background:#fff;border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.7">
+  <div>כתובת חיצונית של השרת (הקישורים ייבנו ממנה): <input id="pubUrl" placeholder="https://ko.example.com" style="width:320px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;direction:ltr"> <button id="pubSave" class="ok">שמור</button> <span id="pubNote" class="muted"></span></div>
+  <div id="ownerLinkRow" style="margin-top:6px">הקישור שלך לגישה מבחוץ (בלי הרשמה — שומר עוגייה לשנה, אל תשלח לאף אחד): <span id="ownerLink" class="url"></span> <button id="ownerCopy">העתק</button></div>
+</div>
 <h2>משתמשים</h2>
 <div id="users">טוען…</div>
 <h2>קישורי שיתוף</h2>
@@ -25,6 +30,18 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
   var fmt = function (t) { if (!t) return '—'; var d = new Date(t); return isNaN(d) ? '—' : d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }); };
   function post(url, b) { return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then(function (r) { return r.json(); }); }
+  function loadCfg() {
+    fetch('/api/admin/config').then(function (r) { return r.json(); }).then(function (c) {
+      document.getElementById('pubUrl').value = c.publicUrl || c.envPublicUrl || '';
+      document.getElementById('ownerLink').textContent = c.ownerLink || '';
+      document.getElementById('pubNote').textContent = c.localOnly ? '⚠ כרגע הקישורים נבנים על localhost — מוזמנים מבחוץ לא יוכלו לפתוח אותם. הגדר כאן את הכתובת החיצונית (מנהרה / שרת מארח).' : '✓ קישורים נבנים על ' + c.effective;
+    });
+  }
+  document.getElementById('pubSave').onclick = function () {
+    post('/api/admin/config', { publicUrl: document.getElementById('pubUrl').value }).then(function (j) { if (j.error) alert(j.error); loadCfg(); load(); });
+  };
+  document.getElementById('ownerCopy').onclick = function () { navigator.clipboard.writeText(document.getElementById('ownerLink').textContent); this.textContent = 'הועתק ✓'; };
+  loadCfg();
   function load() {
     fetch('/api/admin/users').then(function (r) { if (r.status === 403) { location.href = '/login'; throw new Error('forbidden'); } return r.json(); }).then(function (d) {
       var uh = '<table><tr><th>שם</th><th>מייל</th><th>תפקיד</th><th>פרויקטים והרשאה</th><th>נרשם</th><th>כניסה אחרונה</th><th>מצב</th><th></th></tr>';
