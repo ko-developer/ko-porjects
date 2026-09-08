@@ -86,6 +86,8 @@ th.nkh{opacity:.45}
 .rr .cell.none{color:#8a93a6;font-weight:400}
 .rr .how{color:#8a93a6;font-size:11.5px;line-height:1.6;margin:4px 0 8px}
 .rr .mods{display:flex;gap:18px;flex-wrap:wrap}
+th.info-full,th.info-full .col,th.info-full b{color:#2e9e6a}
+th.info-missing,th.info-missing .col,th.info-missing b{color:#d9534f}
 td.cell.reco{outline:2px solid #0f6e56;outline-offset:-2px}
 td.cell.ano{opacity:.55}
 .rrview{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 10px;font-size:12.5px}
@@ -358,6 +360,18 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
     return '<i class="stk' + (s <= 0 ? ' stk0' : '') + '" title="\u05de\u05dc\u05d0\u05d9 \u05d1\u05de\u05d7\u05e1\u05df">' + s + '</i>';
   }
   function roleOf(m) { return (ST.role || {})[m] || (D.role || {})[m] || ''; }
+  /* שלמות המידע על דגם: ירוק = מפרט מלא + מקור/מדריך מאומת; אדום = חסר משהו (כולל מדריך) */
+  function infoLevel(m, kind) {
+    var url = (ST.src || {})[m] || (D.src || {})[m] || (((D.specs || {})[m] || {}).url) || '';
+    var k = (ST.src || {})[m] ? 'manual' : (D.srcKind || {})[m] || '';
+    var srcOk = !!url && k !== 'series' && k !== 'erp-name';
+    var dataOk;
+    if (kind === 'amp') { var pw = (D.pw || {})[m] || {}, ed = (ST.pwEdit || {})[m] || {}; dataOk = Object.keys(pw).length + Object.keys(ed).length > 0 && k !== 'erp-name'; }
+    else if (kind === 'dsp') { dataOk = !!((D.specs || {})[m]) || !!url; }
+    else { var sp = (D.specs || {})[m]; dataOk = !!(sp && sp.w && sp.o && (sp.sens || sp.spl)); }
+    return (dataOk && srcOk) ? 'full' : 'missing';
+  }
+  function infoCls(m, kind) { return ' info-' + infoLevel(m, kind); }
   function mxHTML(kind) {
     var m = D.mx[kind];
     if (kind === 'sub' && m.all) {   /* שורות = טופים, עמודות = סאבים — לפי התפקיד (כולל תיקון ידני) */
@@ -369,15 +383,20 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
     var rG = groups(m.rows), cG = groups(m.cols);
     var cols = [];
     var sellOnly = kind === 'amp' && ST.sellOnly;
-    cG.forEach(function (g) { if (colOn(kind, g.b)) cols = cols.concat(g.models.filter(function (c) {
-      return !HID[c] && !(sellOnly && (ST.noKit || {})[c]); })); });
+    cG.forEach(function (g) {
+      if (!colOn(kind, g.b)) return;
+      var ms = g.models.filter(function (c) { return !HID[c] && !(sellOnly && (ST.noKit || {})[c]); });
+      /* סאבים: בתוך המותג מקטן לגדול לפי הוופר (בלי גודל ידוע — בסוף, לפי שם) */
+      if (kind === 'sub') ms = ms.slice().sort(function (a, b) { var sa = (D.size || {})[a], sb = (D.size || {})[b]; if (sa && sb && sa !== sb) return sa - sb; if (sa && !sb) return -1; if (!sa && sb) return 1; return String(a).localeCompare(String(b)); });
+      cols = cols.concat(ms);
+    });
     var chips = '<div class="chips"><span class="lbl">\u05e2\u05de\u05d5\u05d3\u05d5\u05ea:</span>' + cG.map(function (g) {
       return '<span class="chip' + (colOn(kind, g.b) ? ' on' : '') + '" data-chip="' + esc(kind + '~' + g.b) +
         '">' + esc(g.b) + ' (' + g.models.length + ')</span>';
     }).join('') + '</div>';
     if (kind === 'sub') chips += rrViewBarHTML();
     var head = '<tr><th class="corner" colspan="2">' + esc(m.title) + '</th>' + cols.map(function (c) {
-      return '<th' + ((kind === 'amp' && (ST.noKit || {})[c]) ? ' class="nkh" title="\u05de\u05d5\u05d7\u05e8\u05d2 \u05de\u05e7\u05d9\u05d8\u05d9\u05dd \u2014 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d1\u05dc\u05d1\u05d3"' : '') + ' data-m="' + esc(c) + '" data-kind="' + (kind === 'amp' ? 'amp' : (kind === 'sub' ? 'spk' : 'dsp')) + '"><span class="col"><i>' + esc(brand(c)) + '</i>' + esc(disp(c)) + stkB(c) + '</span></th>'; }).join('') + '</tr>';
+      return '<th class="' + ((kind === 'amp' && (ST.noKit || {})[c]) ? 'nkh' : '') + infoCls(c, kind === 'sub' ? 'spk' : kind) + '"' + ((kind === 'amp' && (ST.noKit || {})[c]) ? ' title="\u05de\u05d5\u05d7\u05e8\u05d2 \u05de\u05e7\u05d9\u05d8\u05d9\u05dd \u2014 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d1\u05dc\u05d1\u05d3"' : '') + ' data-m="' + esc(c) + '" data-kind="' + (kind === 'amp' ? 'amp' : (kind === 'sub' ? 'spk' : 'dsp')) + '"><span class="col"><i>' + esc(brand(c)) + '</i>' + esc(disp(c)) + stkB(c) + '</span></th>'; }).join('') + '</tr>';
     var MSET = {}, MHIDE = {};
     (D.multi || []).forEach(function (mm) { mm.bands.forEach(function (b) { MSET[b[1]] = 1; }); });
     (D.multiHide || []).forEach(function (x) { MHIDE[x] = 1; });
@@ -395,7 +414,7 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
         (open ? '\u25be ' : '\u25c2 ') + esc(g.b) + ' <small>' + (models.length + nBlocks) + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd</small></span></th></tr>';
       if (open) {
         models.forEach(function (r) {
-          body += '<tr><th class="rowh' + ((ST.noKit || {})[r] ? ' nkh" title="\u05de\u05d5\u05d7\u05e8\u05d2 \u05de\u05e7\u05d9\u05d8\u05d9\u05dd \u2014 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d1\u05dc\u05d1\u05d3' : '') + '" colspan="2" data-m="' + esc(r) + '" data-kind="spk">' + esc(disp(r)) + roleB(r) + kindB(r) + stkB(r) + '</th>' +
+          body += '<tr><th class="rowh' + infoCls(r, 'spk') + ((ST.noKit || {})[r] ? ' nkh" title="\u05de\u05d5\u05d7\u05e8\u05d2 \u05de\u05e7\u05d9\u05d8\u05d9\u05dd \u2014 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d1\u05dc\u05d1\u05d3' : '') + '" colspan="2" data-m="' + esc(r) + '" data-kind="spk">' + esc(disp(r)) + roleB(r) + kindB(r) + stkB(r) + '</th>' +
             cols.map(function (c) { return cellHTML(kind, r, c); }).join('') + '</tr>';
         });
         if (kind !== 'sub') (D.multi || []).forEach(function (mm) {
