@@ -32,6 +32,20 @@ const UPX = 15;
 const LSKEY = 'installPlanner_v1';
 /*__DATA:ERP_ITEMS__*/
 
+/*__DATA:CONDUIT_RULES__*/
+/* קוטר צינור מומלץ לקו: מולטי / קופסת מולטי / פאנל → 50; רמקול לפי גידים×שטח חתך (data/conduit_rules.json) */
+function cableCores(c) { if (c.cores) return +c.cores; const m = /(\d)\s*[xX×]\s*\d(?:\.\d)?/.exec((c.spec || '') + ' ' + (c.note || '')); return m ? +m[1] : 2; }
+function conduitFor(c) {
+  const R = typeof CONDUIT_RULES !== 'undefined' ? CONDUIT_RULES : null; if (!R || !c) return null;
+  const to = byId(c.to), from = byId(c.from);
+  const isBox = n => n && (n.kind === 'panel' || n.srcKind || (n.kind === 'point' && n.ptype === 'panel'));
+  if (c.type === 'multi' || isBox(to) || (isBox(from) && !(from && from.kind === 'rack'))) return { mm: (R.special[0] || {}).conduit || 50, why: 'מולטי / קופסת מולטי' };
+  if (c.type !== 'nl4') return null;
+  const mm = cableMm(c) || 2.5, cores = cableCores(c);
+  const hit = R.rules.find(r => r.cores === cores && r.mm === mm) || R.rules.find(r => r.cores === cores && r.mm >= mm) || R.rules.find(r => r.cores >= cores && r.mm >= mm);
+  return hit ? { mm: hit.conduit, why: hit.cable } : null;
+}
+
 /*__DATA:ERP_PRICES__*/
 
 /*__DATA:ERP_KITS__*/
@@ -1128,7 +1142,6 @@ function renderHeader() {
     <button onclick="autoConnect()">${auto ? `🔌 בטל חיבור אוטומטי (${P.autoIds.length})` : '🔌 חבר אותי — שידוך אוטומטי'}</button>
     <button onclick="designBrief()">🎯 תכנן לי מערכת לחלל זה</button>
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
-    <button onclick="mergeOfferDupes()">🧹 אחד שורות כפולות בהצעה</button>
     <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
     <a class="ddlink" href="/logic">🎯 לוגיקת תכלית ← מערכת — טבלאות ההיגיון</a>
     <button onclick="verManager()">🕘 היסטוריית גרסאות — שחזור מצב קודם</button>

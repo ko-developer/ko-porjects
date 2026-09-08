@@ -965,7 +965,7 @@ async function installerReport() {
     const conns = (c.conn ? (CONNS[c.conn]?.n || c.conn) : '') + (c.conn2 && c.conn2 !== c.conn ? ' ← ' + (CONNS[c.conn2]?.n || c.conn2) : '');
     return `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${cableColor(c)};vertical-align:middle;margin-left:4px"></span><b>${LBL[c.id]}</b></td><td style="text-align:center"><b>${spkNumOf(c.to) || '—'}</b></td><td>${esc(endNameTxt(c.from, c.fromUnit))}${c.pOut ? ' · ' + esc(c.pOut) : c.fromHole ? ' · חור ' + c.fromHole : ''}</td>
       <td>${esc(endNameTxt(c.to, c.toUnit))}${c.pIn ? ' · ' + esc(c.pIn) : c.toHole ? ' · חור ' + c.toHole : ''}</td>
-      <td><span style="color:${cableColor(c)};font-weight:700">${cableKindLabel(c)}</span>${c.cores ? ' ×' + c.cores : ''}</td><td>${c.len ? c.len + ' מ׳' : '—'}</td><td>${esc(conns)}</td>
+      <td><span style="color:${cableColor(c)};font-weight:700">${cableKindLabel(c)}</span>${c.cores ? ' ×' + c.cores : ''}</td><td>${c.len ? c.len + ' מ׳' : '—'}</td>${(() => { const cd = typeof conduitFor === 'function' ? conduitFor(c) : null; return `<td style="text-align:center">${cd ? '<b>' + cd.mm + '</b> מ״מ<br><small style="color:#888">' + esc(cd.why) + '</small>' : '—'}</td>`; })()}<td>${esc(conns)}</td>
       <td>${c.inst === 'exist' ? 'קיים' : c.inst === 'pull' ? 'העברה' : 'חדש'}</td><td>${esc(c.note || '')}</td></tr>`;
   }).join('');
   const items = impItems.filter(it => it.on !== false).map(it => {
@@ -1028,6 +1028,7 @@ async function installerReport() {
     <p class="meta">הכלל: עד 3 מגברים + פרוססור = הזנה 16A-N6 בגובה גב הארון · יותר מ-3 מגברים = הזנה 3×16A (3×N4). כל עמדת נגינה או מוקד חיצוני עם מולטי / חשמל יכול לדרוש נקודת חשמל באותם תנאים (נבחר בתכונות המוקד). הכול משדה הסאונד בלבד.</p>
     <h3>הכנת קווי הרמקולים${pullCharged ? '' : ' — ההעברות אינן כלולות בהצעה ומבוצעות באחריות הלקוח'}</h3>
     <ul style="margin:4px 0;padding-right:18px;line-height:1.75">
+      <li><b>צינורות:</b> קוטר לפי עמודת "צינור" בלוח משיכת הכבלים (${typeof CONDUIT_RULES !== 'undefined' ? CONDUIT_RULES.rules.map(r => r.cable + '→' + r.conduit).join(', ') : ''}; מולטי, ריכוז וקופסאות מולטי → 50 מ״מ). <b>${typeof CONDUIT_RULES !== 'undefined' ? esc(CONDUIT_RULES.pullWire) : ''}</b></li>
       <li><b>א · תוואי מסודר:</b> הקווים יושחלו בצינור מגן, בצינור שרשורי או בתעלת תקשורת — לא בצמוד לקווי חשמל (הצלבה ב-90° בלבד).</li>
       <li><b>ב · נקודת רמקול / סאב:</b> הקו יגיע לנקודה המסומנת בגובה המבוקש ותושאר בו יתרה של כ-1 מ׳ לפחות מנקודת הציון. לדוגמה: גובה 260 — הקו יוצא ב-260 עם רזרבה של ≥1 מ׳.</li>
       <li><b>ג · נקודת ארון המגברים:</b> כל הקווים המגיעים לארון ירדו עד הרצפה שמתחת לארון, ותושאר בהם יתרה של כ-2 מ׳ לפחות לכל קו.</li>
@@ -1037,7 +1038,8 @@ async function installerReport() {
 
 
     ${planImg}
-    <h2>לוח משיכת כבלים</h2><table><tr><th>קו מס׳</th><th>רמקול מס׳</th><th>מ־</th><th>אל</th><th>סוג</th><th>אורך</th><th>מחברים</th><th>סטטוס</th><th>הערה</th></tr>${cbl || '<tr><td colspan="9">—</td></tr>'}</table>
+    <h2>לוח משיכת כבלים</h2><table><tr><th>קו מס׳</th><th>רמקול מס׳</th><th>מ־</th><th>אל</th><th>סוג</th><th>אורך</th><th>צינור</th><th>מחברים</th><th>סטטוס</th><th>הערה</th></tr>${cbl || '<tr><td colspan="10">—</td></tr>'}</table>
+    <p class="meta">קוטר צינור לפי הכבל: ${typeof CONDUIT_RULES !== 'undefined' ? CONDUIT_RULES.rules.map(r => r.cable + ' → ' + r.conduit).join(' · ') + ' · מולטי, כניסה לריכוז וקופסאות מולטי → 50' : ''}. <b>${typeof CONDUIT_RULES !== 'undefined' ? esc(CONDUIT_RULES.pullWire) : ''}</b></p>
 
     ${coverImg}
     <h2>רמקולים — תלייה וכיוון</h2><table><tr><th>רמקול</th><th>מיקום</th><th>גובה</th><th>תושבת</th><th>כיוון</th></tr>${spk || '<tr><td colspan="5">—</td></tr>'}</table>
