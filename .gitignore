@@ -11,3 +11,5 @@ build/
 .env.*
 !.env.example
 data/users.json
+data/bugs.json
+data/bug_files/

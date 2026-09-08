@@ -1007,6 +1007,113 @@ function applySharedMode() {
   const st = document.getElementById('studioLink'); if (st) st.style.display = 'none';
   document.querySelectorAll('header button').forEach(b => { if (/הדפסה|הגדרות תכנית/.test(b.textContent)) b.style.display = 'none'; });
 }
+/* ===== 🐞 מעקב באגים — דיווח מתוך האפליקציה (צילום מסך / סרטון מסך / קובץ + תיאור), הבאגים שלי ותגובות ===== */
+const BUG = { atts: [], rec: null, chunks: [], tab: 'new' };
+function bugFileToAtt(file) {
+  return new Promise(res => { const fr = new FileReader(); fr.onload = () => res({ name: file.name || 'file', type: file.type || 'application/octet-stream', data: String(fr.result), size: file.size }); fr.readAsDataURL(file); });
+}
+async function bugAddFiles(files) {
+  for (const f of files) { if (f.size > 80 * 1024 * 1024) { uiToast('⚠ ' + f.name + ' גדול מ-80MB'); continue; } BUG.atts.push(await bugFileToAtt(f)); }
+  bugRenderAtts();
+}
+function bugRenderAtts() {
+  const box = document.getElementById('bugAtts'); if (!box) return;
+  box.innerHTML = BUG.atts.map((a, i) => `<div style="position:relative;display:inline-block;margin:3px">${/^image\//.test(a.type) ? `<img src="${a.data}" style="height:64px;border-radius:6px;border:1px solid #ddd">` : /^video\//.test(a.type) ? `<video src="${a.data}" style="height:64px;border-radius:6px;border:1px solid #ddd" muted></video>` : `<span style="display:inline-block;padding:6px 8px;background:#f4f2ec;border-radius:6px;font-size:11px">📎 ${esc(a.name)}</span>`}
+    <button type="button" onclick="BUG.atts.splice(${i},1);bugRenderAtts()" style="position:absolute;top:-6px;right:-6px;border-radius:50%;width:18px;height:18px;padding:0;font-size:10px;line-height:16px;background:#c9502e;color:#fff;border:none">✕</button>
+    <div class="muted" style="font-size:9.5px;text-align:center">${Math.round((a.size || a.data.length * 0.75) / 1024)}KB</div></div>`).join('') || '<span class="muted" style="font-size:11px">אין קבצים עדיין — אפשר גם להדביק צילום מסך (Ctrl+V)</span>';
+}
+async function bugRecord() {
+  const btn = document.getElementById('bugRecBtn');
+  if (BUG.rec) { BUG.rec.stop(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { uiToast('הדפדפן לא תומך בהקלטת מסך — צרף צילום מסך במקום'); return; }
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: true });
+    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1500000 });
+    BUG.rec = rec; BUG.chunks = [];
+    rec.ondataavailable = e => { if (e.data.size) BUG.chunks.push(e.data); };
+    rec.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(BUG.chunks, { type: 'video/webm' });
+      BUG.rec = null; if (btn) { btn.textContent = '🎥 הקלט סרטון מסך'; btn.style.background = ''; }
+      if (blob.size) { BUG.atts.push(await bugFileToAtt(new File([blob], 'screen-' + Date.now() + '.webm', { type: 'video/webm' }))); bugRenderAtts(); uiToast('✓ הסרטון צורף (' + Math.round(blob.size / 1024) + 'KB)'); }
+    };
+    stream.getVideoTracks()[0].addEventListener('ended', () => { if (BUG.rec) BUG.rec.stop(); });
+    rec.start(1000);
+    if (btn) { btn.textContent = '⏹ עצור הקלטה'; btn.style.background = '#c9502e'; btn.style.color = '#fff'; }
+    uiToast('🎥 מקליט את המסך — עבור לאפליקציה, שחזר את הבאג, וחזור ללחוץ "עצור"');
+  } catch (e) { uiToast('הקלטה לא התחילה: ' + (e.message || e)); }
+}
+function bugDialog(tab) {
+  BUG.atts = []; BUG.tab = tab || 'new';
+  const ov = uiModal(`<div id="bugBox"><div style="display:flex;gap:6px;align-items:center;margin-bottom:8px"><b style="font-size:15px;flex:1">🐞 באגים</b>
+      <button type="button" id="bugTabNew" style="${BUG.tab === 'new' ? 'background:#1a1e28;color:#fff' : ''}">דיווח חדש</button><button type="button" id="bugTabMine" style="${BUG.tab === 'mine' ? 'background:#1a1e28;color:#fff' : ''}">הבאגים שלי</button></div>
+    <div id="bugBody"></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button type="button" id="bugX" style="flex:1">סגור</button></div></div>`);
+  ov.querySelector('div').style.maxWidth = '540px';
+  ov.querySelector('#bugX').onclick = () => { if (BUG.rec) BUG.rec.stop(); ov.remove(); };
+  ov.querySelector('#bugTabNew').onclick = () => { BUG.tab = 'new'; bugRenderBody(ov); };
+  ov.querySelector('#bugTabMine').onclick = () => { BUG.tab = 'mine'; bugRenderBody(ov); };
+  ov.addEventListener('paste', e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); bugAddFiles(fs); } });
+  bugRenderBody(ov);
+}
+function bugRenderBody(ov) {
+  const body = ov.querySelector('#bugBody');
+  ov.querySelector('#bugTabNew').style.cssText = BUG.tab === 'new' ? 'background:#1a1e28;color:#fff' : '';
+  ov.querySelector('#bugTabMine').style.cssText = BUG.tab === 'mine' ? 'background:#1a1e28;color:#fff' : '';
+  if (BUG.tab === 'new') {
+    body.innerHTML = `<div class="fld"><label>מה קרה? (כותרת קצרה)</label><input id="bugTitle" placeholder="למשל: הכיול קופץ אחרי העלאת PDF" maxlength="140"></div>
+      <div class="fld"><label>תיאור — מה עשית, מה קרה, מה היה צריך לקרות</label><textarea id="bugDesc" rows="4" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:13px;padding:7px;border:1px solid #ddd;border-radius:8px"></textarea></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="bugRecBtn">🎥 הקלט סרטון מסך</button><button type="button" onclick="document.getElementById('bugFile').click()">📎 צרף קובץ / צילום מסך</button><input id="bugFile" type="file" multiple accept="image/*,video/*,.pdf,.txt" style="display:none" onchange="bugAddFiles([...this.files]);this.value=''"></div>
+      <div id="bugAtts" style="margin:8px 0;min-height:22px"></div>
+      <button class="primary" id="bugSend" style="width:100%">📨 שלח דיווח</button>`;
+    bugRenderAtts();
+    ov.querySelector('#bugRecBtn').onclick = bugRecord;
+    ov.querySelector('#bugSend').onclick = async () => {
+      const title = ov.querySelector('#bugTitle').value.trim(), desc = ov.querySelector('#bugDesc').value.trim();
+      if (!title && !desc) { uiToast('כתוב לפחות כותרת או תיאור'); return; }
+      if (BUG.rec) { uiToast('עצור את ההקלטה קודם'); return; }
+      const b = ov.querySelector('#bugSend'); b.disabled = true; b.textContent = 'שולח…';
+      try {
+        const r = await fetch('/api/bugs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, desc, attachments: BUG.atts, page: location.pathname + (typeof WIZ !== 'undefined' && WIZ ? ' · אשף שלב ' + (WIZ.step + 1) : ''), project: P.name }) });
+        const j = await r.json(); if (j.error) throw new Error(j.error);
+        uiToast('✓ הדיווח נשלח — תודה! תגובות יופיעו תחת 🐞 → הבאגים שלי');
+        BUG.atts = []; BUG.tab = 'mine'; bugRenderBody(ov); bugBadge();
+      } catch (e) { uiToast('⚠ השליחה נכשלה: ' + (e.message || e)); b.disabled = false; b.textContent = '📨 שלח דיווח'; }
+    };
+    return;
+  }
+  body.innerHTML = '<p class="muted">טוען…</p>';
+  fetch('/api/bugs').then(r => r.json()).then(d => {
+    const HE = d.statusHe || {}, mine = (d.bugs || []).filter(b => b.mine || !d.owner);
+    const att = a => /^image\//.test(a.type) ? `<a href="/api/bugs/file/${a.id}" target="_blank"><img src="/api/bugs/file/${a.id}" style="height:56px;border-radius:6px;border:1px solid #ddd"></a>` : /^video\//.test(a.type) ? `<video src="/api/bugs/file/${a.id}" controls style="height:90px;border-radius:6px"></video>` : `<a href="/api/bugs/file/${a.id}" target="_blank" style="font-size:11px">📎 ${esc(a.name)}</a>`;
+    body.innerHTML = (d.owner ? `<p class="muted" style="font-size:12px">אתה הבעלים — הניהול המלא ב-<a href="/bugs">/bugs</a>. כאן: הדיווחים שפתחת בעצמך.</p>` : '') +
+      (mine.length ? mine.map(b => `<div style="border:1px solid #eee;border-radius:9px;padding:8px 10px;margin-bottom:8px">
+        <div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:${b.status === 'fixed' ? '#eef7f1' : b.status === 'new' ? '#fdeee8' : '#fff3cd'}">${esc(HE[b.status] || b.status)}</span><b style="flex:1;font-size:13px">${esc(b.title)}</b><small class="muted">${new Date(b.createdAt).toLocaleDateString('he-IL')}</small></div>
+        ${b.desc ? `<div style="font-size:12px;white-space:pre-wrap;margin:4px 0">${esc(b.desc)}</div>` : ''}
+        ${(b.attachments || []).length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${b.attachments.map(att).join('')}</div>` : ''}
+        ${(b.comments || []).map(c => `<div style="border-right:3px solid ${c.owner ? '#0f6e56' : '#ddd'};background:${c.owner ? '#eef7f1' : '#faf8f4'};padding:5px 8px;margin:5px 0;border-radius:0 6px 6px 0;font-size:12px"><b>${esc(c.name)}${c.owner ? ' (בעל המערכת)' : ''}</b> <small class="muted">${new Date(c.at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}</small><div style="white-space:pre-wrap">${esc(c.text)}</div>${(c.attachments || []).length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${c.attachments.map(att).join('')}</div>` : ''}</div>`).join('')}
+        <div style="display:flex;gap:4px;margin-top:4px"><input placeholder="תגובה…" style="flex:1;margin:0;font-size:12px" onkeydown="if(event.key==='Enter'&&this.value.trim()){bugReply('${b.id}',this.value.trim(),this.closest('.uiDlgOv'))}"><button type="button" onclick="const i=this.previousElementSibling;if(i.value.trim())bugReply('${b.id}',i.value.trim(),this.closest('.uiDlgOv'))">שלח</button></div></div>`).join('')
+      : '<p class="muted">עוד לא דיווחת על באגים.</p>');
+    mine.forEach(b => { if ((b.comments || []).some(c => c.owner)) fetch('/api/bugs/' + b.id + '/seen', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); });
+    setTimeout(bugBadge, 500);
+  }).catch(e => { body.innerHTML = `<p style="color:#c1121f;font-size:12px">${esc(String(e))}</p>`; });
+}
+async function bugReply(id, text, ov) {
+  await fetch('/api/bugs/' + id + '/comment', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+  if (ov) bugRenderBody(ov);
+}
+/* תג על הכפתור: לבעלים — באגים חדשים; למדווח — תגובות שעוד לא ראה */
+async function bugBadge() {
+  try {
+    const r = await fetch('/api/bugs/count'); if (!r.ok) return; const j = await r.json();
+    const el = document.getElementById('bugBadge'); if (!el) return;
+    el.textContent = j.n || ''; el.style.display = j.n ? 'inline-block' : 'none';
+    const btn = document.getElementById('bugBtn'); if (btn && AUTH && AUTH.user && AUTH.user.role === 'owner') btn.onclick = () => location.href = '/bugs';
+  } catch (e) {}
+}
+window.bugDialog = bugDialog; window.bugAddFiles = bugAddFiles; window.bugRenderAtts = bugRenderAtts; window.bugReply = bugReply;
+setTimeout(bugBadge, 1500); setInterval(bugBadge, 120000);
 function renderHeader() {
   const ab = document.getElementById('authBox'); if (ab) ab.innerHTML = authBoxHTML();
   applySharedMode();

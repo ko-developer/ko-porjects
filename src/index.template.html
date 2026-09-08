@@ -197,6 +197,7 @@ body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer
   <input id="projName" onchange="renameProj(this.value)">
   <button onclick="wizardStart()" title="אשף זרימה מהיר — תכנית→כיול→אזור→מערכת→הצעה→דוח" style="background:#534ab7;color:#fff;font-weight:700">⚡ אשף</button>
   <div class="spacer"></div>
+  <button id="bugBtn" onclick="bugDialog()" title="דיווח על באג — צילום מסך, סרטון מסך או קובץ + תיאור">🐞 <span id="bugBadge" style="display:none;background:#c9502e;color:#fff;border-radius:999px;padding:0 5px;font-size:10px;margin-inline-start:2px"></span></button>
   <span id="authBox" style="display:flex;gap:6px;align-items:center"></span>
   <div class="dd">
     <button class="primary" onclick="this.parentElement.classList.toggle('open');event.stopPropagation()" title="הוספת ארון, מוקד, פאנל או כבל לתכנית">➕ הוסף ▾</button>

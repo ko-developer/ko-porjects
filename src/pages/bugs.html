@@ -1,0 +1,84 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KO Projects — באגים</title>
+<style>
+body{margin:0;font-family:-apple-system,'Segoe UI',Assistant,Arial,sans-serif;background:#f4f2ec;color:#1a1e28;direction:rtl;padding:22px}
+h1{font-size:20px;margin:0 0 4px}.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.top a{color:#534ab7;text-decoration:none;font-size:13px}
+.filters{display:flex;gap:6px;margin:12px 0;flex-wrap:wrap}.filters span{padding:5px 11px;border-radius:999px;background:#fff;border:1px solid #ddd;font-size:12.5px;cursor:pointer}
+.filters span.on{background:#1a1e28;color:#fff;border-color:#1a1e28}
+.bug{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(15,20,30,.05)}
+.bug .hd{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.bug .hd b{font-size:15px;flex:1}
+.b{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700}
+.b.new{background:#fdeee8;color:#c9502e}.b.open{background:#fff3cd;color:#8a5a12}.b.fixed{background:#eef7f1;color:#0f6e56}.b.closed{background:#eee;color:#666}.b.wontfix{background:#efecfd;color:#4b3fb8}
+.meta{color:#8a8377;font-size:11.5px;margin:4px 0}
+.desc{white-space:pre-wrap;font-size:13px;line-height:1.55;margin:8px 0}
+.atts{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}.atts img,.atts video{max-width:320px;max-height:220px;border-radius:8px;border:1px solid #eee;cursor:zoom-in}
+.atts a{font-size:12px;color:#534ab7}
+.cm{border-right:3px solid #ddd;padding:6px 10px;margin:6px 0;font-size:12.5px;background:#faf8f4;border-radius:0 8px 8px 0}.cm.own{border-color:#0f6e56;background:#eef7f1}
+.cm small{color:#8a8377}
+select,textarea,button{font-family:inherit;font-size:12.5px}
+select{padding:5px 8px;border-radius:8px;border:1px solid #ddd;background:#fff}
+textarea{width:100%;box-sizing:border-box;min-height:56px;padding:8px;border:1px solid #ddd;border-radius:8px;margin-top:6px}
+button{padding:6px 10px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;margin:4px 2px 0 0}
+button.pri{background:#0f6e56;color:#fff;border-color:#0f6e56;font-weight:700}button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}
+.muted{color:#8a8377;font-size:12px}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:99;cursor:zoom-out}#zoom img,#zoom video{max-width:95vw;max-height:95vh}
+</style>
+<div class="top"><h1>🐞 באגים</h1><a href="/">← חזרה לאפליקציה</a><a href="/admin">👥 משתמשים</a><span class="muted" id="sum"></span></div>
+<div class="filters" id="filters"></div>
+<div id="list">טוען…</div>
+<div id="zoom" onclick="this.style.display='none';this.innerHTML=''"></div>
+<script>
+(function () {
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+  var fmt = function (t) { var d = new Date(t); return isNaN(d) ? '—' : d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }); };
+  var HE = {}, ST = ['new', 'open', 'fixed', 'closed', 'wontfix'], filter = 'active', DATA = [];
+  function post(url, b) { return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then(function (r) { return r.json(); }); }
+  function att(a) {
+    var u = '/api/bugs/file/' + a.id;
+    if (/^image\//.test(a.type)) return '<img src="' + u + '" alt="' + esc(a.name) + '" data-zoom="img">';
+    if (/^video\//.test(a.type)) return '<video src="' + u + '" controls preload="metadata" data-zoom="video"></video>';
+    return '<a href="' + u + '" target="_blank">📎 ' + esc(a.name) + ' (' + Math.round(a.size / 1024) + 'KB)</a>';
+  }
+  function render() {
+    var f = document.getElementById('filters');
+    var counts = { all: DATA.length, active: DATA.filter(function (b) { return b.status === 'new' || b.status === 'open'; }).length };
+    ST.forEach(function (s) { counts[s] = DATA.filter(function (b) { return b.status === s; }).length; });
+    f.innerHTML = [['active', 'פתוחים'], ['all', 'הכל']].concat(ST.map(function (s) { return [s, HE[s] || s]; })).map(function (x) {
+      return '<span data-f="' + x[0] + '" class="' + (filter === x[0] ? 'on' : '') + '">' + x[1] + ' (' + counts[x[0]] + ')</span>';
+    }).join('');
+    var list = DATA.filter(function (b) { return filter === 'all' || (filter === 'active' ? (b.status === 'new' || b.status === 'open') : b.status === filter); });
+    document.getElementById('sum').textContent = counts.new ? counts.new + ' חדשים' : '';
+    document.getElementById('list').innerHTML = list.length ? list.map(function (b) {
+      return '<div class="bug" id="bug-' + esc(b.id) + '"><div class="hd"><span class="b ' + esc(b.status) + '">' + esc(HE[b.status] || b.status) + '</span><b>' + esc(b.title) + '</b>' +
+        '<select data-status="' + esc(b.id) + '">' + ST.map(function (s) { return '<option value="' + s + '"' + (b.status === s ? ' selected' : '') + '>' + esc(HE[s] || s) + '</option>'; }).join('') + '</select>' +
+        '<button class="warn" data-del="' + esc(b.id) + '">מחק</button></div>' +
+        '<div class="meta">מאת <b>' + esc(b.by && b.by.name) + '</b>' + (b.by && b.by.email ? ' · ' + esc(b.by.email) : '') + ' · ' + fmt(b.createdAt) + (b.project ? ' · פרויקט: ' + esc(b.project) : '') + (b.page ? ' · ' + esc(b.page) : '') + '</div>' +
+        (b.desc ? '<div class="desc">' + esc(b.desc) + '</div>' : '') +
+        (b.attachments && b.attachments.length ? '<div class="atts">' + b.attachments.map(att).join('') + '</div>' : '') +
+        (b.comments || []).map(function (c) { return '<div class="cm' + (c.owner ? ' own' : '') + '"><b>' + esc(c.name) + (c.owner ? ' (אורי)' : '') + '</b> <small>' + fmt(c.at) + '</small><div style="white-space:pre-wrap">' + esc(c.text) + '</div>' + (c.attachments && c.attachments.length ? '<div class="atts">' + c.attachments.map(att).join('') + '</div>' : '') + '</div>'; }).join('') +
+        '<textarea data-reply="' + esc(b.id) + '" placeholder="תגובה ל' + esc(b.by && b.by.name) + ' — יראה אותה בתוך האפליקציה"></textarea><button class="pri" data-send="' + esc(b.id) + '">שלח תגובה</button></div>';
+    }).join('') : '<p class="muted">אין באגים בסינון הזה.</p>';
+  }
+  function load() {
+    fetch('/api/bugs').then(function (r) { if (r.status === 401) { location.href = '/login'; throw 0; } return r.json(); }).then(function (d) {
+      if (!d.owner) { document.getElementById('list').innerHTML = '<p class="muted">הדף הזה לבעל המערכת. הבאגים שלך מופיעים באפליקציה תחת 🐞.</p>'; return; }
+      HE = d.statusHe || HE; DATA = d.bugs || []; render();
+    }).catch(function () {});
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t.dataset.f) { filter = t.dataset.f; render(); }
+    else if (t.dataset.send) {
+      var ta = document.querySelector('[data-reply="' + t.dataset.send + '"]'); var txt = ta.value.trim(); if (!txt) return;
+      post('/api/bugs/' + t.dataset.send + '/comment', { text: txt }).then(load);
+    } else if (t.dataset.del) { if (confirm('למחוק את הבאג וכל הקבצים שלו?')) post('/api/bugs/' + t.dataset.del + '/delete', {}).then(load); }
+    else if (t.dataset.zoom) { var z = document.getElementById('zoom'); z.innerHTML = t.dataset.zoom === 'img' ? '<img src="' + t.getAttribute('src') + '">' : '<video src="' + t.getAttribute('src') + '" controls autoplay></video>'; z.style.display = 'flex'; e.preventDefault(); }
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t.dataset.status) return;
+    post('/api/bugs/' + t.dataset.status + '/status', { status: t.value }).then(load);
+  });
+  load();
+})();
+</script>

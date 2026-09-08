@@ -6,13 +6,14 @@ import { execFileSync } from 'node:child_process';
 import { openDb, readStore, writeStore } from './db.js';
 import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser } from './auth.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
+import { handleBugs } from './bugs.js';
 
 const PORT = process.env.PORT || 4177;
 const db = openDb();
 /* טבלאות העבודה — חיות בתוך הריפו, לא בענן */
 const PAGES = { '/matrix': 'src/pages/matrix.html', '/logic': 'src/pages/logic.html' };
 /* דפי כניסה וניהול משתמשים — נגישים גם בלי סשן (הכניסה עצמה) */
-const AUTH_PAGES = { '/login': 'src/pages/auth.html', '/admin': 'src/pages/admin.html' };
+const AUTH_PAGES = { '/login': 'src/pages/auth.html', '/admin': 'src/pages/admin.html', '/bugs': 'src/pages/bugs.html' };
 const sendPage = (res, file, code = 200) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(readFileSync(file)); };
 const readState = k => {
   try { return readFileSync(`data/page_state/${k}.json`, 'utf8'); } catch { return '{}'; }
@@ -39,6 +40,9 @@ createServer(async (req, res) => {
     res.writeHead(302, { location: '/login' }); res.end(); return;
   }
   const isOwner = me.role === 'owner';
+  /* --- מעקב באגים: דיווח לכל משתמש מחובר, ניהול לבעלים (scripts/bugs.js) --- */
+  if (await handleBugs(req, res, path0, me)) return;
+  if (path0 === '/bugs') { if (!isOwner) { res.writeHead(302, { location: '/' }); res.end(); return; } sendPage(res, AUTH_PAGES['/bugs']); return; }
   /* --- הצעות מחיר מה-ERP (חי, דרך MCP) — בעלים בלבד --- */
   if (path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') {
     if (!isOwner) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"owner only"}'); return; }

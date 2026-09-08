@@ -85,6 +85,10 @@ adapter-node — תמונת התכנית נשלחת כ-base64 וחוצה את ב
 - אחסון: `data/users.json` (gitignored). הטבלאות הפנימיות (`/matrix`, `/logic`) — בעלים בלבד.
 - כדי שמוזמנים יגיעו בפועל השרת חייב להיות נגיש מהאינטרנט (VPS / Cloudflare Tunnel); Netlify
   הסטטי לא יודע לאמת. הראוטים של SvelteKit (`src/routes/api/store`) עדיין בלי אימות.
+- **מעקב באגים** (`scripts/bugs.js`, דף `/bugs` לבעלים): כפתור 🐞 בכותרת לכל משתמש מחובר — כותרת, תיאור,
+  הקלטת סרטון מסך בדפדפן (getDisplayMedia→webm), קבצים/הדבקת צילום מסך; `POST /api/bugs`. הבעלים: סטטוסים
+  (חדש/בטיפול/תוקן/סגור/לא יתוקן), תגובות, מחיקה; המדווח רואה תגובות תחת 🐞 → "הבאגים שלי". אחסון
+  `data/bugs.json` + `data/bug_files/` (gitignored).
 
 ## Rules for Claude sessions
 1. Edit `src/` and `data/` — never `dist/`.
