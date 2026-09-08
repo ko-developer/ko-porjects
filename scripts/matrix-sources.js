@@ -24,6 +24,7 @@ for (const model of models) {
     /* כניסת סדרה כללית ("דגם לא מפורט") = דף הסדרה, לא הדגם — מסומן כך שלא ייראה כמאומת */
     const generic = /לא מפורט/.test(hit.w || '');
     D.src[model] = hit.url; D.srcKind[model] = generic ? 'series' : (hit.ok ? 'manufacturer' : 'manufacturer-unverified');
+    if (hit.ok && hit.pw && !generic) { D.pw = D.pw || {}; D.pw[model] = { ...hit.pw }; }   /* טבלת הספק מאומתת מדף היצרן מחליפה מספר שנגזר משם הפריט */
   }
   else if ((D.pw || {})[model]) D.srcKind[model] = 'erp-name';   /* המספר נגזר משם הפריט ב-ERP בלבד */
 }
