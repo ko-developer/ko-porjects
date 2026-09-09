@@ -1277,7 +1277,7 @@ function ampRear(nOut, nIn, opts = {}) {
 }
 const REAR_KB = [
   /* XTA — DPA / DNA (כל הסדרה, אותו גב) */
-  { re: /DPA\s?\d/i, items: ampRear(4, 4, { net: 'DANTE' }) },
+  { re: /DPA\s?\d/i, items: [...ampRear(4, 4, { net: 'DANTE' }), ...[1, 2, 3, 4].map(k => ({ t: 'xlrm', label: 'AUX' + k, port: 'OUT ' + (4 + k) })), { t: 'rj45', label: 'CTRL' }, { t: 'block4', label: 'GPIO' }] },   /* DPA: 4 יציאות AUX מעובדות (XLR), רשת בקרה, GPIO — לפי צילום הגב */
   { re: /DNA\s?\d|XTA.*DNA/i, items: [...ampRear(4, 4, { net: 'ETH', link: true }), { t: 'rj45', label: 'ETH 2' }] },   /* DNA: שני פורטי רשת (1 - AUDIO NETWORK - 2) */
   /* NST Audio — פריסות מהצילומים הרשמיים (nstaudio.com); הספציפיים לפני הכללי */
   { re: /D48X/i, items: [{ t: 'power', label: 'AC' }, ...[8, 7, 6, 5, 4, 3, 2, 1].map(k => ({ t: 'xlrm', label: 'OUT' + k, port: 'OUT ' + k })), ...[4, 3, 2, 1].map(k => ({ t: 'xlrf', label: 'IN' + k, port: 'IN ' + k })), { t: 'rj45', label: 'ETH 1' }, { t: 'rj45', label: 'ETH 2' }] },
@@ -1575,10 +1575,10 @@ function rearLibManager() {
     if (!rows.some(r => r.name === nm)) rows.push({ name: nm, items: e.items, n: e.items.length, src: 'מובנה', custom: false, re: String(e.re) });
   });
   /* מותג, סוג מוצר (לפי הרכב המחברים) ומספר יציאות — לקיבוץ ולמיון */
-  const REAR_BRANDS = [['XTA', /XTA|DPA|DNA|\bAPA\b|DS8000|MX36|\bSIX\b|DC\s?1048/i], ['Kling & Freitag', /K&F|KLING|IPX|\bIX\s?\d|SCALA|TGX|TOPAS|\bD\s?\d{2,3}\s?:\s?4\b/i], ['Funktion-One', /FUNKTION|\bD\d{2,3}Q/i], ['NST Audio', /NST|D48|ID48|D24S|VMX88|VMO16|DM88/i], ['SAE', /SAE|PQM|\bMA\s?\d|MAX\s?\d/i], ['DigiSynthetic', /DIGISYNTHET|DS\s?418|418E|DSK\s?3/i], ['KT Audio', /\bKT\b|UNICORN|DYNAMIQ|MX3|XLI\s?2500/i], ['Lab.gruppen', /LAB|PLM|IPD/i], ['Powersoft', /POWERSOFT|QUATTRO|OTTOCANALI/i], ['Symetrix', /SYMETRIX|PRISM|JUPITER/i], ['Midas', /MIDAS/i], ['Behringer', /BE[RH]RINGER/i], ['Magnetic', /TD\s?10000|DH\s?408|\bM\s?408/i]];
+  const REAR_BRANDS = [['XTA', /XTA|DPA|DNA|\bAPA\b|DS8000|MX36|\bSIX\b|DC\s?1048/i], ['Kling & Freitag', /K&F|KLING|IPX|\bIX\s?\d|SCALA|TGX|TOPAS|\bD\s?\d{2,3}\s?:\s?4\b/i], ['Funktion-One', /FUNKTION|\bD\d{2,3}Q/i], ['NST Audio', /NST|D48|ID48|D24S|VMX88|VMO16|DM88/i], ['SAE', /SAE|PQM|\bMA\s?\d|MAX\s?\d/i], ['DigiSynthetic', /DIGISYNTHET|DS\s?418|418E|DSK\s?3/i], ['KT Audio', /\bKT\b|UNICORN|DYNAMIQ|MX3|XLI\s?2500/i], ['Lab.gruppen', /LAB|PLM|IPD/i], ['Powersoft', /POWERSOFT|QUATTRO|OTTOCANALI/i], ['Symetrix', /SYMETRIX|PRISM|JUPITER/i], ['Midas', /MIDAS/i], ['Behringer', /BE[RH]?RINGER/i], ['Magnetic', /TD\s?10000|DH\s?408|\bM\s?408/i]];
   const brandOf = nm => (REAR_BRANDS.find(([, re]) => re.test(nm)) || ['אחר'])[0];
   /* סוג המוצר: מגבר / מגבר DSP / מגבר DSP עם יציאות AUX (יציאות XLR מעובדות למגבר אחר) / פרוססור … */
-  const DSP_RE = /DSP|פרוססור|DPA|DNA|IPD|IPX|\bIX\s?\d|DYNAMIQ|D\s?\d{2,3}Q|PLM|\bD\s?\d{2,3}\s?:\s?4|TGX|SCALA|PQM/i;
+  const DSP_RE = /DSP|פרוססור|DPA|DNA|IPD|IPX|\bIX\s?\d|DYNAMIQ|D\s?\d{2,3}Q|PLM|\bD\s?\d{2,3}\s?:\s?4|TGX|SCALA/i;
   const typeOf = (items, name) => {
     const ts = items.map(i => i.t);
     const isAmp = ts.includes('speakon') || ts.includes('block2') || ts.includes('binding');
