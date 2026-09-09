@@ -1578,7 +1578,7 @@ function rearImageHTML(name, items, opts = {}) {
     if (rearSideOf(it, pos) !== side) return '';
     const { x, y } = rearPosOf(it, pos, i, n);
     const isOut = it.port && /^OUT/i.test(it.port), isIn = it.port && /^IN/i.test(it.port);
-    return `<div class="rmk${i === sel ? ' sel' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%">
+    return `<div class="rmk${i === sel ? ' sel' : ''}${/^block/.test(it.t) ? ' blk' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%">
       <div class="g">${rearGlyph(it.t, it.label)}</div><div class="lb" style="background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'}">${esc((it.label || '·').slice(0, 6))}</div></div>`;
   }).join('');
   const cap = opts.caption === false ? '' : `<div class="cap">📷 ${esc(im.model || name)}${im.custom ? ' · העלאה ידנית' : im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : ''}</div>`;
