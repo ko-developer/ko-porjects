@@ -1278,7 +1278,7 @@ function ampRear(nOut, nIn, opts = {}) {
 const REAR_KB = [
   /* XTA — DPA / DNA (כל הסדרה, אותו גב) */
   { re: /DPA\s?\d/i, items: ampRear(4, 4, { net: 'DANTE' }) },
-  { re: /DNA\s?\d|XTA.*DNA/i, items: ampRear(4, 4, { net: 'ETH', link: true }) },
+  { re: /DNA\s?\d|XTA.*DNA/i, items: [...ampRear(4, 4, { net: 'ETH', link: true }), { t: 'rj45', label: 'ETH 2' }] },   /* DNA: שני פורטי רשת (1 - AUDIO NETWORK - 2) */
   /* NST Audio */
   { re: /NST|D48S/i, items: [{ t: 'power', label: 'AC' }, ...[8, 7, 6, 5, 4, 3, 2, 1].map(k => ({ t: 'xlrm', label: 'OUT' + k, port: 'OUT ' + k })), ...[1, 2, 3, 4].map(k => ({ t: 'xlrf', label: 'IN' + k, port: 'IN ' + k })), { t: 'rj45', label: 'NET' }] },
   { re: /D24S/i, items: [{ t: 'power', label: 'AC' }, ...[4, 3, 2, 1].map(k => ({ t: 'xlrm', label: 'OUT' + k, port: 'OUT ' + k })), ...[1, 2].map(k => ({ t: 'xlrf', label: 'IN' + k, port: 'IN ' + k })), { t: 'rj45', label: 'NET' }] },
@@ -1538,7 +1538,7 @@ function rearSave() {
 function rearImage(name) {
   if (typeof REAR_IMAGES === 'undefined' || !name) return null;
   const hit = REAR_IMAGES.find(r => { try { return new RegExp(r.re, 'i').test(name); } catch { return false; } });
-  return hit ? { ...hit, url: '/rear-img/' + hit.file } : null;
+  return hit ? { ...hit, url: '/rear-img/' + hit.file + '?v=' + (hit.v || 1) } : null;   /* ?v — כדי שתמונה שהוחלפה לא תישאר במטמון הדפדפן */
 }
 /* תמונת הגב עם סמני המחברים במקומם (x,y באחוזים; בלי מיקום — פרוסים לרוחב) */
 function rearImageHTML(name, items, opts = {}) {
