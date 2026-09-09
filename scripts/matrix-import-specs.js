@@ -20,7 +20,7 @@ const kfUrl = name => { const k = Object.keys(KF_URLS).find(m => norm(m) === nor
 const kfMap = (x, defUrl) => ({ names: splitNames(x.model), w: x.power_w, o: x.impedance, spl: x.max_spl, sens: typeof x.sensitivity === 'number' ? x.sensitivity : undefined, cov: x.dispersion ? String(x.dispersion).replace('x', '°×') + '°' : '', note: x.notes, url: x.url || '', verified: x.verified !== false, size: sizeOf(x.notes) });
 const SOURCES = [
   /* דפי הנתונים הרשמיים של K&F (kling-freitag.com/downloads) — .claude/skills/kf-harvest/scripts/parse_ds.py */
-  { file: 'data/kf-datasheets-import.json', brand: 'K&F', override: true, map: x => ({ name: x.model, w: x.power_w, o: x.impedance, sens: x.sensitivity, spl: x.max_spl, cov: x.dispersion, freq: x.freq, wt: x.weight_kg, dim: x.dims, note: [x.notes, x.components].filter(Boolean).join(' · '), url: x.url, size: x.woofer_in, act: !!x.active, dsp: !x.power_w && !x.max_spl && !!x.design, design: x.design }) },
+  { file: 'data/kf-datasheets-import.json', brand: 'K&F', override: true, map: x => ({ name: x.model, w: x.power_w, o: x.impedance, sens: x.sensitivity, spl: x.max_spl, cov: x.dispersion, freq: x.freq, wt: x.weight_kg, dim: x.dims, note: [x.notes, x.components].filter(Boolean).join(' · '), url: x.url, size: x.woofer_in, act: !!x.active, splHalf: /half/i.test(x.spl_note || ''), dsp: !x.power_w && !x.max_spl && !!x.design, design: x.design }) },
   { file: 'data/funktion-one-import.json', brand: 'Funktion-One', map: x => ({ name: f1Name(x.uid), w: x.w, o: x.ohm, sens: x.sens, spl: x.maxspl_calc, cov: x.h ? x.h + '°×' + (x.v || '?') + '°' : (x.dispersion_raw && x.dispersion_raw !== 'N/A' ? x.dispersion_raw : ''), freq: x.band, wt: x.weight, note: x.driver, url: x.url, size: sizeOf(x.driver) }) },
   { file: 'data/harvest-kf-catalog-2026-08.json', brand: 'K&F', map: kfMap, multi: true },
   { file: 'data/harvest-matrix-gapfill-import.json', brand: 'gapfill', map: kfMap, multi: true },
@@ -43,7 +43,8 @@ for (const S of SOURCES) {
       const cur = D.specs[m] || {}; const had = Object.keys(cur).length > 0;
       const next = { ...cur };
       for (const k of ['w', 'o', 'sens', 'spl', 'cov', 'freq', 'wt', 'dim', 'note', 'url', 'design']) if (r[k] != null && r[k] !== '' && (S.override || next[k] == null || next[k] === '')) next[k] = typeof r[k] === 'number' ? r[k] : String(r[k]).slice(0, k === 'note' ? 160 : 80);
-      if (r.act) next.act = 1;   /* רמקול אקטיבי — אין הספק/עכבה פסיביים, ה-SPL הוא הנתון */
+      if (r.act) next.act = 1;
+      if (r.splHalf) next.splHalf = 1;   /* SPL נמדד בחצי מרחב (סאבים של K&F) — מאזן הבס מתקן ב-−6 dB */   /* רמקול אקטיבי — אין הספק/עכבה פסיביים, ה-SPL הוא הנתון */
       D.specs[m] = next;
       if (r.size && (S.override || !D.size[m])) D.size[m] = r.size;
       had ? updated++ : added++;
