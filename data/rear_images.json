@@ -1,10 +1,514 @@
 [
- {"re": "DNA\\s?\\d|XTA\\s*DNA|DNA d", "file": "xta-dna.jpg", "model": "XTA DNA 80 (4 ערוצים — אותו גב לכל הסדרה)", "src": "https://xta.co.uk/wp-content/uploads/2026/03/DNA-Series-4Ch-Rear-Cropped-Retouch-scaled.jpg", "page": "https://xta.co.uk/portfolio/delta-dpa-dna-legacy/"},
- {"re": "DPA\\s?\\d|DPA d|XTA\\s*DPA", "file": "xta-dpa80.jpg", "model": "XTA DPA 80", "src": "https://www.sea-distribution.com/media/ec/18/c2/1732646186/DPA80_back.JPG", "page": "https://www.sea-distribution.com/en/dpa80/dpa80"},
- {"re": "NST|D48S", "file": "nst-d48s.jpg", "model": "NST Audio D48S", "src": "https://nstaudio.com/wp-content/uploads/2015/04/D48NST_rear.jpg", "page": "https://nstaudio.com/d48s/"},
- {"re": "PQM\\s?13|PQM", "file": "sae-pqm.jpg", "model": "SAE PQM 13", "src": "http://www.saeaudio.com/wp-content/uploads/2015/08/PQM-B.jpg", "page": "http://www.saeaudio.com/pqm-series/"},
- {"re": "\\bMA\\s?(800|1200|3600)\\b", "file": "sae-ma.jpg", "model": "SAE MA series (2 ערוצים)", "src": "http://www.saeaudio.com/wp-content/uploads/2015/09/MA-B1.jpg", "page": "http://www.saeaudio.com/ma-series/"},
- {"re": "PRISM\\s?12", "file": "symetrix-prism-12x12.jpg", "model": "Symetrix Prism 12x12", "src": "https://d3b79pswu7f4ma.cloudfront.net/products/dsp/Prism-12x12-BACK.jpeg", "page": "https://www.symetrix.co/prism-ip-dsp"},
- {"re": "Symetrix.*8|JUPITER\\s?8", "file": "symetrix-jupiter-8.jpg", "model": "Symetrix Jupiter 8", "src": "https://d3b79pswu7f4ma.cloudfront.net/products/dsp/Jupiter-8-BACK.jpeg", "page": "https://www.symetrix.co/"},
- {"re": "DYNAMIQ\\s?450", "file": "kt-dynamiq-450.jpg", "model": "KT Unicorn Dynamiq 450 (פריים 18 מסיבוב 360°)", "src": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/SSDK1KO_18.png", "page": "https://www.kt-audio.com/products/unicorn-dynamiq-450"}
+ {
+  "re": "DNA\\s?\\d|XTA\\s*DNA|DNA d",
+  "file": "xta-dna.jpg",
+  "model": "XTA DNA 80 (4 ערוצים — אותו גב לכל הסדרה)",
+  "src": "https://xta.co.uk/wp-content/uploads/2026/03/DNA-Series-4Ch-Rear-Cropped-Retouch-scaled.jpg",
+  "page": "https://xta.co.uk/portfolio/delta-dpa-dna-legacy/",
+  "pos": {
+   "AC": [
+    24,
+    37
+   ],
+   "CH4": [
+    40,
+    55
+   ],
+   "CH3": [
+    53.5,
+    55
+   ],
+   "CH2": [
+    73,
+    55
+   ],
+   "CH1": [
+    86,
+    55
+   ],
+   "IN4": [
+    61.5,
+    30
+   ],
+   "IN3": [
+    70.5,
+    30
+   ],
+   "IN2": [
+    79.5,
+    30
+   ],
+   "IN1": [
+    88.5,
+    30
+   ],
+   "LNK4": [
+    57,
+    36
+   ],
+   "LNK3": [
+    66,
+    36
+   ],
+   "LNK2": [
+    75,
+    36
+   ],
+   "LNK1": [
+    84,
+    36
+   ],
+   "ETH": [
+    48,
+    29
+   ]
+  }
+ },
+ {
+  "re": "DPA\\s?\\d|DPA d|XTA\\s*DPA",
+  "file": "xta-dpa80.jpg",
+  "model": "XTA DPA 80",
+  "src": "https://www.sea-distribution.com/media/ec/18/c2/1732646186/DPA80_back.JPG",
+  "page": "https://www.sea-distribution.com/en/dpa80/dpa80",
+  "pos": {
+   "AC": [
+    24,
+    37
+   ],
+   "CH4": [
+    41,
+    56
+   ],
+   "CH3": [
+    55,
+    56
+   ],
+   "CH2": [
+    74,
+    56
+   ],
+   "CH1": [
+    88,
+    56
+   ],
+   "IN4": [
+    77.5,
+    32
+   ],
+   "IN3": [
+    83,
+    32
+   ],
+   "IN2": [
+    88.5,
+    32
+   ],
+   "IN1": [
+    94,
+    32
+   ],
+   "DANTE": [
+    48.5,
+    31
+   ]
+  }
+ },
+ {
+  "re": "NST|D48S",
+  "file": "nst-d48s.jpg",
+  "model": "NST Audio D48S",
+  "src": "https://nstaudio.com/wp-content/uploads/2015/04/D48NST_rear.jpg",
+  "page": "https://nstaudio.com/d48s/",
+  "pos": {
+   "AC": [
+    16,
+    42
+   ],
+   "OUT8": [
+    37,
+    38
+   ],
+   "OUT7": [
+    42.5,
+    38
+   ],
+   "OUT6": [
+    47.5,
+    38
+   ],
+   "OUT5": [
+    53,
+    38
+   ],
+   "OUT4": [
+    58.5,
+    38
+   ],
+   "OUT3": [
+    64,
+    38
+   ],
+   "OUT2": [
+    69.5,
+    38
+   ],
+   "OUT1": [
+    75,
+    38
+   ],
+   "IN4": [
+    81.5,
+    38
+   ],
+   "IN3": [
+    86.5,
+    38
+   ],
+   "IN2": [
+    91.5,
+    38
+   ],
+   "IN1": [
+    96.5,
+    38
+   ],
+   "NET": [
+    26,
+    37
+   ]
+  }
+ },
+ {
+  "re": "PQM\\s?13|PQM",
+  "file": "sae-pqm.jpg",
+  "model": "SAE PQM 13",
+  "src": "http://www.saeaudio.com/wp-content/uploads/2015/08/PQM-B.jpg",
+  "page": "http://www.saeaudio.com/pqm-series/",
+  "pos": {
+   "AC": [
+    16,
+    48
+   ],
+   "CH4": [
+    24,
+    49
+   ],
+   "CH3": [
+    31,
+    49
+   ],
+   "CH2": [
+    38,
+    49
+   ],
+   "CH1": [
+    45,
+    49
+   ],
+   "MODE": [
+    52,
+    49
+   ],
+   "IN4": [
+    55.5,
+    49
+   ],
+   "LNK4": [
+    60.5,
+    49
+   ],
+   "IN3": [
+    66,
+    49
+   ],
+   "LNK3": [
+    71,
+    49
+   ],
+   "IN2": [
+    76.5,
+    49
+   ],
+   "LNK2": [
+    81.5,
+    49
+   ],
+   "IN1": [
+    87,
+    49
+   ],
+   "LNK1": [
+    92,
+    49
+   ]
+  }
+ },
+ {
+  "re": "\\bMA\\s?(800|1200|3600)\\b",
+  "file": "sae-ma.jpg",
+  "model": "SAE MA series (2 ערוצים)",
+  "src": "http://www.saeaudio.com/wp-content/uploads/2015/09/MA-B1.jpg",
+  "page": "http://www.saeaudio.com/ma-series/",
+  "pos": {
+   "AC": [
+    33,
+    52
+   ],
+   "CH1": [
+    46,
+    40
+   ],
+   "CH2": [
+    46,
+    56
+   ],
+   "IN1": [
+    56,
+    40
+   ],
+   "LNK1": [
+    51,
+    40
+   ],
+   "IN2": [
+    56,
+    57
+   ],
+   "LNK2": [
+    51,
+    57
+   ]
+  }
+ },
+ {
+  "re": "PRISM\\s?12",
+  "file": "symetrix-prism-12x12.jpg",
+  "model": "Symetrix Prism 12x12",
+  "src": "https://d3b79pswu7f4ma.cloudfront.net/products/dsp/Prism-12x12-BACK.jpeg",
+  "page": "https://www.symetrix.co/prism-ip-dsp",
+  "pos": {
+   "AC": [
+    15,
+    58
+   ],
+   "DANTE": [
+    25,
+    60
+   ],
+   "O1": [
+    42.0,
+    62
+   ],
+   "O2": [
+    43.7,
+    62
+   ],
+   "O3": [
+    45.4,
+    62
+   ],
+   "O4": [
+    47.0,
+    62
+   ],
+   "O5": [
+    48.7,
+    62
+   ],
+   "O6": [
+    50.4,
+    62
+   ],
+   "O7": [
+    52.1,
+    62
+   ],
+   "O8": [
+    53.8,
+    62
+   ],
+   "O9": [
+    55.4,
+    62
+   ],
+   "O10": [
+    57.1,
+    62
+   ],
+   "O11": [
+    58.8,
+    62
+   ],
+   "O12": [
+    60.5,
+    62
+   ],
+   "I1": [
+    64.5,
+    62
+   ],
+   "I2": [
+    66.3,
+    62
+   ],
+   "I3": [
+    68.1,
+    62
+   ],
+   "I4": [
+    70.0,
+    62
+   ],
+   "I5": [
+    71.8,
+    62
+   ],
+   "I6": [
+    73.6,
+    62
+   ],
+   "I7": [
+    75.4,
+    62
+   ],
+   "I8": [
+    77.2,
+    62
+   ],
+   "I9": [
+    79.1,
+    62
+   ],
+   "I10": [
+    80.9,
+    62
+   ],
+   "I11": [
+    82.7,
+    62
+   ],
+   "I12": [
+    84.5,
+    62
+   ]
+  }
+ },
+ {
+  "re": "Symetrix.*8|JUPITER\\s?8",
+  "file": "symetrix-jupiter-8.jpg",
+  "model": "Symetrix Jupiter 8",
+  "src": "https://d3b79pswu7f4ma.cloudfront.net/products/dsp/Jupiter-8-BACK.jpeg",
+  "page": "https://www.symetrix.co/",
+  "pos": {
+   "AC": [
+    17,
+    60
+   ],
+   "DANTE": [
+    25,
+    60
+   ],
+   "O1": [
+    42.0,
+    62
+   ],
+   "O2": [
+    44.5,
+    62
+   ],
+   "O3": [
+    47.1,
+    62
+   ],
+   "O4": [
+    49.6,
+    62
+   ],
+   "O5": [
+    52.2,
+    62
+   ],
+   "O6": [
+    54.8,
+    62
+   ],
+   "O7": [
+    57.3,
+    62
+   ],
+   "O8": [
+    59.8,
+    62
+   ],
+   "I1": [
+    64.5,
+    62
+   ],
+   "I2": [
+    67.2,
+    62
+   ],
+   "I3": [
+    69.8,
+    62
+   ],
+   "I4": [
+    72.5,
+    62
+   ],
+   "I5": [
+    75.1,
+    62
+   ],
+   "I6": [
+    77.8,
+    62
+   ],
+   "I7": [
+    80.4,
+    62
+   ],
+   "I8": [
+    83.0,
+    62
+   ]
+  }
+ },
+ {
+  "re": "DYNAMIQ\\s?450",
+  "file": "kt-dynamiq-450.jpg",
+  "model": "KT Unicorn Dynamiq 450 (פריים 18 מסיבוב 360°)",
+  "src": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/SSDK1KO_18.png",
+  "page": "https://www.kt-audio.com/products/unicorn-dynamiq-450",
+  "pos": {
+   "AC": [
+    13.5,
+    78
+   ],
+   "B": [
+    41,
+    78
+   ],
+   "A": [
+    49,
+    78
+   ],
+   "DSP": [
+    66,
+    80
+   ],
+   "AUX": [
+    71,
+    80
+   ],
+   "IN R": [
+    79.5,
+    80
+   ],
+   "IN L": [
+    87,
+    80
+   ]
+  }
+ }
 ]

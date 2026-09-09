@@ -1543,9 +1543,11 @@ function rearImage(name) {
 /* תמונת הגב עם סמני המחברים במקומם (x,y באחוזים; בלי מיקום — פרוסים לרוחב) */
 function rearImageHTML(name, items, opts = {}) {
   const im = rearImage(name); if (!im) return '';
-  const n = items.length, sel = opts.sel;
+  const n = items.length, sel = opts.sel, pos = im.pos || {};
+  /* מיקום: עריכה שלך (x,y בפריט) → מיקום מוכן לפי תווית מתוך data/rear_images.json → פיזור אחיד */
   const marks = items.map((it, i) => {
-    const x = it.x != null ? it.x : ((i + 0.5) / Math.max(1, n)) * 100, y = it.y != null ? it.y : 50;
+    const pp = pos[(it.label || '').trim()] || pos[(it.label || '').trim().toUpperCase()];
+    const x = it.x != null ? it.x : pp ? pp[0] : ((i + 0.5) / Math.max(1, n)) * 100, y = it.y != null ? it.y : pp ? pp[1] : 50;
     const isOut = it.port && /^OUT/i.test(it.port), isIn = it.port && /^IN/i.test(it.port);
     return `<div class="rmk${i === sel ? ' sel' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%">
       <div class="g">${rearGlyph(it.t)}</div><div class="lb" style="background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'}">${esc((it.label || '·').slice(0, 6))}</div></div>`;
