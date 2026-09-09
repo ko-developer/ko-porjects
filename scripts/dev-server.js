@@ -1,7 +1,7 @@
 // Minimal dev server: rebuilds on each request so the page is always current.
 // + API של פרויקטים מעל data/projects.sqlite — האפליקציה נטענת ונשמרת מה-DB כשהשרת רץ.
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { openDb, readStore, writeStore } from './db.js';
 import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser } from './auth.js';
@@ -96,6 +96,39 @@ createServer(async (req, res) => {
     return;
   }
   const path = (req.url || '').split('?')[0].replace(/\/$/, '') || '/';
+  /* תמונות גב מוצרים — data/rear_images/ (קבצים מהאתר של היצרן או העלאה מהעורך) */
+  if (path.startsWith('/rear-img/')) {
+    const f = decodeURIComponent(path.slice('/rear-img/'.length)).replace(/[^A-Za-z0-9._-]/g, '');
+    try {
+      const buf = readFileSync('data/rear_images/' + f);
+      const ct = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' }[f.split('.').pop().toLowerCase()] || 'application/octet-stream';
+      res.writeHead(200, { 'content-type': ct, 'cache-control': 'public, max-age=86400' }); res.end(buf);
+    } catch { res.writeHead(404); res.end('no image'); }
+    return;
+  }
+  if (path === '/api/rear-image' && req.method === 'POST') {
+    if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        const m = /^data:(image\/(png|jpeg|jpg|webp|gif));base64,(.+)$/s.exec(b.data || ''); if (!m) throw new Error('קובץ תמונה בלבד (PNG/JPG/WebP)');
+        const buf = Buffer.from(m[3], 'base64'); if (buf.length > 6 * 1024 * 1024) throw new Error('עד 6MB');
+        const name = String(b.name || '').trim(); if (!name) throw new Error('חסר שם דגם');
+        const slug = 'custom-' + name.toLowerCase().replace(/[^a-z0-9\u0590-\u05ff]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '-' + Date.now().toString(36) + '.' + (m[2] === 'jpeg' ? 'jpg' : m[2]);
+        if (!existsSync('data/rear_images')) mkdirSync('data/rear_images', { recursive: true });
+        writeFileSync('data/rear_images/' + slug, buf);
+        const list = JSON.parse(readFileSync('data/rear_images.json', 'utf8'));
+        const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const i = list.findIndex(x => x.re === esc && x.custom); const rec = { re: esc, file: slug, model: name, src: 'העלאה ידנית', custom: true };
+        if (i >= 0) list[i] = rec; else list.unshift(rec);   /* העלאה ידנית גוברת על תמונה מהאתר */
+        writeFileSync('data/rear_images.json', JSON.stringify(list, null, 1));
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ ok: true, rec }));
+      } catch (e) { res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: String(e.message || e) })); }
+    });
+    return;
+  }
   /* קציר נתונים מקישור שהודבק בכרטיס פריט במטריצה (scripts/harvest.js) */
   if (path === '/api/harvest' && req.method === 'POST') {
     if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }

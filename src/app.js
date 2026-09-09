@@ -54,6 +54,7 @@ function conduitFor(c) {
 /*__DATA:ERP_CATALOG__*/
 /*__DATA:ERP_IMAGES__*/
 /*__DATA:MODEL_IMAGES__*/
+/*__DATA:REAR_IMAGES__*/
 /*__DATA:ERP_SOLD__*/
 /*__DATA:ERP_FILTERS__*/
 
@@ -1422,11 +1423,18 @@ function rearEdRender() {
       <div style="position:relative;width:24px;height:24px;margin:0 auto">${rearGlyph(it.t)}
         <div style="position:absolute;left:50%;bottom:-3px;transform:translateX(-50%);background:${chipBg};color:#fff;font-size:7px;font-weight:800;padding:0 3px;border-radius:3px;white-space:nowrap">${esc(it.label || '·')}</div></div></div>`;
   }).join('');
-  panel.innerHTML = `<div style="background:#16191f;border-radius:8px;padding:12px 10px;display:flex;gap:2px;align-items:center;overflow-x:auto;direction:ltr">
+  const im = rearImage(window.__rearName);
+  panel.innerHTML = `${im ? rearImageHTML(window.__rearName, items, { edit: true, sel }) + '<div style="font-size:10px;color:#8a8377;text-align:center;margin:2px 0 6px">גרור כל מחבר למקומו על התמונה · לחיצה = בחירה · המיקום נשמר עם הפריסה</div>' : ''}
+    <div style="background:#16191f;border-radius:8px;padding:12px 10px;display:flex;gap:2px;align-items:center;overflow-x:auto;direction:ltr">
       ${conns || '<span style="color:#8b93a3;font-size:12px">אין מחברים — הוסף למטה</span>'}
       <button onclick="rearAddItem()" title="הוסף מחבר" style="flex:none;width:34px;height:34px;border-radius:8px;background:#2d3444;color:#fff;font-size:18px;margin-left:6px">+</button>
     </div>
-    <div style="font-size:10px;color:#8b93a3;text-align:center;margin-top:3px;direction:ltr">◀ שמאל (יציאות) · ימין (כניסות) ▶ — כמו בגב האמיתי</div>`;
+    <div style="font-size:10px;color:#8b93a3;text-align:center;margin-top:3px;direction:ltr">◀ שמאל (יציאות) · ימין (כניסות) ▶ — כמו בגב האמיתי</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:11px">
+      <label style="flex:1;cursor:pointer;background:#f4f2ec;border-radius:8px;padding:5px 8px;text-align:center">📷 ${im ? 'החלף תמונת גב' : 'העלה תמונת גב (צילום או מדף היצרן)'}<input type="file" accept="image/*" style="display:none" onchange="rearUploadImage(this)"></label>
+      ${im ? '<button style="padding:4px 8px" onclick="rearResetPos()" title="פיזור אחיד מחדש של הסמנים">↔ פזר סמנים</button>' : ''}
+    </div>`;
+  if (im) rearBindDrag(panel);
   if (sel < 0 || sel >= items.length) { edit.innerHTML = ''; return; }
   const it = items[sel];
   edit.innerHTML = `<div style="background:#f4f2ec;border-radius:8px;padding:10px;margin-top:10px">
@@ -1448,6 +1456,38 @@ function rearEdRender() {
       <button style="flex:1" onclick="rearInsert(${sel},0)">➕◀ הוסף משמאלו</button>
       <button style="flex:1" onclick="rearInsert(${sel},1)">הוסף מימינו ▶➕</button>
     </div></div>`;
+}
+/* גרירת סמני המחברים על תמונת הגב — מיקום באחוזים, נשמר בפריט (x,y) */
+function rearBindDrag(panel) {
+  const box = panel.querySelector('.rearimg.edit'); if (!box) return;
+  let drag = null;
+  box.addEventListener('pointerdown', e => {
+    const mk = e.target.closest('.rmk'); if (!mk) return;
+    const i = +mk.dataset.ri; window.__rearSel = i; drag = { i, moved: false };
+    mk.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  box.addEventListener('pointermove', e => {
+    if (!drag) return; const r = box.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)), y = Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100));
+    const it = window.__rearDraft[drag.i]; it.x = Math.round(x * 10) / 10; it.y = Math.round(y * 10) / 10; drag.moved = true;
+    const mk = box.querySelector(`.rmk[data-ri="${drag.i}"]`); if (mk) { mk.style.left = it.x + '%'; mk.style.top = it.y + '%'; }
+  });
+  const end = () => { if (!drag) return; drag = null; rearEdRender(); };
+  box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+}
+function rearResetPos() { window.__rearDraft.forEach(it => { delete it.x; delete it.y; }); rearEdRender(); }
+function rearUploadImage(inp) {
+  const f = inp.files && inp.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    fetch('/api/rear-image', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: window.__rearName, data: rd.result }) })
+      .then(r => r.json()).then(j => {
+        if (j.error) { alert('העלאה נכשלה: ' + j.error); return; }
+        if (typeof REAR_IMAGES !== 'undefined') { const k = REAR_IMAGES.findIndex(x => x.re === j.rec.re && x.custom); if (k >= 0) REAR_IMAGES[k] = j.rec; else REAR_IMAGES.unshift(j.rec); }
+        rearEdRender(); uiToast('תמונת הגב נשמרה בשרת (data/rear_images)');
+      }).catch(e => alert('העלאה נכשלה: ' + e));
+  };
+  rd.readAsDataURL(f); inp.value = '';
 }
 /* הוספת מחבר צמוד למחבר הנבחר — משמאלו (after=0) או מימינו (after=1) */
 function rearInsert(i, after) {
@@ -1494,6 +1534,25 @@ function rearSave() {
   const ov = document.getElementById('rearEdOv'); if (ov) ov.remove();
   render();
 }
+/* ---------- תמונת גב אמיתית לדגם (data/rear_images.json — מהאתר של היצרן או העלאה) ---------- */
+function rearImage(name) {
+  if (typeof REAR_IMAGES === 'undefined' || !name) return null;
+  const hit = REAR_IMAGES.find(r => { try { return new RegExp(r.re, 'i').test(name); } catch { return false; } });
+  return hit ? { ...hit, url: '/rear-img/' + hit.file } : null;
+}
+/* תמונת הגב עם סמני המחברים במקומם (x,y באחוזים; בלי מיקום — פרוסים לרוחב) */
+function rearImageHTML(name, items, opts = {}) {
+  const im = rearImage(name); if (!im) return '';
+  const n = items.length, sel = opts.sel;
+  const marks = items.map((it, i) => {
+    const x = it.x != null ? it.x : ((i + 0.5) / Math.max(1, n)) * 100, y = it.y != null ? it.y : 50;
+    const isOut = it.port && /^OUT/i.test(it.port), isIn = it.port && /^IN/i.test(it.port);
+    return `<div class="rmk${i === sel ? ' sel' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%">
+      <div class="g">${rearGlyph(it.t)}</div><div class="lb" style="background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'}">${esc((it.label || '·').slice(0, 6))}</div></div>`;
+  }).join('');
+  return `<div class="rearimg${opts.edit ? ' edit' : ''}" style="${opts.style || ''}"><img src="${im.url}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marks}
+    ${opts.caption === false ? '' : `<div class="cap">📷 ${esc(im.model || name)}${im.custom ? ' · העלאה ידנית' : im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : ''}</div>`}</div>`;
+}
 /* ===== מנהל ספריית הגבים — כל הדגמים, עריכה, הוספה, ייבוא/ייצוא ===== */
 function rearLibManager() {
   const old = document.getElementById('rearLibOv'); if (old) old.remove();
@@ -1534,7 +1593,7 @@ function rearLibManager() {
   ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:560px;width:94%;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">🛠 ספריית גבי מוצרים (${rows.length} דגמים)</b>
       <button onclick="document.getElementById('rearLibOv').remove()">✕</button></div>
-    <p class="muted" style="margin:0 0 8px;font-size:11px">✎ = עריכת פריסת הגב (נשמר כמותאם) · דגם מובנה שנערך הופך למותאם וגובר עליו.</p>
+    <p class="muted" style="margin:0 0 8px;font-size:11px">✎ = עריכת פריסת הגב (נשמר כמותאם) · דגם מובנה שנערך הופך למותאם וגובר עליו · 📷 = תמונת גב אמיתית מאתר היצרן (${rows.filter(r => rearImage(r.name)).length} דגמים); בעורך אפשר להעלות תמונה ולגרור את המחברים למקומם.</p>
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button style="flex:1" onclick="uiPrompt('שם הדגם החדש (כפי שמופיע בשם המוצר):').then(nm=>{if(nm){document.getElementById('rearLibOv').remove();rearEditorByName(nm.trim());}})">+ דגם חדש</button>
       <button style="flex:1" onclick="rearLibExport()">💾 ייצוא JSON</button>
@@ -1545,7 +1604,7 @@ function rearLibManager() {
       <span class="muted" style="font-size:10px">${r.outs} יציאות · ${r.n} מחברים · ${r.src}</span>
       <button style="padding:1px 8px" onclick="document.getElementById('rearLibOv').remove();rearEditorByName('${esc(r.name).replace(/'/g, '&#39;')}')">✎</button>
       ${r.custom ? `<button style="padding:1px 8px;background:#f3d9d2" onclick="uiConfirm('למחוק את הדגם המותאם?').then(ok=>{if(ok){delete store.rearLib['${esc(r.name).replace(/'/g, '&#39;')}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}})">✕</button>` : ''}
-    </div>${strip(r.items)}</div>`; }).join('')}</div>`;
+    </div>${rearImageHTML(r.name, r.items, { style: 'margin-bottom:4px' }) || strip(r.items)}</div>`; }).join('')}</div>`;
   document.body.appendChild(ov);
 }
 function rearLibExport() {

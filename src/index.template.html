@@ -178,6 +178,18 @@
     border-radius: 9px; padding: 7px 12px; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
   #studioLink:hover { filter: brightness(1.1); }
 body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer'], body.shared [onclick*='showBom'], body.shared [onclick*='installerReport'] ~ [onclick*='sendOffer'] { display:none !important }
+
+/* תמונת גב אמיתית עם סמני מחברים */
+.rearimg{position:relative;direction:ltr;background:#111;border-radius:8px;overflow:hidden;line-height:0}
+.rearimg img{width:100%;display:block;user-select:none}
+.rearimg .rmk{position:absolute;transform:translate(-50%,-50%);text-align:center;line-height:1;cursor:default;pointer-events:auto}
+.rearimg.edit .rmk{cursor:grab}.rearimg.edit .rmk:active{cursor:grabbing}
+.rearimg .rmk .g{width:22px;height:22px;margin:0 auto;filter:drop-shadow(0 0 2px #000)}
+.rearimg .rmk .g svg{width:22px;height:22px}
+.rearimg .rmk .lb{font-size:7px;font-weight:800;color:#fff;border-radius:3px;padding:1px 3px;white-space:nowrap;margin-top:-2px;box-shadow:0 0 2px #000}
+.rearimg .rmk.sel .g{outline:2px solid #ff8a50;outline-offset:1px;border-radius:50%}
+.rearimg .cap{position:absolute;left:4px;bottom:2px;font-size:9px;color:#ddd;background:rgba(0,0,0,.55);padding:1px 6px;border-radius:4px;line-height:1.4;direction:rtl}
+.rearimg .cap a{color:#9ec5ff}
 </style>
 </head>
 <body>
