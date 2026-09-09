@@ -17,7 +17,8 @@ D.src = {}; D.srcKind = {};
 for (const model of models) {
   const fn = (D.fn || {})[model] || '';
   const hay = model + ' ' + fn;
-  const hit = AMP_DATA.find(d => d.re && (d.re.test(model) || d.re.test(fn)));
+  /* שם הפריט קודם, התיאור רק כגיבוי — תיאור ERP שמזכיר דגם אחר ("DPA 80" שתיאורו כותב DPA 40) לא יכריע */
+  const hit = AMP_DATA.find(d => d.re && d.re.test(model)) || AMP_DATA.find(d => d.re && d.re.test(fn));
   const sp = (D.specs || {})[model];
   if (sp && sp.url) { D.src[model] = sp.url; D.srcKind[model] = 'manufacturer'; }
   else if (hit && hit.url) {
@@ -25,6 +26,7 @@ for (const model of models) {
     const generic = /לא מפורט/.test(hit.w || '');
     D.src[model] = hit.url; D.srcKind[model] = generic ? 'series' : (hit.ok ? 'manufacturer' : 'manufacturer-unverified');
     if (hit.ok && hit.pw && !generic) { D.pw = D.pw || {}; D.pw[model] = { ...hit.pw }; }   /* טבלת הספק מאומתת מדף היצרן מחליפה מספר שנגזר משם הפריט */
+    if (hit.ok && hit.br && !generic) { D.bridge = D.bridge || {}; D.bridge[model] = { ...hit.br }; }   /* גישור מדף היצרן */
   }
   else if ((D.pw || {})[model]) D.srcKind[model] = 'erp-name';   /* המספר נגזר משם הפריט ב-ERP בלבד */
 }
