@@ -1299,8 +1299,8 @@ const REAR_KB = [
   { re: /MAX\s?3600/i, items: ampRear(2, 2, { link: true }) },
   { re: /MAX\s?4800/i, items: ampRear(2, 2, { link: true }) },
   /* LAB GRUPPEN */
-  { re: /IPD[\s-]?1200/i, items: ampRear(2, 2, { net: 'ETH', dip: true }) },
-  { re: /IPD[\s-]?2400/i, items: ampRear(2, 2, { net: 'ETH', dip: true }) },
+  { re: /IPD[\s-]?1200/i, items: [{ t: 'power', label: 'AC' }, { t: 'speakon', label: 'CH2', port: 'OUT 2' }, { t: 'speakon', label: 'CH1', port: 'OUT 1' }, { t: 'xlrf', label: 'IN1', port: 'IN 1' }, { t: 'xlrm', label: 'LNK1', port: 'LNK 1' }, { t: 'xlrf', label: 'IN2', port: 'IN 2' }, { t: 'xlrm', label: 'LNK2', port: 'LNK 2' }, { t: 'xlrf', label: 'AES', port: 'IN 3' }, { t: 'xlrm', label: 'AES LNK', port: 'LNK 3' }, { t: 'rj45', label: 'ETH' }] },   /* לפי צילום הגב של סדרת IPD: 2 כניסות אנלוגיות + לינק, AES3 + לינק, Ethernet, ספיקון לכל ערוץ, IEC */
+  { re: /IPD[\s-]?2400/i, items: [{ t: 'power', label: 'AC' }, { t: 'speakon', label: 'CH2', port: 'OUT 2' }, { t: 'speakon', label: 'CH1', port: 'OUT 1' }, { t: 'xlrf', label: 'IN1', port: 'IN 1' }, { t: 'xlrm', label: 'LNK1', port: 'LNK 1' }, { t: 'xlrf', label: 'IN2', port: 'IN 2' }, { t: 'xlrm', label: 'LNK2', port: 'LNK 2' }, { t: 'xlrf', label: 'AES', port: 'IN 3' }, { t: 'xlrm', label: 'AES LNK', port: 'LNK 3' }, { t: 'rj45', label: 'ETH' }] },   /* לפי צילום הגב של סדרת IPD: 2 כניסות אנלוגיות + לינק, AES3 + לינק, Ethernet, ספיקון לכל ערוץ, IEC */
   { re: /PLM\s?(12K44|20K44)/i, items: ampRear(4, 4, { net: 'DANTE' }) },
   { re: /XLI\s?2500/i, items: [{ t: 'power', label: 'AC' }, { t: 'binding', label: 'CH1', port: 'OUT 1' }, { t: 'speakon', label: 'CH1', port: 'OUT 2' }, { t: 'binding', label: 'CH2', port: 'OUT 3' }, { t: 'speakon', label: 'CH2', port: 'OUT 4' }, { t: 'xlrf', label: 'IN1', port: 'IN 1' }, { t: 'rca', label: 'RCA1' }, { t: 'xlrf', label: 'IN2', port: 'IN 2' }, { t: 'rca', label: 'RCA2' }] },
   /* MAGNETIC */
@@ -1575,20 +1575,29 @@ function rearLibManager() {
     if (!rows.some(r => r.name === nm)) rows.push({ name: nm, items: e.items, n: e.items.length, src: 'מובנה', custom: false, re: String(e.re) });
   });
   /* מותג, סוג מוצר (לפי הרכב המחברים) ומספר יציאות — לקיבוץ ולמיון */
-  const REAR_BRANDS = [['XTA', /XTA|DPA|DNA|\bAPA\b|DS8000|MX36|\bSIX\b/i], ['Kling & Freitag', /K&F|KLING|IPX|\bIX\s?\d|SCALA|TGX|TOPAS|\bD\s?\d{2,3}\s?:\s?4\b/i], ['Funktion-One', /FUNKTION|\bD\d{2,3}Q/i], ['NST Audio', /NST|D48S|D24S/i], ['SAE', /SAE|PQM|\bMA\s?\d|MAX\s?\d/i], ['DigiSynthetic', /DIGISYNTHET|DS418|418E/i], ['KT Audio', /\bKT\b|UNICORN|DYNAMIQ|MX3/i], ['Lab.gruppen', /LAB|PLM|IPD/i], ['Powersoft', /POWERSOFT|QUATTRO|OTTOCANALI/i]];
+  const REAR_BRANDS = [['XTA', /XTA|DPA|DNA|\bAPA\b|DS8000|MX36|\bSIX\b|DC\s?1048/i], ['Kling & Freitag', /K&F|KLING|IPX|\bIX\s?\d|SCALA|TGX|TOPAS|\bD\s?\d{2,3}\s?:\s?4\b/i], ['Funktion-One', /FUNKTION|\bD\d{2,3}Q/i], ['NST Audio', /NST|D48|ID48|D24S|VMX88|VMO16|DM88/i], ['SAE', /SAE|PQM|\bMA\s?\d|MAX\s?\d/i], ['DigiSynthetic', /DIGISYNTHET|DS\s?418|418E|DSK\s?3/i], ['KT Audio', /\bKT\b|UNICORN|DYNAMIQ|MX3|XLI\s?2500/i], ['Lab.gruppen', /LAB|PLM|IPD/i], ['Powersoft', /POWERSOFT|QUATTRO|OTTOCANALI/i], ['Symetrix', /SYMETRIX|PRISM|JUPITER/i], ['Midas', /MIDAS/i], ['Behringer', /BE[RH]RINGER/i], ['Magnetic', /TD\s?10000|DH\s?408|\bM\s?408/i]];
   const brandOf = nm => (REAR_BRANDS.find(([, re]) => re.test(nm)) || ['אחר'])[0];
-  const typeOf = items => {
+  /* סוג המוצר: מגבר / מגבר DSP / מגבר DSP עם יציאות AUX (יציאות XLR מעובדות למגבר אחר) / פרוססור … */
+  const DSP_RE = /DSP|פרוססור|DPA|DNA|IPD|IPX|\bIX\s?\d|DYNAMIQ|D\s?\d{2,3}Q|PLM|\bD\s?\d{2,3}\s?:\s?4|TGX|SCALA|PQM/i;
+  const typeOf = (items, name) => {
     const ts = items.map(i => i.t);
-    if (ts.includes('speakon') || ts.includes('block2') || ts.includes('binding')) return 'מגברים';
-    if (ts.includes('hdmi') || ts.includes('bnc')) return 'וידאו';
+    const isAmp = ts.includes('speakon') || ts.includes('block2') || ts.includes('binding');
+    if (isAmp) {
+      const amp = (typeof AMP_DATA !== 'undefined' ? AMP_DATA : []).find(d => d.kind === 'amp' && d.re && d.re.test(name || ''));
+      const dsp = DSP_RE.test(name || '') || (amp && /DSP|Dante|Lake|FIR|פרוססור/i.test(amp.w || ''));
+      const auxOuts = items.filter(i => i.t === 'xlrm' && !/^LNK/i.test(i.port || '') && !/LNK|LINK/i.test(i.label || '')).length;
+      return dsp ? (auxOuts ? 'מגברי DSP עם יציאות AUX' : 'מגברי DSP') : 'מגברים';
+    }
+    const hasXlr = ts.includes('xlrm') || ts.includes('xlrf') || ts.some(t => /^block/.test(t)) || ts.filter(t => t === 'pwr').length >= 4;
+    if (ts.includes('hdmi') || (ts.includes('bnc') && !hasXlr)) return 'וידאו';
     if (ts.includes('dmx')) return 'תאורה';
-    if (ts.includes('fiber') || ts.filter(t => t === 'rj45').length >= 4) return 'רשת / אופטי';
-    if (ts.includes('xlrm') || ts.includes('xlrf') || ts.includes('block3')) return 'פרוססורים / אודיו';
+    if (!hasXlr && (ts.includes('fiber') || ts.filter(t => t === 'rj45').length >= 4)) return 'רשת / אופטי';
+    if (hasXlr) return 'פרוססורים / אודיו';
     return 'אחר';
   };
   const outsOf = items => items.filter(i => i.port && /^OUT/i.test(i.port)).length || items.filter(i => i.t === 'speakon' || i.t === 'xlrm').length;
-  rows.forEach(r => { r.brand = brandOf(r.name); r.type = typeOf(r.items); r.outs = outsOf(r.items); });
-  const TYPE_ORDER = ['מגברים', 'פרוססורים / אודיו', 'רשת / אופטי', 'וידאו', 'תאורה', 'אחר'];
+  rows.forEach(r => { r.brand = brandOf(r.name); r.type = typeOf(r.items, r.name); r.outs = outsOf(r.items); });
+  const TYPE_ORDER = ['מגברים', 'מגברי DSP', 'מגברי DSP עם יציאות AUX', 'פרוססורים / אודיו', 'רשת / אופטי', 'וידאו', 'תאורה', 'אחר'];
   const bk = r => r.brand === 'אחר' ? '\uffff' : r.brand;   /* "אחר" בסוף */
   rows.sort((a, b) => bk(a).localeCompare(bk(b)) || TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type) || a.outs - b.outs || a.name.localeCompare(b.name));
   /* תצוגה מקדימה של הגב — אותם גליפים כמו בעורך, בקטן, בלי לפתוח עריכה */

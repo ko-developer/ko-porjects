@@ -1088,5 +1088,57 @@
   "w": 1320,
   "h": 520,
   "v": 3
+ },
+ {
+  "re": "IPD[\\s-]?(1200|2400)",
+  "file": "lab-ipd.jpg",
+  "model": "Lab.gruppen IPD 2400 (אותו גב ל-IPD 1200) — צילום מסקירת SoundLightUp; באתר Lab.gruppen יש רק צילום חזית ושרטוט DWG של הגב",
+  "src": "https://en.soundlightup.com/wp-content/uploads/2014/08/IPD-rear.jpg",
+  "page": "https://en.soundlightup.com/archives-3/tests/lab-gruppen-ipd-2400.html",
+  "w": 710,
+  "h": 72,
+  "v": 1,
+  "pos": {
+   "AC": [
+    91,
+    45
+   ],
+   "CH2": [
+    61,
+    45
+   ],
+   "CH1": [
+    80,
+    45
+   ],
+   "IN1": [
+    5.5,
+    42
+   ],
+   "LNK1": [
+    11.5,
+    42
+   ],
+   "IN2": [
+    17.5,
+    42
+   ],
+   "LNK2": [
+    23.5,
+    42
+   ],
+   "AES": [
+    30,
+    42
+   ],
+   "AES LNK": [
+    36,
+    42
+   ],
+   "ETH": [
+    41.5,
+    50
+   ]
+  }
  }
 ]
