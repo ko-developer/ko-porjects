@@ -1727,13 +1727,20 @@ function renderNodes() {
           const items = rearLayout(u.name);
           const picked = ((rearPick && rearPick.nodeId === n.id && rearPick.unitId === u.id)
             || (wireMode?.from?.nid === n.id && wireMode.from.unitId === u.id)) ? ' picked' : '';
-          const h = Math.max(ROWMIN, u.u * 56 * RZ), top = yCur, cy = h / 2;
+          /* תמונת גב אמיתית (data/rear_images) — המחברים יושבים על התמונה במקומם; אחרת פאנל סכמטי */
+          const im = rearImage(u.name), ih = im && im.w ? panelW * im.h / im.w : 0;
+          const h = im ? Math.max(ROWMIN, Math.round(ih * RZ) + 8) : Math.max(ROWMIN, u.u * 56 * RZ), top = yCur, cy = h / 2;
+          const imH = im ? Math.round(ih * RZ) : 0, imTop = im ? Math.round((h - imH) / 2) : 0, imPos = im ? (im.pos || {}) : null;
           REARUNIT[u.id] = { top, h };
           const rightItems = items.filter(isRight), R = rightItems.length;
           let conns = '', li = 0, ri = 0;
-          items.forEach(it => {
-            let cx;
-            if (isRight(it)) { cx = panelW - PADR - (R - ri) * STEP + STEP / 2; ri++; }
+          items.forEach((it, ii) => {
+            let cx, cyi = cy;
+            if (im) {
+              const pp = imPos[(it.label || '').trim()] || imPos[(it.label || '').trim().toUpperCase()];
+              const px = it.x != null ? it.x : pp ? pp[0] : ((ii + 0.5) / Math.max(1, items.length)) * 100, py = it.y != null ? it.y : pp ? pp[1] : 50;
+              cx = px / 100 * panelW; cyi = imTop + py / 100 * imH;
+            } else if (isRight(it)) { cx = panelW - PADR - (R - ri) * STEP + STEP / 2; ri++; }
             else { cx = PADL + li * STEP + STEP / 2; li++; }
             let cc = null, role = '';
             if (it.port && /^(OUT|LNK)/.test(it.port)) { role = 'out'; cc = P.cables.find(c => c.from === n.id && c.fromUnit === u.id && c.pOut === it.port); }
@@ -1766,16 +1773,16 @@ function renderNodes() {
             }
             /* מספר/אות הכבל על המחבר — כמו בפאנל */
             const numB = cc ? `<span style="position:absolute;top:-8px;left:-8px;background:#fff;border:2px solid ${col};color:${col};border-radius:50%;min-width:15px;height:15px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:4;padding:0 2px">${LBL2[cc.id]}</span>` : '';
-            conns += `<div ${it.port ? `data-cport="${u.id}|${it.port}"` : ''} style="position:absolute;left:${cx - 18}px;top:${cy - 19}px;width:36px;height:38px;text-align:center;${cursor}" ${it.port ? `onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();${click}"` : ''} title="${esc(tt)}">
+            conns += `<div ${it.port ? `data-cport="${u.id}|${it.port}"` : ''} style="position:absolute;left:${cx - 18}px;top:${cyi - 19}px;width:36px;height:38px;text-align:center;${im ? 'opacity:.92;' : ''}${cursor}" ${it.port ? `onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();${click}"` : ''} title="${esc(tt)}">
               <div class="cglyph" style="position:relative;width:34px;height:34px;margin:0 auto;display:flex;align-items:center;justify-content:center">${loadB}${numB}
                 <span style="display:inline-flex;transform:scale(1.32);${ring}">${rearGlyph(it.t)}</span>
                 <div style="position:absolute;left:50%;bottom:-4px;transform:translateX(-50%);background:${chipBg};color:${chipTxt};font-size:7.5px;font-weight:800;padding:0 3px;border-radius:3px;line-height:11px;white-space:nowrap;box-shadow:0 0 0 1px rgba(0,0,0,.45)">${esc(it.label)}</div>
               </div></div>`;
           });
           rows += `<div class="runit${picked}" data-runit="${u.id}" style="top:${top}px;height:${h}px">
-            <div class="runit-panel" style="width:${panelW}px;height:${h}px;flex:none">${conns}</div>
+            <div class="runit-panel${im ? ' photo' : ''}" style="width:${panelW}px;height:${h}px;flex:none${im ? `;background:#0b0d12 url('${im.url}') center/${panelW}px ${imH}px no-repeat` : ''}">${conns}</div>
             <div style="width:${CHW}px;flex:none"></div>
-            <div class="runit-lbl" style="background:${CATS[u.cat].c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>${rearVerified(u.name) ? '<small style="display:block;color:#bfe6d6">✓ גב מהספרייה</small>' : '<small style="display:block;color:#ffcbb3;font-weight:800" title="המחברים המוצגים הם ניחוש — הגדר את גב הדגם בספריית גבי המוצרים">⚠ גב לא מאומת</small>'}
+            <div class="runit-lbl" style="background:${CATS[u.cat].c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>${rearImage(u.name) ? '<small style="display:block;color:#ffd9a8">📷 תמונת גב אמיתית</small>' : ''}${rearVerified(u.name) ? '<small style="display:block;color:#bfe6d6">✓ גב מהספרייה</small>' : '<small style="display:block;color:#ffcbb3;font-weight:800" title="המחברים המוצגים הם ניחוש — הגדר את גב הדגם בספריית גבי המוצרים">⚠ גב לא מאומת</small>'}
               <button class="runit-edit" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="ערוך את פריסת הגב של הדגם" style="position:absolute;bottom:3px;left:3px">✎ גב</button></div></div>`;
           used += u.u;
           yCur += h + GAPV;
@@ -3158,7 +3165,8 @@ function ioPanelHTML(name, nid, unitId) {
     const other = layout.filter(it => !it.port);
     const rowW = (label, arr) => arr.length ? `<div style="display:flex;align-items:center;gap:8px;background:#2d3444;border-radius:7px;padding:6px 9px;margin-top:4px;direction:ltr">
       <b style="color:#fff;font-size:10px;min-width:38px">${label}</b><span style="display:flex;gap:8px;flex-wrap:wrap">${arr.map(chip).join('')}</span></div>` : '';
-    return rowW('OUT ⭢', outs) + rowW('IN ⭠', ins) + (other.length ? rowW('· · ·', other) : '')
+    const photo = rearImage(name) ? rearImageHTML(name, layout, { caption: false, style: 'margin-bottom:4px' }) : '';
+    return photo + rowW('OUT ⭢', outs) + rowW('IN ⭠', ins) + (other.length ? rowW('· · ·', other) : '')
       + (nid ? '<p class="muted" style="font-size:10px;margin-top:3px">💡 לחץ על יציאה ואז על מוצר בתכנית — הכבל ישויך למחבר. ✎ גב לעריכת הפריסה.</p>' : '');
   }
   const io = ioFor(name);
