@@ -1565,10 +1565,12 @@ function rearImage(name) {
   return hit ? { ...hit, url: hit.file ? '/rear-img/' + hit.file + '?v=' + (hit.v || 1) : '', furl: hit.front ? '/rear-img/' + hit.front + '?v=' + (hit.v || 1) : '' } : null;   /* file חסר = יש רק צילום חזית */   /* ?v — כדי שתמונה שהוחלפה לא תישאר במטמון הדפדפן */
 }
 /* באיזה צד המחבר יושב: 'front' אם המשתמש קבע, או אם המיקום המוכן מסומן 'f' (מוצרים עם מחברים בחזית — K / DSK של DigiSynthetic) */
-function rearSideOf(it, pos) { if (it.side) return it.side; const pp = pos && (pos[(it.label || '').trim()] || pos[(it.label || '').trim().toUpperCase()]); return pp && pp[2] === 'f' ? 'front' : 'rear'; }
+/* רשומת מיקום: [x, y] ואחריהם אופציונלית רוחב הסמן באחוזי התמונה (מספר) ו/או 'f' = על החזית */
+function rearSideOf(it, pos) { if (it.side) return it.side; const pp = pos && (pos[(it.label || '').trim()] || pos[(it.label || '').trim().toUpperCase()]); return pp && pp.includes('f') ? 'front' : 'rear'; }
 function rearPosOf(it, pos, i, n) {
   const pp = pos && (pos[(it.label || '').trim()] || pos[(it.label || '').trim().toUpperCase()]);
-  return { x: it.x != null ? it.x : pp ? pp[0] : ((i + 0.5) / Math.max(1, n)) * 100, y: it.y != null ? it.y : pp ? pp[1] : 50 };
+  const w = it.w != null ? it.w : (pp ? pp.slice(2).find(v => typeof v === 'number') : undefined);
+  return { x: it.x != null ? it.x : pp ? pp[0] : ((i + 0.5) / Math.max(1, n)) * 100, y: it.y != null ? it.y : pp ? pp[1] : 50, w };
 }
 /* תמונת הגב (ואם יש — גם החזית) עם סמני המחברים במקומם (x,y באחוזים; בלי מיקום — פרוסים לרוחב) */
 function rearImageHTML(name, items, opts = {}) {
@@ -1576,9 +1578,9 @@ function rearImageHTML(name, items, opts = {}) {
   const n = items.length, sel = opts.sel, pos = im.pos || {};
   const marksFor = side => items.map((it, i) => {
     if (rearSideOf(it, pos) !== side) return '';
-    const { x, y } = rearPosOf(it, pos, i, n);
+    const { x, y, w } = rearPosOf(it, pos, i, n);
     const isOut = it.port && /^OUT/i.test(it.port), isIn = it.port && /^IN/i.test(it.port);
-    return `<div class="rmk${i === sel ? ' sel' : ''}${/^block/.test(it.t) ? ' blk' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%">
+    return `<div class="rmk${i === sel ? ' sel' : ''}${/^block/.test(it.t) ? ' blk' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%${w ? ';width:' + w + '%;max-width:none;min-width:0' : ''}">
       <div class="g">${rearGlyph(it.t, it.label)}</div><div class="lb" style="background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'}">${esc((it.label || '·').slice(0, 6))}</div></div>`;
   }).join('');
   const cap = opts.caption === false ? '' : `<div class="cap">📷 ${esc(im.model || name)}${im.custom ? ' · העלאה ידנית' : im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : ''}</div>`;
@@ -1796,9 +1798,10 @@ function renderNodes() {
           items.forEach((it, ii) => {
             let cx, cyi = cy;
             if (im) {
-              const { x: px, y: py } = rearPosOf(it, imPos, ii, items.length);
+              const { x: px, y: py, w: pw } = rearPosOf(it, imPos, ii, items.length);
               const onFront = fH && rearSideOf(it, imPos) === 'front';
               cx = px / 100 * panelW; cyi = onFront ? fTop + py / 100 * fH : imTop + py / 100 * imH;
+              if (pw) it._gs = Math.max(0.4, Math.min(2.5, panelW * pw / 100 / 22));
             } else if (isRight(it)) { cx = panelW - PADR - (R - ri) * STEP + STEP / 2; ri++; }
             else { cx = PADL + li * STEP + STEP / 2; li++; }
             let cc = null, role = '';
@@ -1834,7 +1837,7 @@ function renderNodes() {
             const numB = cc ? `<span style="position:absolute;top:-8px;left:-8px;background:#fff;border:2px solid ${col};color:${col};border-radius:50%;min-width:15px;height:15px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:4;padding:0 2px">${LBL2[cc.id]}</span>` : '';
             conns += `<div ${it.port ? `data-cport="${u.id}|${it.port}"` : ''} style="position:absolute;left:${cx - 18}px;top:${cyi - 19}px;width:36px;height:38px;text-align:center;${im ? 'opacity:.92;' : ''}${cursor}" ${it.port ? `onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();${click}"` : ''} title="${esc(tt)}">
               <div class="cglyph" style="position:relative;width:34px;height:34px;margin:0 auto;display:flex;align-items:center;justify-content:center">${loadB}${numB}
-                <span style="display:inline-flex;transform:scale(${im ? Math.max(0.5, Math.min(1.32, panelW * 0.026 / 22)).toFixed(2) : 1.32});${ring}">${rearGlyph(it.t, it.label)}</span>
+                <span style="display:inline-flex;transform:scale(${im ? (it._gs || Math.max(0.5, Math.min(1.32, panelW * 0.026 / 22))).toFixed(2) : 1.32});${ring}">${rearGlyph(it.t, it.label)}</span>
                 <div style="position:absolute;left:50%;bottom:-4px;transform:translateX(-50%);background:${chipBg};color:${chipTxt};font-size:7.5px;font-weight:800;padding:0 3px;border-radius:3px;line-height:11px;white-space:nowrap;box-shadow:0 0 0 1px rgba(0,0,0,.45)">${esc(it.label)}</div>
               </div></div>`;
           });
