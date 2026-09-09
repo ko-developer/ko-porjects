@@ -1320,6 +1320,12 @@ const REAR_KB = [
   { re: /IPX\s?(5|10|15|20)\s?:\s?4/i, items: ampRear(4, 4, { net: 'DANTE' }) },
   { re: /\bIX\s?(15|30|60)/i, items: [{ t: 'power', label: 'AC' }, { t: 'binding', label: 'OUT1', port: 'OUT 1' }, { t: 'binding', label: 'OUT2', port: 'OUT 2' }, { t: 'binding', label: 'OUT3', port: 'OUT 3' }, { t: 'binding', label: 'OUT4', port: 'OUT 4' }, { t: 'xlrf', label: 'IN1', port: 'IN 1' }, { t: 'xlrf', label: 'IN2', port: 'IN 2' }, { t: 'rj45', label: 'DANTE' }] },
   { re: /DYNAMIQ\s?450/i, items: [{ t: 'power', label: 'AC' }, { t: 'speakon', label: 'B', port: 'OUT 2' }, { t: 'speakon', label: 'A', port: 'OUT 1' }, { t: 'xlrf', label: 'IN B', port: 'IN 2' }, { t: 'xlrm', label: 'LNK B', port: 'LNK 2' }, { t: 'xlrf', label: 'IN A', port: 'IN 1' }, { t: 'xlrm', label: 'LNK A', port: 'LNK 1' }] },   /* לפי צילום הגב: MAINS, CH B / CH A ספיקון, זוג XLR (כניסה + לינק) לכל ערוץ */
+  /* DigiSynthetic — פריסות לפי תמונות המוצר באתר digisynthetic.com (חזית+גב) */
+  { re: /DS\s?458/i, items: [{ t: 'power', label: 'AC' }, ...[8, 7, 6, 5, 4, 3, 2, 1].map(k => ({ t: 'xlrm', label: 'OUT' + k, port: 'OUT ' + k })), ...[4, 3, 2, 1].map(k => ({ t: 'xlrf', label: 'IN' + k, port: 'IN ' + k })), { t: 'rj45', label: 'RS485' }, { t: 'rj45', label: 'NET' }] },
+  { re: /DS\s?216/i, items: [{ t: 'power', label: 'AC' }, { t: 'usb', label: 'USB' }, ...[6, 5, 4, 3, 2, 1].map(k => ({ t: 'xlrm', label: 'OUT' + k, port: 'OUT ' + k })), ...[2, 1].map(k => ({ t: 'xlrf', label: 'IN' + k, port: 'IN ' + k }))] },
+  { re: /DMX\s?208\s?L/i, items: [{ t: 'power', label: 'DC' }, { t: 'rj45', label: 'NET A' }, { t: 'rj45', label: 'NET B' }, { t: 'block8', label: 'GPIO' }, ...[4, 3, 2, 1].map(k => ({ t: 'xlrm', label: 'OUT' + k, port: 'OUT ' + k })), ...[4, 3, 2, 1].map(k => ({ t: 'xlrf', label: 'IN' + k, port: 'IN ' + k }))] },
+  { re: /DMX\s?0808/i, items: [{ t: 'power', label: 'AC' }, { t: 'rj45', label: 'NET A' }, { t: 'rj45', label: 'NET B' }, { t: 'block3', label: 'RS232' }, { t: 'block8', label: 'GPIO' }, ...[1, 2, 3, 4, 5, 6, 7, 8].map(k => ({ t: 'block3', label: 'O' + k, port: 'OUT ' + k })), ...[1, 2, 3, 4, 5, 6, 7, 8].map(k => ({ t: 'block3', label: 'I' + k, port: 'IN ' + k }))] },
+  { re: /\bK7\b/i, items: [{ t: 'power', label: 'AC' }, { t: 'jack', label: 'MIC A1', port: 'IN 1' }, { t: 'jack', label: 'MIC A2', port: 'IN 2' }, { t: 'jack', label: 'MIC B1', port: 'IN 3' }, { t: 'rca', label: 'IN 1', port: 'IN 4' }, { t: 'rca', label: 'IN 2', port: 'IN 5' }, { t: 'rca', label: 'BGM', port: 'IN 6' }, { t: 'rca', label: 'AUX', port: 'IN 7' }, { t: 'rca', label: 'REC' }, { t: 'fiber', label: 'OPT' }, { t: 'xlrm', label: 'MAIN R', port: 'OUT 1' }, { t: 'xlrm', label: 'MAIN L', port: 'OUT 2' }, { t: 'xlrm', label: 'CENTER', port: 'OUT 3' }, { t: 'xlrm', label: 'SUB', port: 'OUT 4' }, { t: 'xlrm', label: 'SURR R', port: 'OUT 5' }, { t: 'xlrm', label: 'SURR L', port: 'OUT 6' }, { t: 'jack', label: 'MIC', port: 'IN 8' }, { t: 'usb', label: 'USB' }] },
   { re: /DS\s?418|418E|DIGITAL LOUDSPEAKER|processor|פרוססור|DSP/i, items: [{ t: 'power', label: 'AC' }, { t: 'xlrf', label: 'IN1', port: 'IN 1' }, { t: 'xlrf', label: 'IN2', port: 'IN 2' }, { t: 'xlrm', label: 'OUT1', port: 'OUT 1' }, { t: 'xlrm', label: 'OUT2', port: 'OUT 2' }, { t: 'xlrm', label: 'OUT3', port: 'OUT 3' }, { t: 'xlrm', label: 'OUT4', port: 'OUT 4' }, { t: 'rj45', label: 'NET' }] },
   { re: /מיקסר|mixer|console/i, items: [{ t: 'power', label: 'AC' }, { t: 'xlrf', label: 'IN1', port: 'IN 1' }, { t: 'xlrf', label: 'IN2', port: 'IN 2' }, { t: 'xlrf', label: 'IN3', port: 'IN 3' }, { t: 'xlrf', label: 'IN4', port: 'IN 4' }, { t: 'xlrm', label: 'MAIN L', port: 'OUT 1' }, { t: 'xlrm', label: 'MAIN R', port: 'OUT 2' }, { t: 'xlrm', label: 'AUX', port: 'OUT 3' }] },
 ];
@@ -1375,6 +1381,8 @@ function rearGlyph(t) {
   if (t === 'dip') return `<svg ${S}><rect x="3" y="6" width="16" height="10" rx="1.5" fill="#b02a2a"/><rect x="4.5" y="7.5" width="2" height="4" fill="#fff"/><rect x="7.5" y="9" width="2" height="4" fill="#fff"/><rect x="10.5" y="7.5" width="2" height="4" fill="#fff"/><rect x="13.5" y="9" width="2" height="4" fill="#fff"/></svg>`;
   if (t === 'rca') return `<svg ${S}><circle cx="11" cy="11" r="8" fill="#111" stroke="#c94" stroke-width="1.8"/><circle cx="11" cy="11" r="2.4" fill="#c94"/></svg>`;
   if (t === 'binding') return `<svg ${S}><circle cx="7.5" cy="11" r="3.4" fill="#b02a2a" stroke="#fff" stroke-width="1"/><circle cx="14.5" cy="11" r="3.4" fill="#111" stroke="#fff" stroke-width="1"/></svg>`;
+  if (t === 'jack') return `<svg ${S}><circle cx="11" cy="11" r="8.5" fill="#222" stroke="#999" stroke-width="1.5"/><circle cx="11" cy="11" r="3.2" fill="#000" stroke="#666" stroke-width="1"/></svg>`;
+  if (t === 'usb') return `<svg ${S}><rect x="4" y="7" width="14" height="8" rx="1.5" fill="#1a1a1a" stroke="#888" stroke-width="1.2"/><rect x="6.5" y="9.5" width="9" height="3" fill="#ccc"/></svg>`;
   if (/^block/.test(t)) { /* בלוק Phoenix/Euroblock ירוק — פינים לפי הסוג */
     const n = +t.replace('block', '') || 3, w = Math.min(18, n * 4.2), x0 = 11 - w / 2, pitch = n > 1 ? w / n : 0;
     let pins = ''; for (let k = 0; k < n; k++) pins += `<rect x="${(x0 + pitch * k + pitch / 2 - 1).toFixed(1)}" y="8" width="2" height="6" fill="#111"/><circle cx="${(x0 + pitch * k + pitch / 2).toFixed(1)}" cy="5.5" r="1.1" fill="#ddd"/>`;
@@ -1382,7 +1390,7 @@ function rearGlyph(t) {
   }
   return connGlyph('xlrf');
 }
-const REAR_TYPES = [['speakon', 'ספיקון NL4'], ['xlrf', 'XLR נקבה'], ['xlrm', 'XLR זכר'], ['multi', 'מולטי XLR'], ['rj45', 'רשת RJ45 / Cat6'], ['fiber', 'אופטי LC/SC'], ['dmx', 'DMX (XLR 5/3)'], ['bnc', 'BNC / SDI'], ['hdmi', 'HDMI / וידאו'], ['rca', 'RCA'], ['binding', 'בורג/בננה'], ['block2', 'בלוק Phoenix 2 פינים (קו רמקול)'], ['block3', 'בלוק Phoenix 3 פינים (אודיו מאוזן)'], ['block4', 'בלוק Phoenix 4 פינים'], ['block8', 'בלוק רב-פינים (GPIO / בקרה)'], ['power', 'חשמל'], ['dip', 'מתגי DIP']];
+const REAR_TYPES = [['speakon', 'ספיקון NL4'], ['xlrf', 'XLR נקבה'], ['xlrm', 'XLR זכר'], ['multi', 'מולטי XLR'], ['rj45', 'רשת RJ45 / Cat6'], ['fiber', 'אופטי LC/SC'], ['dmx', 'DMX (XLR 5/3)'], ['bnc', 'BNC / SDI'], ['hdmi', 'HDMI / וידאו'], ['rca', 'RCA'], ['binding', 'בורג/בננה'], ['block2', 'בלוק Phoenix 2 פינים (קו רמקול)'], ['block3', 'בלוק Phoenix 3 פינים (אודיו מאוזן)'], ['block4', 'בלוק Phoenix 4 פינים'], ['block8', 'בלוק רב-פינים (GPIO / בקרה)'], ['jack', 'ג׳ק 6.35 (מיקרופון/קו)'], ['usb', 'USB'], ['power', 'חשמל'], ['dip', 'מתגי DIP']];
 function rearEditor(unitId) {
   for (const n of P.nodes) if (n.kind === 'rack') { const u = (n.units || []).find(x => x.id === unitId); if (u) { rearEditorByName(u.name); return; } }
 }
@@ -1449,6 +1457,7 @@ function rearEdRender() {
       <div class="fld"><label>סוג מחבר</label><select onchange="__rearDraft[${sel}].t=this.value;rearEdRender()">${REAR_TYPES.map(([v, l]) => `<option value="${v}" ${it.t === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="fld"><label>תווית (בתוך המחבר)</label><input value="${esc(it.label || '')}" placeholder="למשל CH1 / IN1" onchange="__rearDraft[${sel}].label=this.value;rearEdRender()"></div>
     </div>
+    ${(rearImage(window.__rearName) || {}).furl ? `<div class="fld"><label>איפה המחבר יושב</label><select onchange="rearSetSide(${sel},this.value)"><option value="rear" ${rearSideOf(it, (rearImage(window.__rearName) || {}).pos) !== 'front' ? 'selected' : ''}>גב</option><option value="front" ${rearSideOf(it, (rearImage(window.__rearName) || {}).pos) === 'front' ? 'selected' : ''}>חזית</option></select></div>` : ''}
     <div class="fld"><label>תפקיד — יציאה / כניסה</label><select onchange="__rearDraft[${sel}].port=this.value||undefined;rearEdRender()">
       <option value="" ${!it.port ? 'selected' : ''}>— ללא (חשמל/מתג/לינק) —</option>
       ${[1, 2, 3, 4, 5, 6, 7, 8].map(k => `<option value="OUT ${k}" ${it.port === 'OUT ' + k ? 'selected' : ''}>יציאה OUT ${k}</option>`).join('')}
@@ -1466,7 +1475,9 @@ function rearEdRender() {
 }
 /* גרירת סמני המחברים על תמונת הגב — מיקום באחוזים, נשמר בפריט (x,y) */
 function rearBindDrag(panel) {
-  const box = panel.querySelector('.rearimg.edit'); if (!box) return;
+  panel.querySelectorAll('.rearimg.edit').forEach(box => rearBindDragBox(box));
+}
+function rearBindDragBox(box) {
   let drag = null;
   box.addEventListener('pointerdown', e => {
     const mk = e.target.closest('.rmk'); if (!mk) return;
@@ -1476,13 +1487,14 @@ function rearBindDrag(panel) {
   box.addEventListener('pointermove', e => {
     if (!drag) return; const r = box.getBoundingClientRect();
     const x = Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)), y = Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100));
-    const it = window.__rearDraft[drag.i]; it.x = Math.round(x * 10) / 10; it.y = Math.round(y * 10) / 10; drag.moved = true;
+    const it = window.__rearDraft[drag.i]; it.x = Math.round(x * 10) / 10; it.y = Math.round(y * 10) / 10; drag.moved = true; if (box.dataset.side === 'front') it.side = 'front';
     const mk = box.querySelector(`.rmk[data-ri="${drag.i}"]`); if (mk) { mk.style.left = it.x + '%'; mk.style.top = it.y + '%'; }
   });
   const end = () => { if (!drag) return; drag = null; rearEdRender(); };
   box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
 }
-function rearResetPos() { window.__rearDraft.forEach(it => { delete it.x; delete it.y; }); rearEdRender(); }
+function rearResetPos() { window.__rearDraft.forEach(it => { delete it.x; delete it.y; delete it.side; }); rearEdRender(); }
+function rearSetSide(i, side) { const it = window.__rearDraft[i]; if (!it) return; if (side === 'front') it.side = 'front'; else delete it.side; delete it.x; delete it.y; rearEdRender(); }
 function rearUploadImage(inp) {
   const f = inp.files && inp.files[0]; if (!f) return;
   const rd = new FileReader();
@@ -1545,22 +1557,29 @@ function rearSave() {
 function rearImage(name) {
   if (typeof REAR_IMAGES === 'undefined' || !name) return null;
   const hit = REAR_IMAGES.find(r => { try { return new RegExp(r.re, 'i').test(name); } catch { return false; } });
-  return hit ? { ...hit, url: '/rear-img/' + hit.file + '?v=' + (hit.v || 1) } : null;   /* ?v — כדי שתמונה שהוחלפה לא תישאר במטמון הדפדפן */
+  return hit ? { ...hit, url: '/rear-img/' + hit.file + '?v=' + (hit.v || 1), furl: hit.front ? '/rear-img/' + hit.front + '?v=' + (hit.v || 1) : '' } : null;   /* ?v — כדי שתמונה שהוחלפה לא תישאר במטמון הדפדפן */
 }
-/* תמונת הגב עם סמני המחברים במקומם (x,y באחוזים; בלי מיקום — פרוסים לרוחב) */
+/* באיזה צד המחבר יושב: 'front' אם המשתמש קבע, או אם המיקום המוכן מסומן 'f' (מוצרים עם מחברים בחזית — K / DSK של DigiSynthetic) */
+function rearSideOf(it, pos) { if (it.side) return it.side; const pp = pos && (pos[(it.label || '').trim()] || pos[(it.label || '').trim().toUpperCase()]); return pp && pp[2] === 'f' ? 'front' : 'rear'; }
+function rearPosOf(it, pos, i, n) {
+  const pp = pos && (pos[(it.label || '').trim()] || pos[(it.label || '').trim().toUpperCase()]);
+  return { x: it.x != null ? it.x : pp ? pp[0] : ((i + 0.5) / Math.max(1, n)) * 100, y: it.y != null ? it.y : pp ? pp[1] : 50 };
+}
+/* תמונת הגב (ואם יש — גם החזית) עם סמני המחברים במקומם (x,y באחוזים; בלי מיקום — פרוסים לרוחב) */
 function rearImageHTML(name, items, opts = {}) {
   const im = rearImage(name); if (!im) return '';
   const n = items.length, sel = opts.sel, pos = im.pos || {};
-  /* מיקום: עריכה שלך (x,y בפריט) → מיקום מוכן לפי תווית מתוך data/rear_images.json → פיזור אחיד */
-  const marks = items.map((it, i) => {
-    const pp = pos[(it.label || '').trim()] || pos[(it.label || '').trim().toUpperCase()];
-    const x = it.x != null ? it.x : pp ? pp[0] : ((i + 0.5) / Math.max(1, n)) * 100, y = it.y != null ? it.y : pp ? pp[1] : 50;
+  const marksFor = side => items.map((it, i) => {
+    if (rearSideOf(it, pos) !== side) return '';
+    const { x, y } = rearPosOf(it, pos, i, n);
     const isOut = it.port && /^OUT/i.test(it.port), isIn = it.port && /^IN/i.test(it.port);
     return `<div class="rmk${i === sel ? ' sel' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%">
       <div class="g">${rearGlyph(it.t)}</div><div class="lb" style="background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'}">${esc((it.label || '·').slice(0, 6))}</div></div>`;
   }).join('');
-  return `<div class="rearimg${opts.edit ? ' edit' : ''}" style="${opts.style || ''}"><img src="${im.url}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marks}
-    ${opts.caption === false ? '' : `<div class="cap">📷 ${esc(im.model || name)}${im.custom ? ' · העלאה ידנית' : im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : ''}</div>`}</div>`;
+  const cap = opts.caption === false ? '' : `<div class="cap">📷 ${esc(im.model || name)}${im.custom ? ' · העלאה ידנית' : im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : ''}</div>`;
+  let h = `<div class="rearimg${opts.edit ? ' edit' : ''}" data-side="rear" style="${opts.style || ''}"><img src="${im.url}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('rear')}${cap}</div>`;
+  if (im.furl) h += `<div class="rearimg front${opts.edit ? ' edit' : ''}" data-side="front" style="margin-top:3px;${opts.style || ''}"><img src="${im.furl}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('front')}<div class="cap">חזית</div></div>`;
+  return h;
 }
 /* ===== מנהל ספריית הגבים — כל הדגמים, עריכה, הוספה, ייבוא/ייצוא ===== */
 function rearLibManager() {
@@ -1744,18 +1763,19 @@ function renderNodes() {
           const picked = ((rearPick && rearPick.nodeId === n.id && rearPick.unitId === u.id)
             || (wireMode?.from?.nid === n.id && wireMode.from.unitId === u.id)) ? ' picked' : '';
           /* תמונת גב אמיתית (data/rear_images) — המחברים יושבים על התמונה במקומם; אחרת פאנל סכמטי */
-          const im = rearImage(u.name), ih = im && im.w ? panelW * im.h / im.w : 0;
-          const h = im ? Math.max(ROWMIN, Math.round(ih * RZ) + 8) : Math.max(ROWMIN, u.u * 56 * RZ), top = yCur, cy = h / 2;
-          const imH = im ? Math.round(ih * RZ) : 0, imTop = im ? Math.round((h - imH) / 2) : 0, imPos = im ? (im.pos || {}) : null;
+          const im = rearImage(u.name), ih = im && im.w ? panelW * im.h / im.w : 0, fh = im && im.front && im.fw ? panelW * im.fh / im.fw : 0;
+          const imH = im ? Math.round(ih * RZ) : 0, fH = im ? Math.round(fh * RZ) : 0;
+          const h = im ? Math.max(ROWMIN, imH + (fH ? fH + 6 : 0) + 8) : Math.max(ROWMIN, u.u * 56 * RZ), top = yCur, cy = h / 2;
+          const imTop = im ? Math.round((h - imH - (fH ? fH + 6 : 0)) / 2) : 0, fTop = imTop + imH + 6, imPos = im ? (im.pos || {}) : null;
           REARUNIT[u.id] = { top, h };
           const rightItems = items.filter(isRight), R = rightItems.length;
           let conns = '', li = 0, ri = 0;
           items.forEach((it, ii) => {
             let cx, cyi = cy;
             if (im) {
-              const pp = imPos[(it.label || '').trim()] || imPos[(it.label || '').trim().toUpperCase()];
-              const px = it.x != null ? it.x : pp ? pp[0] : ((ii + 0.5) / Math.max(1, items.length)) * 100, py = it.y != null ? it.y : pp ? pp[1] : 50;
-              cx = px / 100 * panelW; cyi = imTop + py / 100 * imH;
+              const { x: px, y: py } = rearPosOf(it, imPos, ii, items.length);
+              const onFront = fH && rearSideOf(it, imPos) === 'front';
+              cx = px / 100 * panelW; cyi = onFront ? fTop + py / 100 * fH : imTop + py / 100 * imH;
             } else if (isRight(it)) { cx = panelW - PADR - (R - ri) * STEP + STEP / 2; ri++; }
             else { cx = PADL + li * STEP + STEP / 2; li++; }
             let cc = null, role = '';
@@ -1796,7 +1816,7 @@ function renderNodes() {
               </div></div>`;
           });
           rows += `<div class="runit${picked}" data-runit="${u.id}" style="top:${top}px;height:${h}px">
-            <div class="runit-panel${im ? ' photo' : ''}" style="width:${panelW}px;height:${h}px;flex:none${im ? `;background:#0b0d12 url('${im.url}') center/${panelW}px ${imH}px no-repeat` : ''}">${conns}</div>
+            <div class="runit-panel${im ? ' photo' : ''}" style="width:${panelW}px;height:${h}px;flex:none${im ? `;background:#0b0d12 url('${im.url}') 0 ${imTop}px/${panelW}px ${imH}px no-repeat` + (fH ? `,url('${im.furl}') 0 ${fTop}px/${panelW}px ${fH}px no-repeat` : '') : ''}">${conns}</div>
             <div style="width:${CHW}px;flex:none"></div>
             <div class="runit-lbl" style="background:${CATS[u.cat].c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>${rearImage(u.name) ? '<small style="display:block;color:#ffd9a8">📷 תמונת גב אמיתית</small>' : ''}${rearVerified(u.name) ? '<small style="display:block;color:#bfe6d6">✓ גב מהספרייה</small>' : '<small style="display:block;color:#ffcbb3;font-weight:800" title="המחברים המוצגים הם ניחוש — הגדר את גב הדגם בספריית גבי המוצרים">⚠ גב לא מאומת</small>'}
               <button class="runit-edit" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="ערוך את פריסת הגב של הדגם" style="position:absolute;bottom:3px;left:3px">✎ גב</button></div></div>`;

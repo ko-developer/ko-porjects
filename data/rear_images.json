@@ -1165,5 +1165,382 @@
     50
    ]
   }
+ },
+ {
+  "re": "DS\\s?458",
+  "file": "digi-ds458.jpg",
+  "model": "DigiSynthetic DS458 (תמונת האתר, רזולוציה נמוכה)",
+  "src": "https://files.digisynthetic.cn/Image/DSP-processor/DS458/DS458-2.webp",
+  "page": "https://www.digisynthetic.com/en/products/dsp-processor/ds458",
+  "w": 1600,
+  "h": 172,
+  "v": 1,
+  "pos": {
+   "AC": [
+    15,
+    50
+   ],
+   "RS485": [
+    85,
+    45
+   ],
+   "NET": [
+    89,
+    55
+   ],
+   "OUT8": [
+    23,
+    55
+   ],
+   "OUT7": [
+    28,
+    55
+   ],
+   "OUT6": [
+    33,
+    55
+   ],
+   "OUT5": [
+    38,
+    55
+   ],
+   "OUT4": [
+    43,
+    55
+   ],
+   "OUT3": [
+    48,
+    55
+   ],
+   "OUT2": [
+    53,
+    55
+   ],
+   "OUT1": [
+    58,
+    55
+   ],
+   "IN4": [
+    65,
+    55
+   ],
+   "IN3": [
+    70.5,
+    55
+   ],
+   "IN2": [
+    76,
+    55
+   ],
+   "IN1": [
+    81.5,
+    55
+   ]
+  }
+ },
+ {
+  "re": "DS\\s?216",
+  "file": "digi-ds216b.jpg",
+  "model": "DigiSynthetic DS216B",
+  "src": "https://files.digisynthetic.cn/Image/DSP-processor/DS216B/DS216B-3.webp",
+  "page": "https://www.digisynthetic.com/en/products/dsp-processor/ds216b",
+  "w": 1600,
+  "h": 159,
+  "v": 1,
+  "pos": {
+   "AC": [
+    8,
+    50
+   ],
+   "USB": [
+    32,
+    60
+   ],
+   "OUT6": [
+    40.5,
+    55
+   ],
+   "OUT5": [
+    48,
+    55
+   ],
+   "OUT4": [
+    55.5,
+    55
+   ],
+   "OUT3": [
+    63,
+    55
+   ],
+   "OUT2": [
+    70.5,
+    55
+   ],
+   "OUT1": [
+    78,
+    55
+   ],
+   "IN2": [
+    86,
+    55
+   ],
+   "IN1": [
+    93.5,
+    55
+   ]
+  }
+ },
+ {
+  "re": "DMX\\s?208\\s?L",
+  "file": "digi-dmx208l.jpg",
+  "model": "DigiSynthetic DMX208L",
+  "src": "https://files.digisynthetic.cn/Image/DSP-processor/DMX208L/DMX208L-5.webp",
+  "page": "https://www.digisynthetic.com/en/products/dsp-processor/dmx208l",
+  "w": 1600,
+  "h": 163,
+  "v": 1,
+  "pos": {
+   "DC": [
+    21.5,
+    42
+   ],
+   "NET A": [
+    17,
+    42
+   ],
+   "NET B": [
+    17,
+    60
+   ],
+   "GPIO": [
+    42.5,
+    50
+   ],
+   "OUT4": [
+    49.5,
+    55
+   ],
+   "OUT3": [
+    55.5,
+    55
+   ],
+   "OUT2": [
+    61.5,
+    55
+   ],
+   "OUT1": [
+    67.5,
+    55
+   ],
+   "IN4": [
+    73.5,
+    55
+   ],
+   "IN3": [
+    79,
+    55
+   ],
+   "IN2": [
+    84.5,
+    55
+   ],
+   "IN1": [
+    90,
+    55
+   ]
+  },
+  "front": "digi-dmx208l-front.jpg",
+  "fw": 1600,
+  "fh": 182
+ },
+ {
+  "re": "DMX\\s?0808",
+  "file": "digi-dmx0808.jpg",
+  "model": "DigiSynthetic DMX0808",
+  "src": "https://files.digisynthetic.cn/Image/Matrix/DMX0808/DMX0808-2.webp",
+  "page": "https://www.digisynthetic.com/en/products/matrix/dmx0808",
+  "w": 1600,
+  "h": 158,
+  "v": 1,
+  "pos": {
+   "AC": [
+    12,
+    48
+   ],
+   "NET A": [
+    21,
+    42
+   ],
+   "NET B": [
+    21,
+    58
+   ],
+   "RS232": [
+    25.5,
+    58
+   ],
+   "GPIO": [
+    37,
+    58
+   ],
+   "O1": [
+    59.5,
+    40
+   ],
+   "O2": [
+    62.5,
+    40
+   ],
+   "O3": [
+    65.5,
+    40
+   ],
+   "O4": [
+    68.5,
+    40
+   ],
+   "O5": [
+    59.5,
+    60
+   ],
+   "O6": [
+    62.5,
+    60
+   ],
+   "O7": [
+    65.5,
+    60
+   ],
+   "O8": [
+    68.5,
+    60
+   ],
+   "I1": [
+    83,
+    40
+   ],
+   "I2": [
+    86,
+    40
+   ],
+   "I3": [
+    89,
+    40
+   ],
+   "I4": [
+    92,
+    40
+   ],
+   "I5": [
+    83,
+    60
+   ],
+   "I6": [
+    86,
+    60
+   ],
+   "I7": [
+    89,
+    60
+   ],
+   "I8": [
+    92,
+    60
+   ]
+  },
+  "front": "digi-dmx0808-front.jpg",
+  "fw": 1600,
+  "fh": 176
+ },
+ {
+  "re": "\\bK7\\b",
+  "file": "digi-k7.jpg",
+  "model": "DigiSynthetic K7 (מיקרופונים בחזית)",
+  "src": "https://files.digisynthetic.cn/Image/Karaoke/K7/K7-2.webp",
+  "page": "https://www.digisynthetic.com/en/products/karaoke-processor/k7",
+  "w": 1600,
+  "h": 178,
+  "v": 1,
+  "pos": {
+   "AC": [
+    9.5,
+    50
+   ],
+   "MIC A1": [
+    8.5,
+    60,
+    "f"
+   ],
+   "MIC A2": [
+    13,
+    60,
+    "f"
+   ],
+   "MIC B1": [
+    17.5,
+    60,
+    "f"
+   ],
+   "USB": [
+    92,
+    50,
+    "f"
+   ],
+   "OPT": [
+    36,
+    55
+   ],
+   "IN 1": [
+    47,
+    55
+   ],
+   "IN 2": [
+    50.5,
+    55
+   ],
+   "BGM": [
+    54.5,
+    55
+   ],
+   "AUX": [
+    58,
+    45
+   ],
+   "REC": [
+    58,
+    65
+   ],
+   "MAIN R": [
+    60.5,
+    55
+   ],
+   "MAIN L": [
+    66.5,
+    55
+   ],
+   "CENTER": [
+    72.5,
+    55
+   ],
+   "SUB": [
+    78.5,
+    55
+   ],
+   "SURR R": [
+    84,
+    55
+   ],
+   "SURR L": [
+    90,
+    55
+   ],
+   "MIC": [
+    95,
+    50
+   ]
+  },
+  "front": "digi-k7-front.jpg",
+  "fw": 1600,
+  "fh": 141
  }
 ]
