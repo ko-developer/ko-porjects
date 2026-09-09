@@ -1122,7 +1122,7 @@
   "page": "https://en.soundlightup.com/archives-3/tests/lab-gruppen-ipd-2400.html",
   "w": 710,
   "h": 72,
-  "v": 1,
+  "v": 2,
   "pos": {
    "AC": [
     91,
@@ -1163,6 +1163,14 @@
    "ETH": [
     41.5,
     50
+   ],
+   "BP1": [
+    69.5,
+    47
+   ],
+   "BP2": [
+    72.5,
+    47
    ]
   }
  },
@@ -1919,5 +1927,101 @@
   "front": "kf-ix15-4-front.jpg",
   "fw": 1600,
   "fh": 141
+ },
+ {
+  "re": "\\bD\\s?(20|40|80|100)Q|FUNKTION[- ]?ONE",
+  "file": "xta-dpa80.jpg",
+  "model": "Funktion-One D-Series (XTA DPA) — המגבר מיוצר ע\"י XTA, אותו גב כמו DPA",
+  "src": "https://www.sea-distribution.com/media/ec/18/c2/1732646186/DPA80_back.JPG",
+  "page": "https://funktion-one.com/product-system/d-series/",
+  "w": 1600,
+  "h": 453,
+  "v": 2,
+  "pos": {
+   "AC": [
+    24,
+    37
+   ],
+   "CH4": [
+    41,
+    56
+   ],
+   "CH3": [
+    55,
+    56
+   ],
+   "CH2": [
+    74,
+    56
+   ],
+   "CH1": [
+    88,
+    56
+   ],
+   "IN4": [
+    77.5,
+    32
+   ],
+   "IN3": [
+    83,
+    32
+   ],
+   "IN2": [
+    88.5,
+    32
+   ],
+   "IN1": [
+    94,
+    32
+   ],
+   "DANTE": [
+    48.5,
+    31
+   ],
+   "AUX4": [
+    55,
+    32
+   ],
+   "AUX3": [
+    60.5,
+    32
+   ],
+   "AUX2": [
+    66,
+    32
+   ],
+   "AUX1": [
+    71.5,
+    32
+   ],
+   "CTRL": [
+    41,
+    32
+   ],
+   "GPIO": [
+    30,
+    35
+   ],
+   "OUT1": [
+    88,
+    56
+   ],
+   "OUT2": [
+    74,
+    56
+   ],
+   "OUT3": [
+    55,
+    56
+   ],
+   "OUT4": [
+    41,
+    56
+   ],
+   "NET": [
+    48.5,
+    31
+   ]
+  }
  }
 ]
