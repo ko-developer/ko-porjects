@@ -1376,7 +1376,12 @@ function rackArrange(rk) {
   if (pos > (rk.ru || 0)) rk.ru = pos;
 }
 window.rackArrange = rackArrange;
-function rearGlyph(t) {
+function rearGlyph(t, label) {
+  if (t === 'rca') { /* RCA בצבע המחבר האמיתי: L = לבן, R = אדום, קואקס = כתום, אחר = זהב */
+    const lb = String(label || '').toUpperCase();
+    const c = /(^|\s)L$/.test(lb) ? '#f2f2f2' : /(^|\s)R$/.test(lb) ? '#d62828' : /COAX/.test(lb) ? '#f08c00' : '#c98a2e';
+    return `<svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="8" fill="#111" stroke="${c}" stroke-width="2.4"/><circle cx="11" cy="11" r="2.6" fill="${c}"/></svg>`;
+  }
   if (['speakon', 'xlrf', 'xlrm', 'rj45', 'bnc', 'pwr', 'hdmi', 'fiber'].includes(t)) return connGlyph(t);
   if (t === 'multi') return connGlyph('xlrm');
   if (t === 'dmx') return connGlyph('xlrf');
@@ -1439,7 +1444,7 @@ function rearEdRender() {
     const isOut = it.port && /^OUT/.test(it.port), isIn = it.port && /^IN/.test(it.port);
     const chipBg = isOut ? '#c94a24' : isIn ? '#0f6e56' : '#0d0f14';
     return `<div onclick="__rearSel=${i};rearEdRender()" title="${esc(it.label || '')}" style="flex:none;width:40px;text-align:center;cursor:pointer;padding:4px 2px;border-radius:6px;${on ? 'background:#3a4150;outline:2px solid #ff8a50' : ''}">
-      <div style="position:relative;width:24px;height:24px;margin:0 auto">${rearGlyph(it.t)}
+      <div style="position:relative;width:24px;height:24px;margin:0 auto">${rearGlyph(it.t, it.label)}
         <div style="position:absolute;left:50%;bottom:-3px;transform:translateX(-50%);background:${chipBg};color:#fff;font-size:7px;font-weight:800;padding:0 3px;border-radius:3px;white-space:nowrap">${esc(it.label || '·')}</div></div></div>`;
   }).join('');
   const im = rearImage(window.__rearName);
@@ -1578,7 +1583,7 @@ function rearImageHTML(name, items, opts = {}) {
     const { x, y } = rearPosOf(it, pos, i, n);
     const isOut = it.port && /^OUT/i.test(it.port), isIn = it.port && /^IN/i.test(it.port);
     return `<div class="rmk${i === sel ? ' sel' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%">
-      <div class="g">${rearGlyph(it.t)}</div><div class="lb" style="background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'}">${esc((it.label || '·').slice(0, 6))}</div></div>`;
+      <div class="g">${rearGlyph(it.t, it.label)}</div><div class="lb" style="background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'}">${esc((it.label || '·').slice(0, 6))}</div></div>`;
   }).join('');
   const cap = opts.caption === false ? '' : `<div class="cap">📷 ${esc(im.model || name)}${im.custom ? ' · העלאה ידנית' : im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : ''}</div>`;
   let h = `<div class="rearimg${opts.edit ? ' edit' : ''}" data-side="rear" style="${opts.style || ''}"><img src="${im.url}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('rear')}${cap}</div>`;
@@ -1625,7 +1630,7 @@ function rearLibManager() {
   rows.sort((a, b) => bk(a).localeCompare(bk(b)) || TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type) || a.outs - b.outs || a.name.localeCompare(b.name));
   /* תצוגה מקדימה של הגב — אותם גליפים כמו בעורך, בקטן, בלי לפתוח עריכה */
   const strip = items => `<div style="background:#16191f;border-radius:6px;padding:4px 6px;display:flex;gap:1px;align-items:flex-end;overflow-x:auto;direction:ltr;max-width:100%">` +
-    items.map(it => { const isOut = it.port && /^OUT/i.test(it.port), isIn = it.port && /^IN/i.test(it.port); return `<div title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="flex:none;width:22px;text-align:center"><div style="transform:scale(.8);transform-origin:bottom center;height:19px">${rearGlyph(it.t)}</div><div style="font-size:6.5px;font-weight:800;color:#fff;background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'};border-radius:2px;padding:0 1px;white-space:nowrap;overflow:hidden">${esc((it.label || '·').slice(0, 5))}</div></div>`; }).join('') + '</div>';
+    items.map(it => { const isOut = it.port && /^OUT/i.test(it.port), isIn = it.port && /^IN/i.test(it.port); return `<div title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="flex:none;width:22px;text-align:center"><div style="transform:scale(.8);transform-origin:bottom center;height:19px">${rearGlyph(it.t, it.label)}</div><div style="font-size:6.5px;font-weight:800;color:#fff;background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'};border-radius:2px;padding:0 1px;white-space:nowrap;overflow:hidden">${esc((it.label || '·').slice(0, 5))}</div></div>`; }).join('') + '</div>';
   let lastGrp = '';
   const ov = document.createElement('div');
   ov.id = 'rearLibOv';
@@ -1815,7 +1820,7 @@ function renderNodes() {
             const numB = cc ? `<span style="position:absolute;top:-8px;left:-8px;background:#fff;border:2px solid ${col};color:${col};border-radius:50%;min-width:15px;height:15px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:4;padding:0 2px">${LBL2[cc.id]}</span>` : '';
             conns += `<div ${it.port ? `data-cport="${u.id}|${it.port}"` : ''} style="position:absolute;left:${cx - 18}px;top:${cyi - 19}px;width:36px;height:38px;text-align:center;${im ? 'opacity:.92;' : ''}${cursor}" ${it.port ? `onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();${click}"` : ''} title="${esc(tt)}">
               <div class="cglyph" style="position:relative;width:34px;height:34px;margin:0 auto;display:flex;align-items:center;justify-content:center">${loadB}${numB}
-                <span style="display:inline-flex;transform:scale(${im ? Math.max(0.5, Math.min(1.32, panelW * 0.026 / 22)).toFixed(2) : 1.32});${ring}">${rearGlyph(it.t)}</span>
+                <span style="display:inline-flex;transform:scale(${im ? Math.max(0.5, Math.min(1.32, panelW * 0.026 / 22)).toFixed(2) : 1.32});${ring}">${rearGlyph(it.t, it.label)}</span>
                 <div style="position:absolute;left:50%;bottom:-4px;transform:translateX(-50%);background:${chipBg};color:${chipTxt};font-size:7.5px;font-weight:800;padding:0 3px;border-radius:3px;line-height:11px;white-space:nowrap;box-shadow:0 0 0 1px rgba(0,0,0,.45)">${esc(it.label)}</div>
               </div></div>`;
           });
@@ -3196,7 +3201,7 @@ function ioPanelHTML(name, nid, unitId) {
       const col = cc ? cableColor(cc) : null;
       const click = it.port ? (cc ? `pickCable('${cc.id}')` : `portClick('${nid}','${unitId}','${it.port}',${isOut})`) : '';
       return `<span onclick="${click}" title="${esc(it.label || it.t)}${cc ? ' · כבל ' + LBL[cc.id] : it.port ? ' — לחץ לחיבור' : ''}" style="position:relative;cursor:${it.port ? 'pointer' : 'default'};display:inline-flex;flex-direction:column;align-items:center">
-        <span style="${col ? 'outline:2.5px solid ' + col + ';border-radius:50%' : ''}">${rearGlyph(it.t)}</span>
+        <span style="${col ? 'outline:2.5px solid ' + col + ';border-radius:50%' : ''}">${rearGlyph(it.t, it.label)}</span>
         ${cc ? `<span style="position:absolute;top:-7px;right:-7px;background:#fff;border:2px solid ${col};color:${col};border-radius:50%;min-width:14px;height:14px;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center">${LBL[cc.id]}</span>` : ''}
         <small style="color:#cbd2e0;font-size:8px">${esc(it.label || '')}</small></span>`;
     };
