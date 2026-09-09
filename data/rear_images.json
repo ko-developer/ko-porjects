@@ -2023,5 +2023,17 @@
     31
    ]
   }
+ },
+ {
+  "re": "PLM\\s?12K44",
+  "file": "",
+  "model": "Lab.gruppen PLM 12K44 SP — באתר Lab.gruppen יש רק צילום חזית, אין צילום גב",
+  "src": "https://cdn-media.empowertribe.com/3d5f9f67ae73436c8f3aa69df0bda0bf/Image_LG_0107-AAA_PLM-12K44-SP_Front_B.png",
+  "page": "https://www.labgruppen.com/en/products/0107-AAA",
+  "v": 1,
+  "pos": {},
+  "front": "lab-plm12k44-front.jpg",
+  "fw": 1600,
+  "fh": 352
  }
 ]

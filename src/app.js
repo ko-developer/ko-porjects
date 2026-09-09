@@ -1566,7 +1566,7 @@ function rearSave() {
 function rearImage(name) {
   if (typeof REAR_IMAGES === 'undefined' || !name) return null;
   const hit = REAR_IMAGES.find(r => { try { return new RegExp(r.re, 'i').test(name); } catch { return false; } });
-  return hit ? { ...hit, url: '/rear-img/' + hit.file + '?v=' + (hit.v || 1), furl: hit.front ? '/rear-img/' + hit.front + '?v=' + (hit.v || 1) : '' } : null;   /* ?v — כדי שתמונה שהוחלפה לא תישאר במטמון הדפדפן */
+  return hit ? { ...hit, url: hit.file ? '/rear-img/' + hit.file + '?v=' + (hit.v || 1) : '', furl: hit.front ? '/rear-img/' + hit.front + '?v=' + (hit.v || 1) : '' } : null;   /* file חסר = יש רק צילום חזית */   /* ?v — כדי שתמונה שהוחלפה לא תישאר במטמון הדפדפן */
 }
 /* באיזה צד המחבר יושב: 'front' אם המשתמש קבע, או אם המיקום המוכן מסומן 'f' (מוצרים עם מחברים בחזית — K / DSK של DigiSynthetic) */
 function rearSideOf(it, pos) { if (it.side) return it.side; const pp = pos && (pos[(it.label || '').trim()] || pos[(it.label || '').trim().toUpperCase()]); return pp && pp[2] === 'f' ? 'front' : 'rear'; }
@@ -1586,8 +1586,8 @@ function rearImageHTML(name, items, opts = {}) {
       <div class="g">${rearGlyph(it.t, it.label)}</div><div class="lb" style="background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'}">${esc((it.label || '·').slice(0, 6))}</div></div>`;
   }).join('');
   const cap = opts.caption === false ? '' : `<div class="cap">📷 ${esc(im.model || name)}${im.custom ? ' · העלאה ידנית' : im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : ''}</div>`;
-  let h = `<div class="rearimg${opts.edit ? ' edit' : ''}" data-side="rear" style="${opts.style || ''}"><img src="${im.url}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('rear')}${cap}</div>`;
-  if (im.furl) h += `<div class="rearimg front${opts.edit ? ' edit' : ''}" data-side="front" style="margin-top:3px;${opts.style || ''}"><img src="${im.furl}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('front')}<div class="cap">חזית</div></div>`;
+  let h = im.url ? `<div class="rearimg${opts.edit ? ' edit' : ''}" data-side="rear" style="${opts.style || ''}"><img src="${im.url}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('rear')}${cap}</div>` : '';
+  if (im.furl) h += `<div class="rearimg front${opts.edit ? ' edit' : ''}" data-side="front" style="margin-top:3px;${opts.style || ''}"><img src="${im.furl}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('front')}<div class="cap">חזית${im.url ? '' : ' · ' + esc(im.model || '') + (im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : '')}</div></div>`;
   return h;
 }
 /* ===== מנהל ספריית הגבים — כל הדגמים, עריכה, הוספה, ייבוא/ייצוא ===== */
@@ -1603,7 +1603,7 @@ function rearLibManager() {
     if (!rows.some(r => r.name === nm)) rows.push({ name: nm, items: e.items, n: e.items.length, src: 'מובנה', custom: false, re: String(e.re) });
   });
   /* מותג, סוג מוצר (לפי הרכב המחברים) ומספר יציאות — לקיבוץ ולמיון */
-  const REAR_BRANDS = [['XTA', /XTA|DPA|DNA|\bAPA\b|DS8000|MX36|\bSIX\b|DC\s?1048/i], ['Kling & Freitag', /K&F|KLING|IPX|\bIX\s?\d|SCALA|TGX|TOPAS|\bD\s?\d{2,3}\s?:\s?4\b/i], ['Funktion-One', /FUNKTION|\bD\d{2,3}Q/i], ['NST Audio', /NST|D48|ID48|D24S|VMX88|VMO16|DM88/i], ['SAE', /SAE|PQM|\bMA\s?\d|MAX\s?\d/i], ['DigiSynthetic', /DIGISYNTHET|DS\s?418|418E|DSK\s?3/i], ['KT Audio', /\bKT\b|UNICORN|DYNAMIQ|MX3|XLI\s?2500/i], ['Lab.gruppen', /LAB|PLM|IPD/i], ['Powersoft', /POWERSOFT|QUATTRO|OTTOCANALI/i], ['Symetrix', /SYMETRIX|PRISM|JUPITER/i], ['Midas', /MIDAS/i], ['Behringer', /BE[RH]?RINGER/i], ['Magnetic', /TD\s?10000|DH\s?408|\bM\s?408/i]];
+  const REAR_BRANDS = [['XTA', /XTA|DPA|DNA|\bAPA\b|DS8000|MX36|\bSIX\b|DC\s?1048/i], ['Kling & Freitag', /K&F|KLING|IPX|\bIX\s?\d|SCALA|TGX|TOPAS|\bD\s?\d{2,3}\s?:\s?4\b/i], ['Funktion-One', /FUNKTION|\bD\d{2,3}Q/i], ['NST Audio', /NST|D48|ID48|D24S|VMX88|VMO16|DM88/i], ['SAE', /SAE|PQM|\bMA\s?\d|MAX\s?\d/i], ['DigiSynthetic', /DIGISYNTHET|DS\s?418|418E|DSK\s?3/i], ['KT Audio', /\bKT\b|UNICORN|DYNAMIQ|MX3|XLI\s?2500/i], ['Lab.gruppen', /LAB|PLM|IPD/i], ['Powersoft', /POWERSOFT|QUATTRO|OTTOCANALI/i], ['Symetrix', /SYMETRIX|PRISM|JUPITER/i], ['Midas', /MIDAS/i], ['Behringer', /BE[RH]?RINGER/i]];
   const brandOf = nm => (REAR_BRANDS.find(([, re]) => re.test(nm)) || ['אחר'])[0];
   /* סוג המוצר: מגבר / מגבר DSP / מגבר DSP עם יציאות AUX (יציאות XLR מעובדות למגבר אחר) / פרוססור … */
   const DSP_RE = /DSP|פרוססור|DPA|DNA|IPD|IPX|\bIX\s?\d|DYNAMIQ|D\s?\d{2,3}Q|PLM|\bD\s?\d{2,3}\s?:\s?4|TGX|SCALA/i;
@@ -1650,7 +1650,7 @@ function rearLibManager() {
       <span class="muted" style="font-size:10px">${r.outs} יציאות · ${r.n} מחברים · ${r.src}</span>
       <button style="padding:1px 8px" onclick="document.getElementById('rearLibOv').remove();rearEditorByName('${esc(r.name).replace(/'/g, '&#39;')}')">✎</button>
       ${r.custom ? `<button style="padding:1px 8px;background:#f3d9d2" onclick="uiConfirm('למחוק את הדגם המותאם?').then(ok=>{if(ok){delete store.rearLib['${esc(r.name).replace(/'/g, '&#39;')}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}})">✕</button>` : ''}
-    </div>${rearImageHTML(r.name, r.items, { style: 'margin-bottom:4px' }) || strip(r.items)}</div>`; }).join('')}</div>`;
+    </div>${(rearImage(r.name) || {}).url ? '' : strip(r.items)}${rearImageHTML(r.name, r.items, { style: 'margin-bottom:4px' })}</div>`; }).join('')}</div>`;
   document.body.appendChild(ov);
 }
 function rearLibExport() {
@@ -1772,7 +1772,7 @@ function renderNodes() {
           const picked = ((rearPick && rearPick.nodeId === n.id && rearPick.unitId === u.id)
             || (wireMode?.from?.nid === n.id && wireMode.from.unitId === u.id)) ? ' picked' : '';
           /* תמונת גב אמיתית (data/rear_images) — המחברים יושבים על התמונה במקומם; אחרת פאנל סכמטי */
-          const im = rearImage(u.name), ih = im && im.w ? panelW * im.h / im.w : 0, fh = im && im.front && im.fw ? panelW * im.fh / im.fw : 0;
+          const im0 = rearImage(u.name), im = im0 && im0.url ? im0 : null, ih = im && im.w ? panelW * im.h / im.w : 0, fh = im && im.front && im.fw ? panelW * im.fh / im.fw : 0;
           const imH = im ? Math.round(ih * RZ) : 0, fH = im ? Math.round(fh * RZ) : 0;
           const h = im ? Math.max(ROWMIN, imH + (fH ? fH + 6 : 0) + 8) : Math.max(ROWMIN, u.u * 56 * RZ), top = yCur, cy = h / 2;
           const imTop = im ? Math.round((h - imH - (fH ? fH + 6 : 0)) / 2) : 0, fTop = imTop + imH + 6, imPos = im ? (im.pos || {}) : null;
