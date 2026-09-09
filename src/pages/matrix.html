@@ -578,7 +578,23 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
     if (ed) for (k in ed) out[k] = ed[k];
     return out;
   }
-  function spkFor(m) { return (ST.spkEdit || {})[m] || (D.spk || {})[m]; }
+  /* הספק/עכבה של רמקול: עריכה שלך → טבלה ידנית (D.spk) → מפרט יצרן מיובא (D.specs, למשל דפי הנתונים של K&F) */
+  function spkFor(m) {
+    var e = (ST.spkEdit || {})[m] || (D.spk || {})[m]; if (e) return e;
+    var sp = (D.specs || {})[m]; return sp && sp.w > 0 && sp.o > 0 ? [sp.w, sp.o] : undefined;
+  }
+  /* מילוי אוטומטי חד-פעמי לכל שורת רמקול שיש לה מפרט אבל עוד אין לה תאים בטופ↔מגבר (מפרטים שיובאו אחרי המילוי הקודם) */
+  function autoFillMissing() {
+    ST.autoFilled = ST.autoFilled || []; var done = {}; ST.autoFilled.forEach(function (k) { done[k] = 1; });
+    var n = 0, rows = 0;
+    D.mx.amp.rows.forEach(function (r) {
+      if (!spkFor(r)) return;
+      if (D.mx.amp.cols.some(function (c) { return done['amp|' + r + '|' + c]; })) return;
+      var k = autoFillRow(r); if (k) { n += k; rows++; }
+      D.mx.amp.cols.forEach(function (c) { ST.autoFilled.push('amp|' + r + '|' + c); });
+    });
+    return { n: n, rows: rows };
+  }
   function brFor(m) {
     var ed = (ST.bridgeEdit || {})[m];
     if (ed) { var o = {}; o[String(ed[1])] = ed[0]; return o; }
@@ -1251,7 +1267,9 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
     rrRefresh(); schedule();
   });
 
+  var AF = autoFillMissing();
   buildTouch(); render();
+  if (AF.n) { schedule(); setStatus('מולאו ' + AF.n + ' תאים ב-' + AF.rows + ' שורות לפי מפרט היצרן (הספק/עכבה) — לבדוק', 'ok'); }
   /* \u05d4\u05de\u05e6\u05d1 \u05de\u05d5\u05d6\u05e8\u05e7 \u05dc\u05ea\u05d5\u05da mstate \u05e2\u05dc \u05d9\u05d3\u05d9 \u05d4\u05e9\u05e8\u05ea \u05d4\u05de\u05e7\u05d5\u05de\u05d9 */
 })();
 </script>
