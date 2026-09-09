@@ -1507,7 +1507,7 @@ function rearLibManager() {
     if (!rows.some(r => r.name === nm)) rows.push({ name: nm, items: e.items, n: e.items.length, src: 'מובנה', custom: false, re: String(e.re) });
   });
   /* מותג, סוג מוצר (לפי הרכב המחברים) ומספר יציאות — לקיבוץ ולמיון */
-  const REAR_BRANDS = [['XTA', /XTA|DPA|DNA|\bAPA\b|DS8000|MX36|\bSIX\b/i], ['Kling & Freitag', /K&F|KLING|IPX|\bIX\s?\d|SCALA|TGX|TOPAS|D\s?\d+:?4/i], ['Funktion-One', /FUNKTION|\bD\d{2,3}Q/i], ['NST Audio', /NST|D48S|D24S/i], ['SAE', /SAE|PQM|\bMA\s?\d|MAX\s?\d/i], ['DigiSynthetic', /DIGISYNTHET|DS418|418E/i], ['KT Audio', /\bKT\b|UNICORN|DYNAMIQ|MX3/i], ['Lab.gruppen', /LAB|PLM|IPD/i], ['Powersoft', /POWERSOFT|QUATTRO|OTTOCANALI/i]];
+  const REAR_BRANDS = [['XTA', /XTA|DPA|DNA|\bAPA\b|DS8000|MX36|\bSIX\b/i], ['Kling & Freitag', /K&F|KLING|IPX|\bIX\s?\d|SCALA|TGX|TOPAS|\bD\s?\d{2,3}\s?:\s?4\b/i], ['Funktion-One', /FUNKTION|\bD\d{2,3}Q/i], ['NST Audio', /NST|D48S|D24S/i], ['SAE', /SAE|PQM|\bMA\s?\d|MAX\s?\d/i], ['DigiSynthetic', /DIGISYNTHET|DS418|418E/i], ['KT Audio', /\bKT\b|UNICORN|DYNAMIQ|MX3/i], ['Lab.gruppen', /LAB|PLM|IPD/i], ['Powersoft', /POWERSOFT|QUATTRO|OTTOCANALI/i]];
   const brandOf = nm => (REAR_BRANDS.find(([, re]) => re.test(nm)) || ['אחר'])[0];
   const typeOf = items => {
     const ts = items.map(i => i.t);

@@ -133,7 +133,7 @@ def parse(name_wanted, bl):
     if 'SPECTRA' in name_wanted:
         for l in bl:
             if l.startswith('Line Source:'): r['dispersion'] = l.replace('Line Source:', 'line source').strip()
-    v, _ = field(bl, 'Frequency response -10 dB', 'Frequency range -10 dB', 'Frequency Range -10 dB', 'Freqency range -10 dB')
+    v, _ = field(bl, 'Frequency response -10 dB', 'Frequency range -10 dB', 'Frequency Range -10 dB', 'Freqency range -10 dB', 'Lower cut-off frequency')
     if v: r['freq'] = re.sub(r"\s*'.*", '', v).strip()
     _, k = field(bl, 'Components')
     if k >= 0:
