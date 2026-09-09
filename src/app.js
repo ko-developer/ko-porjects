@@ -1367,9 +1367,14 @@ function rearGlyph(t) {
   if (t === 'dip') return `<svg ${S}><rect x="3" y="6" width="16" height="10" rx="1.5" fill="#b02a2a"/><rect x="4.5" y="7.5" width="2" height="4" fill="#fff"/><rect x="7.5" y="9" width="2" height="4" fill="#fff"/><rect x="10.5" y="7.5" width="2" height="4" fill="#fff"/><rect x="13.5" y="9" width="2" height="4" fill="#fff"/></svg>`;
   if (t === 'rca') return `<svg ${S}><circle cx="11" cy="11" r="8" fill="#111" stroke="#c94" stroke-width="1.8"/><circle cx="11" cy="11" r="2.4" fill="#c94"/></svg>`;
   if (t === 'binding') return `<svg ${S}><circle cx="7.5" cy="11" r="3.4" fill="#b02a2a" stroke="#fff" stroke-width="1"/><circle cx="14.5" cy="11" r="3.4" fill="#111" stroke="#fff" stroke-width="1"/></svg>`;
+  if (/^block/.test(t)) { /* בלוק Phoenix/Euroblock ירוק — פינים לפי הסוג */
+    const n = +t.replace('block', '') || 3, w = Math.min(18, n * 4.2), x0 = 11 - w / 2, pitch = n > 1 ? w / n : 0;
+    let pins = ''; for (let k = 0; k < n; k++) pins += `<rect x="${(x0 + pitch * k + pitch / 2 - 1).toFixed(1)}" y="8" width="2" height="6" fill="#111"/><circle cx="${(x0 + pitch * k + pitch / 2).toFixed(1)}" cy="5.5" r="1.1" fill="#ddd"/>`;
+    return `<svg ${S}><rect x="${(x0 - 1.5).toFixed(1)}" y="3" width="${(w + 3).toFixed(1)}" height="14" rx="1.5" fill="#1f8a3a" stroke="#0c5a22" stroke-width="1"/>${pins}</svg>`;
+  }
   return connGlyph('xlrf');
 }
-const REAR_TYPES = [['speakon', 'ספיקון NL4'], ['xlrf', 'XLR נקבה'], ['xlrm', 'XLR זכר'], ['multi', 'מולטי XLR'], ['rj45', 'רשת RJ45 / Cat6'], ['fiber', 'אופטי LC/SC'], ['dmx', 'DMX (XLR 5/3)'], ['bnc', 'BNC / SDI'], ['hdmi', 'HDMI / וידאו'], ['rca', 'RCA'], ['binding', 'בורג/בננה'], ['power', 'חשמל'], ['dip', 'מתגי DIP']];
+const REAR_TYPES = [['speakon', 'ספיקון NL4'], ['xlrf', 'XLR נקבה'], ['xlrm', 'XLR זכר'], ['multi', 'מולטי XLR'], ['rj45', 'רשת RJ45 / Cat6'], ['fiber', 'אופטי LC/SC'], ['dmx', 'DMX (XLR 5/3)'], ['bnc', 'BNC / SDI'], ['hdmi', 'HDMI / וידאו'], ['rca', 'RCA'], ['binding', 'בורג/בננה'], ['block2', 'בלוק Phoenix 2 פינים (קו רמקול)'], ['block3', 'בלוק Phoenix 3 פינים (אודיו מאוזן)'], ['block4', 'בלוק Phoenix 4 פינים'], ['block8', 'בלוק רב-פינים (GPIO / בקרה)'], ['power', 'חשמל'], ['dip', 'מתגי DIP']];
 function rearEditor(unitId) {
   for (const n of P.nodes) if (n.kind === 'rack') { const u = (n.units || []).find(x => x.id === unitId); if (u) { rearEditorByName(u.name); return; } }
 }
@@ -1495,12 +1500,33 @@ function rearLibManager() {
   const lib = store.rearLib || {};
   const rows = [];
   for (const [name, items] of Object.entries(lib))
-    rows.push({ name, n: items.length, src: 'מותאם', custom: true });
+    rows.push({ name, items, n: items.length, src: 'מותאם', custom: true });
   REAR_KB.forEach(e => {
     const nm = String(e.re).replace(/^\/|\/i?$/g, '').split('|')[0]
       .replace(/\[[^\]]*\]\??/g, ' ').replace(/\\s\?|\\s\*|\\s|\\b|\\\.|\(|\)|\?|\^|\$/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!rows.some(r => r.name === nm)) rows.push({ name: nm, n: e.items.length, src: 'מובנה', custom: false, re: String(e.re) });
+    if (!rows.some(r => r.name === nm)) rows.push({ name: nm, items: e.items, n: e.items.length, src: 'מובנה', custom: false, re: String(e.re) });
   });
+  /* מותג, סוג מוצר (לפי הרכב המחברים) ומספר יציאות — לקיבוץ ולמיון */
+  const REAR_BRANDS = [['XTA', /XTA|DPA|DNA|\bAPA\b|DS8000|MX36|\bSIX\b/i], ['Kling & Freitag', /K&F|KLING|IPX|\bIX\s?\d|SCALA|TGX|TOPAS|D\s?\d+:?4/i], ['Funktion-One', /FUNKTION|\bD\d{2,3}Q/i], ['NST Audio', /NST|D48S|D24S/i], ['SAE', /SAE|PQM|\bMA\s?\d|MAX\s?\d/i], ['DigiSynthetic', /DIGISYNTHET|DS418|418E/i], ['KT Audio', /\bKT\b|UNICORN|DYNAMIQ|MX3/i], ['Lab.gruppen', /LAB|PLM|IPD/i], ['Powersoft', /POWERSOFT|QUATTRO|OTTOCANALI/i]];
+  const brandOf = nm => (REAR_BRANDS.find(([, re]) => re.test(nm)) || ['אחר'])[0];
+  const typeOf = items => {
+    const ts = items.map(i => i.t);
+    if (ts.includes('speakon') || ts.includes('block2') || ts.includes('binding')) return 'מגברים';
+    if (ts.includes('hdmi') || ts.includes('bnc')) return 'וידאו';
+    if (ts.includes('dmx')) return 'תאורה';
+    if (ts.includes('fiber') || ts.filter(t => t === 'rj45').length >= 4) return 'רשת / אופטי';
+    if (ts.includes('xlrm') || ts.includes('xlrf') || ts.includes('block3')) return 'פרוססורים / אודיו';
+    return 'אחר';
+  };
+  const outsOf = items => items.filter(i => i.port && /^OUT/i.test(i.port)).length || items.filter(i => i.t === 'speakon' || i.t === 'xlrm').length;
+  rows.forEach(r => { r.brand = brandOf(r.name); r.type = typeOf(r.items); r.outs = outsOf(r.items); });
+  const TYPE_ORDER = ['מגברים', 'פרוססורים / אודיו', 'רשת / אופטי', 'וידאו', 'תאורה', 'אחר'];
+  const bk = r => r.brand === 'אחר' ? '\uffff' : r.brand;   /* "אחר" בסוף */
+  rows.sort((a, b) => bk(a).localeCompare(bk(b)) || TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type) || a.outs - b.outs || a.name.localeCompare(b.name));
+  /* תצוגה מקדימה של הגב — אותם גליפים כמו בעורך, בקטן, בלי לפתוח עריכה */
+  const strip = items => `<div style="background:#16191f;border-radius:6px;padding:4px 6px;display:flex;gap:1px;align-items:flex-end;overflow-x:auto;direction:ltr;max-width:100%">` +
+    items.map(it => { const isOut = it.port && /^OUT/i.test(it.port), isIn = it.port && /^IN/i.test(it.port); return `<div title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}" style="flex:none;width:22px;text-align:center"><div style="transform:scale(.8);transform-origin:bottom center;height:19px">${rearGlyph(it.t)}</div><div style="font-size:6.5px;font-weight:800;color:#fff;background:${isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444'};border-radius:2px;padding:0 1px;white-space:nowrap;overflow:hidden">${esc((it.label || '·').slice(0, 5))}</div></div>`; }).join('') + '</div>';
+  let lastGrp = '';
   const ov = document.createElement('div');
   ov.id = 'rearLibOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
@@ -1514,12 +1540,12 @@ function rearLibManager() {
       <button style="flex:1" onclick="rearLibExport()">💾 ייצוא JSON</button>
       <button style="flex:1" onclick="$('#rearLibIn').click()">📥 ייבוא JSON</button>
     </div>
-    ${rows.map(r => `<div style="display:flex;gap:8px;align-items:center;padding:5px 8px;border:1px solid #eee;border-radius:7px;margin-bottom:4px">
+    ${rows.map(r => { const grp = r.brand + ' · ' + r.type; const hdr = grp !== lastGrp ? `<div style="font-size:11px;font-weight:700;color:#534ab7;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #e9e6f8">${esc(r.brand)} <span style="color:#8a8377;font-weight:400">· ${esc(r.type)}</span></div>` : ''; lastGrp = grp; return hdr + `<div style="padding:5px 8px;border:1px solid #eee;border-radius:7px;margin-bottom:4px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
       <b style="flex:1;font-size:12px">${esc(r.name)}</b>
-      <span class="muted" style="font-size:10px">${r.n} מחברים · ${r.src}</span>
+      <span class="muted" style="font-size:10px">${r.outs} יציאות · ${r.n} מחברים · ${r.src}</span>
       <button style="padding:1px 8px" onclick="document.getElementById('rearLibOv').remove();rearEditorByName('${esc(r.name).replace(/'/g, '&#39;')}')">✎</button>
       ${r.custom ? `<button style="padding:1px 8px;background:#f3d9d2" onclick="uiConfirm('למחוק את הדגם המותאם?').then(ok=>{if(ok){delete store.rearLib['${esc(r.name).replace(/'/g, '&#39;')}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}})">✕</button>` : ''}
-    </div>`).join('')}</div>`;
+    </div>${strip(r.items)}</div>`; }).join('')}</div>`;
   document.body.appendChild(ov);
 }
 function rearLibExport() {
