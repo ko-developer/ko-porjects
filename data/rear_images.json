@@ -2026,14 +2026,73 @@
  },
  {
   "re": "PLM\\s?12K44",
-  "file": "",
-  "model": "Lab.gruppen PLM 12K44 SP — באתר Lab.gruppen יש רק צילום חזית, אין צילום גב",
-  "src": "https://cdn-media.empowertribe.com/3d5f9f67ae73436c8f3aa69df0bda0bf/Image_LG_0107-AAA_PLM-12K44-SP_Front_B.png",
+  "file": "lab-plm12k44.jpg",
+  "model": "Lab.gruppen PLM 12K44 SP (צילום הגב הרשמי דרך המפיץ Pro Audio Design; באתר Lab.gruppen יש רק חזית)",
+  "src": "https://www.proaudiodesign.com/cdn/shop/products/Image_LG_P0F68_PLM-12K44-SP_Rear_XL.png",
   "page": "https://www.labgruppen.com/en/products/0107-AAA",
-  "v": 1,
-  "pos": {},
+  "v": 2,
+  "pos": {
+   "AC": [
+    90,
+    22
+   ],
+   "ALL 1-4": [
+    10.5,
+    22
+   ],
+   "CH1": [
+    16.5,
+    22
+   ],
+   "CH2": [
+    19.5,
+    22
+   ],
+   "CH3": [
+    25,
+    22
+   ],
+   "CH4": [
+    28,
+    22
+   ],
+   "IN1": [
+    34,
+    22
+   ],
+   "IN2": [
+    39.5,
+    22
+   ],
+   "IN3": [
+    45,
+    22
+   ],
+   "IN4": [
+    50.5,
+    22
+   ],
+   "AES 1-2": [
+    57,
+    22
+   ],
+   "AES 3-4": [
+    62.5,
+    22
+   ],
+   "DANTE P": [
+    68,
+    20
+   ],
+   "DANTE S": [
+    73.5,
+    20
+   ]
+  },
   "front": "lab-plm12k44-front.jpg",
   "fw": 1600,
-  "fh": 352
+  "fh": 352,
+  "w": 1600,
+  "h": 367
  }
 ]
