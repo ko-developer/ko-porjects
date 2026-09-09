@@ -1420,10 +1420,18 @@ function rearEditorByName(uname) {
   document.body.appendChild(ov);
   rearEdRender();
 }
+/* זום בעורך: התמונה מתרחבת בתוך מיכל גלילה, הסמנים באחוזים נשארים במקומם */
+function rearZoom(v, abs) {
+  const cur = window.__rearZoom || 100;
+  window.__rearZoom = Math.max(100, Math.min(500, abs ? v : cur + v));
+  rearEdRender();
+}
 function rearEdRender() {
   const items = window.__rearDraft, sel = window.__rearSel;
   const panel = document.getElementById('rearEdPanel'), edit = document.getElementById('rearEdEdit');
   if (!panel) return;
+  const prevScroll = panel.querySelector('.rearscroll'); const keepScroll = prevScroll ? [prevScroll.scrollLeft, prevScroll.scrollTop] : null;
+  setTimeout(() => { const sc = document.querySelector('#rearEdPanel .rearscroll'); if (sc && keepScroll) { sc.scrollLeft = keepScroll[0]; sc.scrollTop = keepScroll[1]; } }, 0);
   /* פאנל גב גרפי — המחברים כמו שהם על המוצר */
   const conns = items.map((it, i) => {
     const on = i === sel;
@@ -1434,7 +1442,9 @@ function rearEdRender() {
         <div style="position:absolute;left:50%;bottom:-3px;transform:translateX(-50%);background:${chipBg};color:#fff;font-size:7px;font-weight:800;padding:0 3px;border-radius:3px;white-space:nowrap">${esc(it.label || '·')}</div></div></div>`;
   }).join('');
   const im = rearImage(window.__rearName);
-  panel.innerHTML = `${im ? rearImageHTML(window.__rearName, items, { edit: true, sel }) + '<div style="font-size:10px;color:#8a8377;text-align:center;margin:2px 0 6px">גרור כל מחבר למקומו על התמונה · לחיצה = בחירה · המיקום נשמר עם הפריסה</div>' : ''}
+  const RZ = window.__rearZoom || 100;
+  panel.innerHTML = `${im ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px"><span class="muted">זום לתמונה:</span><button class="mini" onclick="rearZoom(-50)">−</button><b style="min-width:42px;text-align:center">${RZ}%</b><button class="mini" onclick="rearZoom(50)">+</button><input type="range" min="100" max="500" step="25" value="${RZ}" oninput="rearZoom(+this.value, true)" style="flex:1"><button class="mini" onclick="rearZoom(100, true)">התאם</button><span class="muted">· גלילה אופקית בתוך התמונה</span></div>
+    <div class="rearscroll" style="overflow:auto;max-height:64vh;border-radius:8px"><div style="width:${RZ}%">${rearImageHTML(window.__rearName, items, { edit: true, sel })}</div></div>` + '<div style="font-size:10px;color:#8a8377;text-align:center;margin:2px 0 6px">גרור כל מחבר למקומו על התמונה · לחיצה = בחירה · המיקום נשמר עם הפריסה</div>' : ''}
     <div style="background:#16191f;border-radius:8px;padding:12px 10px;display:flex;gap:2px;align-items:center;overflow-x:auto;direction:ltr">
       ${conns || '<span style="color:#8b93a3;font-size:12px">אין מחברים — הוסף למטה</span>'}
       <button onclick="rearAddItem()" title="הוסף מחבר" style="flex:none;width:34px;height:34px;border-radius:8px;background:#2d3444;color:#fff;font-size:18px;margin-left:6px">+</button>
@@ -1625,19 +1635,37 @@ function rearLibManager() {
   ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:560px;width:94%;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">🛠 ספריית גבי מוצרים (${rows.length} דגמים)</b>
       <button onclick="document.getElementById('rearLibOv').remove()">✕</button></div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+      <input id="rearLibQ" placeholder="🔍 סינון לפי דגם / מותג / סוג…" value="${esc(window.__rearLibQ || '')}" style="flex:1;min-width:160px;font-size:12px" oninput="window.__rearLibQ=this.value;rearLibFilter()">
+      <select onchange="window.__rearLibB=this.value;rearLibFilter()" style="font-size:12px"><option value="">כל המותגים</option>${[...new Set(rows.map(r => r.brand))].sort().map(b => `<option value="${esc(b)}" ${(window.__rearLibB || '') === b ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select>
+      <select onchange="window.__rearLibT=this.value;rearLibFilter()" style="font-size:12px"><option value="">כל הסוגים</option>${TYPE_ORDER.filter(t => rows.some(r => r.type === t)).map(t => `<option value="${esc(t)}" ${(window.__rearLibT || '') === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <label style="font-size:11px;display:flex;gap:3px;align-items:center"><input type="checkbox" style="width:auto" ${window.__rearLibNoImg ? 'checked' : ''} onchange="window.__rearLibNoImg=this.checked;rearLibFilter()">רק בלי תמונה</label>
+    </div>
     <p class="muted" style="margin:0 0 8px;font-size:11px">✎ = עריכת פריסת הגב (נשמר כמותאם) · דגם מובנה שנערך הופך למותאם וגובר עליו · 📷 = תמונת גב אמיתית מאתר היצרן (${rows.filter(r => rearImage(r.name)).length} דגמים); בעורך אפשר להעלות תמונה ולגרור את המחברים למקומם.</p>
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button style="flex:1" onclick="uiPrompt('שם הדגם החדש (כפי שמופיע בשם המוצר):').then(nm=>{if(nm){document.getElementById('rearLibOv').remove();rearEditorByName(nm.trim());}})">+ דגם חדש</button>
       <button style="flex:1" onclick="rearLibExport()">💾 ייצוא JSON</button>
       <button style="flex:1" onclick="$('#rearLibIn').click()">📥 ייבוא JSON</button>
     </div>
-    ${rows.map(r => { const grp = r.brand + ' · ' + r.type; const hdr = grp !== lastGrp ? `<div style="font-size:11px;font-weight:700;color:#534ab7;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #e9e6f8">${esc(r.brand)} <span style="color:#8a8377;font-weight:400">· ${esc(r.type)}</span></div>` : ''; lastGrp = grp; return hdr + `<div style="padding:5px 8px;border:1px solid #eee;border-radius:7px;margin-bottom:4px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+    ${rows.map(r => { const grp = r.brand + ' · ' + r.type; const hdr = grp !== lastGrp ? `<div class="rlgrp" data-grp="${esc(grp)}" style="font-size:11px;font-weight:700;color:#534ab7;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #e9e6f8">${esc(r.brand)} <span style="color:#8a8377;font-weight:400">· ${esc(r.type)}</span></div>` : ''; lastGrp = grp; return hdr + `<div class="rlrow" data-grp="${esc(grp)}" data-brand="${esc(r.brand)}" data-type="${esc(r.type)}" data-img="${(rearImage(r.name) || {}).url ? 1 : 0}" data-q="${esc((r.name + ' ' + r.brand + ' ' + r.type).toLowerCase())}" style="padding:5px 8px;border:1px solid #eee;border-radius:7px;margin-bottom:4px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
       <b style="flex:1;font-size:12px">${esc(r.name)}</b>
       <span class="muted" style="font-size:10px">${r.outs} יציאות · ${r.n} מחברים · ${r.src}</span>
       <button style="padding:1px 8px" onclick="document.getElementById('rearLibOv').remove();rearEditorByName('${esc(r.name).replace(/'/g, '&#39;')}')">✎</button>
       ${r.custom ? `<button style="padding:1px 8px;background:#f3d9d2" onclick="uiConfirm('למחוק את הדגם המותאם?').then(ok=>{if(ok){delete store.rearLib['${esc(r.name).replace(/'/g, '&#39;')}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}})">✕</button>` : ''}
     </div>${(rearImage(r.name) || {}).url ? '' : strip(r.items)}${rearImageHTML(r.name, r.items, { style: 'margin-bottom:4px' })}</div>`; }).join('')}</div>`;
   document.body.appendChild(ov);
+  rearLibFilter();
+}
+/* סינון הספרייה: טקסט חופשי, מותג, סוג, רק בלי תמונה — כותרת קבוצה מוסתרת כשאין בה שורות */
+function rearLibFilter() {
+  const ov = document.getElementById('rearLibOv'); if (!ov) return;
+  const q = (window.__rearLibQ || '').trim().toLowerCase(), b = window.__rearLibB || '', t = window.__rearLibT || '', ni = !!window.__rearLibNoImg;
+  const vis = {};
+  ov.querySelectorAll('.rlrow').forEach(r => {
+    const ok = (!q || r.dataset.q.includes(q)) && (!b || r.dataset.brand === b) && (!t || r.dataset.type === t) && (!ni || r.dataset.img === '0');
+    r.style.display = ok ? '' : 'none'; if (ok) vis[r.dataset.grp] = 1;
+  });
+  ov.querySelectorAll('.rlgrp').forEach(g => { g.style.display = vis[g.dataset.grp] ? '' : 'none'; });
 }
 function rearLibExport() {
   const a = document.createElement('a');
