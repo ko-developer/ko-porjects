@@ -50,6 +50,8 @@ for (const k of ['MB 112', 'MB 212']) if (role[k] !== 'sub') { role[k] = 'sub'; 
 sub.all = [...new Set([...(sub.all || []), ...sub.rows, ...sub.cols])];
 sub.rows = sub.all.filter(m => role[m] !== 'sub'); sub.cols = sub.all.filter(m => role[m] === 'sub');
 D.reco = {}; D.autoNo = {}; D.size = {};
+let nBrand = 0;
+const brandGroup = b => { const u = String(b || '').toUpperCase(); if (!u || /אחר|OTHER/.test(u)) return ''; if (/KT|UNICORN/.test(u)) return 'KT'; if (/FUNKTION/.test(u)) return 'F1'; if (/K&F|KLING/.test(u)) return 'K&F'; return u; };
 const tops = sub.rows, subs = sub.cols;
 const findModel = key => sub.all.find(m => norm(m) === key || m === key || norm(m).replace(/\s/g, '') === key.replace(/\s/g, ''));
 for (const r of RECO) {
@@ -66,6 +68,9 @@ for (const t of tops) for (const s of subs) {
   const k = t + '|' + s; if (D.reco[k]) continue;
   const ts = D.size[t], ss = D.size[s];
   if (ts && ss && ss < ts) { D.autoNo[k] = 'סאב ' + ss + '″ קטן מהוופר של הטופ (' + ts + '″) — לא הגיוני'; nNo++; }
+  /* כלל מותג: משלבים טופ וסאב רק בתוך אותו מותג (Funktion-One עם Funktion-One, K&F עם K&F…); KT ו-Unicorn = אותו יצרן; "אחר" לא ידוע — לא נפסל */
+  const bt = brandGroup(D.brand[t]), bs = brandGroup(D.brand[s]);
+  if (!D.autoNo[k] && bt && bs && bt !== bs) { D.autoNo[k] = 'מותג שונה: ' + D.brand[t] + ' ↔ ' + D.brand[s] + ' — טופ וסאב משלבים רק בתוך אותו מותג'; nBrand++; }
 }
 writeFileSync(PAGE, src.slice(0, mm.index) + mm[1] + JSON.stringify(D) + mm[3] + src.slice(mm.index + mm[0].length));
-console.log(`המלצות יצרן: ${Object.keys(D.reco).length} זוגות · ✗ אוטומטי לפי גודל: ${nNo} · גדלים ידועים: ${Object.keys(D.size).length}/${sub.all.length}`);
+console.log(`המלצות יצרן: ${Object.keys(D.reco).length} זוגות · ✗ אוטומטי לפי גודל: ${nNo} · ✗ מותג שונה: ${nBrand} · גדלים ידועים: ${Object.keys(D.size).length}/${sub.all.length}`);

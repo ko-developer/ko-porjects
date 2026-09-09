@@ -96,6 +96,22 @@ createServer(async (req, res) => {
     return;
   }
   const path = (req.url || '').split('?')[0].replace(/\/$/, '') || '/';
+  /* קציר נתונים מקישור שהודבק בכרטיס פריט במטריצה (scripts/harvest.js) */
+  if (path === '/api/harvest' && req.method === 'POST') {
+    if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', async () => {
+      try {
+        const b = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+        if (!/^https?:\/\//i.test(b.url || '')) throw new Error('קישור לא תקין');
+        const { harvest } = await import('./harvest.js');
+        const r = await harvest({ url: b.url, model: String(b.model || ''), kind: b.kind === 'amp' ? 'amp' : 'spk' });
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(r));
+      } catch (e) { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: String(e.message || e) })); }
+    });
+    return;
+  }
   /* מצב הטבלאות — נשמר מקומית ב-data/page_state, לא בענן */
   if (path === '/api/pagestate') {
     if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }
