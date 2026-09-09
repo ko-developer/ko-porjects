@@ -1542,5 +1542,346 @@
   "front": "digi-k7-front.jpg",
   "fw": 1600,
   "fh": 141
+ },
+ {
+  "re": "IPX\\s?10\\s?:?\\s?8",
+  "file": "kf-ipx10-8.jpg",
+  "model": "K&F / Dynacord IPX10:8",
+  "src": "https://products.dynacord.com/binary/img/IPX10-8_rear_2400px.png",
+  "page": "https://products.dynacord.com/na/en/ipx10:8",
+  "w": 1600,
+  "h": 314,
+  "v": 1,
+  "pos": {
+   "AC": [
+    7,
+    62
+   ],
+   "CH5": [
+    33,
+    28
+   ],
+   "CH6": [
+    33,
+    45
+   ],
+   "CH7": [
+    33,
+    60
+   ],
+   "CH8": [
+    33,
+    76
+   ],
+   "CH1": [
+    43,
+    28
+   ],
+   "CH2": [
+    43,
+    45
+   ],
+   "CH3": [
+    43,
+    60
+   ],
+   "CH4": [
+    43,
+    76
+   ],
+   "IN2": [
+    79,
+    22
+   ],
+   "IN1": [
+    82.5,
+    22
+   ],
+   "IN4": [
+    79,
+    40
+   ],
+   "IN3": [
+    82.5,
+    40
+   ],
+   "IN6": [
+    79,
+    58
+   ],
+   "IN5": [
+    82.5,
+    58
+   ],
+   "IN8": [
+    79,
+    78
+   ],
+   "IN7": [
+    82.5,
+    78
+   ],
+   "GPIO": [
+    86,
+    62
+   ],
+   "DANTE P": [
+    93,
+    25
+   ],
+   "DANTE S": [
+    93,
+    62
+   ]
+  }
+ },
+ {
+  "re": "IPX\\s?10\\s?:?\\s?4|IPX10\\b",
+  "file": "kf-ipx10-4.jpg",
+  "model": "K&F / Dynacord IPX10:4",
+  "src": "https://products.dynacord.com/binary/img/IPX10-4_rear_2400px.png",
+  "page": "https://products.dynacord.com/na/en/ipx10:4",
+  "w": 1600,
+  "h": 311,
+  "v": 1,
+  "pos": {
+   "AC": [
+    7,
+    62
+   ],
+   "CH1": [
+    43,
+    28
+   ],
+   "CH2": [
+    43,
+    45
+   ],
+   "CH3": [
+    43,
+    60
+   ],
+   "CH4": [
+    43,
+    76
+   ],
+   "IN2": [
+    79,
+    25
+   ],
+   "IN1": [
+    82.5,
+    25
+   ],
+   "IN4": [
+    79,
+    45
+   ],
+   "IN3": [
+    82.5,
+    45
+   ],
+   "GPIO": [
+    86,
+    62
+   ],
+   "DANTE P": [
+    93,
+    25
+   ],
+   "DANTE S": [
+    93,
+    62
+   ]
+  },
+  "front": "kf-ipx10-4-front.jpg",
+  "fw": 1600,
+  "fh": 296
+ },
+ {
+  "re": "IPX\\s?20\\s?:?\\s?4|IPX\\s?20\\b",
+  "file": "kf-ipx20-4.jpg",
+  "model": "K&F / Dynacord IPX20:4",
+  "src": "https://products.dynacord.com/binary/img/IPX20-4_rear_2400px.png",
+  "page": "https://products.dynacord.com/na/en/ipx20:4",
+  "w": 1600,
+  "h": 317,
+  "v": 1,
+  "pos": {
+   "AC": [
+    7,
+    62
+   ],
+   "CH1": [
+    43,
+    28
+   ],
+   "CH2": [
+    43,
+    45
+   ],
+   "CH3": [
+    43,
+    60
+   ],
+   "CH4": [
+    43,
+    76
+   ],
+   "IN2": [
+    79,
+    25
+   ],
+   "IN1": [
+    82.5,
+    25
+   ],
+   "IN4": [
+    79,
+    45
+   ],
+   "IN3": [
+    82.5,
+    45
+   ],
+   "GPIO": [
+    86,
+    62
+   ],
+   "DANTE P": [
+    93,
+    25
+   ],
+   "DANTE S": [
+    93,
+    62
+   ]
+  }
+ },
+ {
+  "re": "IPX\\s?5\\s?:?\\s?4|IPX\\s?5\\b",
+  "file": "kf-ipx5-4.jpg",
+  "model": "K&F / Dynacord IPX5:4",
+  "src": "https://products.dynacord.com/binary/img/IPX5-4_rear_2400px.png",
+  "page": "https://products.dynacord.com/na/en/ipx5:4",
+  "w": 1600,
+  "h": 318,
+  "v": 1,
+  "pos": {
+   "AC": [
+    7,
+    62
+   ],
+   "CH1": [
+    43,
+    28
+   ],
+   "CH2": [
+    43,
+    45
+   ],
+   "CH3": [
+    43,
+    60
+   ],
+   "CH4": [
+    43,
+    76
+   ],
+   "IN2": [
+    79,
+    25
+   ],
+   "IN1": [
+    82.5,
+    25
+   ],
+   "IN4": [
+    79,
+    45
+   ],
+   "IN3": [
+    82.5,
+    45
+   ],
+   "GPIO": [
+    86,
+    62
+   ],
+   "DANTE P": [
+    93,
+    25
+   ],
+   "DANTE S": [
+    93,
+    62
+   ]
+  },
+  "front": "kf-ipx5-4-front.jpg",
+  "fw": 1600,
+  "fh": 295
+ },
+ {
+  "re": "\\bIX\\s?15",
+  "file": "kf-ix15-4.jpg",
+  "model": "K&F / Dynacord IX15:4",
+  "src": "https://products.dynacord.com/binary/img/Rear_Direct_Trident-4CH-IX15-4_2.png",
+  "page": "https://products.dynacord.com/na/en/ix15:4",
+  "w": 1600,
+  "h": 156,
+  "v": 1,
+  "pos": {
+   "AC": [
+    6,
+    45
+   ],
+   "CH4": [
+    57.5,
+    58
+   ],
+   "CH3": [
+    60,
+    58
+   ],
+   "CH2": [
+    62.5,
+    58
+   ],
+   "CH1": [
+    65,
+    58
+   ],
+   "IN4": [
+    88,
+    22
+   ],
+   "IN3": [
+    90.5,
+    22
+   ],
+   "IN2": [
+    93,
+    22
+   ],
+   "IN1": [
+    95.5,
+    22
+   ],
+   "GPIO": [
+    84,
+    55
+   ],
+   "DANTE P": [
+    90.5,
+    58
+   ],
+   "DANTE S": [
+    95.5,
+    58
+   ]
+  },
+  "front": "kf-ix15-4-front.jpg",
+  "fw": 1600,
+  "fh": 141
  }
 ]
