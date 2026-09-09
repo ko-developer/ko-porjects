@@ -1460,7 +1460,7 @@
   "page": "https://www.digisynthetic.com/en/products/karaoke-processor/k7",
   "w": 1600,
   "h": 178,
-  "v": 3,
+  "v": 4,
   "pos": {
    "AC": [
     9.5,
@@ -1556,6 +1556,22 @@
    ],
    "REC R": [
     55.2,
+    62
+   ],
+   "V OUT": [
+    38.7,
+    27
+   ],
+   "V BGV": [
+    42.8,
+    27
+   ],
+   "V IN2": [
+    38.7,
+    62
+   ],
+   "V IN1": [
+    42.8,
     62
    ]
   },
