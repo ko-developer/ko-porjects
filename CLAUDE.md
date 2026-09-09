@@ -40,6 +40,7 @@ grep -q '^ANTHROPIC_API_KEY=' .env \
 - `src/app.js` — legacy application JS (all logic), with `/*__DATA:NAME__*/` markers
 - `src/index.template.html` — legacy HTML shell + CSS, with `/*__APP__*/` marker
 - `src/routes/` — SvelteKit: `+page.svelte` wraps the legacy app (CSS+body from the template, `/app.js` injected on mount); `api/store/+server.js` = projects DB API; `app.js/+server.js` serves the assembled legacy JS
+- `src/sysdesign.js` — תכנון אוטומטי ל"בנה מערכת" בלבד: מרווח טופים מכיסוי (פיזור × גובה/מרחק השלכה, מוגבל ב-SPL מול יעד התכלית), כמות סאבים ממאזן בס לפי SPL (+ מינימום סאב ל-80 מ״ר), מיקום סאבים לפי אחידות בס (פינות/אמצעי קירות/שורה/מרכזי); שורת "🔊 בס" בפאנל האזור היא תצוגה בלבד
 - `scripts/assemble.js` — shared assembly (app JS + data injection, template slicing) used by both builds
 - `data/*.json` — ERP data (items/prices/kits/catalog). Authoritative for ERP data.
 - `data/ko.sqlite` — ERP data as SQLite (committed; seed for the future DB)

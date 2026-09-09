@@ -15,6 +15,7 @@ export function assembleAppJs() {
   }
   try { app += '\n' + readFileSync('src/autoscale.js', 'utf8'); } catch (e) { /* זיהוי קנה מידה אופציונלי */ }
   try { app += '\n' + readFileSync('src/bgsharp.js', 'utf8'); } catch (e) { /* רקע חד אופציונלי */ }
+  try { app += '\n' + readFileSync('src/sysdesign.js', 'utf8'); } catch (e) { /* תכנון מערכת אופציונלי */ }
   try { app += '\n' + readFileSync('src/wizard.js', 'utf8'); } catch (e) { /* אשף אופציונלי */ }
   return app;
 }

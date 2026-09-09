@@ -5805,6 +5805,7 @@ function renderPanel() {
         <p class="muted">📐 ${dims}</p>
         <button style="width:100%;margin-top:8px;${z._sysOpen ? 'background:#0f6e56;color:#fff;font-weight:700' : ''}" onclick="(P.zones.find(x=>x.id==='${z.id}'))._sysOpen=${z._sysOpen ? 'false' : 'true'};render()">🔧 בנה מערכת אוטומטית לאזור ${z._sysOpen ? '▲' : '▼'}</button>
         ${z._sysOpen ? zoneSystemBuilder(z) : ''}
+        ${typeof sdBassLineHTML === 'function' ? sdBassLineHTML(z) : ''}
         ${zoneItemsList(z)}
         <p class="muted" style="margin-top:8px">גרירת התווית מזיזה את האזור · הריבוע בפינה משנה גודל</p>
         <button style="width:100%;margin-top:6px" onclick="selZone=null;render()">✔ סגור</button>
@@ -8727,16 +8728,16 @@ function zoneSystemBuilder(z) {
         <button onmouseenter="wallHint('${zid}','')" onmouseleave="wallHint(null)" onclick="setZoneWall('${zid}','')" style="padding:3px 10px;font-size:11px;${!(z._walls && z._walls.length) && !z._wall ? 'background:#c9502e;color:#fff;font-weight:700' : ''}">הארוך (מומלץ)</button>
         ${zoneWallList(z).map(([s, l]) => { const on = (z._walls || []).includes(s) || z._wall === s; return `<button onmouseenter="wallHint('${zid}','${s}')" onmouseleave="wallHint(null)" onclick="setZoneWall('${zid}','${s}')" style="padding:3px 10px;font-size:11px;${on ? 'background:#c9502e;color:#fff;font-weight:700' : ''}">${on ? '✓ ' : ''}${l}</button>`; }).join('')}
       </div></div>` : ''}
-    ${['corners','live'].includes(z._place) ? '' : `<div class="fld"><label>${['wall','ring'].includes(z._place || 'ring') ? 'צפיפות לאורך הקיר' : 'צפיפות פריסה (לפי תקן distributed)'}</label><select onchange="setZoneField('${zid}','_dens',this.value)">
+    ${['corners','live'].includes(z._place) ? '' : `<div class="fld"><label>${['wall','ring'].includes(z._place || 'ring') ? 'צפיפות לאורך הקיר' : 'צפיפות פריסה — המרווח מחושב מזווית הפיזור, גובה ההתקנה וה-SPL של הרמקול'}</label><select onchange="setZoneField('${zid}','_dens',this.value)">
       ${(z._place || 'wall') === 'wall' ? `
-        <option value="sparse" ${z._dens === 'sparse' ? 'selected' : ''}>רקע רופף — רמקול כל 10 מ׳</option>
-        <option value="edge" ${(z._dens || 'edge') === 'edge' ? 'selected' : ''}>מעט — רמקול כל 7 מ׳ (ברירת מחדל)</option>
-        <option value="min" ${z._dens === 'min' ? 'selected' : ''}>חפיפה מינימלית — כל 5 מ׳</option>
-        <option value="full" ${z._dens === 'full' ? 'selected' : ''}>חפיפה מלאה — כל 3 מ׳ (דיבור/הופעות)</option>` : `
-        <option value="sparse" ${z._dens === 'sparse' ? 'selected' : ''}>רקע רופף — רמקול כל ~10 מ׳</option>
-        <option value="edge" ${(z._dens || 'edge') === 'edge' ? 'selected' : ''}>Edge-to-Edge — רמקול כל ~7 מ׳ (ברירת מחדל)</option>
-        <option value="min" ${z._dens === 'min' ? 'selected' : ''}>חפיפה מינימלית — רמקול כל ~5 מ׳</option>
-        <option value="full" ${z._dens === 'full' ? 'selected' : ''}>חפיפה מלאה — רמקול כל ~3 מ׳ (דיבור/הופעות)</option>`}
+        <option value="sparse" ${z._dens === 'sparse' ? 'selected' : ''}>רקע רופף — ×1.35 מהכיסוי</option>
+        <option value="edge" ${(z._dens || 'edge') === 'edge' ? 'selected' : ''}>Edge-to-Edge — כיסוי נושק (ברירת מחדל)</option>
+        <option value="min" ${z._dens === 'min' ? 'selected' : ''}>חפיפה מינימלית — ×0.7 מהכיסוי</option>
+        <option value="full" ${z._dens === 'full' ? 'selected' : ''}>חפיפה מלאה — ×0.5 (דיבור/הופעות)</option>` : `
+        <option value="sparse" ${z._dens === 'sparse' ? 'selected' : ''}>רקע רופף — ×1.35 מהכיסוי</option>
+        <option value="edge" ${(z._dens || 'edge') === 'edge' ? 'selected' : ''}>Edge-to-Edge — כיסוי נושק (ברירת מחדל)</option>
+        <option value="min" ${z._dens === 'min' ? 'selected' : ''}>חפיפה מינימלית — ×0.7 מהכיסוי</option>
+        <option value="full" ${z._dens === 'full' ? 'selected' : ''}>חפיפה מלאה — ×0.5 (דיבור/הופעות)</option>`}
     </select></div>`}
 
     <button style="width:100%;margin-bottom:2px;${(z._djInRack || (z._djNodeId && byId(z._djNodeId))) ? 'background:#eef7f1;color:#0f6e56' : ''}" onclick="window.__djPlace={zid:'${zid}'};const z2=(P.zones||[]).find(x=>x.id==='${zid}');if(z2)z2._djInRack=false;render();">1️⃣ 🎧 ${z._djInRack ? '✓ מחשב מוזיקה בריכוז — לחץ למיקום עמדה נפרדת' : z._djNodeId && byId(z._djNodeId) ? '✓ עמדת נגינה ממוקמת — לחץ למיקום מחדש' : 'מקם עמדת נגינה (DJ) — לחץ ואז על התכנית'}</button>
@@ -9687,7 +9688,11 @@ function buildZoneSystem(zid) {
     corners.forEach((c, k) => P.nodes.push({ id: uid('n'), kind: 'point', name: spk + ` (${k + 1})`, sub: 'פינה · ' + z.name, x: 2200 - c[0] - 20, y: c[1] - 24, srcIid: it.iid, mini: true, mount: 'קיר בלוק', disp, spl, aim: Math.round(Math.atan2(cy0 - c[1], cx0 - c[0]) * 180 / Math.PI) }));
     it.qty = 4; it.placed = 4; it.zones = { [z.name]: 4 }; it.added = true;
     let subC = '';
-    if (z._sub) { const sit = { on: true, qty: 2, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i'), zones: { [z.name]: 2 }, added: true, placed: 2 }; autoPrice(sit); impItems.push(sit); P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (1)', sub: 'סאב · ' + z.name, x: 2200 - (cx0 - inM) - 20, y: cy0 - 24, srcIid: sit.iid, mini: true, disp: 360, spl: guessSpl(z._sub) }, { id: uid('n'), kind: 'point', name: z._sub + ' (2)', sub: 'סאב · ' + z.name, x: 2200 - (cx0 + inM) - 20, y: cy0 - 24, srcIid: sit.iid, mini: true, disp: 360, spl: guessSpl(z._sub) }); subC = ' + 2 סאבים במרכז'; }
+    if (z._sub) {
+      const sit = { on: true, qty: 2, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') }; autoPrice(sit); impItems.push(sit);
+      const cnt = sdSubCount(z, [{ name: spk, qty: 4 }], z._sub, area); cnt.n = Math.max(2, cnt.n);
+      subC = sdPlaceSubs(z, z._sub, cnt, sit);
+    }
     P.showCoverage = true;
   z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar(`נבנתה מערכת ל"${z.name}" (4 פינות · Funktion-One): 4× ${spk}${subC}`, () => undoZoneBuild(z));
@@ -9708,8 +9713,10 @@ function buildZoneSystem(zid) {
     });
     let subMsg2 = '';
     if (z._sub) {
-      const nSub = area > 120 ? 4 : 2;
+      const cntL = sdSubCount(z, [{ name: spk, qty: 2 }], z._sub, area);
+      const nSub = Math.max(area > 120 ? 4 : 2, cntL.nBass);
       const sit = { on: true, qty: nSub, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i'), zones: { [z.name]: nSub }, placed: nSub, added: true };
+      z._design = { ...(z._design || {}), sub: { n: nSub, nBass: cntL.nBass, gain: cntL.gain, margin: 10 * Math.log10(nSub / Math.max(1e-9, cntL.eq)), layout: 'מערך מרכזי בחזית הבמה' } };
       autoPrice(sit); impItems.push(sit);
       /* סאבים צמודים במרכז חזית הבמה — מערך מרכזי מונע ביטולי פאזה של L/R מפוצלים */
       for (let s = 0; s < nSub; s++) {
@@ -9717,7 +9724,7 @@ function buildZoneSystem(zid) {
         const cx = seg.x1 + ux * (seg.len / 2 + off) + seg.nx * inset * 0.6, cy = seg.y1 + uy * (seg.len / 2 + off) + seg.ny * inset * 0.6;
         P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (' + (s + 1) + ')', sub: 'מערך סאבים מרכזי · ' + z.name, x: 2200 - cx - 20, y: cy - 24, srcIid: sit.iid, mini: true, mount: 'רצפה', hgt: 0, aim: A, disp: 360 });
       }
-      subMsg2 = '\n' + nSub + '× ' + z._sub + ' (מערך מרכזי בחזית הבמה)';
+      subMsg2 = '\n' + nSub + '× ' + z._sub + ' (מערך מרכזי בחזית הבמה) — ' + cntL.why;
     }
     /* דיליי — אם עומק החלל מעל ~18מ׳ מהבמה */
     let dlyMsg = '';
@@ -9741,8 +9748,9 @@ function buildZoneSystem(zid) {
        צביר מכסה מעגל מלא במקום גזרה אחת, ולכן המרווח בין צבירים גדל
        בשורש היחס בין 360° לפיזור של רמקול בודד. */
     const N = Math.max(2, Math.min(12, +z._clusterN || 4));
-    const baseSp = ({ sparse: 10, edge: 7, min: 5, full: 3 })[z._dens || 'edge'] || 7;
+    const sdC = sdSpacing(z, spk, 'ceiling'), baseSp = sdC.spacingM;
     const spM = baseSp * Math.min(2.4, Math.sqrt(360 / Math.max(60, Math.min(disp, 180))));
+    z._design = { top: { spacing: spM, why: sdC.why, splLimited: sdC.splLimited } };
     const pts = zoneGridPts(z, spM * pxPerM);
     /* רדיוס הצביר: המרחק הפיזי האמיתי (~0.35 מ׳ מהמרכז). מותר להרחיב עד 1 מ׳
        כדי שאייקוני הרמקולים לא יכסו זה את זה, אבל לא מעבר — המיקום קובע
@@ -9773,15 +9781,19 @@ function buildZoneSystem(zid) {
       /* סאב אחד מתחת לכל צביר — באותה נקודה, כדי לשמור צימוד עם הטופים */
       pts.forEach((p, ci) => P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (' + (ci + 1) + ')', sub: 'סאב קלאסטר ' + (ci + 1) + ' · ' + z.name, x: 2200 - p.cx - 20, y: p.cy - 24, srcIid: sit.iid, mini: true, mount: 'רצפה', hgt: 0, disp: 360, spl: guessSpl(z._sub) }));
       subMsgC = ` + ${pts.length}× ${z._sub} (סאב מתחת לכל צביר)`;
+      const cntC = sdSubCount(z, [{ name: spk, qty: idx }], z._sub, area);
+      if (cntC.nBass > pts.length) { const extra = { n: cntC.nBass - pts.length, nBass: cntC.nBass, nArea: cntC.nArea, gain: cntC.gain, margin: cntC.margin, why: cntC.why, eq: cntC.eq }; const sit2 = { on: true, qty: 1, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') }; autoPrice(sit2); impItems.push(sit2); subMsgC += sdPlaceSubs(z, z._sub, extra, sit2); }
+      else subMsgC += ' — ' + cntC.why + (cntC.margin != null ? ' · מאזן +' + (10 * Math.log10(pts.length / Math.max(1e-9, cntC.eq))).toFixed(1) + ' dB' : '');
     }
     P.showCoverage = true;
     z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
-    zoneBuildBar(`נבנתה מערכת קלאסטרים ל"${z.name}": ${pts.length} צבירים × ${N} רמקולים = ${idx}× ${spk}${subMsgC} · מרווח בין צבירים ~${spM.toFixed(1)} מ׳`, () => undoZoneBuild(z));
+    zoneBuildBar(`נבנתה מערכת קלאסטרים ל"${z.name}": ${pts.length} צבירים × ${N} רמקולים = ${idx}× ${spk}${subMsgC} · מרווח בין צבירים ~${spM.toFixed(1)} מ׳ (${sdC.why})${sdC.warn ? '\n' + sdC.warn : ''}`, () => undoZoneBuild(z));
     return;
   }
   if (mode === 'ring') {
     /* היקפי — רמקולים סביב כל הקירות הסגורים במרווח קבוע, מכוונים פנימה */
-    const spacingM = ({ sparse: 10, edge: 7, min: 5, full: 3 })[z._dens || 'edge'] || 7;
+    const sdR = sdSpacing(z, spk, 'ring'), spacingM = sdR.spacingM;
+    z._design = { top: { spacing: spacingM, why: sdR.why, splLimited: sdR.splLimited } };
     const pts = ringPts(z, spacingM * pxPerM);
     if (!pts.length) { alert('אין קירות סגורים לאזור (בדוק הגדרות קירות).'); return; }
     const it = { on: true, qty: pts.length, name: spk, src: 'מערכת אוטו · ' + z.name, key: z._spkKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i'), zones: { [z.name]: pts.length }, placed: pts.length, added: true };
@@ -9789,30 +9801,25 @@ function buildZoneSystem(zid) {
     pts.forEach((p, k) => P.nodes.push({ id: uid('n'), kind: 'point', name: spk + ' (' + (k + 1) + ')', sub: 'היקפי · ' + z.name, x: 2200 - p.cx - 20, y: p.cy - 24, srcIid: it.iid, mini: true, mount: 'קיר בלוק', hgt: 2.6, aim: p.aim, disp, spl }));
     let subMsg3 = '';
     if (z._sub) {
-      const nSub = Math.max(1, Math.round(area / 80));
-      const sit = { on: true, qty: nSub, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i'), zones: { [z.name]: nSub }, placed: nSub, added: true };
+      const sit = { on: true, qty: 1, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') };
       autoPrice(sit); impItems.push(sit);
-      const b2 = zoneBounds(z), inM2 = P.scale ? 0.8 / P.scale : 30;
-      const cp2 = [[b2.L + inM2, b2.T + inM2], [b2.L + b2.W - inM2, b2.T + b2.H - inM2], [b2.L + b2.W - inM2, b2.T + inM2], [b2.L + inM2, b2.T + b2.H - inM2]];
-      for (let s2 = 0; s2 < nSub; s2++) { const c3 = cp2[s2 % 4]; P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (' + (s2 + 1) + ')', sub: 'סאב פינה · ' + z.name, x: 2200 - c3[0] - 20, y: c3[1] - 24, srcIid: sit.iid, mini: true, mount: 'רצפה', hgt: 0, disp: 360 }); }
-      subMsg3 = '\n' + nSub + '× ' + z._sub + ' (פינות — צימוד)';
+      subMsg3 = sdPlaceSubs(z, z._sub, sdSubCount(z, [{ name: spk, qty: pts.length }], z._sub, area), sit);
     }
     P.showCoverage = true;
   z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
-    zoneBuildBar(`נבנתה מערכת היקפית ל"${z.name}": ${pts.length}× ${spk} סביב הקירות (מרווח ~${spacingM.toFixed(1)} מ׳)${subMsg3}`, () => undoZoneBuild(z));
+    zoneBuildBar(`נבנתה מערכת היקפית ל"${z.name}": ${pts.length}× ${spk} סביב הקירות (מרווח ~${spacingM.toFixed(1)} מ׳ — ${sdR.why})${sdR.warn ? '\n' + sdR.warn : ''}${subMsg3}`, () => undoZoneBuild(z));
     return;
   }
-  let spacingM, place;
+  let spacingM, place, sdT;
   if (wall) {
     /* קיר: מרווח לאורך הקיר = כיסוי אופקי במרחק ההשלכה = 2×throw×tan(פיזור/2) */
-    const seg = zoneWallSeg(z); const throwM = (seg ? seg.throwPx : 300) * mPerPx;
-    spacingM = ({ sparse: 10, edge: 7, min: 5, full: 3 })[z._dens || 'edge'] || 7;
+    sdT = sdSpacing(z, spk, 'wall'); spacingM = sdT.spacingM;
     place = (nm, iid, ex) => placeZoneWall(z, nm, spacingM * pxPerM, iid, ex);
   } else {
-    const Heff = Math.max(0.6, ceil - ear), covR = Heff * Math.tan(Math.min(disp, 150) / 2 * Math.PI / 180);
-    spacingM = ({ sparse: 10, edge: 7, min: 5, full: 3 })[z._dens || 'edge'] || 7;
+    sdT = sdSpacing(z, spk, 'ceiling'); spacingM = sdT.spacingM;
     place = (nm, iid, ex) => placeZoneSpeakers(z, nm, spacingM * pxPerM, iid, ex);
   }
+  z._design = { top: { spacing: spacingM, why: sdT.why, splLimited: sdT.splLimited } };
   const it = { on: true, qty: 1, name: spk, src: 'מערכת אוטו · ' + z.name, key: z._spkKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') };
   autoPrice(it); impItems.push(it);
   const nSpk = place(spk, it.iid, { disp, spl });
@@ -9821,14 +9828,12 @@ function buildZoneSystem(zid) {
   if (z._sub) {
     const sit = { on: true, qty: 1, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') };
     autoPrice(sit); impItems.push(sit);
-    const nSub = wall ? placeZoneWall(z, z._sub, spacingM * 2 * pxPerM, sit.iid, { disp: 360, spl: guessSpl(z._sub) })
-      : placeZoneSpeakers(z, z._sub, Math.max(8, spacingM * 2.6) * pxPerM, sit.iid, { disp: 360, spl: guessSpl(z._sub), aim: 0 });
-    sit.qty = nSub; sit.placed = nSub; sit.zones = { [z.name]: nSub }; sit.added = true; subMsg = ` + ${nSub} סאבים`;
+    subMsg = sdPlaceSubs(z, z._sub, sdSubCount(z, [{ name: spk, qty: nSpk }], z._sub, area), sit);
   }
   const densName = { edge: 'edge-to-edge', min: 'חפיפה מינימלית', full: 'חפיפה מלאה', sparse: 'רופף' }[z._dens || 'edge'];
   P.showCoverage = true;
   z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
-  zoneBuildBar(`נבנתה מערכת ל"${z.name}" (${wall ? 'קיר — מכוונים לחלל' : 'תקרה'}): ${nSpk}× ${spk}${subMsg} · שטח ${area.toFixed(0)} מ"ר · מרווח ~${spacingM.toFixed(1)} מ׳ · ${densName}`, () => undoZoneBuild(z));
+  zoneBuildBar(`נבנתה מערכת ל"${z.name}" (${wall ? 'קיר — מכוונים לחלל' : 'תקרה'}): ${nSpk}× ${spk} · שטח ${area.toFixed(0)} מ"ר · מרווח ~${spacingM.toFixed(1)} מ׳ (${densName}: ${sdT.why})${sdT.warn ? '\n' + sdT.warn : ''}${subMsg}`, () => undoZoneBuild(z));
 }
 /* הסרת מערכת אוטומטית שנבנתה לאזור — מוקדים + פריטי הצעה */
 /* חזרה לתכנון אזור — מהתווית שעל התכנית. עם כמה אזורים, בוחרים לאיזה לחזור. */
