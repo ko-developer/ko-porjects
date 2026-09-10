@@ -13,21 +13,12 @@ export const STATUS_HE = { new: 'חדש', open: 'בטיפול', fixed: 'תוקן
 const MAX_FILE = 80 * 1024 * 1024;   /* 80MB לקובץ — סרטון מסך של כמה דקות */
 
 let DB = null, ST = null;
-export async function initBugs(storage) { ST = storage; DB = (await ST.readJson(FILE, null)) || { bugs: [] }; DB.bugs = DB.bugs || []; return DB; }
+export async function initBugs(storage) { ST = storage; await bugsRefresh(); return DB; }
+/* הקובץ באחסון הוא האמת (המחשב והענן): כל בקשה קוראת אותו מחדש, וכל שינוי כותב את כולו */
+export async function bugsRefresh() { try { DB = (await ST.readJson(FILE, null)) || { bugs: [] }; DB.bugs = DB.bugs || []; } catch (e) { if (!DB) throw e; console.warn('bugs.json refresh failed:', e.message); } }
 function load() { if (!DB) throw new Error('bugs not initialized — call initBugs(storage) first'); return DB; }
-/* שמירה ממוזגת: באגים שנוספו בצד השני (מקומי/ענן) נשמרים; מחיקות מקומיות נרשמות */
-const DELETED = new Set();
 let chain = Promise.resolve();
-function persist() {
-  chain = chain.then(async () => {
-    const mem = load(), cur = (await ST.readJson(FILE, null)) || { bugs: [] };
-    const ids = new Set(mem.bugs.map(b => b.id));
-    for (const b of cur.bugs || []) if (!ids.has(b.id) && !DELETED.has(b.id)) mem.bugs.push(b);
-    DELETED.clear();
-    await ST.writeJson(FILE, mem);
-  }).catch(e => console.warn('bugs.json persist failed:', e.message));
-  return chain;
-}
+function persist() { chain = chain.then(() => ST.writeJson(FILE, load())).catch(e => console.warn('bugs.json persist failed:', e.message)); return chain; }
 const uid = p => p + randomBytes(6).toString('hex');
 const nowIso = () => new Date().toISOString();
 function json(res, code, obj) { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); }
@@ -62,6 +53,7 @@ export function newCount() { return load().bugs.filter(b => b.status === 'new').
 /* מחזיר true אם הבקשה טופלה. me = המשתמש (חובה — בלי משתמש אין גישה) */
 export async function handleBugs(req, res, path, me, ctx) {
   if (!path.startsWith('/api/bugs')) return false;
+  await bugsRefresh();
   const db = load(), method = req.method;
   if (!me) return json(res, 401, { error: 'login required' }), true;
   try {
@@ -107,7 +99,7 @@ export async function handleBugs(req, res, path, me, ctx) {
       } else if (m[2] === 'delete') {
         if (!isOwner(me)) return json(res, 403, { error: 'רק הבעלים מוחק' }), true;
         for (const a of bug.attachments || []) { try { await ST.delete(`${DIR}/${a.file}`); } catch {} }
-        db.bugs = db.bugs.filter(x => x !== bug); DELETED.add(bug.id);
+        db.bugs = db.bugs.filter(x => x !== bug);
       }
       await persist();
       return json(res, 200, { ok: true, bug: db.bugs.includes(bug) ? publicBug(bug, me) : null }), true;

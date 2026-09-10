@@ -15,8 +15,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 const FILE = 'users.json';
 const SESSION_DAYS = 30, INVITE_DAYS = 14;
 
-let DB = null, ST = null;
-const DEL = { users: new Set(), invites: new Set(), sessions: new Set() };   /* מה נמחק כאן מאז השמירה האחרונה */
+let DB = null, ST = null, loadedAt = 0;
 function normalize(j) {
   const db = j && typeof j === 'object' ? j : { users: [], invites: [], sessions: {} };
   db.users = db.users || []; db.invites = db.invites || []; db.sessions = db.sessions || {};
@@ -26,28 +25,26 @@ function normalize(j) {
 /* חובה לפני כל שימוש: טוען users.json מהאחסון (ויוצר מפתח בעלים בפעם הראשונה) */
 export async function initAuth(storage) {
   ST = storage;
-  DB = normalize(await ST.readJson(FILE, null));
+  await authRefresh(true);
   if (!DB.config.ownerKey) { DB.config.ownerKey = randomBytes(18).toString('base64url'); await persist(); }
   return DB;
+}
+/* הקובץ באחסון הוא האמת (המחשב והענן כותבים אליו): לפני כל שינוי קוראים אותו מחדש (force),
+   ובקריאות רגילות מרעננים כל 10 שניות — כך סשן/הזמנה שנוצרו בצד השני נראים כאן, ומחיקה בצד אחד לא "קמה לתחייה" בצד השני */
+export async function authRefresh(force) {
+  if (!ST || (!force && DB && Date.now() - loadedAt < 10e3)) return;
+  try { DB = normalize(await ST.readJson(FILE, null)); loadedAt = Date.now(); } catch (e) { if (!DB) throw e; console.warn('users.json refresh failed:', e.message); }
 }
 function load() { if (!DB) throw new Error('auth not initialized — call initAuth(storage) first'); return DB; }
 export function config() { return load().config; }
 export function publicUrl() { return (process.env.PUBLIC_URL || load().config.publicUrl || '').replace(/\/$/, ''); }
-/* שמירה ממוזגת ומסודרת בתור: קורא את הגרסה באחסון, מאחד, כותב. מחזיר Promise — בענן ממתינים לה לפני התשובה */
+/* כתיבה מסודרת בתור של כל הקובץ (אחרי refresh) — סשנים שפגו מנוקים */
 let chain = Promise.resolve();
 function persist() {
   chain = chain.then(async () => {
-    const mem = load(), cur = normalize(await ST.readJson(FILE, null));
-    const byId = (arr, k = 'id') => new Map(arr.map(x => [x[k], x]));
-    const users = byId(mem.users), invites = byId(mem.invites, 'token');
-    for (const u of cur.users) if (!users.has(u.id) && !DEL.users.has(u.id)) mem.users.push(u);
-    for (const i of cur.invites) if (!invites.has(i.token) && !DEL.invites.has(i.token)) mem.invites.push(i);
-    for (const [sid, sess] of Object.entries(cur.sessions)) if (!mem.sessions[sid] && !DEL.sessions.has(sid)) mem.sessions[sid] = sess;
-    if (!mem.config.publicUrl && cur.config.publicUrl) mem.config.publicUrl = cur.config.publicUrl;
-    if (cur.config.ownerKey && cur.config.ownerKey !== mem.config.ownerKey && cur.config.ownerKeyAt > (mem.config.ownerKeyAt || '')) mem.config.ownerKey = cur.config.ownerKey;
-    const t = Date.now(); for (const [sid, sess] of Object.entries(mem.sessions)) if (sess.exp < t) delete mem.sessions[sid];
-    DEL.users.clear(); DEL.invites.clear(); DEL.sessions.clear();
-    await ST.writeJson(FILE, mem);
+    const mem = load(), t = Date.now();
+    for (const [sid, sess] of Object.entries(mem.sessions)) if (sess.exp < t) delete mem.sessions[sid];
+    await ST.writeJson(FILE, mem); loadedAt = Date.now();
   }).catch(e => console.warn('users.json persist failed:', e.message));
   return chain;
 }
@@ -84,7 +81,7 @@ export function sessionUser(req) {
   const db = load(), sid = cookies(req).ko_sid;
   if (!sid || !db.sessions[sid]) return null;
   const s = db.sessions[sid];
-  if (s.exp < now()) { delete db.sessions[sid]; DEL.sessions.add(sid); persist(); return null; }
+  if (s.exp < now()) return null;   /* ינוקה בשמירה הבאה */
   const u = db.users.find(x => x.id === s.uid);
   if (!u || u.blocked) return null;
   return u;
@@ -116,7 +113,7 @@ async function setSession(res, user, req) {
 }
 async function clearSession(req, res) {
   const db = load(), sid = cookies(req).ko_sid;
-  if (sid) { delete db.sessions[sid]; DEL.sessions.add(sid); await persist(); }
+  if (sid) { delete db.sessions[sid]; await persist(); }
   res.setHeader('set-cookie', 'ko_sid=; Path=/; HttpOnly; Max-Age=0');
 }
 
@@ -160,6 +157,7 @@ const isLocalUrl = u => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)
 
 /* מחזיר true אם הבקשה טופלה */
 export async function handleAuth(req, res, path, store) {
+  await authRefresh(req.method !== 'GET');   /* שינוי = קודם הגרסה העדכנית מהאחסון */
   const db = load();
   const me = requestUser(req);
   const method = req.method;
@@ -231,10 +229,10 @@ export async function handleAuth(req, res, path, store) {
       const b = await body(req); const u = db.users.find(x => x.id === b.id);
       if (!u) return json(res, 404, { error: 'משתמש לא נמצא' }), true;
       if (u.role === 'owner') return json(res, 400, { error: 'הבעלים הוא הגישה המקומית — אין מה לחסום' }), true;
-      const dropSessions = () => Object.keys(db.sessions).forEach(s => { if (db.sessions[s].uid === u.id) { delete db.sessions[s]; DEL.sessions.add(s); } });
+      const dropSessions = () => Object.keys(db.sessions).forEach(s => { if (db.sessions[s].uid === u.id) delete db.sessions[s]; });
       if (b.action === 'block') { u.blocked = true; dropSessions(); }
       else if (b.action === 'unblock') u.blocked = false;
-      else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); DEL.users.add(u.id); dropSessions(); }
+      else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); dropSessions(); }
       else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') delete u.grants[b.project]; else u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; }
       else return json(res, 400, { error: 'unknown action' }), true;
       await persist();
@@ -257,7 +255,7 @@ export async function handleAuth(req, res, path, store) {
       const b = await body(req); const inv = db.invites.find(i => i.token === b.token);
       if (!inv) return json(res, 404, { error: 'הזמנה לא נמצאה' }), true;
       if (b.action === 'revoke') inv.revoked = true;
-      else if (b.action === 'delete') { db.invites = db.invites.filter(i => i !== inv); DEL.invites.add(inv.token); }
+      else if (b.action === 'delete') db.invites = db.invites.filter(i => i !== inv);
       await persist();
       return json(res, 200, { ok: true }), true;
     }

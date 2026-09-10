@@ -5,7 +5,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
-import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth } from './auth.js';
+import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh } from './auth.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
 import { handleBugs, initBugs } from './bugs.js';
 
@@ -28,6 +28,7 @@ const sendPage = (res, file, code = 200) => { res.writeHead(code, { 'content-typ
 const readState = async k => { const b = await readCurated(`page_state/${k}.json`, `data/page_state/${k}.json`); return b ? b.toString('utf8') : '{}'; };
 createServer(async (req, res) => {
   const path0 = (req.url || '').split('?')[0].replace(/\/$/, '') || '/';
+  await authRefresh();   /* סשנים/הזמנות שנוצרו בצד השני (מחשב↔ענן) — עד 10 שניות */
   if (path0 === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, storage: storage.kind, label: storage.label, prebuilt: !!process.env.PREBUILT })); return; }
   /* --- משתמשים, הזמנות שיתוף, חסימה (scripts/auth.js) --- */
   if (path0.startsWith('/api/auth/') || path0 === '/api/share' || path0 === '/api/invite' || path0.startsWith('/api/admin/')) {
