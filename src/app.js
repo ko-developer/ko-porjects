@@ -7940,7 +7940,10 @@ function erpLineToItem(x, src) {
        מגברים, עיבוד, רשת, נגנים, דימרים. השאר = "נקודה" להצבה ידנית (📍), ושירותים לא מוצבים */
     const RACK_RE = /מגבר|\bamp(lifier)?\b|פרוססור|processor|\bDSP\b|מטריצ|matrix|\bswitch\b|מתג רשת|router|נתב|\bUPS\b|פאנל|panel|patch|נגן|player|סטרימר|streamer|מקלט|receiver|מיקסר|mixer|dimmer|דימר|רשת|controller|בקר תאורה/i;
     const isSvc = /שירות|התקנה|משלוח|כיוון|תכנות|הובלה|עבודה|שעות/.test(name);
-    const dest = d ? d.dest : isSvc ? 'ignore' : isSpeakerItem(name) ? 'point' : RACK_RE.test(name) ? 'unit' : 'point';
+    /* "תאורה" במילון = ציוד ראק לתאורה (דימר/ספליטר/נוד/בקר); גופי תאורה, נורות, סטריפים ופרופילים הם נקודות בתכנית */
+    const FIXTURE_RE = /גוף\s?תאורה|גופי|נורת|נורה|סטריפ|strip|\bLED\b|\bלד\b|פרופיל|ספוט|spot|פנס|מנורה|צילינדר|שקוע|downlight|track|פס\s?צביר/i, LIGHT_RACK_RE = /דימר|dimmer|ספליטר|splitter|\bnode\b|בקר|controller|ספק\s?כח|power\s?supply|driver/i;
+    let dest = d ? d.dest : isSvc ? 'ignore' : isSpeakerItem(name) ? 'point' : RACK_RE.test(name) ? 'unit' : 'point';
+    if (d && d.cat === 'light' && FIXTURE_RE.test(name) && !LIGHT_RACK_RE.test(name)) dest = 'point';
     it = { on: dest !== 'ignore', qty: +x.qty || 1, name, dest, cat: d?.cat || 'other', u: d?.u || 1, src };
   }
   if (x.key) it.key = x.key;
