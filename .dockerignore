@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+.svelte-kit
+.git
+.claude
+.env
+.env.*
+restore.json
+*.log
+.DS_Store
+data/projects.sqlite
+data/users.json
+data/bugs.json
+data/bug_files
+data/rear_images/tmp-*
+docs

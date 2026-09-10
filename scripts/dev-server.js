@@ -224,7 +224,8 @@ createServer(async (req, res) => {
   /* KO Studio — נתיב /studio מגיש את גרסת משתמשי הקצה (build:studio) */
   const isStudio = path === '/studio';
   try {
-    execFileSync(process.execPath, [isStudio ? 'scripts/build-lite.js' : 'scripts/build.js'], { stdio: 'pipe' });
+    /* בענן (PREBUILT=1) ה-dist נבנה פעם אחת בבניית התמונה; מקומית — נבנה מחדש בכל בקשה כדי שהדף תמיד עדכני */
+    if (!process.env.PREBUILT) execFileSync(process.execPath, [isStudio ? 'scripts/build-lite.js' : 'scripts/build.js'], { stdio: 'pipe' });
     let html = readFileSync(isStudio ? 'dist/studio.html' : 'dist/index.html', 'utf8');
     /* מצב המשתמש מוזרק לדף — הכותרת מציגה שיתוף/ניהול לבעלים, שם ויציאה למוזמן */
     const authState = JSON.stringify({ enabled: true, user: publicUser(me), owner: !!isOwner, gated });
@@ -235,4 +236,4 @@ createServer(async (req, res) => {
     res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('build failed:\n' + e.message);
   }
-}).listen(PORT, () => console.log(`dev server: http://localhost:${PORT}`));
+}).listen(PORT, () => console.log(`${process.env.PREBUILT ? 'server' : 'dev server'}: http://localhost:${PORT}${process.env.STORE_JSON_DIR ? ' · store: ' + process.env.STORE_JSON_DIR : ''}`));
