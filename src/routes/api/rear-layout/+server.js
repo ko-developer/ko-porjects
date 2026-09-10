@@ -1,13 +1,16 @@
-// /api/rear-layout — שמירת פריסת גב מוצר מהעורך על התמונה אל data/rear_layouts.json (כמו בשרת הלגאסי)
+// /api/rear-layout — שמירת פריסת גב מוצר מהעורך על התמונה אל rear_layouts.json בשכבת האחסון (כמו בשרת הלגאסי)
 import { json } from '@sveltejs/kit';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
+import { makeStorage } from '../../../../scripts/storage.js';
+
+const storage = makeStorage();
 
 export async function POST({ request }) {
   const b = await request.json();
   const name = String(b.name || '').trim().slice(0, 80);
   if (!name) return json({ error: 'חסר שם דגם' }, { status: 400 });
-  const file = 'data/rear_layouts.json';
-  const list = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : [];
+  const raw = (await storage.read('rear_layouts.json')) || (existsSync('data/rear_layouts.json') ? readFileSync('data/rear_layouts.json') : null);
+  const list = raw ? JSON.parse(raw.toString('utf8')) : [];
   let rec = null;
   if (b.remove) {
     const k = list.findIndex(x => x.name === name); if (k >= 0) list.splice(k, 1);
@@ -26,6 +29,6 @@ export async function POST({ request }) {
     const k = list.findIndex(x => x.name === name || x.re === re);
     if (k >= 0) list[k] = { ...list[k], ...rec }; else list.unshift(rec);
   }
-  writeFileSync(file, JSON.stringify(list, null, 1));
+  await storage.writeJson('rear_layouts.json', list);
   return json({ ok: true, rec });
 }

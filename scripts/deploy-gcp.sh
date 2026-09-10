@@ -69,9 +69,9 @@ deploy() {
   echo "== deploying $SERVICE to $REGION (secrets: ${secrets:-none})"
   gcloud run deploy "$SERVICE" --project "$PROJECT" --region "$REGION" --source . \
     --allow-unauthenticated --execution-environment gen2 --min-instances 0 --max-instances 1 --concurrency 40 \
-    --memory 1Gi --cpu 1 --timeout 300 --service-account "$SA" \
-    --add-volume "name=data,type=cloud-storage,bucket=$BUCKET" --add-volume-mount "volume=data,mount-path=/mnt/data" \
-    --update-env-vars "DATA_DIR=/mnt/data,STORE_JSON_DIR=/mnt/data/projects,PREBUILT=1" \
+    --memory 1Gi --cpu 1 --timeout 300 --service-account "$SA" --no-cpu-throttling --cpu-boost \
+    --clear-volumes --clear-volume-mounts --remove-env-vars DATA_DIR,STORE_JSON_DIR \
+    --update-env-vars "DATA_BUCKET=$BUCKET,PREBUILT=1" \
     ${secrets:+--update-secrets "$secrets"} --quiet          # update-* ולא set-*: לא מוחק PUBLIC_URL וסודות קיימים
   local url; url=$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format 'value(status.url)')
   local cur; cur=$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format 'value(spec.template.spec.containers[0].env)' | tr ',' '\n' | grep -o "PUBLIC_URL[^}]*" || true)

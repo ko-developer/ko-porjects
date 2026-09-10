@@ -1,11 +1,13 @@
-// /rear-img/<file> — תמונות גב מוצרים מ-data/rear_images (כמו בשרת הלגאסי)
-import { readFileSync } from 'node:fs';
+// /rear-img/<file> — תמונות גב מוצרים: קודם שכבת האחסון (העלאות), אחרת הריפו data/rear_images
+import { readFileSync, existsSync } from 'node:fs';
+import { makeStorage } from '../../../../scripts/storage.js';
 
-export function GET({ params }) {
+const storage = makeStorage();
+
+export async function GET({ params }) {
   const f = String(params.file || '').replace(/[^A-Za-z0-9._-]/g, '');
-  try {
-    const buf = readFileSync('data/rear_images/' + f);
-    const ct = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' }[f.split('.').pop().toLowerCase()] || 'application/octet-stream';
-    return new Response(buf, { headers: { 'content-type': ct, 'cache-control': 'public, max-age=86400' } });
-  } catch { return new Response('no image', { status: 404 }); }
+  const buf = (await storage.read('rear_images/' + f)) || (existsSync('data/rear_images/' + f) ? readFileSync('data/rear_images/' + f) : null);
+  if (!buf) return new Response('no image', { status: 404 });
+  const ct = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' }[f.split('.').pop().toLowerCase()] || 'application/octet-stream';
+  return new Response(buf, { headers: { 'content-type': ct, 'cache-control': 'public, max-age=86400' } });
 }

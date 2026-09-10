@@ -56,7 +56,8 @@ grep -q '^ANTHROPIC_API_KEY=' .env \
 
 ## ענן — Cloud Run (GCP scripts-298706, me-west1) — פריסה אוטומטית מ-GitHub
 - כל push ל-`main` → `.github/workflows/deploy.yml` → `scripts/deploy-gcp.sh deploy` (Cloud Build מהקוד, `Dockerfile`). אימות ב-Workload Identity Federation (בלי מפתחות). ידנית: `scripts/deploy-gcp.sh setup|seed|deploy|pull|owner`.
-- מה רץ: שרת הלגאסי `scripts/dev-server.js` עם `PREBUILT=1` (dist נבנה בתמונה). כל מה שהשרת כותב יושב בדלי `gs://scripts-298706-ko-projects-data` שמורכב ב-`/mnt/data` (`scripts/cloud-entrypoint.sh` זורע מהריפו ומקשר `data/<x>` → הדלי). פרויקטים: `STORE_JSON_DIR` → JSON לפרויקט (`scripts/db.js`, לא SQLite). מקסימום מופע אחד (כותב יחיד).
+- **אחסון אחד לכולם — `scripts/storage.js`**: `DATA_BUCKET=<דלי>` → כל מה שהשרת כותב (פרויקטים כ-JSON לפרויקט `projects/p_<id>.json`, `users.json`, `bugs.json`+`bug_files/`, `rear_images/`+`rear_images.json`, `rear_layouts.json`, `page_state/`) נקרא ונכתב בדלי `gs://scripts-298706-ko-projects-data` דרך ה-JSON API (בלי ספריות; אימות: מטא-דאטה בענן / ADC / `gcloud auth print-access-token` במחשב). בלי DATA_BUCKET → `data/` מקומית + SQLite. **המחשב והענן עובדים על אותם נתונים** (`DATA_BUCKET` ב-.env). קבצים "מאוצרים" (תמונות/פריסות גב, מצב טבלאות) — קודם הדלי, אחרת הריפו; השרת מזריק את גרסת הדלי של REAR_LAYOUTS/REAR_IMAGES לדף בזמן הגשה (סמני `/*__END:NAME__*/` מ-assemble.js). users/bugs נשמרים במיזוג (איחוד עם הגרסה בדלי, מחיקות נרשמות).
+- מה רץ בענן: שרת הלגאסי `scripts/dev-server.js` עם `PREBUILT=1` (dist נבנה בתמונה), מופע אחד, CPU תמיד פעיל. `/health` מחזיר את מנוע האחסון.
 - משתני סביבה/סודות: הסוד `CLOUD_ENV` ב-GitHub = תוכן .env. ה-workflow מסנכרן כל KEY=value ל-Secret Manager (label `app=ko-projects`) ו-deploy מצרף את כולם לשרת. הוספת משתנה: שורה ב-.env → `scripts/deploy-gcp.sh envpush` → push. הבעלים נכנס מבחוץ רק דרך קישור הבעלים (`deploy-gcp.sh owner`). עריכות בענן (פריסות גב, תמונות, מצב הטבלאות) חוזרות לריפו עם `pull`.
 
 ## Commands
@@ -91,9 +92,8 @@ adapter-node — תמונת התכנית נשלחת כ-base64 וחוצה את ב
 - `🔗 שתף` בכותרת → `POST /api/share` → קישור חד-פעמי `/join/<token>` (14 יום) לפרויקטים נבחרים,
   הרשאת עריכה/צפייה. המוזמן נרשם עם מייל+סיסמה (scrypt) ורואה רק את הפרויקטים שלו
   (`filterStore`/`mergeStore`). `/admin` (בעלים): חסימה/ביטול/מחיקה, שינוי הרשאות, ביטול קישורים.
-- אחסון: `data/users.json` (gitignored). הטבלאות הפנימיות (`/matrix`, `/logic`) — בעלים בלבד.
-- כדי שמוזמנים יגיעו בפועל השרת חייב להיות נגיש מהאינטרנט (VPS / Cloudflare Tunnel); Netlify
-  הסטטי לא יודע לאמת. הראוטים של SvelteKit (`src/routes/api/store`) עדיין בלי אימות.
+- אחסון: `users.json` בשכבת האחסון (`scripts/storage.js`: דלי הענן כש-DATA_BUCKET מוגדר, אחרת `data/`; gitignored). הטבלאות הפנימיות (`/matrix`, `/logic`) — בעלים בלבד.
+- מוזמנים מגיעים דרך השרת בענן (Cloud Run, ראה סעיף הענן); קישורי השיתוף נבנים מ-`PUBLIC_URL` (גם כשיוצרים אותם מהמחשב). Netlify הסטטי לא יודע לאמת. הראוטים של SvelteKit (`src/routes/api/store`) עדיין בלי אימות.
 - **מעקב באגים** (`scripts/bugs.js`, דף `/bugs` לבעלים): כפתור 🐞 בכותרת לכל משתמש מחובר — כותרת, תיאור,
   הקלטת סרטון מסך בדפדפן (getDisplayMedia→webm), קבצים/הדבקת צילום מסך; `POST /api/bugs`. הבעלים: סטטוסים
   (חדש/בטיפול/תוקן/סגור/לא יתוקן), תגובות, מחיקה; המדווח רואה תגובות תחת 🐞 → "הבאגים שלי". אחסון

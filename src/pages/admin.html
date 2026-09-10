@@ -34,7 +34,7 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
     fetch('/api/admin/config').then(function (r) { return r.json(); }).then(function (c) {
       document.getElementById('pubUrl').value = c.publicUrl || c.envPublicUrl || '';
       document.getElementById('ownerLink').textContent = c.ownerLink || '';
-      document.getElementById('pubNote').textContent = c.localOnly ? '⚠ כרגע הקישורים נבנים על localhost — מוזמנים מבחוץ לא יוכלו לפתוח אותם. הגדר כאן את הכתובת החיצונית (מנהרה / שרת מארח).' : '✓ קישורים נבנים על ' + c.effective;
+      document.getElementById('pubNote').textContent = c.localOnly ? '⚠ כרגע הקישורים נבנים על localhost — מוזמנים מבחוץ לא יוכלו לפתוח אותם. הגדר כאן (או ב-PUBLIC_URL ב-.env) את כתובת השרת בענן, למשל https://ko-projects-226076433415.me-west1.run.app' : '✓ קישורים נבנים על ' + c.effective;
     });
   }
   document.getElementById('pubSave').onclick = function () {

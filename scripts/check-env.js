@@ -48,3 +48,6 @@ ${LINE}
   בדיקה:  curl -s localhost:4177/api/ai   →   {"configured":true,...}
 `);
 }
+
+/* אחסון: מקומי או דלי הענן המשותף */
+console.log(has('DATA_BUCKET') ? '  ☁  DATA_BUCKET מוגדר — הפרויקטים והנתונים נקראים ונכתבים בדלי הענן (אותם נתונים כמו בשרת). דורש gcloud auth login.' : '  💾 אין DATA_BUCKET ב-.env — נתונים מקומיים ב-data/ (לא משותפים עם השרת בענן).');

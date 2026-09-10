@@ -1,28 +1,37 @@
 // Minimal dev server: rebuilds on each request so the page is always current.
 // + API של פרויקטים מעל data/projects.sqlite — האפליקציה נטענת ונשמרת מה-DB כשהשרת רץ.
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { openDb, readStore, writeStore } from './db.js';
-import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser } from './auth.js';
+import { makeStorage } from './storage.js';
+import { openStore, readStore, writeStore } from './db.js';
+import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth } from './auth.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
-import { handleBugs } from './bugs.js';
+import { handleBugs, initBugs } from './bugs.js';
 
+/* .env (לא בגיט): DATA_BUCKET, PUBLIC_URL, מפתחות — כמו בענן, רק מקומית */
+try { for (const line of readFileSync('.env', 'utf8').split('\n')) { const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim(); } } catch {}
 const PORT = process.env.PORT || 4177;
-const db = openDb();
+/* שכבת האחסון: DATA_BUCKET → דלי הענן (מקומי והענן על אותם נתונים); בלעדיו — data/ מקומית */
+const storage = makeStorage();
+try { await storage.check(); } catch (e) { console.error('\n❌ אחסון לא זמין (' + storage.label + '): ' + e.message + '\n'); process.exit(1); }
+const db = openStore(storage);
+await initAuth(storage); await initBugs(storage);
+/* קבצים שנערכים באפליקציה ויש להם גם גרסת ריפו (זריעה): קודם האחסון, אחרת הריפו */
+const readCurated = async (key, repoPath) => (await storage.read(key)) || (existsSync(repoPath) ? readFileSync(repoPath) : null);
+const injectData = (html, name, json) => json ? html.replace(new RegExp('const ' + name + ' = [\\s\\S]*?;/\\*__END:' + name + '__\\*/'), () => 'const ' + name + ' = ' + json + ';/*__END:' + name + '__*/') : html;
 /* טבלאות העבודה — חיות בתוך הריפו, לא בענן */
 const PAGES = { '/matrix': 'src/pages/matrix.html', '/logic': 'src/pages/logic.html' };
 /* דפי כניסה וניהול משתמשים — נגישים גם בלי סשן (הכניסה עצמה) */
 const AUTH_PAGES = { '/login': 'src/pages/auth.html', '/admin': 'src/pages/admin.html', '/bugs': 'src/pages/bugs.html' };
 const sendPage = (res, file, code = 200) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(readFileSync(file)); };
-const readState = k => {
-  try { return readFileSync(`data/page_state/${k}.json`, 'utf8'); } catch { return '{}'; }
-};
+const readState = async k => { const b = await readCurated(`page_state/${k}.json`, `data/page_state/${k}.json`); return b ? b.toString('utf8') : '{}'; };
 createServer(async (req, res) => {
   const path0 = (req.url || '').split('?')[0].replace(/\/$/, '') || '/';
+  if (path0 === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, storage: storage.kind, label: storage.label, prebuilt: !!process.env.PREBUILT })); return; }
   /* --- משתמשים, הזמנות שיתוף, חסימה (scripts/auth.js) --- */
   if (path0.startsWith('/api/auth/') || path0 === '/api/share' || path0 === '/api/invite' || path0.startsWith('/api/admin/')) {
-    let storeNow = {}; try { storeNow = readStore(db); } catch {}
+    let storeNow = {}; try { storeNow = await readStore(db); } catch {}
     if (await handleAuth(req, res, path0, storeNow)) return;
   }
   if (path0 === '/login' || path0.startsWith('/join/')) { sendPage(res, AUTH_PAGES['/login']); return; }
@@ -63,19 +72,19 @@ createServer(async (req, res) => {
     if (req.method === 'GET') {
       try {
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-        res.end(JSON.stringify(filterStore(readStore(db), me)));
+        res.end(JSON.stringify(filterStore(await readStore(db), me)));
       } catch (e) { res.writeHead(500); res.end(String(e.message)); }
       return;
     }
     if (req.method === 'POST') {
       const chunks = [];
       req.on('data', c => chunks.push(c));
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const posted = JSON.parse(Buffer.concat(chunks).toString('utf8'));
           /* מוזמן: רק הפרויקטים שלו בהרשאת עריכה נכתבים; השאר של הבעלים לא נגעו */
-          const merged = me.role !== 'owner' ? mergeStore(readStore(db), posted, me) : posted;
-          const n = writeStore(db, merged);
+          const merged = me.role !== 'owner' ? mergeStore(await readStore(db), posted, me) : posted;
+          const n = await writeStore(db, merged);
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(JSON.stringify({ ok: true, projects: n }));
         } catch (e) { res.writeHead(400); res.end(String(e.message)); }
@@ -100,7 +109,8 @@ createServer(async (req, res) => {
   if (path.startsWith('/rear-img/')) {
     const f = decodeURIComponent(path.slice('/rear-img/'.length)).replace(/[^A-Za-z0-9._-]/g, '');
     try {
-      const buf = readFileSync('data/rear_images/' + f);
+      const buf = await readCurated('rear_images/' + f, 'data/rear_images/' + f);
+      if (!buf) throw new Error('no image');
       const ct = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' }[f.split('.').pop().toLowerCase()] || 'application/octet-stream';
       res.writeHead(200, { 'content-type': ct, 'cache-control': 'public, max-age=86400' }); res.end(buf);
     } catch { res.writeHead(404); res.end('no image'); }
@@ -110,20 +120,19 @@ createServer(async (req, res) => {
     if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }
     const chunks = [];
     req.on('data', c => chunks.push(c));
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const b = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         const m = /^data:(image\/(png|jpeg|jpg|webp|gif));base64,(.+)$/s.exec(b.data || ''); if (!m) throw new Error('קובץ תמונה בלבד (PNG/JPG/WebP)');
         const buf = Buffer.from(m[3], 'base64'); if (buf.length > 6 * 1024 * 1024) throw new Error('עד 6MB');
         const name = String(b.name || '').trim(); if (!name) throw new Error('חסר שם דגם');
         const slug = 'custom-' + name.toLowerCase().replace(/[^a-z0-9\u0590-\u05ff]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '-' + Date.now().toString(36) + '.' + (m[2] === 'jpeg' ? 'jpg' : m[2]);
-        if (!existsSync('data/rear_images')) mkdirSync('data/rear_images', { recursive: true });
-        writeFileSync('data/rear_images/' + slug, buf);
-        const list = JSON.parse(readFileSync('data/rear_images.json', 'utf8'));
+        await storage.write('rear_images/' + slug, buf, m[1]);
+        const list = JSON.parse((await readCurated('rear_images.json', 'data/rear_images.json')).toString('utf8'));
         const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const i = list.findIndex(x => x.re === esc && x.custom); const rec = { re: esc, file: slug, model: name, src: 'העלאה ידנית', custom: true };
         if (i >= 0) list[i] = rec; else list.unshift(rec);   /* העלאה ידנית גוברת על תמונה מהאתר */
-        writeFileSync('data/rear_images.json', JSON.stringify(list, null, 1));
+        await storage.writeJson('rear_images.json', list);
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ ok: true, rec }));
       } catch (e) { res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: String(e.message || e) })); }
     });
@@ -134,12 +143,12 @@ createServer(async (req, res) => {
     if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }
     const chunks = [];
     req.on('data', c => chunks.push(c));
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const b = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         const name = String(b.name || '').trim().slice(0, 80); if (!name) throw new Error('חסר שם דגם');
-        const file = 'data/rear_layouts.json';
-        const list = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : [];
+        const raw = await readCurated('rear_layouts.json', 'data/rear_layouts.json');
+        const list = raw ? JSON.parse(raw.toString('utf8')) : [];
         let rec = null;
         if (b.remove) {
           const k = list.findIndex(x => x.name === name); if (k >= 0) list.splice(k, 1);
@@ -158,7 +167,7 @@ createServer(async (req, res) => {
           const k = list.findIndex(x => x.name === name || x.re === re);
           if (k >= 0) list[k] = { ...list[k], ...rec }; else list.unshift(rec);   /* דגם חדש = ספציפי → לפני הכלליים */
         }
-        writeFileSync(file, JSON.stringify(list, null, 1));
+        await storage.writeJson('rear_layouts.json', list);
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ ok: true, rec }));
       } catch (e) { res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: String(e.message || e) })); }
     });
@@ -185,19 +194,18 @@ createServer(async (req, res) => {
     if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }
     const k = new URL(req.url, 'http://x').searchParams.get('k');
     if (!PAGES['/' + k]) { res.writeHead(404); res.end('unknown page'); return; }
-    const file = `data/page_state/${k}.json`;
     if (req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(readState(k)); return;
+      res.end(await readState(k)); return;
     }
     if (req.method === 'POST') {
       const chunks = [];
       req.on('data', c => chunks.push(c));
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const body = Buffer.concat(chunks).toString('utf8');
           JSON.parse(body);                    // לא כותבים JSON פגום
-          writeFileSync(file, body);
+          await storage.write(`page_state/${k}.json`, body, 'application/json; charset=utf-8');
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(JSON.stringify({ ok: true, bytes: body.length }));
         } catch (e) { res.writeHead(400); res.end(String(e.message)); }
@@ -210,9 +218,10 @@ createServer(async (req, res) => {
     if (!isOwner) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); res.end('הטבלאות הפנימיות זמינות לבעל המערכת בלבד'); return; }
     try {
       const k = path.slice(1);
+      const st = await readState(k);
       const page = readFileSync(PAGES[path], 'utf8')
         .replace(/(<script id="mstate" type="application\/json">)[\s\S]*?(<\/script>)/,
-          (m, a, b) => a + readState(k) + b);
+          (m, a, b) => a + st + b);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       res.end(page);
     } catch (e) {
@@ -227,6 +236,8 @@ createServer(async (req, res) => {
     /* בענן (PREBUILT=1) ה-dist נבנה פעם אחת בבניית התמונה; מקומית — נבנה מחדש בכל בקשה כדי שהדף תמיד עדכני */
     if (!process.env.PREBUILT) execFileSync(process.execPath, [isStudio ? 'scripts/build-lite.js' : 'scripts/build.js'], { stdio: 'pipe' });
     let html = readFileSync(isStudio ? 'dist/studio.html' : 'dist/index.html', 'utf8');
+    /* נתונים שנערכים באפליקציה (פריסות/תמונות גב) — הגרסה העדכנית מהאחסון במקום זו שנאפתה בבנייה */
+    if (!isStudio) for (const [name, key] of [['REAR_LAYOUTS', 'rear_layouts.json'], ['REAR_IMAGES', 'rear_images.json']]) { const j = await storage.read(key); if (j) html = injectData(html, name, j.toString('utf8')); }
     /* מצב המשתמש מוזרק לדף — הכותרת מציגה שיתוף/ניהול לבעלים, שם ויציאה למוזמן */
     const authState = JSON.stringify({ enabled: true, user: publicUser(me), owner: !!isOwner, gated });
     html = html.replace('<script', '<script>window.__AUTH=' + authState + ';</script><script');
@@ -236,4 +247,4 @@ createServer(async (req, res) => {
     res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('build failed:\n' + e.message);
   }
-}).listen(PORT, () => console.log(`${process.env.PREBUILT ? 'server' : 'dev server'}: http://localhost:${PORT}${process.env.STORE_JSON_DIR ? ' · store: ' + process.env.STORE_JSON_DIR : ''}`));
+}).listen(PORT, () => console.log(`${process.env.PREBUILT ? 'server' : 'dev server'}: http://localhost:${PORT} · data: ${storage.label} (${storage.kind})${process.env.PUBLIC_URL ? ' · public: ' + process.env.PUBLIC_URL : ''}`));

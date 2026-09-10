@@ -15,3 +15,4 @@ data/bugs.json
 data/bug_files
 data/rear_images/tmp-*
 docs
+data/.cache-gcs

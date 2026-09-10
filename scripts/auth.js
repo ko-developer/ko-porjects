@@ -6,29 +6,51 @@
 // מסוימים בהרשאת צפייה/עריכה; המוזמן נרשם עם מייל וסיסמה, והבעלים רואה את כולם
 // בדף /admin ויכול לחסום / לבטל חסימה / למחוק. בקשה מבחוץ בלי סשן → מסך כניסה.
 //
-// אחסון: data/users.json (מחוץ ל-git): users, invites, sessions. סיסמאות ב-scrypt+salt.
+// אחסון: users.json על שכבת האחסון (storage.js — קבצים מקומיים או דלי הענן): users, invites, sessions.
+// סיסמאות ב-scrypt+salt. השרת המקומי והענן חולקים את אותו קובץ, ולכן כל שמירה ממזגת את
+// הגרסה באחסון עם הזיכרון (איחוד סשנים/משתמשים/הזמנות; מחיקות נרשמות ולא חוזרות).
 // ===================================================================================
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
-const FILE = 'data/users.json';
+const FILE = 'users.json';
 const SESSION_DAYS = 30, INVITE_DAYS = 14;
 
-let DB = null;
-function load() {
-  if (DB) return DB;
-  try { DB = existsSync(FILE) ? JSON.parse(readFileSync(FILE, 'utf8')) : null; } catch { DB = null; }
-  DB = DB || { users: [], invites: [], sessions: {} };
-  DB.users = DB.users || []; DB.invites = DB.invites || []; DB.sessions = DB.sessions || {};
-  /* config: כתובת חיצונית לקישורי שיתוף + מפתח הבעלים לגישה מבחוץ בלי הרשמה */
-  DB.config = DB.config || {};
-  if (!DB.config.ownerKey) { DB.config.ownerKey = randomBytes(18).toString('base64url'); persistNow(DB); }
+let DB = null, ST = null;
+const DEL = { users: new Set(), invites: new Set(), sessions: new Set() };   /* מה נמחק כאן מאז השמירה האחרונה */
+function normalize(j) {
+  const db = j && typeof j === 'object' ? j : { users: [], invites: [], sessions: {} };
+  db.users = db.users || []; db.invites = db.invites || []; db.sessions = db.sessions || {};
+  db.config = db.config || {};
+  return db;
+}
+/* חובה לפני כל שימוש: טוען users.json מהאחסון (ויוצר מפתח בעלים בפעם הראשונה) */
+export async function initAuth(storage) {
+  ST = storage;
+  DB = normalize(await ST.readJson(FILE, null));
+  if (!DB.config.ownerKey) { DB.config.ownerKey = randomBytes(18).toString('base64url'); await persist(); }
   return DB;
 }
-function persistNow(db) { try { writeFileSync(FILE, JSON.stringify(db, null, 1)); } catch {} }
+function load() { if (!DB) throw new Error('auth not initialized — call initAuth(storage) first'); return DB; }
 export function config() { return load().config; }
 export function publicUrl() { return (process.env.PUBLIC_URL || load().config.publicUrl || '').replace(/\/$/, ''); }
-function persist() { writeFileSync(FILE, JSON.stringify(load(), null, 1)); }
+/* שמירה ממוזגת ומסודרת בתור: קורא את הגרסה באחסון, מאחד, כותב. מחזיר Promise — בענן ממתינים לה לפני התשובה */
+let chain = Promise.resolve();
+function persist() {
+  chain = chain.then(async () => {
+    const mem = load(), cur = normalize(await ST.readJson(FILE, null));
+    const byId = (arr, k = 'id') => new Map(arr.map(x => [x[k], x]));
+    const users = byId(mem.users), invites = byId(mem.invites, 'token');
+    for (const u of cur.users) if (!users.has(u.id) && !DEL.users.has(u.id)) mem.users.push(u);
+    for (const i of cur.invites) if (!invites.has(i.token) && !DEL.invites.has(i.token)) mem.invites.push(i);
+    for (const [sid, sess] of Object.entries(cur.sessions)) if (!mem.sessions[sid] && !DEL.sessions.has(sid)) mem.sessions[sid] = sess;
+    if (!mem.config.publicUrl && cur.config.publicUrl) mem.config.publicUrl = cur.config.publicUrl;
+    if (cur.config.ownerKey && cur.config.ownerKey !== mem.config.ownerKey && cur.config.ownerKeyAt > (mem.config.ownerKeyAt || '')) mem.config.ownerKey = cur.config.ownerKey;
+    const t = Date.now(); for (const [sid, sess] of Object.entries(mem.sessions)) if (sess.exp < t) delete mem.sessions[sid];
+    DEL.users.clear(); DEL.invites.clear(); DEL.sessions.clear();
+    await ST.writeJson(FILE, mem);
+  }).catch(e => console.warn('users.json persist failed:', e.message));
+  return chain;
+}
 const now = () => Date.now();
 const uid = p => p + randomBytes(8).toString('hex');
 const token = () => randomBytes(24).toString('base64url');
@@ -62,7 +84,7 @@ export function sessionUser(req) {
   const db = load(), sid = cookies(req).ko_sid;
   if (!sid || !db.sessions[sid]) return null;
   const s = db.sessions[sid];
-  if (s.exp < now()) { delete db.sessions[sid]; persist(); return null; }
+  if (s.exp < now()) { delete db.sessions[sid]; DEL.sessions.add(sid); persist(); return null; }
   const u = db.users.find(x => x.id === s.uid);
   if (!u || u.blocked) return null;
   return u;
@@ -84,17 +106,17 @@ export function handleOwnerLink(req, res, path) {
   res.writeHead(302, { location: '/', 'set-cookie': `ko_owner=${m[1]}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 86400}${secure}` });
   res.end(); return true;
 }
-function setSession(res, user, req) {
+async function setSession(res, user, req) {
   const db = load(), sid = token();
   db.sessions[sid] = { uid: user.id, exp: now() + SESSION_DAYS * 864e5, at: now(), ua: String(req.headers['user-agent'] || '').slice(0, 80) };
   user.lastLogin = new Date().toISOString();
-  persist();
+  await persist();
   const secure = (req.headers['x-forwarded-proto'] || '').includes('https') ? '; Secure' : '';
   res.setHeader('set-cookie', `ko_sid=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}${secure}`);
 }
-function clearSession(req, res) {
+async function clearSession(req, res) {
   const db = load(), sid = cookies(req).ko_sid;
-  if (sid) { delete db.sessions[sid]; persist(); }
+  if (sid) { delete db.sessions[sid]; DEL.sessions.add(sid); await persist(); }
   res.setHeader('set-cookie', 'ko_sid=; Path=/; HttpOnly; Max-Age=0');
 }
 
@@ -163,7 +185,7 @@ export async function handleAuth(req, res, path, store) {
       const u = { id: uid('u'), email, name: name || email.split('@')[0], role, salt, hash: hashPw(pw, salt), grants, blocked: false, createdAt: new Date().toISOString(), invitedBy: inv ? inv.by : null };
       db.users.push(u);
       if (inv) { inv.usedBy = u.id; inv.usedAt = new Date().toISOString(); }
-      setSession(res, u, req);
+      await setSession(res, u, req);
       return json(res, 200, { ok: true, user: publicUser(u) }), true;
     }
     if (path === '/api/auth/login' && method === 'POST') {
@@ -171,10 +193,10 @@ export async function handleAuth(req, res, path, store) {
       const u = db.users.find(x => x.email === email);
       if (!u || !checkPw(u, b.password || '')) return json(res, 401, { error: 'מייל או סיסמה לא נכונים' }), true;
       if (u.blocked) return json(res, 403, { error: 'החשבון חסום — פנה לבעל המערכת' }), true;
-      setSession(res, u, req);
+      await setSession(res, u, req);
       return json(res, 200, { ok: true, user: publicUser(u) }), true;
     }
-    if (path === '/api/auth/logout' && method === 'POST') { clearSession(req, res); return json(res, 200, { ok: true }), true; }
+    if (path === '/api/auth/logout' && method === 'POST') { await clearSession(req, res); return json(res, 200, { ok: true }), true; }
     if (path === '/api/invite' && method === 'GET') {
       /* פרטי הזמנה לדף ההרשמה: לאיזה פרויקטים, ממי */
       const t = new URL(req.url, 'http://x').searchParams.get('t');
@@ -192,7 +214,7 @@ export async function handleAuth(req, res, path, store) {
       const projects = (b.projects || []).filter(id => (store.projects || []).some(p => p.id === id));
       if (!projects.length) return json(res, 400, { error: 'בחר לפחות פרויקט אחד' }), true;
       const inv = { token: token(), projects, perm: b.perm === 'view' ? 'view' : 'edit', email: normEmail(b.email) || '', label: String(b.label || '').slice(0, 60), by: me.id, createdAt: new Date().toISOString(), exp: now() + INVITE_DAYS * 864e5, usedBy: null };
-      db.invites.push(inv); persist();
+      db.invites.push(inv); await persist();
       const url = origin(req) + '/join/' + inv.token;
       return json(res, 200, { ok: true, url, exp: inv.exp, invite: inv, localOnly: isLocalUrl(url) }), true;
     }
@@ -209,12 +231,13 @@ export async function handleAuth(req, res, path, store) {
       const b = await body(req); const u = db.users.find(x => x.id === b.id);
       if (!u) return json(res, 404, { error: 'משתמש לא נמצא' }), true;
       if (u.role === 'owner') return json(res, 400, { error: 'הבעלים הוא הגישה המקומית — אין מה לחסום' }), true;
-      if (b.action === 'block') { u.blocked = true; Object.keys(db.sessions).forEach(s => { if (db.sessions[s].uid === u.id) delete db.sessions[s]; }); }
+      const dropSessions = () => Object.keys(db.sessions).forEach(s => { if (db.sessions[s].uid === u.id) { delete db.sessions[s]; DEL.sessions.add(s); } });
+      if (b.action === 'block') { u.blocked = true; dropSessions(); }
       else if (b.action === 'unblock') u.blocked = false;
-      else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); Object.keys(db.sessions).forEach(s => { if (db.sessions[s].uid === u.id) delete db.sessions[s]; }); }
+      else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); DEL.users.add(u.id); dropSessions(); }
       else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') delete u.grants[b.project]; else u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; }
       else return json(res, 400, { error: 'unknown action' }), true;
-      persist();
+      await persist();
       return json(res, 200, { ok: true }), true;
     }
     if (path === '/api/admin/config' && method === 'GET') {
@@ -226,7 +249,7 @@ export async function handleAuth(req, res, path, store) {
       const b = await body(req);
       const u = String(b.publicUrl || '').trim().replace(/\/$/, '');
       if (u && !/^https?:\/\/[^\s/]+/.test(u)) return json(res, 400, { error: 'כתובת לא תקינה — למשל https://ko.example.com' }), true;
-      db.config.publicUrl = u; persist();
+      db.config.publicUrl = u; await persist();
       return json(res, 200, { ok: true, effective: publicUrl(), ownerLink: origin(req) + '/owner/' + db.config.ownerKey }), true;
     }
     if (path === '/api/admin/invite' && method === 'POST') {
@@ -234,8 +257,8 @@ export async function handleAuth(req, res, path, store) {
       const b = await body(req); const inv = db.invites.find(i => i.token === b.token);
       if (!inv) return json(res, 404, { error: 'הזמנה לא נמצאה' }), true;
       if (b.action === 'revoke') inv.revoked = true;
-      else if (b.action === 'delete') db.invites = db.invites.filter(i => i !== inv);
-      persist();
+      else if (b.action === 'delete') { db.invites = db.invites.filter(i => i !== inv); DEL.invites.add(inv.token); }
+      await persist();
       return json(res, 200, { ok: true }), true;
     }
   } catch (e) { return json(res, 400, { error: String(e.message || e) }), true; }

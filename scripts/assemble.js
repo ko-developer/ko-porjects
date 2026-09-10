@@ -11,7 +11,7 @@ export function assembleAppJs() {
     const json = readFileSync(`data/${name.toLowerCase()}.json`, 'utf8');
     const marker = `/*__DATA:${name}__*/`;
     if (!app.includes(marker)) throw new Error(`marker missing: ${name}`);
-    app = app.replace(marker, `const ${name} = ${json};`);
+    app = app.replace(marker, () => `const ${name} = ${json};/*__END:${name}__*/`);   /* סמן סיום: השרת מחליף נתונים שנערכים באפליקציה בזמן הגשה */
   }
   try { app += '\n' + readFileSync('src/autoscale.js', 'utf8'); } catch (e) { /* זיהוי קנה מידה אופציונלי */ }
   try { app += '\n' + readFileSync('src/plantext.js', 'utf8'); } catch (e) { /* כיתובי תכנית OCR אופציונלי */ }

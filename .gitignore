@@ -13,3 +13,4 @@ build/
 data/users.json
 data/bugs.json
 data/bug_files/
+data/.cache-gcs/

@@ -3,24 +3,31 @@
 // כל משתמש מחובר (בעלים או מוזמן) מדווח באג: כותרת, תיאור, קבצים (צילומי מסך, סרטון מסך
 // שהוקלט בדפדפן, PDF). הבעלים רואה את כולם ב-/bugs, משנה סטטוס ומגיב; המדווח רואה את
 // הבאגים שלו ואת התגובות בתוך האפליקציה.
-// אחסון: data/bugs.json + data/bug_files/ (שניהם מחוץ ל-git).
+// אחסון: bugs.json + bug_files/ על שכבת האחסון (storage.js — מקומי או דלי הענן; מחוץ ל-git).
 // ===================================================================================
-import { readFileSync, writeFileSync, existsSync, mkdirSync, createReadStream, statSync, unlinkSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 
-const FILE = 'data/bugs.json', DIR = 'data/bug_files';
+const FILE = 'bugs.json', DIR = 'bug_files';
 export const STATUSES = ['new', 'open', 'fixed', 'closed', 'wontfix'];
 export const STATUS_HE = { new: 'חדש', open: 'בטיפול', fixed: 'תוקן', closed: 'סגור', wontfix: 'לא יתוקן' };
 const MAX_FILE = 80 * 1024 * 1024;   /* 80MB לקובץ — סרטון מסך של כמה דקות */
 
-let DB = null;
-function load() {
-  if (DB) return DB;
-  try { DB = existsSync(FILE) ? JSON.parse(readFileSync(FILE, 'utf8')) : null; } catch { DB = null; }
-  DB = DB || { bugs: [] }; DB.bugs = DB.bugs || [];
-  return DB;
+let DB = null, ST = null;
+export async function initBugs(storage) { ST = storage; DB = (await ST.readJson(FILE, null)) || { bugs: [] }; DB.bugs = DB.bugs || []; return DB; }
+function load() { if (!DB) throw new Error('bugs not initialized — call initBugs(storage) first'); return DB; }
+/* שמירה ממוזגת: באגים שנוספו בצד השני (מקומי/ענן) נשמרים; מחיקות מקומיות נרשמות */
+const DELETED = new Set();
+let chain = Promise.resolve();
+function persist() {
+  chain = chain.then(async () => {
+    const mem = load(), cur = (await ST.readJson(FILE, null)) || { bugs: [] };
+    const ids = new Set(mem.bugs.map(b => b.id));
+    for (const b of cur.bugs || []) if (!ids.has(b.id) && !DELETED.has(b.id)) mem.bugs.push(b);
+    DELETED.clear();
+    await ST.writeJson(FILE, mem);
+  }).catch(e => console.warn('bugs.json persist failed:', e.message));
+  return chain;
 }
-function persist() { writeFileSync(FILE, JSON.stringify(load(), null, 1)); }
 const uid = p => p + randomBytes(6).toString('hex');
 const nowIso = () => new Date().toISOString();
 function json(res, code, obj) { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); }
@@ -33,17 +40,16 @@ function body(req, limit = 120 * 1024 * 1024) {
   });
 }
 const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'video/webm': 'webm', 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'application/pdf': 'pdf', 'text/plain': 'txt' };
-function saveAttachment(a) {
+async function saveAttachment(a) {
   /* a = { name, type, data (base64 data-URL או base64 גולמי) } */
   const m = /^data:([^;]+);base64,(.*)$/s.exec(a.data || '');
   const type = (m ? m[1] : a.type) || 'application/octet-stream';
   const buf = Buffer.from(m ? m[2] : (a.data || ''), 'base64');
   if (!buf.length) return null;
   if (buf.length > MAX_FILE) throw new Error('קובץ "' + (a.name || '') + '" גדול מ-80MB');
-  if (!existsSync(DIR)) mkdirSync(DIR, { recursive: true });
   const ext = EXT[type] || (String(a.name || '').split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'bin';
   const id = uid('f'), file = `${id}.${ext}`;
-  writeFileSync(`${DIR}/${file}`, buf);
+  await ST.write(`${DIR}/${file}`, buf, type);
   return { id, name: String(a.name || file).slice(0, 80), type, size: buf.length, file };
 }
 const isOwner = u => u && u.role === 'owner';
@@ -74,10 +80,10 @@ export async function handleBugs(req, res, path, me, ctx) {
       const title = String(b.title || '').trim().slice(0, 140), desc = String(b.desc || '').trim().slice(0, 5000);
       if (!title && !desc) return json(res, 400, { error: 'כתוב כותרת או תיאור' }), true;
       const atts = [];
-      for (const a of (b.attachments || []).slice(0, 8)) { const s = saveAttachment(a); if (s) atts.push(s); }
+      for (const a of (b.attachments || []).slice(0, 8)) { const s = await saveAttachment(a); if (s) atts.push(s); }
       const bug = { id: uid('b'), title: title || desc.slice(0, 60), desc, status: 'new', by: { id: me.id, name: me.name, email: me.email || '' },
         createdAt: nowIso(), updatedAt: nowIso(), page: String(b.page || '').slice(0, 200), project: String(b.project || '').slice(0, 80), ua: String(req.headers['user-agent'] || '').slice(0, 120), attachments: atts, comments: [], seenBy: { [me.id]: nowIso() } };
-      db.bugs.push(bug); persist();
+      db.bugs.push(bug); await persist();
       return json(res, 200, { ok: true, bug: publicBug(bug, me) }), true;
     }
     const m = /^\/api\/bugs\/([A-Za-z0-9]+)\/(comment|status|seen|delete)$/.exec(path);
@@ -87,7 +93,7 @@ export async function handleBugs(req, res, path, me, ctx) {
       const b = await body(req);
       if (m[2] === 'comment') {
         const text = String(b.text || '').trim().slice(0, 4000);
-        const atts = []; for (const a of (b.attachments || []).slice(0, 4)) { const s = saveAttachment(a); if (s) atts.push(s); }
+        const atts = []; for (const a of (b.attachments || []).slice(0, 4)) { const s = await saveAttachment(a); if (s) atts.push(s); }
         if (!text && !atts.length) return json(res, 400, { error: 'תגובה ריקה' }), true;
         bug.comments.push({ id: uid('c'), by: me.id, name: me.name, owner: isOwner(me), text, attachments: atts, at: nowIso() });
         bug.updatedAt = nowIso(); bug.seenBy = { ...(bug.seenBy || {}), [me.id]: nowIso() };
@@ -100,10 +106,10 @@ export async function handleBugs(req, res, path, me, ctx) {
         bug.seenBy = { ...(bug.seenBy || {}), [me.id]: nowIso() };
       } else if (m[2] === 'delete') {
         if (!isOwner(me)) return json(res, 403, { error: 'רק הבעלים מוחק' }), true;
-        for (const a of bug.attachments || []) { try { unlinkSync(`${DIR}/${a.file}`); } catch {} }
-        db.bugs = db.bugs.filter(x => x !== bug);
+        for (const a of bug.attachments || []) { try { await ST.delete(`${DIR}/${a.file}`); } catch {} }
+        db.bugs = db.bugs.filter(x => x !== bug); DELETED.add(bug.id);
       }
-      persist();
+      await persist();
       return json(res, 200, { ok: true, bug: db.bugs.includes(bug) ? publicBug(bug, me) : null }), true;
     }
     const f = /^\/api\/bugs\/file\/([A-Za-z0-9]+)$/.exec(path);
@@ -114,10 +120,10 @@ export async function handleBugs(req, res, path, me, ctx) {
         const a = all.find(x => x.id === f[1]); if (a) { att = a; bug = bg; break; }
       }
       if (!att || !canSee(me, bug)) { res.writeHead(404); res.end('not found'); return true; }
-      const p = `${DIR}/${att.file}`;
-      if (!existsSync(p)) { res.writeHead(404); res.end('file missing'); return true; }
-      res.writeHead(200, { 'content-type': att.type || 'application/octet-stream', 'content-length': statSync(p).size, 'cache-control': 'private, max-age=3600', 'content-disposition': 'inline; filename="' + encodeURIComponent(att.name) + '"' });
-      createReadStream(p).pipe(res); return true;
+      const buf = await ST.read(`${DIR}/${att.file}`);
+      if (!buf) { res.writeHead(404); res.end('file missing'); return true; }
+      res.writeHead(200, { 'content-type': att.type || 'application/octet-stream', 'content-length': buf.length, 'cache-control': 'private, max-age=3600', 'content-disposition': 'inline; filename="' + encodeURIComponent(att.name) + '"' });
+      res.end(buf); return true;
     }
   } catch (e) { return json(res, 400, { error: String(e.message || e) }), true; }
   return false;
