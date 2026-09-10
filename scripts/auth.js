@@ -59,6 +59,10 @@ function checkPw(user, pw) {
   return h.length === s.length && timingSafeEqual(h, s);
 }
 const normEmail = e => String(e || '').trim().toLowerCase();
+/* הזמנה תקפה: לא בוטלה ולא פגה. קישור פתוח (בלי מייל) אפשר להשתמש בו כמה פעמים עד שפג —
+   כך הבעלים יכול לבדוק אותו בעצמו ואז לשלוח אותו הלאה; קישור נעול למייל = שימוש אחד לאותו מייל */
+function inviteValid(inv) { return !!inv && !inv.revoked && inv.exp >= Date.now() && !(inv.email && inv.usedBy); }
+function inviteUse(inv, u) { inv.uses = inv.uses || []; inv.uses.push({ uid: u.id, email: u.email, at: new Date().toISOString() }); if (!inv.usedBy) { inv.usedBy = u.id; inv.usedAt = new Date().toISOString(); } }
 const validEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
 /* --- הבעלים המקומי --- */
@@ -171,18 +175,20 @@ export async function handleAuth(req, res, path, store) {
       const email = normEmail(b.email), pw = String(b.password || ''), name = String(b.name || '').trim().slice(0, 60);
       if (!validEmail(email)) return json(res, 400, { error: 'כתובת מייל לא תקינה' }), true;
       if (pw.length < 8) return json(res, 400, { error: 'סיסמה — לפחות 8 תווים' }), true;
-      if (db.users.some(u => u.email === email)) return json(res, 409, { error: 'המייל הזה כבר רשום — התחבר' }), true;
+      if (db.users.some(u => u.email === email)) return json(res, 409, { error: 'המייל הזה כבר רשום — עבור ללשונית "כניסה" והתחבר עם הסיסמה שלך (ההרשאות מהקישור יתווספו בכניסה)' }), true;
       let role = 'user', grants = {};
       /* הרשמה רק דרך קישור הזמנה — הבעלים לא נרשם */
-      const inv = db.invites.find(i => i.token === b.token && !i.usedBy && !i.revoked);
-      if (!inv) return json(res, 403, { error: 'קישור ההזמנה לא תקף או שכבר נוצל — בקש קישור חדש' }), true;
+      const inv = db.invites.find(i => i.token === b.token);
+      if (!inv) return json(res, 403, { error: b.token ? 'קישור ההזמנה לא נמצא — בקש קישור חדש מבעל המערכת' : 'הרשמה רק דרך קישור הזמנה — פתח את הקישור שקיבלת מבעל המערכת' }), true;
+      if (inv.revoked) return json(res, 403, { error: 'קישור ההזמנה בוטל — בקש קישור חדש' }), true;
       if (inv.exp < now()) return json(res, 403, { error: 'קישור ההזמנה פג (14 יום) — בקש קישור חדש' }), true;
       if (inv.email && inv.email !== email) return json(res, 403, { error: 'הקישור הזה יועד לכתובת מייל אחרת' }), true;
+      if (inv.email && inv.usedBy) return json(res, 403, { error: 'הקישור הזה כבר נוצל — התחבר עם הסיסמה שלך' }), true;
       inv.projects.forEach(pid => { grants[pid] = inv.perm; });
       const salt = randomBytes(16).toString('hex');
       const u = { id: uid('u'), email, name: name || email.split('@')[0], role, salt, hash: hashPw(pw, salt), grants, blocked: false, createdAt: new Date().toISOString(), invitedBy: inv ? inv.by : null };
       db.users.push(u);
-      if (inv) { inv.usedBy = u.id; inv.usedAt = new Date().toISOString(); }
+      inviteUse(inv, u);
       await setSession(res, u, req);
       return json(res, 200, { ok: true, user: publicUser(u) }), true;
     }
@@ -191,6 +197,9 @@ export async function handleAuth(req, res, path, store) {
       const u = db.users.find(x => x.email === email);
       if (!u || !checkPw(u, b.password || '')) return json(res, 401, { error: 'מייל או סיסמה לא נכונים' }), true;
       if (u.blocked) return json(res, 403, { error: 'החשבון חסום — פנה לבעל המערכת' }), true;
+      /* כניסה דרך קישור הזמנה של משתמש קיים — ההרשאות שבקישור מתווספות לו */
+      const inv = b.token ? db.invites.find(i => i.token === b.token) : null;
+      if (inv && inviteValid(inv) && (!inv.email || inv.email === email)) { u.grants = u.grants || {}; inv.projects.forEach(pid => { if (u.grants[pid] !== 'edit') u.grants[pid] = inv.perm; }); inviteUse(inv, u); }
       await setSession(res, u, req);
       return json(res, 200, { ok: true, user: publicUser(u) }), true;
     }
@@ -202,7 +211,7 @@ export async function handleAuth(req, res, path, store) {
       if (!inv) return json(res, 404, { error: 'הזמנה לא נמצאה' }), true;
       const names = (store.projects || []).filter(p => inv.projects.includes(p.id)).map(p => p.name);
       const by = inv.by === 'owner' ? OWNER : db.users.find(u => u.id === inv.by);
-      return json(res, 200, { ok: !inv.usedBy && !inv.revoked && inv.exp >= now(), used: !!inv.usedBy, expired: inv.exp < now(), revoked: !!inv.revoked, projects: names, perm: inv.perm, by: by ? by.name : '', email: inv.email || '' }), true;
+      return json(res, 200, { ok: inviteValid(inv), used: !!(inv.email && inv.usedBy), uses: (inv.uses || []).length, expired: inv.exp < now(), revoked: !!inv.revoked, projects: names, perm: inv.perm, by: by ? by.name : '', email: inv.email || '' }), true;
     }
     /* --- פעולות בעלים --- */
     const isOwner = me && me.role === 'owner';
@@ -221,7 +230,7 @@ export async function handleAuth(req, res, path, store) {
       const pn = Object.fromEntries((store.projects || []).map(p => [p.id, p.name]));
       return json(res, 200, {
         users: db.users.map(u => ({ ...publicUser(u), createdAt: u.createdAt, lastLogin: u.lastLogin || null, projects: Object.entries(u.grants || {}).map(([id, perm]) => ({ id, name: pn[id] || id, perm })) })),
-        invites: db.invites.map(i => ({ token: i.token, url: origin(req) + '/join/' + i.token, projects: i.projects.map(id => pn[id] || id), perm: i.perm, email: i.email, label: i.label, createdAt: i.createdAt, exp: i.exp, usedBy: i.usedBy ? (db.users.find(u => u.id === i.usedBy) || {}).email : null, revoked: !!i.revoked })),
+        invites: db.invites.map(i => ({ token: i.token, url: origin(req) + '/join/' + i.token, uses: (i.uses || []).length, valid: inviteValid(i), projects: i.projects.map(id => pn[id] || id), perm: i.perm, email: i.email, label: i.label, createdAt: i.createdAt, exp: i.exp, usedBy: i.usedBy ? (db.users.find(u => u.id === i.usedBy) || {}).email : null, revoked: !!i.revoked })),
       }), true;
     }
     if (path === '/api/admin/user' && method === 'POST') {

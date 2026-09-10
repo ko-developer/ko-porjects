@@ -52,14 +52,15 @@ button.sec{background:#faf8f4;color:#1a1e28;border:1px solid #ddd;font-weight:50
       fetch('/api/invite?t=' + encodeURIComponent(token)).then(function (r) { return r.json(); }).then(function (inv) {
         $('invBox').style.display = '';
         if (inv.error) { $('invBox').innerHTML = '⚠ ' + inv.error; return; }
-        if (!inv.ok) { $('invBox').innerHTML = '⚠ הקישור ' + (inv.used ? 'כבר נוצל' : inv.revoked ? 'בוטל' : 'פג תוקף') + ' — בקש קישור חדש מ' + (inv.by || 'בעל המערכת') + '. אם כבר נרשמת, פשוט התחבר.'; return; }
+        if (!inv.ok) { $('invBox').innerHTML = '⚠ הקישור ' + (inv.used ? 'כבר נוצל' : inv.revoked ? 'בוטל' : 'פג תוקף') + ' — בקש קישור חדש מ' + (inv.by || 'בעל המערכת') + '. אם כבר נרשמת — עבור ל"כניסה".'; setMode('login'); return; }
         $('invBox').innerHTML = '<b>' + (inv.by || 'בעל המערכת') + '</b> שיתף איתך ' + inv.projects.length + ' פרויקט' + (inv.projects.length > 1 ? 'ים' : '') + ' בהרשאת <b>' + (inv.perm === 'view' ? 'צפייה' : 'עריכה') + '</b>:<br>' +
           inv.projects.map(function (n) { return '• ' + n; }).join('<br>') + '<br>הירשם עם מייל וסיסמה כדי להיכנס.';
         if (inv.email) $('email').value = inv.email;
         setMode('register');
       });
     }
-    $('hint').textContent = token ? 'יש לך כבר חשבון? עבור לכניסה — ההזמנה תתווסף בפעם הבאה שהבעלים ישתף.' : 'הכניסה למוזמנים בלבד — קישור שיתוף מגיע מבעל המערכת.';
+    if (!token) { setMode('login'); var rt = document.querySelector('#tabs span[data-t="register"]'); if (rt) rt.style.display = 'none'; }
+    $('hint').textContent = token ? 'יש לך כבר חשבון? עבור ל"כניסה" והתחבר — ההרשאות שבקישור יתווספו לך.' : 'הכניסה למוזמנים בלבד — הרשמה רק דרך קישור שיתוף שמגיע מבעל המערכת. כבר נרשמת? התחבר עם המייל והסיסמה.';
   });
   $('f').onsubmit = function () {
     var err = $('err'); err.style.display = 'none';
