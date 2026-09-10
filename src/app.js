@@ -7990,8 +7990,17 @@ function erpQImport(ov) {
   if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender();   /* גם באשף V2 — הפריטים בפאנל ההצעה, מוכנים להצבה */
   uiToast('✓ ' + n + ' פריטים נטענו מהצעת מחיר ' + q.code + ' — עכשיו הצב אותם על התכנית (📍 או גרירה)');
 }
+/* חיפוש תוך כדי הקלדה — ממתין 350 מ"ש אחרי התו האחרון ואז מושך מה-ERP; הסמן נשאר בשדה */
+function erpQTyped(inp) {
+  erpQState.q = inp.value;
+  clearTimeout(erpQState.t);
+  erpQState.t = setTimeout(() => erpQLoad(inp.closest('.uiDlgOv')), 350);
+}
 function erpQRender(ov) {
   const S = erpQState, body = ov.querySelector('#erpQBody'); if (!body) return;
+  /* השדה נבנה מחדש בכל רינדור — שומרים את הפוקוס ומיקום הסמן */
+  const prev = body.querySelector('#erpQIn'), hadFocus = !prev || document.activeElement === prev, caret = prev ? prev.selectionStart : null;
+  setTimeout(() => { const inp = body.querySelector('#erpQIn'); if (inp && hadFocus && !S.sel) { inp.focus(); const c = caret == null ? inp.value.length : Math.min(caret, inp.value.length); try { inp.setSelectionRange(c, c); } catch {} } }, 0);
   const money = v => '₪' + Math.round(+v || 0).toLocaleString();
   if (S.sel) {
     const items = S.items;
@@ -8005,7 +8014,7 @@ function erpQRender(ov) {
     return;
   }
   body.innerHTML = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <input placeholder="חיפוש לפי שם הצעה, לקוח או קוד…" value="${esc(S.q)}" style="flex:1;margin:0" onkeydown="if(event.key==='Enter'){erpQState.q=this.value;erpQLoad(this.closest('.uiDlgOv'))}">
+      <input id="erpQIn" placeholder="חיפוש לפי שם הצעה, לקוח או קוד… (מחפש תוך כדי הקלדה)" value="${esc(S.q)}" style="flex:1;margin:0" autocomplete="off" oninput="erpQTyped(this)" onkeydown="if(event.key==='Enter'){clearTimeout(erpQState.t);erpQState.q=this.value;erpQLoad(this.closest('.uiDlgOv'))}">
       <label style="font-size:11.5px;white-space:nowrap;display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" style="width:auto" ${S.all ? 'checked' : ''} onchange="erpQState.all=this.checked;erpQLoad(this.closest('.uiDlgOv'))"> כולל מאושרות</label></div>` +
     (S.busy ? '<p class="muted">טוען הצעות מה-ERP…</p>' : !S.quotes ? `<p style="color:#c1121f;font-size:12.5px">${esc(S.err || 'שגיאה')}</p>` :
     `<p class="muted" style="font-size:11.5px;margin:0 0 6px">${S.quotes.length} הצעות${S.all ? '' : ' פתוחות (ממתינות לאישור לקוח)'} — לחץ על הצעה כדי לראות את הפריטים</p>
