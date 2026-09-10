@@ -40,6 +40,7 @@ envsync() {
     line="${line%$'\r'}"
     [[ "$line" =~ ^[A-Z][A-Z0-9_]*= ]] || continue
     local k="${line%%=*}" v="${line#*=}"; [ -z "$v" ] && continue
+    case "$k" in DATA_BUCKET|PUBLIC_URL|DATA_DIR|STORE|STORE_JSON_DIR|PORT|PREBUILT|NODE_ENV) continue ;; esac   # תצורה רגילה — נקבעת ב-deploy כמשתנה, לא סוד
     if gcloud secrets describe "$k" --project "$PROJECT" >/dev/null 2>&1; then
       local cur; cur=$(gcloud secrets versions access latest --secret "$k" --project "$PROJECT" 2>/dev/null || true)
       if [ "$cur" != "$v" ]; then printf '%s' "$v" | gcloud secrets versions add "$k" --project "$PROJECT" --data-file=- >/dev/null; echo "   $k: updated"; else echo "   $k: unchanged"; fi
