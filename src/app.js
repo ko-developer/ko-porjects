@@ -7936,7 +7936,11 @@ function erpLineToItem(x, src) {
   if (st) it = { on: true, qty: +x.qty || 1, name, src, cat: 'other', u: 1, ...st };
   else {
     const d = SPEC_DICT.find(d => d.re.test(name));
-    const dest = d ? d.dest : (/שירות|התקנה|משלוח|כיוון|תכנות|הובלה|עבודה|שעות/.test(name) ? 'ignore' : 'unit');
+    /* הצעה מה-ERP יכולה להכיל כל דבר (תאורה, ריהוט, שירותים): לארון נכנס רק ציוד ראק אמיתי —
+       מגברים, עיבוד, רשת, נגנים, דימרים. השאר = "נקודה" להצבה ידנית (📍), ושירותים לא מוצבים */
+    const RACK_RE = /מגבר|\bamp(lifier)?\b|פרוססור|processor|\bDSP\b|מטריצ|matrix|\bswitch\b|מתג רשת|router|נתב|\bUPS\b|פאנל|panel|patch|נגן|player|סטרימר|streamer|מקלט|receiver|מיקסר|mixer|dimmer|דימר|רשת|controller|בקר תאורה/i;
+    const isSvc = /שירות|התקנה|משלוח|כיוון|תכנות|הובלה|עבודה|שעות/.test(name);
+    const dest = d ? d.dest : isSvc ? 'ignore' : isSpeakerItem(name) ? 'point' : RACK_RE.test(name) ? 'unit' : 'point';
     it = { on: dest !== 'ignore', qty: +x.qty || 1, name, dest, cat: d?.cat || 'other', u: d?.u || 1, src };
   }
   if (x.key) it.key = x.key;
@@ -7976,19 +7980,48 @@ async function erpQPick(ov, id) {
   } catch (e) { erpQState.err = String(e.message || e); }
   erpQState.busy = false; erpQRender(ov);
 }
-function erpQImport(ov) {
+/* האזור שאליו הצעה מה-ERP תוצב: האזור באשף, האזור הנבחר, או האזור היחיד בפרויקט */
+function erpQZone() {
+  const zs = P.zones || [];
+  const wz = typeof WIZ !== 'undefined' && WIZ && WIZ.zid ? zs.find(z => z.id === WIZ.zid) : null;
+  return wz || zs.find(z => z.id === selZone) || (zs.length === 1 ? zs[0] : null);
+}
+/* טעינת הצעה מה-ERP: toZone=true — כמו בחירת קיט: הפריטים נכנסים להצעה עם שיוך לאזור,
+   הרמקולים והסאבים מוצבים בכמויות שבהצעה, מגברים/עיבוד נכנסים לארון הריכוז של האזור */
+function erpQImport(ov, toZone) {
   const q = erpQState.sel, lines = (erpQState.items || []).filter(x => x.on);
   if (!q || !lines.length) return;
   const src = 'ERP · ' + (q.name || q.code);
-  let n = 0;
-  for (const x of lines) { impItems.push(erpLineToItem(x, src)); n++; }
+  const z = toZone ? erpQZone() : null;
+  let n = 0, placed = 0, err = null;
+  const items = [];
+  for (const x of lines) { const it = erpLineToItem(x, src); it.iid = uid('i'); if (z) it.zones = { [z.name]: +it.qty || 1 }; impItems.push(it); items.push(it); n++; }
   /* הלקוח וההצעה נרשמים על הפרויקט — ההצעה ב-ERP היא המקור */
   if (q.accountKey) { P.accountKey = q.accountKey; P.accountName = q.account; }
   P.erpQuoteFrom = q.code;
+  if (z) {
+    try {
+      const isSubN = nm => /סאב|\bsub\b/i.test(nm || '');
+      const spkIt = items.find(x => isSpeakerItem(x.name) && !isSubN(x.name)), subIt = items.find(x => isSpeakerItem(x.name) && isSubN(x.name));
+      if (spkIt) { z._spk = spkIt.name; z._spkKey = spkIt.key || ''; }
+      if (subIt) { z._sub = subIt.name; z._subKey = subIt.key || ''; }
+      /* ארון ריכוז לאזור (משותף לפרויקט) — כמו ב"בנה הכל" */
+      const rk = zoneRack(z, () => { const b = zoneBounds(z); const px = b.L + b.W - 46, py = b.T + 34; return { id: uid('n'), kind: 'rack', name: 'ריכוז ' + z.name, sub: z.name, x: 2200 - px - 20, y: py - 24, ru: 12, units: [], min: true }; });
+      if (typeof wizRackInside === 'function' && rk) wizRackInside(z, rk);
+      const nBefore = P.nodes.length;
+      if (items.some(x => isSpeakerItem(x.name))) buildZoneFromItems(z.id);
+      placeZoneRackItems(z);
+      placed = P.nodes.length - nBefore;
+      mergeOfferDupes(true);
+      z._built = Date.now();
+    } catch (e) { err = e; }
+  }
   dockOpen = true; dockMin = false;
   ov.remove(); render(); renderImp(); save();
-  if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender();   /* גם באשף V2 — הפריטים בפאנל ההצעה, מוכנים להצבה */
-  uiToast('✓ ' + n + ' פריטים נטענו מהצעת מחיר ' + q.code + ' — עכשיו הצב אותם על התכנית (📍 או גרירה)');
+  if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender();   /* גם באשף V2 */
+  if (z && err) uiToast('✓ ' + n + ' פריטים נטענו מהצעה ' + q.code + ' · ⚠ ההצבה באזור נכשלה: ' + (err.message || err), 6000);
+  else if (z) uiToast('✓ ' + n + ' פריטים מהצעה ' + q.code + ' הוצבו ב"' + z.name + '": ' + placed + ' מוקדים על התכנית, הציוד בארון הריכוז', 6000);
+  else uiToast('✓ ' + n + ' פריטים נטענו מהצעת מחיר ' + q.code + ' — עכשיו הצב אותם על התכנית (📍 או גרירה)');
 }
 /* חיפוש תוך כדי הקלדה — ממתין 350 מ"ש אחרי התו האחרון ואז מושך מה-ERP; הסמן נשאר בשדה */
 function erpQTyped(inp) {
@@ -8004,13 +8037,18 @@ function erpQRender(ov) {
   const money = v => '₪' + Math.round(+v || 0).toLocaleString();
   if (S.sel) {
     const items = S.items;
-    body.innerHTML = `<div style="background:#f7f5f0;border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:8px"><b>${esc(S.sel.name || S.sel.code)}</b> · ${esc(S.sel.account)} · ${esc(S.sel.date)} · ${money(S.sel.total)}<br>
+    /* הצעה שטרם אושרה ע"י הלקוח — הכמויות עריכות לפני הטעינה; מאושרת = כמו שנמכרה */
+    const editable = !S.sel.confirmed && !/^(confirmed|approved|closed|completed|done|invoiced|paid)$/i.test(S.sel.status || '');   /* 'pending_customer_confirmation' = טרם אושרה */
+    body.innerHTML = `<div style="background:#f7f5f0;border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:8px"><b>${esc(S.sel.name || S.sel.code)}</b> · ${esc(S.sel.account)} · ${esc(S.sel.date)} · ${money(S.sel.total)}${editable ? ' · <span style="color:#c96a13">טרם אושרה — הכמויות ניתנות לשינוי</span>' : ' · <span style="color:#0f6e56">מאושרת</span>'}<br>
       <a href="#" onclick="event.preventDefault();erpQState.sel=null;erpQState.items=null;erpQRender(this.closest('.uiDlgOv'))">← חזרה לרשימה</a></div>` +
       (S.busy ? '<p class="muted">טוען פריטים…</p>' : !items ? `<p style="color:#c1121f;font-size:12.5px">${esc(S.err || 'שגיאה')}</p>` :
       `<div style="max-height:300px;overflow:auto;border:1px solid #eee;border-radius:8px">${items.map((x, i) => `<label style="display:flex;gap:8px;align-items:center;padding:5px 8px;border-bottom:1px solid #f0ede6;font-size:12.5px;cursor:pointer">
           <input type="checkbox" style="width:auto" ${x.on ? 'checked' : ''} onchange="erpQState.items[${i}].on=this.checked">
-          <span style="flex:1">${esc(x.name)}${x.key ? ` <small class="muted">· ${esc(x.key)}</small>` : ''}</span><b>×${x.qty}</b><span class="muted" style="width:70px;text-align:left">${money(x.price)}</span></label>`).join('') || '<p class="muted" style="padding:8px">אין פריטים בהצעה</p>'}</div>
-       <button class="primary" style="width:100%;margin-top:8px" onclick="erpQImport(this.closest('.uiDlgOv'))">📥 טען ${items.filter(x => x.on).length} פריטים להצעה בפרויקט</button>`);
+          <span style="flex:1">${esc(x.name)}${x.key ? ` <small class="muted">· ${esc(x.key)}</small>` : ''}</span>${editable ? `<input type="number" min="0" step="1" value="${x.qty}" title="הצעה שטרם אושרה — אפשר לשנות כמות לפני הטעינה" style="width:58px;margin:0;padding:2px 4px;font-size:12px;text-align:center;font-weight:700" onclick="event.preventDefault()" onchange="erpQState.items[${i}].qty=Math.max(0,+this.value||0);erpQState.items[${i}].on=erpQState.items[${i}].qty>0;erpQRender(this.closest('.uiDlgOv'))">` : `<b>×${x.qty}</b>`}<span class="muted" style="width:70px;text-align:left">${money(x.price)}</span></label>`).join('') || '<p class="muted" style="padding:8px">אין פריטים בהצעה</p>'}</div>
+       ${(() => { const z = erpQZone(); const k = items.filter(x => x.on).length; return z
+         ? `<button class="primary" style="width:100%;margin-top:8px" onclick="erpQImport(this.closest('.uiDlgOv'), true)">📍 טען ${k} פריטים והצב באזור "${esc(z.name)}" — כמו בחירת קיט</button>
+            <button style="width:100%;margin-top:6px" onclick="erpQImport(this.closest('.uiDlgOv'))">📥 טען להצעה בלבד (הצבה ידנית)</button>`
+         : `<button class="primary" style="width:100%;margin-top:8px" onclick="erpQImport(this.closest('.uiDlgOv'))">📥 טען ${k} פריטים להצעה בפרויקט</button><p class="muted" style="font-size:11px;margin:4px 0 0">סמן אזור בתכנית כדי שהפריטים יוצבו בו אוטומטית</p>`; })()}`);
     return;
   }
   body.innerHTML = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
