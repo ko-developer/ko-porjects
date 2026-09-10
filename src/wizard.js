@@ -181,6 +181,7 @@ function wizStepHTML(s) {
     <input id="wizKitQ" placeholder="🔍 או חפש ישר קיט / רמקול…" oninput="wizKitSearch(this.value)">
     <div id="wizKitRes" style="max-height:150px;overflow-y:auto"></div>
     <p class="hint" style="margin-top:4px">${z._spk ? '🔊 ' + esc(z._spk.slice(0, 42)) : 'לא נבחר רמקול — "בנה הכל" יפתח את הבורר'}</p>
+    ${typeof erpQuotesDialog === 'function' && !(window.__AUTH && window.__AUTH.user && window.__AUTH.user.role !== 'owner') ? `<button class="sec" style="background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="erpQuotesDialog()" title="הפריטים של הצעה קיימת ב-ERP נכנסים להצעה בפרויקט — ומשם מציבים אותם על התכנית">🧾 משוך הצעת מחיר מה-ERP — פריטים להצבה בתכנית</button>` : ''}
     <button class="big" onclick="wizBuildAll()">${z._built ? '🔌 המשך — טבלת החיווט (המערכת כבר בנויה)' : '🚀 בנה הכל — מערכת + ארון + עמדה/קופסת במה + חיווט'}</button>
     ${z._built ? `<button class="sec" onclick="wizBuildAll(true)">🔄 בנה מחדש מאפס — מחליף את המערכת הקיימת</button>` : ''}
     ${z._built ? wizPlacementsHTML(z) : ''}`;

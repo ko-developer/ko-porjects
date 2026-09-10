@@ -7987,6 +7987,7 @@ function erpQImport(ov) {
   P.erpQuoteFrom = q.code;
   dockOpen = true; dockMin = false;
   ov.remove(); render(); renderImp(); save();
+  if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender();   /* גם באשף V2 — הפריטים בפאנל ההצעה, מוכנים להצבה */
   uiToast('✓ ' + n + ' פריטים נטענו מהצעת מחיר ' + q.code + ' — עכשיו הצב אותם על התכנית (📍 או גרירה)');
 }
 function erpQRender(ov) {
