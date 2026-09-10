@@ -1,0 +1,3534 @@
+[
+ {
+  "name": "DPA",
+  "re": "DPA\\s?\\d",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 24,
+    "y": 37
+   },
+   {
+    "t": "speakon",
+    "label": "CH4",
+    "port": "OUT 4",
+    "x": 41,
+    "y": 56
+   },
+   {
+    "t": "speakon",
+    "label": "CH3",
+    "port": "OUT 3",
+    "x": 55,
+    "y": 56
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 74,
+    "y": 56
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 88,
+    "y": 56
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 94,
+    "y": 32
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 88.5,
+    "y": 32
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 83,
+    "y": 32
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 77.5,
+    "y": 32
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE",
+    "x": 48.5,
+    "y": 31
+   },
+   {
+    "t": "xlrm",
+    "label": "AUX1",
+    "port": "OUT 5",
+    "x": 71.5,
+    "y": 32
+   },
+   {
+    "t": "xlrm",
+    "label": "AUX2",
+    "port": "OUT 6",
+    "x": 66,
+    "y": 32
+   },
+   {
+    "t": "xlrm",
+    "label": "AUX3",
+    "port": "OUT 7",
+    "x": 60.5,
+    "y": 32
+   },
+   {
+    "t": "xlrm",
+    "label": "AUX4",
+    "port": "OUT 8",
+    "x": 55,
+    "y": 32
+   },
+   {
+    "t": "rj45",
+    "label": "CTRL",
+    "x": 41,
+    "y": 32
+   },
+   {
+    "t": "block4",
+    "label": "GPIO",
+    "x": 30,
+    "y": 35
+   }
+  ],
+  "img": "DPA\\s?\\d|DPA d|XTA\\s*DPA",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DNA",
+  "re": "DNA\\s?\\d|XTA.*DNA",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 24,
+    "y": 37
+   },
+   {
+    "t": "speakon",
+    "label": "CH4",
+    "port": "OUT 4",
+    "x": 40,
+    "y": 55
+   },
+   {
+    "t": "speakon",
+    "label": "CH3",
+    "port": "OUT 3",
+    "x": 53.5,
+    "y": 55
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 73,
+    "y": 55
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 86,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 88.5,
+    "y": 30
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK1",
+    "port": "LNK 1",
+    "x": 84,
+    "y": 36
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 79.5,
+    "y": 30
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK2",
+    "port": "LNK 2",
+    "x": 75,
+    "y": 36
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 70.5,
+    "y": 30
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK3",
+    "port": "LNK 3",
+    "x": 66,
+    "y": 36
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 61.5,
+    "y": 30
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK4",
+    "port": "LNK 4",
+    "x": 57,
+    "y": 36
+   },
+   {
+    "t": "rj45",
+    "label": "ETH",
+    "x": 45,
+    "y": 29
+   },
+   {
+    "t": "rj45",
+    "label": "ETH 2",
+    "x": 51,
+    "y": 29
+   }
+  ],
+  "img": "DNA\\s?\\d|XTA\\s*DNA|DNA d",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "D48X",
+  "re": "D48X",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 12,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT8",
+    "port": "OUT 8",
+    "x": 35.5,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT7",
+    "port": "OUT 7",
+    "x": 40.5,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT6",
+    "port": "OUT 6",
+    "x": 45.5,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT5",
+    "port": "OUT 5",
+    "x": 51,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT4",
+    "port": "OUT 4",
+    "x": 56,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT3",
+    "port": "OUT 3",
+    "x": 61,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT2",
+    "port": "OUT 2",
+    "x": 66,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT1",
+    "port": "OUT 1",
+    "x": 71,
+    "y": 39
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 76.5,
+    "y": 39
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 81.5,
+    "y": 39
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 87,
+    "y": 39
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 92,
+    "y": 39
+   },
+   {
+    "t": "rj45",
+    "label": "ETH 1",
+    "x": 22.5,
+    "y": 36
+   },
+   {
+    "t": "rj45",
+    "label": "ETH 2",
+    "x": 28.5,
+    "y": 36
+   }
+  ],
+  "img": "D48X",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "ID48",
+  "re": "\\bID48\\b",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 16,
+    "y": 42
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT8",
+    "port": "OUT 8",
+    "x": 37,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT7",
+    "port": "OUT 7",
+    "x": 42.5,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT6",
+    "port": "OUT 6",
+    "x": 47.5,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT5",
+    "port": "OUT 5",
+    "x": 53,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT4",
+    "port": "OUT 4",
+    "x": 58.5,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT3",
+    "port": "OUT 3",
+    "x": 64,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT2",
+    "port": "OUT 2",
+    "x": 69.5,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT1",
+    "port": "OUT 1",
+    "x": 75,
+    "y": 38
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 81.5,
+    "y": 38
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 86.5,
+    "y": 38
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 91.5,
+    "y": 38
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 96.5,
+    "y": 38
+   },
+   {
+    "t": "rj45",
+    "label": "NET",
+    "x": 26,
+    "y": 37
+   }
+  ],
+  "img": "\\bID48\\b",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DM88",
+  "re": "DM88",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 15,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT8",
+    "port": "OUT 8",
+    "x": 14,
+    "y": 63
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT7",
+    "port": "OUT 7",
+    "x": 19.5,
+    "y": 63
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT6",
+    "port": "OUT 6",
+    "x": 25,
+    "y": 63
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT5",
+    "port": "OUT 5",
+    "x": 30.5,
+    "y": 63
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT4",
+    "port": "OUT 4",
+    "x": 36,
+    "y": 63
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT3",
+    "port": "OUT 3",
+    "x": 41.5,
+    "y": 63
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT2",
+    "port": "OUT 2",
+    "x": 47,
+    "y": 63
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT1",
+    "port": "OUT 1",
+    "x": 52.5,
+    "y": 63
+   },
+   {
+    "t": "xlrf",
+    "label": "IN8",
+    "port": "IN 8",
+    "x": 57,
+    "y": 63
+   },
+   {
+    "t": "xlrf",
+    "label": "IN7",
+    "port": "IN 7",
+    "x": 62.5,
+    "y": 63
+   },
+   {
+    "t": "xlrf",
+    "label": "IN6",
+    "port": "IN 6",
+    "x": 68,
+    "y": 63
+   },
+   {
+    "t": "xlrf",
+    "label": "IN5",
+    "port": "IN 5",
+    "x": 73.5,
+    "y": 63
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 79,
+    "y": 63
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 84.5,
+    "y": 63
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 90,
+    "y": 63
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 95.5,
+    "y": 63
+   },
+   {
+    "t": "xlrm",
+    "label": "AES O7-8",
+    "x": 56,
+    "y": 33
+   },
+   {
+    "t": "xlrm",
+    "label": "AES O5-6",
+    "x": 61.5,
+    "y": 33
+   },
+   {
+    "t": "xlrm",
+    "label": "AES O3-4",
+    "x": 67,
+    "y": 33
+   },
+   {
+    "t": "xlrm",
+    "label": "AES O1-2",
+    "x": 72.5,
+    "y": 33
+   },
+   {
+    "t": "xlrf",
+    "label": "AES I7-8",
+    "x": 78,
+    "y": 33
+   },
+   {
+    "t": "xlrf",
+    "label": "AES I5-6",
+    "x": 83.5,
+    "y": 33
+   },
+   {
+    "t": "xlrf",
+    "label": "AES I3-4",
+    "x": 89,
+    "y": 33
+   },
+   {
+    "t": "xlrf",
+    "label": "AES I1-2",
+    "x": 94.5,
+    "y": 33
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE P",
+    "x": 37,
+    "y": 33
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE S",
+    "x": 37,
+    "y": 45
+   },
+   {
+    "t": "rj45",
+    "label": "ETH 1",
+    "x": 47,
+    "y": 33
+   },
+   {
+    "t": "rj45",
+    "label": "ETH 2",
+    "x": 47,
+    "y": 45
+   },
+   {
+    "t": "bnc",
+    "label": "WCLK",
+    "x": 31,
+    "y": 45
+   },
+   {
+    "t": "block4",
+    "label": "GPI",
+    "x": 27,
+    "y": 35
+   }
+  ],
+  "img": "DM88",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "VMX88 L",
+  "re": "VMX88\\s?L\\b",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 19,
+    "y": 40
+   },
+   {
+    "t": "block3",
+    "label": "O8",
+    "port": "OUT 8",
+    "x": 49,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O7",
+    "port": "OUT 7",
+    "x": 54.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O6",
+    "port": "OUT 6",
+    "x": 59.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O5",
+    "port": "OUT 5",
+    "x": 64.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O4",
+    "port": "OUT 4",
+    "x": 49,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O3",
+    "port": "OUT 3",
+    "x": 54.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O2",
+    "port": "OUT 2",
+    "x": 59.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O1",
+    "port": "OUT 1",
+    "x": 64.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "I8",
+    "port": "IN 8",
+    "x": 70.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "I7",
+    "port": "IN 7",
+    "x": 76,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "I6",
+    "port": "IN 6",
+    "x": 81,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "I5",
+    "port": "IN 5",
+    "x": 86.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "I4",
+    "port": "IN 4",
+    "x": 70.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "I3",
+    "port": "IN 3",
+    "x": 76,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "I2",
+    "port": "IN 2",
+    "x": 81,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "I1",
+    "port": "IN 1",
+    "x": 86.5,
+    "y": 32
+   },
+   {
+    "t": "rj45",
+    "label": "ETH",
+    "x": 37,
+    "y": 45
+   },
+   {
+    "t": "block4",
+    "label": "GPI",
+    "x": 42,
+    "y": 45
+   }
+  ],
+  "img": "VMX88\\s?L\\b",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "VMX88",
+  "re": "VMX88",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 19,
+    "y": 40
+   },
+   {
+    "t": "block3",
+    "label": "O8",
+    "port": "OUT 8",
+    "x": 49,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O7",
+    "port": "OUT 7",
+    "x": 54.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O6",
+    "port": "OUT 6",
+    "x": 59.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O5",
+    "port": "OUT 5",
+    "x": 64.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O4",
+    "port": "OUT 4",
+    "x": 49,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O3",
+    "port": "OUT 3",
+    "x": 54.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O2",
+    "port": "OUT 2",
+    "x": 59.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O1",
+    "port": "OUT 1",
+    "x": 64.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "I8",
+    "port": "IN 8",
+    "x": 70.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "I7",
+    "port": "IN 7",
+    "x": 76,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "I6",
+    "port": "IN 6",
+    "x": 81,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "I5",
+    "port": "IN 5",
+    "x": 86.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "I4",
+    "port": "IN 4",
+    "x": 70.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "I3",
+    "port": "IN 3",
+    "x": 76,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "I2",
+    "port": "IN 2",
+    "x": 81,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "I1",
+    "port": "IN 1",
+    "x": 86.5,
+    "y": 32
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE P"
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE S"
+   },
+   {
+    "t": "rj45",
+    "label": "ETH",
+    "x": 37,
+    "y": 45
+   },
+   {
+    "t": "block4",
+    "label": "GPI",
+    "x": 42,
+    "y": 45
+   }
+  ],
+  "img": "VMX88\\s?L\\b",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "VMO16",
+  "re": "VMO16",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 19,
+    "y": 40
+   },
+   {
+    "t": "block3",
+    "label": "O16",
+    "port": "OUT 16",
+    "x": 49,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O15",
+    "port": "OUT 15",
+    "x": 54.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O14",
+    "port": "OUT 14",
+    "x": 59.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O13",
+    "port": "OUT 13",
+    "x": 64.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O12",
+    "port": "OUT 12",
+    "x": 49,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O11",
+    "port": "OUT 11",
+    "x": 54.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O10",
+    "port": "OUT 10",
+    "x": 59.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O9",
+    "port": "OUT 9",
+    "x": 64.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O8",
+    "port": "OUT 8",
+    "x": 70.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O7",
+    "port": "OUT 7",
+    "x": 76,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O6",
+    "port": "OUT 6",
+    "x": 81,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O5",
+    "port": "OUT 5",
+    "x": 86.5,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "O4",
+    "port": "OUT 4",
+    "x": 70.5,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O3",
+    "port": "OUT 3",
+    "x": 76,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O2",
+    "port": "OUT 2",
+    "x": 81,
+    "y": 32
+   },
+   {
+    "t": "block3",
+    "label": "O1",
+    "port": "OUT 1",
+    "x": 86.5,
+    "y": 32
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE P",
+    "x": 27.5,
+    "y": 36
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE S",
+    "x": 32.5,
+    "y": 36
+   },
+   {
+    "t": "rj45",
+    "label": "ETH",
+    "x": 37,
+    "y": 45
+   },
+   {
+    "t": "block4",
+    "label": "GPI",
+    "x": 42,
+    "y": 45
+   }
+  ],
+  "img": "VMO16",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "NST",
+  "re": "NST|D48S",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 12,
+    "y": 38
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT8",
+    "port": "OUT 8",
+    "x": 35.5,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT7",
+    "port": "OUT 7",
+    "x": 40.5,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT6",
+    "port": "OUT 6",
+    "x": 45.5,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT5",
+    "port": "OUT 5",
+    "x": 51,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT4",
+    "port": "OUT 4",
+    "x": 56,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT3",
+    "port": "OUT 3",
+    "x": 61,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT2",
+    "port": "OUT 2",
+    "x": 66,
+    "y": 39
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT1",
+    "port": "OUT 1",
+    "x": 71,
+    "y": 39
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 92,
+    "y": 39
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 87,
+    "y": 39
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 81.5,
+    "y": 39
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 76.5,
+    "y": 39
+   },
+   {
+    "t": "rj45",
+    "label": "NET"
+   }
+  ],
+  "img": "D48X",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "D24S",
+  "re": "D24S",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC"
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT4",
+    "port": "OUT 4"
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT3",
+    "port": "OUT 3"
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT2",
+    "port": "OUT 2"
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT1",
+    "port": "OUT 1"
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1"
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2"
+   },
+   {
+    "t": "rj45",
+    "label": "NET"
+   }
+  ],
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "PQM 13",
+  "re": "PQM\\s?13|SAE.*4\\s?[xX×]\\s?1300",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 16,
+    "y": 48
+   },
+   {
+    "t": "speakon",
+    "label": "CH4",
+    "port": "OUT 4",
+    "x": 24,
+    "y": 49
+   },
+   {
+    "t": "speakon",
+    "label": "CH3",
+    "port": "OUT 3",
+    "x": 31,
+    "y": 49
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 38,
+    "y": 49
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 45,
+    "y": 49
+   },
+   {
+    "t": "dip",
+    "label": "MODE",
+    "x": 52,
+    "y": 49
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 87,
+    "y": 49
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK1",
+    "port": "LNK 1",
+    "x": 92,
+    "y": 49
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 76.5,
+    "y": 49
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK2",
+    "port": "LNK 2",
+    "x": 81.5,
+    "y": 49
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 66,
+    "y": 49
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK3",
+    "port": "LNK 3",
+    "x": 71,
+    "y": 49
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 55.5,
+    "y": 49
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK4",
+    "port": "LNK 4",
+    "x": 60.5,
+    "y": 49
+   }
+  ],
+  "img": "PQM\\s?13|PQM",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "MA 800",
+  "re": "MA\\s?800\\b",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 33,
+    "y": 52
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 46,
+    "y": 56
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 46,
+    "y": 40
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 56,
+    "y": 40
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK1",
+    "port": "LNK 1",
+    "x": 51,
+    "y": 40
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 56,
+    "y": 57
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK2",
+    "port": "LNK 2",
+    "x": 51,
+    "y": 57
+   }
+  ],
+  "img": "\\bMA\\s?(800|1200|3600)\\b",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "MA 1200",
+  "re": "MA\\s?1200\\b",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 33,
+    "y": 52
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 46,
+    "y": 56
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 46,
+    "y": 40
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 56,
+    "y": 40
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK1",
+    "port": "LNK 1",
+    "x": 51,
+    "y": 40
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 56,
+    "y": 57
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK2",
+    "port": "LNK 2",
+    "x": 51,
+    "y": 57
+   }
+  ],
+  "img": "\\bMA\\s?(800|1200|3600)\\b",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "MA 3600",
+  "re": "MA\\s?3600\\b",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 33,
+    "y": 52
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 46,
+    "y": 56
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 46,
+    "y": 40
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 56,
+    "y": 40
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK1",
+    "port": "LNK 1",
+    "x": 51,
+    "y": 40
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 56,
+    "y": 57
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK2",
+    "port": "LNK 2",
+    "x": 51,
+    "y": 57
+   }
+  ],
+  "img": "\\bMA\\s?(800|1200|3600)\\b",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "IPD 1200",
+  "re": "IPD[\\s-]?1200",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 91,
+    "y": 45
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 61,
+    "y": 45
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 80,
+    "y": 45
+   },
+   {
+    "t": "binding",
+    "label": "BP1",
+    "port": "OUT 1",
+    "x": 69.5,
+    "y": 47
+   },
+   {
+    "t": "binding",
+    "label": "BP2",
+    "port": "OUT 2",
+    "x": 72.5,
+    "y": 47
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 5.5,
+    "y": 42
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK1",
+    "port": "LNK 1",
+    "x": 11.5,
+    "y": 42
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 17.5,
+    "y": 42
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK2",
+    "port": "LNK 2",
+    "x": 23.5,
+    "y": 42
+   },
+   {
+    "t": "xlrf",
+    "label": "AES",
+    "port": "IN 3",
+    "x": 30,
+    "y": 42
+   },
+   {
+    "t": "xlrm",
+    "label": "AES LNK",
+    "port": "LNK 3",
+    "x": 36,
+    "y": 42
+   },
+   {
+    "t": "rj45",
+    "label": "ETH",
+    "x": 41.5,
+    "y": 50
+   }
+  ],
+  "img": "IPD[\\s-]?(1200|2400)",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "IPD 2400",
+  "re": "IPD[\\s-]?2400",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 91,
+    "y": 45
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 61,
+    "y": 45
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 80,
+    "y": 45
+   },
+   {
+    "t": "binding",
+    "label": "BP1",
+    "port": "OUT 1",
+    "x": 69.5,
+    "y": 47
+   },
+   {
+    "t": "binding",
+    "label": "BP2",
+    "port": "OUT 2",
+    "x": 72.5,
+    "y": 47
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 5.5,
+    "y": 42
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK1",
+    "port": "LNK 1",
+    "x": 11.5,
+    "y": 42
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 17.5,
+    "y": 42
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK2",
+    "port": "LNK 2",
+    "x": 23.5,
+    "y": 42
+   },
+   {
+    "t": "xlrf",
+    "label": "AES",
+    "port": "IN 3",
+    "x": 30,
+    "y": 42
+   },
+   {
+    "t": "xlrm",
+    "label": "AES LNK",
+    "port": "LNK 3",
+    "x": 36,
+    "y": 42
+   },
+   {
+    "t": "rj45",
+    "label": "ETH",
+    "x": 41.5,
+    "y": 50
+   }
+  ],
+  "img": "IPD[\\s-]?(1200|2400)",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "PLM 12K44",
+  "re": "PLM\\s?12K44|PLM\\s?20K44",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 90,
+    "y": 22
+   },
+   {
+    "t": "speakon",
+    "label": "ALL 1-4",
+    "x": 10.5,
+    "y": 22
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 16.5,
+    "y": 22
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 19.5,
+    "y": 22
+   },
+   {
+    "t": "speakon",
+    "label": "CH3",
+    "port": "OUT 3",
+    "x": 25,
+    "y": 22
+   },
+   {
+    "t": "speakon",
+    "label": "CH4",
+    "port": "OUT 4",
+    "x": 28,
+    "y": 22
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 34,
+    "y": 22
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 39.5,
+    "y": 22
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 45,
+    "y": 22
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 50.5,
+    "y": 22
+   },
+   {
+    "t": "xlrf",
+    "label": "AES 1-2",
+    "port": "IN 5",
+    "x": 57,
+    "y": 22
+   },
+   {
+    "t": "xlrf",
+    "label": "AES 3-4",
+    "port": "IN 6",
+    "x": 62.5,
+    "y": 22
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE P",
+    "x": 68,
+    "y": 20
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE S",
+    "x": 73.5,
+    "y": 20
+   }
+  ],
+  "img": "PLM\\s?12K44",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DC 1048",
+  "re": "DC\\s?1048|XTA.*DC10",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 10.5,
+    "y": 55
+   },
+   {
+    "t": "block3",
+    "label": "RS485",
+    "x": 16.5,
+    "y": 62
+   },
+   {
+    "t": "block8",
+    "label": "GPIO",
+    "x": 24.5,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "OUT8",
+    "port": "OUT 8",
+    "x": 30.5,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "OUT7",
+    "port": "OUT 7",
+    "x": 36,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "OUT6",
+    "port": "OUT 6",
+    "x": 41.5,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "OUT5",
+    "port": "OUT 5",
+    "x": 47,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "OUT4",
+    "port": "OUT 4",
+    "x": 52.5,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "OUT3",
+    "port": "OUT 3",
+    "x": 58,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "OUT2",
+    "port": "OUT 2",
+    "x": 63.5,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "OUT1",
+    "port": "OUT 1",
+    "x": 69,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 77.5,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 83,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 88.5,
+    "y": 62
+   },
+   {
+    "t": "block3",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 94,
+    "y": 62
+   }
+  ],
+  "img": "DC\\s?1048",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "PRISM 12",
+  "re": "PRISM\\s?12|Symetrix.*12",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 15,
+    "y": 58
+   },
+   {
+    "t": "pwr",
+    "label": "O12",
+    "port": "OUT 12",
+    "x": 60.5,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O11",
+    "port": "OUT 11",
+    "x": 58.8,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O10",
+    "port": "OUT 10",
+    "x": 57.1,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O9",
+    "port": "OUT 9",
+    "x": 55.4,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O8",
+    "port": "OUT 8",
+    "x": 53.8,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O7",
+    "port": "OUT 7",
+    "x": 52.1,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O6",
+    "port": "OUT 6",
+    "x": 50.4,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O5",
+    "port": "OUT 5",
+    "x": 48.7,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O4",
+    "port": "OUT 4",
+    "x": 47,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O3",
+    "port": "OUT 3",
+    "x": 45.4,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O2",
+    "port": "OUT 2",
+    "x": 43.7,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O1",
+    "port": "OUT 1",
+    "x": 42,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I1",
+    "port": "IN 1",
+    "x": 64.5,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I2",
+    "port": "IN 2",
+    "x": 66.3,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I3",
+    "port": "IN 3",
+    "x": 68.1,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I4",
+    "port": "IN 4",
+    "x": 70,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I5",
+    "port": "IN 5",
+    "x": 71.8,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I6",
+    "port": "IN 6",
+    "x": 73.6,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I7",
+    "port": "IN 7",
+    "x": 75.4,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I8",
+    "port": "IN 8",
+    "x": 77.2,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I9",
+    "port": "IN 9",
+    "x": 79.1,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I10",
+    "port": "IN 10",
+    "x": 80.9,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I11",
+    "port": "IN 11",
+    "x": 82.7,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I12",
+    "port": "IN 12",
+    "x": 84.5,
+    "y": 62
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE",
+    "x": 25,
+    "y": 60
+   }
+  ],
+  "img": "PRISM\\s?12",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "Symetrix 8",
+  "re": "Symetrix.*8|PRISM\\s?8",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 17,
+    "y": 60
+   },
+   {
+    "t": "pwr",
+    "label": "O8",
+    "port": "OUT 8",
+    "x": 59.8,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O7",
+    "port": "OUT 7",
+    "x": 57.3,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O6",
+    "port": "OUT 6",
+    "x": 54.8,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O5",
+    "port": "OUT 5",
+    "x": 52.2,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O4",
+    "port": "OUT 4",
+    "x": 49.6,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O3",
+    "port": "OUT 3",
+    "x": 47.1,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O2",
+    "port": "OUT 2",
+    "x": 44.5,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "O1",
+    "port": "OUT 1",
+    "x": 42,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I1",
+    "port": "IN 1",
+    "x": 64.5,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I2",
+    "port": "IN 2",
+    "x": 67.2,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I3",
+    "port": "IN 3",
+    "x": 69.8,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I4",
+    "port": "IN 4",
+    "x": 72.5,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I5",
+    "port": "IN 5",
+    "x": 75.1,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I6",
+    "port": "IN 6",
+    "x": 77.8,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I7",
+    "port": "IN 7",
+    "x": 80.4,
+    "y": 62
+   },
+   {
+    "t": "pwr",
+    "label": "I8",
+    "port": "IN 8",
+    "x": 83,
+    "y": 62
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE",
+    "x": 25,
+    "y": 60
+   }
+  ],
+  "img": "Symetrix.*8|JUPITER\\s?8",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DSK 3.1",
+  "re": "DSK\\s?3\\.?1|DIGI.*DSK",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 7,
+    "y": 45
+   },
+   {
+    "t": "block3",
+    "label": "RS232",
+    "x": 21,
+    "y": 55
+   },
+   {
+    "t": "jack",
+    "label": "MIC C",
+    "port": "IN 7",
+    "x": 27,
+    "y": 30
+   },
+   {
+    "t": "rca",
+    "label": "AUX L",
+    "x": 32,
+    "y": 30
+   },
+   {
+    "t": "rca",
+    "label": "AUX R",
+    "x": 32,
+    "y": 60
+   },
+   {
+    "t": "rca",
+    "label": "V 1",
+    "x": 43,
+    "y": 30
+   },
+   {
+    "t": "rca",
+    "label": "V 2",
+    "x": 43,
+    "y": 60
+   },
+   {
+    "t": "rca",
+    "label": "V 3",
+    "x": 47,
+    "y": 30
+   },
+   {
+    "t": "rca",
+    "label": "V 4",
+    "x": 47,
+    "y": 60
+   },
+   {
+    "t": "xlrm",
+    "label": "SUB",
+    "port": "OUT 1",
+    "x": 53,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT R",
+    "port": "OUT 2",
+    "x": 60,
+    "y": 55
+   },
+   {
+    "t": "jack",
+    "label": "MIC 1",
+    "port": "IN 3",
+    "x": 65,
+    "y": 60
+   },
+   {
+    "t": "jack",
+    "label": "MIC 2",
+    "port": "IN 4",
+    "x": 69,
+    "y": 60
+   },
+   {
+    "t": "xlrf",
+    "label": "BGM",
+    "port": "IN 1",
+    "x": 74,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT L",
+    "port": "OUT 3",
+    "x": 80,
+    "y": 55
+   },
+   {
+    "t": "jack",
+    "label": "MIC 3",
+    "port": "IN 5",
+    "x": 85,
+    "y": 60
+   },
+   {
+    "t": "jack",
+    "label": "MIC 4",
+    "port": "IN 6",
+    "x": 89,
+    "y": 60
+   },
+   {
+    "t": "xlrf",
+    "label": "MIC IN",
+    "port": "IN 2",
+    "x": 94,
+    "y": 55
+   }
+  ],
+  "img": "DSK\\s?3",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "XTA DNA/APA",
+  "re": "XTA\\s*(DNA|APA)|DNA\\s?20",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 24,
+    "y": 37
+   },
+   {
+    "t": "speakon",
+    "label": "CH4",
+    "port": "OUT 4",
+    "x": 40,
+    "y": 55
+   },
+   {
+    "t": "speakon",
+    "label": "CH3",
+    "port": "OUT 3",
+    "x": 53.5,
+    "y": 55
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 73,
+    "y": 55
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 86,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 88.5,
+    "y": 30
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK1",
+    "port": "LNK 1",
+    "x": 84,
+    "y": 36
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 79.5,
+    "y": 30
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK2",
+    "port": "LNK 2",
+    "x": 75,
+    "y": 36
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 70.5,
+    "y": 30
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK3",
+    "port": "LNK 3",
+    "x": 66,
+    "y": 36
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 61.5,
+    "y": 30
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK4",
+    "port": "LNK 4",
+    "x": 57,
+    "y": 36
+   },
+   {
+    "t": "rj45",
+    "label": "ETH",
+    "x": 45,
+    "y": 29
+   }
+  ],
+  "img": "DNA\\s?\\d|XTA\\s*DNA|DNA d",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "IPX 10:8",
+  "re": "IPX\\s?10\\s?:?\\s?8",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 7,
+    "y": 62
+   },
+   {
+    "t": "block2",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 43,
+    "y": 28
+   },
+   {
+    "t": "block2",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 43,
+    "y": 45
+   },
+   {
+    "t": "block2",
+    "label": "CH3",
+    "port": "OUT 3",
+    "x": 43,
+    "y": 60
+   },
+   {
+    "t": "block2",
+    "label": "CH4",
+    "port": "OUT 4",
+    "x": 43,
+    "y": 76
+   },
+   {
+    "t": "block2",
+    "label": "CH5",
+    "port": "OUT 5",
+    "x": 33,
+    "y": 28
+   },
+   {
+    "t": "block2",
+    "label": "CH6",
+    "port": "OUT 6",
+    "x": 33,
+    "y": 45
+   },
+   {
+    "t": "block2",
+    "label": "CH7",
+    "port": "OUT 7",
+    "x": 33,
+    "y": 60
+   },
+   {
+    "t": "block2",
+    "label": "CH8",
+    "port": "OUT 8",
+    "x": 33,
+    "y": 76
+   },
+   {
+    "t": "block3",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 82.5,
+    "y": 22
+   },
+   {
+    "t": "block3",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 79,
+    "y": 22
+   },
+   {
+    "t": "block3",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 82.5,
+    "y": 40
+   },
+   {
+    "t": "block3",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 79,
+    "y": 40
+   },
+   {
+    "t": "block3",
+    "label": "IN5",
+    "port": "IN 5",
+    "x": 82.5,
+    "y": 58
+   },
+   {
+    "t": "block3",
+    "label": "IN6",
+    "port": "IN 6",
+    "x": 79,
+    "y": 58
+   },
+   {
+    "t": "block3",
+    "label": "IN7",
+    "port": "IN 7",
+    "x": 82.5,
+    "y": 78
+   },
+   {
+    "t": "block3",
+    "label": "IN8",
+    "port": "IN 8",
+    "x": 79,
+    "y": 78
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE P",
+    "x": 93,
+    "y": 25
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE S",
+    "x": 93,
+    "y": 62
+   },
+   {
+    "t": "block8",
+    "label": "GPIO",
+    "x": 86,
+    "y": 62
+   }
+  ],
+  "img": "IPX\\s?10\\s?:?\\s?8",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "IPX 5/10/20:4",
+  "re": "IPX\\s?(5|10|20)\\s?:?\\s?4|IPX\\s?5\\b|IPX10\\b|IPX\\s?20\\b",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 7,
+    "y": 62
+   },
+   {
+    "t": "block2",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 43,
+    "y": 28
+   },
+   {
+    "t": "block2",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 43,
+    "y": 45
+   },
+   {
+    "t": "block2",
+    "label": "CH3",
+    "port": "OUT 3",
+    "x": 43,
+    "y": 60
+   },
+   {
+    "t": "block2",
+    "label": "CH4",
+    "port": "OUT 4",
+    "x": 43,
+    "y": 76
+   },
+   {
+    "t": "block3",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 82.5,
+    "y": 22
+   },
+   {
+    "t": "block3",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 79,
+    "y": 22
+   },
+   {
+    "t": "block3",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 82.5,
+    "y": 40
+   },
+   {
+    "t": "block3",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 79,
+    "y": 40
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE P",
+    "x": 93,
+    "y": 25
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE S",
+    "x": 93,
+    "y": 62
+   },
+   {
+    "t": "block8",
+    "label": "GPIO",
+    "x": 86,
+    "y": 62
+   }
+  ],
+  "img": "IPX\\s?10\\s?:?\\s?8",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "IX 15:4",
+  "re": "\\bIX\\s?15\\s?:?\\s?4|\\bIX\\s?15\\b",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 6,
+    "y": 45
+   },
+   {
+    "t": "block2",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 65,
+    "y": 58
+   },
+   {
+    "t": "block2",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 62.5,
+    "y": 58
+   },
+   {
+    "t": "block2",
+    "label": "CH3",
+    "port": "OUT 3",
+    "x": 60,
+    "y": 58
+   },
+   {
+    "t": "block2",
+    "label": "CH4",
+    "port": "OUT 4",
+    "x": 57.5,
+    "y": 58
+   },
+   {
+    "t": "block3",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 95.5,
+    "y": 22
+   },
+   {
+    "t": "block3",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 93,
+    "y": 22
+   },
+   {
+    "t": "block3",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 90.5,
+    "y": 22
+   },
+   {
+    "t": "block3",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 88,
+    "y": 22
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE P",
+    "x": 90.5,
+    "y": 58
+   },
+   {
+    "t": "rj45",
+    "label": "DANTE S",
+    "x": 95.5,
+    "y": 58
+   },
+   {
+    "t": "block8",
+    "label": "GPIO",
+    "x": 84,
+    "y": 55
+   }
+  ],
+  "img": "\\bIX\\s?15",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DYNAMIQ 450",
+  "re": "DYNAMIQ\\s?450",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 13.5,
+    "y": 78
+   },
+   {
+    "t": "speakon",
+    "label": "B",
+    "port": "OUT 2",
+    "x": 41,
+    "y": 78
+   },
+   {
+    "t": "speakon",
+    "label": "A",
+    "port": "OUT 1",
+    "x": 49,
+    "y": 78
+   },
+   {
+    "t": "xlrf",
+    "label": "IN B",
+    "port": "IN 2",
+    "x": 76,
+    "y": 80
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK B",
+    "port": "LNK 2",
+    "x": 80,
+    "y": 80
+   },
+   {
+    "t": "xlrf",
+    "label": "IN A",
+    "port": "IN 1",
+    "x": 87,
+    "y": 80
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK A",
+    "port": "LNK 1",
+    "x": 91,
+    "y": 80
+   }
+  ],
+  "img": "DYNAMIQ\\s?450",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DS 458",
+  "re": "DS\\s?458",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 15,
+    "y": 50
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT8",
+    "port": "OUT 8",
+    "x": 23,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT7",
+    "port": "OUT 7",
+    "x": 28,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT6",
+    "port": "OUT 6",
+    "x": 33,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT5",
+    "port": "OUT 5",
+    "x": 38,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT4",
+    "port": "OUT 4",
+    "x": 43,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT3",
+    "port": "OUT 3",
+    "x": 48,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT2",
+    "port": "OUT 2",
+    "x": 53,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT1",
+    "port": "OUT 1",
+    "x": 58,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 65,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 70.5,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 76,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 81.5,
+    "y": 55
+   },
+   {
+    "t": "rj45",
+    "label": "RS485",
+    "x": 85,
+    "y": 45
+   },
+   {
+    "t": "rj45",
+    "label": "NET",
+    "x": 89,
+    "y": 55
+   }
+  ],
+  "img": "DS\\s?458",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DS 216",
+  "re": "DS\\s?216",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 8,
+    "y": 50
+   },
+   {
+    "t": "usb",
+    "label": "USB",
+    "x": 32,
+    "y": 60
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT6",
+    "port": "OUT 6",
+    "x": 40.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT5",
+    "port": "OUT 5",
+    "x": 48,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT4",
+    "port": "OUT 4",
+    "x": 55.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT3",
+    "port": "OUT 3",
+    "x": 63,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT2",
+    "port": "OUT 2",
+    "x": 70.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT1",
+    "port": "OUT 1",
+    "x": 78,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 86,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 93.5,
+    "y": 55
+   }
+  ],
+  "img": "DS\\s?216",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DMX 208 L",
+  "re": "DMX\\s?208\\s?L",
+  "items": [
+   {
+    "t": "power",
+    "label": "DC",
+    "x": 21.5,
+    "y": 42
+   },
+   {
+    "t": "rj45",
+    "label": "NET A",
+    "x": 17,
+    "y": 42
+   },
+   {
+    "t": "rj45",
+    "label": "NET B",
+    "x": 17,
+    "y": 60
+   },
+   {
+    "t": "block8",
+    "label": "GPIO",
+    "x": 42.5,
+    "y": 50
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT4",
+    "port": "OUT 4",
+    "x": 49.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT3",
+    "port": "OUT 3",
+    "x": 55.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT2",
+    "port": "OUT 2",
+    "x": 61.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT1",
+    "port": "OUT 1",
+    "x": 67.5,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 73.5,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 79,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 84.5,
+    "y": 55
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 90,
+    "y": 55
+   }
+  ],
+  "img": "DMX\\s?208\\s?L",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DMX 0808",
+  "re": "DMX\\s?0808",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 12,
+    "y": 48
+   },
+   {
+    "t": "rj45",
+    "label": "NET A",
+    "x": 21,
+    "y": 42
+   },
+   {
+    "t": "rj45",
+    "label": "NET B",
+    "x": 21,
+    "y": 58
+   },
+   {
+    "t": "block3",
+    "label": "RS232",
+    "x": 25.5,
+    "y": 58
+   },
+   {
+    "t": "block8",
+    "label": "GPIO",
+    "x": 37,
+    "y": 58
+   },
+   {
+    "t": "block3",
+    "label": "O1",
+    "port": "OUT 1",
+    "x": 68,
+    "y": 41.5,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "O2",
+    "port": "OUT 2",
+    "x": 68,
+    "y": 72,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "O3",
+    "port": "OUT 3",
+    "x": 65.5,
+    "y": 41.5,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "O4",
+    "port": "OUT 4",
+    "x": 65.5,
+    "y": 72,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "O5",
+    "port": "OUT 5",
+    "x": 63,
+    "y": 41.5,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "O6",
+    "port": "OUT 6",
+    "x": 63,
+    "y": 72,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "O7",
+    "port": "OUT 7",
+    "x": 60.5,
+    "y": 41.5,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "O8",
+    "port": "OUT 8",
+    "x": 60.5,
+    "y": 72,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "I1",
+    "port": "IN 1",
+    "x": 91.4,
+    "y": 41.5,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "I2",
+    "port": "IN 2",
+    "x": 91.4,
+    "y": 72,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "I3",
+    "port": "IN 3",
+    "x": 88.9,
+    "y": 41.5,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "I4",
+    "port": "IN 4",
+    "x": 88.9,
+    "y": 72,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "I5",
+    "port": "IN 5",
+    "x": 86.4,
+    "y": 41.5,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "I6",
+    "port": "IN 6",
+    "x": 86.4,
+    "y": 72,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "I7",
+    "port": "IN 7",
+    "x": 83.9,
+    "y": 41.5,
+    "w": 2.5
+   },
+   {
+    "t": "block3",
+    "label": "I8",
+    "port": "IN 8",
+    "x": 83.9,
+    "y": 72,
+    "w": 2.5
+   }
+  ],
+  "img": "DMX\\s?0808",
+  "src": "editor",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "K7",
+  "re": "\\bK7\\b",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 9.5,
+    "y": 50
+   },
+   {
+    "t": "jack",
+    "label": "MIC A1",
+    "port": "IN 1",
+    "x": 8.5,
+    "y": 60,
+    "side": "front"
+   },
+   {
+    "t": "jack",
+    "label": "MIC A2",
+    "port": "IN 2",
+    "x": 13,
+    "y": 60,
+    "side": "front"
+   },
+   {
+    "t": "jack",
+    "label": "MIC B1",
+    "port": "IN 3",
+    "x": 17.5,
+    "y": 60,
+    "side": "front"
+   },
+   {
+    "t": "rca",
+    "label": "BGM L",
+    "port": "IN 4",
+    "x": 45.9,
+    "y": 27
+   },
+   {
+    "t": "rca",
+    "label": "BGM R",
+    "port": "IN 5",
+    "x": 45.9,
+    "y": 62
+   },
+   {
+    "t": "rca",
+    "label": "IN1 L",
+    "port": "IN 6",
+    "x": 49.2,
+    "y": 27
+   },
+   {
+    "t": "rca",
+    "label": "IN1 R",
+    "port": "IN 7",
+    "x": 49.2,
+    "y": 62
+   },
+   {
+    "t": "rca",
+    "label": "IN2 L",
+    "port": "IN 8",
+    "x": 52,
+    "y": 27
+   },
+   {
+    "t": "rca",
+    "label": "IN2 R",
+    "port": "IN 9",
+    "x": 52,
+    "y": 62
+   },
+   {
+    "t": "rca",
+    "label": "REC L",
+    "port": "OUT 7",
+    "x": 55.2,
+    "y": 27
+   },
+   {
+    "t": "rca",
+    "label": "REC R",
+    "port": "OUT 8",
+    "x": 55.2,
+    "y": 62
+   },
+   {
+    "t": "rca",
+    "label": "AUX",
+    "port": "IN 10",
+    "x": 58.2,
+    "y": 45
+   },
+   {
+    "t": "rca",
+    "label": "COAX",
+    "port": "IN 11",
+    "x": 35.7,
+    "y": 26
+   },
+   {
+    "t": "rca",
+    "label": "V OUT",
+    "x": 38.7,
+    "y": 27
+   },
+   {
+    "t": "rca",
+    "label": "V BGV",
+    "x": 42.8,
+    "y": 27
+   },
+   {
+    "t": "rca",
+    "label": "V IN2",
+    "x": 38.7,
+    "y": 62
+   },
+   {
+    "t": "rca",
+    "label": "V IN1",
+    "x": 42.8,
+    "y": 62
+   },
+   {
+    "t": "fiber",
+    "label": "OPT",
+    "x": 35.7,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "MAIN R",
+    "port": "OUT 1",
+    "x": 60.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "MAIN L",
+    "port": "OUT 2",
+    "x": 66.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "CENTER",
+    "port": "OUT 3",
+    "x": 72.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "SUB",
+    "port": "OUT 4",
+    "x": 78.5,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "SURR R",
+    "port": "OUT 5",
+    "x": 84,
+    "y": 55
+   },
+   {
+    "t": "xlrm",
+    "label": "SURR L",
+    "port": "OUT 6",
+    "x": 90,
+    "y": 55
+   },
+   {
+    "t": "jack",
+    "label": "MIC",
+    "port": "IN 8",
+    "x": 95,
+    "y": 50
+   },
+   {
+    "t": "usb",
+    "label": "USB",
+    "x": 92,
+    "y": 50,
+    "side": "front"
+   }
+  ],
+  "img": "\\bK7\\b",
+  "src": "migrated",
+  "updated": "2026-09-10"
+ },
+ {
+  "name": "DS 418",
+  "re": "DS\\s?418|418E|DIGITAL LOUDSPEAKER|processor|פרוססור|DSP",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC"
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1"
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2"
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT1",
+    "port": "OUT 1"
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT2",
+    "port": "OUT 2"
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT3",
+    "port": "OUT 3"
+   },
+   {
+    "t": "xlrm",
+    "label": "OUT4",
+    "port": "OUT 4"
+   },
+   {
+    "t": "rj45",
+    "label": "NET"
+   }
+  ],
+  "src": "migrated",
+  "updated": "2026-09-10"
+ }
+]

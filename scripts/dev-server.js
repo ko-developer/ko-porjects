@@ -129,6 +129,41 @@ createServer(async (req, res) => {
     });
     return;
   }
+  /* פריסות גב מוצרים — data/rear_layouts.json: מה שהעורך על התמונה שומר (מחברים, מיקומים, פורטים). upsert / remove */
+  if (path === '/api/rear-layout' && req.method === 'POST') {
+    if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        const name = String(b.name || '').trim().slice(0, 80); if (!name) throw new Error('חסר שם דגם');
+        const file = 'data/rear_layouts.json';
+        const list = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : [];
+        let rec = null;
+        if (b.remove) {
+          const k = list.findIndex(x => x.name === name); if (k >= 0) list.splice(k, 1);
+        } else {
+          if (!Array.isArray(b.items)) throw new Error('חסרים מחברים');
+          const items = b.items.map(it => {
+            const o = { t: String(it.t || 'xlrf').slice(0, 16), label: String(it.label || '').slice(0, 24) };
+            if (it.port) o.port = String(it.port).slice(0, 12);
+            for (const k of ['x', 'y', 'w']) if (typeof it[k] === 'number' && isFinite(it[k])) o[k] = Math.round(it[k] * 10) / 10;
+            if (it.side === 'front') o.side = 'front';
+            return o;
+          });
+          const re = String(b.re || name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).slice(0, 200);
+          try { new RegExp(re, 'i'); } catch { throw new Error('regex לא תקין'); }
+          rec = { name, re, items, img: b.img || undefined, src: 'editor', updated: new Date().toISOString().slice(0, 10) };
+          const k = list.findIndex(x => x.name === name || x.re === re);
+          if (k >= 0) list[k] = { ...list[k], ...rec }; else list.unshift(rec);   /* דגם חדש = ספציפי → לפני הכלליים */
+        }
+        writeFileSync(file, JSON.stringify(list, null, 1));
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ ok: true, rec }));
+      } catch (e) { res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: String(e.message || e) })); }
+    });
+    return;
+  }
   /* קציר נתונים מקישור שהודבק בכרטיס פריט במטריצה (scripts/harvest.js) */
   if (path === '/api/harvest' && req.method === 'POST') {
     if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }

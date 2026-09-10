@@ -690,6 +690,20 @@ function repDomToPng(el, w, h) {
     } catch (e) { rej(e); }
   });
 }
+/* url(...) של תמונות גב → data: URL (במטמון לכל הריצה) */
+window.__rearImgData = window.__rearImgData || {};
+async function repInlineBg(bg) {
+  let out = String(bg || '');
+  for (const m of [...out.matchAll(/url\((['"]?)([^'")]+)\1\)/g)]) {
+    const u = m[2]; if (u.startsWith('data:')) continue;
+    if (window.__rearImgData[u] === undefined) {
+      try { const b = await (await fetch(u)).blob(); window.__rearImgData[u] = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(''); fr.readAsDataURL(b); }); }
+      catch { window.__rearImgData[u] = ''; }
+    }
+    if (window.__rearImgData[u]) out = out.split(u).join(window.__rearImgData[u]);
+  }
+  return out;
+}
 /* גב הארון כמו בתכנה — שתי תמונות: חיבורים פנימיים בלבד, וקווים היוצאים מהארון בלבד */
 async function repRackRearImages(rk) {
   const keep = { rear: rk.rear, min: rk.min, hideInt: rk.hideInt };
@@ -705,6 +719,8 @@ async function repRackRearImages(rk) {
       const w = Math.round(cr.width / (K * Z)), h = Math.round(cr.height / (K * Z));
       const clone = ch.cloneNode(true);
       clone.style.transform = 'none'; clone.style.position = 'relative'; clone.style.width = w + 'px'; clone.style.height = h + 'px';
+      /* תמונות הגב (רקע CSS של היחידה) — מוטמעות כ-data: כי בתוך ה-SVG של הדוח משאבים חיצוניים חסומים */
+      for (const pnl of clone.querySelectorAll('.runit-panel.photo')) pnl.style.backgroundImage = await repInlineBg(pnl.style.backgroundImage);
       out[f] = await repDomToPng(clone, w, h);
     }
   } catch (e) { console.warn('rack rear capture failed', e); }
