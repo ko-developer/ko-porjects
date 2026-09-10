@@ -2075,7 +2075,7 @@ function renderNodes() {
       /* לחיצה על האייקון עצמו פותחת את הפאנל (גרירה עדיין עובדת) */
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}${n.mount ? ' · ' + esc(n.mount) : ''} · לחץ לפתיחה" style="cursor:grab;position:relative">
         <div class="mnum" style="background:#c9502e">${p.holes.length}</div>
-        <div class="mic" style="border-color:#c9502e"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="#c9502e" stroke-width="2"/><circle cx="8" cy="12" r="2" fill="#c9502e"/><circle cx="14" cy="12" r="2" fill="#c9502e"/></svg></div>
+        <div class="mic" style="border-color:#c9502e">${isDjNode(n) ? '<b style="font-size:11px;font-weight:900;color:#c9502e;letter-spacing:.5px;line-height:18px;display:block">DJ</b>' : '<svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="#c9502e" stroke-width="2"/><circle cx="8" cy="12" r="2" fill="#c9502e"/><circle cx="14" cy="12" r="2" fill="#c9502e"/></svg>'}</div>
         ${cnt ? `<div class="mnum" style="background:#0f6e56;left:auto;right:-6px;top:-6px">${cnt}</div>` : ''}</div>
         ${needsPower(n) ? `<div title="${DJ_POWER_TXT}" style="position:absolute;left:50%;top:100%;transform:translate(-50%,3px);white-space:nowrap;background:#fff3cd;color:#7a4b00;border:1.5px solid #e0a100;border-radius:6px;font-size:9.5px;font-weight:800;padding:1px 5px;line-height:1.3;pointer-events:none;z-index:3">⚡ נקודת חשמל 16A-N6 · שדה סאונד</div>` : ''}`;
       d.addEventListener('pointerdown', e => {
@@ -3278,6 +3278,8 @@ function renderWires() {
   }
   /* המידות ששימשו לזיהוי האוטומטי — לוודא בעין שהוא נכון */
   if (typeof asMarksSVG === 'function') out += asMarksSVG();
+  /* כיתובי התכנית שנקראו ב-OCR — לפי קטגוריה */
+  if (typeof ptMarksSVG === 'function') out += ptMarksSVG();
   /* קו כיול חי — רואים בדיוק מה מודדים */
   if (calMode && calMode.pts.length) {
     const p1 = calMode.pts[0];
@@ -6157,6 +6159,7 @@ function renderPanel() {
         <button style="width:100%;margin-top:8px;${z._sysOpen ? 'background:#0f6e56;color:#fff;font-weight:700' : ''}" onclick="(P.zones.find(x=>x.id==='${z.id}'))._sysOpen=${z._sysOpen ? 'false' : 'true'};render()">🔧 בנה מערכת אוטומטית לאזור ${z._sysOpen ? '▲' : '▼'}</button>
         ${z._sysOpen ? zoneSystemBuilder(z) : ''}
         ${typeof sdBassLineHTML === 'function' ? sdBassLineHTML(z) : ''}
+        ${typeof ptZoneLineHTML === 'function' ? ptZoneLineHTML(z) : ''}
         ${zoneItemsList(z)}
         <p class="muted" style="margin-top:8px">גרירת התווית מזיזה את האזור · הריבוע בפינה משנה גודל</p>
         <button style="width:100%;margin-top:6px" onclick="selZone=null;render()">✔ סגור</button>
@@ -6204,6 +6207,7 @@ function renderPanel() {
           <button class="primary" style="width:100%;${calMode ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : 'בצע כיול ידני'}</button>
           ${P.bg && !P.autoScale && typeof autoScaleFromBg === 'function' ? `<button style="width:100%;margin-top:6px" onclick="autoScaleFromBg()">🔍 זהה קנה מידה אוטומטית (OCR מקומי, בלי AI)</button>` : ''}
         </div>
+        ${typeof ptPanelHTML === 'function' ? ptPanelHTML() : ''}
         <button style="width:100%;margin-bottom:6px" title="הוספת קירות ואובייקטים משורטטים מעל תכנית הרקע" onclick="sketchStart()">🖊 ${P.sketch && ((P.sketch.walls || []).length || (P.sketch.objs || []).length) ? 'ערוך את השרטוט' : 'שרטט מעל התכנית — קירות ואובייקטים'}</button>
         <button style="width:100%;margin-bottom:6px" onclick="centerPlan()" title="מזיז את התכנית למרכז הקנבס — וכל המוקדים, האזורים והקווים זזים איתה">⌖ מרכז את התכנית בקנבס</button>
         <button style="width:100%;margin-bottom:6px;background:#f3d9d2;color:#8c2f16" onclick="removeBg()">הסר רקע</button>`;
@@ -8979,7 +8983,7 @@ async function autoZones() {
   try {
     const j = await claudeMsg([{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: P.bg.split(',')[1] } },
-          { type: 'text', text: 'זו תכנית אדריכלית של חלל אירוח/מסחרי. זהה אזורי סאונד לוגיים (רחבת ריקודים, במה, בר, אזור ישיבה/מסעדה, חוץ/מרפסת, כניסה). דלג על מטבחים, שירותים ומחסנים. החזר JSON בלבד ללא שום טקסט נוסף: {"zones":[{"name":"שם בעברית","usage":"מוזיקת רקע|מוזיקה לבר|מסעדה + DJ|הופעות חיות|מוזיקת ריקודים|מועדון על מלא","rx":0.1,"ry":0.2,"rw":0.3,"rh":0.25}]} — rx,ry מיקום יחסי (0-1) של הפינה השמאלית-העליונה של האזור בתמונה, rw,rh רוחב וגובה יחסיים. עד 8 אזורים.' }
+          { type: 'text', text: 'זו תכנית אדריכלית של חלל אירוח/מסחרי. זהה אזורי סאונד לוגיים (רחבת ריקודים, במה, בר, אזור ישיבה/מסעדה, חוץ/מרפסת, כניסה). דלג על מטבחים, שירותים ומחסנים. החזר JSON בלבד ללא שום טקסט נוסף: {"zones":[{"name":"שם בעברית","usage":"מוזיקת רקע|מוזיקה לבר|מסעדה + DJ|הופעות חיות|מוזיקת ריקודים|מועדון על מלא","rx":0.1,"ry":0.2,"rw":0.3,"rh":0.25}]} — rx,ry מיקום יחסי (0-1) של הפינה השמאלית-העליונה של האזור בתמונה, rw,rh רוחב וגובה יחסיים. עד 8 אזורים.' + (typeof ptHintText === 'function' ? ptHintText() : '') }
     ] }], 1500);
     const n = applyZonesJson(claudeJson(j).zones);
     alert('✓ זוהו ' + n + ' אזורים — ערוך שמות ותכליות בטבלה למטה או בלחיצה על אזור');
