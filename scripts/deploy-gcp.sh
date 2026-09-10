@@ -54,7 +54,7 @@ envsync() {
 }
 envpush() {
   [ -f .env ] || { echo "no .env"; return 1; }
-  gh secret set CLOUD_ENV --repo ko-developer/ko-porjects --body-file .env && echo "== .env uploaded to GitHub secret CLOUD_ENV — the next push to main puts it on the server (or run: gh workflow run deploy.yml)"
+  gh secret set CLOUD_ENV --repo ko-developer/ko-porjects < .env && echo "== .env uploaded to GitHub secret CLOUD_ENV — the next push to main puts it on the server (or run: gh workflow run deploy.yml)"
 }
 seed() {
   local tmp; tmp=$(mktemp -d)
