@@ -57,7 +57,7 @@ grep -q '^ANTHROPIC_API_KEY=' .env \
 ## ענן — Cloud Run (GCP scripts-298706, me-west1) — פריסה אוטומטית מ-GitHub
 - כל push ל-`main` → `.github/workflows/deploy.yml` → `scripts/deploy-gcp.sh deploy` (Cloud Build מהקוד, `Dockerfile`). אימות ב-Workload Identity Federation (בלי מפתחות). ידנית: `scripts/deploy-gcp.sh setup|seed|deploy|pull|owner`.
 - מה רץ: שרת הלגאסי `scripts/dev-server.js` עם `PREBUILT=1` (dist נבנה בתמונה). כל מה שהשרת כותב יושב בדלי `gs://scripts-298706-ko-projects-data` שמורכב ב-`/mnt/data` (`scripts/cloud-entrypoint.sh` זורע מהריפו ומקשר `data/<x>` → הדלי). פרויקטים: `STORE_JSON_DIR` → JSON לפרויקט (`scripts/db.js`, לא SQLite). מקסימום מופע אחד (כותב יחיד).
-- סודות (Secret Manager): `ANTHROPIC_API_KEY`, `ERP_MCP_URL`, `ERP_MCP_TOKEN` — `setup` מעלה אותם מ-.env. הבעלים נכנס מבחוץ רק דרך קישור הבעלים (`deploy-gcp.sh owner`). עריכות בענן (פריסות גב, תמונות, מצב הטבלאות) חוזרות לריפו עם `pull`.
+- משתני סביבה/סודות: הסוד `CLOUD_ENV` ב-GitHub = תוכן .env. ה-workflow מסנכרן כל KEY=value ל-Secret Manager (label `app=ko-projects`) ו-deploy מצרף את כולם לשרת. הוספת משתנה: שורה ב-.env → `scripts/deploy-gcp.sh envpush` → push. הבעלים נכנס מבחוץ רק דרך קישור הבעלים (`deploy-gcp.sh owner`). עריכות בענן (פריסות גב, תמונות, מצב הטבלאות) חוזרות לריפו עם `pull`.
 
 ## Commands
 - `npm run dev` — SvelteKit dev server → http://localhost:4177 (loads/saves projects via SQLite)

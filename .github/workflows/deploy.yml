@@ -28,6 +28,14 @@ jobs:
           workload_identity_provider: projects/226076433415/locations/global/workloadIdentityPools/github/providers/github-oidc
           service_account: ko-projects-deployer@scripts-298706.iam.gserviceaccount.com
       - uses: google-github-actions/setup-gcloud@v2
+      - name: Sync env → Secret Manager (GitHub secret CLOUD_ENV = the .env file)
+        if: ${{ env.CLOUD_ENV != '' }}
+        env:
+          CLOUD_ENV: ${{ secrets.CLOUD_ENV }}
+        run: |
+          f=$(mktemp); printf '%s\n' "$CLOUD_ENV" > "$f"
+          bash scripts/deploy-gcp.sh envsync "$f"
+          rm -f "$f"
       - name: Deploy
         env:
           CI: "1"
