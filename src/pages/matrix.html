@@ -1138,7 +1138,8 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:v
   }, true);
   /* \u05db\u05e4\u05ea\u05d5\u05e8 \u05d7\u05d6\u05e8\u05d4 \u05dc-KO Projects \u2014 \u05d4\u05db\u05ea\u05d5\u05d1\u05ea \u05e0\u05e9\u05de\u05e8\u05ea \u05de\u05e7\u05d5\u05de\u05d9\u05ea */
   (function () {
-    var DEF = 'http://localhost:4177';
+    /* הדף מוגש מאותו שרת כמו האפליקציה (מקומי או Cloud Run) — ברירת המחדל היא המקור הנוכחי; localhost רק לקובץ סטטי */
+    var DEF = /^https?:/.test(location.origin || '') ? location.origin : 'http://localhost:4177';
     function koUrl() { try { return localStorage.getItem('koUrl') || DEF; } catch (e) { return DEF; } }
     var links = [document.getElementById('kolink'), document.getElementById('kolink2')].filter(Boolean);
     var g = document.getElementById('koset');

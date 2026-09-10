@@ -71,8 +71,8 @@ deploy() {
     --allow-unauthenticated --execution-environment gen2 --min-instances 0 --max-instances 1 --concurrency 40 \
     --memory 1Gi --cpu 1 --timeout 300 --service-account "$SA" \
     --add-volume "name=data,type=cloud-storage,bucket=$BUCKET" --add-volume-mount "volume=data,mount-path=/mnt/data" \
-    --set-env-vars "DATA_DIR=/mnt/data,STORE_JSON_DIR=/mnt/data/projects,PREBUILT=1" \
-    ${secrets:+--set-secrets "$secrets"} --quiet
+    --update-env-vars "DATA_DIR=/mnt/data,STORE_JSON_DIR=/mnt/data/projects,PREBUILT=1" \
+    ${secrets:+--update-secrets "$secrets"} --quiet          # update-* ולא set-*: לא מוחק PUBLIC_URL וסודות קיימים
   local url; url=$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format 'value(status.url)')
   local cur; cur=$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format 'value(spec.template.spec.containers[0].env)' | tr ',' '\n' | grep -o "PUBLIC_URL[^}]*" || true)
   if [[ "$cur" != *"$url"* ]]; then gcloud run services update "$SERVICE" --project "$PROJECT" --region "$REGION" --update-env-vars "PUBLIC_URL=$url" --quiet >/dev/null; fi
