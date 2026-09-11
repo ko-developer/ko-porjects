@@ -90,7 +90,8 @@ function gcsStorage(bucket) {
   return {
     kind: 'gcs', label: 'gs://' + bucket,
     async check() {
-      const r = await call(`${B}?fields=name`);
+      /* רשימת אובייקט אחד ולא מטא-דאטה של הדלי — כך מספיקה הרשאת objectAdmin על הדלי בלבד (המפתח המקומי) */
+      const r = await call(`${B}/o?maxResults=1&fields=items(name)`);
       if (!r.ok) throw new Error(`GCS bucket ${bucket}: HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
       return true;
     },
