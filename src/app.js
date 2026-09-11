@@ -6758,6 +6758,17 @@ document.addEventListener('pointerdown', e => {
     const z = (P.zones || []).find(z => z.id === zs.dataset.zsize);
     if (z) { sizeZ = { z, sx: e.clientX, sy: e.clientY, ow: z.w, oh: z.h }; e.preventDefault(); return; }
   }
+  /* נקודת קודקוד / אמצע צלע של האזור הנבחר */
+  const zv = e.target.closest('[data-zvtx],[data-zmid]');
+  if (zv && e.button === 0) {
+    const [zid, iS] = (zv.dataset.zvtx || zv.dataset.zmid).split('|'); const z = (P.zones || []).find(x => x.id === zid);
+    if (z) {
+      if (!z.poly) z.poly = zoneRectPts(z);          /* מלבן → פוליגון של 4 נקודות ברגע שנוגעים בנקודה */
+      let i = +iS;
+      if (zv.dataset.zmid != null) { const p = z.poly[i], q = z.poly[(i + 1) % z.poly.length]; z.poly.splice(i + 1, 0, { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }); i = i + 1; }
+      window.__vtxZ = { z, i }; e.preventDefault(); return;
+    }
+  }
   /* ציור אזור סאונד — ניקור נקודות עד סגירת הצורה */
   if (sketchMode && e.target.closest('#canvasWrap') && !e.target.closest('#sketchBar') && !e.target.closest('[data-skobj]')) {
     const p2 = canvasPt(e);
@@ -7046,6 +7057,9 @@ document.addEventListener('pointermove', e => {
     renderZones();
     return;
   }
+  if (window.__vtxZ) {
+    const v = window.__vtxZ, pt = canvasPt(e); v.z.poly[v.i] = { x: Math.round(pt.x), y: Math.round(pt.y) }; zoneSyncBox(v.z); renderZones(); return;
+  }
   if (sizeZ) {
     sizeZ.z.w = Math.max(80, sizeZ.ow - (e.clientX - sizeZ.sx) / Z);
     sizeZ.z.h = Math.max(50, sizeZ.oh + (e.clientY - sizeZ.sy) / Z);
@@ -7164,10 +7178,17 @@ document.addEventListener('pointerup', e => {
     if (had) { sel = null; selCable = null; render(); showMultiBar(); }
     return;
   }
+  if (window.__vtxZ) {
+    const z = window.__vtxZ.z; window.__vtxZ = null;
+    zoneSyncBox(z); zoneAbsorb(z); save(); render(); return;
+  }
   if (dragZ || sizeZ) {
     const click = dragZ && dragZ.lbl && !dragZ.moved && dragZ.z;
     const zid = click ? dragZ.z.id : null;
-    dragZ = sizeZ = null; render();
+    const edited = (dragZ && dragZ.moved && dragZ.z) || (sizeZ && sizeZ.z);
+    dragZ = sizeZ = null;
+    if (edited) zoneAbsorb(edited);
+    render();
     if (zid) zonePlanBack(zid);
     return;
   }
@@ -8916,6 +8937,17 @@ function renderZones() {
   zs.forEach(z => {
     const c = zColor(z);
     const dims = P.scale ? ` · ${(zoneArea(z) * P.scale * P.scale).toFixed(0)} מ"ר` : '';
+    /* עריכה לפי נקודות: האזור הנבחר מקבל ידיות בכל קודקוד (גרירה = הזזה, לחיצה ימנית = מחיקה) ובאמצע כל צלע (גרירה = נקודה חדשה) */
+    if (selZone === z.id && !zoneMode) {
+      const pts = z.poly || zoneRectPts(z);
+      pts.forEach((p, i) => {
+        const v = document.createElement('span'); v.className = 'zvtx'; v.dataset.zvtx = z.id + '|' + i; v.title = 'גרור — הזזת הנקודה · לחיצה ימנית — מחיקה';
+        v.style.cssText = `left:${p.x}px;top:${p.y}px;background:${c}`; host.appendChild(v);
+        const q = pts[(i + 1) % pts.length];
+        const m = document.createElement('span'); m.className = 'zvtx mid'; m.dataset.zmid = z.id + '|' + i; m.title = 'גרור — נקודה חדשה על הצלע';
+        m.style.cssText = `left:${(p.x + q.x) / 2}px;top:${(p.y + q.y) / 2}px;border-color:${c}`; host.appendChild(m);
+      });
+    }
     if (z.poly) {
       const lbl = document.createElement('span');
       lbl.className = 'zlbl';
@@ -8960,6 +8992,45 @@ function closeZonePoly() {
 }
 document.addEventListener('dblclick', e => {
   if (zoneMode && zoneMode.poly && zoneMode.poly.length > 2) closeZonePoly();
+});
+/* ---------- עריכת אזור לפי נקודות ---------- */
+function zoneRectPts(z) { const L = 2200 - z.x - z.w, R = 2200 - z.x, T = z.y, B = z.y + z.h; return [{ x: L, y: T }, { x: R, y: T }, { x: R, y: B }, { x: L, y: B }]; }
+function zoneSyncBox(z) {
+  if (!z.poly) return;
+  const xs = z.poly.map(p => p.x), ys = z.poly.map(p => p.y);
+  const left = Math.min(...xs), top = Math.min(...ys);
+  z.w = Math.max(...xs) - left; z.h = Math.max(...ys) - top; z.x = Math.max(0, 2200 - left - z.w); z.y = top;
+}
+/* אזור b נבלע לתוך a: הפריטים, המוקדים והקירות עוברים ל-a; a שומר על הצורה שלו; b נמחק */
+function zoneTakeOver(a, b) {
+  if (!a || !b || a === b) return;
+  (typeof impItems !== 'undefined' ? impItems : []).forEach(it => { if (it.zones && it.zones[b.name] != null) { it.zones[a.name] = (it.zones[a.name] || 0) + it.zones[b.name]; delete it.zones[b.name]; } });
+  P.nodes.forEach(nd => { if (nd.sub && nd.sub.includes(b.name)) nd.sub = nd.sub.split(b.name).join(a.name); });
+  if (!a.usage && b.usage) a.usage = b.usage;
+  if (b._rackNodeId && !a._rackNodeId) a._rackNodeId = b._rackNodeId;
+  P.zones = P.zones.filter(z => z !== b);
+  if (selZone === b.id) selZone = a.id;
+}
+/* אחרי עריכה: כל אזור שנמצא כולו בתוך a (כל הנקודות שלו) הופך לחלק מ-a */
+function zoneAbsorb(a) {
+  const eaten = [];
+  for (const b of (P.zones || []).slice()) {
+    if (b === a) continue;
+    const pts = b.poly || zoneRectPts(b);
+    if (pts.every(pt => inZone(a, pt))) { zoneTakeOver(a, b); eaten.push(b.name); }
+  }
+  if (eaten.length) uiToast('🔗 "' + eaten.join('", "') + '" נבלע לתוך "' + a.name + '" — אזור אחד', 5000);
+  return eaten.length;
+}
+function zoneVtxDelete(zid, i) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  if (!z.poly) z.poly = zoneRectPts(z);
+  if (z.poly.length <= 3) { uiToast('לאזור חייבות להישאר 3 נקודות'); return; }
+  z.poly.splice(i, 1); zoneSyncBox(z); save(); render();
+}
+document.addEventListener('contextmenu', e => {
+  const v = e.target.closest('[data-zvtx]'); if (!v) return;
+  e.preventDefault(); const [zid, i] = v.dataset.zvtx.split('|'); zoneVtxDelete(zid, +i);
 });
 function applyZonesJson(zs) {
   if (!zs || !zs.length) return 0;

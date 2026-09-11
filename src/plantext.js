@@ -207,7 +207,7 @@ async function ptBinary() {
   for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = w - 1; x >= 0; x--) { if (dark0[row + x]) run = r + 1; if (run > 0) { tmp[row + x] = 1; run--; } } }   /* שמאלה */
   for (let x = 0; x < w; x++) { let run = 0; for (let y = 0; y < h; y++) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
   for (let x = 0; x < w; x++) { let run = 0; for (let y = h - 1; y >= 0; y--) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
-  PT_BIN = { w, h, dark, r, pxPerM, key, thr: OPT.thr, darkFrac: +(dark0.reduce((a, b) => a + b, 0) / (w * h)).toFixed(3) };
+  PT_BIN = { w, h, dark, dark0, r, pxPerM, key, thr: OPT.thr, darkFrac: +(dark0.reduce((a, b) => a + b, 0) / (w * h)).toFixed(3) };
   return PT_BIN;
 }
 /* מילוי מנקודה אחת: { n, edge, box } */
@@ -304,11 +304,138 @@ function ptMergeZones(aId, bId) {
   const ba = zoneBounds(a), bb = zoneBounds(b);
   const L = Math.min(ba.L, bb.L), T = Math.min(ba.T, bb.T), R = Math.max(ba.L + ba.W, bb.L + bb.W), Bt = Math.max(ba.T + ba.H, bb.T + bb.H);
   delete a.poly; a.x = Math.max(0, 2200 - L - (R - L)); a.y = T; a.w = R - L; a.h = Bt - T; delete a.openArea;
-  (typeof impItems !== 'undefined' ? impItems : []).forEach(it => { if (it.zones && it.zones[b.name] != null) { it.zones[a.name] = (it.zones[a.name] || 0) + it.zones[b.name]; delete it.zones[b.name]; } });
-  P.nodes.forEach(nd => { if (nd.sub && nd.sub.includes(b.name)) nd.sub = nd.sub.split(b.name).join(a.name); });
-  P.zones = P.zones.filter(z => z !== b);
-  selZone = a.id; save(); render();
+  zoneTakeOver(a, b);
+  selZone = a.id; zoneAbsorb(a); save(); render();
   uiToast('🔗 "' + b.name + '" מוזג לתוך "' + a.name + '"');
+}
+/* ---------- חלוקת כל החלל לאזורים (מוזיקה בכל מקום שיש בו לקוחות) ----------
+   כל שטח לבן רציף בין קירות (אחרי עיבוי הקירות) = "חלל". חללים שנוגעים בשולי התכנית = חוץ.
+   לכל חלל: הכיתובים שבתוכו קובעים — שירותים/מטבח/מחסן = לא אזור; DANCE = רחבת ריקודים;
+   כיתוב קהל = השם והתכלית; בלי כיתוב = "חלל N" עם תכלית ברירת המחדל. הגבול = פוליגון של החלל
+   (עוקב אחרי הקירות, נקודות עריכות). חוץ: אם יש כיתוב חוץ (TERRACE/GARDEN/PATIO) — אזור מסומן "חוץ". */
+function ptComponents(B) {
+  const { w, h, dark } = B, comp = new Int32Array(w * h).fill(-1), info = [];
+  const q = new Int32Array(w * h);
+  for (let s0 = 0; s0 < w * h; s0++) {
+    if (dark[s0] || comp[s0] >= 0) continue;
+    const id = info.length; let qh = 0, qt = 0; q[qt++] = s0; comp[s0] = id;
+    let n = 0, edge = false, minX = w, maxX = 0, minY = h, maxY = 0;
+    while (qh < qt) {
+      const i = q[qh++], x = i % w, y = (i - x) / w; n++;
+      if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true;
+      if (x > 0 && comp[i - 1] < 0 && !dark[i - 1]) { comp[i - 1] = id; q[qt++] = i - 1; }
+      if (x < w - 1 && comp[i + 1] < 0 && !dark[i + 1]) { comp[i + 1] = id; q[qt++] = i + 1; }
+      if (y > 0 && comp[i - w] < 0 && !dark[i - w]) { comp[i - w] = id; q[qt++] = i - w; }
+      if (y < h - 1 && comp[i + w] < 0 && !dark[i + w]) { comp[i + w] = id; q[qt++] = i + w; }
+    }
+    info.push({ id, n, edge, box: [minX, minY, maxX, maxY] });
+  }
+  return { comp, info };
+}
+/* מסכת חלל אחד, מורחבת חזרה עד הקירות המקוריים (העיבוי כיווץ אותה) */
+function ptCompMask(B, comp, id) {
+  const { w, h, r, dark0 } = B, m = new Uint8Array(w * h), t = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) if (comp[i] === id) m[i] = 1;
+  for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = 0; x < w; x++) { if (m[row + x]) run = r + 1; if (run > 0) { t[row + x] = 1; run--; } } }
+  for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = w - 1; x >= 0; x--) { if (m[row + x]) run = r + 1; if (run > 0) { t[row + x] = 1; run--; } } }
+  const out = new Uint8Array(w * h);
+  for (let x = 0; x < w; x++) { let run = 0; for (let y = 0; y < h; y++) { const i = y * w + x; if (t[i]) run = r + 1; if (run > 0) { out[i] = 1; run--; } } }
+  for (let x = 0; x < w; x++) { let run = 0; for (let y = h - 1; y >= 0; y--) { const i = y * w + x; if (t[i]) run = r + 1; if (run > 0) { out[i] = 1; run--; } } }
+  for (let i = 0; i < w * h; i++) if (out[i] && dark0[i] && !m[i]) out[i] = 0;   /* לא לתוך הקיר עצמו */
+  for (let i = 0; i < w * h; i++) if (m[i]) out[i] = 1;
+  return out;
+}
+/* קו המתאר החיצוני של מסכה (Moore neighbour tracing) → נקודות פיקסל */
+function ptTrace(mask, w, h) {
+  let s = -1; for (let i = 0; i < w * h; i++) if (mask[i]) { s = i; break; }
+  if (s < 0) return [];
+  const at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && mask[y * w + x];
+  const N = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];   /* עם כיוון השעון החל ממזרח */
+  let x = s % w, y = (s - x) / w, dir = 6, pts = [[x, y]];
+  const sx = x, sy = y; let guard = 0;
+  do {
+    let found = false;
+    for (let k = 0; k < 8; k++) { const d = (dir + 5 + k) % 8, nx = x + N[d][0], ny = y + N[d][1]; if (at(nx, ny)) { x = nx; y = ny; dir = d; found = true; break; } }
+    if (!found) break;
+    pts.push([x, y]);
+    if (++guard > w * h) break;
+  } while (!(x === sx && y === sy));
+  return pts;
+}
+/* פישוט Ramer–Douglas–Peucker */
+function ptRdp(pts, eps) {
+  if (pts.length < 3) return pts;
+  const d2 = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1; const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L)); const px = a[0] + t * dx - p[0], py = a[1] + t * dy - p[1]; return px * px + py * py; };
+  const out = []; const stack = [[0, pts.length - 1]]; const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  while (stack.length) { const [i, j] = stack.pop(); let best = -1, bd = eps * eps; for (let k = i + 1; k < j; k++) { const d = d2(pts[k], pts[i], pts[j]); if (d > bd) { bd = d; best = k; } } if (best > 0) { keep[best] = 1; stack.push([i, best], [best, j]); } }
+  for (let k = 0; k < pts.length; k++) if (keep[k]) out.push(pts[k]);
+  return out;
+}
+async function ptPartition() {
+  if (!P.bg) { uiToast('אין תכנית'); return; }
+  uiToast('🧩 מחלק את החלל לאזורים לפי הקירות…', 5000);
+  const B = await ptBinary(); const { w, h } = B;
+  const { comp, info } = ptComponents(B);
+  const W = P.bgW || 1400, H = bgHeightPx(), L = bgLeft(), T = bgTop();
+  const pxPerM2 = B.pxPerM * B.pxPerM, minArea = 8 * pxPerM2, labelMin = 3 * pxPerM2;
+  /* איזה כיתוב יושב באיזה חלל (הכיתוב עצמו כהה — מחפשים פיקסל לבן צמוד) */
+  const items = ((P.planText || {}).items || []).map(it => {
+    /* דגימה בטבעת סביב תיבת הכיתוב (8 כיוונים × 3 מרחקים) — החלל שמופיע הכי הרבה */
+    const sx = Math.round(it.u * w), sy = Math.round(it.v * h), lh = Math.max(3, Math.round(it.h * h)), lw = Math.round(it.w * w / 2);
+    const votes = {};
+    for (const m of [1.5, 3, 5]) for (let k = 0; k < 8; k++) {
+      const ang = k * Math.PI / 4, x = sx + Math.round(Math.cos(ang) * (lw + m * lh)), y = sy + Math.round(Math.sin(ang) * m * lh);
+      if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      const id = comp[y * w + x]; if (id >= 0) votes[id] = (votes[id] || 0) + 1;
+    }
+    let cid = -1, bestV = 0; for (const [id, v] of Object.entries(votes)) if (v > bestV) { bestV = v; cid = +id; }
+    return { ...it, cid };
+  });
+  const SERVICE = it => it.cat === 'service' || it.cat === 'ops';
+  const OUT_RE = /TERRACE|PATIO|GARDEN|OUTDOOR|BALCONY|ROOF|DECK|מרפסת|חוץ|גן|גג/i;
+  P.zones = (P.zones || []).filter(z => !z.auto);
+  let made = 0, skipped = 0, outdoor = 0, idx = 0;
+  const seenNames = {};
+  const mkPoly = (mask) => {
+    const tr = ptTrace(mask, w, h); if (tr.length < 4) return null;
+    const eps = Math.max(1.5, B.pxPerM * 0.35);
+    const sp = ptRdp(tr, eps);
+    return sp.map(([x, y]) => ({ x: Math.round(L + x / w * W), y: Math.round(T + y / h * H) }));
+  };
+  const addZone = (name, usage, poly, extra) => {
+    if (!poly || poly.length < 3) return;
+    const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys);
+    const z = { id: uid('z'), name, usage, poly, x: Math.max(0, 2200 - left - (Math.max(...xs) - left)), y: top, w: Math.max(...xs) - left, h: Math.max(...ys) - top, auto: 'partition', fromText: true, ...extra };
+    P.zones.push(z); made++;
+  };
+  /* "חוץ" = החללים שמכילים את פינות התכנית; חלל שנוגע בשוליים כי התכנית חתוכה (ויש בו כיתוב קהל, או שאינו ענק) נשאר פנימי */
+  const cornerIds = new Set([comp[0], comp[w - 1], comp[(h - 1) * w], comp[h * w - 1]].filter(i => i >= 0));
+  for (const c of info) {
+    const labs = items.filter(it => it.cid === c.id);
+    const aud = labs.filter(it => it.cat === 'audience'), svc = labs.filter(SERVICE);
+    const isOutside = cornerIds.has(c.id) || (c.edge && !aud.length && c.n > 0.25 * w * h);
+    if (isOutside) {
+      /* חוץ: רק אם יש כיתוב חוץ — גבול משוער סביבו */
+      for (const it of aud.filter(x => OUT_RE.test(x.t))) {
+        const rr = await ptRoomRect(it); if (!rr) continue;
+        addZone(it.t, ptUsageOf(it.t), [{ x: rr.left, y: rr.top }, { x: rr.left + rr.w, y: rr.top }, { x: rr.left + rr.w, y: rr.top + rr.h }, { x: rr.left, y: rr.top + rr.h }].map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })), { outdoor: true, openArea: true }); outdoor++;
+      }
+      continue;
+    }
+    if (c.n < labelMin) continue;
+    if (svc.length && !aud.length) { skipped++; continue; }             /* שירותים / מטבח / מחסן — בלי מוזיקה */
+    if (!aud.length && c.n < minArea) continue;                          /* חלל קטן בלי כיתוב — פינה/ארון */
+    const mask = ptCompMask(B, comp, c.id);
+    const poly = mkPoly(mask); if (!poly) continue;
+    let name, usage;
+    if (aud.length) { const best = aud.slice().sort((a, b) => b.t.length - a.t.length)[0]; name = best.t; usage = ptUsageOf(best.t); }
+    else { name = 'חלל ' + (++idx); usage = (P.room && P.room.usage) || 'מוזיקת רקע'; }
+    if (seenNames[name]) name += ' ' + (++seenNames[name]); else seenNames[name] = 1;
+    addZone(name, usage, poly, aud.some(x => /DANCE|ריקוד/i.test(x.t)) ? { dance: true } : {});
+  }
+  save(); render();
+  uiToast(made ? '🧩 ' + made + ' אזורים לפי הקירות' + (skipped ? ' · ' + skipped + ' חללי שירות/תפעול הושמטו' : '') + (outdoor ? ' · ' + outdoor + ' בחוץ' : '') + ' — גרור נקודות לעריכה, אזור שנבלע מתמזג' : 'לא זוהו חללים סגורים — כייל את התכנית ובדוק שהקירות כהים', 8000);
 }
 /* רמזים ל-AI (זיהוי אזורים): הכיתובים עם מיקום יחסי */
 function ptHintText() {
@@ -327,7 +454,7 @@ function ptPanelHTML() {
     <button style="width:100%" ${busy ? 'disabled' : ''} onclick="planTextScan()">${busy ? '⏳ קורא כיתובים…' : pt ? '🔤 סרוק שוב את הכיתובים' : '🔤 קרא את הכיתובים בתכנית'}</button>`;
   if (pt && pt.items) {
     h += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${Object.entries(PT_CATS).map(([c, m]) => `<label style="display:flex;align-items:center;gap:3px;font-size:10.5px;cursor:pointer;padding:1px 6px;border-radius:10px;background:${m.c}22;border:1px solid ${m.c}"><input type="checkbox" style="width:auto;margin:0" ${pt.cats[c] ? 'checked' : ''} onchange="P.planText.cats['${c}']=this.checked?1:0;save();render()">${m.ic} ${m.n} <b>${cnt[c] || 0}</b></label>`).join('')}</div>
-    <div style="display:flex;gap:4px;margin-top:6px"><button style="flex:1" onclick="P.planText.show=!(P.planText.show!==false);save();render()">${pt.show === false ? '👁 הצג על התכנית' : '🙈 הסתר מהתכנית'}</button><button style="flex:1" onclick="ptMakeZones()" title="אזור סאונד לכל כיתוב קהל — לפי גבולות החדר שסביבו (קירות בשרטוט)">🗺 צור אזורים לפי גבולות החדרים</button>${(P.zones || []).some(z => z.fromText) ? `<button onclick="uiConfirm('לבנות מחדש את האזורים שנוצרו מהכיתובים? (אזורים שציירת ידנית נשארים)').then(ok=>{if(ok)ptMakeZones(true)})" title="מוחק את האזורים שנוצרו מכיתובים ובונה אותם שוב">🔄</button>` : ''}</div>
+    <div style="display:flex;gap:4px;margin-top:6px"><button style="flex:1" onclick="P.planText.show=!(P.planText.show!==false);save();render()">${pt.show === false ? '👁 הצג על התכנית' : '🙈 הסתר מהתכנית'}</button><button style="flex:1" onclick="ptMakeZones()" title="אזור סאונד לכל כיתוב קהל — לפי גבולות החדר שסביבו (קירות בשרטוט)">🗺 אזורים סביב כיתובי הקהל</button><button style="flex:1;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="ptPartition()" title="כל חלל בין קירות = אזור (חוץ משירותים/מטבח/מחסן) — מוזיקה בכל מקום שיש בו לקוחות">🧩 חלק את כל החלל לאזורים</button>${(P.zones || []).some(z => z.fromText) ? `<button onclick="uiConfirm('לבנות מחדש את האזורים שנוצרו מהכיתובים? (אזורים שציירת ידנית נשארים)').then(ok=>{if(ok)ptMakeZones(true)})" title="מוחק את האזורים שנוצרו מכיתובים ובונה אותם שוב">🔄</button>` : ''}</div>
     <details style="margin-top:4px"><summary class="muted" style="cursor:pointer">כל הכיתובים (${pt.items.length}) — לחיצה מסמנת על התכנית</summary><div style="max-height:180px;overflow:auto;font-size:10.5px">`;
     for (const [c, m] of Object.entries(PT_CATS)) {
       const its = pt.items.map((it, i) => ({ it, i })).filter(x => x.it.cat === c); if (!its.length) continue;
