@@ -181,23 +181,134 @@ function ptMarksSVG() {
   });
   return out;
 }
-/* יצירת אזורי סאונד מכיתובי הקהל — ריבוע סביב הכיתוב (6×6 מ׳ או 14% מהתכנית), תכלית לפי המילה */
-function ptMakeZones() {
+/* ---------- גבולות החדר סביב כיתוב: מילוי (flood fill) על תמונת הרקע ----------
+   הקירות בשרטוט הם קווים כהים. מעבים אותם מעט (סוגר פתחי דלתות של עד ~1 מ׳), ממלאים מהנקודה
+   הלבנה הקרובה לכיתוב עד שנעצרים בקירות, ולוקחים את המלבן החוסם של המילוי. מילוי שבורח
+   (חלל פתוח / הגיע לשולי התכנית / גדול מדי) = אזור פתוח → ריבוע 12×12 מ׳ סביב הכיתוב. */
+let PT_BIN = null;   /* { w, h, dark: Uint8Array, key } */
+async function ptBinary() {
+  const OPT = Object.assign({ thr: 200, rM: 0.8 }, window.__ptOpt || {});   /* סף כהות ורדיוס עיבוי (מ׳) — לכוונון */
+  const key = (P.bg || '').length + ':' + (P.bgW || 0) + ':' + (P.scale || 0) + ':' + OPT.thr + ':' + OPT.rM;
+  if (PT_BIN && PT_BIN.key === key) return PT_BIN;
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
+  const k = Math.min(1, 1400 / img.width);
+  const w = Math.round(img.width * k), h = Math.round(img.height * k);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h).data, dark0 = new Uint8Array(w * h);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) dark0[j] = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) < OPT.thr ? 1 : 0;
+  /* עיבוי הקירות: רדיוס ≈ 0.5 מ׳ (סוגר דלתות) — בפיקסלים של הקנבס */
+  const pxPerM = P.scale ? (1 / P.scale) * (w / (P.bgW || 1400)) : w / 60;
+  const r = Math.max(1, Math.min(20, Math.round(pxPerM * OPT.rM)));
+  const dark = new Uint8Array(w * h);
+  /* הרחבה מופרדת (אופקית ואז אנכית) — O(n·r) */
+  const tmp = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = 0; x < w; x++) { if (dark0[row + x]) run = r + 1; if (run > 0) { tmp[row + x] = 1; run--; } } }   /* ימינה */
+  for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = w - 1; x >= 0; x--) { if (dark0[row + x]) run = r + 1; if (run > 0) { tmp[row + x] = 1; run--; } } }   /* שמאלה */
+  for (let x = 0; x < w; x++) { let run = 0; for (let y = 0; y < h; y++) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
+  for (let x = 0; x < w; x++) { let run = 0; for (let y = h - 1; y >= 0; y--) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
+  PT_BIN = { w, h, dark, r, pxPerM, key, thr: OPT.thr, darkFrac: +(dark0.reduce((a, b) => a + b, 0) / (w * h)).toFixed(3) };
+  return PT_BIN;
+}
+/* מילוי מנקודה אחת: { n, edge, box } */
+function ptFlood(B, start, maxR) {
+  const { w, h, dark } = B;
+  const seen = new Uint8Array(w * h), q = new Int32Array(w * h); let qh = 0, qt = 0;
+  q[qt++] = start; seen[start] = 1;
+  let minX = w, maxX = 0, minY = h, maxY = 0, n = 0, edge = false;
+  const cap = Math.round(w * h * 0.35);
+  const cx0 = start % w, cy0 = (start - cx0) / w, R2 = maxR ? maxR * maxR : 0;   /* maxR: מילוי מוגבל לרדיוס סביב ההתחלה (חלל פתוח) */
+  while (qh < qt) {
+    const i = q[qh++]; const x = i % w, y = (i - x) / w;
+    if (R2 && (x - cx0) ** 2 + (y - cy0) ** 2 > R2) continue;
+    n++;
+    if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true;
+    if (n > cap) { edge = true; break; }
+    if (x > 0) { const j = i - 1; if (!seen[j] && !dark[j]) { seen[j] = 1; q[qt++] = j; } }
+    if (x < w - 1) { const j = i + 1; if (!seen[j] && !dark[j]) { seen[j] = 1; q[qt++] = j; } }
+    if (y > 0) { const j = i - w; if (!seen[j] && !dark[j]) { seen[j] = 1; q[qt++] = j; } }
+    if (y < h - 1) { const j = i + w; if (!seen[j] && !dark[j]) { seen[j] = 1; q[qt++] = j; } }
+  }
+  return { n, edge, box: [minX, minY, maxX, maxY] };
+}
+/* מלבן החדר (בקואורדינטות הקנבס של התכנית) סביב כיתוב; null = חלל פתוח.
+   הכיתוב עצמו וריהוט צמוד יוצרים "כיסים" קטנים — מנסים כמה נקודות התחלה סביב הכיתוב ולוקחים
+   את המילוי הגדול ביותר שנשאר בתוך קירות (לא הגיע לשוליים, לא גדול מדי, לא כיס זעיר) */
+async function ptRoomRect(it) {
+  const B = await ptBinary(); const { w, h, dark } = B;
+  const W = P.bgW || 1400, H = bgHeightPx(), L = bgLeft(), T = bgTop();
+  const sx = Math.round(it.u * w), sy = Math.round(it.v * h);
+  const lh = Math.max(3, Math.round(it.h * h)), lw = Math.round(it.w * w / 2);
+  const minN = Math.max(60, Math.round((B.pxPerM * 2) ** 2));   /* לפחות ~4 מ״ר — אחרת זה כיס בתוך הטקסט/הריהוט */
+  const cands = [];
+  for (const m of [1.5, 3, 5, 8]) { cands.push([0, m * lh], [0, -m * lh], [lw + m * lh, 0], [-lw - m * lh, 0]); }
+  cands.push([0, 0]);
+  let best = null, leak = null; const tried = new Set();
+  for (const [dx, dy] of cands) {
+    let x = sx + Math.round(dx), y = sy + Math.round(dy);
+    if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) continue;
+    /* פיקסל לבן קרוב לנקודת המועמד */
+    let start = -1;
+    for (let rad = 0; rad < 6 && start < 0; rad++) for (let ddy = -rad; ddy <= rad && start < 0; ddy++) for (let ddx = -rad; ddx <= rad; ddx++) { const xx = x + ddx, yy = y + ddy; if (xx > 0 && yy > 0 && xx < w - 1 && yy < h - 1 && !dark[yy * w + xx]) { start = yy * w + xx; break; } }
+    if (start < 0 || tried.has(start)) continue; tried.add(start);
+    const f = ptFlood(B, start);
+    if (window.__ptDbg) window.__ptDbg.push({ t: it.t.slice(0, 12), dx, dy, n: f.n, frac: +(f.n / (w * h)).toFixed(3), edge: f.edge });
+    if (f.n < minN) continue;
+    if (f.edge) { if (!leak) leak = start; continue; }
+    if (!best || f.n > best.n) best = f;
+  }
+  let open = false;
+  if (!best) {
+    /* חלל פתוח: מילוי מוגבל לרדיוס ~10 מ׳ סביב הכיתוב — נעצר בקירות היכן שיש, ובמרחק היכן שאין */
+    if (leak == null) return null;
+    best = ptFlood(B, leak, Math.round(B.pxPerM * 10)); open = true;
+    if (best.n < minN) return null;
+  }
+  const r = B.r, [minX, minY, maxX, maxY] = best.box;   /* הקירות עובו — מחזירים את הגבול לקיר עצמו */
+  const x0 = Math.max(0, minX - r), x1 = Math.min(w, maxX + r + 1), y0 = Math.max(0, minY - r), y1 = Math.min(h, maxY + r + 1);
+  return { left: L + x0 / w * W, top: T + y0 / h * H, w: (x1 - x0) / w * W, h: (y1 - y0) / h * H, fill: best.n / (w * h), open };
+}
+/* יצירת אזורי סאונד מכיתובי הקהל — לפי גבולות החדר סביב כל כיתוב; rebuild = מחליף אזורים שנוצרו מכיתובים */
+async function ptMakeZones(rebuild) {
   const pt = P.planText; if (!pt || !pt.items) return;
   const aud = pt.items.filter(i => i.cat === 'audience');
   if (!aud.length) { uiToast('לא נמצאו כיתובי אזורי קהל'); return; }
   P.zones = P.zones || [];
-  const W = P.bgW || 1400, side = P.scale ? 6 / P.scale : W * 0.14;
-  let n = 0;
+  if (rebuild) P.zones = P.zones.filter(z => !z.fromText);
+  const W = P.bgW || 1400, side = P.scale ? 12 / P.scale : W * 0.2;
+  const minPx = P.scale ? 2 / P.scale : W * 0.03;
+  let n = 0, open = 0;
+  uiToast('🗺 מזהה את גבולות החדרים סביב הכיתובים…', 4000);
   for (const it of aud) {
     const p = ptPos(it);
-    if (P.zones.some(z => inZone(z, p))) continue;   /* כבר יש אזור שם */
-    const w = side, h = side * 0.8, left = p.x - w / 2, top = p.y - h / 2;
-    P.zones.push({ id: uid('z'), name: it.t, usage: ptUsageOf(it.t), x: Math.max(0, 2200 - left - w), y: Math.max(0, top), w, h, fromText: true });
-    n++;
+    if (P.zones.some(z => inZone(z, p))) continue;   /* כבר יש אזור שם (גם כיתוב שני באותו חדר) */
+    let rr = null; try { rr = await ptRoomRect(it); } catch (e) { console.warn('ptRoomRect', e); }
+    let left, top, w, h, isOpen = false;
+    if (rr && rr.w >= minPx && rr.h >= minPx) { ({ left, top, w, h } = rr); if (rr.open) { isOpen = true; open++; } }
+    else { w = side; h = side; left = p.x - w / 2; top = p.y - h / 2; isOpen = true; open++; }
+    /* אותו חדר שכבר נוצר מכיתוב אחר (חפיפה של 70%+) — לא מכפילים; שם שלם עדיף על שבר OCR */
+    const dup = P.zones.find(o => { const b = zoneBounds(o); const ix = Math.max(0, Math.min(left + w, b.L + b.W) - Math.max(left, b.L)), iy = Math.max(0, Math.min(top + h, b.T + b.H) - Math.max(top, b.T)); const inter = ix * iy; return inter > 0.7 * Math.min(w * h, b.W * b.H); });
+    if (dup) { if (dup.fromText && it.t.length > dup.name.length && it.t.includes(dup.name.slice(-4))) dup.name = it.t; continue; }
+    const z = { id: uid('z'), name: it.t, usage: ptUsageOf(it.t), x: Math.max(0, 2200 - left - w), y: Math.max(0, top), w, h, fromText: true };
+    if (isOpen) z.openArea = true;
+    P.zones.push(z); n++;
   }
   save(); render();
-  uiToast(n ? '✓ נוצרו ' + n + ' אזורים מהכיתובים — התאם גבולות ותכלית לכל אזור' : 'לכל כיתובי הקהל כבר יש אזור');
+  uiToast(n ? '✓ ' + n + ' אזורים לפי גבולות החדרים' + (open ? ' · ' + open + ' בחלל פתוח (גבול משוער עד ~10 מ׳ מהכיתוב — גרור פינה להתאמה)' : '') + ' · 🔗 מיזוג אזורים בפאנל האזור' : 'לכל כיתובי הקהל כבר יש אזור', 7000);
+}
+/* מיזוג שני אזורים לאחד: המלבן החוסם של שניהם, השם/התכלית של הראשון, הפריטים של השני עוברים אליו */
+function ptMergeZones(aId, bId) {
+  const a = (P.zones || []).find(z => z.id === aId), b = (P.zones || []).find(z => z.id === bId);
+  if (!a || !b || a === b) return;
+  const ba = zoneBounds(a), bb = zoneBounds(b);
+  const L = Math.min(ba.L, bb.L), T = Math.min(ba.T, bb.T), R = Math.max(ba.L + ba.W, bb.L + bb.W), Bt = Math.max(ba.T + ba.H, bb.T + bb.H);
+  delete a.poly; a.x = Math.max(0, 2200 - L - (R - L)); a.y = T; a.w = R - L; a.h = Bt - T; delete a.openArea;
+  (typeof impItems !== 'undefined' ? impItems : []).forEach(it => { if (it.zones && it.zones[b.name] != null) { it.zones[a.name] = (it.zones[a.name] || 0) + it.zones[b.name]; delete it.zones[b.name]; } });
+  P.nodes.forEach(nd => { if (nd.sub && nd.sub.includes(b.name)) nd.sub = nd.sub.split(b.name).join(a.name); });
+  P.zones = P.zones.filter(z => z !== b);
+  selZone = a.id; save(); render();
+  uiToast('🔗 "' + b.name + '" מוזג לתוך "' + a.name + '"');
 }
 /* רמזים ל-AI (זיהוי אזורים): הכיתובים עם מיקום יחסי */
 function ptHintText() {
@@ -216,7 +327,7 @@ function ptPanelHTML() {
     <button style="width:100%" ${busy ? 'disabled' : ''} onclick="planTextScan()">${busy ? '⏳ קורא כיתובים…' : pt ? '🔤 סרוק שוב את הכיתובים' : '🔤 קרא את הכיתובים בתכנית'}</button>`;
   if (pt && pt.items) {
     h += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${Object.entries(PT_CATS).map(([c, m]) => `<label style="display:flex;align-items:center;gap:3px;font-size:10.5px;cursor:pointer;padding:1px 6px;border-radius:10px;background:${m.c}22;border:1px solid ${m.c}"><input type="checkbox" style="width:auto;margin:0" ${pt.cats[c] ? 'checked' : ''} onchange="P.planText.cats['${c}']=this.checked?1:0;save();render()">${m.ic} ${m.n} <b>${cnt[c] || 0}</b></label>`).join('')}</div>
-    <div style="display:flex;gap:4px;margin-top:6px"><button style="flex:1" onclick="P.planText.show=!(P.planText.show!==false);save();render()">${pt.show === false ? '👁 הצג על התכנית' : '🙈 הסתר מהתכנית'}</button><button style="flex:1" onclick="ptMakeZones()" title="אזור סאונד לכל כיתוב קהל שעדיין אין לו אזור">🗺 צור אזורים מכיתובי הקהל</button></div>
+    <div style="display:flex;gap:4px;margin-top:6px"><button style="flex:1" onclick="P.planText.show=!(P.planText.show!==false);save();render()">${pt.show === false ? '👁 הצג על התכנית' : '🙈 הסתר מהתכנית'}</button><button style="flex:1" onclick="ptMakeZones()" title="אזור סאונד לכל כיתוב קהל — לפי גבולות החדר שסביבו (קירות בשרטוט)">🗺 צור אזורים לפי גבולות החדרים</button>${(P.zones || []).some(z => z.fromText) ? `<button onclick="uiConfirm('לבנות מחדש את האזורים שנוצרו מהכיתובים? (אזורים שציירת ידנית נשארים)').then(ok=>{if(ok)ptMakeZones(true)})" title="מוחק את האזורים שנוצרו מכיתובים ובונה אותם שוב">🔄</button>` : ''}</div>
     <details style="margin-top:4px"><summary class="muted" style="cursor:pointer">כל הכיתובים (${pt.items.length}) — לחיצה מסמנת על התכנית</summary><div style="max-height:180px;overflow:auto;font-size:10.5px">`;
     for (const [c, m] of Object.entries(PT_CATS)) {
       const its = pt.items.map((it, i) => ({ it, i })).filter(x => x.it.cat === c); if (!its.length) continue;
@@ -229,8 +340,10 @@ function ptPanelHTML() {
 /* שורה בפאנל האזור: אילו כיתובים יושבים בתוך האזור */
 function ptZoneLineHTML(z) {
   if (!PT_CATS) return '';
-  const its = ptInZone(z); if (!its.length) return '';
-  return `<div style="background:#f1efff;border-radius:8px;padding:5px 8px;margin-top:6px;font-size:11px"><b>🔤 כיתובים באזור:</b> ${its.map(i => `<span style="display:inline-block;margin:1px 2px;padding:0 5px;border-radius:8px;background:${PT_CATS[i.cat].c};color:#fff;font-size:10px;direction:ltr">${esc(i.t)}</span>`).join('')}${its.some(i => i.cat === 'ops' || i.cat === 'service') ? '<div class="muted" style="font-size:10px">⚠ יש כאן כיתובים תפעוליים/שירותים — לוודא שהאזור לא כולל אותם</div>' : ''}</div>`;
+  const others = (P.zones || []).filter(x => x.id !== z.id);
+  const merge = others.length ? `<div style="display:flex;gap:4px;align-items:center;margin-top:6px;font-size:11px"><span>🔗 מזג לתוך "${esc(z.name)}":</span><select style="flex:1;font-size:11px;margin:0" onchange="if(this.value){ptMergeZones('${z.id}',this.value)}"><option value="">— בחר אזור למיזוג —</option>${others.map(o => `<option value="${o.id}">${esc(o.name)}${o.usage ? ' · ' + esc(o.usage) : ''}</option>`).join('')}</select></div>` : '';
+  const its = ptInZone(z); if (!its.length) return merge;
+  return merge + `<div style="background:#f1efff;border-radius:8px;padding:5px 8px;margin-top:6px;font-size:11px"><b>🔤 כיתובים באזור:</b> ${its.map(i => `<span style="display:inline-block;margin:1px 2px;padding:0 5px;border-radius:8px;background:${PT_CATS[i.cat].c};color:#fff;font-size:10px;direction:ltr">${esc(i.t)}</span>`).join('')}${its.some(i => i.cat === 'ops' || i.cat === 'service') ? '<div class="muted" style="font-size:10px">⚠ יש כאן כיתובים תפעוליים/שירותים — לוודא שהאזור לא כולל אותם</div>' : ''}</div>`;
 }
 
 /* הרינדור הראשון של app.js קדם להגדרות כאן — מרנדרים שוב כדי שהכיתובים השמורים יופיעו */
