@@ -962,6 +962,13 @@ const MATRIX_URL = '/matrix';
 const LOGIC_URL = '/logic';
 /* ===== שיתוף ומשתמשים — נגיש רק כשהשרת מפעיל אימות (window.__AUTH מוזרק ע"י השרת) ===== */
 const AUTH = window.__AUTH || null;
+/* השרת עובד על נתונים מקומיים כי הדלי בענן לא זמין (כניסת gcloud פגה) — אזהרה קבועה בראש המסך */
+if (AUTH && AUTH.storage && AUTH.storage.warn) document.addEventListener('DOMContentLoaded', () => {
+  const b = document.createElement('div');
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#c1121f;color:#fff;font-size:12.5px;font-weight:700;padding:5px 12px;text-align:center;direction:rtl';
+  b.innerHTML = '⚠ ' + esc(AUTH.storage.warn.split(' — ')[0]) + ' — הנתונים כאן לא מסונכרנים עם השרת בענן. בטרמינל: <code style="direction:ltr;background:#fff2;padding:0 4px;border-radius:3px">gcloud auth login</code> ואז הפעל את השרת מחדש. <a href="#" style="color:#fff" onclick="this.parentNode.remove();return false">✕</a>';
+  document.body.appendChild(b);
+});
 function authBoxHTML() {
   if (!AUTH || !AUTH.enabled || !AUTH.user) return '';
   const u = AUTH.user;

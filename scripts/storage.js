@@ -173,7 +173,8 @@ async function fetchToken() {
   if (!env.CLOUDSDK_PYTHON && existsSync(join(homedir(), '.local/python/python/bin/python3'))) env.CLOUDSDK_PYTHON = join(homedir(), '.local/python/python/bin/python3');
   for (const bin of bins) {
     try {
-      const v = await new Promise((res, rej) => execFile(bin, ['auth', 'print-access-token'], { env, timeout: 30e3 }, (e, out) => e ? rej(e) : res(out.trim())));
+      /* בלי פרומפטים: כשהכניסה פגה gcloud מנסה לשאול שאלה ונתקע — כאן הוא נכשל מיד ואנחנו נופלים לנתונים מקומיים */
+      const v = await new Promise((res, rej) => execFile(bin, ['auth', 'print-access-token', '--quiet'], { env: { ...env, CLOUDSDK_CORE_DISABLE_PROMPTS: '1' }, timeout: 15e3 }, (e, out) => e ? rej(e) : res(out.trim())));
       if (v) return { v, exp: Date.now() + 50 * 60e3 };
     } catch {}
   }

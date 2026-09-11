@@ -7,6 +7,8 @@
 #   scripts/deploy-gcp.sh pull     — משיכת מה שנערך בענן (פריסות גב, תמונות, מצב הטבלאות) חזרה לריפו
 #   scripts/deploy-gcp.sh envsync [file] — כל KEY=value בקובץ (ברירת מחדל .env) → Secret Manager (יצירה/גרסה חדשה רק אם השתנה)
 #   scripts/deploy-gcp.sh envpush  — מעלה את .env המקומי לסוד CLOUD_ENV ב-GitHub → הפריסה האוטומטית מסנכרנת אותו לשרת
+#   scripts/deploy-gcp.sh devkey   — חשבון שירות עם גישה לדלי בלבד + מפתח ב-~/.config/ko-projects/ — השרת המקומי
+#                                    עובד מול הדלי גם כשהכניסה ל-gcloud פגה (נכתב ל-.env כ-GOOGLE_APPLICATION_CREDENTIALS)
 #   scripts/deploy-gcp.sh owner    — מדפיס את קישור הבעלים (מהדלי)
 # משתני סביבה: מוסיפים שורה ל-.env → `scripts/deploy-gcp.sh envpush` → מה-push הבא הם על השרת (כל המפתחות שבסוד).
 #   scripts/deploy-gcp.sh all      — setup + seed + deploy
@@ -40,7 +42,7 @@ envsync() {
     line="${line%$'\r'}"
     [[ "$line" =~ ^[A-Z][A-Z0-9_]*= ]] || continue
     local k="${line%%=*}" v="${line#*=}"; [ -z "$v" ] && continue
-    case "$k" in DATA_BUCKET|PUBLIC_URL|DATA_DIR|STORE|STORE_JSON_DIR|PORT|PREBUILT|NODE_ENV) continue ;; esac   # תצורה רגילה — נקבעת ב-deploy כמשתנה, לא סוד
+    case "$k" in DATA_BUCKET|PUBLIC_URL|DATA_DIR|STORE|STORE_JSON_DIR|PORT|PREBUILT|NODE_ENV|GOOGLE_APPLICATION_CREDENTIALS|GOOGLE_ACCESS_TOKEN|GCLOUD_BIN|CLOUDSDK_PYTHON) continue ;; esac   # תצורה רגילה — נקבעת ב-deploy כמשתנה, לא סוד
     if gcloud secrets describe "$k" --project "$PROJECT" >/dev/null 2>&1; then
       local cur; cur=$(gcloud secrets versions access latest --secret "$k" --project "$PROJECT" 2>/dev/null || true)
       if [ "$cur" != "$v" ]; then printf '%s' "$v" | gcloud secrets versions add "$k" --project "$PROJECT" --data-file=- >/dev/null; echo "   $k: updated"; else echo "   $k: unchanged"; fi
@@ -85,6 +87,15 @@ deploy() {
     echo "🔑 owner link: $url/owner/$key"; echo "   (the owner link sets a cookie for a year — keep it private; external users get invite links from 🔗 שתף)"
   fi
 }
+devkey() {
+  local sa="ko-projects-local@$PROJECT.iam.gserviceaccount.com" dir="$HOME/.config/ko-projects" f="$HOME/.config/ko-projects/gcs-key.json"
+  gcloud iam service-accounts describe "$sa" --project "$PROJECT" >/dev/null 2>&1 || gcloud iam service-accounts create ko-projects-local --project "$PROJECT" --display-name "KO Projects local dev (bucket only)" >/dev/null
+  gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member "serviceAccount:$sa" --role roles/storage.objectAdmin >/dev/null
+  mkdir -p "$dir"; chmod 700 "$dir"
+  gcloud iam service-accounts keys create "$f" --iam-account "$sa" --project "$PROJECT" >/dev/null && chmod 600 "$f"
+  if grep -q '^GOOGLE_APPLICATION_CREDENTIALS=' .env 2>/dev/null; then sed -i '' "s|^GOOGLE_APPLICATION_CREDENTIALS=.*|GOOGLE_APPLICATION_CREDENTIALS=$f|" .env; else printf 'GOOGLE_APPLICATION_CREDENTIALS=%s\n' "$f" >> .env; fi
+  echo "== מפתח לדלי נשמר ב-$f ונרשם ב-.env — השרת המקומי לא תלוי יותר בכניסה ל-gcloud. הפעל את השרת מחדש."
+}
 owner() {
   local url; url=$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format 'value(status.url)')
   local key; key=$(gcloud storage cat "gs://$BUCKET/users.json" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).config.ownerKey)}catch{console.log('')}})")
@@ -97,7 +108,7 @@ pull() {
   echo "== pulled cloud edits into data/ — review with git diff, then commit"
 }
 case "${1:-}" in
-  setup) setup ;; seed) seed ;; deploy) deploy ;; pull) pull ;; owner) owner ;; envsync) envsync "${2:-.env}" ;; envpush) envpush ;;
+  setup) setup ;; seed) seed ;; deploy) deploy ;; pull) pull ;; owner) owner ;; devkey) devkey ;; envsync) envsync "${2:-.env}" ;; envpush) envpush ;;
   all) setup; seed; deploy ;;
-  *) echo "usage: $0 setup|seed|deploy|pull|owner|envsync [file]|envpush|all"; exit 1 ;;
+  *) echo "usage: $0 setup|seed|deploy|pull|owner|devkey|envsync [file]|envpush|all"; exit 1 ;;
 esac
