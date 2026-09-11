@@ -92,7 +92,10 @@ devkey() {
   gcloud iam service-accounts describe "$sa" --project "$PROJECT" >/dev/null 2>&1 || gcloud iam service-accounts create ko-projects-local --project "$PROJECT" --display-name "KO Projects local dev (bucket only)" >/dev/null
   gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member "serviceAccount:$sa" --role roles/storage.objectAdmin >/dev/null
   mkdir -p "$dir"; chmod 700 "$dir"
-  gcloud iam service-accounts keys create "$f" --iam-account "$sa" --project "$PROJECT" >/dev/null && chmod 600 "$f"
+  local ok=""; for i in 1 2 3 4 5 6; do   # חשבון שירות חדש מתפשט ב-IAM כמה שניות — מנסים שוב
+    if gcloud iam service-accounts keys create "$f" --iam-account "$sa" --project "$PROJECT" >/dev/null 2>&1; then ok=1; break; fi; sleep 10; done
+  [ -n "$ok" ] || { echo "❌ יצירת המפתח נכשלה — נסה שוב בעוד דקה"; return 1; }
+  chmod 600 "$f"
   if grep -q '^GOOGLE_APPLICATION_CREDENTIALS=' .env 2>/dev/null; then sed -i '' "s|^GOOGLE_APPLICATION_CREDENTIALS=.*|GOOGLE_APPLICATION_CREDENTIALS=$f|" .env; else printf 'GOOGLE_APPLICATION_CREDENTIALS=%s\n' "$f" >> .env; fi
   echo "== מפתח לדלי נשמר ב-$f ונרשם ב-.env — השרת המקומי לא תלוי יותר בכניסה ל-gcloud. הפעל את השרת מחדש."
 }
