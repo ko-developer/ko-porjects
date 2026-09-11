@@ -6766,7 +6766,8 @@ document.addEventListener('pointerdown', e => {
       if (!z.poly) z.poly = zoneRectPts(z);          /* מלבן → פוליגון של 4 נקודות ברגע שנוגעים בנקודה */
       let i = +iS;
       if (zv.dataset.zmid != null) { const p = z.poly[i], q = z.poly[(i + 1) % z.poly.length]; z.poly.splice(i + 1, 0, { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }); i = i + 1; }
-      window.__vtxZ = { z, i }; e.preventDefault(); return;
+      window.__vtxZ = { z, i, orig: { ...z.poly[i] }, inserted: zv.dataset.zmid != null, sx: e.clientX, sy: e.clientY, moved: false };
+      e.preventDefault(); e.stopImmediatePropagation(); return;   /* לא להתחיל בחירת מסגרת/גרירת קנבס מהידית */
     }
   }
   /* ציור אזור סאונד — ניקור נקודות עד סגירת הצורה */
@@ -7033,7 +7034,7 @@ document.addEventListener('pointerdown', e => {
   const h = e.target.closest('[data-drag]');
   if (!h) {
     /* גרירה על שטח ריק בקנבס = בחירת ריבוע (marquee) */
-    if (e.target.closest('#canvasWrap') && !e.target.closest('.node') && !e.target.closest('[data-zdrag]') && !e.target.closest('[data-zsize]') && !pinMode && !wireMode && !calMode && !zoneMode && !connPin) {
+    if (e.target.closest('#canvasWrap') && !e.target.closest('.node') && !e.target.closest('[data-zdrag]') && !e.target.closest('[data-zsize]') && !e.target.closest('[data-zvtx],[data-zmid]') && !pinMode && !wireMode && !calMode && !zoneMode && !connPin) {
       const pt = canvasPt(e);
       marq = { x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y, moved: false };
       selMulti.clear();
@@ -7058,7 +7059,10 @@ document.addEventListener('pointermove', e => {
     return;
   }
   if (window.__vtxZ) {
-    const v = window.__vtxZ, pt = canvasPt(e); v.z.poly[v.i] = { x: Math.round(pt.x), y: Math.round(pt.y) }; zoneSyncBox(v.z); renderZones(); return;
+    const v = window.__vtxZ;
+    if (!v.moved && !v.sticky && Math.hypot(e.clientX - v.sx, e.clientY - v.sy) < 3) return;
+    v.moved = true;
+    const pt = canvasPt(e); v.z.poly[v.i] = { x: Math.round(pt.x), y: Math.round(pt.y) }; zoneSyncBox(v.z); renderZones(); return;
   }
   if (sizeZ) {
     sizeZ.z.w = Math.max(80, sizeZ.ow - (e.clientX - sizeZ.sx) / Z);
@@ -7179,8 +7183,11 @@ document.addEventListener('pointerup', e => {
     return;
   }
   if (window.__vtxZ) {
-    const z = window.__vtxZ.z; window.__vtxZ = null;
-    zoneSyncBox(z); zoneAbsorb(z); save(); render(); return;
+    const v = window.__vtxZ;
+    /* לחיצה בלי גרירה = הנקודה "נדבקת" לעכבר עד הלחיצה הבאה (מונחת שם) · Esc / Delete / Backspace מחזירים אותה */
+    if (!v.moved && !v.sticky) { v.sticky = true; uiToast('הנקודה נעה עם העכבר — לחיצה מניחה אותה במקום החדש · Esc / Delete מחזירים למקום הקודם', 4000); return; }
+    if (v.sticky) return;                       /* ההנחה נעשית בלחיצה (pointerdown), לא בשחרור */
+    window.__vtxZ = null; zoneSyncBox(v.z); zoneAbsorb(v.z); save(); render(); return;
   }
   if (dragZ || sizeZ) {
     const click = dragZ && dragZ.lbl && !dragZ.moved && dragZ.z;
@@ -9028,6 +9035,22 @@ function zoneVtxDelete(zid, i) {
   if (z.poly.length <= 3) { uiToast('לאזור חייבות להישאר 3 נקודות'); return; }
   z.poly.splice(i, 1); zoneSyncBox(z); save(); render();
 }
+/* נקודה "דבוקה" לעכבר: הלחיצה הבאה מניחה אותה (נתפס לפני כל שאר המאזינים) */
+document.addEventListener('pointerdown', e => {
+  const v = window.__vtxZ; if (!v || !v.sticky || e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  const pt = canvasPt(e); v.z.poly[v.i] = { x: Math.round(pt.x), y: Math.round(pt.y) };
+  window.__vtxZ = null; zoneSyncBox(v.z); zoneAbsorb(v.z); save(); render();
+}, true);
+/* Esc / Delete / Backspace בזמן עריכת נקודה — חזרה למקום הקודם (נקודה שנוספה מאמצע צלע נמחקת) */
+document.addEventListener('keydown', e => {
+  const v = window.__vtxZ; if (!v) return;
+  if (e.key !== 'Escape' && e.key !== 'Delete' && e.key !== 'Backspace') return;
+  e.preventDefault(); e.stopPropagation();
+  if (v.inserted) v.z.poly.splice(v.i, 1); else v.z.poly[v.i] = { ...v.orig };
+  window.__vtxZ = null; zoneSyncBox(v.z); render();
+  uiToast('הנקודה חזרה למקומה');
+}, true);
 document.addEventListener('contextmenu', e => {
   const v = e.target.closest('[data-zvtx]'); if (!v) return;
   e.preventDefault(); const [zid, i] = v.dataset.zvtx.split('|'); zoneVtxDelete(zid, +i);
