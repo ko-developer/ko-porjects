@@ -1,7 +1,7 @@
 // Minimal dev server: rebuilds on each request so the page is always current.
 // + API של פרויקטים מעל data/projects.sqlite — האפליקציה נטענת ונשמרת מה-DB כשהשרת רץ.
 import { createServer } from 'node:http';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
@@ -24,9 +24,24 @@ catch (e) {
   delete process.env.DATA_BUCKET; storage = makeStorage();
 }
 /* מטמון קצר לקבצים שנקראים בכל בקשה (פריסות/תמונות גב, מצב טבלאות) — קריאה לדלי פעם ב-15 שניות, לא בכל טעינת דף */
-const CUR_TTL = 15e3, curCache = new Map();
-const readCached = async (key, fn) => { const c = curCache.get(key); if (c && c.t > Date.now() - CUR_TTL) return c.v; const v = await fn(); curCache.set(key, { t: Date.now(), v }); return v; };
-const curInvalidate = key => curCache.delete(key);
+const CUR_TTL = 15e3, curCache = new Map(), curInflight = new Map();
+const CUR_DISK = process.env.K_SERVICE ? null : 'data/.cache-gcs';
+const curDisk = key => CUR_DISK + '/cur-' + key.replace(/[^A-Za-z0-9._-]/g, '_');
+/* הדף לא מחכה לדלי: מגישים מיד מהזיכרון / ממטמון הדיסק / מהריפו, ומרעננים מהדלי ברקע (פעם ב-15 שניות, בקשה אחת בכל פעם) */
+const readCached = (key, fn) => {
+  const c = curCache.get(key);
+  const refresh = () => {
+    if (curInflight.has(key)) return curInflight.get(key);
+    const p = fn().then(v => { curCache.set(key, { t: Date.now(), v }); if (CUR_DISK && v) { try { mkdirSync(CUR_DISK, { recursive: true }); writeFileSync(curDisk(key), v); } catch {} } return v; })
+      .catch(e => { console.warn('refresh ' + key + ' failed:', e.message); return c ? c.v : null; })
+      .finally(() => curInflight.delete(key));
+    curInflight.set(key, p); return p;
+  };
+  if (c) { if (c.t < Date.now() - CUR_TTL) refresh(); return Promise.resolve(c.v); }
+  if (CUR_DISK && existsSync(curDisk(key))) { const v = readFileSync(curDisk(key)); curCache.set(key, { t: 0, v }); refresh(); return Promise.resolve(v); }
+  return refresh();
+};
+const curInvalidate = key => { curCache.delete(key); if (CUR_DISK) { try { unlinkSync(curDisk(key)); } catch {} } };
 const db = openStore(storage);
 await initAuth(storage); await initBugs(storage);
 /* קבצים שנערכים באפליקציה ויש להם גם גרסת ריפו (זריעה): קודם האחסון, אחרת הריפו */

@@ -17,7 +17,9 @@ import { request as httpsRequest, Agent } from 'node:https';
 /* HTTP עם חיבור חי (keep-alive): ה-fetch המובנה פותח TLS חדש לכל בקשה (~3 שניות ממחשב רחוק);
    עם חיבור חי כל קריאה = סיבוב אחד לשרת (~0.4 שניות מהמחשב, מילישניות בענן) */
 const agent = new Agent({ keepAlive: true, keepAliveMsecs: 30e3, maxSockets: 24, timeout: 60e3 });
-function http(url, { method = 'GET', headers = {}, body } = {}) {
+/* timeout קצר לקריאות/רשימות (חיבור תקוע לא עוצר את הדף לדקה), ארוך להעלאות של פרויקטים גדולים */
+function http(url, { method = 'GET', headers = {}, body, timeout } = {}) {
+  const tmo = timeout || (body && body.length > 65536 ? 120e3 : 15e3);
   return new Promise((resolve, reject) => {
     const r = httpsRequest(url, { method, headers, agent }, res => {
       const ch = []; res.on('data', c => ch.push(c));
@@ -25,7 +27,7 @@ function http(url, { method = 'GET', headers = {}, body } = {}) {
       res.on('error', reject);
     });
     r.on('error', reject);
-    r.setTimeout(60e3, () => r.destroy(new Error('GCS: timeout')));
+    r.setTimeout(tmo, () => r.destroy(new Error('GCS: timeout after ' + tmo / 1000 + 's')));
     if (body) r.write(body);
     r.end();
   });
@@ -74,7 +76,7 @@ function gcsStorage(bucket) {
     tok = await fetchToken();
     return tok.v;
   }
-  async function call(url, opts = {}, tries = 4) {
+  async function call(url, opts = {}, tries = 3) {
     let last;
     for (let i = 0; i < tries; i++) {
       try {

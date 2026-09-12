@@ -79,7 +79,13 @@ async function fetchChanged(h, items) {
   }));
 }
 async function readJsonStore(h) {
-  const items = (await h.st.list(h.prefix)).filter(it => /(^|\/)(p_[^/]*\.json|meta\.json)$/.test(it.name));
+  let items;
+  try { items = (await h.st.list(h.prefix)).filter(it => /(^|\/)(p_[^/]*\.json|meta\.json)$/.test(it.name)); h.lastList = items; }
+  catch (e) {
+    /* הדלי לא ענה — מגישים את מה שכבר בזיכרון (הקריאה הבאה תנסה שוב) */
+    if (!h.lastList) throw e;
+    console.warn('store list failed, serving cached copy:', e.message); items = h.lastList;
+  }
   await fetchChanged(h, items);
   for (const k of [...h.cache.keys()]) if (!items.some(it => it.name === k)) { h.cache.delete(k); diskDel(k); }   /* נמחק בצד השני */
   const projects = [];
