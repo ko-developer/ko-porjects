@@ -242,84 +242,84 @@
         "label": "OUT8",
         "port": "OUT 8",
         "x": 34.7,
-        "y": 35.5
+        "y": 37.5
       },
       {
         "t": "xlrm",
         "label": "OUT7",
         "port": "OUT 7",
         "x": 39.6,
-        "y": 35.1
+        "y": 37.1
       },
       {
         "t": "xlrm",
         "label": "OUT6",
         "port": "OUT 6",
         "x": 46.7,
-        "y": 35.1
+        "y": 37.1
       },
       {
         "t": "xlrm",
         "label": "OUT5",
         "port": "OUT 5",
         "x": 50.7,
-        "y": 36.2
+        "y": 38.2
       },
       {
         "t": "xlrm",
         "label": "OUT4",
         "port": "OUT 4",
         "x": 55.6,
-        "y": 36.2
+        "y": 38.2
       },
       {
         "t": "xlrm",
         "label": "OUT3",
         "port": "OUT 3",
         "x": 60.9,
-        "y": 36.2
+        "y": 38.2
       },
       {
         "t": "xlrm",
         "label": "OUT2",
         "port": "OUT 2",
         "x": 65.8,
-        "y": 36
+        "y": 38
       },
       {
         "t": "xlrm",
         "label": "OUT1",
         "port": "OUT 1",
         "x": 70.8,
-        "y": 36
+        "y": 38
       },
       {
         "t": "xlrf",
         "label": "IN4",
         "port": "IN 4",
         "x": 76.2,
-        "y": 35.5
+        "y": 37.5
       },
       {
         "t": "xlrf",
         "label": "IN3",
         "port": "IN 3",
         "x": 81.4,
-        "y": 35.5
+        "y": 37.5
       },
       {
         "t": "xlrf",
         "label": "IN2",
         "port": "IN 2",
         "x": 86.6,
-        "y": 34.7
+        "y": 36.7
       },
       {
         "t": "xlrf",
         "label": "IN1",
         "port": "IN 1",
         "x": 91.8,
-        "y": 34.5
+        "y": 36.5
       },
       {
         "t": "rj45",
@@ -353,90 +353,90 @@
         "label": "OUT8",
         "port": "OUT 8",
         "x": 36.2,
-        "y": 36.2
+        "y": 37.9
       },
       {
         "t": "xlrm",
         "label": "OUT7",
         "port": "OUT 7",
         "x": 41.4,
-        "y": 36.2
+        "y": 37.9
       },
       {
         "t": "xlrm",
         "label": "OUT6",
         "port": "OUT 6",
         "x": 46.4,
-        "y": 36.2
+        "y": 37.9
       },
       {
         "t": "xlrm",
         "label": "OUT5",
         "port": "OUT 5",
         "x": 51.5,
-        "y": 36.2
+        "y": 37.9
       },
       {
         "t": "xlrm",
         "label": "OUT4",
         "port": "OUT 4",
         "x": 56.5,
-        "y": 36.2
+        "y": 37.9
       },
       {
         "t": "xlrm",
         "label": "OUT3",
         "port": "OUT 3",
         "x": 61.6,
-        "y": 36.4
+        "y": 37.9
       },
       {
         "t": "xlrm",
         "label": "OUT2",
         "port": "OUT 2",
         "x": 66.6,
-        "y": 36.4
+        "y": 37.9
       },
       {
         "t": "xlrm",
         "label": "OUT1",
         "port": "OUT 1",
         "x": 71.8,
-        "y": 36.2
+        "y": 37.9
       },
       {
         "t": "xlrf",
         "label": "IN4",
         "port": "IN 4",
         "x": 77,
-        "y": 35.1
+        "y": 36.8
       },
       {
         "t": "xlrf",
         "label": "IN3",
         "port": "IN 3",
         "x": 82,
-        "y": 35.1
+        "y": 36.8
       },
       {
         "t": "xlrf",
         "label": "IN2",
         "port": "IN 2",
         "x": 87,
-        "y": 35.1
+        "y": 36.8
       },
       {
         "t": "xlrf",
         "label": "IN1",
         "port": "IN 1",
         "x": 92,
-        "y": 35.1
+        "y": 36.8
       },
       {
         "t": "rj45",
         "label": "NET",
         "x": 26,
-        "y": 34.9
+        "y": 36.4
       }
     ],
     "img": "\\bID48\\b",
@@ -457,161 +457,161 @@
         "t": "xlrm",
         "label": "OUT8",
         "port": "OUT 8",
-        "x": 14.4,
-        "y": 66.2
+        "x": 13.4,
+        "y": 67.7
       },
       {
         "t": "xlrm",
         "label": "OUT7",
         "port": "OUT 7",
-        "x": 20.4,
-        "y": 65.5
+        "x": 18.6,
+        "y": 67.7
       },
       {
         "t": "xlrm",
         "label": "OUT6",
         "port": "OUT 6",
-        "x": 24.8,
-        "y": 65.1
+        "x": 23.9,
+        "y": 67.7
       },
       {
         "t": "xlrm",
         "label": "OUT5",
         "port": "OUT 5",
-        "x": 31.6,
-        "y": 59.1
+        "x": 29.2,
+        "y": 67.4
       },
       {
         "t": "xlrm",
         "label": "OUT4",
         "port": "OUT 4",
-        "x": 35.1,
-        "y": 58.7
+        "x": 34.5,
+        "y": 67.4
       },
       {
         "t": "xlrm",
         "label": "OUT3",
         "port": "OUT 3",
-        "x": 42.3,
-        "y": 59.2
+        "x": 39.9,
+        "y": 67.4
       },
       {
         "t": "xlrm",
         "label": "OUT2",
         "port": "OUT 2",
-        "x": 45.6,
-        "y": 60
+        "x": 45.2,
+        "y": 67.4
       },
       {
         "t": "xlrm",
         "label": "OUT1",
         "port": "OUT 1",
-        "x": 53.4,
-        "y": 62.5
+        "x": 50.6,
+        "y": 67.4
       },
       {
         "t": "xlrf",
         "label": "IN8",
         "port": "IN 8",
-        "x": 55.9,
-        "y": 62.3
+        "x": 56,
+        "y": 65.5
       },
       {
         "t": "xlrf",
         "label": "IN7",
         "port": "IN 7",
-        "x": 61.3,
-        "y": 62.3
+        "x": 61.4,
+        "y": 65.5
       },
       {
         "t": "xlrf",
         "label": "IN6",
         "port": "IN 6",
-        "x": 66.7,
-        "y": 62.1
+        "x": 66.9,
+        "y": 65.5
       },
       {
         "t": "xlrf",
         "label": "IN5",
         "port": "IN 5",
         "x": 72.2,
-        "y": 62.1
+        "y": 65.5
       },
       {
         "t": "xlrf",
         "label": "IN4",
         "port": "IN 4",
         "x": 77.6,
-        "y": 62.1
+        "y": 65.5
       },
       {
         "t": "xlrf",
         "label": "IN3",
         "port": "IN 3",
         "x": 83,
-        "y": 62.1
+        "y": 65.5
       },
       {
         "t": "xlrf",
         "label": "IN2",
         "port": "IN 2",
-        "x": 89.3,
-        "y": 58.7
+        "x": 88.5,
+        "y": 65.1
       },
       {
         "t": "xlrf",
         "label": "IN1",
         "port": "IN 1",
-        "x": 94.2,
-        "y": 62.1
+        "x": 93.9,
+        "y": 65.1
       },
       {
         "t": "xlrm",
         "label": "AES O7-8",
         "x": 55.9,
-        "y": 30.2
+        "y": 40
       },
       {
         "t": "xlrm",
         "label": "AES O5-6",
-        "x": 60.2,
-        "y": 31.7
+        "x": 61.3,
+        "y": 39.6
       },
       {
         "t": "xlrm",
         "label": "AES O3-4",
-        "x": 66.9,
-        "y": 30.2
+        "x": 66.6,
+        "y": 39.6
       },
       {
         "t": "xlrm",
         "label": "AES O1-2",
-        "x": 73.6,
-        "y": 28.7
+        "x": 72,
+        "y": 39.6
       },
       {
         "t": "xlrf",
         "label": "AES I7-8",
-        "x": 77.4,
-        "y": 30.6
+        "x": 77.6,
+        "y": 37.7
       },
       {
         "t": "xlrf",
         "label": "AES I5-6",
-        "x": 82.4,
-        "y": 29.1
+        "x": 83,
+        "y": 37.7
       },
       {
         "t": "xlrf",
         "label": "AES I3-4",
-        "x": 88.2,
-        "y": 30.6
+        "x": 88.4,
+        "y": 37.7
       },
       {
         "t": "xlrf",
         "label": "AES I1-2",
         "x": 93.8,
-        "y": 34.3
+        "y": 37.7
       },
       {
         "t": "rj45",
@@ -1106,84 +1106,84 @@
         "label": "OUT8",
         "port": "OUT 8",
         "x": 34.7,
-        "y": 35.5
+        "y": 37.5
       },
       {
         "t": "xlrm",
         "label": "OUT7",
         "port": "OUT 7",
         "x": 39.6,
-        "y": 35.1
+        "y": 37.1
       },
       {
         "t": "xlrm",
         "label": "OUT6",
         "port": "OUT 6",
         "x": 46.7,
-        "y": 35.1
+        "y": 37.1
       },
       {
         "t": "xlrm",
         "label": "OUT5",
         "port": "OUT 5",
         "x": 50.7,
-        "y": 36.2
+        "y": 38.2
       },
       {
         "t": "xlrm",
         "label": "OUT4",
         "port": "OUT 4",
         "x": 55.6,
-        "y": 36.2
+        "y": 38.2
       },
       {
         "t": "xlrm",
         "label": "OUT3",
         "port": "OUT 3",
         "x": 60.9,
-        "y": 36.2
+        "y": 38.2
       },
       {
         "t": "xlrm",
         "label": "OUT2",
         "port": "OUT 2",
         "x": 65.8,
-        "y": 36
+        "y": 38
       },
       {
         "t": "xlrm",
         "label": "OUT1",
         "port": "OUT 1",
         "x": 70.8,
-        "y": 36
+        "y": 38
       },
       {
         "t": "xlrf",
         "label": "IN1",
         "port": "IN 1",
         "x": 91.8,
-        "y": 34.5
+        "y": 36.5
       },
       {
         "t": "xlrf",
         "label": "IN2",
         "port": "IN 2",
         "x": 86.6,
-        "y": 34.7
+        "y": 36.7
       },
       {
         "t": "xlrf",
         "label": "IN3",
         "port": "IN 3",
         "x": 81.4,
-        "y": 35.5
+        "y": 37.5
       },
       {
         "t": "xlrf",
         "label": "IN4",
         "port": "IN 4",
         "x": 76.2,
-        "y": 35.5
+        "y": 37.5
       },
       {
         "t": "rj45",
