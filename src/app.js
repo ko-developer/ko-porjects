@@ -9204,7 +9204,7 @@ function autoZonesHint() {
      בסשן העבודה "חלק את הפרויקט X לאזורים": הוא רואה את התכנית מהמאגר המשותף וכותב את האזורים ישר לפרויקט */
   const txt = ZONE_RULES_PROMPT + '\n(x,y יחסיים לתמונת התכנית המצורפת: 0,0 = פינה שמאלית-עליונה, 1,1 = ימנית-תחתונה)';
   try { navigator.clipboard.writeText(txt); } catch (e) {}
-  const { ov } = uiModal(`<b style="font-size:14px">🤖 זיהוי אזורים בלי מפתח API</b>
+  const ov = uiModal(`<b style="font-size:14px">🤖 זיהוי אזורים בלי מפתח API</b>
     <p style="font-size:12.5px;line-height:1.6;margin:8px 0">התוכנה עצמה לא "רואה" את התכנית — קריאה כמו של בן אדם נעשית על ידי Claude, והתוכנה מגיעה אליו רק דרך API (מפתח + חיוב של אגורות לתכנית). שתי דרכים בלי מפתח:</p>
     <ol style="font-size:12.5px;line-height:1.7;padding-inline-start:18px;margin:0 0 8px">
       <li><b>דרך Claude Code בסשן העבודה</b> (הכי מהיר): כתוב שם "חלק את הפרויקט «${esc(P.name)}» לאזורים לפי הכללים". הוא רואה את התכנית והדוגמאות שלך מהמאגר המשותף וכותב את האזורים ישר לפרויקט.</li>
