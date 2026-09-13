@@ -1956,7 +1956,7 @@ function renderNodes() {
         ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRear('${n.id}')" title="חזרה לחזית" style="white-space:nowrap">⇄ חזית</span>`
         : `<span class="flip" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rackZoom('${n.id}',-1)" title="הקטן ארון">−</span>
         <span class="flip" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rackZoom('${n.id}',1)" title="הגדל ארון">+</span>
-        <span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRackMin('${n.id}')" title="כווץ לאייקון">⤡</span><span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRear('${n.id}')" title="הפוך חזית/גב">⇄</span>`;
+        <span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRackMin('${n.id}')" title="כווץ לאייקון">⤡</span><span class="flip" onpointerdown="event.stopPropagation()" onclick="toggleRear('${n.id}')" title="הפוך חזית/גב">⇄</span><span class="flip" onpointerdown="event.stopPropagation()" onclick="rackFocus('${n.id}')" title="פתח בגדול — כל המוצרים והגב עם החיבורים, לעריכה">⛶</span>`;
       let used = 0, rows = '';
       if (n.rear) {
         /* גב הארון — פאנל סכמטי: יציאות משמאל, כניסות מימין, תעלה בין הפאנל לתווית */
@@ -2216,6 +2216,7 @@ function renderNodes() {
     hd.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); aiming = sn.id; });
     host.appendChild(hd);
   }
+  if (window.__rackFocus) rackFocusMount();   /* ארון בגדול: האלמנט החדש עובר לחלון הצף */
 }
 /* מצייר את חיבורי הגב לפי מדידת מיקום המחברים בפועל — הקו נוגע ממש במחבר */
 /* מסלולי כבלים בתוך פאנל מחברים — מקצה הפאנל עד המחבר עצמו, בצבע הסוג */
@@ -8380,6 +8381,45 @@ function rackZoom(id, dir) {
   render(); save();
 }
 function toggleRackMin(id) { const n = byId(id); if (!n) return; n.min = !n.min; render(); }
+/* ארון בגדול: חלון צף שמציג את אלמנט הארון עצמו (אותו DOM, אותם מאזינים — לחיצה על מחבר מחווטת, ✎ עורך) בהגדלה.
+   בכל רינדור האלמנט נבנה מחדש בקנבס ומועבר לחלון (rackFocusMount). סגירה = חוזר למקומו */
+function rackFocus(id) {
+  const n = byId(id); if (!n) return;
+  n.min = false; if (!n.rear) n.rear = true;
+  window.__rackFocus = id;
+  let ov = document.getElementById('rackFocusOv');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'rackFocusOv';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.72);z-index:120;display:flex;flex-direction:column;align-items:stretch';
+    ov.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#1a1e28;color:#fff"><b style="flex:1">🗄 ${esc(n.name)} — גב הארון בגדול</b>
+      <span class="muted" style="color:#c9ccd4;font-size:11.5px">לחץ על מחבר OUT ואז על מחבר IN (או רמקול בתכנית) לחיווט · ✎ גב = עריכת המחברים · גלגלת = גלילה</span>
+      <button onclick="rackFocusZoom(-0.25)" title="הקטן">−</button><button onclick="rackFocusZoom(0.25)" title="הגדל">+</button>
+      <button onclick="const n=byId(window.__rackFocus);if(n){n.rear=!n.rear;render();}" title="חזית/גב">⇄</button>
+      <button onclick="rackFocusClose()">✕ סגור</button></div>
+      <div id="rackFocusBody" style="flex:1;overflow:auto;padding:16px;display:flex;justify-content:center;align-items:flex-start"></div>`;
+    document.body.appendChild(ov);
+    window.__rackFocusK = 1;
+  }
+  render();
+}
+function rackFocusZoom(d) { window.__rackFocusK = Math.max(0.4, Math.min(4, (window.__rackFocusK || 1) + d)); rackFocusMount(); }
+function rackFocusClose() { const ov = document.getElementById('rackFocusOv'); if (ov) ov.remove(); window.__rackFocus = null; render(); }
+function rackFocusMount() {
+  const id = window.__rackFocus, body = document.getElementById('rackFocusBody'); if (!id || !body) return;
+  const el = document.getElementById('nd_' + id); if (!el) { rackFocusClose(); return; }
+  const n = byId(id);
+  /* האלמנט ממוקם absolute בקנבס — בחלון הוא סטטי, מוגדל לרוחב הזמין */
+  body.innerHTML = '';
+  const wrap = document.createElement('div'); wrap.style.cssText = 'position:relative;transform-origin:top center;';
+  el.style.position = 'relative'; el.style.right = 'auto'; el.style.top = 'auto'; el.style.left = 'auto'; el.style.zIndex = '1';
+  const natW = el.offsetWidth || Math.round((n._frontW || 240) / (n._rearK || 1)) || 600;
+  const availW = Math.max(300, window.innerWidth - 60);
+  const k = Math.min(availW / Math.max(1, natW), 3) * (window.__rackFocusK || 1);
+  wrap.appendChild(el); body.appendChild(wrap);
+  const w0 = el.offsetWidth, h0 = el.offsetHeight;
+  wrap.style.transform = 'scale(' + k.toFixed(3) + ')'; wrap.style.width = w0 + 'px'; wrap.style.height = h0 + 'px'; wrap.style.marginBottom = Math.round(h0 * (k - 1)) + 'px';
+  wrap.style.marginLeft = wrap.style.marginRight = Math.round(w0 * (k - 1) / 2) + 'px';
+}
 /* פריסת כבל מפריט ברשימה — מפעיל חיבור בלחיצה עם כל פרטי הכבל */
 function wireFromItem(iid) {
   const it = impItems.find(x => x.iid === iid);
@@ -9521,7 +9561,8 @@ function zoneSystemBuilder(z) {
       ${!kq ? `<div class="fld"><label style="font-size:10px">כל הקיטים (${kits.length})</label><select onchange="if(this.value!==''){zoneKitConfirm('${esc(z.name).replace(/'/g, '&#39;')}',+this.value);this.value='';}">
         <option value="">— או בחר קיט מהרשימה (${kits.length}) —</option>
         ${kits.map(x => `<option value="${x.i}">${x.rec ? '⭐ ' : ''}${esc(x.k.name.slice(0, 44))}</option>`).join('')}
-      </select></div>` : ''}`;
+      </select></div>` : ''}
+      ${typeof erpQuotesDialog === 'function' && !(window.__AUTH && window.__AUTH.user && window.__AUTH.user.role !== 'owner') ? `<button style="width:100%;margin:2px 0 6px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="selZone='${zid}';erpQuotesDialog()" title="הפריטים של הצעת מחיר קיימת ב-ERP נכנסים להצעה ומוצבים באזור הזה — כמו בחירת קיט">🧾 או מהצעת מחיר קיימת ב-ERP → הצב באזור</button>` : ''}`;
     })()}
     ${res.length ? `<div style="max-height:120px;overflow-y:auto;margin-bottom:6px">${res.map(r => { const isSub = /סאב|sub|NOMOS|TILL\s?18|SB-?18|וופר/i.test(r.name); return `<button style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;margin-bottom:3px;font-size:11px" onclick="pickZoneSpk('${zid}','${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}',${isSub})"><span style="flex:1;text-align:right">${isSub ? '🔈 סאב' : '🔊 רמקול'}: ${esc(r.name.slice(0, 36))}</span>${stockTag(r.key)}</button>`; }).join('')}</div>` : ''}
     <div class="fld"><label>רמקול נבחר</label><div style="font-size:12px">${z._spk ? '🔊 ' + esc(z._spk) : '— (בחר מהחיפוש) —'}</div></div>
@@ -9597,6 +9638,30 @@ function setZoneField(zid, key, val) {
   if (key === '_sq') { const el = document.getElementById('zsq'); if (el) { el.focus(); const L = el.value.length; el.setSelectionRange(L, L); } }
 }
 function pickZoneSpk(zid, name, key, isSub) { const z = (P.zones || []).find(x => x.id === zid); if (!z) return; if (isSub) { z._sub = name; z._subKey = key; } else { z._spk = name; z._spkKey = key; } z._sq = ''; render(); save(); }
+/* פינות אמיתיות של האזור לסאבים (צימוד פינה): קודקודים קמורים של המצולע, מוסטים פנימה על חוצה הזווית,
+   ורק כאלה שנשארים בתוך האזור — לא פינות המלבן החוסם (באזור בצורת L הן נופלות מחוץ לאזור, למשל במקרר).
+   מסודרות לפי המרחק מהמרכז (הרחוקות קודם — הפינות ה"גדולות" של החלל) */
+function zoneCornerPts(z, inM) {
+  const b = zoneBounds(z);
+  const poly = (z.poly && z.poly.length > 2) ? z.poly : [{ x: b.L, y: b.T }, { x: b.L + b.W, y: b.T }, { x: b.L + b.W, y: b.T + b.H }, { x: b.L, y: b.T + b.H }];
+  const n = poly.length, cx = b.L + b.W / 2, cy = b.T + b.H / 2;
+  let area = 0; for (let i = 0; i < n; i++) { const a = poly[i], c = poly[(i + 1) % n]; area += a.x * c.y - c.x * a.y; }
+  const ccw = area > 0;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const p0 = poly[(i + n - 1) % n], p1 = poly[i], p2 = poly[(i + 1) % n];
+    const ax = p1.x - p0.x, ay = p1.y - p0.y, bx = p2.x - p1.x, by = p2.y - p1.y;
+    const cross = ax * by - ay * bx;
+    if ((ccw ? cross : -cross) <= 0) continue;   /* קודקוד קעור — לא פינה */
+    const la = Math.hypot(ax, ay) || 1, lb = Math.hypot(bx, by) || 1;
+    let vx = -ax / la + bx / lb, vy = -ay / la + by / lb; const lv = Math.hypot(vx, vy) || 1; vx /= lv; vy /= lv;   /* חוצה הזווית פנימה */
+    for (const k of [1, 1.6, 2.4]) { const q = { x: p1.x + vx * inM * k, y: p1.y + vy * inM * k }; if (inZone(z, q)) { out.push({ x: q.x, y: q.y, d: Math.hypot(q.x - cx, q.y - cy) }); break; } }
+  }
+  out.sort((a, c) => c.d - a.d);
+  const pts = out.map(q => [q.x, q.y]);
+  if (!pts.length) return [[b.L + inM, b.T + inM], [b.L + b.W - inM, b.T + inM], [b.L + b.W - inM, b.T + b.H - inM], [b.L + inM, b.T + b.H - inM]].filter(([x, y]) => inZone(z, { x, y }));
+  return pts;
+}
 function inZone(z, pt) {
   if (z.poly) { let inside = false, p = z.poly; for (let i = 0, j = p.length - 1; i < p.length; j = i++) if ((p[i].y > pt.y) !== (p[j].y > pt.y) && pt.x < (p[j].x - p[i].x) * (pt.y - p[i].y) / (p[j].y - p[i].y) + p[i].x) inside = !inside; return inside; }
   const L = 2200 - z.x - z.w; return pt.x >= L && pt.x <= L + z.w && pt.y >= z.y && pt.y <= z.y + z.h;
@@ -9799,12 +9864,12 @@ function buildZoneFromItems(zid) {
   }
   /* סאבים — בפינות (צימוד פינה מגביר בס) */
   const b = zoneBounds(z), inM = P.scale ? 0.8 / P.scale : 30;
-  const cpts = [[b.L + inM, b.T + inM], [b.L + b.W - inM, b.T + inM], [b.L + b.W - inM, b.T + b.H - inM], [b.L + inM, b.T + b.H - inM]];
+  const cpts = zoneCornerPts(z, inM);
   let ci = 0;
   for (const it of subItems) {
     const q = remQ(it);
     for (let k = 0; k < q; k++, ci++) {
-      const c2 = cpts[ci % 4];
+      const c2 = cpts[ci % cpts.length];
       const nd = { id: uid('n'), kind: 'point', name: it.name.slice(0, 40) + ' (' + (k + 1) + ')', sub: 'סאב פינה · ' + z.name, x: 2200 - c2[0] - 20, y: c2[1] - 24, srcIid: it.iid, mini: true, mount: 'רצפה', hgt: 0, disp: 360, spl: (guessSpl(it.name) || 120) - 20 };
       P.nodes.push(nd); created.push(nd.id); nSub++;
     }
