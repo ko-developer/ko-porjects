@@ -309,6 +309,10 @@ function ptMergeZones(aId, bId) {
   uiToast('🔗 "' + b.name + '" מוזג לתוך "' + a.name + '"');
 }
 /* ---------- חלוקת כל החלל לאזורים (מוזיקה בכל מקום שיש בו לקוחות) ----------
+   הכללים (ZONE_RULES ב-app.js, מהדוגמאות של אורי): גבול = קיר או פתח עם דלת; ריהוט/דלפקים בתוך האזור;
+   אולם פתוח = אזור אחד; מטבח/משרד/צוות/פיר/מדרגות/מבואה — לא אזור; שירותים — כן; חדר עם קירות משלו — אזור נפרד.
+   כאן זה ממומש על תמונת התכנית (קווים כהים = קירות; דלתות נסגרות בעיבוי; פנים ריהוט צמוד נבלע לאזור).
+   על תכניות שבהן קווי הריהוט זהים לקווי הקירות (קווים דקים כפולים) הזיהוי מוגבל — שם עדיף "🤖 סמן לי אזורים" (ראייה של Claude, אותם כללים).
    כל שטח לבן רציף בין קירות (אחרי עיבוי הקירות) = "חלל". חללים שנוגעים בשולי התכנית = חוץ.
    לכל חלל: הכיתובים שבתוכו קובעים — שירותים/מטבח/מחסן = לא אזור; DANCE = רחבת ריקודים;
    כיתוב קהל = השם והתכלית; בלי כיתוב = "חלל N" עם תכלית ברירת המחדל. הגבול = פוליגון של החלל
@@ -333,6 +337,15 @@ function ptComponents(B) {
   }
   return { comp, info };
 }
+/* עיבוי מלבני ברדיוס r (ריצה בזמן קבוע לפיקסל) */
+function ptDilateN(src, w, h, r) {
+  const t = new Uint8Array(w * h), out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = 0; x < w; x++) { if (src[row + x]) run = r + 1; if (run > 0) { t[row + x] = 1; run--; } } }
+  for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = w - 1; x >= 0; x--) { if (src[row + x]) run = r + 1; if (run > 0) { t[row + x] = 1; run--; } } }
+  for (let x = 0; x < w; x++) { let run = 0; for (let y = 0; y < h; y++) { const i = y * w + x; if (t[i]) run = r + 1; if (run > 0) { out[i] = 1; run--; } } }
+  for (let x = 0; x < w; x++) { let run = 0; for (let y = h - 1; y >= 0; y--) { const i = y * w + x; if (t[i]) run = r + 1; if (run > 0) { out[i] = 1; run--; } } }
+  return out;
+}
 /* מסכת חלל אחד, מורחבת חזרה עד הקירות המקוריים (העיבוי כיווץ אותה) */
 function ptCompMask(B, comp, id) {
   const { w, h, r, dark0 } = B, m = new Uint8Array(w * h), t = new Uint8Array(w * h);
@@ -346,21 +359,70 @@ function ptCompMask(B, comp, id) {
   for (let i = 0; i < w * h; i++) if (m[i]) out[i] = 1;
   return out;
 }
-/* קו המתאר החיצוני של מסכה (Moore neighbour tracing) → נקודות פיקסל */
+/* פנים של ריהוט צמוד (ספות, תאים, דלפקים) — "כיס" לבן שקו דק מפריד אותו מהרצפה: כיס עד ~6 מ״ר שצמוד למסכת
+   החלל דרך קו של עד 3 פיקסלים ואינו נוגע בחלל אחר מצטרף לאזור (כלל: ריהוט אינו גבול). כמה סבבים (כיס ליד כיס) */
+function ptAbsorbPockets(B, mask, comp, selfId) {
+  const { w, h, dark0, pxPerM } = B, maxN = Math.round(6 * pxPerM * pxPerM);
+  const lab = new Int32Array(w * h).fill(-1), q = new Int32Array(w * h), pockets = [];
+  for (let s0 = 0; s0 < w * h; s0++) {
+    if (dark0[s0] || mask[s0] || lab[s0] >= 0) continue;
+    const id = pockets.length; let qh = 0, qt = 0, n = 0, other = false; q[qt++] = s0; lab[s0] = id; const start = 0;
+    while (qh < qt) { const i = q[qh++], x = i % w; n++;
+      if (comp[i] >= 0 && comp[i] !== selfId) other = true;
+      const nb = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w];
+      for (const j of nb) { if (j < 0 || j >= w * h || dark0[j] || mask[j] || lab[j] >= 0) continue; lab[j] = id; q[qt++] = j; } }
+    pockets.push({ id, n, ok: n <= maxN && !other, px: n <= maxN && !other ? Array.from(q.subarray(0, qt)) : null });
+  }
+  for (let pass = 0; pass < 3; pass++) {
+    let added = 0;
+    for (const pk of pockets) {
+      if (!pk.ok || pk.done) continue;
+      let touch = false;
+      for (const i of pk.px) { const x = i % w, y = (i - x) / w;
+        for (let d = 1; d <= 3 && !touch; d++) for (const [dx, dy] of [[d, 0], [-d, 0], [0, d], [0, -d]]) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h && mask[yy * w + xx]) { touch = true; break; } }
+        if (touch) break; }
+      if (touch) { for (const i of pk.px) mask[i] = 1; pk.done = true; added++; }
+    }
+    if (!added) break;
+  }
+  return mask;
+}
+/* פיצול מסכה לחלקים רציפים */
+function ptSplitMask(mask, w, h) {
+  const seen = new Uint8Array(w * h), q = new Int32Array(w * h), parts = [];
+  for (let s0 = 0; s0 < w * h; s0++) {
+    if (!mask[s0] || seen[s0]) continue;
+    const m = new Uint8Array(w * h); let qh = 0, qt = 0, n = 0; q[qt++] = s0; seen[s0] = 1;
+    while (qh < qt) { const i = q[qh++], x = i % w; m[i] = 1; n++;
+      if (x > 0 && mask[i - 1] && !seen[i - 1]) { seen[i - 1] = 1; q[qt++] = i - 1; }
+      if (x < w - 1 && mask[i + 1] && !seen[i + 1]) { seen[i + 1] = 1; q[qt++] = i + 1; }
+      if (i >= w && mask[i - w] && !seen[i - w]) { seen[i - w] = 1; q[qt++] = i - w; }
+      if (i + w < w * h && mask[i + w] && !seen[i + w]) { seen[i + w] = 1; q[qt++] = i + w; } }
+    parts.push({ mask: m, n });
+  }
+  return parts;
+}
+/* קו המתאר החיצוני של מסכה (Moore neighbour tracing עם קריטריון העצירה של Jacob) → נקודות פיקסל.
+   בלי הקריטריון, "זיז" ברוחב פיקסל ליד נקודת ההתחלה סוגר את הלולאה אחרי 2 צעדים ומחזיר פוליגון ריק */
 function ptTrace(mask, w, h) {
   let s = -1; for (let i = 0; i < w * h; i++) if (mask[i]) { s = i; break; }
   if (s < 0) return [];
-  const at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && mask[y * w + x];
-  const N = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];   /* עם כיוון השעון החל ממזרח */
-  let x = s % w, y = (s - x) / w, dir = 6, pts = [[x, y]];
-  const sx = x, sy = y; let guard = 0;
-  do {
-    let found = false;
-    for (let k = 0; k < 8; k++) { const d = (dir + 5 + k) % 8, nx = x + N[d][0], ny = y + N[d][1]; if (at(nx, ny)) { x = nx; y = ny; dir = d; found = true; break; } }
-    if (!found) break;
-    pts.push([x, y]);
-    if (++guard > w * h) break;
-  } while (!(x === sx && y === sy));
+  const at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && mask[y * w + x] ? 1 : 0;
+  /* שכנים עם כיוון השעון החל ממערב: W, NW, N, NE, E, SE, S, SW */
+  const N = [[-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1]];
+  const sx = s % w, sy = (s - sx) / w;
+  let cx = sx, cy = sy, bdir = 0;           /* bdir = כיוון ה-backtrack (השכן שממנו הגענו); מתחילים ממערב */
+  const pts = [[cx, cy]];
+  let firstMove = -1, guard = 0;
+  while (guard++ < w * h * 2) {
+    let found = -1;
+    for (let k = 1; k <= 8; k++) { const d = (bdir + k) % 8; if (at(cx + N[d][0], cy + N[d][1])) { found = d; break; } }
+    if (found < 0) break;                     /* פיקסל בודד */
+    if (cx === sx && cy === sy) { if (firstMove < 0) firstMove = found; else if (found === firstMove) break; }
+    cx += N[found][0]; cy += N[found][1];
+    pts.push([cx, cy]);
+    bdir = (found + 5) % 8;                   /* ה-backtrack החדש: השכן שנבדק ממש לפני זה שנמצא, מנקודת המבט של הפיקסל החדש */
+  }
   return pts;
 }
 /* פישוט Ramer–Douglas–Peucker */
@@ -398,9 +460,13 @@ async function ptPartition() {
   let made = 0, skipped = 0, outdoor = 0, idx = 0;
   const seenNames = {};
   const mkPoly = (mask) => {
-    const tr = ptTrace(mask, w, h); if (tr.length < 4) return null;
-    const eps = Math.max(1.5, B.pxPerM * 0.35);
-    const sp = ptRdp(tr, eps);
+    const tr = ptTrace(mask, w, h);
+    const eps = Math.max(1.5, B.pxPerM * 0.2);
+    let sp = tr.length >= 4 ? ptRdp(tr, eps) : [];
+    if (sp.length < 3) {   /* מתאר מנוון — המלבן החוסם של המסכה */
+      let x0 = w, y0 = h, x1 = 0, y1 = 0; for (let i = 0; i < w * h; i++) if (mask[i]) { const x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+      if (x1 <= x0 || y1 <= y0) return null; sp = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+    }
     return sp.map(([x, y]) => ({ x: Math.round(L + x / w * W), y: Math.round(T + y / h * H) }));
   };
   const addZone = (name, usage, poly, extra) => {
@@ -423,11 +489,16 @@ async function ptPartition() {
       }
       continue;
     }
-    if (c.n < labelMin) continue;
-    if (svc.length && !aud.length) { skipped++; continue; }             /* שירותים / מטבח / מחסן — בלי מוזיקה */
-    if (!aud.length && c.n < minArea) continue;                          /* חלל קטן בלי כיתוב — פינה/ארון */
-    const mask = ptCompMask(B, comp, c.id);
-    const poly = mkPoly(mask); if (!poly) continue;
+    const dbg = window.__ptDbg2 ? (window.__ptDbg2.trace = window.__ptDbg2.trace || []) : null;
+    if (c.n < labelMin) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'tiny' }); continue; }
+    if (svc.length && !aud.length) { skipped++; if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'service' }); continue; }             /* שירותים / מטבח / מחסן — בלי מוזיקה */
+    if (!aud.length && c.n < minArea) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'small-unlabeled' }); continue; }                          /* חלל קטן בלי כיתוב — פינה/ארון */
+    const mask = ptAbsorbPockets(B, ptCompMask(B, comp, c.id), comp, c.id);
+    /* כיסים שנבלעו מעבר לקו לא מחוברים פיזית למסכה — מעבים ב-2 פיקסלים כדי לגשר, ומקיפים את החלק הגדול */
+    const bridged = ptDilateN(mask, w, h, 2);
+    const parts = ptSplitMask(bridged, w, h).sort((a, b) => b.n - a.n); if (!parts.length) { if (dbg) dbg.push({ id: c.id, why: 'no-parts' }); continue; }
+    const poly = mkPoly(parts[0].mask); if (!poly) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'no-poly', part: +(parts[0].n / pxPerM2).toFixed(1) }); continue; }
+    if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'zone', part: +(parts[0].n / pxPerM2).toFixed(1), pts: poly.length });
     let name, usage;
     if (aud.length) { const best = aud.slice().sort((a, b) => b.t.length - a.t.length)[0]; name = best.t; usage = ptUsageOf(best.t); }
     else { name = 'חלל ' + (++idx); usage = (P.room && P.room.usage) || 'מוזיקת רקע'; }

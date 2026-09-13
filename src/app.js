@@ -9060,9 +9060,16 @@ function applyZonesJson(zs) {
   const W = P.bgW || 1400, H = $('#bgimg').offsetHeight || Math.round(W * 0.7);
   P.zones = P.zones || [];
   for (const zz of zs) {
+    if (Array.isArray(zz.poly) && zz.poly.length >= 3) {
+      /* פוליגון יחסי (0-1) → קואורדינטות הקנבס; עוקב אחרי הקירות */
+      const poly = zz.poly.map(pt => ({ x: Math.round(bgLeft() + Math.max(0, Math.min(1, +pt[0])) * W), y: Math.round(bgTop() + Math.max(0, Math.min(1, +pt[1])) * H) }));
+      const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys);
+      P.zones.push({ id: uid('z'), name: zz.name || 'אזור', usage: zz.usage || '', poly, x: Math.max(0, 2200 - left - (Math.max(...xs) - left)), y: Math.max(0, top), w: Math.max(...xs) - left, h: Math.max(...ys) - top, auto: 'ai' });
+      continue;
+    }
     const w = Math.max(80, (zz.rw || 0.2) * W), h = Math.max(50, (zz.rh || 0.2) * H);
     const left = bgLeft() + (zz.rx || 0) * W, top = bgTop() + (zz.ry || 0) * H;
-    P.zones.push({ id: uid('z'), name: zz.name || 'אזור', usage: zz.usage || '', x: Math.max(0, 2200 - left - w), y: Math.max(0, top), w, h });
+    P.zones.push({ id: uid('z'), name: zz.name || 'אזור', usage: zz.usage || '', x: Math.max(0, 2200 - left - w), y: Math.max(0, top), w, h, auto: 'ai' });
   }
   render();
   return zs.length;
@@ -9129,14 +9136,27 @@ function claudeJson(j) {
   return JSON.parse(txt);
 }
 /* זיהוי אזורים אוטומטי — Claude מנתח את תמונת התכנית */
+/* הכללים לחלוקת חלל לאזורי סאונד — כפי שאורי הגדיר על דוגמאות מסומנות (אולם אירועים, בית קפה):
+   מוזיקה בכל מקום שיש בו לקוחות; הגבול הוא קיר או פתח עם דלת; ריהוט ודלפקים אינם גבול. */
+const ZONE_RULES = [
+  'כל חלל שלקוחות שוהים בו מקבל אזור — אולם, אגף ישיבה, בר, רחבת ריקודים, כניסה/לובי, שירותים (כן! גם בשירותים יש מוזיקה), מרפסת/חוץ.',
+  'אזור אחד = חלל אחד בין קירות. הגבול היחיד בין אזורים הוא קיר או פתח עם דלת. פתח רחב בלי דלת אינו גבול.',
+  'ריהוט, ספות, שולחנות, דלפקי בר/שירות, קיוסקים ואיים אינם גבולות — הם בתוך האזור. האזור מגיע עד הקיר, לא עד גב הספה.',
+  'אולם פתוח גדול עם כמה כיתובים (GENERAL AREA, CONCESSION, ISLAND KIOSK, במה מודפסת) הוא אזור אחד. כיתוב על התכנית אינו יוצר אזור.',
+  'לא אזור: מטבח, הכנה, מחסן, משרד, חדר צוות/STAFF, חדר טכני/חשמל, פיר מעלית, גרם מדרגות, מבואת כניסה בין שתי דלתות. חדרים כאלה שיושבים בתוך אזור נחתכים ממנו (מגרעת).',
+  'חדר עם קירות משלו (למשל מסעדה בשרשרת בקומפלקס, חדר VIP) הוא אזור נפרד, גם אם לא כתוב עליו כלום.',
+  'הגבול הוא פוליגון שעוקב אחרי הקירות במדויק (גם אלכסונים ומגרעות), לא מלבן חוסם.',
+];
+const ZONE_RULES_PROMPT = 'זו תכנית אדריכלית של חלל אירוח/מסחרי. חלק אותה לאזורי סאונד לפי הכללים הבאים:\n' + ZONE_RULES.map((r, i) => (i + 1) + '. ' + r).join('\n') +
+  '\nהחזר JSON בלבד ללא טקסט נוסף: {"zones":[{"name":"שם בעברית","usage":"מוזיקת רקע|בית קפה|מסעדה|מוזיקה לבר|מסעדה + DJ|הופעות חיות|מוזיקת ריקודים|מועדון על מלא","poly":[[x,y],[x,y],...]}]} — poly = קודקודי הפוליגון בסדר היקפי, בקואורדינטות יחסיות 0-1 של התמונה (x שמאל→ימין, y למעלה→למטה), 4 עד 16 נקודות לאזור, ללא חפיפה בין אזורים. עד 15 אזורים.';
 async function autoZones() {
   if (!P.bg) { alert('העלה קודם תכנית רקע'); return; }
   render();
   try {
     const j = await claudeMsg([{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: P.bg.split(',')[1] } },
-          { type: 'text', text: 'זו תכנית אדריכלית של חלל אירוח/מסחרי. זהה אזורי סאונד לוגיים (רחבת ריקודים, במה, בר, אזור ישיבה/מסעדה, חוץ/מרפסת, כניסה). דלג על מטבחים, שירותים ומחסנים. החזר JSON בלבד ללא שום טקסט נוסף: {"zones":[{"name":"שם בעברית","usage":"מוזיקת רקע|מוזיקה לבר|מסעדה + DJ|הופעות חיות|מוזיקת ריקודים|מועדון על מלא","rx":0.1,"ry":0.2,"rw":0.3,"rh":0.25}]} — rx,ry מיקום יחסי (0-1) של הפינה השמאלית-העליונה של האזור בתמונה, rw,rh רוחב וגובה יחסיים. עד 8 אזורים.' + (typeof ptHintText === 'function' ? ptHintText() : '') }
-    ] }], 1500);
+          { type: 'text', text: ZONE_RULES_PROMPT + (typeof ptHintText === 'function' ? ptHintText() : '') }
+    ] }], 4000);
     const n = applyZonesJson(claudeJson(j).zones);
     alert('✓ זוהו ' + n + ' אזורים — ערוך שמות ותכליות בטבלה למטה או בלחיצה על אזור');
   } catch (err) {
