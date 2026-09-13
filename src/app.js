@@ -6237,7 +6237,8 @@ function renderPanel() {
     let bgc = `<h3 class="sec">🗺 אזורי סאונד — תכלית שונה לכל אזור</h3>
       <div class="fld"><label>שם האזור הבא</label><input value="${esc(zoneNameNext)}" placeholder="למשל: חדר פרטי / רחבה / חוץ" oninput="zoneNameNext=this.value"></div>
       <button style="width:100%;margin-bottom:6px;${zoneMode ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="zoneMode={poly:[]};render()">${zoneMode ? 'נקר נקודות סביב האזור · לחיצה על הנקודה הראשונה סוגרת (Esc לביטול)' : '➕ סמן אזור — ניקור נקודות'}</button>
-      <button style="width:100%;margin-bottom:6px" onclick="autoZones()">🤖 סמן לי אזורים אוטומטית</button>` +
+      <button style="width:100%;margin-bottom:6px" onclick="autoZones()">🤖 סמן לי אזורים אוטומטית${(store.zoneExamples || []).length ? ' (לומד מ-' + store.zoneExamples.length + ' דוגמאות שלך)' : ''}</button>
+      ${(P.zones || []).length ? `<button style="width:100%;margin-bottom:6px;background:#f1efff" onclick="zoneExampleSave()" title="החלוקה שסימנת בתכנית הזאת תישלח כדוגמה בכל זיהוי אוטומטי — ככה מלמדים את התכנה">📚 שמור את החלוקה שלי כדוגמת לימוד${(store.zoneExamples || []).some(e => e.pid === P.id) ? ' ✓' : ''}</button>` : ''}` +
       (P.zones || []).map(z => `<div class="crow" onclick="selZone='${z.id}';render()">
         <span style="width:12px;height:12px;border-radius:3px;background:${zColor(z)};flex:none"></span>
         <span class="txt">${esc(z.name)} · ${esc(z.usage || 'ללא תכלית')}${P.scale ? ' · ' + (z.w * P.scale).toFixed(0) + '×' + (z.h * P.scale).toFixed(0) + ' מ׳' : ''}</span>
@@ -9146,7 +9147,38 @@ const ZONE_RULES = [
   'לא אזור: מטבח, הכנה, מחסן, משרד, חדר צוות/STAFF, חדר טכני/חשמל, פיר מעלית, גרם מדרגות, מבואת כניסה בין שתי דלתות. חדרים כאלה שיושבים בתוך אזור נחתכים ממנו (מגרעת).',
   'חדר עם קירות משלו (למשל מסעדה בשרשרת בקומפלקס, חדר VIP) הוא אזור נפרד, גם אם לא כתוב עליו כלום.',
   'הגבול הוא פוליגון שעוקב אחרי הקירות במדויק (גם אלכסונים ומגרעות), לא מלבן חוסם.',
+  'קיר נמוך / מעקה זכוכית (knee wall) הוא גבול: פינת ישיבה שמופרדת ממנו היא אזור נפרד.',
+  'מרפסת/דק שפתוחים לאולם בפתח רחב הם חלק מאזור האולם. כניסה ראשית, מבואה, רמפה, עמדת מלצרים ומדרגות — לא אזור.',
+  'בר עם דלפק השירות, עמדת המארחת והשולחנות הגבוהים סביבו — אזור אחד. שני חדרי שירותים צמודים — אזור אחד "שירותים".',
 ];
+/* דוגמאות שאורי סימן — נשמרות ב-store.zoneExamples ונשלחות ל-Claude יחד עם התכנית: "ככה מסמנים" */
+function zoneExampleSave() {
+  if (!P.bg || !(P.zones || []).length) { uiToast('אין תכנית או אזורים לשמור כדוגמה'); return; }
+  const img = new Image();
+  img.onload = () => {
+    const k = Math.min(1, 900 / img.width), cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
+    const zones = P.zones.map(z => ({ name: z.name, usage: z.usage || '', poly: (z.poly || zoneRectPts(z)).map(p => [+((p.x - L) / W).toFixed(3), +((p.y - T) / H).toFixed(3)]) }));
+    store.zoneExamples = (store.zoneExamples || []).filter(e => e.pid !== P.id);
+    store.zoneExamples.push({ pid: P.id, name: P.name, at: new Date().toISOString(), img: cv.toDataURL('image/jpeg', 0.6), zones });
+    while (store.zoneExamples.length > 6) store.zoneExamples.shift();
+    save(); render();
+    uiToast('📚 נשמר כדוגמת לימוד (' + zones.length + ' אזורים) — ' + store.zoneExamples.length + ' דוגמאות · ישמשו את "סמן לי אזורים אוטומטית"', 6000);
+  };
+  img.src = P.bg;
+}
+function zoneExampleBlocks() {
+  const ex = (store.zoneExamples || []).filter(e => e.pid !== P.id).slice(-3);
+  const blocks = [];
+  ex.forEach((e, i) => {
+    blocks.push({ type: 'text', text: `דוגמה ${i + 1} — תכנית שאורי חילק בעצמו. אחרי התמונה: החלוקה שלו (JSON באותו פורמט שמבוקש ממך). למד ממנה מה נחשב אזור, איפה עובר הגבול ומה מושמט:` });
+    blocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: e.img.split(',')[1] } });
+    blocks.push({ type: 'text', text: JSON.stringify({ zones: e.zones }) });
+  });
+  if (blocks.length) blocks.push({ type: 'text', text: 'עכשיו התכנית החדשה. חלק אותה באותה שיטה ובאותו סגנון:' });
+  return blocks;
+}
 const ZONE_RULES_PROMPT = 'זו תכנית אדריכלית של חלל אירוח/מסחרי. חלק אותה לאזורי סאונד לפי הכללים הבאים:\n' + ZONE_RULES.map((r, i) => (i + 1) + '. ' + r).join('\n') +
   '\nהחזר JSON בלבד ללא טקסט נוסף: {"zones":[{"name":"שם בעברית","usage":"מוזיקת רקע|בית קפה|מסעדה|מוזיקה לבר|מסעדה + DJ|הופעות חיות|מוזיקת ריקודים|מועדון על מלא","poly":[[x,y],[x,y],...]}]} — poly = קודקודי הפוליגון בסדר היקפי, בקואורדינטות יחסיות 0-1 של התמונה (x שמאל→ימין, y למעלה→למטה), 4 עד 16 נקודות לאזור, ללא חפיפה בין אזורים. עד 15 אזורים.';
 async function autoZones() {
@@ -9154,8 +9186,10 @@ async function autoZones() {
   render();
   try {
     const j = await claudeMsg([{ role: 'user', content: [
+          { type: 'text', text: ZONE_RULES_PROMPT },
+          ...zoneExampleBlocks(),
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: P.bg.split(',')[1] } },
-          { type: 'text', text: ZONE_RULES_PROMPT + (typeof ptHintText === 'function' ? ptHintText() : '') }
+          { type: 'text', text: 'החזר את החלוקה של התכנית האחרונה בלבד.' + (typeof ptHintText === 'function' ? ptHintText() : '') }
     ] }], 4000);
     const n = applyZonesJson(claudeJson(j).zones);
     alert('✓ זוהו ' + n + ' אזורים — ערוך שמות ותכליות בטבלה למטה או בלחיצה על אזור');
