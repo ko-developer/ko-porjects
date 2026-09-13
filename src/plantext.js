@@ -196,7 +196,14 @@ async function ptBinary() {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
   const px = g.getImageData(0, 0, w, h).data, dark0 = new Uint8Array(w * h);
-  for (let i = 0, j = 0; i < px.length; i += 4, j++) dark0[j] = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) < OPT.thr ? 1 : 0;
+  /* תכנית צבעונית (הדמיה: רצפות, שולחנות וכיסאות בצבע) — הקירות בה שחורים, והכל השאר צבעוני.
+     בשרטוט קווי (שחור-לבן) הסף 200 תופס קווים דקים ואפורים; בהדמיה סף כזה הופך כל רצפת עץ ל"קיר".
+     מזהים הדמיה לפי חלק הפיקסלים הרוויים בצבע, ואז רק כהה-מאוד (< 70) נחשב קיר */
+  let sat = 0, nonWhite = 0;
+  for (let i = 0; i < px.length; i += 16) { const r = px[i], gg = px[i + 1], b = px[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b); if (mx < 235) { nonWhite++; if (mx - mn > 40) sat++; } }
+  const rendered = nonWhite > 0 && sat / nonWhite > 0.25;
+  const thr = window.__ptOpt && window.__ptOpt.thr ? window.__ptOpt.thr : (rendered ? 70 : OPT.thr);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) dark0[j] = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) < thr ? 1 : 0;
   /* עיבוי הקירות: רדיוס ≈ 0.5 מ׳ (סוגר דלתות) — בפיקסלים של הקנבס */
   const pxPerM = P.scale ? (1 / P.scale) * (w / (P.bgW || 1400)) : w / 60;
   const r = Math.max(1, Math.min(20, Math.round(pxPerM * OPT.rM)));
@@ -207,7 +214,7 @@ async function ptBinary() {
   for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = w - 1; x >= 0; x--) { if (dark0[row + x]) run = r + 1; if (run > 0) { tmp[row + x] = 1; run--; } } }   /* שמאלה */
   for (let x = 0; x < w; x++) { let run = 0; for (let y = 0; y < h; y++) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
   for (let x = 0; x < w; x++) { let run = 0; for (let y = h - 1; y >= 0; y--) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
-  PT_BIN = { w, h, dark, dark0, r, pxPerM, key, thr: OPT.thr, darkFrac: +(dark0.reduce((a, b) => a + b, 0) / (w * h)).toFixed(3) };
+  PT_BIN = { w, h, dark, dark0, r, pxPerM, key, thr, rendered, darkFrac: +(dark0.reduce((a, b) => a + b, 0) / (w * h)).toFixed(3) };
   return PT_BIN;
 }
 /* מילוי מנקודה אחת: { n, edge, box } */
@@ -359,6 +366,14 @@ function ptCompMask(B, comp, id) {
   for (let i = 0; i < w * h; i++) if (m[i]) out[i] = 1;
   return out;
 }
+/* עיבוי/כרסום מלבניים (רדיוס r) — ריצה בזמן קבוע לפיקסל */
+function ptErodeN(src, w, h, r) { const inv = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) inv[i] = src[i] ? 0 : 1; const d = ptDilateN(inv, w, h, r); for (let i = 0; i < w * h; i++) inv[i] = d[i] ? 0 : 1; return inv; }
+/* טביעת הרגל של המבנה: סגירה מורפולוגית של כל מה שמצויר ברדיוס ~1.2 מ׳ — פתחים (עד ~2.4 מ׳) נסגרים, השטח הלבן
+   מסביב לתכנית נשאר בחוץ. מה שמחוץ לטביעת הרגל נחשב "קיר": כך אולם שפתוח אל מרפסת/רחוב לא מתחבר לשוליים ולא נזרק כ"חוץ" */
+function ptFootprint(B) {
+  const { w, h, dark0, pxPerM } = B, r = Math.max(4, Math.min(90, Math.round(pxPerM * 1.2)));
+  return ptErodeN(ptDilateN(dark0, w, h, r), w, h, r);
+}
 /* פנים של ריהוט צמוד (ספות, תאים, דלפקים) — "כיס" לבן שקו דק מפריד אותו מהרצפה: כיס עד ~6 מ״ר שצמוד למסכת
    החלל דרך קו של עד 3 פיקסלים ואינו נוגע בחלל אחר מצטרף לאזור (כלל: ריהוט אינו גבול). כמה סבבים (כיס ליד כיס) */
 function ptAbsorbPockets(B, mask, comp, selfId) {
@@ -482,10 +497,12 @@ async function ptPartition() {
     const aud = labs.filter(it => it.cat === 'audience'), svc = labs.filter(SERVICE);
     const isOutside = cornerIds.has(c.id) || (c.edge && !aud.length && c.n > 0.25 * w * h);
     if (isOutside) {
-      /* חוץ: רק אם יש כיתוב חוץ — גבול משוער סביבו */
-      for (const it of aud.filter(x => OUT_RE.test(x.t))) {
+      /* חלל שפתוח אל השוליים (מרפסת לרחוב, תכנית חתוכה): לכל כיתוב קהל שיושב בו — אזור בגבול הקירות עד ~10 מ׳ מהכיתוב */
+      for (const it of aud) {
+        const p = ptPos(it); if (P.zones.some(z => inZone(z, p))) continue;
         const rr = await ptRoomRect(it); if (!rr) continue;
-        addZone(it.t, ptUsageOf(it.t), [{ x: rr.left, y: rr.top }, { x: rr.left + rr.w, y: rr.top }, { x: rr.left + rr.w, y: rr.top + rr.h }, { x: rr.left, y: rr.top + rr.h }].map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })), { outdoor: true, openArea: true }); outdoor++;
+        const isOut = OUT_RE.test(it.t);
+        addZone(it.t, ptUsageOf(it.t), [{ x: rr.left, y: rr.top }, { x: rr.left + rr.w, y: rr.top }, { x: rr.left + rr.w, y: rr.top + rr.h }, { x: rr.left, y: rr.top + rr.h }].map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })), { outdoor: isOut || undefined, openArea: true }); if (isOut) outdoor++;
       }
       continue;
     }
