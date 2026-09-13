@@ -2044,7 +2044,7 @@ function renderNodes() {
               </div></div>`;
           });
           rows += `<div class="runit${picked}" data-runit="${u.id}" style="top:${top}px;height:${h}px">
-            <div class="runit-panel${im ? ' photo' : ''}" style="width:${panelW}px;height:${h}px;flex:none${im ? `;background:#0b0d12 url('${im.url}') 0 ${imTop}px/${panelW}px ${imH}px no-repeat` + (fH ? `,url('${im.furl}') 0 ${fTop}px/${panelW}px ${fH}px no-repeat` : '') : ''}">${conns}</div>
+            <div class="runit-panel${im ? ' photo' : ''}" style="width:${panelW}px;height:${h}px;flex:none${im ? `;background-color:#0b0d12;background-image:url('${im.url}')${fH ? `,url('${im.furl}')` : ''};background-position:0 ${imTop}px${fH ? `,0 ${fTop}px` : ''};background-size:${panelW}px ${imH}px${fH ? `,${panelW}px ${fH}px` : ''};background-repeat:no-repeat` : ''}">${conns}</div>
             <div style="width:${CHW}px;flex:none"></div>
             <div class="runit-lbl" style="background:${CATS[u.cat].c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>${rearImage(u.name) ? '<small style="display:block;color:#ffd9a8">📷 תמונת גב אמיתית</small>' : ''}${rearVerified(u.name) ? '<small style="display:block;color:#bfe6d6">✓ גב מהספרייה</small>' : '<small style="display:block;color:#ffcbb3;font-weight:800" title="המחברים המוצגים הם ניחוש — הגדר את גב הדגם בספריית גבי המוצרים">⚠ גב לא מאומת</small>'}
               <button class="runit-edit" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="ערוך את פריסת הגב של הדגם" style="position:absolute;bottom:3px;left:3px">✎ גב</button></div></div>`;
@@ -2067,7 +2067,8 @@ function renderNodes() {
         for (const u of n.units) {
           const attr = ` data-uid="${u.id}"`;
           const UZ = UPX * (n.uz || 1);
-          rows += `<div class="unit"${attr} title="${esc(ioTip(u.name))}" style="top:${u.pos * UZ}px;height:${u.u * UZ}px;background:${CATS[u.cat].c};font-size:${(n.uz || 1) >= 1.6 ? 12 : 10}px"><b>${esc(u.name)}</b><span>${u.panel ? '🧩' + u.panel.holes.length + '·' : ''}${u.u}U</span><button onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="עריכת המחברים של המוצר (פריסת הגב)" style="position:absolute;left:2px;top:2px;padding:0 4px;font-size:10px;line-height:16px;border-radius:5px;background:rgba(255,255,255,.88);border:none;cursor:pointer;z-index:2">🔌✎</button></div>`;
+          const fim = rearImage(u.name), fsrc = fim ? (fim.furl || fim.url) : '';   /* חזית הארון: צילום החזית של המוצר (או הגב אם אין חזית) */
+          rows += `<div class="unit${fsrc ? ' photo' : ''}"${attr} title="${esc(ioTip(u.name))}" style="top:${u.pos * UZ}px;height:${u.u * UZ}px;background:${fsrc ? `#0b0d12 url('${fsrc}') center/100% 100% no-repeat` : CATS[u.cat].c};font-size:${(n.uz || 1) >= 1.6 ? 12 : 10}px"><b${fsrc ? ` style="background:rgba(0,0,0,.55);color:#fff;border-radius:4px;padding:0 4px"` : ''}>${esc(u.name)}</b><span>${u.panel ? '🧩' + u.panel.holes.length + '·' : ''}${u.u}U</span><button onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="עריכת המחברים של המוצר (פריסת הגב)" style="position:absolute;left:2px;top:2px;padding:0 4px;font-size:10px;line-height:16px;border-radius:5px;background:rgba(255,255,255,.88);border:none;cursor:pointer;z-index:2">🔌✎</button></div>`;
           used += u.u;
         }
         /* ＋ בכל רצף פנוי — הוספת יחידה ישר במקום */
