@@ -489,11 +489,6 @@ function ptAttached(dark, seed, w, h) {
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const j = yy * w + xx; if (dark[j] && !out[j]) { out[j] = 1; q[qt++] = j; } } }
   return out;
 }
-/* סגירת פערים קצרים (≤ D) בין שני פיקסלי קיר באותה שורה / עמודה */
-function ptGapFill(wall, w, h, D, out) {
-  for (let y = 0; y < h; y++) { const row = y * w; let x = 0; while (x < w) { if (wall[row + x]) { x++; continue; } let e = x; while (e < w && !wall[row + e]) e++; if (x > 0 && e < w && e - x <= D) for (let k = x; k < e; k++) out[row + k] = 1; x = e; } }
-  for (let x = 0; x < w; x++) { let y = 0; while (y < h) { if (wall[y * w + x]) { y++; continue; } let e = y; while (e < h && !wall[e * w + x]) e++; if (y > 0 && e < h && e - y <= D) for (let k = y; k < e; k++) out[k * w + x] = 1; y = e; } }
-}
 /* הארכת קצה קיר חופשי לאורך כיוונו עד הקיר הבא (≤ Dmax), רק אם הקצה אינו פינה / צומת T */
 function ptExtendWalls(thick, passable, w, h, Lmin, Dmax) {
   const ext = new Uint8Array(w * h);
@@ -501,7 +496,7 @@ function ptExtendWalls(thick, passable, w, h, Lmin, Dmax) {
   const walk = (vertical) => {
     const perp = vertical ? rlH : rlV;            /* אורך הריצה הניצבת דרך פיקסל */
     const N1 = vertical ? h : w, N2 = vertical ? w : h;
-    const at = (p, q) => vertical ? q * w + p : p * w + q;   /* p = לאורך הריצה, q = מאונך (שורה/עמודה) */
+    const at = (p, q) => vertical ? p * w + q : q * w + p;   /* p = לאורך הריצה (x בהליכה אופקית, y באנכית), q = השורה/העמודה */
     for (let q = 0; q < N2; q++) {
       let p = 0;
       while (p < N1) {
@@ -517,7 +512,7 @@ function ptExtendWalls(thick, passable, w, h, Lmin, Dmax) {
             if (att) continue;
             let x = p0, n = 0, hit = false;
             while (x >= 0 && x < N1 && n <= Dmax) { const i = at(x, q); if (thick[i]) { hit = n > 0; break; } if (!passable[i]) break; x += step; n++; }
-            if (hit && n >= 2) { const a = step > 0 ? p0 : x + 1, b = step > 0 ? x : p0 + 1; for (let k = a; k < b; k++) ext[at(k, q)] = 1; }
+            if (hit && n >= 2) { const a = step > 0 ? p0 : x + 1, b = step > 0 ? x : p0 + 1; for (let k = a; k < b; k++) ext[at(k, q)] = 1; if (window.__ptDbg2) (window.__ptDbg2.exts = window.__ptDbg2.exts || []).push([vertical ? 'V' : 'H', q, p0, step, n, t, e - p]); }
           }
         }
         p = e;
@@ -574,8 +569,9 @@ async function ptFilledRegions(B) {
   const rlH = ptRunLen(dark0, w, h, false), rlV = ptRunLen(dark0, w, h, true), seed = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) if (dark0[i] && ((rlH[i] >= Lmin && rlV[i] >= 3) || (rlV[i] >= Lmin && rlH[i] >= 3))) seed[i] = 1;
   const thick = ptAttached(dark0, seed, w, h);
-  /* 2. דלתות */
-  const walls = new Uint8Array(thick); ptGapFill(thick, w, h, D, walls);
+  /* 2. דלתות: נסגרות בשלב 4 (קצה קיר חופשי מוארך עד הקיר שמולו). סגירת פערים "עיוורת" בין כל שני פיקסלי קיר
+     הופכת רשת אריחים שנוגעת בקיר לגוש אחד — לכן אין כאן gap-fill */
+  const walls = new Uint8Array(thick);
   /* 3. חוץ: לבן-נייר לא-קיר, פתיחה ברדיוס e, מחובר לשוליים (+ רצועת שוליים) */
   const e = Math.max(2, Math.min(Math.round(pxPerM * 1.0), Math.round(w * 0.03)));
   const cand = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) cand[i] = paper[i] && !walls[i] ? 1 : 0;
@@ -613,9 +609,11 @@ async function ptFilledRegions(B) {
     regions.push({ id, n: cnt, mean: [mr, mg, mb] });
   }
   /* 6. מסכה סופית לכל חלל */
-  const minA = 2.5 * pxPerM * pxPerM, holeMax = 25 * pxPerM * pxPerM;
+  const minA = 1.5 * pxPerM * pxPerM, holeMax = 25 * pxPerM * pxPerM;   /* תא שירותים קטן נשאר; חלל קטן בלי כיתוב נזרק אחר כך */
   const out = [];
+  const dbgR = window.__ptDbg2 ? (window.__ptDbg2.regs = []) : null;
   for (const rg of regions) {
+    if (dbgR && rg.n >= 0.4 * pxPerM * pxPerM) { let x0 = w, y0 = h, x1 = 0, y1 = 0; for (let i = 0; i < w * h; i++) if (lab[i] === rg.id) { const x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; } dbgR.push({ id: rg.id, m2: +(rg.n / pxPerM / pxPerM).toFixed(1), box: [x0, y0, x1, y1], mean: rg.mean.map(Math.round) }); }
     if (rg.n < minA) continue;
     let m = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) if (lab[i] === rg.id) m[i] = 1;
     m = ptFillHoles(m, w, h, thick, holeMax);
@@ -627,10 +625,11 @@ async function ptFilledRegions(B) {
     let best = -1; for (let k = 0; k < cnt.length; k++) if (best < 0 || cnt[k] > cnt[best]) best = k;
     if (best < 0) continue;
     const fm = new Uint8Array(w * h); let fn = 0; for (let i = 0; i < w * h; i++) if (L2.lab[i] === best) { fm[i] = 1; fn++; }
+    if (dbgR) { const d = dbgR.find(x => x.id === rg.id); if (d) d.after = +(fn / pxPerM / pxPerM).toFixed(1); }
     if (fn < minA) continue;
     out.push({ id: rg.id, mask: fm, n: fn, mean: rg.mean });
   }
-  if (window.__ptDbg2) window.__ptDbg2.filled = { Lmin, D, Dmax, e, rCl, regions: regions.length, kept: out.length, outsideFrac: +(outside.reduce((a, b) => a + b, 0) / (w * h)).toFixed(2) };
+  if (window.__ptDbg2) { const cnt = a => { let n = 0; for (let i = 0; i < a.length; i++) if (a[i]) n++; return n; }; window.__ptDbg2.filled = { w, h, thr, Lmin, D, Dmax, e, rCl, regions: regions.length, kept: out.length, dark0: cnt(dark0), seed: cnt(seed), thick: cnt(thick), walls: cnt(walls), ext: cnt(ext), outside: cnt(outside), paper: cnt(paper), free: cnt(free), neutral: cnt(neutral) }; }
   return { regions: out, lab, walls, outside, thick };
 }
 async function ptPartition() {
@@ -714,6 +713,41 @@ async function ptPartition() {
   save(); render();
   uiToast(made ? '🧩 ' + made + ' אזורים לפי הקירות' + (skipped ? ' · ' + skipped + ' חללי שירות/תפעול הושמטו' : '') + (outdoor ? ' · ' + outdoor + ' בחוץ' : '') + ' — גרור נקודות לעריכה, אזור שנבלע מתמזג' : 'לא זוהו חללים סגורים — כייל את התכנית ובדוק שהקירות כהים', 8000);
 }
+/* OCR ממוקד לכל חלל: חיתוך תיבת החלל מהתמונה המקורית, הגדלה ×3, סף יחסי לרצפה (טקסט כהה מהרצפה ב-45+; קווי אריחים בהירים נשארים לבנים)
+   → מילים → סיווג (PT_DICT). זה מה שתופס "Kitchen" / "Walk-In Fridge" / "RESTROOM" שה-OCR הכללי מפספס על רקע מרושת */
+async function ptRoomWords(B, regions) {
+  const { w, h } = B;
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
+  const sx = img.width / w, sy = img.height / h;
+  if (!window.Tesseract) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
+  const worker = await Tesseract.createWorker('eng');
+  await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
+  const out = new Map();
+  try {
+    for (const rg of regions) {
+      let x0 = w, y0 = h, x1 = 0, y1 = 0; const m = rg.mask;
+      for (let i = 0; i < w * h; i++) if (m[i]) { const x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+      const cw = (x1 - x0 + 1) * sx, ch = (y1 - y0 + 1) * sy; if (cw < 8 || ch < 8) continue;
+      const k = Math.max(1, Math.min(4, 1400 / Math.max(cw, ch)));
+      const cv = document.createElement('canvas'); cv.width = Math.round(cw * k); cv.height = Math.round(ch * k);
+      const g = cv.getContext('2d'); g.imageSmoothingQuality = 'high'; g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+      g.drawImage(img, x0 * sx, y0 * sy, cw, ch, 0, 0, cv.width, cv.height);
+      const id = g.getImageData(0, 0, cv.width, cv.height), px = id.data, lum = new Uint8Array(cv.width * cv.height), hist = new Uint32Array(256);
+      for (let i = 0, j = 0; i < px.length; i += 4, j++) { const l = Math.round(0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]); lum[j] = l; hist[l]++; }
+      let acc = 0, medL = 200; for (let l = 0; l < 256; l++) { acc += hist[l]; if (acc >= lum.length / 2) { medL = l; break; } }
+      const thr = Math.max(60, Math.min(200, medL - 25));   /* טקסט אפור בהיר על אריחים: 25 מתחת לחציון הרצפה */
+      /* פיקסלים מחוץ למסכת החלל (מהתמונה המוקטנת) → לבן, כדי שקירות/חדרים שכנים לא ייקראו */
+      for (let j = 0; j < lum.length; j++) { const x = j % cv.width, y = (j - x) / cv.width; const mx = x0 + Math.floor(x / k / sx), my = y0 + Math.floor(y / k / sy); const inside = mx >= 0 && my >= 0 && mx < w && my < h && m[my * w + mx]; const v = inside && lum[j] < thr ? 0 : 255; px[j * 4] = px[j * 4 + 1] = px[j * 4 + 2] = v; }
+      g.putImageData(id, 0, 0);
+      if (window.__ptDbg2) { const c3 = document.createElement('canvas'); const f = Math.min(1, 500 / Math.max(cv.width, cv.height)); c3.width = Math.round(cv.width * f); c3.height = Math.round(cv.height * f); c3.getContext('2d').drawImage(cv, 0, 0, c3.width, c3.height); (window.__ptDbg2.crops = window.__ptDbg2.crops || []).push({ id: rg.id, medL, thr, url: c3.toDataURL('image/jpeg', 0.5) }); }
+      const res = await worker.recognize(cv);
+      const words = [];
+      for (const wd of (res.data.words || [])) { const t = (wd.text || '').replace(/[|_~`^]/g, '').trim(); if (t.length >= 3 && wd.confidence >= 60 && /[A-Za-z]{3,}/.test(t)) words.push(t); }
+      out.set(rg.id, words);
+    }
+  } finally { await worker.terminate(); }
+  return out;
+}
 /* חלוקה בתכנית צבועה: חללי הרצפה מ-ptFilledRegions → אזורים (בלי שירותים/תפעול), שמות לפי כיתובי הקהל */
 async function ptPartitionFilled(B) {
   const { w, h } = B;
@@ -742,9 +776,27 @@ async function ptPartitionFilled(B) {
     return sp.map(([x, y]) => ({ x: Math.round(L + x / w * W), y: Math.round(T + y / h * H) }));
   };
   const dbg = window.__ptDbg2 ? (window.__ptDbg2.trace = window.__ptDbg2.trace || []) : null;
-  for (const rg of R.regions.sort((a, b) => b.n - a.n)) {
-    const labs = items.filter(it => it.cid === rg.id), aud = labs.filter(it => it.cat === 'audience'), svc = labs.filter(SERVICE);
-    if (svc.length && !aud.length) { skipped++; if (dbg) dbg.push({ id: rg.id, m2: +(rg.n / pxPerM2).toFixed(1), why: 'service', labs: svc.map(x => x.t) }); continue; }
+  const regs = R.regions.sort((a, b) => b.n - a.n);
+  uiToast('🔤 קורא את הכיתובים בתוך ' + regs.length + ' חללים (מטבח / שירותים / קהל)…', 6000);
+  let roomWords = new Map(); try { roomWords = await ptRoomWords(B, regs); } catch (e) { console.warn('ptRoomWords', e); }
+  const WC_RE = /W\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|BATHROOM|HANDICAP|\bMEN\b|WOMEN|LADIES|GENTS|שירותים/i;
+  const wcZones = [], smallRooms = [];
+  for (const rg of regs) {
+    const labs = items.filter(it => it.cid === rg.id);
+    const words = roomWords.get(rg.id) || [];
+    const wcats = words.map(t => ({ t, cat: ptClassify(t) }));
+    const aud = labs.filter(it => it.cat === 'audience').concat(wcats.filter(x => x.cat === 'audience'));
+    const svc = labs.filter(SERVICE).concat(wcats.filter(x => x.cat === 'ops' || x.cat === 'service'));
+    const isWC = svc.some(x => WC_RE.test(x.t));
+    const m2 = rg.n / pxPerM2;
+    if (dbg) dbg.push({ id: rg.id, m2: +m2.toFixed(1), words, labs: labs.map(x => x.t) });
+    if (isWC) { const poly = mkPoly(rg.mask); if (poly && poly.length >= 3) wcZones.push({ poly, m2 }); continue; }
+    if (svc.length && !aud.length) { skipped++; if (dbg) dbg[dbg.length - 1].why = 'service'; continue; }
+    if (!aud.length && m2 < 5) {
+      /* חדר קטן בלי כיתוב: לבד = מקרר / ארון (לא אזור); שניים או יותר צמודים = תאי שירותים (גברים/נשים/נגיש) → אזור שירותים אחד */
+      if (m2 >= 1.5) { const poly = mkPoly(rg.mask); if (poly && poly.length >= 3) smallRooms.push({ poly, m2 }); }
+      if (dbg) dbg[dbg.length - 1].why = 'small-unlabeled'; continue;
+    }
     const poly = mkPoly(rg.mask); if (!poly || poly.length < 3) continue;
     let name, usage;
     if (aud.length) { const best = aud.slice().sort((a, b) => b.t.length - a.t.length)[0]; name = best.t; usage = ptUsageOf(best.t); }
@@ -754,8 +806,26 @@ async function ptPartitionFilled(B) {
     const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys);
     P.zones.push({ id: uid('z'), name, usage, poly, x: Math.max(0, 2200 - left - (Math.max(...xs) - left)), y: top, w: Math.max(...xs) - left, h: Math.max(...ys) - top, auto: 'partition', fromText: true, outdoor: isOut || undefined, dance: aud.some(x => /DANCE|ריקוד/i.test(x.t)) || undefined });
     made++; if (isOut) outdoor++;
-    if (dbg) dbg.push({ id: rg.id, m2: +(rg.n / pxPerM2).toFixed(1), why: 'zone', name, pts: poly.length });
+    if (dbg) { dbg[dbg.length - 1].why = 'zone'; dbg[dbg.length - 1].name = name; }
   }
+  /* שירותים סמוכים = אזור אחד (כלל המשתמש): קבוצות של תאי שירותים במרחק ≤ 1.5 מ׳ → מלבן מאחד.
+     חדרים קטנים בלי כיתוב שצמודים זה לזה (≥ 2) מצטרפים כקבוצת שירותים; חדר קטן בודד נשאר בחוץ */
+  const nearM = 1.5 / (P.scale || 0.02);
+  const bbOf = z => { const xs = z.poly.map(p => p.x), ys = z.poly.map(p => p.y); return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) }; };
+  const near = (a, b) => a.x0 < b.x1 + nearM && a.x1 > b.x0 - nearM && a.y0 < b.y1 + nearM && a.y1 > b.y0 - nearM;
+  const smallBB = smallRooms.map(bbOf);
+  smallBB.forEach((bb, i) => { if (smallBB.some((o, j) => j !== i && near(bb, o)) || wcZones.some(z => near(bb, bbOf(z)))) wcZones.push(smallRooms[i]); });
+  const groups = [];
+  for (const z of wcZones) {
+    const xs = z.poly.map(p => p.x), ys = z.poly.map(p => p.y); const bb = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+    const gI = groups.find(g => bb.x0 < g.x1 + nearM && bb.x1 > g.x0 - nearM && bb.y0 < g.y1 + nearM && bb.y1 > g.y0 - nearM);
+    if (gI) { gI.x0 = Math.min(gI.x0, bb.x0); gI.y0 = Math.min(gI.y0, bb.y0); gI.x1 = Math.max(gI.x1, bb.x1); gI.y1 = Math.max(gI.y1, bb.y1); gI.n++; } else groups.push({ ...bb, n: 1 });
+  }
+  groups.forEach((g, i) => {
+    const poly = [{ x: g.x0, y: g.y0 }, { x: g.x1, y: g.y0 }, { x: g.x1, y: g.y1 }, { x: g.x0, y: g.y1 }].map(p => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+    P.zones.push({ id: uid('z'), name: 'שירותים' + (groups.length > 1 ? ' ' + (i + 1) : ''), usage: 'מוזיקת רקע', poly, x: Math.max(0, 2200 - g.x0 - (g.x1 - g.x0)), y: g.y0, w: g.x1 - g.x0, h: g.y1 - g.y0, auto: 'partition', fromText: true, wc: true });
+    made++;
+  });
   save(); render();
   uiToast(made ? '🧩 ' + made + ' אזורים לפי הרצפות והקירות' + (skipped ? ' · ' + skipped + ' חללי שירות/תפעול הושמטו' : '') + (outdoor ? ' · ' + outdoor + ' בחוץ' : '') + ' — גרור נקודות לעריכה, אזור שנבלע מתמזג' : 'לא זוהו חללים — בדוק שהתכנית מכוילת ושהקירות כהים', 8000);
 }
