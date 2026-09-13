@@ -564,7 +564,7 @@ async function ptFilledRegions(B) {
   const paper = new Uint8Array(w * h);
   for (let i = 0, j = 0; i < px.length; i += 4, j++) { const r = px[i], gg = px[i + 1], b = px[i + 2]; if (Math.min(r, gg, b) >= 246 && Math.max(r, gg, b) - Math.min(r, gg, b) <= 8) paper[j] = 1; }
   const Lmin = Math.max(6, Math.round(pxPerM * 1.0)), D = Math.max(4, Math.round(pxPerM * 1.5)), Dmax = Math.round(pxPerM * 3.0);
-  const rCl = Math.max(1, Math.min(24, Math.round(pxPerM * 0.6)));
+  const rCl = Math.max(1, Math.min(40, Math.round(pxPerM * 1.0)));   /* סגירה: ריהוט צמוד לקיר (ספסלים, כיסאות) נבלע עד ~2 מ׳ רוחב; לא חוצה קירות */
   /* 1. קירות: ריצות ישרות ארוכות ובעובי ≥ 3 + כל מה שמחובר אליהן */
   const rlH = ptRunLen(dark0, w, h, false), rlV = ptRunLen(dark0, w, h, true), seed = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) if (dark0[i] && ((rlH[i] >= Lmin && rlV[i] >= 3) || (rlV[i] >= Lmin && rlH[i] >= 3))) seed[i] = 1;
@@ -779,7 +779,20 @@ async function ptPartitionFilled(B) {
   const regs = R.regions.sort((a, b) => b.n - a.n);
   uiToast('🔤 קורא את הכיתובים בתוך ' + regs.length + ' חללים (מטבח / שירותים / קהל)…', 6000);
   let roomWords = new Map(); try { roomWords = await ptRoomWords(B, regs); } catch (e) { console.warn('ptRoomWords', e); }
-  const WC_RE = /W\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|BATHROOM|HANDICAP|\bMEN\b|WOMEN|LADIES|GENTS|שירותים/i;
+  const WC_RE = /W\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|BATHROOM|HANDICAP|WOMEN|LADIES|GENTS|שירותים/i;
+  /* כיתוב תפעולי (KITCHEN / PANTRY / מטבח…) מרעיל כל חלל שנמצא עד 1 מ׳ ממנו — גם דלפק/מעבר צר ליד הכיתוב, גם כשהכיתוב יושב מחוץ לחלל */
+  const opsNear = new Set();
+  { const R1 = Math.round(B.pxPerM * 1.0);
+    /* הליכה מהכיתוב עד 1 מ׳ בלי לחצות קירות (קיר אמיתי בין חדר האוכל לחדר הכלים לא מעביר את ההרעלה) */
+    for (const it of items) { if (!SERVICE(it)) continue; const cx = Math.round(it.u * w), cy = Math.round(it.v * h); if (cx < 0 || cy < 0 || cx >= w || cy >= h) continue;
+      const seen = new Map([[cy * w + cx, 0]]); const q = [cy * w + cx];
+      while (q.length) { const i = q.shift(), d = seen.get(i); const id = R.lab[i]; if (id >= 0) opsNear.add(id); if (d >= R1) continue; const x = i % w;
+        for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i >= w ? i - w : -1, i + w < w * h ? i + w : -1]) { if (j < 0 || seen.has(j) || R.walls[j]) continue; seen.set(j, d + 1); q.push(j); } } } }
+  /* תיבה חוסמת לכל חלל; חלל בלי כיתוב שיושב (≥ 80% משטחו) בתוך התיבה של חלל תפעולי = חלק מהמטבח (מעבר בין דלפקים) */
+  const bboxOf = m => { let x0 = w, y0 = h, x1 = 0, y1 = 0; for (let i = 0; i < w * h; i++) if (m[i]) { const x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; } return { x0, y0, x1, y1 }; };
+  regs.forEach(rg => { rg.bb = bboxOf(rg.mask); });
+  const opsBoxes = regs.filter(rg => opsNear.has(rg.id) || items.some(it => it.cid === rg.id && SERVICE(it) && !/W\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|BATHROOM|HANDICAP|WOMEN|LADIES|GENTS|שירותים/i.test(it.t))).map(rg => rg.bb);
+  const insideOps = rg => opsBoxes.some(b => { let n = 0, inb = 0; const m = rg.mask; for (let y = rg.bb.y0; y <= rg.bb.y1; y++) for (let x = rg.bb.x0; x <= rg.bb.x1; x++) { if (!m[y * w + x]) continue; n++; if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1) inb++; } return n && inb / n >= 0.8 && (b.x1 - b.x0) * (b.y1 - b.y0) > 1.5 * (rg.bb.x1 - rg.bb.x0) * (rg.bb.y1 - rg.bb.y0); });
   const wcZones = [], smallRooms = [];
   for (const rg of regs) {
     const labs = items.filter(it => it.cid === rg.id);
@@ -787,11 +800,15 @@ async function ptPartitionFilled(B) {
     const wcats = words.map(t => ({ t, cat: ptClassify(t) }));
     const aud = labs.filter(it => it.cat === 'audience').concat(wcats.filter(x => x.cat === 'audience'));
     const svc = labs.filter(SERVICE).concat(wcats.filter(x => x.cat === 'ops' || x.cat === 'service'));
-    const isWC = svc.some(x => WC_RE.test(x.t));
     const m2 = rg.n / pxPerM2;
-    if (dbg) dbg.push({ id: rg.id, m2: +m2.toFixed(1), words, labs: labs.map(x => x.t) });
+    const isOps = opsNear.has(rg.id) || svc.some(x => !WC_RE.test(x.t)) || (!aud.length && insideOps(rg));   /* מטבח/תפעול גובר על הכל — שם אין מוזיקה */
+    const isWC = !isOps && svc.some(x => WC_RE.test(x.t)) && m2 < 12;
+    if (dbg) dbg.push({ id: rg.id, m2: +m2.toFixed(1), words, labs: labs.map(x => x.t), ops: isOps });
     if (isWC) { const poly = mkPoly(rg.mask); if (poly && poly.length >= 3) wcZones.push({ poly, m2 }); continue; }
-    if (svc.length && !aud.length) { skipped++; if (dbg) dbg[dbg.length - 1].why = 'service'; continue; }
+    if (isOps && !aud.length) { skipped++; if (dbg) dbg[dbg.length - 1].why = 'service'; continue; }
+    if (isOps && aud.length && m2 < 12) { skipped++; if (dbg) dbg[dbg.length - 1].why = 'service+aud-small'; continue; }
+    /* חלל צר (פחות מ-1.2 מ׳ רוחב בכל מקום — מעבר בין דלפקים, רצועה ליד ציוד) בלי כיתוב קהל — לא אזור */
+    if (!aud.length) { const er = ptErodeN(rg.mask, w, h, Math.max(1, Math.round(B.pxPerM * 0.6))); let any = 0; for (let i = 0; i < w * h && !any; i++) if (er[i]) any = 1; if (!any) { if (dbg) dbg[dbg.length - 1].why = 'thin'; continue; } }
     if (!aud.length && m2 < 5) {
       /* חדר קטן בלי כיתוב: לבד = מקרר / ארון (לא אזור); שניים או יותר צמודים = תאי שירותים (גברים/נשים/נגיש) → אזור שירותים אחד */
       if (m2 >= 1.5) { const poly = mkPoly(rg.mask); if (poly && poly.length >= 3) smallRooms.push({ poly, m2 }); }
@@ -799,10 +816,13 @@ async function ptPartitionFilled(B) {
     }
     const poly = mkPoly(rg.mask); if (!poly || poly.length < 3) continue;
     let name, usage;
-    if (aud.length) { const best = aud.slice().sort((a, b) => b.t.length - a.t.length)[0]; name = best.t; usage = ptUsageOf(best.t); }
+    /* שם: כיתוב שמרכזו בתוך החלל עדיף על כיתוב שרק נוגע בגבול (DECK ENTRANCE יושב על גבול חדר האוכל, לא בתוכו) */
+    const inside = it => it.u != null && rg.mask[Math.round(it.v * h) * w + Math.round(it.u * w)];
+    let best = null;
+    if (aud.length) { best = aud.slice().sort((a, b) => (inside(b) ? 1 : 0) - (inside(a) ? 1 : 0) || b.t.length - a.t.length)[0]; name = best.t; usage = ptUsageOf(best.t); }
     else { name = 'חלל ' + (++idx); usage = (P.room && P.room.usage) || 'מוזיקת רקע'; }
     if (seenNames[name]) name += ' ' + (++seenNames[name]); else seenNames[name] = 1;
-    const isOut = aud.some(x => OUT_RE.test(x.t));
+    const isOut = !!best && OUT_RE.test(best.t);
     const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys);
     P.zones.push({ id: uid('z'), name, usage, poly, x: Math.max(0, 2200 - left - (Math.max(...xs) - left)), y: top, w: Math.max(...xs) - left, h: Math.max(...ys) - top, auto: 'partition', fromText: true, outdoor: isOut || undefined, dance: aud.some(x => /DANCE|ריקוד/i.test(x.t)) || undefined });
     made++; if (isOut) outdoor++;
