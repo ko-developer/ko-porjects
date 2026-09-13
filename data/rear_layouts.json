@@ -352,96 +352,96 @@
         "t": "xlrm",
         "label": "OUT8",
         "port": "OUT 8",
-        "x": 37,
-        "y": 38
+        "x": 36.2,
+        "y": 36.2
       },
       {
         "t": "xlrm",
         "label": "OUT7",
         "port": "OUT 7",
-        "x": 42.5,
-        "y": 38
+        "x": 41.4,
+        "y": 36.2
       },
       {
         "t": "xlrm",
         "label": "OUT6",
         "port": "OUT 6",
-        "x": 47.5,
-        "y": 38
+        "x": 46.4,
+        "y": 36.2
       },
       {
         "t": "xlrm",
         "label": "OUT5",
         "port": "OUT 5",
-        "x": 53,
-        "y": 38
+        "x": 51.5,
+        "y": 36.2
       },
       {
         "t": "xlrm",
         "label": "OUT4",
         "port": "OUT 4",
-        "x": 58.5,
-        "y": 38
+        "x": 56.5,
+        "y": 36.2
       },
       {
         "t": "xlrm",
         "label": "OUT3",
         "port": "OUT 3",
-        "x": 64,
-        "y": 38
+        "x": 61.6,
+        "y": 36.4
       },
       {
         "t": "xlrm",
         "label": "OUT2",
         "port": "OUT 2",
-        "x": 69.5,
-        "y": 38
+        "x": 66.6,
+        "y": 36.4
       },
       {
         "t": "xlrm",
         "label": "OUT1",
         "port": "OUT 1",
-        "x": 75,
-        "y": 38
+        "x": 71.8,
+        "y": 36.2
       },
       {
         "t": "xlrf",
         "label": "IN4",
         "port": "IN 4",
-        "x": 81.5,
-        "y": 38
+        "x": 77,
+        "y": 35.1
       },
       {
         "t": "xlrf",
         "label": "IN3",
         "port": "IN 3",
-        "x": 86.5,
-        "y": 38
+        "x": 82,
+        "y": 35.1
       },
       {
         "t": "xlrf",
         "label": "IN2",
         "port": "IN 2",
-        "x": 91.5,
-        "y": 38
+        "x": 87,
+        "y": 35.1
       },
       {
         "t": "xlrf",
         "label": "IN1",
         "port": "IN 1",
-        "x": 96.5,
-        "y": 38
+        "x": 92,
+        "y": 35.1
       },
       {
         "t": "rj45",
         "label": "NET",
         "x": 26,
-        "y": 37
+        "y": 34.9
       }
     ],
     "img": "\\bID48\\b",
-    "src": "migrated",
-    "updated": "2026-09-10"
+    "src": "editor",
+    "updated": "2026-09-13"
   },
   {
     "name": "DM88",
@@ -936,7 +936,7 @@
         "y": 46.4
       }
     ],
-    "img": "VMX88\\s?L\\b",
+    "img": "VMX88",
     "src": "editor",
     "updated": "2026-09-13"
   },
@@ -1190,7 +1190,7 @@
         "label": "NET"
       }
     ],
-    "img": "D48X",
+    "img": "D48S|^NST$|NST\\s*D48\\b",
     "src": "editor",
     "updated": "2026-09-13"
   },
@@ -1923,168 +1923,168 @@
         "y": 58
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O12",
         "port": "OUT 12",
         "x": 60.5,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O11",
         "port": "OUT 11",
         "x": 58.8,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O10",
         "port": "OUT 10",
         "x": 57.1,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O9",
         "port": "OUT 9",
         "x": 55.4,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O8",
         "port": "OUT 8",
         "x": 53.8,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O7",
         "port": "OUT 7",
         "x": 52.1,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O6",
         "port": "OUT 6",
         "x": 50.4,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O5",
         "port": "OUT 5",
         "x": 48.7,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O4",
         "port": "OUT 4",
         "x": 47,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O3",
         "port": "OUT 3",
         "x": 45.4,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O2",
         "port": "OUT 2",
         "x": 43.7,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O1",
         "port": "OUT 1",
         "x": 42,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I1",
         "port": "IN 1",
         "x": 64.5,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I2",
         "port": "IN 2",
         "x": 66.3,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I3",
         "port": "IN 3",
         "x": 68.1,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I4",
         "port": "IN 4",
         "x": 70,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I5",
         "port": "IN 5",
         "x": 71.8,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I6",
         "port": "IN 6",
         "x": 73.6,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I7",
         "port": "IN 7",
         "x": 75.4,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I8",
         "port": "IN 8",
         "x": 77.2,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I9",
         "port": "IN 9",
         "x": 79.1,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I10",
         "port": "IN 10",
         "x": 80.9,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I11",
         "port": "IN 11",
         "x": 82.7,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I12",
         "port": "IN 12",
         "x": 84.5,
@@ -2098,8 +2098,8 @@
       }
     ],
     "img": "PRISM\\s?12",
-    "src": "migrated",
-    "updated": "2026-09-10"
+    "src": "editor",
+    "updated": "2026-09-13"
   },
   {
     "name": "Symetrix 8",
@@ -2112,112 +2112,112 @@
         "y": 60
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O8",
         "port": "OUT 8",
         "x": 59.8,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O7",
         "port": "OUT 7",
         "x": 57.3,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O6",
         "port": "OUT 6",
         "x": 54.8,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O5",
         "port": "OUT 5",
         "x": 52.2,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O4",
         "port": "OUT 4",
         "x": 49.6,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O3",
         "port": "OUT 3",
         "x": 47.1,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O2",
         "port": "OUT 2",
         "x": 44.5,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "O1",
         "port": "OUT 1",
         "x": 42,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I1",
         "port": "IN 1",
         "x": 64.5,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I2",
         "port": "IN 2",
         "x": 67.2,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I3",
         "port": "IN 3",
         "x": 69.8,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I4",
         "port": "IN 4",
         "x": 72.5,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I5",
         "port": "IN 5",
         "x": 75.1,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I6",
         "port": "IN 6",
         "x": 77.8,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I7",
         "port": "IN 7",
         "x": 80.4,
         "y": 62
       },
       {
-        "t": "pwr",
+        "t": "block3",
         "label": "I8",
         "port": "IN 8",
         "x": 83,
@@ -2231,8 +2231,8 @@
       }
     ],
     "img": "Symetrix.*8|JUPITER\\s?8",
-    "src": "migrated",
-    "updated": "2026-09-10"
+    "src": "editor",
+    "updated": "2026-09-13"
   },
   {
     "name": "DSK 3.1",
@@ -2831,15 +2831,15 @@
         "t": "xlrf",
         "label": "IN A",
         "port": "IN 1",
-        "x": 87,
-        "y": 79
+        "x": 86.4,
+        "y": 82.5
       },
       {
         "t": "xlrm",
         "label": "LNK A",
         "port": "LNK 1",
-        "x": 89.5,
-        "y": 77.7
+        "x": 90.8,
+        "y": 82.8
       }
     ],
     "img": "DYNAMIQ\\s?450",
@@ -2861,84 +2861,84 @@
         "label": "OUT8",
         "port": "OUT 8",
         "x": 23,
-        "y": 55
+        "y": 41.3
       },
       {
         "t": "xlrm",
         "label": "OUT7",
         "port": "OUT 7",
         "x": 28,
-        "y": 55
+        "y": 41.3
       },
       {
         "t": "xlrm",
         "label": "OUT6",
         "port": "OUT 6",
         "x": 33,
-        "y": 55
+        "y": 41.3
       },
       {
         "t": "xlrm",
         "label": "OUT5",
         "port": "OUT 5",
         "x": 38,
-        "y": 55
+        "y": 41.3
       },
       {
         "t": "xlrm",
         "label": "OUT4",
         "port": "OUT 4",
         "x": 43,
-        "y": 55
+        "y": 41.3
       },
       {
         "t": "xlrm",
         "label": "OUT3",
         "port": "OUT 3",
         "x": 48,
-        "y": 55
+        "y": 41.3
       },
       {
         "t": "xlrm",
         "label": "OUT2",
         "port": "OUT 2",
         "x": 53,
-        "y": 55
+        "y": 41.3
       },
       {
         "t": "xlrm",
         "label": "OUT1",
         "port": "OUT 1",
         "x": 58,
-        "y": 55
+        "y": 41.3
       },
       {
         "t": "xlrf",
         "label": "IN4",
         "port": "IN 4",
-        "x": 65,
-        "y": 55
+        "x": 64.9,
+        "y": 41.3
       },
       {
         "t": "xlrf",
         "label": "IN3",
         "port": "IN 3",
-        "x": 70.5,
-        "y": 55
+        "x": 69.9,
+        "y": 40.1
       },
       {
         "t": "xlrf",
         "label": "IN2",
         "port": "IN 2",
-        "x": 76,
-        "y": 55
+        "x": 75.4,
+        "y": 41.3
       },
       {
         "t": "xlrf",
         "label": "IN1",
         "port": "IN 1",
-        "x": 81.5,
-        "y": 55
+        "x": 80.3,
+        "y": 40.1
       },
       {
         "t": "rj45",
@@ -3066,57 +3066,57 @@
         "t": "xlrm",
         "label": "OUT4",
         "port": "OUT 4",
-        "x": 49.5,
-        "y": 55
+        "x": 50.5,
+        "y": 41.1
       },
       {
         "t": "xlrm",
         "label": "OUT3",
         "port": "OUT 3",
-        "x": 55.5,
-        "y": 55
+        "x": 56.1,
+        "y": 41.1
       },
       {
         "t": "xlrm",
         "label": "OUT2",
         "port": "OUT 2",
-        "x": 61.5,
-        "y": 55
+        "x": 61.8,
+        "y": 41.1
       },
       {
         "t": "xlrm",
         "label": "OUT1",
         "port": "OUT 1",
         "x": 67.5,
-        "y": 55
+        "y": 41.1
       },
       {
         "t": "xlrf",
         "label": "IN4",
         "port": "IN 4",
-        "x": 73.5,
-        "y": 55
+        "x": 72.5,
+        "y": 38.7
       },
       {
         "t": "xlrf",
         "label": "IN3",
         "port": "IN 3",
-        "x": 79,
-        "y": 55
+        "x": 78.2,
+        "y": 38.7
       },
       {
         "t": "xlrf",
         "label": "IN2",
         "port": "IN 2",
-        "x": 84.5,
-        "y": 55
+        "x": 84.1,
+        "y": 38.7
       },
       {
         "t": "xlrf",
         "label": "IN1",
         "port": "IN 1",
-        "x": 90,
-        "y": 55
+        "x": 89.8,
+        "y": 38.7
       }
     ],
     "img": "DMX\\s?208\\s?L",
