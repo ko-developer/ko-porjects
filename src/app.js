@@ -5815,7 +5815,7 @@ function gearAuditRows() {
   AMP_DATA.forEach(d => {
     if (d.kind !== 'amp' && d.kind !== 'proc') return;
     /* שם תצוגה: שם פריסת הגב שתואמת לביטוי (למשל "DSK 3.1" במקום "DSK 3 1"); אחרת הביטוי המנוקה */
-    const hit = LAYS.find(r => d.re.test(r.name)); const name = hit ? hit.name : prettyRe(d.re);
+    const hit = LAYS.find(r => d.re.test(r.name)); const name = hit ? hit.name : prettyRe(d.re).replace(/\\[sdb]\??/g, '').replace(/\s+/g, ' ').trim();
     const o = lib[rearKey(name)] || lib[rearKey(prettyRe(d.re))];
     add(name, o ? { ...d, ...Object.fromEntries(Object.entries(o).filter(([, v]) => v != null)) } : d, d.kind, 'טבלה');
   });
