@@ -9743,52 +9743,64 @@ function placeZoneWall(z, name, spacingPx, iid, extra) {
    מבין 36 היסטי-זווית אפשריים נבחר זה שבו מרחקי הרמקולים מהמרכז אחידים ביותר —
    כך הכיסוי אחיד וגם תיקוני הדיליי (למיקרופון במרכז) מינימליים. */
 function evenRingPts(z, count) {
-  const b = zoneBounds(z);
-  const poly = (z.poly && z.poly.length > 2) ? z.poly : [{ x: b.L, y: b.T }, { x: b.L + b.W, y: b.T }, { x: b.L + b.W, y: b.T + b.H }, { x: b.L, y: b.T + b.H }];
-  const cx = poly.reduce((s2, p) => s2 + p.x, 0) / poly.length, cy = poly.reduce((s2, p) => s2 + p.y, 0) / poly.length;
-  const inset = P.scale ? 0.4 / P.scale : 16;
-  /* חיתוך קרן מהמרכז עם מצולע האזור */
-  const cast = ang => {
-    const dx = Math.cos(ang), dy = Math.sin(ang);
-    let best = null;
-    for (let i = 0; i < poly.length; i++) {
-      const a = poly[i], c = poly[(i + 1) % poly.length];
-      const ex = c.x - a.x, ey = c.y - a.y;
-      const den = dx * ey - dy * ex;
-      if (Math.abs(den) < 1e-9) continue;
-      const t = ((a.x - cx) * ey - (a.y - cy) * ex) / den;
-      const u = (dx * (a.y - cy) - dy * (a.x - cx)) / -den;
-      if (t > 0 && u >= 0 && u <= 1 && (!best || t < best.t)) {
-        const len = Math.hypot(ex, ey) || 1;
-        best = { t, x: cx + dx * t, y: cy + dy * t, nx: -ey / len, ny: ex / len };
-      }
-    }
-    if (!best) return null;
-    /* נורמל פנימה — הרמקול יושב מעט בתוך האזור, מכוון למרכז */
-    const sgn = ((cx - best.x) * best.nx + (cy - best.y) * best.ny) > 0 ? 1 : -1;
-    return { cx: best.x + best.nx * inset * sgn, cy: best.y + best.ny * inset * sgn, r: best.t,
-      aim: Math.round((Math.atan2(cy - best.y, cx - best.x) * 180 / Math.PI + 360) % 360) };
-  };
-  let bestSet = null;
-  for (let o = 0; o < 36; o++) {
-    const off = (o / 36) * (Math.PI * 2 / count);
-    const set = [];
-    for (let i = 0; i < count; i++) { const p = cast(off + i * Math.PI * 2 / count); if (p) set.push(p); }
+  /* רמקולי קיר: פיזור שווה לאורך היקף הקירות הסגורים של האזור (הקירות = תיחום המצולע), מוסטים 0.4 מ׳ פנימה
+     ומכוונים לחלל. ההיסט ההתחלתי (הפאזה) נבחר כך שהמרחק המינימלי בין רמקולים שכנים הכי גדול — במלבן עם 4 רמקולים
+     זה בדיוק אמצעי ארבעת הקירות; בחלל בצורת L כל קיר מקבל רמקולים לפי אורכו. אף רמקול לא נופל באמצע החלל */
+  const segs = zoneClosedSegs(z); if (!segs.length || !count) return [];
+  const total = segs.reduce((a, s2) => a + s2.len, 0), inset = P.scale ? 0.4 / P.scale : 16;
+  const at = d => { let walked = 0; for (const s2 of segs) { if (d <= walked + s2.len || s2 === segs[segs.length - 1]) {
+    let t = Math.min(s2.len, Math.max(0, d - walked)); const ux = (s2.x2 - s2.x1) / s2.len, uy = (s2.y2 - s2.y1) / s2.len;
+    /* ליד פינה חדה נקודת ההיסט יכולה ליפול מחוץ לאזור — מזיזים לאורך הקיר לכיוון אמצעו עד שהיא בפנים */
+    for (let k = 0; k < 8; k++) { const p = { cx: s2.x1 + ux * t + s2.nx * inset, cy: s2.y1 + uy * t + s2.ny * inset, aim: Math.round(s2.aim), r: s2.len }; if (inZone(z, { x: p.cx, y: p.cy })) return p; t += (t < s2.len / 2 ? 1 : -1) * Math.min(inset, s2.len / 8); }
+    return null; } walked += s2.len; } return null; };
+  const step = total / count;
+  let best = null;
+  for (let o = 0; o < 24; o++) {
+    const off = step * o / 24, set = [];
+    for (let i = 0; i < count; i++) { const p = at((off + i * step) % total); if (p) set.push(p); }
     if (set.length < count) continue;
-    const rs = set.map(p => p.r), m = rs.reduce((a2, c2) => a2 + c2, 0) / rs.length;
-    const sd = Math.sqrt(rs.reduce((a2, c2) => a2 + (c2 - m) ** 2, 0) / rs.length);
-    if (!bestSet || sd < bestSet.sd) bestSet = { sd, set, mean: m };
+    let dmin = Infinity; for (let a = 0; a < set.length; a++) for (let b = a + 1; b < set.length; b++) dmin = Math.min(dmin, Math.hypot(set[a].cx - set[b].cx, set[a].cy - set[b].cy));
+    if (!best || dmin > best.dmin + 1e-6) best = { dmin, set };
   }
-  return bestSet ? bestSet.set : [];
+  return best ? best.set : [];
 }
-function ringPts(z, spacingPx, count) {
+/* קטעי הקירות הסגורים של האזור עם נורמל פנימה מאומת (נקודת בדיקה בתוך האזור) — נכון גם למצולע קעור */
+function zoneClosedSegs(z) {
   const segs = [];
-  let totalLen = 0;
+  const probe = P.scale ? 0.3 / P.scale : 12;
   for (const [s] of zoneWallList(z)) {
     const wcfg = (z.walls || {})[s]; if (wcfg && wcfg.open) continue;
-    const seg = zoneWallSeg({ ...z, _wall: s }); if (!seg) continue;
-    segs.push(seg); totalLen += seg.len;
+    const seg = zoneWallSeg({ ...z, _wall: s }); if (!seg || !seg.len) continue;
+    const ux = (seg.x2 - seg.x1) / seg.len, uy = (seg.y2 - seg.y1) / seg.len;
+    let nx = -uy, ny = ux;   /* ניצב; הכיוון נבדק מול האזור */
+    const mx = (seg.x1 + seg.x2) / 2, my = (seg.y1 + seg.y2) / 2;
+    if (!inZone(z, { x: mx + nx * probe, y: my + ny * probe })) { nx = -nx; ny = -ny; }
+    segs.push({ ...seg, nx, ny, aim: Math.atan2(ny, nx) * 180 / Math.PI });
   }
+  return segs;
+}
+/* סאבים: צמודים לקירות, פיזור אחיד בחלל לפי כמות — קודם הפינה הגדולה (צימוד פינה), ואז בכל פעם הנקודה על ההיקף
+   (פינה או קיר) הרחוקה ביותר מהסאבים שכבר הוצבו (k-center), כך שהבס מתפזר אחיד */
+function zoneSubPts(z, count, inM) {
+  const b = zoneBounds(z), cx = b.L + b.W / 2, cy = b.T + b.H / 2;
+  const corners = zoneCornerPts(z, inM).map(([x, y]) => ({ cx: x, cy: y, corner: true }));
+  const segs = zoneClosedSegs(z), step = P.scale ? 0.5 / P.scale : 20, cands = corners.slice();
+  for (const s2 of segs) { const ux = (s2.x2 - s2.x1) / s2.len, uy = (s2.y2 - s2.y1) / s2.len; for (let t = inM; t < s2.len - inM; t += step) { const p = { cx: s2.x1 + ux * t + s2.nx * inM, cy: s2.y1 + uy * t + s2.ny * inM }; if (inZone(z, p.cx !== undefined ? { x: p.cx, y: p.cy } : p)) cands.push(p); } }
+  if (!cands.length) return [];
+  const out = [];
+  const first = corners.length ? corners[0] : cands.reduce((m, c) => Math.hypot(c.cx - cx, c.cy - cy) > Math.hypot(m.cx - cx, m.cy - cy) ? c : m, cands[0]);
+  out.push(first);
+  while (out.length < count && out.length < cands.length) {
+    let bestC = null, bestD = -1;
+    for (const c of cands) { if (out.includes(c)) continue; const d = Math.min(...out.map(o => Math.hypot(o.cx - c.cx, o.cy - c.cy))) + (c.corner ? (P.scale ? 0.5 / P.scale : 20) : 0); if (d > bestD) { bestD = d; bestC = c; } }
+    if (!bestC) break; out.push(bestC);
+  }
+  while (out.length < count) out.push(out[out.length % Math.max(1, out.length)]);
+  return out.slice(0, count);
+}
+function ringPts(z, spacingPx, count) {
+  const segs = zoneClosedSegs(z);
+  const totalLen = segs.reduce((a, s2) => a + s2.len, 0);
   if (!segs.length) return [];
   const insetPx = (P.scale ? 0.4 / P.scale : 16);
   const pts = [];
@@ -9863,8 +9875,9 @@ function buildZoneFromItems(zid) {
     it.placed = (it.placed || 0) + q; it.zones[z.name] = (it.zones[z.name] || 0) + q; it.added = true;
   }
   /* סאבים — בפינות (צימוד פינה מגביר בס) */
-  const b = zoneBounds(z), inM = P.scale ? 0.8 / P.scale : 30;
-  const cpts = zoneCornerPts(z, inM);
+  const inM = P.scale ? 0.6 / P.scale : 24;
+  const totalSub = subItems.reduce((s2, it) => s2 + remQ(it), 0);
+  const spts = zoneSubPts(z, Math.max(1, totalSub), inM), cpts = spts.length ? spts.map(p => [p.cx, p.cy]) : zoneCornerPts(z, inM);
   let ci = 0;
   for (const it of subItems) {
     const q = remQ(it);
