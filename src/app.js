@@ -5703,7 +5703,7 @@ function spkDataManager(tab) {
     <style>#spkDbOv table a{font-size:17px;margin:0 5px;text-decoration:none;display:inline-block}#spkDbOv table a:hover{transform:scale(1.25)}#spkDbOv table td{padding:6px 5px}#spkDbOv table td button{font-size:12.5px;padding:2px 7px}</style>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">📚 טבלת נתונים טכניים (${rows.length})</b>
       <button onclick="document.getElementById('spkDbOv').remove()">✕</button></div>
-    <div style="display:flex;gap:5px;margin-bottom:8px">${tabBtn('spk', '🔊 רמקולים')}${tabBtn('amp', '🎚 מגברים')}${tabBtn('proc', '🎛 פרוססורים')}</div>
+    <div style="display:flex;gap:5px;margin-bottom:8px">${tabBtn('spk', '🔊 רמקולים')}${tabBtn('amp', '🎚 מגברים')}${tabBtn('proc', '🎛 פרוססורים')}${tab !== 'spk' ? `<button onclick="gearAudit()" title="מעבר מוצר-מוצר על פערים: טבלה ↔ פריסת גב ↔ צילום ↔ מדריך" style="flex:none;padding:5px 12px;border-radius:8px;font-weight:700;background:#fff1e3;border:1.5px solid #ff8a50;color:#c94a24">🔍 ביקורת מוצרים</button>` : ''}</div>
     <p class="muted" style="margin:0 0 4px;font-size:11px">🟢 = מאומת (דף יצרן / שם פריט ב-ERP) · 🔴 = הערכה. עריכה שומרת כמותאם ומסמנת כמאומת.</p>
     <p style="margin:0 0 8px;font-size:11.5px;background:#f7f5f0;border-radius:8px;padding:5px 9px">מקרא קישורים: 🔗 דף המוצר באתר היצרן · 📄 מפרט טכני PDF · 📘 מדריך משתמש PDF · ✎ עריכת הקישורים</p>
     <div class="fld" style="margin-bottom:6px"><input id="spkDbQ" placeholder="🔍 חפש דגם…" value="${esc(window.__spkQ || '')}" oninput="window.__spkQ=this.value;spkDataManager('${tab}');const e2=document.getElementById('spkDbQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
@@ -5754,6 +5754,169 @@ function spkDataManager(tab) {
     <p class="muted" style="font-size:10px;margin-top:6px">להרחבת הטבלה עם כל המוצרים מאתרי היצרנים — שלח לצ׳אט את שמות הדגמים או דפי נתונים ואחזיר קובץ ייבוא.</p></div>`;
   document.body.appendChild(ov);
 }
+/* ===== 🔍 ביקורת מוצרים — מגברים ופרוססורים: פערים בין הטבלה, פריסת הגב, הצילום והמדריך.
+   שורות: כל שורה בטבלה (מובנה + מותאם) + פריסות גב שאין להן שורה. לכל מוצר: בדיקות אוטומטיות + הערות/דילמות
+   שנאספו בבדיקה ידנית מול הצילומים והמדריכים (GA_NOTES). מצב הבדיקה (נבדק / החלטות / הערה) נשמר ב-store.gearAudit ===== */
+const GA_NOTES = [
+  { re: /^IPX 5\/10\/20:4$/i, items: [
+    { k: 'ipx4-photo', t: 'dilemma', q: 'הפריסה של IPX 5:4 / 10:4 / 20:4 משתמשת בצילום של IPX10:8 (8 ערוצים). לפי המדריך (K&F IPX, 02/2026) ל-4 ערוצים יש בלוק יציאות 8-פין אחד ו-2 בלוקי כניסה 6-פין — הגב שונה. יש צילומים נפרדים בספרייה (kf-ipx5-4 / kf-ipx10-4 / kf-ipx20-4).', o: ['לפצל ל-3 פריסות עם הצילום הנכון', 'להשאיר פריסה אחת על צילום 10:8', 'אחר (בהערה)'] },
+    { k: 'ipx-mains', t: 'info', q: 'מדריך: חיבור החשמל הוא Neutrik powerCON-HC (לא IEC) · רשת 2×etherCON (PRIMARY/SECONDARY) · GPIO בלוק 8-פין · כניסות אנלוגיות 2×6-פין Euroblock — תואם לפריסה.' } ] },
+  { re: /^IPX 10:8$/i, items: [{ k: 'ipx8-ok', t: 'info', q: 'הוצלב מול המדריך (K&F IPX 02/2026): 8 יציאות Euroblock, 8 כניסות, 2×etherCON, GPIO 8-פין, powerCON-HC — תואם. מיקומי בלוקי הכניסה/יציאה על הצילום מוערכים (בלוק צפוף).' }] },
+  { re: /^IX 15:4$/i, items: [{ k: 'ix-ok', t: 'info', q: 'הוצלב מול המדריך (K&F IX 02/2026): יציאות 1×8-פין Euroblock, כניסות מיק/קו 2×5-פין (2 כניסות בכל בלוק), 2×RJ45 (PoE ב-PRIMARY), GPIO 8-פין, IEC C14 — תואם לפריסה.' }] },
+  { re: /^DSK 3\.1$/i, items: [
+    { k: 'dsk-io', t: 'dilemma', q: 'בטבלה DSK 3.1 = 2×6 (כניסות×יציאות), אבל בצילום הגב יש 7 כניסות (BGM, MIC IN, MIC 1-4, MIC C) ו-3 יציאות (SUB, OUT R, OUT L) + 4 RCA וידאו. מה נכון?', o: ['לעדכן בטבלה ל-7×3 לפי הגב', 'הטבלה נכונה — לתקן את פריסת הגב', 'לבדוק מול המדריך (בהערה)'] },
+    { k: 'dsk-xlr', t: 'gap', q: 'מיקומי ה-XLR (SUB/OUT R/OUT L/BGM/MIC IN) נשארו כפי שסומנו ידנית — הצילום באיכות נמוכה והמרכוז האוטומטי לא אמין עליו. RCA/ג׳קים מורכזו אוטומטית. RS232 הוחלף לאייקון D-Sub 9.' } ] },
+  { re: /^DS 458$/i, items: [
+    { k: 'ds458-rs485', t: 'dilemma', q: 'RS485 מסומן כ-RJ45. בצילום (רזולוציה נמוכה) לא ברור אם זה RJ45, בלוק פיניקס או XLR.', o: ['RJ45', 'בלוק פיניקס 3-פין', 'XLR', 'לא ידוע'] },
+    { k: 'ds458-photo', t: 'gap', q: 'הצילום ברזולוציה נמוכה (1600×172 מוגדל) — המרכוז האוטומטי לא הופעל, המיקומים מוערכים.' } ] },
+  { re: /^DS 216$/i, items: [{ k: 'ds216-photo', t: 'gap', q: 'צילום ברזולוציה נמוכה — המיקומים מוערכים; אין שורה בטבלת הפרוססורים (כניסות×יציאות 2×6?).' }] },
+  { re: /^DMX 0808$/i, items: [
+    { k: 'dmx0808-rs', t: 'info', q: 'RS232 בצילום הוא בלוק 3-פין (ורוד) — נשאר block3 (לא D-Sub). GPIO מוקם ידנית על פס ה-16 פינים הכחול.' },
+    { k: 'dmx0808-net', t: 'gap', q: 'NET A / NET B (AES67/RAVENNA, RJ45 מוערמים) — המיקום לא אומת. בלוקי O1-O8 / I1-I8 (רשת 2×4) מיקום מוערך.' } ] },
+  { re: /^DMX 208 L$/i, items: [
+    { k: 'dmx208-name', t: 'dilemma', q: 'פריסת הגב נקראת DMX 208 L, בטבלת הפרוססורים הדגם הוא DMX 208A (4×4). האם זה אותו מוצר?', o: ['אותו מוצר — לאחד ל-DMX 208A', 'מוצרים שונים — להוסיף שורה ל-208L', 'לא ידוע'] },
+    { k: 'dmx208-pos', t: 'gap', q: 'צילום ברזולוציה נמוכה — מיקומי ה-XLR נשארו ידניים; NET A/B (RJ45 מוערמים) לא אומתו.' } ] },
+  { re: /^K7$/i, items: [
+    { k: 'k7-aux', t: 'dilemma', q: 'הסמן AUX (IN 10, RCA) יושב על אזור ריק בצילום — לא נמצא מחבר AUX בגב. בצילום יש RS232C (D-Sub 9), IR REMOTE (mini-DIN), OPTICAL, COAXIAL, S-VIDEO INPUT שלא כולם בפריסה.', o: ['למחוק את AUX', 'AUX = ג׳ק בחזית (לעדכן צד)', 'לא ידוע'] },
+    { k: 'k7-mic', t: 'gap', q: 'בגב יש 2 ג׳קי מיקרופון (A3 / B2) אבל בפריסה פריט MIC אחד (IN 8); בחזית MIC A1/A2/B1 + USB. לוודא מספור כניסות מול המדריך.' },
+    { k: 'k7-table', t: 'gap', q: 'אין שורה ל-K7 בטבלת הפרוססורים (כמה כניסות/יציאות? 6 יציאות XLR: MAIN L/R, CENTER, SUB, SURR L/R).' } ] },
+  { re: /^(Symetrix 8|PRISM 12)$/i, items: [
+    { k: 'sym-type', t: 'info', q: 'כל הכניסות/יציאות האנלוגיות היו מסומנות כסוג "חשמל" (pwr) — תוקן ל-בלוק פיניקס 3-פין. המיקומים על פס הבלוקים הצפוף לא מורכזו אוטומטית (מוערכים).' },
+    { k: 'sym-url', t: 'gap', q: 'אין קישור לדף יצרן / מדריך בטבלה.' } ] },
+  { re: /^VMX88$/i, items: [
+    { k: 'vmx-img', t: 'info', q: 'הפריסה השתמשה בצילום של VMX88L (בלי Dante) — הוחלף לצילום VMX88 (Dante). DANTE P / DANTE S עדיין בלי מיקום על הצילום — לסמן בעורך.' },
+    { k: 'vmx-table', t: 'gap', q: 'אין שורה ל-VMX88 / VMX88 L / VMO16 בטבלת הפרוססורים.' } ] },
+  { re: /^VMX88 L$/i, items: [{ k: 'vmxl-table', t: 'gap', q: 'אין שורה בטבלת הפרוססורים (8×8 אנלוגי, ללא Dante).' }] },
+  { re: /^VMO16$/i, items: [{ k: 'vmo-table', t: 'gap', q: 'אין שורה בטבלת הפרוססורים (Dante → 16 יציאות אנלוגיות).' }] },
+  { re: /^NST$/i, items: [{ k: 'nst-img', t: 'info', q: 'הפריסה "NST" (D48S) השתמשה בצילום של D48X — הוחלף לצילום D48S. NET בלי מיקום — לסמן בעורך. AC מוקם ידנית על שקע ה-IEC (היה על המתג).' }] },
+  { re: /^D48X$/i, items: [{ k: 'd48x-table', t: 'gap', q: 'אין שורה ל-D48X בטבלת הפרוססורים (4×8, Ethernet כפול). AC מוקם ידנית על שקע ה-IEC.' }] },
+  { re: /^ID48$/i, items: [{ k: 'id48-photo', t: 'gap', q: 'צילום באיכות נמוכה — המרכוז האוטומטי נדחה, המיקומים מוערכים. אין שורה בטבלת הפרוססורים (4×8).' }] },
+  { re: /^DM88$/i, items: [{ k: 'dm88-table', t: 'gap', q: 'אין שורה ל-DM88 בטבלת הפרוססורים (8×8 אנלוגי + 8×8 AES + Dante + WCLK). AES I/O בפריסה בלי מספרי פורט.' }] },
+  { re: /^(D24S|DS 418)$/i, items: [{ k: 'nophoto', t: 'gap', q: 'אין צילום גב — המחברים מוצגים בפאנל סכמטי. לצרף צילום (📷 החלף תמונת גב).' }] },
+  { re: /^(MA 800|MA 1200|MA 3600)$/i, items: [
+    { k: 'ma-shared', t: 'dilemma', q: 'שלושת דגמי MA משתמשים באותו צילום (SAE MA series). ההספק בטבלה נלקח משם הפריט ב-ERP ולא אומת מדף יצרן. בצילום אין שקע IEC נראה (AC מסומן ליד מפסק הזרם).', o: ['הגב זהה לכל השלושה — אישור', 'צריך צילום נפרד לדגם', 'לא ידוע'] } ] },
+  { re: /^(IPD 1200|IPD 2400)$/i, items: [{ k: 'ipd-photo', t: 'gap', q: 'הצילום זעיר (710×72, מסקירה חיצונית) — המיקומים מוערכים. באתר Lab.gruppen יש רק שרטוט DWG של הגב.' }] },
+  { re: /^XTA DNA\/APA$/i, items: [{ k: 'xta-dup', t: 'dilemma', q: 'יש שתי פריסות כמעט זהות: "DNA" ו-"XTA DNA/APA" (אותו צילום, אותם מחברים). לאחד?', o: ['לאחד לפריסה אחת', 'להשאיר שתיים', 'לא ידוע'] }] },
+  { re: /^DPA$/i, items: [{ k: 'dpa-gpio', t: 'info', q: 'GPIO בצילום הוא בלוק 6-פין (1-6), בפריסה block4 — קוסמטי. CTRL (RJ45) מיקום ידני.' }] },
+  { re: /^DYNAMIQ 450$/i, items: [{ k: 'dyn-front', t: 'info', q: 'צילום חזית (פריים מסיבוב 360°) — המיקומים מוערכים; IN B נשאר ידני.' }] },
+];
+function gaBrand(nm) {
+  return /YAMAHA|RX-|R-N|R-S|WXA|WXC|XDA/i.test(nm) ? 'Yamaha' : /IPX|TGX|SCALA|\bIX\b|K&F/i.test(nm) ? 'Kling & Freitag' : /DYNAMIQ|MX3|DAP/i.test(nm) ? 'KT Audio'
+    : /DMX|DLA|DIGI|DSK|418|DS 2|DS 4|K7/i.test(nm) ? 'DigiSynthetic' : /DPA|DNA|DC 10|XTA|\dND|D\s?\d+Q|D\s?\d+:|TOPAS|SIX|MX36|DS8000/i.test(nm) ? 'XTA / Funktion-One' : /MA\s?\d|MAX|PQM/i.test(nm) ? 'SAE'
+    : /IPD|PLM/i.test(nm) ? 'Lab.gruppen' : /Symetrix|PRISM/i.test(nm) ? 'Symetrix' : /NST|D\d\dS|D48X|ID48|DM88|VMX|VMO/i.test(nm) ? 'NST Audio' : /XLI/i.test(nm) ? 'Crown' : /MAGNETIC|DH|M 408|TD 100/i.test(nm) ? 'Magnetic' : 'אחר';
+}
+function gearAuditRows() {
+  const lib = store.ampLib || {};
+  const rows = [];
+  const seen = new Set();
+  const LAYS = typeof REAR_LAYOUTS !== 'undefined' ? REAR_LAYOUTS : [];
+  const nk = n => rearKey(n).toLowerCase().replace(/[^a-z0-9א-ת]/g, '');
+  const add = (name, d, kind, src) => { const k = nk(name); if (!k || seen.has(k)) return; seen.add(k); rows.push({ name, d: d || {}, kind, src }); };
+  AMP_DATA.forEach(d => {
+    if (d.kind !== 'amp' && d.kind !== 'proc') return;
+    /* שם תצוגה: שם פריסת הגב שתואמת לביטוי (למשל "DSK 3.1" במקום "DSK 3 1"); אחרת הביטוי המנוקה */
+    const hit = LAYS.find(r => d.re.test(r.name)); const name = hit ? hit.name : prettyRe(d.re);
+    const o = lib[rearKey(name)] || lib[rearKey(prettyRe(d.re))];
+    add(name, o ? { ...d, ...Object.fromEntries(Object.entries(o).filter(([, v]) => v != null)) } : d, d.kind, 'טבלה');
+  });
+  Object.entries(lib).forEach(([k, d]) => { if (d.kind === 'amp' || d.kind === 'proc') add(k, d, d.kind, 'מותאם'); });
+  LAYS.forEach(r => { if (!seen.has(nk(r.name)) && !rows.some(x => { try { return new RegExp(r.re, 'i').test(x.name); } catch { return false; } })) add(r.name, { kind: 'proc' }, 'proc', 'גב בלבד'); });
+  const SIG = /^(OUT|IN|LNK)/i, NOPORT = /^(AC|DC|NET|ETH|GPIO?|GPI|RS\d|DANTE|USB|WCLK|MODE|DIP|CTRL|OPT|COAX|V |ALL)/i;
+  for (const r of rows) {
+    const d = r.d, F = [];
+    const gap = (t, fix) => F.push({ t: 'gap', q: t, fix }); const info = t => F.push({ t: 'info', q: t });
+    const w = String(d.w || '');
+    if (r.src !== 'גב בלבד') {
+      if (r.kind === 'amp') {
+        if (!d.pw || !Object.keys(d.pw).length) gap('אין טבלת הספק לפי אימפדנס (pw) — בלי זה חישוב השרשור/עומס מוערך בלבד', 'spec');
+        if (/לא אומת|לא זמין|להשלים|⚠|משם הפריט|לא פורסם|לא צוין/.test(w)) gap('נתוני ההספק לא אומתו מדף יצרן: "' + w.slice(0, 70) + '"', 'spec');
+        if (!d.ch) gap('חסר מספר ערוצים', 'spec');
+        if (d.mo == null) gap('חסר מינימום אימפדנס לערוץ (Ω)', 'spec');
+      } else {
+        if (!d.io) gap('חסר כניסות×יציאות (io)', 'spec');
+        if (w.length < 14) gap('אין תיאור (רשת / פורמט / DSP) — רק שם מותג', 'spec');
+      }
+      if (!d.url) gap('אין קישור לדף היצרן', 'spec');
+      if (!d.pdf && !d.man) gap('אין מדריך / מפרט PDF — אי אפשר להצליב את הגב מול המדריך', 'spec');
+    }
+    /* פריסת גב + צילום */
+    const lay = (typeof REAR_LAYOUTS !== 'undefined' ? REAR_LAYOUTS : []).find(x => x.name === r.name || (() => { try { return new RegExp(x.re, 'i').test(r.name); } catch { return false; } })());
+    const im = rearImage(r.name);
+    r.lay = lay; r.im = im;
+    if (!lay) gap('אין פריסת גב שמורה (המחברים ייבנו אוטומטית לפי כניסות×יציאות)', 'rear');
+    else {
+      const its = lay.items || [];
+      if (!im) gap('אין צילום גב — המחברים מוצגים בפאנל סכמטי', 'rear');
+      else {
+        const np = its.filter(i => i.x == null).length; if (np) gap(np + ' מחברים בלי מיקום על הצילום: ' + its.filter(i => i.x == null).map(i => i.label).join(', '), 'rear');
+        if ((im.w && im.w < 1000) || (im.h && im.h < 120)) info('צילום ברזולוציה נמוכה (' + im.w + '×' + im.h + ') — דיוק המיקום מוגבל');
+      }
+      const outs = its.filter(i => /^OUT/i.test(i.port || '')).length, ins = its.filter(i => /^IN/i.test(i.port || '')).length;
+      if (r.kind === 'amp' && d.ch && outs && outs !== d.ch) gap('בגב ' + outs + ' יציאות (OUT) מול ' + d.ch + ' ערוצים בטבלה', 'rear');
+      if (r.kind === 'proc' && d.io) { const m = String(d.io).match(/(\d+)\s*[×x]\s*(\d+)/i); if (m && (ins !== +m[1] || outs !== +m[2])) gap('בגב ' + ins + ' כניסות / ' + outs + ' יציאות מול ' + d.io + ' בטבלה', 'rear'); }
+      const dup = {}; its.forEach(i => { if (i.port) dup[i.port] = (dup[i.port] || 0) + 1; }); const dd = Object.entries(dup).filter(([, n]) => n > 1).map(([p]) => p); if (dd.length) gap('מספרי פורט כפולים: ' + dd.join(', '), 'rear');
+      const bad = its.filter(i => /^(pwr|power)$/.test(i.t) && SIG.test(i.port || '')).map(i => i.label); if (bad.length) gap('מחברי אות מסומנים כסוג "חשמל": ' + bad.join(', '), 'rear');
+      const nop = its.filter(i => !i.port && !NOPORT.test(i.label || '') && /^(xlr|speakon|block|jack|rca|binding|multi)/.test(i.t)).map(i => i.label); if (nop.length) gap('מחברי אות בלי שיוך פורט (לא ייכנסו לחיווט): ' + nop.join(', '), 'rear');
+    }
+    (GA_NOTES.find(n => n.re.test(r.name)) || { items: [] }).items.forEach(n => F.push(n));
+    r.f = F;
+    r.key = rearKey(r.name);
+    r.brand = gaBrand(r.name);
+    const st = (store.gearAudit || {})[r.key] || {};
+    r.done = !!st.done;
+    r.sev = F.filter(x => x.t === 'dilemma').length * 3 + F.filter(x => x.t === 'gap').length;
+  }
+  rows.sort((a, b) => (a.done - b.done) || (b.sev - a.sev) || a.brand.localeCompare(b.brand) || a.name.localeCompare(b.name));
+  return rows;
+}
+function gearAudit(sel) {
+  store.gearAudit = store.gearAudit || {};
+  const rows = gearAuditRows();
+  window.__gaSel = sel != null ? sel : (window.__gaSel || 0);
+  if (window.__gaSel >= rows.length) window.__gaSel = 0;
+  const cur = rows[window.__gaSel];
+  const old = document.getElementById('gaOv'); if (old) old.remove();
+  const ov = document.createElement('div'); ov.id = 'gaOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.55);z-index:99;display:flex;align-items:center;justify-content:center';
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  const st = store.gearAudit[cur.key] || (store.gearAudit[cur.key] = {});
+  const nOpen = rows.filter(r => !r.done).length, nDil = rows.reduce((a, r) => a + r.f.filter(x => x.t === 'dilemma' && !(store.gearAudit[r.key] && store.gearAudit[r.key].ans && store.gearAudit[r.key].ans[x.k])).length, 0);
+  const list = rows.map((r, i) => `<div onclick="gearAudit(${i})" style="padding:5px 8px;border-radius:7px;cursor:pointer;display:flex;gap:6px;align-items:center;${i === window.__gaSel ? 'background:#c9502e;color:#fff' : r.done ? 'opacity:.55' : ''}">
+      <span style="font-size:12px">${r.done ? '✅' : r.f.some(x => x.t === 'dilemma') ? '❓' : r.f.some(x => x.t === 'gap') ? '⚠' : '🟢'}</span><span style="flex:1;font-weight:600;font-size:12px">${esc(r.name)}</span><span style="font-size:10px;opacity:.75">${esc(r.brand)}</span></div>`).join('');
+  const fx = (f, k) => {
+    if (f.t === 'dilemma') {
+      const a = (st.ans || {})[f.k];
+      return `<div style="background:#fff7ec;border:1.5px solid #e9a03b;border-radius:9px;padding:8px 10px;margin:6px 0"><b>❓ דילמה:</b> ${esc(f.q)}<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${(f.o || []).map(o => `<button onclick="gaAns('${esc(cur.key).replace(/'/g, '&#39;')}','${f.k}','${esc(o).replace(/'/g, '&#39;')}')" style="font-size:11.5px;padding:3px 9px;border-radius:14px;${a === o ? 'background:#0f6e56;color:#fff;border-color:#0f6e56' : ''}">${esc(o)}</button>`).join('')}</div></div>`;
+    }
+    const link = f.fix === 'rear' ? `<button class="mini" style="margin-right:6px" onclick="rearEditorByName('${esc(cur.name).replace(/'/g, '&#39;')}')">✎ גב</button>` : f.fix === 'spec' && cur.src !== 'גב בלבד' ? `<button class="mini" style="margin-right:6px" onclick="specSheet('${cur.kind}','${esc(cur.name).replace(/'/g, '&#39;')}')">📋 מפרט</button>` : '';
+    return `<div style="padding:5px 8px;border-radius:7px;margin:4px 0;background:${f.t === 'gap' ? '#fdecea' : '#eef4fb'};font-size:12px">${f.t === 'gap' ? '⚠' : 'ℹ'} ${esc(f.q)} ${link}</div>`;
+  };
+  const im = cur.im;
+  ov.innerHTML = `<div style="background:#fff;border-radius:12px;width:96%;max-width:1100px;height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.35)">
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 16px 6px"><b style="flex:1">🔍 ביקורת מוצרים — מגברים ופרוססורים</b><span class="muted" style="font-size:11.5px">${rows.length} מוצרים · ${nOpen} פתוחים · ${nDil} דילמות ממתינות להחלטה</span><button onclick="document.getElementById('gaOv').remove()">✕</button></div>
+    <p class="muted" style="margin:0 16px 6px;font-size:11px">לכל מוצר: פערים שנמצאו אוטומטית (טבלה ↔ פריסת גב ↔ צילום) + הערות ודילמות מהבדיקה הידנית מול הצילומים והמדריכים. ❓ = צריך החלטה שלך · ⚠ = פער · ℹ = מידע. "✔ נבדק" מוריד את המוצר לסוף הרשימה.</p>
+    <div style="display:flex;gap:10px;flex:1;min-height:0;padding:0 16px 14px">
+      <div style="width:250px;flex:none;overflow-y:auto;border:1px solid #e5e2dc;border-radius:9px;padding:4px">${list}</div>
+      <div style="flex:1;overflow-y:auto;border:1px solid #e5e2dc;border-radius:9px;padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:16px">${esc(cur.name)}</b><span class="muted" style="font-size:11px">${esc(cur.brand)} · ${cur.kind === 'amp' ? 'מגבר' : 'פרוססור'} · מקור: ${cur.src}</span>
+          <span style="flex:1"></span>
+          ${cur.src !== 'גב בלבד' ? `<button class="mini" onclick="specSheet('${cur.kind}','${esc(cur.name).replace(/'/g, '&#39;')}')">📋 דף מפרט</button>` : ''}
+          <button class="mini" onclick="rearEditorByName('${esc(cur.name).replace(/'/g, '&#39;')}')">✎ עריכת גב</button>
+          ${cur.d.url ? `<a class="mini" href="${esc(cur.d.url)}" target="_blank" rel="noopener" style="text-decoration:none">🔗 יצרן</a>` : ''}${cur.d.pdf ? `<a class="mini" href="${esc(cur.d.pdf)}" target="_blank" rel="noopener" style="text-decoration:none">📄 מפרט</a>` : ''}${cur.d.man ? `<a class="mini" href="${esc(cur.d.man)}" target="_blank" rel="noopener" style="text-decoration:none">📘 מדריך</a>` : ''}</div>
+        <div class="muted" style="font-size:11.5px;margin:4px 0 8px">${cur.kind === 'amp' ? `ערוצים: <b>${cur.d.ch || '?'}</b> · מינ׳ Ω: <b>${cur.d.mo || '?'}</b> · ${esc(cur.d.w || '')}` : `כניסות×יציאות: <b>${esc(cur.d.io || '?')}</b> · ${esc(cur.d.w || '')}`}${cur.lay ? ` · פריסת גב: ${cur.lay.items.length} מחברים (${cur.lay.items.filter(i => /^OUT/i.test(i.port || '')).length} יציאות / ${cur.lay.items.filter(i => /^IN/i.test(i.port || '')).length} כניסות)` : ''}</div>
+        ${im ? `<div style="border-radius:8px;overflow:hidden;background:#0b0d12;margin-bottom:8px">${rearImageHTML(cur.name, cur.lay ? cur.lay.items : [], { caption: false })}</div>` : ''}
+        ${cur.f.length ? cur.f.map(fx).join('') : '<div style="padding:8px;border-radius:7px;background:#eef7f1;font-size:12px">🟢 לא נמצאו פערים אוטומטיים</div>'}
+        <div class="fld" style="margin-top:10px"><label>הערה שלך (נשמרת)</label><textarea rows="2" style="width:100%" onchange="store.gearAudit['${esc(cur.key).replace(/'/g, '&#39;')}'].note=this.value;save()">${esc(st.note || '')}</textarea></div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button style="flex:1;${st.done ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56' : 'background:#c9502e;color:#fff'}" onclick="gaDone('${esc(cur.key).replace(/'/g, '&#39;')}',${st.done ? 'false' : 'true'})">${st.done ? '↩ פתח מחדש' : '✔ נבדק — הבא'}</button>
+          <button onclick="gearAudit(${(window.__gaSel + 1) % rows.length})">הבא ⟵</button><button onclick="gearAudit(${(window.__gaSel - 1 + rows.length) % rows.length})">⟶ הקודם</button>
+        </div>
+      </div>
+    </div></div>`;
+  document.body.appendChild(ov);
+}
+function gaAns(key, qk, val) { store.gearAudit = store.gearAudit || {}; const st = store.gearAudit[key] = store.gearAudit[key] || {}; st.ans = st.ans || {}; st.ans[qk] = st.ans[qk] === val ? undefined : val; st.ts = Date.now(); save(); gearAudit(); }
+function gaDone(key, on) { store.gearAudit = store.gearAudit || {}; const st = store.gearAudit[key] = store.gearAudit[key] || {}; st.done = on ? 1 : 0; st.ts = Date.now(); save(); if (on) { const rows = gearAuditRows(); const i = rows.findIndex(r => !r.done); gearAudit(i >= 0 ? i : 0); } else gearAudit(); }
 /* דף מוצר — כל הנתונים, טבלת הספק לפי אימפדנס, קישורים למדריך ולדף היצרן */
 function specSheet(tab, name) {
   const key = rearKey(name);
