@@ -1421,7 +1421,7 @@ function rearEditorByName(uname) {
   const items = JSON.parse(JSON.stringify(src.items));
   const mgr = document.getElementById('rearLibOv'); if (mgr) mgr.remove();
   window.__rearDraft = items;
-  window.__rearSel = items.length ? 0 : -1;
+  window.__rearSel = items.length ? 0 : -1; window.__rearPlace = null; window.__rearNum = null;
   window.__rearName = rearKey(uname);
   window.__rearSrc = src.src;
   window.__rearNum = null;
@@ -1478,7 +1478,7 @@ function rearEdRender() {
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:5px 0 4px;font-size:11px">
       <button class="mini" onclick="rearAddItem()">➕ מחבר חדש</button>
       <button class="mini" onclick="rearDup()" ${sel < 0 ? 'disabled' : ''}>⧉ שכפל את הנבחר</button>
-      <span class="muted">לחיצה כפולה על התמונה = מחבר חדש במקום · גרירה = הזזה · חצים = כוונון עדין (Shift = גס) · Delete = מחיקה</span>
+      ${window.__rearPlace != null && items[window.__rearPlace] ? `<b style="color:#c94a24;background:#fff1e3;border:1px solid #ff8a50;border-radius:8px;padding:2px 8px">📍 לחץ על התמונה כדי להציב את ${esc(items[window.__rearPlace].label || 'המחבר')} שם · Esc = ביטול</b>` : `<span class="muted">לחיצה על מחבר ואז לחיצה על התמונה = הזזה למקום · אפשר גם לגרור · לחיצה כפולה על מקום ריק = מחבר חדש · חצים = כוונון עדין (Shift = גס) · Delete = מחיקה</span>`}
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:${NM ? '#fff1e3' : '#f4f2ec'};border:1px solid ${NM ? '#ff8a50' : 'transparent'};border-radius:8px;padding:5px 8px;font-size:11px;margin-bottom:6px">
       <b>🔢 מספור מהיר:</b>
@@ -1559,10 +1559,21 @@ function rearBindDragBox(box) {
     const it = window.__rearDraft[drag.i]; it.x = Math.round(x * 10) / 10; it.y = Math.round(y * 10) / 10; drag.moved = true; if (box.dataset.side === 'front') it.side = 'front';
     const mk = box.querySelector(`.rmk[data-ri="${drag.i}"]`); if (mk) { mk.style.left = it.x + '%'; mk.style.top = it.y + '%'; }
   });
-  const end = () => { if (!drag) return; const d = drag; drag = null; if (!d.moved && window.__rearNum) rearNumAssign(d.i); rearEdRender(); };
+  /* לחיצה קצרה על מחבר (לא במצב מספור) = "מרים" אותו: הלחיצה הבאה על התמונה מציבה אותו שם. לחיצה חוזרת על אותו מחבר / Esc = ביטול */
+  const end = () => { if (!drag) return; const d = drag; drag = null;
+    if (!d.moved) { if (window.__rearNum) rearNumAssign(d.i); else window.__rearPlace = window.__rearPlace === d.i ? null : d.i; }
+    else window.__rearPlace = null;
+    rearEdRender(); };
   box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+  box.addEventListener('click', e => {
+    if (e.target.closest('.rmk') || window.__rearPlace == null) return;
+    const it = window.__rearDraft[window.__rearPlace]; window.__rearPlace = null; if (!it) { rearEdRender(); return; }
+    const { x, y } = pct(e); it.x = Math.round(x * 10) / 10; it.y = Math.round(y * 10) / 10; if (box.dataset.side === 'front') it.side = 'front'; else if (box.dataset.side) delete it.side;
+    window.__rearPlacedAt = Date.now(); rearEdRender();
+  });
   box.addEventListener('dblclick', e => {
     if (e.target.closest('.rmk')) return;
+    if (Date.now() - (window.__rearPlacedAt || 0) < 600) return;   /* הלחיצה הכפולה הזו סיימה הצבה — לא להוסיף מחבר */
     const { x, y } = pct(e);
     rearAddItem({ x, y, side: box.dataset.side === 'front' ? 'front' : undefined });
   });
@@ -1617,7 +1628,7 @@ function rearDup() {
 function rearEdKeys(e) {
   const ov = document.getElementById('rearEdOv'); if (!ov) { document.removeEventListener('keydown', rearEdKeys); return; }
   if (/INPUT|SELECT|TEXTAREA/.test((e.target && e.target.tagName) || '')) return;
-  if (e.key === 'Escape') { if (window.__rearNum) { window.__rearNum = null; rearEdRender(); e.preventDefault(); } return; }
+  if (e.key === 'Escape') { if (window.__rearNum || window.__rearPlace != null) { window.__rearNum = null; window.__rearPlace = null; rearEdRender(); e.preventDefault(); } return; }
   const a = window.__rearDraft, i = window.__rearSel, it = a && a[i]; if (!it) return;
   const step = e.shiftKey ? 1 : 0.2;
   const mv = (dx, dy) => { const im = rearImage(window.__rearName); if (!im) return; const cur = rearPosOf(it, im.pos || {}, i, a.length); rearSetXY(i, cur.x + dx, cur.y + dy); e.preventDefault(); };
@@ -1762,12 +1773,12 @@ function rearImageHTML(name, items, opts = {}) {
     const { x, y, w } = rearPosOf(it, pos, i, n);
     const isOut = it.port && /^(OUT|LNK)/i.test(it.port), isIn = it.port && /^IN/i.test(it.port);
     const m = opts.mark ? opts.mark(it, i) : null, col = m && m.col;   /* חיווט: טבעת בצבע הכבל + מספרו, לחיצה = חיבור */
-    return `<div class="rmk${i === sel ? ' sel' : ''}${/^block/.test(it.t) ? ' blk' : ''}${col ? ' wired' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}${m && m.tip ? ' · ' + esc(m.tip) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%${w ? ';width:' + w + '%;max-width:none;min-width:0' : ''}${col ? ';--cc:' + col : ''}" ${m && m.click ? `onclick="event.stopPropagation();${m.click}"` : ''}>
+    return `<div class="rmk${i === sel ? ' sel' : ''}${opts.edit && window.__rearPlace === i ? ' placing' : ''}${/^block/.test(it.t) ? ' blk' : ''}${col ? ' wired' : ''}" data-ri="${i}" title="${esc(it.label || '')}${it.port ? ' · ' + esc(it.port) : ''}${m && m.tip ? ' · ' + esc(m.tip) : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%${w ? ';width:' + w + '%;max-width:none;min-width:0' : ''}${col ? ';--cc:' + col : ''}" ${m && m.click ? `onclick="event.stopPropagation();${m.click}"` : ''}>
       <div class="g">${rearGlyph(it.t, it.label)}</div>${m && m.num ? `<span class="nb" style="border-color:${col};color:${col}">${esc(String(m.num))}</span>` : ''}<div class="lb" style="background:${col || (isOut ? '#c94a24' : isIn ? '#0f6e56' : '#2d3444')}">${esc((it.label || '·').slice(0, 6))}${opts.edit && it.port ? `<span class="pt">${esc(it.port)}</span>` : ''}</div></div>`;
   }).join('');
   const cap = opts.caption === false ? '' : `<div class="cap">📷 ${esc(im.model || name)}${im.custom ? ' · העלאה ידנית' : im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : ''}</div>`;
-  let h = im.url ? `<div class="rearimg${opts.edit ? ' edit' : ''}" data-side="rear" style="${opts.style || ''}"><img src="${im.url}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('rear')}${cap}</div>` : '';
-  if (im.furl) h += `<div class="rearimg front${opts.edit ? ' edit' : ''}" data-side="front" style="margin-top:3px;${opts.style || ''}"><img src="${im.furl}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('front')}<div class="cap">חזית${im.url ? '' : ' · ' + esc(im.model || '') + (im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : '')}</div></div>`;
+  let h = im.url ? `<div class="rearimg${opts.edit ? ' edit' : ''}${opts.edit && window.__rearPlace != null ? ' placing' : ''}" data-side="rear" style="${opts.style || ''}"><img src="${im.url}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('rear')}${cap}</div>` : '';
+  if (im.furl) h += `<div class="rearimg front${opts.edit ? ' edit' : ''}${opts.edit && window.__rearPlace != null ? ' placing' : ''}" data-side="front" style="margin-top:3px;${opts.style || ''}"><img src="${im.furl}" alt="" draggable="false" onerror="this.parentNode.style.display='none'">${marksFor('front')}<div class="cap">חזית${im.url ? '' : ' · ' + esc(im.model || '') + (im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : '')}</div></div>`;
   return h;
 }
 /* ===== מנהל ספריית הגבים — כל הדגמים, עריכה, הוספה, ייבוא/ייצוא ===== */

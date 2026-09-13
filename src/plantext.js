@@ -199,11 +199,35 @@ async function ptBinary() {
   /* תכנית צבעונית (הדמיה: רצפות, שולחנות וכיסאות בצבע) — הקירות בה שחורים, והכל השאר צבעוני.
      בשרטוט קווי (שחור-לבן) הסף 200 תופס קווים דקים ואפורים; בהדמיה סף כזה הופך כל רצפת עץ ל"קיר".
      מזהים הדמיה לפי חלק הפיקסלים הרוויים בצבע, ואז רק כהה-מאוד (< 70) נחשב קיר */
+  /* תכנית עם רצפות צבועות/אפורות (הדמיה, או שרטוט עם מילוי): רוב הפיקסלים אינם לבנים. שם הקירות הם הגוון
+     הכהה ביותר, והרצפות גוון ביניים — הסף נבחר אוטומטית (Otsu על הפיקסלים הלא-לבנים) במקום 200 הקבוע של שרטוט קווי.
+     בנוסף, לבן-נייר שנוגע בשולי התמונה = "מחוץ לתכנית" (חוסם): כך מרפסת עם רצפה אפורה מחוץ לקירות היא חלל משלה
+     ולא נבלעת בשוליים. בשרטוט קווי (רצפה לבנה) זה לא מופעל — שם רצפה לבנה שנוגעת בשוליים היא סתם תכנית חתוכה */
+  const luma = new Uint8Array(w * h), paper = new Uint8Array(w * h); const hist = new Uint32Array(256);
   let sat = 0, nonWhite = 0;
-  for (let i = 0; i < px.length; i += 16) { const r = px[i], gg = px[i + 1], b = px[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b); if (mx < 235) { nonWhite++; if (mx - mn > 40) sat++; } }
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) { const r = px[i], gg = px[i + 1], b = px[i + 2]; const l = Math.round(0.299 * r + 0.587 * gg + 0.114 * b); luma[j] = l; if (l < 235) { nonWhite++; hist[l]++; if (Math.max(r, gg, b) - Math.min(r, gg, b) > 40) sat++; }
+    /* לבן-נייר = לבן ממש (לא רצפת בז׳ בהירה: לזו יש גוון) */
+    if (Math.min(r, gg, b) >= 246 && Math.max(r, gg, b) - Math.min(r, gg, b) <= 8) paper[j] = 1; }
+  const filled = nonWhite / (w * h) > 0.3;
   const rendered = nonWhite > 0 && sat / nonWhite > 0.25;
-  const thr = window.__ptOpt && window.__ptOpt.thr ? window.__ptOpt.thr : (rendered ? 70 : OPT.thr);
-  for (let i = 0, j = 0; i < px.length; i += 4, j++) dark0[j] = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) < thr ? 1 : 0;
+  let thr = OPT.thr;
+  if (window.__ptOpt && window.__ptOpt.thr) thr = window.__ptOpt.thr;
+  else if (filled || rendered) {
+    /* Otsu על הלא-לבנים: הסף שמפריד "כהה" (קירות/קווים) מ"בהיר" (רצפות) */
+    let total = 0, sum = 0; for (let t = 0; t < 235; t++) { total += hist[t]; sum += t * hist[t]; }
+    let best = 100, bestV = -1, wB = 0, sumB = 0;
+    for (let t = 0; t < 235; t++) { wB += hist[t]; if (!wB) continue; const wF = total - wB; if (!wF) break; sumB += t * hist[t]; const mB = sumB / wB, mF = (sum - sumB) / wF, v = wB * wF * (mB - mF) ** 2; if (v > bestV) { bestV = v; best = t; } }
+    thr = Math.max(60, Math.min(170, best));
+  }
+  for (let j = 0; j < w * h; j++) dark0[j] = luma[j] < thr ? 1 : 0;
+  if (filled || rendered) {
+    /* לבן-נייר שמחובר לשולי התמונה → חוסם */
+    const seen = new Uint8Array(w * h), q = new Int32Array(w * h); let qt = 0;
+    const push = i => { if (!seen[i] && paper[i]) { seen[i] = 1; q[qt++] = i; } };
+    for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); } for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+    let qh = 0; while (qh < qt) { const i = q[qh++], x = i % w; if (x > 0) push(i - 1); if (x < w - 1) push(i + 1); if (i >= w) push(i - w); if (i + w < w * h) push(i + w); }
+    for (let i = 0; i < w * h; i++) if (seen[i]) dark0[i] = 1;
+  }
   /* עיבוי הקירות: רדיוס ≈ 0.5 מ׳ (סוגר דלתות) — בפיקסלים של הקנבס */
   const pxPerM = P.scale ? (1 / P.scale) * (w / (P.bgW || 1400)) : w / 60;
   const r = Math.max(1, Math.min(20, Math.round(pxPerM * OPT.rM)));
@@ -214,7 +238,7 @@ async function ptBinary() {
   for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = w - 1; x >= 0; x--) { if (dark0[row + x]) run = r + 1; if (run > 0) { tmp[row + x] = 1; run--; } } }   /* שמאלה */
   for (let x = 0; x < w; x++) { let run = 0; for (let y = 0; y < h; y++) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
   for (let x = 0; x < w; x++) { let run = 0; for (let y = h - 1; y >= 0; y--) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
-  PT_BIN = { w, h, dark, dark0, r, pxPerM, key, thr, rendered, darkFrac: +(dark0.reduce((a, b) => a + b, 0) / (w * h)).toFixed(3) };
+  PT_BIN = { w, h, dark, dark0, r, pxPerM, key, thr, rendered, filled, darkFrac: +(dark0.reduce((a, b) => a + b, 0) / (w * h)).toFixed(3) };
   return PT_BIN;
 }
 /* מילוי מנקודה אחת: { n, edge, box } */
@@ -491,7 +515,8 @@ async function ptPartition() {
     P.zones.push(z); made++;
   };
   /* "חוץ" = החללים שמכילים את פינות התכנית; חלל שנוגע בשוליים כי התכנית חתוכה (ויש בו כיתוב קהל, או שאינו ענק) נשאר פנימי */
-  const cornerIds = new Set([comp[0], comp[w - 1], comp[(h - 1) * w], comp[h * w - 1]].filter(i => i >= 0));
+  /* בתכנית עם רצפות צבועות "החוץ" הוא רק לבן-הנייר (כבר חסום) — רצפה אפורה בפינת התמונה היא מרפסת, לא חוץ */
+  const cornerIds = B.filled || B.rendered ? new Set() : new Set([comp[0], comp[w - 1], comp[(h - 1) * w], comp[h * w - 1]].filter(i => i >= 0));
   for (const c of info) {
     const labs = items.filter(it => it.cid === c.id);
     const aud = labs.filter(it => it.cat === 'audience'), svc = labs.filter(SERVICE);
