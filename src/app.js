@@ -1990,7 +1990,10 @@ function renderNodes() {
           const picked = ((rearPick && rearPick.nodeId === n.id && rearPick.unitId === u.id)
             || (wireMode?.from?.nid === n.id && wireMode.from.unitId === u.id)) ? ' picked' : '';
           /* תמונת גב אמיתית (data/rear_images) — המחברים יושבים על התמונה במקומם; אחרת פאנל סכמטי */
-          const im0 = rearImage(u.name), im = im0 && im0.url ? im0 : null, ih = im && im.w ? panelW * im.h / im.w : 0, fh = im && im.front && im.fw ? panelW * im.fh / im.fw : 0;
+          /* בתצוגת הגב — רק הגב; החזית מצורפת מתחתיו רק כשיש מחברים שיושבים בחזית (K7: מיקרופונים בחזית) */
+          const im0 = rearImage(u.name), im = im0 && im0.url ? im0 : null, ih = im && im.w ? panelW * im.h / im.w : 0;
+          const hasFrontConn = !!im && items.some(it => rearSideOf(it, im.pos || {}) === 'front');
+          const fh = im && hasFrontConn && im.front && im.fw ? panelW * im.fh / im.fw : 0;
           const imH = im ? Math.round(ih * RZ) : 0, fH = im ? Math.round(fh * RZ) : 0;
           const h = im ? Math.max(ROWMIN, imH + (fH ? fH + 6 : 0) + 8) : Math.max(ROWMIN, u.u * 56 * RZ), top = yCur, cy = h / 2;
           const imTop = im ? Math.round((h - imH - (fH ? fH + 6 : 0)) / 2) : 0, fTop = imTop + imH + 6, imPos = im ? (im.pos || {}) : null;
