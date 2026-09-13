@@ -161,7 +161,7 @@
   "page": "https://nstaudio.com/d48x/",
   "w": 1600,
   "h": 533,
-  "v": 1,
+  "v": 2,
   "pos": {
    "AC": [
     12,
@@ -223,7 +223,11 @@
     92,
     39
    ]
-  }
+  },
+  "front": "nst-d48x-front.jpg",
+  "fw": 1600,
+  "fh": 280,
+  "fsrc": "https://nstaudio.com/wp-content/uploads/2021/10/D48XNST_front.jpg"
  },
  {
   "re": "\\bID48\\b",
@@ -233,7 +237,7 @@
   "page": "https://nstaudio.com/id48/",
   "w": 1600,
   "h": 533,
-  "v": 1,
+  "v": 2,
   "pos": {
    "AC": [
     16,
@@ -291,7 +295,11 @@
     96.5,
     38
    ]
-  }
+  },
+  "front": "nst-id48-front.jpg",
+  "fw": 1600,
+  "fh": 256,
+  "fsrc": "https://nstaudio.com/wp-content/uploads/2015/11/ID48_front.jpg"
  },
  {
   "re": "DM88",
@@ -301,7 +309,7 @@
   "page": "https://nstaudio.com/dm88/",
   "w": 1600,
   "h": 530,
-  "v": 1,
+  "v": 2,
   "pos": {
    "AC": [
     15,
@@ -427,7 +435,11 @@
     95.5,
     63
    ]
-  }
+  },
+  "front": "nst-dm88-front.jpg",
+  "fw": 1600,
+  "fh": 306,
+  "fsrc": "https://nstaudio.com/wp-content/uploads/2023/01/DM88-Front-Straight-Logo-Web-scaled.jpg"
  },
  {
   "re": "VMX88\\s?L\\b",
@@ -437,7 +449,7 @@
   "page": "https://nstaudio.com/vmx88l/",
   "w": 1600,
   "h": 533,
-  "v": 1,
+  "v": 2,
   "pos": {
    "AC": [
     19,
@@ -515,7 +527,11 @@
     86.5,
     45
    ]
-  }
+  },
+  "front": "nst-vmx88l-front.jpg",
+  "fw": 1600,
+  "fh": 259,
+  "fsrc": "https://nstaudio.com/wp-content/uploads/2022/02/vmx88L-front-panel-scaled.jpg"
  },
  {
   "re": "VMX88",
@@ -525,7 +541,7 @@
   "page": "https://nstaudio.com/vmx88-installation-audio-processor-with-dante/",
   "w": 1600,
   "h": 532,
-  "v": 1,
+  "v": 2,
   "pos": {
    "AC": [
     19,
@@ -611,7 +627,11 @@
     32.5,
     36
    ]
-  }
+  },
+  "front": "nst-vmx88-front.jpg",
+  "fw": 1600,
+  "fh": 244,
+  "fsrc": "https://nstaudio.com/wp-content/uploads/2019/03/VMX88-Front-RFLCT.jpg"
  },
  {
   "re": "VMO16",
@@ -621,7 +641,7 @@
   "page": "https://nstaudio.com/vmo16-audio-installation-processor/",
   "w": 1600,
   "h": 532,
-  "v": 1,
+  "v": 2,
   "pos": {
    "AC": [
     19,
@@ -707,7 +727,11 @@
     86.5,
     45
    ]
-  }
+  },
+  "front": "nst-vmo16-front.jpg",
+  "fw": 1600,
+  "fh": 256,
+  "fsrc": "https://nstaudio.com/wp-content/uploads/2020/01/VMO16-Front-RFLCT.jpg"
  },
  {
   "re": "D48S|^NST$|NST\\s*D48\\b",
@@ -774,7 +798,12 @@
    ]
   },
   "w": 1200,
-  "h": 400
+  "h": 400,
+  "front": "nst-d48s-front.jpg",
+  "fw": 1600,
+  "fh": 272,
+  "fsrc": "https://nstaudio.com/wp-content/uploads/2015/04/D48NST_front.jpg",
+  "v": 2
  },
  {
   "re": "PQM\\s?13|PQM",
@@ -841,7 +870,12 @@
    ]
   },
   "w": 1920,
-  "h": 833
+  "h": 833,
+  "front": "sae-pqm-front.jpg",
+  "fw": 1600,
+  "fh": 618,
+  "fsrc": "http://www.saeaudio.com/wp-content/uploads/2015/08/PQM-F.jpg",
+  "v": 2
  },
  {
   "re": "\\bMA\\s?(800|1200|3600)\\b",
@@ -880,7 +914,12 @@
    ]
   },
   "w": 1920,
-  "h": 833
+  "h": 833,
+  "front": "sae-ma-front.jpg",
+  "fw": 1600,
+  "fh": 587,
+  "fsrc": "http://www.saeaudio.com/wp-content/uploads/2015/09/MA-F1.jpg",
+  "v": 2
  },
  {
   "re": "PRISM\\s?12",
@@ -995,7 +1034,12 @@
    ]
   },
   "w": 1600,
-  "h": 151
+  "h": 151,
+  "front": "symetrix-prism-12x12-front.jpg",
+  "fw": 1600,
+  "fh": 151,
+  "fsrc": "https://d3b79pswu7f4ma.cloudfront.net/products/dsp/Prism-12x12-FRONT.jpeg",
+  "v": 2
  },
  {
   "re": "Symetrix.*8|JUPITER\\s?8",
@@ -1078,7 +1122,12 @@
    ]
   },
   "w": 1600,
-  "h": 151
+  "h": 151,
+  "front": "symetrix-jupiter-8-front.jpg",
+  "fw": 1600,
+  "fh": 151,
+  "fsrc": "https://d3b79pswu7f4ma.cloudfront.net/products/dsp/Jupiter-8-FRONT.jpeg",
+  "v": 2
  },
  {
   "re": "DYNAMIQ\\s?450",
@@ -1191,7 +1240,7 @@
   "page": "https://www.digisynthetic.com/en/products/dsp-processor/ds458",
   "w": 1600,
   "h": 172,
-  "v": 1,
+  "v": 2,
   "pos": {
    "AC": [
     15,
@@ -1253,7 +1302,11 @@
     81.5,
     55
    ]
-  }
+  },
+  "front": "digi-ds458-front.jpg",
+  "fw": 1600,
+  "fh": 216,
+  "fsrc": "https://files.digisynthetic.cn/Image/DSP-processor/DS458/DS458-1.webp"
  },
  {
   "re": "DS\\s?216",
@@ -1263,7 +1316,7 @@
   "page": "https://www.digisynthetic.com/en/products/dsp-processor/ds216b",
   "w": 1600,
   "h": 159,
-  "v": 1,
+  "v": 2,
   "pos": {
    "AC": [
     8,
@@ -1305,7 +1358,11 @@
     93.5,
     55
    ]
-  }
+  },
+  "front": "digi-ds216b-front.jpg",
+  "fw": 1600,
+  "fh": 182,
+  "fsrc": "https://files.digisynthetic.cn/Image/DSP-processor/DS216B/DS216B-1.webp"
  },
  {
   "re": "DMX\\s?208\\s?L",
@@ -2137,7 +2194,7 @@
   "page": "",
   "w": 1600,
   "h": 135,
-  "v": 1,
+  "v": 3,
   "custom": true,
   "pos": {
    "AC": [
@@ -2200,7 +2257,11 @@
     69,
     62
    ]
-  }
+  },
+  "front": "xta-dc1048-front.jpg",
+  "fw": 1600,
+  "fh": 110,
+  "fsrc": "https://xta.co.uk/wp-content/uploads/2025/10/DP4_DP5_DC1048.png"
  },
  {
   "re": "DSK\\s?3",
