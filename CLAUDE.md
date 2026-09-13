@@ -126,3 +126,8 @@ here is the seed), ERP write-back. Use .claude/skills/spec-harvester when adding
 ## Next-step candidates for the web-app evolution
 1. Vite first (module splitting of app.js, keep vanilla) — cheap, immediate maintainability.
 2. Framework (SvelteKit) only when server needs appear (auth, shared projects, live DB).
+
+### חלוקת אזורים בתכנית צבועה (plantext.js — `ptFilledRegions` / `ptPartitionFilled`)
+- `ptPartition` מפצל: תכנית קווית (שחור-לבן) → המסלול הישן (רכיבי חלל בין קירות מעובים); תכנית צבועה/מרונדרת (`B.filled || B.rendered`) → מסלול חדש שדורש כיול (`P.scale`).
+- המסלול החדש: קיר = ריצה ישרה ≥ 1 מ׳ ובעובי ≥ 3px + כל מה שמחובר אליה; דלת = פער ≤ 1.5 מ׳ לאורך הקיר; "חוץ" = לבן-נייר רחב (פתיחה ~1 מ׳) שמגיע לשוליים; קצה קיר חופשי מוארך עד 3 מ׳ לקיר הבא; רצפה מקובצת לפי צבע (חציון 5×5, סובלנות 70) כשריהוט כהה שקוף; מילוי חורים + סגירה 0.6 מ׳ שלא חוצה קירות.
+- בנצ׳מרק מול הסימונים הידניים (IoU/כיסוי): פטיו 0.79/0.92, מסעדה מרונדרת 0.43/0.56, בית קפה 0.42 (מסלול ישן), אולם 0.62/0.84 (מסלול ישן). הרצה: `window.__evalRun` (הארנס נבנה ad-hoc בדפדפן על פרויקט זמני).

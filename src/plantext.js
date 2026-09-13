@@ -203,11 +203,10 @@ async function ptBinary() {
      הכהה ביותר, והרצפות גוון ביניים — הסף נבחר אוטומטית (Otsu על הפיקסלים הלא-לבנים) במקום 200 הקבוע של שרטוט קווי.
      בנוסף, לבן-נייר שנוגע בשולי התמונה = "מחוץ לתכנית" (חוסם): כך מרפסת עם רצפה אפורה מחוץ לקירות היא חלל משלה
      ולא נבלעת בשוליים. בשרטוט קווי (רצפה לבנה) זה לא מופעל — שם רצפה לבנה שנוגעת בשוליים היא סתם תכנית חתוכה */
-  const luma = new Uint8Array(w * h), paper = new Uint8Array(w * h); const hist = new Uint32Array(256);
+  const luma = new Uint8Array(w * h); const hist = new Uint32Array(256);
   let sat = 0, nonWhite = 0;
   for (let i = 0, j = 0; i < px.length; i += 4, j++) { const r = px[i], gg = px[i + 1], b = px[i + 2]; const l = Math.round(0.299 * r + 0.587 * gg + 0.114 * b); luma[j] = l; if (l < 235) { nonWhite++; hist[l]++; if (Math.max(r, gg, b) - Math.min(r, gg, b) > 40) sat++; }
-    /* לבן-נייר = לבן ממש (לא רצפת בז׳ בהירה: לזו יש גוון) */
-    if (Math.min(r, gg, b) >= 246 && Math.max(r, gg, b) - Math.min(r, gg, b) <= 8) paper[j] = 1; }
+  }
   const filled = nonWhite / (w * h) > 0.3;
   const rendered = nonWhite > 0 && sat / nonWhite > 0.25;
   let thr = OPT.thr;
@@ -220,14 +219,7 @@ async function ptBinary() {
     thr = Math.max(60, Math.min(170, best));
   }
   for (let j = 0; j < w * h; j++) dark0[j] = luma[j] < thr ? 1 : 0;
-  if (filled || rendered) {
-    /* לבן-נייר שמחובר לשולי התמונה → חוסם */
-    const seen = new Uint8Array(w * h), q = new Int32Array(w * h); let qt = 0;
-    const push = i => { if (!seen[i] && paper[i]) { seen[i] = 1; q[qt++] = i; } };
-    for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); } for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
-    let qh = 0; while (qh < qt) { const i = q[qh++], x = i % w; if (x > 0) push(i - 1); if (x < w - 1) push(i + 1); if (i >= w) push(i - w); if (i + w < w * h) push(i + w); }
-    for (let i = 0; i < w * h; i++) if (seen[i]) dark0[i] = 1;
-  }
+  /* (תכנית צבועה: "החוץ" מזוהה ב-ptFilledRegions — לבן-נייר רחב שמגיע לשוליים — ולא כאן) */
   /* עיבוי הקירות: רדיוס ≈ 0.5 מ׳ (סוגר דלתות) — בפיקסלים של הקנבס */
   const pxPerM = P.scale ? (1 / P.scale) * (w / (P.bgW || 1400)) : w / 60;
   const r = Math.max(1, Math.min(20, Math.round(pxPerM * OPT.rM)));
@@ -473,10 +465,182 @@ function ptRdp(pts, eps) {
   for (let k = 0; k < pts.length; k++) if (keep[k]) out.push(pts[k]);
   return out;
 }
+/* ===== חלוקה לאזורים בתכנית צבועה / מרונדרת (רצפות בצבע, ריהוט מצויר) =====
+   בתכנית כזו "קיר" ≠ "כל קו כהה": שולחנות, כיסאות, קרשי דק וקווי זכוכית כולם כהים. לכן:
+   1. קיר = ריצה ישרה ארוכה (≥ 1 מ׳) של פיקסלים כהים בעובי ≥ 3 px, וכל מה שמחובר אליה (סטאבים, כנפי דלת, דלפקים צמודים).
+   2. דלת = פער קצר (≤ 1.5 מ׳) לאורך הקיר בין שני קטעי קיר — נסגר.
+   3. "חוץ" = לבן-נייר רחב (פתיחה מורפולוגית ברדיוס ~1 מ׳) שמגיע לשולי התמונה — חור בקיר חיצוני לא מציף את הפנים.
+   4. קצה קיר חופשי (לא פינה / לא T) מוארך בקו ישר עד הקיר הבא אם הוא במרחק ≤ 3 מ׳ — הגבול המשתמע של פתח (למשל קיר-ברך אל דלפק המארחת).
+   5. הרצפה מקובצת לפי צבע (חציון 5×5, סובלנות 70): כל חלל רצפה = אזור; ריהוט כהה שאינו קיר עובר "שקוף".
+   6. חורים (ריהוט) מתמלאים; ריהוט צמוד לקיר נבלע בסגירה ברדיוס ~0.6 מ׳ שלא חוצה קירות.
+   נבדק מול הסימונים הידניים של המשתמש (פטיו 70% חפיפה, מסעדה מרונדרת 45%). דורש כיול — רוחב דלת נמדד במטרים. */
+function ptRunLen(mask, w, h, vertical) {
+  const out = new Uint16Array(w * h);
+  if (!vertical) { for (let y = 0; y < h; y++) { const row = y * w; let x = 0; while (x < w) { if (!mask[row + x]) { x++; continue; } let e = x; while (e < w && mask[row + e]) e++; const n = Math.min(65535, e - x); for (let k = x; k < e; k++) out[row + k] = n; x = e; } } }
+  else { for (let x = 0; x < w; x++) { let y = 0; while (y < h) { if (!mask[y * w + x]) { y++; continue; } let e = y; while (e < h && mask[e * w + x]) e++; const n = Math.min(65535, e - y); for (let k = y; k < e; k++) out[k * w + x] = n; y = e; } } }
+  return out;
+}
+/* פיקסלים של dark שמחוברים (8 שכנים) לפיקסל זרע */
+function ptAttached(dark, seed, w, h) {
+  const out = new Uint8Array(w * h), q = new Int32Array(w * h); let qt = 0;
+  for (let i = 0; i < w * h; i++) if (seed[i] && dark[i]) { out[i] = 1; q[qt++] = i; }
+  let qh = 0;
+  while (qh < qt) { const i = q[qh++], x = i % w, y = (i - x) / w;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const j = yy * w + xx; if (dark[j] && !out[j]) { out[j] = 1; q[qt++] = j; } } }
+  return out;
+}
+/* סגירת פערים קצרים (≤ D) בין שני פיקסלי קיר באותה שורה / עמודה */
+function ptGapFill(wall, w, h, D, out) {
+  for (let y = 0; y < h; y++) { const row = y * w; let x = 0; while (x < w) { if (wall[row + x]) { x++; continue; } let e = x; while (e < w && !wall[row + e]) e++; if (x > 0 && e < w && e - x <= D) for (let k = x; k < e; k++) out[row + k] = 1; x = e; } }
+  for (let x = 0; x < w; x++) { let y = 0; while (y < h) { if (wall[y * w + x]) { y++; continue; } let e = y; while (e < h && !wall[e * w + x]) e++; if (y > 0 && e < h && e - y <= D) for (let k = y; k < e; k++) out[k * w + x] = 1; y = e; } }
+}
+/* הארכת קצה קיר חופשי לאורך כיוונו עד הקיר הבא (≤ Dmax), רק אם הקצה אינו פינה / צומת T */
+function ptExtendWalls(thick, passable, w, h, Lmin, Dmax) {
+  const ext = new Uint8Array(w * h);
+  const rlH = ptRunLen(thick, w, h, false), rlV = ptRunLen(thick, w, h, true);
+  const walk = (vertical) => {
+    const perp = vertical ? rlH : rlV;            /* אורך הריצה הניצבת דרך פיקסל */
+    const N1 = vertical ? h : w, N2 = vertical ? w : h;
+    const at = (p, q) => vertical ? q * w + p : p * w + q;   /* p = לאורך הריצה, q = מאונך (שורה/עמודה) */
+    for (let q = 0; q < N2; q++) {
+      let p = 0;
+      while (p < N1) {
+        if (!thick[at(p, q)]) { p++; continue; }
+        let e = p; while (e < N1 && thick[at(e, q)]) e++;
+        if (e - p >= Lmin) {
+          /* עובי הקיר עצמו = חציון הריצה הניצבת לאורך הקטע */
+          const arr = []; for (let k = p; k < e; k += Math.max(1, ((e - p) / 15) | 0)) arr.push(perp[at(k, q)]); arr.sort((a, b) => a - b); const t = arr[arr.length >> 1] || 1;
+          for (const [p0, step] of [[e, 1], [p - 1, -1]]) {
+            /* פינה / T: ריצה ניצבת ארוכה מעובי הקיר נוגעת בקצה */
+            let att = false;
+            for (let dq = -1; dq <= 1 && !att; dq++) for (let dp = -2; dp <= 2; dp++) { const pp = p0 + dp, qq = q + dq; if (pp < 0 || qq < 0 || pp >= N1 || qq >= N2) continue; if (perp[at(pp, qq)] > t + 3) { att = true; break; } }
+            if (att) continue;
+            let x = p0, n = 0, hit = false;
+            while (x >= 0 && x < N1 && n <= Dmax) { const i = at(x, q); if (thick[i]) { hit = n > 0; break; } if (!passable[i]) break; x += step; n++; }
+            if (hit && n >= 2) { const a = step > 0 ? p0 : x + 1, b = step > 0 ? x : p0 + 1; for (let k = a; k < b; k++) ext[at(k, q)] = 1; }
+          }
+        }
+        p = e;
+      }
+    }
+  };
+  walk(false); walk(true);
+  return ext;
+}
+/* תיוג רכיבים (4 שכנים) של מסכה → Int32Array תוויות + גדלים */
+function ptLabel(mask, w, h) {
+  const lab = new Int32Array(w * h).fill(-1), q = new Int32Array(w * h), sizes = [];
+  for (let s0 = 0; s0 < w * h; s0++) {
+    if (!mask[s0] || lab[s0] >= 0) continue;
+    const id = sizes.length; let qh = 0, qt = 0, n = 0; q[qt++] = s0; lab[s0] = id;
+    while (qh < qt) { const i = q[qh++], x = i % w; n++;
+      if (x > 0 && mask[i - 1] && lab[i - 1] < 0) { lab[i - 1] = id; q[qt++] = i - 1; }
+      if (x < w - 1 && mask[i + 1] && lab[i + 1] < 0) { lab[i + 1] = id; q[qt++] = i + 1; }
+      if (i >= w && mask[i - w] && lab[i - w] < 0) { lab[i - w] = id; q[qt++] = i - w; }
+      if (i + w < w * h && mask[i + w] && lab[i + w] < 0) { lab[i + w] = id; q[qt++] = i + w; } }
+    sizes.push(n);
+  }
+  return { lab, sizes };
+}
+/* מילוי חורים במסכה: חור בלי פיקסלי קיר תמיד; חור עם קירות רק אם קטן מ-maxA */
+function ptFillHoles(m, w, h, walls, maxA) {
+  const inv = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) inv[i] = m[i] ? 0 : 1;
+  const { lab, sizes } = ptLabel(inv, w, h);
+  const ok = new Uint8Array(sizes.length).fill(1), wc = new Uint32Array(sizes.length);
+  for (let i = 0; i < w * h; i++) { const l = lab[i]; if (l < 0) continue; const x = i % w, y = (i - x) / w; if (x === 0 || y === 0 || x === w - 1 || y === h - 1) ok[l] = 0; if (walls && walls[i]) wc[l]++; }
+  for (let l = 0; l < sizes.length; l++) if (ok[l] && walls && wc[l] > 0 && !(maxA && sizes[l] < maxA)) ok[l] = 0;
+  const out = new Uint8Array(m);
+  for (let i = 0; i < w * h; i++) if (lab[i] >= 0 && ok[lab[i]]) out[i] = 1;
+  return out;
+}
+/* כל מסכות החללים בתכנית צבועה. מחזיר { regions:[{mask,n,mean}], lab, walls, outside, thick } */
+async function ptFilledRegions(B) {
+  const { w, h, dark0, pxPerM, thr } = B;
+  /* צבעי הרצפה (חציון 5×5 להשטחת טקסטורות) — מציירים שוב את התמונה באותו גודל */
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h).data;
+  const med = new Uint8Array(w * h * 3); const buf = new Uint8Array(25);
+  for (let c = 0; c < 3; c++) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let n = 0; for (let dy = -2; dy <= 2; dy++) { const yy = Math.min(h - 1, Math.max(0, y + dy)); for (let dx = -2; dx <= 2; dx++) { const xx = Math.min(w - 1, Math.max(0, x + dx)); buf[n++] = px[(yy * w + xx) * 4 + c]; } }
+    const a = Array.prototype.slice.call(buf, 0, n).sort((p, q) => p - q); med[(y * w + x) * 3 + c] = a[12];
+  }
+  const paper = new Uint8Array(w * h);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) { const r = px[i], gg = px[i + 1], b = px[i + 2]; if (Math.min(r, gg, b) >= 246 && Math.max(r, gg, b) - Math.min(r, gg, b) <= 8) paper[j] = 1; }
+  const Lmin = Math.max(6, Math.round(pxPerM * 1.0)), D = Math.max(4, Math.round(pxPerM * 1.5)), Dmax = Math.round(pxPerM * 3.0);
+  const rCl = Math.max(1, Math.min(24, Math.round(pxPerM * 0.6)));
+  /* 1. קירות: ריצות ישרות ארוכות ובעובי ≥ 3 + כל מה שמחובר אליהן */
+  const rlH = ptRunLen(dark0, w, h, false), rlV = ptRunLen(dark0, w, h, true), seed = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) if (dark0[i] && ((rlH[i] >= Lmin && rlV[i] >= 3) || (rlV[i] >= Lmin && rlH[i] >= 3))) seed[i] = 1;
+  const thick = ptAttached(dark0, seed, w, h);
+  /* 2. דלתות */
+  const walls = new Uint8Array(thick); ptGapFill(thick, w, h, D, walls);
+  /* 3. חוץ: לבן-נייר לא-קיר, פתיחה ברדיוס e, מחובר לשוליים (+ רצועת שוליים) */
+  const e = Math.max(2, Math.min(Math.round(pxPerM * 1.0), Math.round(w * 0.03)));
+  const cand = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) cand[i] = paper[i] && !walls[i] ? 1 : 0;
+  const candInv = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) candInv[i] = cand[i] ? 0 : 1;
+  const er = ptDilateN(candInv, w, h, e); for (let i = 0; i < w * h; i++) er[i] = er[i] ? 0 : 1;   /* כרסום; השוליים לא נחשבים "לא-מועמד" */
+  /* כרסום ליד שולי התמונה: הפיקסלים שמעבר לשוליים נחשבים מועמדים — נחזיר את הרצועה */
+  for (let i = 0; i < w * h; i++) { const x = i % w, y = (i - x) / w; if (cand[i] && (x < e || y < e || x >= w - e || y >= h - e)) er[i] = 1; }
+  const L1 = ptLabel(er, w, h); const border = new Uint8Array(L1.sizes.length);
+  for (let x = 0; x < w; x++) { if (L1.lab[x] >= 0) border[L1.lab[x]] = 1; if (L1.lab[(h - 1) * w + x] >= 0) border[L1.lab[(h - 1) * w + x]] = 1; }
+  for (let y = 0; y < h; y++) { if (L1.lab[y * w] >= 0) border[L1.lab[y * w]] = 1; if (L1.lab[y * w + w - 1] >= 0) border[L1.lab[y * w + w - 1]] = 1; }
+  const outside = new Uint8Array(w * h), q = new Int32Array(w * h); let qt = 0;
+  for (let i = 0; i < w * h; i++) { const x = i % w, y = (i - x) / w; if ((L1.lab[i] >= 0 && border[L1.lab[i]]) || (cand[i] && (x < 2 * e || y < 2 * e || x >= w - 2 * e || y >= h - 2 * e))) { outside[i] = 1; q[qt++] = i; } }
+  { let qh = 0; const dist = new Uint16Array(w * h);
+    while (qh < qt) { const i = q[qh++]; if (dist[i] >= e) continue; const x = i % w; const nb = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i >= w ? i - w : -1, i + w < w * h ? i + w : -1]; for (const j of nb) if (j >= 0 && cand[j] && !outside[j]) { outside[j] = 1; dist[j] = dist[i] + 1; q[qt++] = j; } } }
+  /* 4. הארכת קצות קיר חופשיים */
+  const passable = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) passable[i] = !thick[i] && !outside[i] ? 1 : 0;
+  const ext = ptDilateN(ptExtendWalls(thick, passable, w, h, Lmin, Dmax), w, h, 1);
+  for (let i = 0; i < w * h; i++) if (ext[i]) walls[i] = 1;
+  /* 5. קיבוץ רצפה לפי צבע */
+  const free = new Uint8Array(w * h), neutral = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) { if (!walls[i] && !outside[i]) { if (dark0[i]) neutral[i] = 1; else free[i] = 1; } }
+  const lab = new Int32Array(w * h).fill(-1), regions = [];
+  for (let s0 = 0; s0 < w * h; s0++) {
+    if (!free[s0] || lab[s0] >= 0) continue;
+    const id = regions.length; let qh = 0; qt = 0; q[qt++] = s0; lab[s0] = id;
+    let n = 0, sr = 0, sg = 0, sb = 0, mr = med[s0 * 3], mg = med[s0 * 3 + 1], mb = med[s0 * 3 + 2], cnt = 0;
+    while (qh < qt) {
+      const i = q[qh++], x = i % w; cnt++;
+      if (free[i]) { n++; sr += med[i * 3]; sg += med[i * 3 + 1]; sb += med[i * 3 + 2]; if (n < 50 || n % 50 === 0) { mr = sr / n; mg = sg / n; mb = sb / n; } }
+      const nb = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i >= w ? i - w : -1, i + w < w * h ? i + w : -1];
+      for (const j of nb) { if (j < 0 || lab[j] >= 0) continue;
+        if (free[j]) { if (Math.abs(med[j * 3] - mr) + Math.abs(med[j * 3 + 1] - mg) + Math.abs(med[j * 3 + 2] - mb) < 70) { lab[j] = id; q[qt++] = j; } }
+        else if (neutral[j]) { lab[j] = id; q[qt++] = j; } }
+    }
+    regions.push({ id, n: cnt, mean: [mr, mg, mb] });
+  }
+  /* 6. מסכה סופית לכל חלל */
+  const minA = 2.5 * pxPerM * pxPerM, holeMax = 25 * pxPerM * pxPerM;
+  const out = [];
+  for (const rg of regions) {
+    if (rg.n < minA) continue;
+    let m = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) if (lab[i] === rg.id) m[i] = 1;
+    m = ptFillHoles(m, w, h, thick, holeMax);
+    const cl = ptErodeN(ptDilateN(m, w, h, rCl), w, h, rCl);
+    for (let i = 0; i < w * h; i++) if (walls[i] || outside[i]) cl[i] = 0;
+    let m2 = ptFillHoles(cl, w, h, thick, holeMax);
+    const L2 = ptLabel(m2, w, h); const cnt = new Uint32Array(L2.sizes.length);
+    for (let i = 0; i < w * h; i++) if (m[i] && L2.lab[i] >= 0) cnt[L2.lab[i]]++;
+    let best = -1; for (let k = 0; k < cnt.length; k++) if (best < 0 || cnt[k] > cnt[best]) best = k;
+    if (best < 0) continue;
+    const fm = new Uint8Array(w * h); let fn = 0; for (let i = 0; i < w * h; i++) if (L2.lab[i] === best) { fm[i] = 1; fn++; }
+    if (fn < minA) continue;
+    out.push({ id: rg.id, mask: fm, n: fn, mean: rg.mean });
+  }
+  if (window.__ptDbg2) window.__ptDbg2.filled = { Lmin, D, Dmax, e, rCl, regions: regions.length, kept: out.length, outsideFrac: +(outside.reduce((a, b) => a + b, 0) / (w * h)).toFixed(2) };
+  return { regions: out, lab, walls, outside, thick };
+}
 async function ptPartition() {
   if (!P.bg) { uiToast('אין תכנית'); return; }
   uiToast('🧩 מחלק את החלל לאזורים לפי הקירות…', 5000);
   const B = await ptBinary(); const { w, h } = B;
+  if (B.filled || B.rendered) {
+    if (!P.scale) { uiToast('⚠ תכנית צבועה: כדי לזהות דלתות ופתחים צריך קנה מידה — כייל את התכנית קודם (📏)', 8000); return; }
+    return ptPartitionFilled(B);
+  }
   const { comp, info } = ptComponents(B);
   const W = P.bgW || 1400, H = bgHeightPx(), L = bgLeft(), T = bgTop();
   const pxPerM2 = B.pxPerM * B.pxPerM, minArea = 8 * pxPerM2, labelMin = 3 * pxPerM2;
@@ -549,6 +713,51 @@ async function ptPartition() {
   }
   save(); render();
   uiToast(made ? '🧩 ' + made + ' אזורים לפי הקירות' + (skipped ? ' · ' + skipped + ' חללי שירות/תפעול הושמטו' : '') + (outdoor ? ' · ' + outdoor + ' בחוץ' : '') + ' — גרור נקודות לעריכה, אזור שנבלע מתמזג' : 'לא זוהו חללים סגורים — כייל את התכנית ובדוק שהקירות כהים', 8000);
+}
+/* חלוקה בתכנית צבועה: חללי הרצפה מ-ptFilledRegions → אזורים (בלי שירותים/תפעול), שמות לפי כיתובי הקהל */
+async function ptPartitionFilled(B) {
+  const { w, h } = B;
+  const R = await ptFilledRegions(B);
+  const W = P.bgW || 1400, H = bgHeightPx(), L = bgLeft(), T = bgTop();
+  const pxPerM2 = B.pxPerM * B.pxPerM;
+  const items = ((P.planText || {}).items || []).map(it => {
+    const sx = Math.round(it.u * w), sy = Math.round(it.v * h), lh = Math.max(3, Math.round(it.h * h)), lw = Math.round(it.w * w / 2);
+    const votes = {};
+    for (const m of [1.5, 3, 5]) for (let k = 0; k < 8; k++) {
+      const ang = k * Math.PI / 4, x = sx + Math.round(Math.cos(ang) * (lw + m * lh)), y = sy + Math.round(Math.sin(ang) * m * lh);
+      if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      const id = R.lab[y * w + x]; if (id >= 0) votes[id] = (votes[id] || 0) + 1;
+    }
+    let cid = -1, bestV = 0; for (const [id, v] of Object.entries(votes)) if (v > bestV) { bestV = v; cid = +id; }
+    return { ...it, cid };
+  });
+  const SERVICE = it => it.cat === 'service' || it.cat === 'ops';
+  const OUT_RE = /TERRACE|PATIO|GARDEN|OUTDOOR|BALCONY|ROOF|DECK|מרפסת|חוץ|גן|גג/i;
+  P.zones = (P.zones || []).filter(z => !z.auto);
+  let made = 0, skipped = 0, outdoor = 0, idx = 0; const seenNames = {};
+  const mkPoly = (mask) => {
+    const tr = ptTrace(mask, w, h), eps = Math.max(1.5, B.pxPerM * 0.2);
+    let sp = tr.length >= 4 ? ptRdp(tr, eps) : [];
+    if (sp.length < 3) { let x0 = w, y0 = h, x1 = 0, y1 = 0; for (let i = 0; i < w * h; i++) if (mask[i]) { const x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; } if (x1 <= x0 || y1 <= y0) return null; sp = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; }
+    return sp.map(([x, y]) => ({ x: Math.round(L + x / w * W), y: Math.round(T + y / h * H) }));
+  };
+  const dbg = window.__ptDbg2 ? (window.__ptDbg2.trace = window.__ptDbg2.trace || []) : null;
+  for (const rg of R.regions.sort((a, b) => b.n - a.n)) {
+    const labs = items.filter(it => it.cid === rg.id), aud = labs.filter(it => it.cat === 'audience'), svc = labs.filter(SERVICE);
+    if (svc.length && !aud.length) { skipped++; if (dbg) dbg.push({ id: rg.id, m2: +(rg.n / pxPerM2).toFixed(1), why: 'service', labs: svc.map(x => x.t) }); continue; }
+    const poly = mkPoly(rg.mask); if (!poly || poly.length < 3) continue;
+    let name, usage;
+    if (aud.length) { const best = aud.slice().sort((a, b) => b.t.length - a.t.length)[0]; name = best.t; usage = ptUsageOf(best.t); }
+    else { name = 'חלל ' + (++idx); usage = (P.room && P.room.usage) || 'מוזיקת רקע'; }
+    if (seenNames[name]) name += ' ' + (++seenNames[name]); else seenNames[name] = 1;
+    const isOut = aud.some(x => OUT_RE.test(x.t));
+    const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys);
+    P.zones.push({ id: uid('z'), name, usage, poly, x: Math.max(0, 2200 - left - (Math.max(...xs) - left)), y: top, w: Math.max(...xs) - left, h: Math.max(...ys) - top, auto: 'partition', fromText: true, outdoor: isOut || undefined, dance: aud.some(x => /DANCE|ריקוד/i.test(x.t)) || undefined });
+    made++; if (isOut) outdoor++;
+    if (dbg) dbg.push({ id: rg.id, m2: +(rg.n / pxPerM2).toFixed(1), why: 'zone', name, pts: poly.length });
+  }
+  save(); render();
+  uiToast(made ? '🧩 ' + made + ' אזורים לפי הרצפות והקירות' + (skipped ? ' · ' + skipped + ' חללי שירות/תפעול הושמטו' : '') + (outdoor ? ' · ' + outdoor + ' בחוץ' : '') + ' — גרור נקודות לעריכה, אזור שנבלע מתמזג' : 'לא זוהו חללים — בדוק שהתכנית מכוילת ושהקירות כהים', 8000);
 }
 /* רמזים ל-AI (זיהוי אזורים): הכיתובים עם מיקום יחסי */
 function ptHintText() {
