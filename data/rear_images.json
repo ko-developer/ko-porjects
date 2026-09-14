@@ -67,12 +67,12 @@
     29
    ]
   },
-  "w": 1600,
-  "h": 453,
-  "v": 3,
+  "w": 1400,
+  "h": 396,
+  "v": 4,
   "front": "xta-dna-front.jpg",
-  "fw": 1600,
-  "fh": 510
+  "fw": 1400,
+  "fh": 255
  },
  {
   "re": "DPA\\s?\\d|DPA d|XTA\\s*DPA",
@@ -146,12 +146,12 @@
     35
    ]
   },
-  "w": 1600,
-  "h": 453,
-  "v": 3,
+  "w": 1400,
+  "h": 396,
+  "v": 4,
   "front": "xta-dpa80-front.jpg",
-  "fw": 1600,
-  "fh": 435
+  "fw": 1400,
+  "fh": 264
  },
  {
   "re": "D48X",
@@ -159,9 +159,9 @@
   "model": "NST Audio D48X",
   "src": "https://nstaudio.com/wp-content/uploads/2021/10/D48XNST_rear.jpg",
   "page": "https://nstaudio.com/d48x/",
-  "w": 1600,
-  "h": 533,
-  "v": 2,
+  "w": 1400,
+  "h": 466,
+  "v": 3,
   "pos": {
    "AC": [
     12,
@@ -225,8 +225,8 @@
    ]
   },
   "front": "nst-d48x-front.jpg",
-  "fw": 1600,
-  "fh": 280,
+  "fw": 1400,
+  "fh": 234,
   "fsrc": "https://nstaudio.com/wp-content/uploads/2021/10/D48XNST_front.jpg"
  },
  {
@@ -235,9 +235,9 @@
   "model": "NST Audio ID48",
   "src": "https://nstaudio.com/wp-content/uploads/2015/11/ID48NST_rear.jpg",
   "page": "https://nstaudio.com/id48/",
-  "w": 1600,
-  "h": 533,
-  "v": 2,
+  "w": 1400,
+  "h": 466,
+  "v": 3,
   "pos": {
    "AC": [
     16,
@@ -297,8 +297,8 @@
    ]
   },
   "front": "nst-id48-front.jpg",
-  "fw": 1600,
-  "fh": 256,
+  "fw": 1400,
+  "fh": 209,
   "fsrc": "https://nstaudio.com/wp-content/uploads/2015/11/ID48_front.jpg"
  },
  {
@@ -307,9 +307,9 @@
   "model": "NST Audio DM88",
   "src": "https://nstaudio.com/wp-content/uploads/2024/11/DM88-Rear-Hi-Res-Web-scaled.jpg",
   "page": "https://nstaudio.com/dm88/",
-  "w": 1600,
-  "h": 530,
-  "v": 2,
+  "w": 1400,
+  "h": 464,
+  "v": 3,
   "pos": {
    "AC": [
     15,
@@ -437,8 +437,8 @@
    ]
   },
   "front": "nst-dm88-front.jpg",
-  "fw": 1600,
-  "fh": 306,
+  "fw": 1400,
+  "fh": 268,
   "fsrc": "https://nstaudio.com/wp-content/uploads/2023/01/DM88-Front-Straight-Logo-Web-scaled.jpg"
  },
  {
@@ -447,9 +447,9 @@
   "model": "NST Audio VMX88L",
   "src": "https://nstaudio.com/wp-content/uploads/2022/02/vmx88L-rear-panel-scaled.jpg",
   "page": "https://nstaudio.com/vmx88l/",
-  "w": 1600,
-  "h": 533,
-  "v": 2,
+  "w": 1400,
+  "h": 466,
+  "v": 3,
   "pos": {
    "AC": [
     19,
@@ -529,8 +529,8 @@
    ]
   },
   "front": "nst-vmx88l-front.jpg",
-  "fw": 1600,
-  "fh": 259,
+  "fw": 1400,
+  "fh": 214,
   "fsrc": "https://nstaudio.com/wp-content/uploads/2022/02/vmx88L-front-panel-scaled.jpg"
  },
  {
@@ -539,9 +539,9 @@
   "model": "NST Audio VMX88 (Dante)",
   "src": "https://nstaudio.com/wp-content/uploads/2023/01/vmx88-rear-panel-IP-scaled.jpg",
   "page": "https://nstaudio.com/vmx88-installation-audio-processor-with-dante/",
-  "w": 1600,
-  "h": 532,
-  "v": 2,
+  "w": 1400,
+  "h": 466,
+  "v": 3,
   "pos": {
    "AC": [
     19,
@@ -629,8 +629,8 @@
    ]
   },
   "front": "nst-vmx88-front.jpg",
-  "fw": 1600,
-  "fh": 244,
+  "fw": 1400,
+  "fh": 195,
   "fsrc": "https://nstaudio.com/wp-content/uploads/2019/03/VMX88-Front-RFLCT.jpg"
  },
  {
@@ -639,9 +639,9 @@
   "model": "NST Audio VMO16",
   "src": "https://nstaudio.com/wp-content/uploads/2023/01/vm016-back-panel-IP-scaled.jpg",
   "page": "https://nstaudio.com/vmo16-audio-installation-processor/",
-  "w": 1600,
-  "h": 532,
-  "v": 2,
+  "w": 1400,
+  "h": 466,
+  "v": 3,
   "pos": {
    "AC": [
     19,
@@ -729,8 +729,8 @@
    ]
   },
   "front": "nst-vmo16-front.jpg",
-  "fw": 1600,
-  "fh": 256,
+  "fw": 1400,
+  "fh": 205,
   "fsrc": "https://nstaudio.com/wp-content/uploads/2020/01/VMO16-Front-RFLCT.jpg"
  },
  {
@@ -800,10 +800,10 @@
   "w": 1200,
   "h": 400,
   "front": "nst-d48s-front.jpg",
-  "fw": 1600,
-  "fh": 272,
+  "fw": 1400,
+  "fh": 224,
   "fsrc": "https://nstaudio.com/wp-content/uploads/2015/04/D48NST_front.jpg",
-  "v": 2
+  "v": 3
  },
  {
   "re": "PQM\\s?13|PQM",
@@ -869,13 +869,13 @@
     49
    ]
   },
-  "w": 1920,
-  "h": 833,
+  "w": 1400,
+  "h": 607,
   "front": "sae-pqm-front.jpg",
-  "fw": 1600,
-  "fh": 618,
+  "fw": 1400,
+  "fh": 531,
   "fsrc": "http://www.saeaudio.com/wp-content/uploads/2015/08/PQM-F.jpg",
-  "v": 2
+  "v": 3
  },
  {
   "re": "\\bMA\\s?(800|1200|3600)\\b",
@@ -913,13 +913,13 @@
     57
    ]
   },
-  "w": 1920,
-  "h": 833,
+  "w": 1400,
+  "h": 607,
   "front": "sae-ma-front.jpg",
-  "fw": 1600,
-  "fh": 587,
+  "fw": 1400,
+  "fh": 505,
   "fsrc": "http://www.saeaudio.com/wp-content/uploads/2015/09/MA-F1.jpg",
-  "v": 2
+  "v": 3
  },
  {
   "re": "PRISM\\s?12",
@@ -937,7 +937,7 @@
     60
    ],
    "O1": [
-    42.0,
+    42,
     62
    ],
    "O2": [
@@ -949,7 +949,7 @@
     62
    ],
    "O4": [
-    47.0,
+    47,
     62
    ],
    "O5": [
@@ -997,7 +997,7 @@
     62
    ],
    "I4": [
-    70.0,
+    70,
     62
    ],
    "I5": [
@@ -1033,13 +1033,13 @@
     62
    ]
   },
-  "w": 1600,
-  "h": 151,
+  "w": 1400,
+  "h": 132,
   "front": "symetrix-prism-12x12-front.jpg",
-  "fw": 1600,
-  "fh": 151,
+  "fw": 1400,
+  "fh": 132,
   "fsrc": "https://d3b79pswu7f4ma.cloudfront.net/products/dsp/Prism-12x12-FRONT.jpeg",
-  "v": 2
+  "v": 3
  },
  {
   "re": "Symetrix.*8|JUPITER\\s?8",
@@ -1057,7 +1057,7 @@
     60
    ],
    "O1": [
-    42.0,
+    42,
     62
    ],
    "O2": [
@@ -1117,17 +1117,17 @@
     62
    ],
    "I8": [
-    83.0,
+    83,
     62
    ]
   },
-  "w": 1600,
-  "h": 151,
+  "w": 1400,
+  "h": 132,
   "front": "symetrix-jupiter-8-front.jpg",
-  "fw": 1600,
-  "fh": 151,
+  "fw": 1400,
+  "fh": 132,
   "fsrc": "https://d3b79pswu7f4ma.cloudfront.net/products/dsp/Jupiter-8-FRONT.jpeg",
-  "v": 2
+  "v": 3
  },
  {
   "re": "DYNAMIQ\\s?450",
@@ -1167,10 +1167,10 @@
   },
   "w": 1320,
   "h": 520,
-  "v": 4,
+  "v": 5,
   "front": "kt-dynamiq-450-front.jpg",
-  "fw": 1600,
-  "fh": 317
+  "fw": 1400,
+  "fh": 277
  },
  {
   "re": "IPD[\\s-]?(1200|2400)",
@@ -1233,14 +1233,28 @@
   }
  },
  {
+  "re": "DS\\s?418",
+  "file": "digi-ds418.jpg",
+  "model": "DigiSynthetic DS418 (שרטוט הגב מהמדריך הרשמי — לא נמצא צילום גב של הדגם)",
+  "src": "https://archive.org/download/manuallib-id-2511960/2511960.pdf",
+  "page": "https://archive.org/details/manuallib-id-2511960",
+  "w": 1400,
+  "h": 137,
+  "front": "digi-ds418-front.jpg",
+  "fw": 500,
+  "fh": 48,
+  "fsrc": "https://es-data.manualslib.com/product-images/60f/75376/digisynthetic-ds418e.jpg",
+  "v": 1
+ },
+ {
   "re": "DS\\s?458",
   "file": "digi-ds458.jpg",
   "model": "DigiSynthetic DS458 (תמונת האתר, רזולוציה נמוכה)",
   "src": "https://files.digisynthetic.cn/Image/DSP-processor/DS458/DS458-2.webp",
   "page": "https://www.digisynthetic.com/en/products/dsp-processor/ds458",
-  "w": 1600,
-  "h": 172,
-  "v": 2,
+  "w": 1400,
+  "h": 150,
+  "v": 3,
   "pos": {
    "AC": [
     15,
@@ -1304,8 +1318,8 @@
    ]
   },
   "front": "digi-ds458-front.jpg",
-  "fw": 1600,
-  "fh": 216,
+  "fw": 1400,
+  "fh": 173,
   "fsrc": "https://files.digisynthetic.cn/Image/DSP-processor/DS458/DS458-1.webp"
  },
  {
@@ -1314,9 +1328,9 @@
   "model": "DigiSynthetic DS216B",
   "src": "https://files.digisynthetic.cn/Image/DSP-processor/DS216B/DS216B-3.webp",
   "page": "https://www.digisynthetic.com/en/products/dsp-processor/ds216b",
-  "w": 1600,
-  "h": 159,
-  "v": 2,
+  "w": 1400,
+  "h": 139,
+  "v": 3,
   "pos": {
    "AC": [
     8,
@@ -1360,8 +1374,8 @@
    ]
   },
   "front": "digi-ds216b-front.jpg",
-  "fw": 1600,
-  "fh": 182,
+  "fw": 1400,
+  "fh": 152,
   "fsrc": "https://files.digisynthetic.cn/Image/DSP-processor/DS216B/DS216B-1.webp"
  },
  {
@@ -1370,9 +1384,9 @@
   "model": "DigiSynthetic DMX208L",
   "src": "https://files.digisynthetic.cn/Image/DSP-processor/DMX208L/DMX208L-5.webp",
   "page": "https://www.digisynthetic.com/en/products/dsp-processor/dmx208l",
-  "w": 1600,
-  "h": 163,
-  "v": 1,
+  "w": 1400,
+  "h": 143,
+  "v": 2,
   "pos": {
    "DC": [
     21.5,
@@ -1424,8 +1438,8 @@
    ]
   },
   "front": "digi-dmx208l-front.jpg",
-  "fw": 1600,
-  "fh": 182
+  "fw": 1400,
+  "fh": 159
  },
  {
   "re": "DMX\\s?0808",
@@ -1433,9 +1447,9 @@
   "model": "DigiSynthetic DMX0808",
   "src": "https://files.digisynthetic.cn/Image/Matrix/DMX0808/DMX0808-2.webp",
   "page": "https://www.digisynthetic.com/en/products/matrix/dmx0808",
-  "w": 1600,
-  "h": 158,
-  "v": 3,
+  "w": 1400,
+  "h": 138,
+  "v": 4,
   "pos": {
    "AC": [
     12,
@@ -1468,7 +1482,7 @@
     2.5
    ],
    "O5": [
-    63.0,
+    63,
     41.5,
     2.5
    ],
@@ -1488,7 +1502,7 @@
     2.5
    ],
    "O1": [
-    68.0,
+    68,
     41.5,
     2.5
    ],
@@ -1508,7 +1522,7 @@
     2.5
    ],
    "O6": [
-    63.0,
+    63,
     72,
     2.5
    ],
@@ -1528,7 +1542,7 @@
     2.5
    ],
    "O2": [
-    68.0,
+    68,
     72,
     2.5
    ],
@@ -1539,8 +1553,8 @@
    ]
   },
   "front": "digi-dmx0808-front.jpg",
-  "fw": 1600,
-  "fh": 176
+  "fw": 1400,
+  "fh": 152
  },
  {
   "re": "\\bK7\\b",
@@ -1548,9 +1562,9 @@
   "model": "DigiSynthetic K7 (מיקרופונים בחזית)",
   "src": "https://files.digisynthetic.cn/Image/Karaoke/K7/K7-2.webp",
   "page": "https://www.digisynthetic.com/en/products/karaoke-processor/k7",
-  "w": 1600,
-  "h": 178,
-  "v": 4,
+  "w": 1400,
+  "h": 156,
+  "v": 5,
   "pos": {
    "AC": [
     9.5,
@@ -1666,8 +1680,8 @@
    ]
   },
   "front": "digi-k7-front.jpg",
-  "fw": 1600,
-  "fh": 141
+  "fw": 1400,
+  "fh": 123
  },
  {
   "re": "IPX\\s?10\\s?:?\\s?8",
@@ -1675,9 +1689,9 @@
   "model": "K&F / Dynacord IPX10:8",
   "src": "https://products.dynacord.com/binary/img/IPX10-8_rear_2400px.png",
   "page": "https://products.dynacord.com/na/en/ipx10:8",
-  "w": 1600,
-  "h": 314,
-  "v": 2,
+  "w": 1400,
+  "h": 275,
+  "v": 3,
   "pos": {
    "AC": [
     7,
@@ -1761,8 +1775,8 @@
    ]
   },
   "front": "kf-ipx10-8-front.jpg",
-  "fw": 1600,
-  "fh": 293
+  "fw": 1400,
+  "fh": 256
  },
  {
   "re": "IPX\\s?10\\s?:?\\s?4|IPX10\\b",
@@ -1770,71 +1784,8 @@
   "model": "K&F / Dynacord IPX10:4",
   "src": "https://products.dynacord.com/binary/img/IPX10-4_rear_2400px.png",
   "page": "https://products.dynacord.com/na/en/ipx10:4",
-  "w": 1600,
-  "h": 311,
-  "v": 1,
-  "pos": {
-   "AC": [
-    7,
-    62
-   ],
-   "CH1": [
-    43,
-    28
-   ],
-   "CH2": [
-    43,
-    45
-   ],
-   "CH3": [
-    43,
-    60
-   ],
-   "CH4": [
-    43,
-    76
-   ],
-   "IN2": [
-    79,
-    25
-   ],
-   "IN1": [
-    82.5,
-    25
-   ],
-   "IN4": [
-    79,
-    45
-   ],
-   "IN3": [
-    82.5,
-    45
-   ],
-   "GPIO": [
-    86,
-    62
-   ],
-   "DANTE P": [
-    93,
-    25
-   ],
-   "DANTE S": [
-    93,
-    62
-   ]
-  },
-  "front": "kf-ipx10-4-front.jpg",
-  "fw": 1600,
-  "fh": 296
- },
- {
-  "re": "IPX\\s?20\\s?:?\\s?4|IPX\\s?20\\b",
-  "file": "kf-ipx20-4.jpg",
-  "model": "K&F / Dynacord IPX20:4",
-  "src": "https://products.dynacord.com/binary/img/IPX20-4_rear_2400px.png",
-  "page": "https://products.dynacord.com/na/en/ipx20:4",
-  "w": 1600,
-  "h": 317,
+  "w": 1400,
+  "h": 272,
   "v": 2,
   "pos": {
    "AC": [
@@ -1886,9 +1837,72 @@
     62
    ]
   },
+  "front": "kf-ipx10-4-front.jpg",
+  "fw": 1400,
+  "fh": 259
+ },
+ {
+  "re": "IPX\\s?20\\s?:?\\s?4|IPX\\s?20\\b",
+  "file": "kf-ipx20-4.jpg",
+  "model": "K&F / Dynacord IPX20:4",
+  "src": "https://products.dynacord.com/binary/img/IPX20-4_rear_2400px.png",
+  "page": "https://products.dynacord.com/na/en/ipx20:4",
+  "w": 1400,
+  "h": 277,
+  "v": 3,
+  "pos": {
+   "AC": [
+    7,
+    62
+   ],
+   "CH1": [
+    43,
+    28
+   ],
+   "CH2": [
+    43,
+    45
+   ],
+   "CH3": [
+    43,
+    60
+   ],
+   "CH4": [
+    43,
+    76
+   ],
+   "IN2": [
+    79,
+    25
+   ],
+   "IN1": [
+    82.5,
+    25
+   ],
+   "IN4": [
+    79,
+    45
+   ],
+   "IN3": [
+    82.5,
+    45
+   ],
+   "GPIO": [
+    86,
+    62
+   ],
+   "DANTE P": [
+    93,
+    25
+   ],
+   "DANTE S": [
+    93,
+    62
+   ]
+  },
   "front": "kf-ipx20-4-front.jpg",
-  "fw": 1600,
-  "fh": 293
+  "fw": 1400,
+  "fh": 256
  },
  {
   "re": "IPX\\s?5\\s?:?\\s?4|IPX\\s?5\\b",
@@ -1896,9 +1910,9 @@
   "model": "K&F / Dynacord IPX5:4",
   "src": "https://products.dynacord.com/binary/img/IPX5-4_rear_2400px.png",
   "page": "https://products.dynacord.com/na/en/ipx5:4",
-  "w": 1600,
-  "h": 318,
-  "v": 1,
+  "w": 1400,
+  "h": 278,
+  "v": 2,
   "pos": {
    "AC": [
     7,
@@ -1950,8 +1964,8 @@
    ]
   },
   "front": "kf-ipx5-4-front.jpg",
-  "fw": 1600,
-  "fh": 295
+  "fw": 1400,
+  "fh": 258
  },
  {
   "re": "\\bIX\\s?15",
@@ -1959,9 +1973,9 @@
   "model": "K&F / Dynacord IX15:4",
   "src": "https://products.dynacord.com/binary/img/Rear_Direct_Trident-4CH-IX15-4_2.png",
   "page": "https://products.dynacord.com/na/en/ix15:4",
-  "w": 1600,
-  "h": 156,
-  "v": 1,
+  "w": 1400,
+  "h": 136,
+  "v": 2,
   "pos": {
    "AC": [
     6,
@@ -2013,8 +2027,8 @@
    ]
   },
   "front": "kf-ix15-4-front.jpg",
-  "fw": 1600,
-  "fh": 141
+  "fw": 1400,
+  "fh": 123
  },
  {
   "re": "\\bD\\s?(20|40|80|100)Q|FUNKTION[- ]?ONE",
@@ -2022,9 +2036,9 @@
   "model": "Funktion-One D-Series (XTA DPA) — המגבר מיוצר ע\"י XTA, אותו גב כמו DPA",
   "src": "https://www.sea-distribution.com/media/ec/18/c2/1732646186/DPA80_back.JPG",
   "page": "https://funktion-one.com/product-system/d-series/",
-  "w": 1600,
-  "h": 453,
-  "v": 3,
+  "w": 1400,
+  "h": 396,
+  "v": 4,
   "pos": {
    "AC": [
     24,
@@ -2112,8 +2126,8 @@
    ]
   },
   "front": "xta-dpa80-front.jpg",
-  "fw": 1600,
-  "fh": 435
+  "fw": 1400,
+  "fh": 264
  },
  {
   "re": "PLM\\s?12K44",
@@ -2121,7 +2135,7 @@
   "model": "Lab.gruppen PLM 12K44 SP (צילום הגב הרשמי דרך המפיץ Pro Audio Design; באתר Lab.gruppen יש רק חזית)",
   "src": "https://www.proaudiodesign.com/cdn/shop/products/Image_LG_P0F68_PLM-12K44-SP_Rear_XL.png",
   "page": "https://www.labgruppen.com/en/products/0107-AAA",
-  "v": 2,
+  "v": 3,
   "pos": {
    "AC": [
     90,
@@ -2181,10 +2195,10 @@
    ]
   },
   "front": "lab-plm12k44-front.jpg",
-  "fw": 1600,
-  "fh": 352,
-  "w": 1600,
-  "h": 367
+  "fw": 1400,
+  "fh": 286,
+  "w": 1400,
+  "h": 321
  },
  {
   "re": "DC\\s?1048",
@@ -2192,9 +2206,9 @@
   "model": "XTA DC1048 (צילום שהתקבל מאורי)",
   "src": "",
   "page": "",
-  "w": 1600,
-  "h": 135,
-  "v": 3,
+  "w": 1400,
+  "h": 118,
+  "v": 4,
   "custom": true,
   "pos": {
    "AC": [
@@ -2259,8 +2273,8 @@
    ]
   },
   "front": "xta-dc1048-front.jpg",
-  "fw": 1600,
-  "fh": 110,
+  "fw": 1400,
+  "fh": 96,
   "fsrc": "https://xta.co.uk/wp-content/uploads/2025/10/DP4_DP5_DC1048.png"
  },
  {
@@ -2269,9 +2283,9 @@
   "model": "DigiSynthetic DSK3.1H (צילום שהתקבל מאורי)",
   "src": "",
   "page": "",
-  "w": 1600,
-  "h": 161,
-  "v": 1,
+  "w": 1400,
+  "h": 141,
+  "v": 2,
   "custom": true,
   "pos": {
    "AC": [

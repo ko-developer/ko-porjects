@@ -67,7 +67,14 @@
   #modal .mbox p { font-size: 14px; margin-bottom: 14px; }
   #modal .mbox button { width: 100%; margin-bottom: 8px; padding: 9px; font-size: 14px; }
   .node.sel { border-color: #c96f4a; box-shadow: 0 0 0 3px rgba(201,111,74,.25); }
-  .node .hd { padding: 6px 8px; font-size: 13px; font-weight: 700; background: #f4f2ec; border-radius: 9px 9px 0 0; cursor: grab; display:flex; justify-content:space-between; align-items:center; }
+  .node .hd { padding: 6px 8px; font-size: 13px; font-weight: 700; background: #f4f2ec; border-radius: 9px 9px 0 0; cursor: grab; display:flex; justify-content:space-between; align-items:center; gap: 6px; flex-wrap: wrap; }
+  .node .hd .hdt { flex: 1 1 60px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* חזית ארון עם צילום מוצר: התמונה על כל רוחב הארון (מכסה את האוזניים כמו מוצר אמיתי), בלי שוליים; השם והכפתור מופיעים במעבר עכבר */
+  .unit.photo { left: 0; right: 0; padding: 0; border-block-color: rgba(0,0,0,.6); }
+  .unit.photo b, .unit.photo > span, .unit.photo > button { opacity: 0; transition: opacity .15s; }
+  .unit.photo:hover b, .unit.photo:hover > span, .unit.photo:hover > button, .unit.photo.picked b { opacity: 1; }
+  .unit.photo b { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); max-width: 90%; }
+  .unit.photo > span { position: absolute; right: 4px; bottom: 1px; background: rgba(0,0,0,.55); color: #fff; border-radius: 3px; padding: 0 3px; }
   .node .hd small { font-weight: 400; color: #888; }
   .rackbody { padding: 8px 10px; }
   .rails { position: relative; border: 2px solid #3a3d44; border-radius: 5px; background: repeating-linear-gradient(180deg, #2b2e34 0 13px, #26292f 13px 15px); overflow: hidden; }

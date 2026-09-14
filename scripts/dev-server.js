@@ -28,7 +28,7 @@ const CUR_TTL = 15e3, curCache = new Map(), curInflight = new Map();
 const CUR_DISK = process.env.K_SERVICE ? null : 'data/.cache-gcs';
 const curDisk = key => CUR_DISK + '/cur-' + key.replace(/[^A-Za-z0-9._-]/g, '_');
 /* הדף לא מחכה לדלי: מגישים מיד מהזיכרון / ממטמון הדיסק / מהריפו, ומרעננים מהדלי ברקע (פעם ב-15 שניות, בקשה אחת בכל פעם) */
-const readCached = (key, fn) => {
+const readCached = (key, fn, ttl = CUR_TTL) => {
   const c = curCache.get(key);
   const refresh = () => {
     if (curInflight.has(key)) return curInflight.get(key);
@@ -37,15 +37,17 @@ const readCached = (key, fn) => {
       .finally(() => curInflight.delete(key));
     curInflight.set(key, p); return p;
   };
-  if (c) { if (c.t < Date.now() - CUR_TTL) refresh(); return Promise.resolve(c.v); }
+  if (c) { if (c.t < Date.now() - ttl) refresh(); return Promise.resolve(c.v); }
   if (CUR_DISK && existsSync(curDisk(key))) { const v = readFileSync(curDisk(key)); curCache.set(key, { t: 0, v }); refresh(); return Promise.resolve(v); }
   return refresh();
 };
+const imgVer = new Map();   /* קובץ תמונה → ה-?v= האחרון שנשאל */
 const curInvalidate = key => { curCache.delete(key); if (CUR_DISK) { try { unlinkSync(curDisk(key)); } catch {} } };
 const db = openStore(storage);
 await initAuth(storage); await initBugs(storage);
 /* קבצים שנערכים באפליקציה ויש להם גם גרסת ריפו (זריעה): קודם האחסון, אחרת הריפו */
-const readCurated = (key, repoPath) => readCached(key, async () => (await storage.read(key)) || (existsSync(repoPath) ? readFileSync(repoPath) : null));
+/* תמונות גב/חזית — מזוהות בכתובת עם ?v= ומתחלפות רק דרך /api/rear-image (שמנקה את המטמון), לכן נשמרות בזיכרון שעה ולא נקראות מהדלי כל 15 שניות */
+const readCurated = (key, repoPath) => readCached(key, async () => (await storage.read(key)) || (existsSync(repoPath) ? readFileSync(repoPath) : null), key.startsWith('rear_images/') ? 3600e3 : CUR_TTL);
 const injectData = (html, name, json) => json ? html.replace(new RegExp('const ' + name + ' = [\\s\\S]*?;/\\*__END:' + name + '__\\*/'), () => 'const ' + name + ' = ' + json + ';/*__END:' + name + '__*/') : html;
 /* טבלאות העבודה — חיות בתוך הריפו, לא בענן */
 const PAGES = { '/matrix': 'src/pages/matrix.html', '/logic': 'src/pages/logic.html' };
@@ -140,11 +142,14 @@ createServer(async (req, res) => {
   /* תמונות גב מוצרים — data/rear_images/ (קבצים מהאתר של היצרן או העלאה מהעורך) */
   if (path.startsWith('/rear-img/')) {
     const f = decodeURIComponent(path.slice('/rear-img/'.length)).replace(/[^A-Za-z0-9._-]/g, '');
+    /* ?v= חדש לקובץ = התמונה הוחלפה בדלי (בשם זהה) — מנקים את המטמון הארוך כדי לא להגיש את הגרסה הישנה */
+    const v = new URLSearchParams((req.url || '').split('?')[1] || '').get('v') || '';
+    if (imgVer.get(f) !== v) { if (imgVer.has(f)) curInvalidate('rear_images/' + f); imgVer.set(f, v); }
     try {
       const buf = await readCurated('rear_images/' + f, 'data/rear_images/' + f);
       if (!buf) throw new Error('no image');
       const ct = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' }[f.split('.').pop().toLowerCase()] || 'application/octet-stream';
-      res.writeHead(200, { 'content-type': ct, 'cache-control': 'public, max-age=86400' }); res.end(buf);
+      res.writeHead(200, { 'content-type': ct, 'cache-control': 'public, max-age=2592000, immutable' }); res.end(buf);   /* הכתובת נושאת ?v= — גרסה חדשה = כתובת חדשה */
     } catch { res.writeHead(404); res.end('no image'); }
     return;
   }
