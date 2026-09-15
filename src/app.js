@@ -69,6 +69,13 @@ const CONNS = {
   fiber:   { n: 'אופטי', c: '#0f8a6d' },
   pwr:     { n: 'חשמל', c: '#a32222', sq: 1 },
   rca:     { n: 'RCA', c: '#c98a2e' },
+  /* הכנות חשמל — שקע ביתי חד-פאזי, סיקון (CEE) חד-פאזי כחול, סיקון תלת-פאזי אדום; כבל מהם = חשמל */
+  si16:    { n: 'שקע חד-פאזי 16A', c: '#a32222', pw: 1 },
+  cee16:   { n: 'סיקון חד-פאזי 16A', c: '#1565c0', pw: 1, amp: 16 },
+  cee32:   { n: 'סיקון חד-פאזי 32A', c: '#1565c0', pw: 1, amp: 32 },
+  cee16x3: { n: 'סיקון תלת-פאזי 16A', c: '#c62828', pw: 1, amp: 16, ph3: 1 },
+  cee32x3: { n: 'סיקון תלת-פאזי 32A', c: '#c62828', pw: 1, amp: 32, ph3: 1 },
+  cee63x3: { n: 'סיקון תלת-פאזי 63A', c: '#c62828', pw: 1, amp: 63, ph3: 1 },
   empty:   { n: 'ריק', c: '#bbbbbb' },
 };
 /* סאב מוגבר (אקטיבי) — מקבל כבל סיגנל (RCA/XLR), לא קו רמקול */
@@ -494,15 +501,17 @@ function viewCenterPt() {
   return { x: 150, y: 150 };
 }
 function addNode(kind) {
-  const id = uid('n'), c = viewCenterPt(), w = kind === 'rack' ? 240 : kind === 'panel' ? 300 : 172;   /* רוחב הכרטיס בקנבס — כדי שמרכזו יהיה במרכז המסך */
+  const id = uid('n'), c = viewCenterPt(), w = kind === 'rack' ? 240 : kind === 'panel' || kind === 'power' ? 300 : 172;   /* רוחב הכרטיס בקנבס — כדי שמרכזו יהיה במרכז המסך */
   const x = Math.max(0, Math.round(2200 - c.x - w / 2)), y = Math.max(0, c.y - 20);   /* n.x נמדד מימין (right) — כמו toNodeX */
   P.nodes.push(kind === 'rack'
     ? { id, kind, name:'ארון חדש', sub:'', x, y, ru:12, units:[] }
     : kind === 'panel'
     ? { id, kind, name:'פאנל מחברים', sub:'', x, y, panel: defPanel(16, 2) }
+    : kind === 'power'
+    ? { id, kind: 'panel', name:'הכנת חשמל', sub:'שקעים / סיקונים', x, y, ptype: 'power', panel: defPanel(4, 1, 'si16') }
     : { id, kind, name:'מוקד חדש', sub:'', x, y });
   sel = id; ui.tab = 'node'; render();
-  uiToast((kind === 'rack' ? '🗄 ארון חדש' : kind === 'panel' ? '🧩 פאנל חדש' : '📍 מוקד חדש') + ' נוסף במרכז המסך — גרור אותו למקום');
+  uiToast((kind === 'rack' ? '🗄 ארון חדש' : kind === 'panel' ? '🧩 פאנל חדש' : kind === 'power' ? '⚡ הכנת חשמל — בחר סוג שקע/סיקון ולחץ על החורים' : '📍 מוקד חדש') + ' נוסף במרכז המסך — גרור אותו למקום');
 }
 async function delNode(id) {
   if (!(await uiConfirm('למחוק את המוקד וכל הכבלים שלו?'))) return;
@@ -2237,6 +2246,14 @@ function renderNodes() {
     host.appendChild(d);
     if (d._drawRear) drawRearCables(n, d);
     if (n.kind === 'panel' && !n.pmin) drawPanelCables(n, d);
+    /* אייקון מוקד מוקטן בקנה מידה של התכנית: ~0.5 מ׳ (סאב 0.7) לפי הכיול, לפחות 16px ולכל היותר 30px על המסך —
+       בזום גבוה האייקון לא מתנפח ומכסה את השרטוט. ההקטנה סביב מרכז האייקון, כך שהמיקום (2200-x-20, y+24) לא זז */
+    if (isMini) {
+      const Zn = getZ() || 1, mic = d.querySelector('.mic');
+      const want = P.scale ? Math.min(30 / Zn, Math.max(16 / Zn, (/סאב|\bsub|וופר/i.test(n.name) ? 0.7 : 0.5) / P.scale)) : 30 / Zn;
+      const k = Math.min(1, want / 30);
+      if (k < 0.999 && mic) { d.style.transformOrigin = '20px ' + (mic.offsetTop + mic.offsetHeight / 2) + 'px'; d.style.transform = 'scale(' + k.toFixed(3) + ')'; }
+    }
   }
   /* ידית סיבוב לרמקול הנבחר — גרירה ישירה, ללא כפתור */
   const sn = sel && byId(sel);
@@ -2433,7 +2450,7 @@ function multiView(nid) {
 }
 async function connectHoles(a, b) {
   const unitIdOf = (nid, ui) => { const n = byId(nid); return (ui >= 0 && n && n.units && n.units[ui]) ? n.units[ui].id : undefined; };
-  const typeOf = k => /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber|אופטי/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /pwr/.test(k) ? 'pwr' : 'xlr';
+  const typeOf = k => /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber|אופטי/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /pwr|^si16|^cee/.test(k) ? 'pwr' : 'xlr';
   /* מולטי נושא סוג אחד בלבד — כבל מולטי XLR לא מכיל רשת/HDMI/אופטי.
      לכן רק XLR↔XLR רוכב על מולטי קיים כליבה; כל סוג אחר מקבל קו משלו. */
   const isXlr = k => /^xlr/i.test(k || '');
@@ -2789,6 +2806,13 @@ function connGlyph(conn) {
     case 'hdmi': return `<svg ${S}><path d="M2.5 7.5h17v5l-3.2 3.2H5.7L2.5 12.5z" fill="#fff" stroke="${C}" stroke-width="1.8"/><path d="M6 10.5h10" stroke="${C}" stroke-width="1.4"/></svg>`;
     case 'fiber': return `<svg ${S}><rect x="2.5" y="6" width="17" height="10" rx="2.5" fill="#fff" stroke="${C}" stroke-width="1.8"/><circle cx="8" cy="11" r="2" fill="${C}"/><circle cx="14" cy="11" r="2" fill="${C}"/></svg>`;
     case 'pwr': return `<svg ${S}><circle cx="11" cy="11" r="9" fill="#fff" stroke="${C}" stroke-width="1.8"/><path d="M11 4.5v6" stroke="${C}" stroke-width="1.8" stroke-linecap="round"/><path d="M7.2 8.2a5.4 5.4 0 1 0 7.6 0" fill="none" stroke="${C}" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+    /* שקע ישראלי (SI 32): ריבוע מעוגל עם שלושה פינים ב-Y */
+    case 'si16': return `<svg ${S}><rect x="2.5" y="2.5" width="17" height="17" rx="4" fill="#fff" stroke="${C}" stroke-width="1.8"/><circle cx="11" cy="7.2" r="1.6" fill="${C}"/><circle cx="7.4" cy="13.6" r="1.6" fill="${C}"/><circle cx="14.6" cy="13.6" r="1.6" fill="${C}"/></svg>`;
+    /* סיקון CEE: חד-פאזי כחול 3 פינים, תלת-פאזי אדום 5 פינים; האמפר כתוב בתוך העיגול */
+    case 'cee16': case 'cee32': case 'cee16x3': case 'cee32x3': case 'cee63x3': {
+      const t = CONNS[conn], pins = t.ph3 ? [[11, 4.6], [5.4, 8.2], [16.6, 8.2], [6.6, 14.6], [15.4, 14.6]] : [[11, 4.8], [6, 13.6], [16, 13.6]];
+      return `<svg ${S}><circle cx="11" cy="11" r="9.5" fill="${C}"/>${pins.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.35" fill="#fff"/>`).join('')}<text x="11" y="${t.ph3 ? 12.6 : 12.4}" text-anchor="middle" font-size="5.6" font-weight="800" fill="#fff">${t.amp}</text></svg>`;
+    }
     default: return `<svg ${S}><circle cx="11" cy="11" r="8.5" fill="none" stroke="#bbb" stroke-width="1.6" stroke-dasharray="3 2.4"/></svg>`;
   }
 }
@@ -2911,7 +2935,7 @@ function openPanelEd(nid, i) {
 function panelEditor(p, nid, ui) {
   const A = `'${nid}',${ui}`;
   if (rgCtx !== nid + '|' + ui) { rgCtx = nid + '|' + ui; rgFrom = null; rgTo = null; }
-  const brushes = Object.entries(CONNS).map(([k, v]) =>
+  const brushes = Object.entries(CONNS).filter(([k, v]) => !v.pw).concat([['__pw', null]], Object.entries(CONNS).filter(([k, v]) => v.pw)).map(([k, v]) => k === '__pw' ? '<div style="flex-basis:100%;font-size:11px;font-weight:700;color:#a32222;margin-top:4px">⚡ הכנות חשמל</div>' :
     `<button style="border:1.5px solid ${brushOn && brush === k ? '#c96f4a' : '#ddd'};${brushOn && brush === k ? 'background:#ff8a50;font-weight:700' : ''}" title="לחיצה מפעילה מברשת — כל לחיצה על חור מחילה. לחיצה נוספת מכבה." onclick="if(brushOn&&brush==='${k}'){brushOn=false}else{brush='${k}';brushOn=true}render()">${connGlyph(k)} ${v.n}</button>`).join('');
   const counts = {};
   p.holes.forEach(h => counts[h.conn] = (counts[h.conn] || 0) + 1);
@@ -2978,7 +3002,7 @@ function portClick(nid, unitId, portStr, isOut) {
 }
 /* חיבור בין חור בפאנל מחברים לבין מחבר בגב מכשיר (IN/OUT) */
 function connectHoleToPort(a, nid, unitId, port, isOut) {
-  const typeOf = k => /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber|אופטי/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /pwr/.test(k) ? 'pwr' : 'xlr';
+  const typeOf = k => /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber|אופטי/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /pwr|^si16|^cee/.test(k) ? 'pwr' : 'xlr';
   const c = { id: uid('c'), qty: '1', spec: '', note: '', type: typeOf(a.conn || '') };
   if (isOut) { /* יציאת המכשיר → אל החור */
     c.from = nid; c.fromUnit = unitId; c.pOut = port;
