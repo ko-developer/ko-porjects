@@ -67,6 +67,7 @@ function hydrateStore(full, posted) {
   const byId = new Map((full.projects || []).map(p => [p.id, p]));
   return { ...posted, projects: (posted.projects || []).map(p => {
     if (!p._lite) return p;
+    if (!byId.has(p.id)) return null;   /* פרויקט קל שכבר לא קיים בשרת (נמחק מצד אחר) — לא מוחזר לחיים מעותק חלקי */
     const { _lite, hasBg, hasPdf, versN, ...q } = p, old = byId.get(p.id) || {};
     if (!('bg' in q) && hasBg && old.bg) q.bg = old.bg;              /* לא נשלחה תמונה אבל הייתה — נשארת; בלי hasBg = המשתמש מחק */
     if (!('bgPdf' in q) && hasPdf && old.bgPdf) q.bgPdf = old.bgPdf;
@@ -75,7 +76,7 @@ function hydrateStore(full, posted) {
     }
     /* סדר המפתחות כמו בעותק השמור — פרויקט שלא השתנה נותן JSON זהה ולא נכתב שוב לדלי */
     const ordered = {}; for (const k of Object.keys(old)) if (k in q) ordered[k] = q[k]; for (const k of Object.keys(q)) if (!(k in ordered)) ordered[k] = q[k];
-    return ordered; }) };
+    return ordered; }).filter(Boolean) };
 }
 await initAuth(storage); await initBugs(storage);
 /* קבצים שנערכים באפליקציה ויש להם גם גרסת ריפו (זריעה): קודם האחסון, אחרת הריפו */

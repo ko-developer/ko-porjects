@@ -484,14 +484,25 @@ const $ = s => document.querySelector(s);
 const byId = id => P.nodes.find(n => n.id === id);
 const cById = id => P.cables.find(c => c.id === id);
 
+/* מרכז החלק הנראה של התכנית בקואורדינטות הקנבס — מוקד חדש נוצר שם ולא בפינה קבועה שמחוץ למסך בזום גבוה */
+function viewCenterPt() {
+  try {
+    const wrap = $('#canvasWrap'), r = $('#canvas').getBoundingClientRect(), Z = getZ() || 1, wr = wrap.getBoundingClientRect();
+    const x = (wr.left + wr.width / 2 - r.left) / Z, y = (wr.top + wr.height / 2 - r.top) / Z;
+    if (isFinite(x) && isFinite(y)) return { x: Math.max(20, Math.round(x)), y: Math.max(20, Math.round(y)) };
+  } catch (e) {}
+  return { x: 150, y: 150 };
+}
 function addNode(kind) {
-  const id = uid('n');
+  const id = uid('n'), c = viewCenterPt(), w = kind === 'rack' ? 240 : kind === 'panel' ? 300 : 172;   /* רוחב הכרטיס בקנבס — כדי שמרכזו יהיה במרכז המסך */
+  const x = Math.max(0, Math.round(2200 - c.x - w / 2)), y = Math.max(0, c.y - 20);   /* n.x נמדד מימין (right) — כמו toNodeX */
   P.nodes.push(kind === 'rack'
-    ? { id, kind, name:'ארון חדש', sub:'', x:150, y:150, ru:12, units:[] }
+    ? { id, kind, name:'ארון חדש', sub:'', x, y, ru:12, units:[] }
     : kind === 'panel'
-    ? { id, kind, name:'פאנל מחברים', sub:'', x:150, y:150, panel: defPanel(16, 2) }
-    : { id, kind, name:'מוקד חדש', sub:'', x:150, y:150 });
+    ? { id, kind, name:'פאנל מחברים', sub:'', x, y, panel: defPanel(16, 2) }
+    : { id, kind, name:'מוקד חדש', sub:'', x, y });
   sel = id; ui.tab = 'node'; render();
+  uiToast((kind === 'rack' ? '🗄 ארון חדש' : kind === 'panel' ? '🧩 פאנל חדש' : '📍 מוקד חדש') + ' נוסף במרכז המסך — גרור אותו למקום');
 }
 async function delNode(id) {
   if (!(await uiConfirm('למחוק את המוקד וכל הכבלים שלו?'))) return;
