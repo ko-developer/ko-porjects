@@ -54,6 +54,12 @@ grep -q '^ANTHROPIC_API_KEY=' .env \
 ## V2 — flow wizard (side-by-side with V1 for comparison; delete nothing)
 `/v2` is the streamlined version: same engine (app.js) + `src/wizard.js` overlay, clean fullscreen plan, guided steps תכנית→כיול→אזור→מערכת→הצעה→דוח. Auto-resumes at the right step per project state. "בנה הכל" auto-places the rack, builds the system, inserts rack gear and smart-wires (`window.__autoFlow` auto-accepts wireConfirm). `installerReport()` prints the installer/electrician report (rack build order, cable pull schedule, speaker mounting, full BOM). V1 keeps everything and gains a "⚡ אשף" header button.
 
+## store "קל" (scripts/dev-server.js: liteStore / hydrateStore / GET /api/project/<id>?f=bg,bgPdf,vers)
+- `GET /api/store` שולח את הפרויקטים בלי `bg` / `bgPdf` / `vers` (113 פרויקטים = 41MB, מתוכם 40MB תמונות) — רק הפרויקט הפתוח מקבל `bg`; השאר מסומנים `hasBg` / `hasPdf` / `versN` + `_lite`. `?full=1` = הכול (גיבוי).
+- בדפדפן `liteWire` מגדיר getter ל-`p.bg` / `p.bgPdf`: הגישה הראשונה מביאה מהשרת ומציירת מחדש. `verManager` מביא את היסטוריית הגרסאות לפי דרישה.
+- `POST /api/store` מקבל את ה-store הקל ו-`hydrateStore` משלים מהעותק השמור לפי הדגלים (מחיקת רקע חייבת למחוק גם `hasBg`/`hasPdf` — `removeBg` עושה זאת); סדר מפתחות נשמר כדי שפרויקט שלא השתנה לא ייכתב שוב לדלי.
+- HTML ו-JSON גדולים נדחסים gzip (`sendText`): הדף 2.4MB → 0.64MB, ה-store 41MB → 0.43MB.
+
 ## ענן — Cloud Run (GCP scripts-298706, me-west1) — פריסה אוטומטית מ-GitHub
 - כל push ל-`main` → `.github/workflows/deploy.yml` → `scripts/deploy-gcp.sh deploy` (Cloud Build מהקוד, `Dockerfile`). אימות ב-Workload Identity Federation (בלי מפתחות). ידנית: `scripts/deploy-gcp.sh setup|seed|deploy|pull|owner`.
 - **אחסון אחד לכולם — `scripts/storage.js`**: `DATA_BUCKET=<דלי>` → כל מה שהשרת כותב (פרויקטים כ-JSON לפרויקט `projects/p_<id>.json`, `users.json`, `bugs.json`+`bug_files/`, `rear_images/`+`rear_images.json`, `rear_layouts.json`, `page_state/`) נקרא ונכתב בדלי `gs://scripts-298706-ko-projects-data` דרך ה-JSON API (בלי ספריות; אימות: מטא-דאטה בענן / ADC / `gcloud auth print-access-token` במחשב). בלי DATA_BUCKET → `data/` מקומית + SQLite. **המחשב והענן עובדים על אותם נתונים** (`DATA_BUCKET` ב-.env). קבצים "מאוצרים" (תמונות/פריסות גב, מצב טבלאות) — קודם הדלי, אחרת הריפו; השרת מזריק את גרסת הדלי של REAR_LAYOUTS/REAR_IMAGES לדף בזמן הגשה (סמני `/*__END:NAME__*/` מ-assemble.js). users.json/bugs.json: הקובץ באחסון הוא האמת — לפני כל שינוי קוראים אותו מחדש (`authRefresh(true)`/`bugsRefresh`) וכותבים את כולו; קריאות מרעננות כל 10 שניות.
@@ -130,6 +136,7 @@ here is the seed), ERP write-back. Use .claude/skills/spec-harvester when adding
 ### חלוקת אזורים בתכנית צבועה (plantext.js — `ptFilledRegions` / `ptPartitionFilled`)
 - `ptPartition` מפצל: תכנית קווית (שחור-לבן) → המסלול הישן (רכיבי חלל בין קירות מעובים); תכנית צבועה/מרונדרת (`B.filled || B.rendered`) → מסלול חדש שדורש כיול (`P.scale`).
 - המסלול החדש: קיר = ריצה ישרה ≥ 1 מ׳ ובעובי ≥ 3px + כל מה שמחובר אליה; דלת = פער ≤ 1.5 מ׳ לאורך הקיר; "חוץ" = לבן-נייר רחב (פתיחה ~1 מ׳) שמגיע לשוליים; קצה קיר חופשי מוארך עד 3 מ׳ לקיר הבא; רצפה מקובצת לפי צבע (חציון 5×5, סובלנות 70) כשריהוט כהה שקוף; מילוי חורים + סגירה 0.6 מ׳ שלא חוצה קירות.
+- כיתוב ENTRANCE / VESTIBULE / CORRIDOR / כניסה / מסדרון = קטגוריית `passage`: החלל לא הופך לאזור (גם אם ≥ 5 מ״ר) אבל לא מרעיל שכנים כמו מטבח; אזור קהל עם כיתוב אבל < 4 מ״ר נזרק (רצועה ליד דלת).
 - אין gap-fill עיוור בין פיקסלי קיר (רשת אריחים שנוגעת בקיר הופכת לגוש) — דלתות נסגרות רק ע״י הארכת קצות קיר. OCR ממוקד לכל חלל (`ptRoomWords`: חיתוך, הגדלה, סף יחסי לרצפה) → מטבח/מקרר/מחסן מושמטים, שירותים = אזור אחד לתאים סמוכים; חדר קטן (<5 מ״ר) בלי כיתוב: בודד = לא אזור, שניים צמודים = שירותים.
 - כיתוב תפעולי מרעיל כל חלל עד 1 מ׳ ממנו (הליכה בלי לחצות קירות); חלל בלי כיתוב שיושב בתוך תיבת חלל תפעולי = מטבח; חלל צר (<1.2 מ׳) בלי כיתוב קהל = לא אזור; שם האזור = כיתוב שמרכזו בתוך החלל.
 - בנצ׳מרק מול הסימונים הידניים (IoU/כיסוי): פטיו 0.80/0.92 (2 אזורים בדיוק כמו המשתמש), מסעדה מרונדרת 0.56/0.66, בית קפה 0.42 (מסלול ישן), אולם 0.62/0.84 (מסלול ישן). הרצה: `window.__evalRun` (הארנס נבנה ad-hoc בדפדפן על פרויקט זמני).

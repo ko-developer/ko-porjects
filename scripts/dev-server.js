@@ -3,6 +3,7 @@
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { gzipSync } from 'node:zlib';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
 import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh } from './auth.js';
@@ -44,6 +45,38 @@ const readCached = (key, fn, ttl = CUR_TTL) => {
 const imgVer = new Map();   /* קובץ תמונה → ה-?v= האחרון שנשאל */
 const curInvalidate = key => { curCache.delete(key); if (CUR_DISK) { try { unlinkSync(curDisk(key)); } catch {} } };
 const db = openStore(storage);
+/* תשובות טקסט גדולות (הדף, ה-store) נדחסות gzip כשהדפדפן תומך — 2.4MB HTML → ~0.5MB */
+function sendText(req, res, code, headers, body) {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(body, 'utf8');
+  if (buf.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) { res.writeHead(code, { ...headers, 'content-encoding': 'gzip', vary: 'accept-encoding' }); res.end(gzipSync(buf, { level: 6 })); }
+  else { res.writeHead(code, headers); res.end(buf); }
+}
+/* store "קל" לדפדפן: הכבדים (תמונת רקע, PDF מקורי, היסטוריית גרסאות = ~40MB על 113 פרויקטים) לא נשלחים —
+   רק הפרויקט הפתוח מקבל את תמונת הרקע שלו; השאר מסומנים hasBg/hasPdf/versN ונטענים לפי דרישה מ-/api/project/<id>.
+   בשמירה (POST) הדפדפן מחזיר את הפרויקטים בלי הכבדים — hydrateStore משלים אותם מהעותק השמור */
+const HEAVY = ['bg', 'bgPdf', 'vers'];
+function liteStore(st, curId) {
+  return { ...st, projects: (st.projects || []).map(p => {
+    const { bg, bgPdf, vers, ...rest } = p;
+    if (bg) { if (p.id === curId) rest.bg = bg; else rest.hasBg = true; }
+    if (bgPdf) rest.hasPdf = true;
+    if (vers && vers.length) rest.versN = vers.length;
+    rest._lite = true; return rest; }) };
+}
+function hydrateStore(full, posted) {
+  const byId = new Map((full.projects || []).map(p => [p.id, p]));
+  return { ...posted, projects: (posted.projects || []).map(p => {
+    if (!p._lite) return p;
+    const { _lite, hasBg, hasPdf, versN, ...q } = p, old = byId.get(p.id) || {};
+    if (!('bg' in q) && hasBg && old.bg) q.bg = old.bg;              /* לא נשלחה תמונה אבל הייתה — נשארת; בלי hasBg = המשתמש מחק */
+    if (!('bgPdf' in q) && hasPdf && old.bgPdf) q.bgPdf = old.bgPdf;
+    if (old.vers && old.vers.length) {                                /* גרסאות: הישנות מהשרת + החדשות מהדפדפן, בלי כפילויות, עד 30 */
+      const seen = new Set((q.vers || []).map(v => v.t)); q.vers = [...old.vers.filter(v => !seen.has(v.t)), ...(q.vers || [])].sort((a, b) => a.t - b.t).slice(-30);
+    }
+    /* סדר המפתחות כמו בעותק השמור — פרויקט שלא השתנה נותן JSON זהה ולא נכתב שוב לדלי */
+    const ordered = {}; for (const k of Object.keys(old)) if (k in q) ordered[k] = q[k]; for (const k of Object.keys(q)) if (!(k in ordered)) ordered[k] = q[k];
+    return ordered; }) };
+}
 await initAuth(storage); await initBugs(storage);
 /* קבצים שנערכים באפליקציה ויש להם גם גרסת ריפו (זריעה): קודם האחסון, אחרת הריפו */
 /* תמונות גב/חזית — מזוהות בכתובת עם ?v= ומתחלפות רק דרך /api/rear-image (שמנקה את המטמון), לכן נשמרות בזיכרון שעה ולא נקראות מהדלי כל 15 שניות */
@@ -99,13 +132,27 @@ createServer(async (req, res) => {
     }
     return;
   }
-  if (req.url === '/api/store') {
+  /* חלקים כבדים של פרויקט לפי דרישה: /api/project/<id>?f=bg,bgPdf,vers */
+  { const pm = /^\/api\/project\/([A-Za-z0-9_-]+)(?:\?f=([a-zA-Z,]+))?$/.exec(req.url || '');
+    if (pm && req.method === 'GET') {
+      try {
+        const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v);
+        const p = (filterStore(st, me).projects || []).find(x => x.id === pm[1]);
+        if (!p) { res.writeHead(404); res.end('no project'); return; }
+        const want = (pm[2] || 'bg').split(',').filter(f => HEAVY.includes(f)), out = {};
+        for (const f of want) if (p[f] != null) out[f] = p[f];
+        sendText(req, res, 200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }, JSON.stringify(out));
+      } catch (e) { res.writeHead(500); res.end(String(e.message)); }
+      return;
+    } }
+  if ((req.url || '').split('?')[0] === '/api/store') {
     if (req.method === 'GET') {
       try {
         /* עד 8 שניות מהקריאה הקודמת — אותו store בלי לפנות לדלי שוב (טעינת דף = כמה בקשות) */
         const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v);
-        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-        res.end(JSON.stringify(filterStore(st, me)));
+        const full = /[?&]full=1/.test(req.url || '');   /* גיבוי מלא — לפי בקשה מפורשת בלבד */
+        const vis = filterStore(st, me);
+        sendText(req, res, 200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }, JSON.stringify(full ? vis : liteStore(vis, vis.cur)));
       } catch (e) { res.writeHead(500); res.end(String(e.message)); }
       return;
     }
@@ -114,9 +161,11 @@ createServer(async (req, res) => {
       req.on('data', c => chunks.push(c));
       req.on('end', async () => {
         try {
-          const posted = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          const raw = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          const fullSt = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : await readStore(db);
+          const posted = hydrateStore(fullSt, raw);   /* משלים תמונות רקע / PDF / גרסאות שהדפדפן לא שלח */
           /* מוזמן: רק הפרויקטים שלו בהרשאת עריכה נכתבים; השאר של הבעלים לא נגעו */
-          const merged = me.role !== 'owner' ? mergeStore(await readStore(db), posted, me) : posted;
+          const merged = me.role !== 'owner' ? mergeStore(fullSt, posted, me) : posted;
           const n = await writeStore(db, merged);
           window_store.v = merged; window_store.t = Date.now();
           res.writeHead(200, { 'content-type': 'application/json' });
@@ -278,8 +327,7 @@ createServer(async (req, res) => {
     /* מצב המשתמש מוזרק לדף — הכותרת מציגה שיתוף/ניהול לבעלים, שם ויציאה למוזמן */
     const authState = JSON.stringify({ enabled: true, user: publicUser(me), owner: !!isOwner, gated, storage: { kind: storage.kind, label: storage.label, warn: storageWarn } });
     html = html.replace('<script', '<script>window.__AUTH=' + authState + ';</script><script');
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-    res.end(html);
+    sendText(req, res, 200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }, html);
   } catch (e) {
     res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('build failed:\n' + e.message);

@@ -19,8 +19,9 @@ var PT_CATS = {
 var PT_DICT = [
   ['level', /^[+\-±]\s?\d+[.,]\d{2,3}\b|\bFFL\b|\bSFL\b|\bLEVEL\b|\bLVL\b|\bFLOOR\s?\d|\bEL\.?\s?[+\-]?\d|\bRL\b|\bTOS\b|\bTOC\b|מפלס|קומה|גובה|ריצוף/i],
   ['service', /\bW\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|\bMEN\b|\bWOMEN\b|\bLADIES\b|\bGENTS\b|ACCESSIBLE|\bELEC\b|ELECTRIC|\bMEP\b|\bHVAC\b|\bAHU\b|\bSERVER\b|\bCOMMS\b|\bIT\s?ROOM\b|\bRACK\b|\bPLANT\b|MECHANICAL|UTILITY|\bFIRE\b|\bRISER\b|\bSHAFT\b|ELEVATOR|\bLIFT\b|\bSTAIR|JANITOR|\bCLEAN|\bDUCT\b|\bPUMP\b|\bGAS\b|\bWATER\b|שירותים|חשמל|טכני|מעלית|מדרגות|תקשורת|ניקיון|מיזוג|כיבוי|מים|גז/i],
-  ['ops', /KITCHEN|\bPREP\b|BACK\s?OF\s?HOUSE|\bBOH\b|\bSTAFF\b|OFFICE|STORAGE|\bSTORE\b|\bDISH|\bWASH\b|LOADING|RECEIVING|DELIVER|WORKSHOP|CORRIDOR|\bCASH\b|MANAGER|\bKIOSK\b|CONCESSION|CONSESSION|PANTRY|\bCOLD\b|FREEZER|LOCKER|SECURITY|\bBACK\b|מטבח|מחסן|משרד|צוות|אחסון|הכנה|פריקה|קבלת|קופה|מנהל|קיוסק|דוכן|מסדרון|מלתחה|אבטחה/i],
-  ['audience', /DANCE|\bSTAGE\b|\bBAR\b|LOUNGE|DINING|REST\s?AURANT|GENERAL\s?AREA|\bVIP\b|TERRACE|PATIO|GARDEN|OUTDOOR|ENTRANCE|\bLOBBY\b|RECEPTION|SEATING|\bHALL\b|\bCLUB\b|\bCAFE\b|\bGYM\b|STUDIO|\bPOOL\b|\bROOF|BALCONY|FOOD\s?COURT|\bAREA\b|\bZONE\b|\bROOM\b|WAITING|FOYER|\bDECK\b|\bSPA\b|\bSHOP\b|RETAIL|רחבה|במה|\bבר\b|מסעדה|אולם|לובי|כניסה|מרפסת|חוץ|ישיבה|חדר כושר|סטודיו|בריכה|גן|טרקלין|אזור|חלל|קבלה|חנות|מבואה/i],
+  ['passage', /ENTRANCE|\bENTRY\b|VESTIBULE|\bEXIT\b|CORRIDOR|HALLWAY|PASSAGE|\bכניסה\b|מבואה|יציאה|מסדרון/i],   /* כניסה / מסדרון — מעבר, לא אזור השמעה; לא מרעיל שכנים כמו מטבח */
+  ['ops', /KITCHEN|\bPREP\b|BACK\s?OF\s?HOUSE|\bBOH\b|\bSTAFF\b|OFFICE|STORAGE|\bSTORE\b|\bDISH|\bWASH\b|LOADING|RECEIVING|DELIVER|WORKSHOP|\bCASH\b|MANAGER|\bKIOSK\b|CONCESSION|CONSESSION|PANTRY|\bCOLD\b|FREEZER|LOCKER|SECURITY|\bBACK\b|מטבח|מחסן|משרד|צוות|אחסון|הכנה|פריקה|קבלת|קופה|מנהל|קיוסק|דוכן|מלתחה|אבטחה/i],
+  ['audience', /DANCE|\bSTAGE\b|\bBAR\b|LOUNGE|DINING|REST\s?AURANT|GENERAL\s?AREA|\bVIP\b|TERRACE|PATIO|GARDEN|OUTDOOR|\bLOBBY\b|RECEPTION|SEATING|\bHALL\b|\bCLUB\b|\bCAFE\b|\bGYM\b|STUDIO|\bPOOL\b|\bROOF|BALCONY|FOOD\s?COURT|\bAREA\b|\bZONE\b|\bROOM\b|WAITING|FOYER|\bDECK\b|\bSPA\b|\bSHOP\b|RETAIL|רחבה|במה|\bבר\b|מסעדה|אולם|לובי|מרפסת|חוץ|ישיבה|חדר כושר|סטודיו|בריכה|גן|טרקלין|אזור|חלל|קבלה|חנות/i],
   ['furniture', /\bTABLE|\bCHAIR|\bSOFA|\bBOOTH|COUNTER|\bSTOOL|\bBENCH|\bDESK\b|\bSHELF|\bSHELV|\bBED\b|\bISLAND\b|CABINET|\bTV\b|SCREEN|PLANTER|\bSEAT\b|שולחן|כיסא|ספה|דלפק|מדף|ארון|מיטה|מסך/i],
 ];
 function ptClassify(t) {
@@ -696,7 +697,8 @@ async function ptPartition() {
     }
     const dbg = window.__ptDbg2 ? (window.__ptDbg2.trace = window.__ptDbg2.trace || []) : null;
     if (c.n < labelMin) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'tiny' }); continue; }
-    if (svc.length && !aud.length) { skipped++; if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'service' }); continue; }             /* שירותים / מטבח / מחסן — בלי מוזיקה */
+    if (svc.length && !aud.length) { skipped++; if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'service' }); continue; }
+    if (labs.some(it => it.cat === 'passage') && !aud.length) { skipped++; if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'passage' }); continue; }   /* כניסה / מסדרון — לא אזור */             /* שירותים / מטבח / מחסן — בלי מוזיקה */
     if (!aud.length && c.n < minArea) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'small-unlabeled' }); continue; }                          /* חלל קטן בלי כיתוב — פינה/ארון */
     const mask = ptAbsorbPockets(B, ptCompMask(B, comp, c.id), comp, c.id);
     /* כיסים שנבלעו מעבר לקו לא מחוברים פיזית למסכה — מעבים ב-2 פיקסלים כדי לגשר, ומקיפים את החלק הגדול */
@@ -801,12 +803,17 @@ async function ptPartitionFilled(B) {
     const aud = labs.filter(it => it.cat === 'audience').concat(wcats.filter(x => x.cat === 'audience'));
     const svc = labs.filter(SERVICE).concat(wcats.filter(x => x.cat === 'ops' || x.cat === 'service'));
     const m2 = rg.n / pxPerM2;
+    const pas = labs.filter(it => it.cat === 'passage').concat(wcats.filter(x => x.cat === 'passage'));
     const isOps = opsNear.has(rg.id) || svc.some(x => !WC_RE.test(x.t)) || (!aud.length && insideOps(rg));   /* מטבח/תפעול גובר על הכל — שם אין מוזיקה */
     const isWC = !isOps && svc.some(x => WC_RE.test(x.t)) && m2 < 12;
     if (dbg) dbg.push({ id: rg.id, m2: +m2.toFixed(1), words, labs: labs.map(x => x.t), ops: isOps });
     if (isWC) { const poly = mkPoly(rg.mask); if (poly && poly.length >= 3) wcZones.push({ poly, m2 }); continue; }
     if (isOps && !aud.length) { skipped++; if (dbg) dbg[dbg.length - 1].why = 'service'; continue; }
     if (isOps && aud.length && m2 < 12) { skipped++; if (dbg) dbg[dbg.length - 1].why = 'service+aud-small'; continue; }
+    /* ENTRANCE / VESTIBULE / CORRIDOR בלי כיתוב קהל — מעבר, לא אזור השמעה */
+    if (pas.length && !aud.length) { skipped++; if (dbg) dbg[dbg.length - 1].why = 'passage'; continue; }
+    /* אזור קהל זעיר (< 4 מ״ר) — רצועה ליד דלת, לא חלל שמנגנים בו */
+    if (aud.length && m2 < 4) { skipped++; if (dbg) dbg[dbg.length - 1].why = 'aud-tiny'; continue; }
     /* חלל צר (פחות מ-1.2 מ׳ רוחב בכל מקום — מעבר בין דלפקים, רצועה ליד ציוד) בלי כיתוב קהל — לא אזור */
     if (!aud.length) { const er = ptErodeN(rg.mask, w, h, Math.max(1, Math.round(B.pxPerM * 0.6))); let any = 0; for (let i = 0; i < w * h && !any; i++) if (er[i]) any = 1; if (!any) { if (dbg) dbg[dbg.length - 1].why = 'thin'; continue; } }
     if (!aud.length && m2 < 5) {

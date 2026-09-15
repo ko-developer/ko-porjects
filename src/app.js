@@ -149,7 +149,7 @@ let SRV = false, srvT = null;
     const s = await r.json();
     SRV = true;
     if (s && Array.isArray(s.projects) && s.projects.length) {
-      store = s;
+      store = s; liteWire(store);
       P = store.projects.find(p => p.id === store.cur) || store.projects[0];
       sel = null; selCable = null; selMulti.clear(); normalizeAll();
       if (typeof impItems !== 'undefined') impItems = P.impSaved || [];
@@ -160,6 +160,25 @@ let SRV = false, srvT = null;
     }
   } catch (e) {}
 })();
+/* store "קל" מהשרת: תמונת הרקע / ה-PDF של פרויקטים שאינם פתוחים לא נשלחים (40MB על 113 פרויקטים) — במקומם hasBg/hasPdf.
+   הגישה הראשונה ל-p.bg / p.bgPdf מביאה את החלק מ-/api/project/<id> ומציירת מחדש; עד אז undefined (התכנית בלי רקע לרגע).
+   ב-JSON.stringify המאפיין הלא-נטען מושמט והשרת משלים אותו מהעותק השמור (hydrateStore) */
+function liteWire(st) {
+  for (const p of st.projects || []) {
+    if (!p._lite) continue;
+    for (const [f, flag] of [['bg', 'hasBg'], ['bgPdf', 'hasPdf']]) {
+      if (!p[flag] || Object.prototype.hasOwnProperty.call(p, f)) continue;
+      let pending = null;
+      const settle = v => Object.defineProperty(p, f, { value: v, writable: true, configurable: true, enumerable: true });
+      Object.defineProperty(p, f, { configurable: true, enumerable: false,
+        get() {
+          if (!pending) pending = fetch('/api/project/' + encodeURIComponent(p.id) + '?f=' + f).then(r => r.json()).then(o => { settle(o[f]); if (o[f] == null) delete p[flag]; if (P === p) { render(); if (f === 'bg' && typeof viewToContent === 'function') viewToContent(); } }).catch(() => { pending = null; });
+          return undefined;
+        },
+        set(v) { settle(v); } });
+    }
+  }
+}
 function pushSrv() {
   if (!SRV) return;
   clearTimeout(srvT);
@@ -254,7 +273,11 @@ function verTime(t) {
   const rel = mins < 1 ? 'עכשיו' : mins < 60 ? 'לפני ' + mins + ' דק׳' : mins < 1440 ? 'לפני ' + Math.round(mins / 60) + ' שע׳' : 'לפני ' + Math.round(mins / 1440) + ' ימים';
   return rel + ' · ' + d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
-function verManager() {
+async function verManager() {
+  /* store קל: היסטוריית הגרסאות נשארת בשרת ונטענת רק כשפותחים את החלון (משולבת עם גרסאות שנוצרו מאז הטעינה) */
+  if (P._lite && P.versN && !P._versLoaded) {
+    try { const o = await (await fetch('/api/project/' + encodeURIComponent(P.id) + '?f=vers')).json(); const seen = new Set((P.vers || []).map(v => v.t)); P.vers = [...(o.vers || []).filter(v => !seen.has(v.t)), ...(P.vers || [])].sort((a, b) => a.t - b.t); P._versLoaded = true; } catch (e) {}
+  }
   verSnapshot(true);
   const vs = (P.vers || []).slice().reverse();
   const ov = uiModal(`
@@ -789,7 +812,7 @@ function uploadBg(inp, onDone) {
         P.bg = cv2.toDataURL('image/jpeg', 0.8);
         /* ה-PDF עצמו נשמר (עד 8MB) — האזור הנראה מעובד מחדש בכל זום, בלי טשטוש (bgsharp.js) */
         if (file.size <= 8 * 1024 * 1024) { P.bgPdf = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).replace(/^data:[^,]*,/, '')); fr.readAsDataURL(file); }); P.bgPdfPage = 1; }
-        else delete P.bgPdf;
+        else { delete P.bgPdf; delete P.hasPdf; }
         if (typeof bgSharpReset === 'function') bgSharpReset();
         P.bgW = fitBgW(cv2.width, cv2.height);
         P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv2.height / cv2.width));
@@ -813,7 +836,7 @@ function uploadBg(inp, onDone) {
     cv.height = Math.round(img.height * scale);
     cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
     P.bg = cv.toDataURL('image/jpeg', 0.82);
-    delete P.bgPdf; if (typeof bgSharpReset === 'function') bgSharpReset();
+    delete P.bgPdf; delete P.hasPdf; if (typeof bgSharpReset === 'function') bgSharpReset();
     P.bgW = fitBgW(cv.width, cv.height);
     P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv.height / cv.width));
     P.bgOp = P.bgOp ?? 0.5;
@@ -834,7 +857,7 @@ function resetView100() {
   scrollToBox(contentBox(), 40);   /* 100% — והתכנית מול העיניים, לא פינה ריקה של הקנבס */
 }
 async function removeBg() {
-  delete P.bg; delete P.bgPdf;
+  delete P.bg; delete P.bgPdf; delete P.hasBg; delete P.hasPdf;   /* בלי הדגלים השרת לא משחזר את התמונה מהעותק השמור */
   if (typeof bgSharpReset === 'function') bgSharpReset();
   delete P.calLine;
   if ((P.zones || []).length && await uiConfirm('להסיר גם את ' + P.zones.length + ' האזורים המסומנים על הרקע?')) P.zones = [];
@@ -887,7 +910,7 @@ function renderBg() {
     im.style.opacity = P.bgOp ?? 0.5;
     im.style.display = 'block';
   } else im.style.display = 'none';
-  const tl = document.getElementById('bgtile'); if (tl && !P.bgPdf) tl.style.display = 'none';
+  const tl = document.getElementById('bgtile'); if (tl && !P.bgPdf && !P.hasPdf) tl.style.display = 'none';
   if (typeof bgSharpSchedule === 'function') bgSharpSchedule();
 }
 const getZ = () => P.zoom || 1;
