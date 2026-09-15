@@ -2842,6 +2842,40 @@ function holeCell(p, h, idx, nid, ui, ro, noPos) {
 }
 /* פאזת הזנה לשקע בודד / לשורה שלמה (0 = בלי) */
 function setHolePhase(nid, ui, idx, ph) { const h = panelOf(nid, ui).holes[idx]; if (!h) return; if (ph) h.ph = ph; else delete h.ph; render(); }
+/* ===== פאנל נגדי — "הצד השני": עותק זהה של הפאנל שמייצג את הקצה אליו הוא מתחבר, טבלת כבלים/מחברים לכל חור, וחיבור בלחיצה ===== */
+function makePairPanel(nid) {
+  const n = byId(nid); if (!n || !n.panel) return;
+  const id = uid('n'), p2 = JSON.parse(JSON.stringify(n.panel)); p2.holes.forEach(h => { delete h.x; delete h.y; });
+  P.nodes.push({ id, kind: 'panel', name: (n.name || 'פאנל') + ' — צד ב׳', sub: 'הצד השני של ' + (n.name || 'הפאנל'), x: n.x, y: n.y + 260, ptype: n.ptype, mount: n.mount, panel: p2, pair: nid });
+  n.pair = id; sel = nid; ui.tab = 'node'; render(); save();
+  uiToast('🔁 נוצר פאנל נגדי מתחת — גרור אותו למקומו, בדוק את הטבלה ולחץ "חבר בין השניים"');
+}
+function pairCabType(n, i) {
+  const cab = (n.pairCab || {})[i]; if (cab) return cab;
+  const k = (n.panel.holes[i] || {}).conn || '';
+  return /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /dmx/.test(k) ? 'dmx' : /pwr|^si16|^cee|^strip/.test(k) ? 'pwr' : 'xlr';
+}
+function setPairConn(nid, i, v) { const n = byId(nid), m = n && byId(n.pair); if (!m) return; m.panel.holes[i] = m.panel.holes[i] || { conn: v }; m.panel.holes[i].conn = v; render(); save(); }
+function setPairCab(nid, i, v) { const n = byId(nid); if (!n) return; n.pairCab = n.pairCab || {}; n.pairCab[i] = v; render(); save(); }
+function pairCableOf(nid, i) {
+  const n = byId(nid); if (!n || !n.pair) return null;
+  return P.cables.find(c => ((c.from === nid && c.to === n.pair && c.fromHole === i + 1) || (c.from === n.pair && c.to === nid && c.toHole === i + 1))
+    || (c.type === 'multi' && ((c.from === nid && c.to === n.pair) || (c.from === n.pair && c.to === nid)) && (c.chans || []).some(x => x.a === i + 1))) || null;
+}
+function connectPair(nid) {
+  const n = byId(nid), m = n && byId(n.pair);
+  if (!m) { uiToast('הפאנל הנגדי כבר לא קיים'); if (n) delete n.pair; render(); return; }
+  let made = 0; const N = Math.min(n.panel.holes.length, m.panel.holes.length);
+  for (let i = 0; i < N; i++) {
+    const a = n.panel.holes[i], b = m.panel.holes[i];
+    if (!a.conn || a.conn === 'empty' || pairCableOf(nid, i)) continue;
+    const c = { id: uid('c'), from: nid, to: m.id, type: pairCabType(n, i), qty: '1', spec: '', note: '', pOut: 'חור ' + (i + 1), pIn: 'חור ' + (i + 1), fromHole: i + 1, toHole: i + 1, conn: a.conn, conn2: b.conn && b.conn !== 'empty' ? b.conn : undefined };
+    if (P.scale) c.len = +(Math.hypot(n.x - m.x, n.y - m.y) * P.scale).toFixed(1);
+    P.cables.push(c); made++;
+  }
+  render(); save(); uiToast(made ? '🔗 נוצרו ' + made + ' כבלים בין שני הפאנלים — מופיעים במפתח הכבלים' : 'כל החורים כבר מחוברים');
+}
+function unpairPanel(nid) { const n = byId(nid); if (!n) return; const m = byId(n.pair); if (m) delete m.pair; delete n.pair; render(); save(); }
 function setRowPhase(nid, ui, r, ph) { const p = panelOf(nid, ui), cpr = pCols(p); p.holes.slice(r * cpr, (r + 1) * cpr).forEach(h => { if (ph) h.ph = ph; else delete h.ph; }); render(); }
 let rgFrom = null, rgTo = null, rgCtx = null;
 function applyRange(nid, ui, from, to) {
@@ -2980,6 +3014,25 @@ function panelEditor(p, nid, ui) {
       <p class="muted" style="margin:0 0 4px">L1 / L2 / L3 לכל שקע בנפרד (לחץ על חור ואז על הפאזה) או לשורה שלמה. מוצג כתג על השקע.</p>
       ${sh >= 0 ? `<div style="display:flex;gap:4px;align-items:center"><span style="font-size:11px;min-width:52px">חור ${sh + 1}</span>${phBtns(`setHolePhase(${A},${sh},`, p.holes[sh].ph || 0)}</div>` : '<p class="muted" style="margin:0">לחץ על שקע בפאנל כדי לקבוע לו פאזה</p>'}
       ${rows}`; })() : ''}
+    ${ui < 0 && byId(nid) && byId(nid).kind === 'panel' ? (() => {
+      const n = byId(nid), m = n.pair && byId(n.pair);
+      if (!m) return `<h3 class="sec">🔁 הצד השני</h3>
+        <p class="muted" style="margin:0 0 4px">פאנל נגדי זהה שמייצג את הקצה אליו הפאנל הזה מתחבר; אחר כך טבלת כבלים ומחברים לכל חור וחיבור בלחיצה אחת.</p>
+        <button style="width:100%" onclick="makePairPanel('${nid}')">🔁 צור פאנל נגדי</button>`;
+      const N = Math.min(n.panel.holes.length, m.panel.holes.length), connOpts = v => Object.entries(CONNS).map(([k, t]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(t.n)}</option>`).join('');
+      const cabOpts = v => Object.entries(CTYPES).filter(([k]) => k !== 'multi').map(([k, t]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(t.n)}</option>`).join('');
+      const LBL = cableLabels();
+      const rows = Array.from({ length: N }, (_, i) => { const a = n.panel.holes[i], b = m.panel.holes[i], c = pairCableOf(nid, i); return `<tr>
+        <td style="text-align:center">${i + 1}</td><td>${esc((CONNS[a.conn] || CONNS.empty).n)}</td>
+        <td><select style="width:100%;font-size:11px" onchange="setPairConn('${nid}',${i},this.value)">${connOpts(b.conn)}</select></td>
+        <td><select style="width:100%;font-size:11px" onchange="setPairCab('${nid}',${i},this.value)" ${c ? 'disabled' : ''}>${cabOpts(c ? c.type : pairCabType(n, i))}</select></td>
+        <td style="text-align:center">${c ? `<span class="badge" style="background:${cableColor(c)}">${LBL[c.id] || '✓'}</span>` : '—'}</td></tr>`; }).join('');
+      const pending = Array.from({ length: N }, (_, i) => i).filter(i => n.panel.holes[i].conn && n.panel.holes[i].conn !== 'empty' && !pairCableOf(nid, i)).length;
+      return `<h3 class="sec">🔁 הצד השני: ${esc(m.name)}</h3>
+        <p class="muted" style="margin:0 0 4px">לכל חור: המחבר כאן, המחבר בצד השני (ניתן לשינוי) והכבל שיחבר ביניהם. שורה עם תג = כבר מחובר.</p>
+        <div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="color:#777"><th>#</th><th>כאן</th><th>שם</th><th>כבל</th><th>מצב</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <button style="width:100%;margin-top:6px;background:#0f6e56;color:#fff;font-weight:700" onclick="connectPair('${nid}')" ${pending ? '' : 'disabled'}>🔗 חבר בין השניים (${pending} כבלים)</button>
+        <div style="display:flex;gap:6px;margin-top:4px"><button style="flex:1" onclick="sel='${m.id}';ui.tab='node';render()">↗ לפאנל הנגדי</button><button style="flex:1" onclick="unpairPanel('${nid}')">בטל קישור</button></div>`; })() : ''}
     <button style="width:100%;margin-top:6px;${labelMode ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="labelMode=!labelMode;render()">🏷 ${labelMode ? 'מצב שמות פעיל — לחץ על חור כדי לתת שם' : 'מצב שמות — תן שמות לחורים (למשל Main L/R)'}</button>
     <p class="muted" style="margin-top:6px">${cs}</p>`;
 }
