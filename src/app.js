@@ -3329,9 +3329,10 @@ function renderWires() {
   if (P.calLine && P.scale && !calMode) {
     const { p1, p2 } = P.calLine;
     const px = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-    out += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="#e24b4a" stroke-width="2" stroke-dasharray="7 5" opacity="0.85"/>`;
-    out += `<circle cx="${p1.x}" cy="${p1.y}" r="4.5" fill="#e24b4a"/><circle cx="${p2.x}" cy="${p2.y}" r="4.5" fill="#e24b4a"/>`;
-    const fz = Math.max(14, 18 / getZ());
+    const Zc = getZ() || 1;   /* עובי/גודל קבועים על המסך — בזום גבוה הסימון לא מכסה את התכנית */
+    out += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="#e24b4a" stroke-width="${(1.5 / Zc).toFixed(2)}" stroke-dasharray="${(6 / Zc).toFixed(1)} ${(4 / Zc).toFixed(1)}" opacity="0.85"/>`;
+    out += `<circle cx="${p1.x}" cy="${p1.y}" r="${(4 / Zc).toFixed(2)}" fill="none" stroke="#e24b4a" stroke-width="${(1.2 / Zc).toFixed(2)}"/><circle cx="${p2.x}" cy="${p2.y}" r="${(4 / Zc).toFixed(2)}" fill="none" stroke="#e24b4a" stroke-width="${(1.2 / Zc).toFixed(2)}"/>`;
+    const fz = Math.max(9, 12 / Zc);
     const mx = (p1.x + p2.x) / 2, my = Math.min(p1.y, p2.y) - 10;
     const txt = '📏 ' + (px * P.scale).toFixed(1) + ' מ׳';
     const bw = txt.length * fz * 0.62 + 18;
@@ -3343,18 +3344,25 @@ function renderWires() {
   if (typeof ptMarksSVG === 'function') out += ptMarksSVG();
   /* קו כיול חי — רואים בדיוק מה מודדים */
   if (calMode && calMode.pts.length) {
-    const p1 = calMode.pts[0];
-    out += `<circle cx="${p1.x}" cy="${p1.y}" r="6" fill="#e24b4a" stroke="#fff" stroke-width="2"/>`;
+    const p1 = calMode.pts[0], Zc = getZ() || 1;
+    /* סמן כוונת: מרכז פתוח כדי לראות בדיוק על מה מודדים; גודל קבוע על המסך (מחולק בזום) */
+    const cross = (p, col) => { const r = 7 / Zc, g = 2.5 / Zc, sw = (1.2 / Zc).toFixed(2); return `<g stroke="${col}" stroke-width="${sw}" fill="none">
+      <circle cx="${p.x}" cy="${p.y}" r="${r.toFixed(2)}"/>
+      <line x1="${p.x - r * 1.9}" y1="${p.y}" x2="${p.x - g}" y2="${p.y}"/><line x1="${p.x + g}" y1="${p.y}" x2="${p.x + r * 1.9}" y2="${p.y}"/>
+      <line x1="${p.x}" y1="${p.y - r * 1.9}" x2="${p.x}" y2="${p.y - g}"/><line x1="${p.x}" y1="${p.y + g}" x2="${p.x}" y2="${p.y + r * 1.9}"/></g>`; };
+    out += cross(p1, '#e24b4a');
     if (calMode.cur) {
       const p2 = calMode.cur;
       const px = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-      out += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="#e24b4a" stroke-width="2.5" stroke-dasharray="7 5"/>`;
-      out += `<circle cx="${p2.x}" cy="${p2.y}" r="6" fill="#e24b4a" stroke="#fff" stroke-width="2"/>`;
-      const fz = Math.max(16, 22 / getZ());
-      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2 - fz;
-      const txt = P.scale ? (px * P.scale).toFixed(1) + ' מ׳' : Math.round(px) + 'px';
-      const bw = txt.length * fz * 0.65 + 20;
-      out += `<rect x="${mx - bw / 2}" y="${my - fz - 6}" width="${bw}" height="${fz + 12}" rx="6" fill="#e24b4a"/><text x="${mx}" y="${my - 1}" text-anchor="middle" font-size="${fz}" font-weight="700" fill="#fff">${txt}</text>`;
+      out += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="#e24b4a" stroke-width="${(1.2 / Zc).toFixed(2)}" stroke-dasharray="${(5 / Zc).toFixed(1)} ${(4 / Zc).toFixed(1)}" opacity="0.9"/>`;
+      out += cross(p2, '#e24b4a');
+      /* מספר הפיקסלים לא מעניין את המשתמש — תווית רק כשיש כבר קנה מידה (אורך במטרים), קטנה ומוסטת הצידה מהקו */
+      if (P.scale) {
+        const fz = Math.max(9, 12 / Zc), txt = (px * P.scale).toFixed(2) + ' מ׳';
+        const L = Math.max(1, px), nx = -(p2.y - p1.y) / L, ny = (p2.x - p1.x) / L;   /* ניצב לקו */
+        const mx = (p1.x + p2.x) / 2 + nx * fz * 1.6, my = (p1.y + p2.y) / 2 + ny * fz * 1.6;
+        out += `<text x="${mx}" y="${my + fz * 0.35}" text-anchor="middle" font-size="${fz}" font-weight="700" fill="#e24b4a" stroke="#fff" stroke-width="${(3 / Zc).toFixed(2)}" paint-order="stroke">${txt}</text>`;
+      }
     }
   }
   svg.innerHTML = out;
