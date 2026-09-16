@@ -512,7 +512,28 @@ const byId = id => {
   return P.nodes.find(n => n.id === id);
 };
 /* הגברה של רמקול לפי טבלת הנתונים (עמודת "הגברה"): passive / bi / tri → כמה קווי הגברה נפרדים הוא צריך */
-function spkAmpMode(name) { const m = (store.spkMeta || {})[rearKey(name)]; return (m && m.amp) || 'passive'; }
+function spkAmpMode(name) {
+  const meta = store.spkMeta || {}, k1 = rearKey(name);
+  if (meta[k1] && meta[k1].amp) return meta[k1].amp;                                   /* שם מיובא / שם מלא */
+  const d = (typeof SPEAKER_DATA !== 'undefined') && SPEAKER_DATA.find(x => x.re.test(name || ''));
+  if (d) { const k2 = rearKey(prettyRe(d.re)); if (meta[k2] && meta[k2].amp) return meta[k2].amp; }   /* שם הדגם כפי שמופיע בטבלה */
+  if (/EVO\s?X\b/i.test(name || '')) return 'tri';                                     /* Funktion-One EVO X — tri-amp (HI/MID/LOW) */
+  return 'passive';
+}
+/* רמקול bi/tri-amp שכבר יושב בערוץ (חיבור קיים / תכנון אוטומטי) — הפס הראשון נשאר בערוץ, שאר הפסים חוזרים למאגר לניתוב */
+function patchExpandBands() {
+  if (!PATCH) return;
+  const inPool = new Set(PATCH.pool);
+  for (const k of Object.keys(PATCH.slots)) {
+    PATCH.slots[k] = PATCH.slots[k].flatMap(id => {
+      if (spkBand(id)) return [id];
+      const n = byId(id); if (!n) return [id];
+      const b = bandIds(n); if (b.length <= 1) return [id];
+      b.slice(1).forEach(x => { if (!inPool.has(x)) { PATCH.pool.push(x); inPool.add(x); } });
+      return [b[0]];
+    });
+  }
+}
 function bandIds(n) { const mode = spkAmpMode(nodeFullName(n)); return mode === 'tri' ? ['hi', 'mid', 'low'].map(b => n.id + '#' + b) : mode === 'bi' ? ['hi', 'low'].map(b => n.id + '#' + b) : [n.id]; }
 const cById = id => P.cables.find(c => c.id === id);
 
@@ -4062,6 +4083,9 @@ function patchOpen(z, amps, lines, leftover) {
       PATCH.preCables[ai + '|' + ch] = P.cables.filter(c => c.id === head.id || (inSet.has(c.from) && inSet.has(c.to))).map(c => c.id);
     });
     a.pre = new Set(); /* אין ערוצים נעולים — הכול ניתן לעריכה בכל שלב */
+  });
+  patchExpandBands();
+  PATCH.amps.forEach(() => {
   });
   /* צד הכניסות: מקורות הנגינה אל הפרוססור/מיקסר שבארון */
   PATCH.ins = []; PATCH.inSlots = {}; PATCH.inOrig = {}; PATCH.inPre = {};
