@@ -70,13 +70,13 @@ const CONNS = {
   pwr:     { n: 'חשמל', c: '#a32222', sq: 1 },
   rca:     { n: 'RCA', c: '#c98a2e' },
   /* הכנות חשמל — שקע ביתי חד-פאזי, סיקון (CEE) חד-פאזי כחול, סיקון תלת-פאזי אדום; כבל מהם = חשמל */
-  /* צילומים: Nisko סדרת SUPER N על הטיח + שקעים תעשייתיים (data/rear_images/conn-*.jpg). cw = רוחב התא בפאנל (גובה 38px) */
-  si16:    { n: 'שקע חד-פאזי 16A', c: '#a32222', pw: 1, img: 'conn-si16.jpg', v: 2, cw: 40 },
+  /* צילומים: Nisko — שקעים ישראליים מסדרת N-NB על הטיח, מוגן מים SUPER N IP65, שקעים תעשייתיים (data/rear_images/conn-*.jpg). cw = רוחב התא בפאנל (גובה 38px) */
+  si16:    { n: 'שקע חד-פאזי 16A', c: '#a32222', pw: 1, img: 'conn-si16.jpg', v: 3, cw: 40 },
   si16w:   { n: 'שקע מוגן מים IP65', c: '#a32222', pw: 1, img: 'conn-si16w.jpg', v: 2, cw: 40 },
-  strip2:  { n: 'שקע כפול', c: '#a32222', pw: 1, img: 'conn-strip2.jpg', v: 2, cw: 76 },
-  strip3:  { n: 'שקע משולש', c: '#a32222', pw: 1, img: 'conn-strip3.jpg', v: 2, cw: 112 },
-  strip4:  { n: 'רביעייה', c: '#a32222', pw: 1, img: 'conn-strip4.jpg', v: 2, cw: 148 },
-  strip6:  { n: 'שישייה', c: '#a32222', pw: 1, img: 'conn-strip6.jpg', v: 2, cw: 220 },
+  strip2:  { n: 'שקע כפול', c: '#a32222', pw: 1, img: 'conn-strip2.jpg', v: 3, cw: 76 },
+  strip3:  { n: 'שקע משולש', c: '#a32222', pw: 1, img: 'conn-strip3.jpg', v: 3, cw: 112 },
+  strip4:  { n: 'רביעייה', c: '#a32222', pw: 1, img: 'conn-strip4.jpg', v: 3, cw: 148 },
+  strip6:  { n: 'שישייה', c: '#a32222', pw: 1, img: 'conn-strip6.jpg', v: 3, cw: 220 },
   cee16:   { n: 'סיקון חד-פאזי 16A', c: '#1565c0', pw: 1, amp: 16, img: 'conn-cee1.jpg', v: 2, cw: 40 },
   cee32:   { n: 'סיקון חד-פאזי 32A', c: '#1565c0', pw: 1, amp: 32, img: 'conn-cee1.jpg', v: 2, cw: 40 },
   cee16x3: { n: 'סיקון תלת-פאזי 16A', c: '#c62828', pw: 1, amp: 16, ph3: 1, img: 'conn-cee3.jpg', v: 2, cw: 40 },
