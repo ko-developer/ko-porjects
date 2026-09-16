@@ -1,52 +1,72 @@
 {
- "strip6": {
-  "title": "File:(20241007) APC power strip.jpg",
-  "url": "https://commons.wikimedia.org/wiki/File:(20241007)_APC_power_strip.jpg",
-  "license": "CC BY-SA 4.0",
-  "artist": "<a href=\"//commons.wikimedia.org/wiki/User:RoyZuoMedia\" title=\"User:RoyZuoMedia\"",
-  "size": [
-   1280,
-   960
-  ]
+ "nisko": {
+  "source": "Nisko (niskoelec.com) — סדרת SUPER N על הטיח, שקעים תעשייתיים; לשימוש פנימי באפליקציה",
+  "pages": [
+   "https://www.niskoelec.com/items/8503798-SUPER-N",
+   "https://www.niskoelec.com/items/8503799",
+   "https://www.niskoelec.com/79513-שקעים-תעשייתיים"
+  ],
+  "files": {
+   "conn-si16.jpg": "g_18289908.jpg",
+   "conn-strip2.jpg": "g_18289909.jpg",
+   "conn-strip3.jpg": "g_18289910.jpg",
+   "conn-strip4.jpg": "g_18289911.jpg",
+   "conn-strip6.jpg": "g_29566895.jpg",
+   "conn-si16w.jpg": "g_29282963.jpg",
+   "conn-cee1.jpg": "p_18289893.jpg",
+   "conn-cee3.jpg": "p_18289890.jpg"
+  }
  },
- "cee3": {
-  "title": "File:CEE Kupplung 32A 6h Rot IP44 Front geöffnet 2012 04 03.jpg",
-  "url": "https://commons.wikimedia.org/wiki/File:CEE_Kupplung_32A_6h_Rot_IP44_Front_ge%C3%B6ffnet_2012_04_03.jpg",
-  "license": "CC BY-SA 3.0",
-  "artist": "<a href=\"//commons.wikimedia.org/wiki/User:Bahntech\" title=\"User:Bahntech\">Bahnt",
-  "size": [
-   1280,
-   960
-  ]
- },
- "si": {
-  "title": "File:H plug.jpg",
-  "url": "https://commons.wikimedia.org/wiki/File:H_plug.jpg",
-  "license": "Public domain",
-  "artist": "",
-  "size": [
-   557,
-   261
-  ]
- },
- "strip4": {
-  "title": "File:REML power strip.JPG",
-  "url": "https://commons.wikimedia.org/wiki/File:REML_power_strip.JPG",
-  "license": "CC BY-SA 3.0",
-  "artist": "<a href=\"//commons.wikimedia.org/wiki/User:Dmitry_G\" title=\"User:Dmitry G\">Dmitr",
-  "size": [
-   1280,
-   721
-  ]
- },
- "cee1": {
-  "title": "File:Vaduz-Three-phase connectors IEC 60309 red+SEV 1011 socket-02ASD.jpg",
-  "url": "https://commons.wikimedia.org/wiki/File:Vaduz-Three-phase_connectors_IEC_60309_red%2BSEV_1011_socket-02ASD.jpg",
-  "license": "CC BY-SA 4.0",
-  "artist": "<a href=\"//commons.wikimedia.org/wiki/User:Asurnipal\" title=\"User:Asurnipal\">Asu",
-  "size": [
-   1280,
-   2014
-  ]
+ "wikimedia_previous": {
+  "strip6": {
+   "title": "File:(20241007) APC power strip.jpg",
+   "url": "https://commons.wikimedia.org/wiki/File:(20241007)_APC_power_strip.jpg",
+   "license": "CC BY-SA 4.0",
+   "artist": "<a href=\"//commons.wikimedia.org/wiki/User:RoyZuoMedia\" title=\"User:RoyZuoMedia\"",
+   "size": [
+    1280,
+    960
+   ]
+  },
+  "cee3": {
+   "title": "File:CEE Kupplung 32A 6h Rot IP44 Front geöffnet 2012 04 03.jpg",
+   "url": "https://commons.wikimedia.org/wiki/File:CEE_Kupplung_32A_6h_Rot_IP44_Front_ge%C3%B6ffnet_2012_04_03.jpg",
+   "license": "CC BY-SA 3.0",
+   "artist": "<a href=\"//commons.wikimedia.org/wiki/User:Bahntech\" title=\"User:Bahntech\">Bahnt",
+   "size": [
+    1280,
+    960
+   ]
+  },
+  "si": {
+   "title": "File:H plug.jpg",
+   "url": "https://commons.wikimedia.org/wiki/File:H_plug.jpg",
+   "license": "Public domain",
+   "artist": "",
+   "size": [
+    557,
+    261
+   ]
+  },
+  "strip4": {
+   "title": "File:REML power strip.JPG",
+   "url": "https://commons.wikimedia.org/wiki/File:REML_power_strip.JPG",
+   "license": "CC BY-SA 3.0",
+   "artist": "<a href=\"//commons.wikimedia.org/wiki/User:Dmitry_G\" title=\"User:Dmitry G\">Dmitr",
+   "size": [
+    1280,
+    721
+   ]
+  },
+  "cee1": {
+   "title": "File:Vaduz-Three-phase connectors IEC 60309 red+SEV 1011 socket-02ASD.jpg",
+   "url": "https://commons.wikimedia.org/wiki/File:Vaduz-Three-phase_connectors_IEC_60309_red%2BSEV_1011_socket-02ASD.jpg",
+   "license": "CC BY-SA 4.0",
+   "artist": "<a href=\"//commons.wikimedia.org/wiki/User:Asurnipal\" title=\"User:Asurnipal\">Asu",
+   "size": [
+    1280,
+    2014
+   ]
+  }
  }
 }

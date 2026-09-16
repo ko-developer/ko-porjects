@@ -70,14 +70,18 @@ const CONNS = {
   pwr:     { n: 'חשמל', c: '#a32222', sq: 1 },
   rca:     { n: 'RCA', c: '#c98a2e' },
   /* הכנות חשמל — שקע ביתי חד-פאזי, סיקון (CEE) חד-פאזי כחול, סיקון תלת-פאזי אדום; כבל מהם = חשמל */
-  si16:    { n: 'שקע חד-פאזי 16A', c: '#a32222', pw: 1, img: 'conn-si16.jpg' },
-  cee16:   { n: 'סיקון חד-פאזי 16A', c: '#1565c0', pw: 1, amp: 16, img: 'conn-cee1.jpg' },
-  cee32:   { n: 'סיקון חד-פאזי 32A', c: '#1565c0', pw: 1, amp: 32, img: 'conn-cee1.jpg' },
-  cee16x3: { n: 'סיקון תלת-פאזי 16A', c: '#c62828', pw: 1, amp: 16, ph3: 1, img: 'conn-cee3.jpg' },
-  cee32x3: { n: 'סיקון תלת-פאזי 32A', c: '#c62828', pw: 1, amp: 32, ph3: 1, img: 'conn-cee3.jpg' },
-  cee63x3: { n: 'סיקון תלת-פאזי 63A', c: '#c62828', pw: 1, amp: 63, ph3: 1, img: 'conn-cee3.jpg' },
-  strip4:  { n: 'רב-שקע רביעייה', c: '#a32222', pw: 1, img: 'conn-strip4.jpg', wide: 1 },
-  strip6:  { n: 'רב-שקע שישייה', c: '#a32222', pw: 1, img: 'conn-strip6.jpg', wide: 1 },
+  /* צילומים: Nisko סדרת SUPER N על הטיח + שקעים תעשייתיים (data/rear_images/conn-*.jpg). cw = רוחב התא בפאנל (גובה 38px) */
+  si16:    { n: 'שקע חד-פאזי 16A', c: '#a32222', pw: 1, img: 'conn-si16.jpg', v: 2, cw: 40 },
+  si16w:   { n: 'שקע מוגן מים IP65', c: '#a32222', pw: 1, img: 'conn-si16w.jpg', v: 2, cw: 40 },
+  strip2:  { n: 'שקע כפול', c: '#a32222', pw: 1, img: 'conn-strip2.jpg', v: 2, cw: 76 },
+  strip3:  { n: 'שקע משולש', c: '#a32222', pw: 1, img: 'conn-strip3.jpg', v: 2, cw: 112 },
+  strip4:  { n: 'רביעייה', c: '#a32222', pw: 1, img: 'conn-strip4.jpg', v: 2, cw: 148 },
+  strip6:  { n: 'שישייה', c: '#a32222', pw: 1, img: 'conn-strip6.jpg', v: 2, cw: 220 },
+  cee16:   { n: 'סיקון חד-פאזי 16A', c: '#1565c0', pw: 1, amp: 16, img: 'conn-cee1.jpg', v: 2, cw: 40 },
+  cee32:   { n: 'סיקון חד-פאזי 32A', c: '#1565c0', pw: 1, amp: 32, img: 'conn-cee1.jpg', v: 2, cw: 40 },
+  cee16x3: { n: 'סיקון תלת-פאזי 16A', c: '#c62828', pw: 1, amp: 16, ph3: 1, img: 'conn-cee3.jpg', v: 2, cw: 40 },
+  cee32x3: { n: 'סיקון תלת-פאזי 32A', c: '#c62828', pw: 1, amp: 32, ph3: 1, img: 'conn-cee3.jpg', v: 2, cw: 40 },
+  cee63x3: { n: 'סיקון תלת-פאזי 63A', c: '#c62828', pw: 1, amp: 63, ph3: 1, img: 'conn-cee3.jpg', v: 2, cw: 40 },
   empty:   { n: 'ריק', c: '#bbbbbb' },
 };
 /* סאב מוגבר (אקטיבי) — מקבל כבל סיגנל (RCA/XLR), לא קו רמקול */
@@ -2159,7 +2163,7 @@ function renderNodes() {
     } else if (n.kind === 'panel') {
       const p = n.panel || (n.panel = defPanel());
       /* רוחב לפי התאים בפועל — תא רגיל 24px, שקע/סיקון 40px, רב-שקע 66px (+5px רווח) */
-      const cellW = h => { const t = CONNS[h.conn] || CONNS.empty; return t.wide ? 66 : t.pw ? 40 : 24; };
+      const cellW = h => { const t = CONNS[h.conn] || CONNS.empty; return t.pw ? (t.cw || 40) : 24; };
       const rowW = () => { const cpr = pCols(p); let m = 0; for (let r = 0; r < (p.rows || 1); r++) { const hs = p.holes.slice(r * cpr, (r + 1) * cpr); m = Math.max(m, hs.reduce((a, h) => a + cellW(h), 0) + Math.max(0, hs.length - 1) * 5); } return m; };
       const w = p.mode === 'matrix' ? Math.max(140, rowW() + 6) : (p.w || 240);
       d.style.width = (w + 22) + 'px';
@@ -2455,7 +2459,7 @@ function multiView(nid) {
 }
 async function connectHoles(a, b) {
   const unitIdOf = (nid, ui) => { const n = byId(nid); return (ui >= 0 && n && n.units && n.units[ui]) ? n.units[ui].id : undefined; };
-  const typeOf = k => /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber|אופטי/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /pwr|^si16|^cee/.test(k) ? 'pwr' : 'xlr';
+  const typeOf = k => /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber|אופטי/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /pwr|^si16|^cee|^strip/.test(k) ? 'pwr' : 'xlr';
   /* מולטי נושא סוג אחד בלבד — כבל מולטי XLR לא מכיל רשת/HDMI/אופטי.
      לכן רק XLR↔XLR רוכב על מולטי קיים כליבה; כל סוג אחר מקבל קו משלו. */
   const isXlr = k => /^xlr/i.test(k || '');
@@ -2801,7 +2805,7 @@ document.addEventListener('keydown', e => {
 });
 function connGlyph(conn) {
   const ct = CONNS[conn] || CONNS.empty, C = ct.c;
-  if (ct.img) return `<span class="cimg${ct.wide ? ' wide' : ''}"><img src="/rear-img/${ct.img}?v=1" alt="" draggable="false">${ct.amp ? `<b>${ct.amp}A</b>` : ''}</span>`;
+  if (ct.img) return `<span class="cimg" style="width:${Math.round(22 * (ct.cw || 40) / 40)}px"><img src="/rear-img/${ct.img}?v=${ct.v || 1}" alt="" draggable="false">${ct.amp ? `<b>${ct.amp}A</b>` : ''}</span>`;
   const S = 'width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"';
   switch (conn) {
     case 'xlrf': return `<svg ${S}><circle cx="11" cy="11" r="9" fill="#fff" stroke="${C}" stroke-width="1.8"/><circle cx="11" cy="6.4" r="1.5" fill="${C}"/><circle cx="6.8" cy="14" r="1.5" fill="${C}"/><circle cx="15.2" cy="14" r="1.5" fill="${C}"/><text x="11" y="13.8" font-size="7" font-weight="700" fill="${C}" text-anchor="middle" font-family="Arial">F</text></svg>`;
@@ -2831,14 +2835,15 @@ function holeCell(p, h, idx, nid, ui, ro, noPos) {
   const selStyle = isSel ? 'outline:3px solid #ff8a50;border-radius:50%;' : (hc ? `outline:2.5px solid ${cableColor(hc)};border-radius:50%;` : '');
   const selBadge = isSel ? '<span style="position:absolute;top:-7px;right:-7px;background:#ff8a50;color:#fff;border-radius:50%;width:15px;height:15px;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:3">1</span>' : '';
   const phB = h.ph ? `<span class="phb ph${h.ph}" title="פאזה L${h.ph}">L${h.ph}</span>` : '';   /* פאזת הזנה — L1 חום, L2 שחור, L3 אפור */
-  const hole = `<div class="hole gph${t.pw ? ' pw' : ''}${t.wide ? ' wide' : ''}" ${ro ? '' : `data-hole="${nid}|${ui}|${idx}"`} style="position:relative;${selStyle}" title="${t.n}${h.ph ? ' · פאזה L' + h.ph : ''}${h.label ? ' · ' + esc(h.label) : ''}${hc ? ' · מחובר (כבל)' : ''}${isSel ? ' · נבחר — לחץ על חור בפאנל אחר לחיבור' : ''}">${connGlyph(h.conn)}${phB}${selBadge}</div>`;
+  const cwS = t.pw ? `width:${(t.cw || 40) - 2}px;` : '';
+  const hole = `<div class="hole gph${t.pw ? ' pw' : ''}" ${ro ? '' : `data-hole="${nid}|${ui}|${idx}"`} style="position:relative;${cwS}${selStyle}" title="${t.n}${h.ph ? ' · פאזה L' + h.ph : ''}${h.label ? ' · ' + esc(h.label) : ''}${hc ? ' · מחובר (כבל)' : ''}${isSel ? ' · נבחר — לחץ על חור בפאנל אחר לחיבור' : ''}">${connGlyph(h.conn)}${phB}${selBadge}</div>`;
   const num = `<span class="hnum">${idx + 1}</span>`;
   /* מקום קבוע לשם — גם כשאין תווית, כדי שכל המחברים יתיישרו באותו גובה */
   const lbl = `<span class="hlbl">${esc(h.label || ' ')}</span>`;
   /* מספר הכבל מצויר בנקודת החיבור למטה (drawPanelCables) — לא תג נוסף מעל המחבר */
   const pos = (p.mode === 'free' && !noPos) ? ` style="position:absolute;left:${h.x ?? 8 + (idx % 8) * 27}px;top:${h.y ?? 8 + Math.floor(idx / 8) * 27}px"` : '';
   /* מספר החור והשם מעל המחבר — קריאים תמיד, לא מוסתרים ע"י קווי הניתוב */
-  return `<div class="hcell${t.pw ? ' pw' : ''}${t.wide ? ' wide' : ''}"${pos || ' style="position:relative"'}>${num}${lbl}${hole}</div>`;
+  return `<div class="hcell${t.pw ? ' pw' : ''}"${pos ? pos.replace('style="', `style="${t.pw ? 'width:' + (t.cw || 40) + 'px;' : ''}`) : ` style="position:relative${t.pw ? ';width:' + (t.cw || 40) + 'px' : ''}"`}>${num}${lbl}${hole}</div>`;
 }
 /* פאזת הזנה לשקע בודד / לשורה שלמה (0 = בלי) */
 function setHolePhase(nid, ui, idx, ph) { const h = panelOf(nid, ui).holes[idx]; if (!h) return; if (ph) h.ph = ph; else delete h.ph; render(); }
@@ -3073,7 +3078,7 @@ function portClick(nid, unitId, portStr, isOut) {
 }
 /* חיבור בין חור בפאנל מחברים לבין מחבר בגב מכשיר (IN/OUT) */
 function connectHoleToPort(a, nid, unitId, port, isOut) {
-  const typeOf = k => /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber|אופטי/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /pwr|^si16|^cee/.test(k) ? 'pwr' : 'xlr';
+  const typeOf = k => /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber|אופטי/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /pwr|^si16|^cee|^strip/.test(k) ? 'pwr' : 'xlr';
   const c = { id: uid('c'), qty: '1', spec: '', note: '', type: typeOf(a.conn || '') };
   if (isOut) { /* יציאת המכשיר → אל החור */
     c.from = nid; c.fromUnit = unitId; c.pOut = port;

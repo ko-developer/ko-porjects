@@ -152,13 +152,10 @@
   .cimg.wide { width: 40px; }
   .cimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .cimg b { position: absolute; bottom: 0; right: 0; font-size: 7px; line-height: 9px; padding: 0 2px; background: rgba(0,0,0,.65); color: #fff; border-radius: 3px 0 0 0; }
-  .hole.gph.pw { width: 38px; height: 38px; }
-  .hole.gph.pw.wide { width: 64px; }
-  .hole.gph.pw .cimg { width: 38px; height: 38px; border-radius: 8px; }
-  .hole.gph.pw .cimg.wide { width: 64px; height: 34px; }
+  .hole.gph.pw { height: 38px; }
+  .hole.gph.pw .cimg { width: 100% !important; height: 38px; border-radius: 8px; }   /* בתא: על כל רוחב התא (הרוחב ה-inline משמש רק בכפתורי הבחירה) */
   .hole.gph.pw .cimg b { font-size: 9px; line-height: 12px; padding: 0 3px; }
-  .hcell.pw { width: 40px; } .hcell.pw.wide { width: 66px; }
-  .hcell.pw .hlbl { max-width: 40px; }
+  .hcell.pw .hlbl { max-width: 100%; }
   .phb { position: absolute; top: -6px; left: -6px; font-size: 8px; font-weight: 800; line-height: 12px; padding: 0 3px; border-radius: 6px; color: #fff; z-index: 2; box-shadow: 0 0 0 1px #fff; }
   .phb.ph1 { background: #7b4a1e; } .phb.ph2 { background: #222; } .phb.ph3 { background: #7d7d7d; }
   .face .hnum { color: #a9b2c1; }
