@@ -2148,9 +2148,11 @@ function renderNodes() {
       d.className += ' mini';
       d.style.width = '';
       /* לחיצה על האייקון עצמו פותחת את הפאנל (גרירה עדיין עובדת) */
+      const isPw = n.ptype === 'power' || p.holes.some(hh => (CONNS[hh.conn] || {}).pw);   /* הכנת חשמל — אייקון ברק אדום, שיהיה ברור שזה חשמל */
+      const pwIcon = `<svg width="18" height="18" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="#e0a100" stroke="#a32222" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}${n.mount ? ' · ' + esc(n.mount) : ''} · לחץ לפתיחה" style="cursor:grab;position:relative">
-        <div class="mnum" style="background:#c9502e">${p.holes.length}</div>
-        <div class="mic" style="border-color:#c9502e">${isDjNode(n) ? '<b style="font-size:11px;font-weight:900;color:#c9502e;letter-spacing:.5px;line-height:18px;display:block">DJ</b>' : '<svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="#c9502e" stroke-width="2"/><circle cx="8" cy="12" r="2" fill="#c9502e"/><circle cx="14" cy="12" r="2" fill="#c9502e"/></svg>'}</div>
+        <div class="mnum" style="background:${isPw ? '#a32222' : '#c9502e'}">${p.holes.length}</div>
+        <div class="mic" style="border-color:${isPw ? '#a32222' : '#c9502e'}">${isPw ? pwIcon : isDjNode(n) ? '<b style="font-size:11px;font-weight:900;color:#c9502e;letter-spacing:.5px;line-height:18px;display:block">DJ</b>' : '<svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="#c9502e" stroke-width="2"/><circle cx="8" cy="12" r="2" fill="#c9502e"/><circle cx="14" cy="12" r="2" fill="#c9502e"/></svg>'}</div>
         ${cnt ? `<div class="mnum" style="background:#0f6e56;left:auto;right:-6px;top:-6px">${cnt}</div>` : ''}</div>
         ${needsPower(n) ? `<div title="${DJ_POWER_TXT}" style="position:absolute;left:50%;top:100%;transform:translate(-50%,3px);white-space:nowrap;background:#fff3cd;color:#7a4b00;border:1.5px solid #e0a100;border-radius:6px;font-size:9.5px;font-weight:800;padding:1px 5px;line-height:1.3;pointer-events:none;z-index:3">⚡ נקודת חשמל 16A-N6 · שדה סאונד</div>` : ''}`;
       d.addEventListener('pointerdown', e => {
@@ -2159,6 +2161,9 @@ function renderNodes() {
         miniOpenOnTap(e, () => { n.pmin = false; render(); save(); }, n.id);
       });
       $('#nodes').appendChild(d);
+      /* מוקטן בקנה מידה של התכנית כמו אייקון מוקד (≈0.5 מ׳, 16–30px על המסך) */
+      { const Zn = getZ() || 1, mic = d.querySelector('.mic'), want = P.scale ? Math.min(30 / Zn, Math.max(16 / Zn, 0.5 / P.scale)) : 30 / Zn, k = Math.min(1, want / 30);
+        if (k < 0.999 && mic) { d.style.transformOrigin = '20px ' + (mic.offsetTop + mic.offsetHeight / 2) + 'px'; d.style.transform = 'scale(' + k.toFixed(3) + ')'; } }
       continue;
     } else if (n.kind === 'panel') {
       const p = n.panel || (n.panel = defPanel());
@@ -2881,6 +2886,7 @@ function connectPair(nid) {
   render(); save(); uiToast(made ? '🔗 נוצרו ' + made + ' כבלים בין שני הפאנלים — מופיעים במפתח הכבלים' : 'כל החורים כבר מחוברים');
 }
 function unpairPanel(nid) { const n = byId(nid); if (!n) return; const m = byId(n.pair); if (m) delete m.pair; delete n.pair; render(); save(); }
+function setHoleLabel(nid, ui, idx, v) { const h = panelOf(nid, ui).holes[idx]; if (!h) return; v = String(v || '').trim(); if (v) h.label = v; else delete h.label; render(); save(); }
 function setRowPhase(nid, ui, r, ph) { const p = panelOf(nid, ui), cpr = pCols(p); p.holes.slice(r * cpr, (r + 1) * cpr).forEach(h => { if (ph) h.ph = ph; else delete h.ph; }); render(); }
 let rgFrom = null, rgTo = null, rgCtx = null;
 function applyRange(nid, ui, from, to) {
@@ -3012,12 +3018,13 @@ function panelEditor(p, nid, ui) {
     </div>
     <button style="width:100%" onclick="applyRange(${A},document.getElementById('rgFrom').value,document.getElementById('rgTo').value)">שייך את הטווח למחבר הנבחר</button>
     ${p.holes.some(h => (CONNS[h.conn] || {}).pw) ? (() => {
-      const phBtns = (fn, cur) => [1, 2, 3, 0].map(k => `<button style="padding:2px 8px;font-size:11px;${cur === k ? 'background:#ff8a50;font-weight:700' : ''}" onclick="${fn}(${k})">${k ? 'L' + k : '—'}</button>`).join('');
+      const phBtns = (fn, cur) => [1, 2, 3, 0].map(k => `<button style="padding:2px 8px;font-size:11px;${cur === k ? 'background:#ff8a50;font-weight:700' : ''}" onclick="${fn}${k})">${k ? 'L' + k : '—'}</button>`).join('');
       const sh = selHole && selHole.nid === nid && selHole.ui === ui ? selHole.idx : -1;
       const rows = p.mode === 'matrix' ? Array.from({ length: p.rows || 1 }, (_, r) => { const cpr = pCols(p), hs = p.holes.slice(r * cpr, (r + 1) * cpr), phs = new Set(hs.map(h => h.ph || 0)); return `<div style="display:flex;gap:4px;align-items:center;margin-top:3px"><span style="font-size:11px;min-width:52px">שורה ${r + 1}</span>${phBtns(`setRowPhase(${A},${r},`, phs.size === 1 ? [...phs][0] : -1)}</div>`; }).join('') : '';
       return `<h3 class="sec">⚡ פאזת הזנה</h3>
       <p class="muted" style="margin:0 0 4px">L1 / L2 / L3 לכל שקע בנפרד (לחץ על חור ואז על הפאזה) או לשורה שלמה. מוצג כתג על השקע.</p>
-      ${sh >= 0 ? `<div style="display:flex;gap:4px;align-items:center"><span style="font-size:11px;min-width:52px">חור ${sh + 1}</span>${phBtns(`setHolePhase(${A},${sh},`, p.holes[sh].ph || 0)}</div>` : '<p class="muted" style="margin:0">לחץ על שקע בפאנל כדי לקבוע לו פאזה</p>'}
+      ${sh >= 0 ? `<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><span style="font-size:11px;min-width:52px">חור ${sh + 1}</span>${phBtns(`setHolePhase(${A},${sh},`, p.holes[sh].ph || 0)}
+        <input type="text" placeholder="שם (למשל: מקרר, מגבר 1)" value="${esc(p.holes[sh].label || '')}" style="flex:1;min-width:120px;font-size:11px" onchange="setHoleLabel(${A},${sh},this.value)"></div>` : '<p class="muted" style="margin:0">לחץ על שקע בפאנל כדי לקבוע לו פאזה ושם</p>'}
       ${rows}`; })() : ''}
     ${ui < 0 && byId(nid) && byId(nid).kind === 'panel' ? (() => {
       const n = byId(nid), m = n.pair && byId(n.pair);
@@ -11155,6 +11162,24 @@ function exportPDF() {
     if (n.kind === 'panel' && n.panel) panels.push({ t: n.name + (n.sub ? ' — ' + n.sub : ''), p: n.panel });
     if (n.kind === 'rack') n.units.forEach(u => { if (u.panel) panels.push({ t: `${u.name} (${u.u}U, פאנל 19″) — בתוך ${n.name}`, p: u.panel, rack: true }); });
   });
+  /* ⚡ הכנות חשמל — כל פאנל עם שקעים/סיקונים: סיכום לפי סוג ופאזה, וטבלה לכל שקע (מס׳, סוג, פאזה, שם, אזור) */
+  const pwPanels = P.nodes.filter(n => n.kind === 'panel' && n.panel && (n.ptype === 'power' || n.panel.holes.some(hh => (CONNS[hh.conn] || {}).pw)));
+  if (pwPanels.length) {
+    const PHN = { 1: 'L1', 2: 'L2', 3: 'L3' };
+    h += `<div class="rp-sec"><h3>⚡ הכנות חשמל — שקעים, סיקונים ופאזות</h3>
+      <p style="font-size:12px;color:#555;margin:0 0 8px">מה שהחשמלאי צריך להכין לפני ההתקנה: לכל נקודה סוג השקע, הזרם, הפאזה המוזנת והשם/ייעוד. סיקון תלת-פאזי = 3 פאזות + N + PE. ההזנות לארון המגברים מסומנות בנפרד בדוח.</p>` + pwPanels.map(n => {
+      const p = n.panel, zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 });
+      const cnt = {}; p.holes.forEach(hh => { const t = CONNS[hh.conn]; if (!t || !t.pw) return; const k = t.n + (hh.ph ? ' · ' + PHN[hh.ph] : ''); cnt[k] = (cnt[k] || 0) + 1; });
+      const sum = Object.entries(cnt).map(([k, v]) => `${v}× ${esc(k)}`).join(' · ');
+      const byPh = {}; p.holes.forEach(hh => { const t = CONNS[hh.conn]; if (t && t.pw) byPh[hh.ph || 0] = (byPh[hh.ph || 0] || 0) + 1; });
+      const phLine = [1, 2, 3].filter(k => byPh[k]).map(k => `${PHN[k]}: ${byPh[k]}`).join(' · ') + (byPh[0] ? (Object.keys(byPh).length > 1 ? ' · ' : '') + 'בלי פאזה: ' + byPh[0] : '');
+      const rows = p.holes.map((hh, i) => { const t = CONNS[hh.conn]; if (!t || !t.pw) return ''; return `<tr><td>${i + 1}</td><td>${esc(t.n)}</td><td>${t.amp ? t.amp + 'A' : '16A'}${t.ph3 ? ' · 3 פאזות' : ''}</td><td>${hh.ph ? PHN[hh.ph] : '—'}</td><td>${esc(hh.label || '')}</td></tr>`; }).join('');
+      return `<div style="margin-bottom:14px;page-break-inside:avoid"><b style="font-size:13px">${esc(n.name)}${n.sub ? ' — ' + esc(n.sub) : ''}</b>${zn ? ` <span style="color:#666;font-size:12px">· אזור: ${esc(zn.name)}</span>` : ''}${n.mount ? ` <span style="color:#666;font-size:12px">· מותקן על: ${esc(n.mount)}</span>` : ''}
+        <div style="font-size:12px;color:#444;margin:4px 0">${sum}</div>
+        ${phLine ? `<div style="font-size:12px;color:#444;margin:0 0 6px">חלוקת פאזות: ${phLine}</div>` : ''}
+        <table class="cablelist"><tr><th>#</th><th>סוג</th><th>זרם</th><th>פאזה</th><th>שם / ייעוד</th></tr>${rows}</table></div>`;
+    }).join('') + '</div>';
+  }
   if (panels.length) {
     h += `<div class="rp-sec"><h3>פאנלים וקופסאות מולטי</h3>` + panels.map(({ t, p, rack }) => {
       const counts = {};
@@ -11164,7 +11189,9 @@ function exportPDF() {
       let body;
       if (rack) body = faceHTML(p, '', -1, true);
       else {
-        const w = p.mode === 'matrix' ? pCols(p) * 29 + 24 : (p.w || 260);
+        const cellW = hh => { const t = CONNS[hh.conn] || CONNS.empty; return t.pw ? (t.cw || 40) : 24; };
+        const rowW = () => { const cpr = pCols(p); let m = 0; for (let r = 0; r < (p.rows || 1); r++) { const hs = p.holes.slice(r * cpr, (r + 1) * cpr); m = Math.max(m, hs.reduce((a, hh) => a + cellW(hh), 0) + Math.max(0, hs.length - 1) * 5); } return m; };
+        const w = p.mode === 'matrix' ? rowW() + 24 : (p.w || 260);
         body = p.mode === 'free'
           ? `<div class="pnl" style="position:relative;height:${p.h || 140}px;width:${w}px;display:block;border:1px solid #ccc;border-radius:8px">${holesHTML(p, '', -1, true)}</div>`
           : `<div class="pnl" style="width:${w}px;display:flex;flex-direction:column;gap:5px;border:1px solid #ccc;border-radius:8px">${holesMatrixHTML(p, '', -1, true)}</div>`;
