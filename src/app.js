@@ -27,6 +27,8 @@ function cableColor(c) {
   const mm = cableMm(c);
   return (mm != null && NL4_MM_COLORS[mm]) || base;
 }
+/* מה הליבות של מולטי: XLR, Cat6 (מולטי רשת) או סיבים (מולטי אופטי) */
+function coreTxt(c) { return c.type === 'cat' ? 'Cat6' : c.type === 'fiber' ? 'סיבים' : 'XLR'; }
 function cableKindLabel(c) { const t = CTYPES[c.type] ? CTYPES[c.type].n : c.type; const mm = c.type === 'nl4' ? cableMm(c) : null; return mm ? t + ' · ' + mm + ' ממ״ר' : t; }
 const UPX = 15;
 const LSKEY = 'installPlanner_v1';
@@ -74,6 +76,9 @@ const CONNS = {
   si16:    { n: 'שקע חד-פאזי 16A', c: '#a32222', pw: 1, img: 'conn-si16.jpg', v: 3, cw: 40 },
   si16w:   { n: 'שקע מוגן מים IP65', c: '#a32222', pw: 1, img: 'conn-si16w.jpg', v: 2, cw: 40 },
   strip2:  { n: 'שקע כפול', c: '#a32222', pw: 1, img: 'conn-strip2.jpg', v: 3, cw: 76 },
+  strip2w: { n: 'כפול מוגן מים IP65', c: '#a32222', pw: 1, img: 'conn-strip2w.jpg', v: 1, cw: 76 },
+  strip3w: { n: 'משולש מוגן מים IP65', c: '#a32222', pw: 1, img: 'conn-strip3w.jpg', v: 1, cw: 112 },
+  strip4w: { n: 'רביעייה מוגנת מים IP65', c: '#a32222', pw: 1, img: 'conn-strip4w.jpg', v: 1, cw: 148 },
   strip3:  { n: 'שקע משולש', c: '#a32222', pw: 1, img: 'conn-strip3.jpg', v: 3, cw: 112 },
   strip4:  { n: 'רביעייה', c: '#a32222', pw: 1, img: 'conn-strip4.jpg', v: 3, cw: 148 },
   strip6:  { n: 'שישייה', c: '#a32222', pw: 1, img: 'conn-strip6.jpg', v: 3, cw: 220 },
@@ -2318,8 +2323,19 @@ function drawPanelCables(n, d) {
   if (!ents.length) return;
   const LBLc = cableLabels();
   const nodeLeft = 2200 - n.x - W; /* שמאל הפאנל בקואורדינטות קנבס */
+  const myBox = nodeBox(n);
   ents.forEach((e, k) => {
     const col = cableColor(e.c);
+    /* הקצה השני יושב מעל/מתחת — המעבר הפנימי יורד/עולה ישר מהמחבר לשפה, והכבל ממשיך ישר */
+    const other = byId(e.c.from === n.id ? e.c.to : e.c.from), st = other && other.kind !== 'point' ? stackedBoxes(myBox, nodeBox(other)) : null;
+    if (st) {
+      const down = st === 'AB', edgeY = down ? H : 0, sx = e.hx + ((k % 3) - 1) * 2.5;
+      out += `<path d="M ${sx} ${edgeY} L ${sx} ${e.hy + (down ? 12 : -12)}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" opacity="0.85"/>`;
+      PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + sx, y: n.y + edgeY };
+      const lb2 = LBLc[e.c.id], ly = e.hy + (down ? 20 : -20);
+      out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${sx}" cy="${ly}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${sx}" y="${ly + 2.6}" text-anchor="middle" font-size="7" font-weight="800" fill="${col}" style="user-select:none">${lb2}</text></g>`;
+      return;
+    }
     const rowY = e.hy + 14 + (k % 3) * 2.5; /* חציה מתחת לשורת המחברים (השמות למעלה — האזור פנוי) */
     /* כל כבל נכנס מהצד הקרוב למחבר שלו — קו קצר, בלי זנב שחוצה חורים אחרים */
     const right = e.hx > W / 2;
@@ -2863,27 +2879,44 @@ function makePairPanel(nid) {
 function pairCabType(n, i) {
   const cab = (n.pairCab || {})[i]; if (cab) return cab;
   const k = (n.panel.holes[i] || {}).conn || '';
-  return /rj45/.test(k) ? 'cat' : /bnc|hdmi/.test(k) ? 'sdi' : /fiber/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /dmx/.test(k) ? 'dmx' : /pwr|^si16|^cee|^strip/.test(k) ? 'pwr' : 'xlr';
+  return /rj45/.test(k) ? 'cat' : /hdmi/.test(k) ? 'sdi:aoc' : /bnc/.test(k) ? 'sdi' : /fiber/.test(k) ? 'fiber' : /speakon/.test(k) ? 'nl4' : /dmx/.test(k) ? 'dmx' : /pwr|^si16|^cee|^strip/.test(k) ? 'pwr' : 'xlr';
 }
 function setPairConn(nid, i, v) { const n = byId(nid), m = n && byId(n.pair); if (!m) return; m.panel.holes[i] = m.panel.holes[i] || { conn: v }; m.panel.holes[i].conn = v; render(); save(); }
 function setPairCab(nid, i, v) { const n = byId(nid); if (!n) return; n.pairCab = n.pairCab || {}; n.pairCab[i] = v; render(); save(); }
 function pairCableOf(nid, i) {
   const n = byId(nid); if (!n || !n.pair) return null;
   return P.cables.find(c => ((c.from === nid && c.to === n.pair && c.fromHole === i + 1) || (c.from === n.pair && c.to === nid && c.toHole === i + 1))
-    || (c.type === 'multi' && ((c.from === nid && c.to === n.pair) || (c.from === n.pair && c.to === nid)) && (c.chans || []).some(x => x.a === i + 1))) || null;
+    || (c.chans && ((c.from === nid && c.to === n.pair) || (c.from === n.pair && c.to === nid)) && c.chans.some(x => x.a === i + 1))) || null;
 }
+/* משפחות שאפשר לאחד לכבל מולטי אחד עם N ליבות: XLR → מולטי XLR, RJ45 → מולטי רשת, אופטי → מולטי סיבים */
+const PAIR_FAM = { xlr: { test: k => /^xlr/.test(k), type: 'multi', n: 'מולטי XLR', conn: 'xlrm', conn2: 'xlrf' }, cat: { test: k => k === 'rj45', type: 'cat', n: 'מולטי רשת (Cat6)', conn: 'rj45', conn2: 'rj45' }, fiber: { test: k => k === 'fiber', type: 'fiber', n: 'מולטי אופטי', conn: 'fiber', conn2: 'fiber' } };
+function pairFamOf(k) { for (const [f, d] of Object.entries(PAIR_FAM)) if (d.test(k || '')) return f; return null; }
+function pairMultiOn(n, fam) { const m = n.pairMulti || {}; return m[fam] !== false; }   /* ברירת מחדל: מאוחד */
+function setPairMulti(nid, fam, on) { const n = byId(nid); if (!n) return; n.pairMulti = n.pairMulti || {}; n.pairMulti[fam] = !!on; render(); save(); }
 function connectPair(nid) {
   const n = byId(nid), m = n && byId(n.pair);
   if (!m) { uiToast('הפאנל הנגדי כבר לא קיים'); if (n) delete n.pair; render(); return; }
-  let made = 0; const N = Math.min(n.panel.holes.length, m.panel.holes.length);
+  let made = 0, multis = 0; const N = Math.min(n.panel.holes.length, m.panel.holes.length);
+  const len = P.scale ? +(Math.hypot(n.x - m.x, n.y - m.y) * P.scale).toFixed(1) : undefined;
+  /* קודם המשפחות המאוחדות: כבל מולטי אחד לכל XLR / רשת / אופטי שטרם חוברו (≥ 2 חורים) */
+  const grouped = new Set();
+  for (const [fam, d] of Object.entries(PAIR_FAM)) {
+    if (!pairMultiOn(n, fam)) continue;
+    const idx = []; for (let i = 0; i < N; i++) { const a = n.panel.holes[i]; if (a.conn && a.conn !== 'empty' && pairFamOf(a.conn) === fam && !pairCableOf(nid, i)) idx.push(i); }
+    if (idx.length < 2) continue;
+    const c = { id: uid('c'), from: nid, to: m.id, type: d.type, qty: '1', spec: '', note: d.n + ' ' + idx.length + '× ' + (fam === 'xlr' ? 'XLR' : fam === 'cat' ? 'Cat6' : 'סיבים'), conn: d.conn, conn2: d.conn2,
+      cores: idx.length, chans: idx.map(i => ({ a: i + 1, b: i + 1 })), pOut: 'חורים ' + (idx[0] + 1) + '–' + (idx[idx.length - 1] + 1), pIn: 'חורים ' + (idx[0] + 1) + '–' + (idx[idx.length - 1] + 1), len };
+    P.cables.push(c); multis++; idx.forEach(i => grouped.add(i));
+  }
   for (let i = 0; i < N; i++) {
     const a = n.panel.holes[i], b = m.panel.holes[i];
-    if (!a.conn || a.conn === 'empty' || pairCableOf(nid, i)) continue;
-    const c = { id: uid('c'), from: nid, to: m.id, type: pairCabType(n, i), qty: '1', spec: '', note: '', pOut: 'חור ' + (i + 1), pIn: 'חור ' + (i + 1), fromHole: i + 1, toHole: i + 1, conn: a.conn, conn2: b.conn && b.conn !== 'empty' ? b.conn : undefined };
-    if (P.scale) c.len = +(Math.hypot(n.x - m.x, n.y - m.y) * P.scale).toFixed(1);
+    if (grouped.has(i) || !a.conn || a.conn === 'empty' || pairCableOf(nid, i)) continue;
+    const ct = pairCabType(n, i), aoc = ct === 'sdi:aoc';
+    const c = { id: uid('c'), from: nid, to: m.id, type: aoc ? 'sdi' : ct, qty: '1', spec: aoc ? 'HDMI אופטי (AOC)' : '', note: '', pOut: 'חור ' + (i + 1), pIn: 'חור ' + (i + 1), fromHole: i + 1, toHole: i + 1, conn: a.conn, conn2: b.conn && b.conn !== 'empty' ? b.conn : undefined, len };
     P.cables.push(c); made++;
   }
-  render(); save(); uiToast(made ? '🔗 נוצרו ' + made + ' כבלים בין שני הפאנלים — מופיעים במפתח הכבלים' : 'כל החורים כבר מחוברים');
+  render(); save();
+  uiToast(made || multis ? '🔗 נוצרו ' + (multis ? multis + ' כבלי מולטי' : '') + (multis && made ? ' + ' : '') + (made ? made + ' כבלים בודדים' : '') + ' בין שני הפאנלים — מופיעים במפתח הכבלים' : 'כל החורים כבר מחוברים');
 }
 function unpairPanel(nid) { const n = byId(nid); if (!n) return; const m = byId(n.pair); if (m) delete m.pair; delete n.pair; render(); save(); }
 function setHoleLabel(nid, ui, idx, v) { const h = panelOf(nid, ui).holes[idx]; if (!h) return; v = String(v || '').trim(); if (v) h.label = v; else delete h.label; render(); save(); }
@@ -3032,18 +3065,21 @@ function panelEditor(p, nid, ui) {
         <p class="muted" style="margin:0 0 4px">פאנל נגדי זהה שמייצג את הקצה אליו הפאנל הזה מתחבר; אחר כך טבלת כבלים ומחברים לכל חור וחיבור בלחיצה אחת.</p>
         <button style="width:100%" onclick="makePairPanel('${nid}')">🔁 צור פאנל נגדי</button>`;
       const N = Math.min(n.panel.holes.length, m.panel.holes.length), connOpts = v => Object.entries(CONNS).map(([k, t]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(t.n)}</option>`).join('');
-      const cabOpts = v => Object.entries(CTYPES).filter(([k]) => k !== 'multi').map(([k, t]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(t.n)}</option>`).join('');
+      const cabOpts = v => Object.entries(CTYPES).filter(([k]) => k !== 'multi').map(([k, t]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(t.n)}</option>`).join('') + `<option value="sdi:aoc" ${v === 'sdi:aoc' ? 'selected' : ''}>HDMI אופטי (AOC)</option>`;
+      const famCount = {}; for (let i = 0; i < N; i++) { const f = pairFamOf((n.panel.holes[i] || {}).conn); if (f && !pairCableOf(nid, i)) famCount[f] = (famCount[f] || 0) + 1; }
+      const multiBox = Object.entries(famCount).filter(([f, c]) => c >= 2).map(([f, c]) => `<label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin:2px 0"><input type="checkbox" ${pairMultiOn(n, f) ? 'checked' : ''} onchange="setPairMulti('${nid}','${f}',this.checked)"> 🧵 ${esc(PAIR_FAM[f].n)} אחד עם ${c} ליבות במקום ${c} כבלים בודדים</label>`).join('');
       const LBL = cableLabels();
       const rows = Array.from({ length: N }, (_, i) => { const a = n.panel.holes[i], b = m.panel.holes[i], c = pairCableOf(nid, i); return `<tr>
         <td style="text-align:center">${i + 1}</td><td>${esc((CONNS[a.conn] || CONNS.empty).n)}</td>
         <td><select style="width:100%;font-size:11px" onchange="setPairConn('${nid}',${i},this.value)">${connOpts(b.conn)}</select></td>
-        <td><select style="width:100%;font-size:11px" onchange="setPairCab('${nid}',${i},this.value)" ${c ? 'disabled' : ''}>${cabOpts(c ? c.type : pairCabType(n, i))}</select></td>
+        <td>${!c && pairFamOf(a.conn) && pairMultiOn(n, pairFamOf(a.conn)) && famCount[pairFamOf(a.conn)] >= 2 ? `<span style="font-size:11px;color:#1976d2">🧵 ליבה ב${esc(PAIR_FAM[pairFamOf(a.conn)].n)}</span>` : `<select style="width:100%;font-size:11px" onchange="setPairCab('${nid}',${i},this.value)" ${c ? 'disabled' : ''}>${cabOpts(c ? (c.spec && /AOC/.test(c.spec) ? 'sdi:aoc' : c.type) : pairCabType(n, i))}</select>`}</td>
         <td style="text-align:center">${c ? `<span class="badge" style="background:${cableColor(c)}">${LBL[c.id] || '✓'}</span>` : '—'}</td></tr>`; }).join('');
       const pending = Array.from({ length: N }, (_, i) => i).filter(i => n.panel.holes[i].conn && n.panel.holes[i].conn !== 'empty' && !pairCableOf(nid, i)).length;
       return `<h3 class="sec">🔁 הצד השני: ${esc(m.name)}</h3>
         <p class="muted" style="margin:0 0 4px">לכל חור: המחבר כאן, המחבר בצד השני (ניתן לשינוי) והכבל שיחבר ביניהם. שורה עם תג = כבר מחובר.</p>
         <div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="color:#777"><th>#</th><th>כאן</th><th>שם</th><th>כבל</th><th>מצב</th></tr></thead><tbody>${rows}</tbody></table></div>
-        <button style="width:100%;margin-top:6px;background:#0f6e56;color:#fff;font-weight:700" onclick="connectPair('${nid}')" ${pending ? '' : 'disabled'}>🔗 חבר בין השניים (${pending} כבלים)</button>
+        ${multiBox ? `<div style="margin-top:6px">${multiBox}</div>` : ''}
+        <button style="width:100%;margin-top:6px;background:#0f6e56;color:#fff;font-weight:700" onclick="connectPair('${nid}')" ${pending ? '' : 'disabled'}>🔗 חבר בין השניים (${(() => { let k = 0; const fams = {}; for (let i = 0; i < N; i++) { const h2 = n.panel.holes[i]; if (!h2.conn || h2.conn === 'empty' || pairCableOf(nid, i)) continue; const f = pairFamOf(h2.conn); if (f && pairMultiOn(n, f) && famCount[f] >= 2) fams[f] = 1; else k++; } return k + Object.keys(fams).length; })()} כבלים)</button>
         <div style="display:flex;gap:6px;margin-top:4px"><button style="flex:1" onclick="sel='${m.id}';ui.tab='node';render()">↗ לפאנל הנגדי</button><button style="flex:1" onclick="unpairPanel('${nid}')">בטל קישור</button></div>`; })() : ''}
     <button style="width:100%;margin-top:6px;${labelMode ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="labelMode=!labelMode;render()">🏷 ${labelMode ? 'מצב שמות פעיל — לחץ על חור כדי לתת שם' : 'מצב שמות — תן שמות לחורים (למשל Main L/R)'}</button>
     <p class="muted" style="margin-top:6px">${cs}</p>`;
@@ -3145,6 +3181,16 @@ function cableLabels() {
   });
   return lbl;
 }
+/* שתי קופסאות זו מעל זו (חפיפה אופקית, מרווח אנכי) — הכבל יוצא מלמטה/מלמעלה וממשיך ישר, בלי עקיפה מהצד */
+function stackedBoxes(A, B) {
+  if (!A || !B) return null;
+  const aL = 2200 - A.x - A.w, aR = 2200 - A.x, bL = 2200 - B.x - B.w, bR = 2200 - B.x;
+  const ovl = Math.min(aR, bR) - Math.max(aL, bL);
+  if (ovl < Math.min(A.w, B.w) * 0.35) return null;
+  if (B.y >= A.y + (A.h || 0) + 8) return 'AB';   /* A למעלה, B למטה */
+  if (A.y >= B.y + (B.h || 0) + 8) return 'BA';
+  return null;
+}
 function renderWires() {
   const LBL = cableLabels();
   const svg = $('#wires');
@@ -3159,6 +3205,8 @@ function renderWires() {
     if (a.hidden || b.hidden) return null; /* מוצר מוסתר — גם הכבלים שלו מוסתרים */
     const A = nodeBox(a), B = nodeBox(b);
     const acx = W - A.x - A.w / 2, bcx = W - B.x - B.w / 2;
+    const st = stackedBoxes(A, B);
+    if (st) return { A, B, aside: st === 'AB' ? 'B' : 'T', bside: st === 'AB' ? 'T' : 'B', vert: true };
     return { A, B, aside: bcx < acx ? 'L' : 'R', bside: acx < bcx ? 'L' : 'R' };
   };
   /* ספירת חיבורים לכל צד של מוקד — כדי לפזר כניסות */
@@ -3172,6 +3220,13 @@ function renderWires() {
   });
   const endPt = (c, end, side, box) => {
     const nid = c[end], unitId = c[end + 'Unit'];
+    if (side === 'T' || side === 'B') {
+      /* יציאה מהשפה העליונה/התחתונה — פאנל/קופסה שיושבים זה מעל זה */
+      const pp0 = PANELPORT[c.id + '|' + nid]; if (pp0) return { x: pp0.x, y: pp0.y, dot: false };
+      const k = nid + '|' + side, idx = sideIdx[k] = (sideIdx[k] || 0) + 1;
+      const cx0 = W - box.x - box.w / 2 + (idx - 1 - ((sideTot[k] || 1) - 1) / 2) * 26;
+      return { x: Math.max(W - box.x - box.w + 8, Math.min(W - box.x - 8, cx0 + (c.aoff?.[end] || 0))), y: side === 'T' ? box.y : box.y + (box.h || 0), dot: true };
+    }
     const x = side === 'L' ? W - box.x - box.w : W - box.x;
     const u = unitOf(nid, unitId);
     let y, dot = false;
@@ -3230,13 +3285,23 @@ function renderWires() {
     const sib = sibG[c.from + '|' + c.to];
     const off = (sib.indexOf(c) - (sib.length - 1) / 2) * 16;
     WIREPTS[c.id] = { a: { x: pa.x, y: pa.y }, b: { x: pb.x, y: pb.y } };
-    items.push({ c, i, pa, pb, off, A: f.A, B: f.B });
+    items.push({ c, i, pa, pb, off, A: f.A, B: f.B, vert: !!f.vert });
   });
 
   /* הקצאת נתיבים אנכיים ואופקיים ללא חפיפה (מצב מעגל חשמלי) */
   const lanes = [], hlanes = [];
   for (const it of items) {
     const { pa, pb, off, c } = it;
+    if (ortho && it.vert) {
+      /* מסלול אנכי: ירידה ישרה, פס רוחבי קצר באמצע (אם הנקודות לא באותו x) וכניסה מלמעלה/מלמטה */
+      let my = (pa.y + pb.y) / 2 + off + (c.bend?.dy || 0);
+      const x1 = Math.min(pa.x, pb.x), x2 = Math.max(pa.x, pb.x);
+      let g = 0;
+      while (g++ < 30 && hlanes.some(v => Math.abs(v.y - my) < 9 && x1 < v.x2 + 10 && v.x1 - 10 < x2)) my += 12;
+      hlanes.push({ y: my, x1, x2 });
+      it.my = my; it.mx = (pa.x + pb.x) / 2; it.bx = it.mx; it.by = my;
+      continue;
+    }
     if (ortho) {
       let mx = (pa.x + pb.x) / 2 + off + (c.bend?.dx || 0);
       /* הקו האנכי לא חוצה את הארון/פאנל של הקצוות — עובר לצד החיצוני שלהם */
@@ -3331,7 +3396,9 @@ function renderWires() {
     const col = cableColor(c);
     const selw = c.id === selCable ? 4 : (c.type === 'multi' ? 3.2 : 2.2);   /* מולטי עבה יותר — נבדל גם בלי צבע */
     let dpath;
-    if (ortho) {
+    if (ortho && it.vert) {
+      dpath = Math.abs(pa.x - pb.x) < 2 ? `M${pa.x} ${pa.y} V ${pb.y}` : `M${pa.x} ${pa.y} V ${it.my} H ${pb.x} V ${pb.y}`;
+    } else if (ortho) {
       /* קצה שנכנס בשפת פאנל/ארון והיעד בצד הנגדי — בורח החוצה ועוקף את הקופסה
          מבחוץ (מעל/מתחת) במקום לחצות אותה. זה מה שקורה בשטח עם כבל אמיתי. */
       /* כמה כבלים שעוקפים את אותה קופסה מאותו צד — כל אחד במסלול מקביל משלו (מדורג 6px) */
@@ -3390,11 +3457,14 @@ function renderWires() {
         <text x="${x}" y="${y + fs * 0.36}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="800" fill="${col}" style="user-select:none">${lbl}</text></g>`;
     };
     out += handle(pa.x, pa.y, 'from') + handle(pb.x, pb.y, 'to');
-    if (ortho) {
+    if (ortho && it.vert) {
+      /* פינות הפס הרוחבי — גרירה אנכית מזיזה את הפס (bend.dy) */
+      if (Math.abs(pa.x - pb.x) >= 2) out += [[pa.x, it.my], [pb.x, it.my]].map(([x, y]) => `<rect x="${x - 4.5}" y="${y - 4.5}" width="9" height="9" rx="2" fill="#fff" stroke="${col}" stroke-width="1.5" style="pointer-events:all;cursor:ns-resize" data-cbadge="${c.id}"><title>גרירה — הזזת הפס הרוחבי</title></rect>`).join('');
+    } else if (ortho) {
       const corner = (x, y, end) => `<rect x="${x - 4.5}" y="${y - 4.5}" width="9" height="9" rx="2" fill="#fff" stroke="${col}" stroke-width="1.5" style="pointer-events:all;cursor:move" data-corner="${c.id}|${end}"><title>גרירה אופקית — הזזת הקו · אנכית — נקודת החיבור</title></rect>`;
       out += corner(it.mx, pa.y, 'from') + corner(it.mx, pb.y, 'to');
     }
-    const btip = esc(`${CTYPES[c.type].n}${c.cores ? ' · ' + c.cores + '× XLR' : ''}${c.fiber ? ' · ' + c.fiber : ''}${c.spec ? ' · ' + c.spec : ''}${c.len ? ' · ' + c.len + ' מ׳' : ''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.note ? ' · ' + c.note : ''}${c.pOut || c.pIn ? ' · ' + (c.pOut || '?') + ' ← ' + (c.pIn || '?') : ''}`);
+    const btip = esc(`${CTYPES[c.type].n}${c.cores ? ' · ' + c.cores + '× ' + coreTxt(c) : ''}${c.fiber ? ' · ' + c.fiber : ''}${c.spec ? ' · ' + c.spec : ''}${c.len ? ' · ' + c.len + ' מ׳' : ''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.note ? ' · ' + c.note : ''}${c.pOut || c.pIn ? ' · ' + (c.pOut || '?') + ' ← ' + (c.pIn || '?') : ''}`);
     /* המספר יושב בתוך עיגול הקצה עצמו (handle) — אין תג נפרד */
     const bR = Math.max(7, (String(LBL[c.id]).length > 2 ? 13 : 11) * shrink);
     const bF = Math.max(6, (String(LBL[c.id]).length > 2 ? 9.5 : 11) * shrink);
@@ -6742,7 +6812,7 @@ function renderLegend() {
     P.cables.map((c, i) => `<tr>
       <td><span class="badge" style="background:${cableColor(c)}">${cableLabels()[c.id]}</span></td>
       <td>${endName(c.from, c.fromUnit)}${c.pOut ? ' <small style="color:#888">· ' + esc(c.pOut) + '</small>' : ''}</td><td>${endName(c.to, c.toUnit)}${c.pIn ? ' <small style="color:#888">· ' + esc(c.pIn) + '</small>' : ''}</td>
-      <td>${CTYPES[c.type].n}${c.cores?' · '+c.cores+'× XLR':''}${c.fiber?' · '+c.fiber:''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}</td><td>${esc(c.qty)}</td><td>${esc(c.spec)}</td><td>${vdCell(c)}</td><td>${c.inst === 'exist' ? '♻️ קיים' : c.inst === 'pull' ? '🚚 להעברה' : '➕ חדש'}</td><td>${esc(c.note)}</td></tr>`).join('') +
+      <td>${CTYPES[c.type].n}${c.cores?' · '+c.cores+'× '+coreTxt(c):''}${c.fiber?' · '+c.fiber:''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}</td><td>${esc(c.qty)}</td><td>${esc(c.spec)}</td><td>${vdCell(c)}</td><td>${c.inst === 'exist' ? '♻️ קיים' : c.inst === 'pull' ? '🚚 להעברה' : '➕ חדש'}</td><td>${esc(c.note)}</td></tr>`).join('') +
     '</table>' +
     ((P.zones || []).length ? `<h3 style="margin-top:12px">אזורי סאונד</h3>
       <table class="cablelist"><tr><th></th><th>שם האזור</th><th>תכלית</th><th>שטח</th><th></th></tr>` +
@@ -11121,7 +11191,7 @@ function cableTableHTML() {
     P.cables.map((c, i) => `<tr>
       <td><span class="badge" style="background:${cableColor(c)}">${cableLabels()[c.id]}</span></td>
       <td>${endName(c.from, c.fromUnit)}${c.pOut ? ' <small style="color:#888">· ' + esc(c.pOut) + '</small>' : ''}</td><td>${endName(c.to, c.toUnit)}${c.pIn ? ' <small style="color:#888">· ' + esc(c.pIn) + '</small>' : ''}</td>
-      <td>${CTYPES[c.type].n}${c.cores?' · '+c.cores+'× XLR':''}${c.fiber?' · '+c.fiber:''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.dir === 'both' ? ' ↔' : ''}</td><td>${esc(c.qty)}</td><td>${esc(c.spec)}</td><td>${vdCell(c)}</td><td>${c.inst === 'exist' ? '♻️ קיים' : c.inst === 'pull' ? '🚚 להעברה' : '➕ חדש'}</td><td>${esc(c.note)}</td></tr>`).join('') + '</table>';
+      <td>${CTYPES[c.type].n}${c.cores?' · '+c.cores+'× '+coreTxt(c):''}${c.fiber?' · '+c.fiber:''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.dir === 'both' ? ' ↔' : ''}</td><td>${esc(c.qty)}</td><td>${esc(c.spec)}</td><td>${vdCell(c)}</td><td>${c.inst === 'exist' ? '♻️ קיים' : c.inst === 'pull' ? '🚚 להעברה' : '➕ חדש'}</td><td>${esc(c.note)}</td></tr>`).join('') + '</table>';
 }
 function rackSection(n) {
   let rows = '';
