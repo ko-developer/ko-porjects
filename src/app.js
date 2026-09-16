@@ -17,6 +17,7 @@ const CTYPES = {
   dmx:   { n: 'DMX',         c: '#b8860b' },
   sdi:   { n: 'SDI/וידאו',   c: '#2e7d32' },
   pwr:   { n: 'חשמל',        c: '#616161' },
+  aes:   { n: 'AES/EBU (דיגיטלי 110Ω)', c: '#7b1fa2' },
 };
 /* גווני כבל רמקול לפי חתך (ממ״ר) — חתך שונה = צבע שונה על התכנית ובדוח */
 const NL4_MM_COLORS = { 1: '#f5b041', 1.5: '#f39c12', 2.5: '#e65100', 4: '#a63a00', 6: '#6d2400' };
@@ -1336,7 +1337,7 @@ function renderCableKey() {
       <div style="display:flex;align-items:center;gap:6px"><span style="width:18px;border-top:2px dashed #555;flex:none"></span><span>♻️ קיים במקום</span></div>
       <div style="display:flex;align-items:center;gap:6px"><span style="width:18px;border-top:3px solid #555;flex:none;opacity:.6"></span><span>🚚 להעברה במקום</span></div></div>` : '');
 }
-const CAB_GROUP = { multi: 'audio', xlr: 'audio', nl4: 'audio', dmx: 'light', sdi: 'video', hdmi: 'video', cat: 'data', fiber: 'data', pwr: 'power' };
+const CAB_GROUP = { multi: 'audio', xlr: 'audio', aes: 'audio', nl4: 'audio', dmx: 'light', sdi: 'video', hdmi: 'video', cat: 'data', fiber: 'data', pwr: 'power' };
 function cableVisible(c) {
   /* בידוד קו בעורך החיווט — מציגים רק את הכבלים של הערוץ שנבחר */
   if (typeof PATCH !== 'undefined' && PATCH && PATCH.solo) {
@@ -3862,7 +3863,7 @@ function ioRoutingHTML(name, nid, unitId) {
   return h;
 }
 function connFor(type) {
-  return { nl4: 'speakon', multi: 'xlrm', xlr: 'xlrm', cat: 'rj45', sdi: 'bnc', dmx: 'xlrm', pwr: 'pwr', fiber: 'fiber' }[type] || 'xlrf';
+  return { nl4: 'speakon', multi: 'xlrm', xlr: 'xlrm', aes: 'xlrm', cat: 'rj45', sdi: 'bnc', dmx: 'xlrm', pwr: 'pwr', fiber: 'fiber' }[type] || 'xlrf';
 }
 function cableForm(c) {
   const opts = v => P.nodes.map(n => `<option value="${n.id}" ${v === n.id ? 'selected' : ''}>${esc(n.name)}</option>`).join('');
@@ -3886,7 +3887,7 @@ function cableForm(c) {
     ${endLevelHTML('to', c, t0, tid)}
     <div class="row2"><div class="fld"><label>סוג כבל</label><select name="type" onchange="document.getElementById('${cnid}').value=connFor(this.value)">${topts}</select></div>
     <div class="fld"><label>כמות</label><input name="qty" value="${esc(c?.qty ?? '1')}"></div></div>
-    <div class="fld"><label>קווי XLR פנימיים במולטי (מספר · מולטי XLR)</label><input name="cores" type="number" min="1" value="${c?.cores ?? ''}" placeholder="למשל 24 — לא משנה זכר/נקבה"></div>
+    <div class="fld"><label>ליבות בכבל מולטי — XLR / רשת Cat6 / אופטי (מספר)</label><input name="cores" type="number" min="1" value="${c?.cores ?? ''}" placeholder="למשל 24 · מולטי רשת 2 · אופטי 4"></div>
     <div class="fld"><label>סוג סיב (לכבל אופטי)</label><select name="fiber">
       ${['', 'Single Mode OS2', 'Multimode OM3', 'Multimode OM4', 'Multimode OM5'].map(fm => `<option value="${fm}" ${(c?.fiber || '') === fm ? 'selected' : ''}>${fm || '— לא אופטי / לא צוין —'}</option>`).join('')}
     </select></div>
@@ -4106,7 +4107,8 @@ function patchOpen(z, amps, lines, leftover) {
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
     (rk.units || []).forEach(u => {
       if (!isInUnit(u.name)) return;
-      PATCH.ins.push({ rk, u, inTotal: patchInChips(u) });
+      const inN = patchInChips(u); if (inN === 0) return;   /* 0 כניסות = למוצר אין כניסות — לא מוצע */
+      PATCH.ins.push({ rk, u, inTotal: inN });
     });
   });
   PATCH.ins.forEach((t, ii) => {
@@ -4459,7 +4461,7 @@ function patchRender() {
         <span class="pchZ ${ids.length ? 'ok' : 'emp'}">${ids.length ? ids.length + ' מקור' + (ids.length > 1 ? 'ות' : '') : '—'}</span></div>`);
     }
     return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(t.u.name)}">🎛 ${esc(modelOf(t.u.name))}
-      <small><input type="number" min="1" max="32" value="${t.inTotal}" title="מספר הכניסות של היחידה — נשמר לדגם" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchInSet(${ii},this.value)"> כניסות · ${esc(t.rk.name.slice(0, 14))}</small></div>${rows.join('')}</div>`;
+      <small><input type="number" min="0" max="32" value="${t.inTotal}" title="מספר הכניסות של היחידה — נשמר לדגם · 0 = למוצר אין כניסות והוא לא יוצע כאן" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchInSet(${ii},this.value)"> כניסות · ${esc(t.rk.name.slice(0, 14))}</small></div>${rows.join('')}</div>`;
   }).join('');
   const insBlock = (PATCH.ins || []).length ? `
     <div style="font-size:12px;font-weight:700;margin:2px 0 5px">🎧 מקורות נגינה אל הארון</div>
@@ -4600,8 +4602,8 @@ function isSrcNode(n) {
 }
 function patchInChips(u) {
   const k = rearKey(u.name), lib = (store.ampLib || {})[k];
-  if (u.inCh) return u.inCh;
-  if (lib && lib.inCh) return lib.inCh;
+  if (u.inCh != null) return u.inCh;
+  if (lib && lib.inCh != null) return lib.inCh;
   /* הגב מהספרייה הוא המקור האמין למספר הכניסות */
   const r = rearLayoutSrc(u.name);
   if (r.src === 'lib' || r.src === 'srv') { const n = new Set(r.items.filter(i => /^IN/.test(i.port || '')).map(i => i.port)).size; if (n) return n; }
@@ -4609,7 +4611,7 @@ function patchInChips(u) {
 }
 function patchInSet(ii, val) {
   const t = PATCH.ins[ii]; if (!t) return;
-  const v = +val; if (!(v > 0)) return;
+  const v = +val; if (!(v >= 0)) return;
   t.inTotal = v; t.u.inCh = v;
   store.ampLib = store.ampLib || {};
   const k = rearKey(t.u.name);
