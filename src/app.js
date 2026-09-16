@@ -3300,12 +3300,12 @@ function renderWires() {
       const d = SK_OBJS[o.t] || { n: o.t, c: '#666' };
       const selO = sketchMode && sketchSel === oi;
       const fs = Math.max(9, Math.min(o.w * 0.28, 22));
-      out += `<g data-skobj="${oi}" transform="rotate(${o.r || 0} ${o.x} ${o.y})" style="cursor:${sketchMode ? 'move' : 'default'};pointer-events:${sketchMode ? 'all' : 'none'}">` +
+      out += `<g data-skobj="${oi}" transform="rotate(${o.r || 0} ${o.x} ${o.y})" style="cursor:${sketchMode ? 'move' : 'pointer'};pointer-events:all">` +
         (d.round ? `<ellipse cx="${o.x}" cy="${o.y}" rx="${o.w / 2}" ry="${o.h / 2}" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`
           : `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`) +
         `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${d.n}</text>` +
         (P.scale ? `<text x="${o.x}" y="${o.y + o.h / 2 + fs * 0.95}" text-anchor="middle" font-size="${(fs * 0.72).toFixed(1)}" fill="${d.c}" opacity="0.85" style="user-select:none">${(o.w * P.scale).toFixed(2)}×${(o.h * P.scale).toFixed(2)} מ׳</text>` : '') +
-        `<title>${d.n}${P.scale ? ` · ${(o.w * P.scale).toFixed(1)}×${(o.h * P.scale).toFixed(1)} מ׳` : ''} — במצב שרטוט: גרירה מזיזה, הסרגל מסובב/משנה גודל</title></g>`;
+        `<title>${d.n}${P.scale ? ` · ${(o.w * P.scale).toFixed(1)}×${(o.h * P.scale).toFixed(1)} מ׳` : ''} — לחיצה פותחת את כלי השרטוט: גרירה מזיזה, ובסרגל: סיבוב, הגדלה/הקטנה ומידות במטרים</title></g>`;
     });
     if (sketchMode && sketchMode.cur && sketchMode.cur.length) {
       const c = sketchMode.cur;
@@ -6810,8 +6810,10 @@ function sketchBar() {
     Object.entries(SK_OBJS).map(([k, d]) => tb(k, d.n, 'הצבת ' + d.n + ' (' + d.w + '×' + d.h + ' מ׳) — לחיצה על התכנית')).join('') +
     (o ? `<span style="opacity:.35">|</span>
       <button title="סיבוב 45°" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.r=((o2.r||0)+45)%360;save();renderWires()">⟳</button>
-      <button title="הגדלה" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.w*=1.15;o2.h*=1.15;save();renderWires()">＋</button>
-      <button title="הקטנה" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.w/=1.15;o2.h/=1.15;save();renderWires()">－</button>
+      <button title="הגדלה 15%" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.w*=1.15;o2.h*=1.15;save();sketchBar();renderWires()">＋</button>
+      <button title="הקטנה 15%" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.w/=1.15;o2.h/=1.15;save();sketchBar();renderWires()">－</button>
+      ${P.scale ? `<label style="font-size:11px;display:flex;align-items:center;gap:3px">רוחב <input type="number" step="0.05" min="0.1" value="${(o.w * P.scale).toFixed(2)}" style="width:58px;font-size:11px;padding:3px" onchange="const o2=P.sketch.objs[sketchSel];o2.w=Math.max(0.1,+this.value)/P.scale;save();renderWires()"> מ׳</label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:3px">אורך <input type="number" step="0.05" min="0.1" value="${(o.h * P.scale).toFixed(2)}" style="width:58px;font-size:11px;padding:3px" onchange="const o2=P.sketch.objs[sketchSel];o2.h=Math.max(0.1,+this.value)/P.scale;save();renderWires()"> מ׳</label>` : `<span style="font-size:11px;opacity:.8">${Math.round(o.w)}×${Math.round(o.h)}px (כייל את התכנית למידות במטרים)</span>`}
       <button title="מחיקת האובייקט המסומן" style="${bs(false)}" onclick="P.sketch.objs.splice(sketchSel,1);sketchSel=null;save();sketchBar();renderWires()">🗑</button>` : '') +
     `<button title="סיום — השרטוט נשאר על התכנית" style="padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:12px;background:#0f6e56;color:#fff;font-weight:700" onclick="sketchEnd()">✓ סיום</button>`;
   bar.querySelectorAll('[data-t]').forEach(b => { b.onclick = () => { sketchMode.tool = b.dataset.t; sketchMode.cur = []; sketchBar(); renderWires(); }; });
@@ -6825,9 +6827,9 @@ function sketchEnd() {
 }
 /* גרירת אובייקט שרטוט + בחירה */
 document.addEventListener('pointerdown', e => {
-  if (!sketchMode) return;
   const el = e.target.closest('[data-skobj]');
   if (!el) return;
+  if (!sketchMode) { if (wireMode || pinMode || calMode || zoneMode) return; sketchMode = { tool: 'select', cur: [] }; }   /* לחיצה על אובייקט מחוץ למצב שרטוט — פותחת את הכלים עם האובייקט מסומן */
   sketchSel = +el.dataset.skobj; sketchBar();
   const o = (P.sketch.objs || [])[sketchSel]; if (!o) return;
   const st = canvasPt(e), ox = o.x, oy = o.y;
