@@ -4613,6 +4613,7 @@ function patchInSet(ii, val) {
   const t = PATCH.ins[ii]; if (!t) return;
   const v = +val; if (!(v >= 0)) return;
   t.inTotal = v; t.u.inCh = v;
+  if (v === 0) PATCH.ins = PATCH.ins.filter(x => x !== t);   /* 0 = אין כניסות — היחידה יוצאת מהרשימה מיד */
   store.ampLib = store.ampLib || {};
   const k = rearKey(t.u.name);
   store.ampLib[k] = { ...(store.ampLib[k] || {}), inCh: v };
