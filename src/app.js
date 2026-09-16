@@ -1244,7 +1244,7 @@ async function bugBadge() {
     const r = await fetch('/api/bugs/count'); if (!r.ok) return; const j = await r.json();
     const el = document.getElementById('bugBadge'); if (!el) return;
     el.textContent = j.n || ''; el.style.display = j.n ? 'inline-block' : 'none';
-    const btn = document.getElementById('bugBtn'); if (btn && AUTH && AUTH.user && AUTH.user.role === 'owner') btn.onclick = () => location.href = '/bugs';
+    /* גם לבעלים: הכפתור פותח את חלון הדיווח (עם טופס דיווח חדש); הניהול המלא בקישור /bugs שבתוך החלון */
   } catch (e) {}
 }
 window.bugDialog = bugDialog; window.bugAddFiles = bugAddFiles; window.bugRenderAtts = bugRenderAtts; window.bugReply = bugReply;

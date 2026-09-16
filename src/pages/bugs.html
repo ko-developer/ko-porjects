@@ -25,6 +25,15 @@ button.pri{background:#0f6e56;color:#fff;border-color:#0f6e56;font-weight:700}bu
 #zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:99;cursor:zoom-out}#zoom img,#zoom video{max-width:95vw;max-height:95vh}
 </style>
 <div class="top"><h1>🐞 באגים</h1><a href="/">← חזרה לאפליקציה</a><a href="/admin">👥 משתמשים</a><span class="muted" id="sum"></span></div>
+<details id="nb" style="background:#fff;border:1px solid #e6e2d8;border-radius:12px;padding:10px 14px;margin:10px 0">
+  <summary style="cursor:pointer;font-weight:700">➕ דיווח חדש (גם לבעלים — משימה/באג לטיפול)</summary>
+  <div style="margin-top:8px">
+    <input id="nbTitle" placeholder="כותרת קצרה — מה קרה / מה לתקן" maxlength="140" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #ddd;border-radius:8px">
+    <textarea id="nbDesc" placeholder="תיאור — מה עשית, מה קרה, מה היה צריך לקרות. אפשר להדביק צילום מסך (Ctrl+V) או לצרף קובץ."></textarea>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px"><button type="button" onclick="document.getElementById('nbFile').click()">📎 צרף קובץ / צילום מסך</button><input id="nbFile" type="file" multiple accept="image/*,video/*,.pdf,.txt,.log,.json" style="display:none"><span id="nbAtts" class="muted"></span></div>
+    <button class="pri" id="nbSend" style="margin-top:8px">📨 שמור דיווח</button>
+  </div>
+</details>
 <div class="filters" id="filters"></div>
 <div id="list">טוען…</div>
 <div id="zoom" onclick="this.style.display='none';this.innerHTML=''"></div>
@@ -74,6 +83,22 @@ button.pri{background:#0f6e56;color:#fff;border-color:#0f6e56;font-weight:700}bu
       post('/api/bugs/' + t.dataset.send + '/comment', { text: txt }).then(load);
     } else if (t.dataset.del) { if (confirm('למחוק את הבאג וכל הקבצים שלו?')) post('/api/bugs/' + t.dataset.del + '/delete', {}).then(load); }
     else if (t.dataset.zoom) { var z = document.getElementById('zoom'); z.innerHTML = t.dataset.zoom === 'img' ? '<img src="' + t.getAttribute('src') + '">' : '<video src="' + t.getAttribute('src') + '" controls autoplay></video>'; z.style.display = 'flex'; e.preventDefault(); }
+  });
+  /* דיווח חדש מהדף הזה — גם הבעלים רושם לעצמו משימות/באגים; קבצים מודבקים או מצורפים */
+  var nbAtts = [];
+  var nbRender = function () { document.getElementById('nbAtts').textContent = nbAtts.length ? nbAtts.map(function (a) { return a.name; }).join(' · ') : ''; };
+  var nbAdd = function (files) { Array.prototype.forEach.call(files, function (f) { if (f.size > 80 * 1024 * 1024) return; var fr = new FileReader(); fr.onload = function () { nbAtts.push({ name: f.name || 'file', type: f.type || 'application/octet-stream', data: String(fr.result), size: f.size }); nbRender(); }; fr.readAsDataURL(f); }); };
+  document.getElementById('nbFile').addEventListener('change', function (e) { nbAdd(e.target.files); e.target.value = ''; });
+  document.addEventListener('paste', function (e) { var fs = e.clipboardData && e.clipboardData.files; if (fs && fs.length) { e.preventDefault(); document.getElementById('nb').open = true; nbAdd(fs); } });
+  document.getElementById('nbSend').addEventListener('click', function () {
+    var title = document.getElementById('nbTitle').value.trim(), desc = document.getElementById('nbDesc').value.trim();
+    if (!title && !desc) { alert('כתוב כותרת או תיאור'); return; }
+    var b = document.getElementById('nbSend'); b.disabled = true; b.textContent = 'שומר…';
+    post('/api/bugs', { title: title, desc: desc, attachments: nbAtts, page: '/bugs', project: '' }).then(function (j) {
+      b.disabled = false; b.textContent = '📨 שמור דיווח';
+      if (j && j.error) { alert(j.error); return; }
+      document.getElementById('nbTitle').value = ''; document.getElementById('nbDesc').value = ''; nbAtts = []; nbRender(); load();
+    });
   });
   document.addEventListener('change', function (e) {
     var t = e.target; if (!t.dataset.status) return;
