@@ -499,7 +499,21 @@ async function pmDeleteSel() {
 function renameProj(v) { P.name = v; render(); }
 
 const $ = s => document.querySelector(s);
-const byId = id => P.nodes.find(n => n.id === id);
+const BAND_LBL = { hi: 'HI', mid: 'MID', low: 'LOW' };
+const BAND_PROXY = new Map();   /* 'nodeId#hi' → אובייקט שיורש מהמוקד החי (Object.create) עם id/band משלו */
+const spkBase = id => String(id || '').split('#')[0];
+const spkBand = id => { const i = String(id || '').indexOf('#'); return i >= 0 ? String(id).slice(i + 1) : ''; };
+const byId = id => {
+  if (typeof id === 'string' && id.includes('#')) {
+    const base = P.nodes.find(n => n.id === spkBase(id)); if (!base) return undefined;
+    let px = BAND_PROXY.get(id); if (!px || Object.getPrototypeOf(px) !== base) { px = Object.create(base); Object.defineProperty(px, 'id', { value: id, enumerable: true }); Object.defineProperty(px, 'band', { value: spkBand(id), enumerable: true }); BAND_PROXY.set(id, px); }
+    return px;
+  }
+  return P.nodes.find(n => n.id === id);
+};
+/* הגברה של רמקול לפי טבלת הנתונים (עמודת "הגברה"): passive / bi / tri → כמה קווי הגברה נפרדים הוא צריך */
+function spkAmpMode(name) { const m = (store.spkMeta || {})[rearKey(name)]; return (m && m.amp) || 'passive'; }
+function bandIds(n) { const mode = spkAmpMode(nodeFullName(n)); return mode === 'tri' ? ['hi', 'mid', 'low'].map(b => n.id + '#' + b) : mode === 'bi' ? ['hi', 'low'].map(b => n.id + '#' + b) : [n.id]; }
 const cById = id => P.cables.find(c => c.id === id);
 
 /* מרכז החלק הנראה של התכנית בקואורדינטות הקנבס — מוקד חדש נוצר שם ולא בפינה קבועה שמחוץ למסך בזום גבוה */
@@ -555,6 +569,23 @@ function addUnitAt(nid, pos) {
     const f = document.querySelector('#panel input[name="nm"]');
     if (f) { f.focus(); f.placeholder = 'שם היחידה — תתווסף במיקום ' + (pos + 1) + 'U'; if (f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
   }, 60);
+}
+/* מוקד → יחידה בארון: שם/קטגוריה/גובה U מנוחשים מהשם, הפריט מההצעה (srcIid) והכבלים עוברים ליחידה */
+function pointIntoRack(nid, rid, slot) {
+  const n = byId(nid), r = byId(rid); if (!n || !r || r.kind !== 'rack') return;
+  const name = (n.name || '').replace(/\s*\(\d+\)\s*$/, '').trim() || 'יחידה';
+  const cat = /פאנל|panel|RP-|מולטי|patch|ניתוב/i.test(name) ? 'patch' : /פרוססור|processor|מטריצ|matrix|DSP|קרוסאובר/i.test(name) ? 'audio' : /מגבר|amplifier|\bamp\b/i.test(name) ? 'amp' : /רשת|switch|router|ראוטר|מתג/i.test(name) ? 'net' : 'other';
+  const um = /(\d)\s?U\b/i.exec(name); const u = um ? Math.max(1, Math.min(6, +um[1])) : 1;
+  let pos = slot >= 0 && fits(r, slot, u, -1) ? slot : firstFree(r, u);
+  if (pos < 0) { uiToast('אין מקום פנוי בארון "' + r.name + '" — הגדל את גובה הארון'); render(); return; }
+  const unit = { id: uid('u'), name: name.slice(0, 40), u, cat, pos, srcIid: n.srcIid };
+  if (n.panel) unit.panel = n.panel;
+  r.units.push(unit); rackArrange(r);
+  let moved = 0;
+  P.cables.forEach(c => { if (c.from === n.id) { c.from = r.id; c.fromUnit = unit.id; moved++; } if (c.to === n.id) { c.to = r.id; c.toUnit = unit.id; moved++; } });
+  P.nodes = P.nodes.filter(x => x.id !== n.id);
+  sel = r.id; ui.tab = 'node'; render(); save();
+  uiToast('🗄 "' + name.slice(0, 30) + '" נכנס לארון "' + r.name + '" במיקום ' + (pos + 1) + 'U' + (moved ? ' · ' + moved + ' כבלים עברו איתו' : ''));
 }
 function addU(id, f) {
   const r = byId(id), u = +f.u.value || 1;
@@ -3987,10 +4018,13 @@ function shortModel(name) {
   const s = String(name || '').replace(/\(\d+\)\s*$/, '').trim();
   const m = /מדגם\s+(.{2,22}?)(?:\s+(?:בעוצמה|וואט|\d+W\b|גודל|בצבע|עם|\d+X)|$)/i.exec(s);
   if (m) return m[1].trim();
-  const en = s.match(/[A-Z][A-Z0-9\- ]{2,18}/);
-  if (en) return en[0].trim();
+  const en = s.match(/[A-Z][A-Z0-9\- ]{2,22}/);
+  if (en) return stripBrand(en[0].trim());
   return s.replace(/^(רמקול|סאב|מגבר)\s+(פאסיבי|אקטיבי|מוגבר)?\s*(תוצרת)?\s*/i, '').slice(0, 18).trim();
 }
+/* שם דגם בלי המותג — "FUNKTION ONE EVO X" → "EVO X" (בשבבי הפאץ׳ ובתוויות קצרות) */
+const BRAND_RX = /^(FUNKTION[\s-]?ONE|F1|KLING\s*&?\s*FREITAG|K&F|KT\s?AUDIO|XTA|YAMAHA|SAE|LAB[.\s-]?GRUPPEN|CROWN|DIGISYNTHETIC|LAMBDA\s?LABS|NST|SYMETRIX|DYNACORD|QSC|JBL|BOSE|RCF|DB\s?TECHNOLOGIES|ELECTRO[\s-]?VOICE|EV|MARTIN\s?AUDIO|NEXO|D&B|L-?ACOUSTICS|MEYER|ALLEN\s*&\s*HEATH|SHURE|SENNHEISER|BEHRINGER|POWERSOFT|AUDAC|BIAMP|BSS|DBX)\s+/i;
+function stripBrand(s) { const t = String(s || '').replace(BRAND_RX, '').trim(); return t.length >= 2 ? t : String(s || '').trim(); }
 /* סוג המוצר מטבלת הנתונים הטכניים — כולל דריסות ידניות בעמודת "סוג" */
 function dbSpkType(prodName) {
   const nm = prodName || '';
@@ -4010,7 +4044,7 @@ function patchOpen(z, amps, lines, leftover) {
   PATCH = {
     zid: z.id, sel: null, mode: 'spk',
     amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set(), bridge: !!a.u.bridged })),
-    slots: {}, pool: leftover.map(n => n.id)
+    slots: {}, pool: leftover.flatMap(n => bandIds(n))   /* רמקול bi/tri-amp מופיע פעם לכל פס (HI/MID/LOW) — קו הגברה נפרד לכל פס */
   };
   lines.forEach(l => { PATCH.slots[amps.indexOf(l.amp) + '|' + l.ch] = [l.head.id, ...l.seg.map(s => s.to.id)]; });
   /* ערוצים שכבר מחוברים — מציגים את הרמקולים המחוברים בפועל; 🔓 משחרר לעריכה */
@@ -4222,7 +4256,7 @@ function patchChip(id, ro) {
   const n = byId(id); if (!n) return '';
   const full = nodeFullName(n);
   return `<span class="pchip ${patchKind(n)} ${PATCH.sel === id ? 'sel' : ''}" ${ro ? `data-chipro="${id}" style="opacity:.85"` : `draggable="true" data-chip="${id}"`}
-     title="${esc(full)} · ${spkOhm(n)}Ω · ${esc(n.sub || '')}"><b>${patchNum(n)}</b>${esc(shortModel(full))} <small style="opacity:.7">${spkOhm(n)}Ω</small></span>`;
+     title="${esc(full)} · ${spkOhm(n)}Ω · ${esc(n.sub || '')}${n.band ? ' · פס ' + BAND_LBL[n.band] : ''}"><b>${patchNum(n)}</b>${esc(shortModel(full))}${n.band ? ` <b style="font-size:9.5px;background:rgba(0,0,0,.12);border-radius:4px;padding:0 4px">${BAND_LBL[n.band]}</b>` : ''} <small style="opacity:.7">${spkOhm(n)}Ω</small></span>`;
 }
 /* 🌉 Bridge — גישור זוג ערוצים ליציאה אחת חזקה: הספק ≈ ×2 מהערוץ בחצי העומס,
    אום מינימלי ×2. תואם לנתונים הרשמיים (DYNAMIQ 450: ‏2×450W@4Ω → ‏900W@8Ω גשר). */
@@ -4892,13 +4926,13 @@ async function patchApply() {
       const head = run[0];
       const base = run.length > 1 ? 'שרשור (' + run.length + ' רמקולים)' : (runs.length > 1 || nodes.length > 1 ? 'קו ישיר (מקביל בערוץ)' : 'קו בודד');
       const note = base + (ri === 0 ? dlyTxt : '') + brTxt;
-      const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note, conn: 'speakon', conn2: 'speakon', pOut: pOutLbl };
+      const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: spkBase(head.id), type: 'nl4', qty: '1', spec: '', note: note + (head.band ? ' · פס ' + BAND_LBL[head.band] : ''), conn: 'speakon', conn2: 'speakon', pOut: pOutLbl, pIn: head.band ? BAND_LBL[head.band] : undefined };
       if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
       if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
       if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
       P.cables.push(cc); n2++; made.push(cc);
       for (let i = 1; i < run.length; i++) {
-        const cb = { id: uid('c'), from: run[i - 1].id, to: run[i].id, type: 'nl4', qty: '1', spec: '', note: 'שרשור', conn: 'speakon', conn2: 'speakon' };
+        const cb = { id: uid('c'), from: spkBase(run[i - 1].id), to: spkBase(run[i].id), type: 'nl4', qty: '1', spec: '', note: 'שרשור' + (run[i].band ? ' · פס ' + BAND_LBL[run[i].band] : ''), conn: 'speakon', conn2: 'speakon', pIn: run[i].band ? BAND_LBL[run[i].band] : undefined };
         if (P.scale) cb.len = +(dist(run[i - 1], run[i]) * P.scale).toFixed(1);
         if (cblRef) applyStockRef(cblRef, null, cb);
         P.cables.push(cb); n2++; made.push(cb);
@@ -5922,8 +5956,8 @@ function spkDataManager(tab) {
   rows.sort((a, b) => a.brand === b.brand ? a.name.localeCompare(b.name) : a.brand.localeCompare(b.brand));
   const allBrands = [...new Set(rows.map(r => r.brand).concat(['Funktion-One', 'Kling & Freitag', 'KT Audio', 'XTA', 'Yamaha', 'SAE', 'Lab Gruppen', 'Crown', 'DigiSynthetic', 'Lambda Labs', 'אחר']))].sort();
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
-  const heads = tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th>קישורים<br>🔗📄📘</th>' :
-    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th style="text-align:right">הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th style="text-align:right">הערות</th><th>קישור</th>';
+  const heads = '<th>תמונה</th>' + (tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th title="פסיבי = קו אחד · Bi-amp = HI+LOW · Tri-amp = HI+MID+LOW — כל פס מקבל ערוץ מגבר משלו בפאץ׳">הגברה</th><th>קישורים<br>🔗📄📘</th>' :
+    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th style="text-align:right">הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th style="text-align:right">הערות</th><th>קישור</th>');
   const ov = document.createElement('div');
   ov.id = 'spkDbOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
@@ -5947,12 +5981,13 @@ function spkDataManager(tab) {
     const c = r.ok ? '#0f8a5f' : '#c1121f';
     const bg = r.ok ? '#eef7f1' : '#fdeeee';
     const arg = r.lk ? `'${esc(r.lk).replace(/'/g, '&#39;')}'` : `null,${r.bi}`;
-    const colspan = tab === 'spk' ? 11 : 7;
+    const colspan = tab === 'spk' ? 13 : 8;
     const brandHdr = (ri === 0 || rows[ri - 1].brand !== r.brand) ? `<tr style="background:#e9e4db"><td colspan="${colspan}" style="padding:4px 6px;font-weight:800;font-size:12px">🏷 ${esc(r.brand)}</td></tr>` : '';
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
     const nmA = esc(r.name).replace(/'/g, '&#39;');
     const meta = metaOf(r.name);
-    const cells = tab === 'spk' ?
+    const imgTd = `<td style="text-align:center"><span style="cursor:pointer;display:inline-block" title="לחץ להגדרת תמונה (כתובת URL של תמונת המוצר)" onclick="dbImgSet('${tab}','${nmA}')">${meta.img ? `<img src="${esc(meta.img)}" loading="lazy" style="width:38px;height:38px;object-fit:contain;border-radius:5px;background:#fff" onerror="this.replaceWith('🖼')">` : imgCell('', 38, r.name)}</span></td>`;
+    const cells = imgTd + (tab === 'spk' ?
       `<td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','typ',this.value)">${['רמקול', 'סאב', 'קולום', 'שקוע', 'מוניטור', 'אחר'].map(t => `<option ${(meta.typ || guessTyp(r.name)) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
        <td style="text-align:center"><select title="מותג — הבחירה מסדרת את הקיבוץ בטבלה" style="max-width:112px;border:1px solid #ccc;border-radius:4px;font-size:11px;background:#fff" onchange="if(this.value==='__new'){spkBrandNew('${nmA}')}else spkMetaSet('${nmA}','brand',this.value)">${allBrands.map(b2 => `<option ${r.brand === b2 ? 'selected' : ''}>${esc(b2)}</option>`).join('')}<option value="__new">➕ מותג חדש…</option></select></td>
        <td style="text-align:center"><input value="${cell(r.d.h)}" style="width:44px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'h',this.value)"></td>
@@ -5961,6 +5996,7 @@ function spkDataManager(tab) {
        <td style="text-align:center"><input value="${cell(r.d.max)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'max',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.w)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.o)}" style="width:32px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'o',this.value)"></td>
+       <td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','amp',this.value)">${[['passive', 'פסיבי'], ['bi', 'Bi-amp'], ['tri', 'Tri-amp']].map(([v, t]) => `<option value="${v}" ${(meta.amp || 'passive') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="מפרט PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="ערוך קישור/PDF" onclick="editSpkLink(${arg})">✎</button></td>` :
       tab === 'amp' ?
         `<td style="text-align:center"><input value="${cell(r.d.ch)}" style="width:40px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'ch',this.value)"></td>
@@ -5971,7 +6007,7 @@ function spkDataManager(tab) {
         `<td style="text-align:center"><input value="${esc(r.d.io || '')}" style="width:56px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'io',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="?" title="רשת דיגיטלית (Dante / AES67 / OMNEO) ותאימות תכנה עם מוצרים אחרים" style="width:110px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
        <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid #ccc;border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
-       <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>`;
+       <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>`);
     return `${brandHdr}<tr style="border-bottom:1px solid #eee">
         <td style="padding:4px 5px;font-weight:600"><a href="#" onclick="event.preventDefault();specSheet('${tab}','${esc(r.name).replace(/'/g, '&#39;')}')" style="color:#c9502e;text-decoration:none;border-bottom:1px dotted #c9502e">${esc(r.name)}</a><div class="muted" style="font-size:9px">${r.src}${r.variants ? ' · גרסאות צבע: ' + esc(r.variants.join(', ')) : ''}</div></td>
         ${cells}
@@ -6248,6 +6284,15 @@ function editSpkDb(libKey, biOrField, arg3, arg4) {
   save(); render(); spkDataManager();
 }
 /* מטא-נתונים לטבלה (סוג/מותג/DSP/רשת) — לפי מפתח שם, בלי לשכפל את הרשומה */
+/* תמונת מוצר לטבלת הנתונים (רמקולים / מגברים / פרוססורים) — כתובת URL, נשמרת ב-meta של הדגם */
+async function dbImgSet(tab, name) {
+  const st = tab === 'spk' ? (store.spkMeta = store.spkMeta || {}) : (store.ampMeta = store.ampMeta || {});
+  const k = rearKey(name), cur = (st[k] || {}).img || '';
+  const v = await uiPrompt('כתובת תמונה (URL) עבור ' + name + '\nריק = חזרה לתמונה האוטומטית מהחנות/היצרן', cur);
+  if (v == null) return;
+  st[k] = st[k] || {}; if (String(v).trim()) st[k].img = String(v).trim(); else delete st[k].img;
+  save(); spkDataManager(tab);
+}
 function spkMetaSet(name, field, val) {
   const tab = window.__spkTab || 'spk';
   const ms = tab === 'spk' ? (store.spkMeta = store.spkMeta || {}) : (store.ampMeta = store.ampMeta || {});
@@ -6691,7 +6736,7 @@ function renderPanel() {
     <div class="fld"><label>תיאור</label><input value="${esc(n.sub || '')}" onchange="byId('${n.id}').sub=this.value;render()"></div>`;
   if (n.kind === 'point') {
     const isMini = n.mini || (n.srcIid && !n.full);
-    const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'אחר'];
+    const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'בתוך ארון', 'אחר'];
     /* סוג המוקד — לא בהכרח רמקול */
     const PTYPES = [['speaker', '🔊 רמקול'], ['sub', '🔈 סאב'], ['amp', '🎚 מגבר'], ['proc', '🎛 פרוססור / DSP / מטריצה'], ['player', '💿 נגן / סטרימר / מחשב מוזיקה'], ['mic', '🎤 מיקרופון'], ['screen', '📺 מסך/מקרן'], ['light', '💡 גוף תאורה'], ['camera', '📷 מצלמה'], ['ap', '📶 נקודת רשת/AP'], ['device', '📦 מכשיר אחר'], ['other', '📍 נקודת קצה']];
     const dbT = dbSpkType(n.name);
@@ -7561,6 +7606,14 @@ document.addEventListener('pointermove', e => {
   if (!drag) return;
   drag.n.x = Math.max(0, drag.ox - (e.clientX - drag.sx) / Z);
   drag.n.y = Math.max(0, drag.oy + (e.clientY - drag.sy) / Z);
+  /* מוקד (מוצר בודד) שנגרר מעל ארון — הארון נדלק כיעד: שחרור מכניס את המוצר כיחידה בארון */
+  if (drag.n.kind === 'point') {
+    document.querySelectorAll('.node.droptgt').forEach(el => el.classList.remove('droptgt'));
+    const me = document.getElementById('nd_' + drag.n.id); const pe = me ? me.style.pointerEvents : ''; if (me) me.style.pointerEvents = 'none';
+    const hit = document.elementFromPoint(e.clientX, e.clientY); if (me) me.style.pointerEvents = pe;
+    const nel = hit && hit.closest('.node'); const tn = nel && byId(nel.id.slice(3));
+    if (tn && tn.kind === 'rack' && !tn.rear && !tn.min) nel.classList.add('droptgt');
+  }
   /* קווי יישור: כשהמוקד הנגרר מתיישר עם רמקול/סאב אחר — קו מנחה + הצמדה */
   window.__alignG = null;
   if (drag.n.kind === 'point') {
@@ -7708,6 +7761,19 @@ document.addEventListener('pointerup', e => {
     /* רמקול של אזור שנגרר החוצה מגבולות האזור — מאשרים או מחזירים */
     const n = moved.n;
     const movedFar = Math.abs(n.x - moved.ox) > 3 || Math.abs(n.y - moved.oy) > 3;
+    document.querySelectorAll('.node.droptgt').forEach(el => el.classList.remove('droptgt'));
+    if (movedFar && n.kind === 'point') {
+      /* שחרור מעל ארון — המוצר נכנס לארון כיחידה (drag & drop), הכבלים שלו עוברים איתו */
+      const me = document.getElementById('nd_' + n.id); const pe = me ? me.style.pointerEvents : ''; if (me) me.style.pointerEvents = 'none';
+      const hit = document.elementFromPoint(e.clientX, e.clientY); if (me) me.style.pointerEvents = pe;
+      const nel = hit && hit.closest('.node'); const dst = nel && byId(nel.id.slice(3));
+      if (dst && dst.kind === 'rack' && !dst.rear && !dst.min) {
+        const rails = nel.querySelector('.rails'); let slot = -1;
+        if (rails) { const rr = rails.getBoundingClientRect(); slot = Math.max(0, Math.min(dst.ru - 1, Math.floor((e.clientY - rr.top) / (rr.height / dst.ru)))); }
+        n.x = moved.ox; n.y = moved.oy;
+        pointIntoRack(n.id, dst.id, slot); return;
+      }
+    }
     if (movedFar && n.kind === 'rack') {
       const zr = (P.zones || []).find(zz => ptInZone(zz, 2200 - moved.ox - 20, moved.oy + 24));
       if (zr && !ptInZone(zr, 2200 - n.x - 20, n.y + 24)) {
