@@ -3283,7 +3283,7 @@ function renderWires() {
       else pb = { x: dragE.cur.x, y: dragE.cur.y, dot: true };
     }
     const sib = sibG[c.from + '|' + c.to];
-    const off = (sib.indexOf(c) - (sib.length - 1) / 2) * 16;
+    const off = (sib.indexOf(c) - (sib.length - 1) / 2) * 7;   /* צפוף: 7px בין כבלים מקבילים */
     WIREPTS[c.id] = { a: { x: pa.x, y: pa.y }, b: { x: pb.x, y: pb.y } };
     items.push({ c, i, pa, pb, off, A: f.A, B: f.B, vert: !!f.vert });
   });
@@ -3297,7 +3297,7 @@ function renderWires() {
       let my = (pa.y + pb.y) / 2 + off + (c.bend?.dy || 0);
       const x1 = Math.min(pa.x, pb.x), x2 = Math.max(pa.x, pb.x);
       let g = 0;
-      while (g++ < 30 && hlanes.some(v => Math.abs(v.y - my) < 9 && x1 < v.x2 + 10 && v.x1 - 10 < x2)) my += 12;
+      while (g++ < 30 && hlanes.some(v => Math.abs(v.y - my) < 6 && x1 < v.x2 + 8 && v.x1 - 8 < x2)) my += 7;
       hlanes.push({ y: my, x1, x2 });
       it.my = my; it.mx = (pa.x + pb.x) / 2; it.bx = it.mx; it.by = my;
       continue;
@@ -3308,11 +3308,11 @@ function renderWires() {
       for (const box of [it.A, it.B]) {
         if (!box) continue;
         const L = 2200 - box.x - box.w, R = 2200 - box.x;
-        if (mx > L - 6 && mx < R + 6) mx = (mx - L < R - mx) ? L - 14 : R + 14;
+        if (mx > L - 6 && mx < R + 6) mx = (mx - L < R - mx) ? L - 10 : R + 10;
       }
       const y1 = Math.min(pa.y, pb.y), y2 = Math.max(pa.y, pb.y);
       let g = 0;
-      while (g++ < 50 && lanes.some(v => Math.abs(v.mx - mx) < 15 && y1 < v.y2 + 12 && v.y1 - 12 < y2)) mx += 17;
+      while (g++ < 50 && lanes.some(v => Math.abs(v.mx - mx) < 6.5 && y1 < v.y2 + 8 && v.y1 - 8 < y2)) mx += 7;
       lanes.push({ mx, y1, y2 });
       /* מסדרון אופקי: שני קווים באותו גובה שרצים על אותו קטע — מקבלים פס משלהם
          וירידה קצרה לתוך נקודת החיבור, כך שאפשר לספור כל קו בנפרד */
@@ -3320,8 +3320,8 @@ function renderWires() {
       hlanes.push({ y: pa.y, x1: Math.min(pa.x, mx), x2: Math.max(pa.x, mx) });
       const hx1 = Math.min(mx, pb.x), hx2 = Math.max(mx, pb.x);
       let hoff = 0, g2 = 0;
-      while (g2++ < 12 && hlanes.some(v => Math.abs(v.y - (pb.y + hoff)) < 9 && hx1 < v.x2 + 10 && v.x1 - 10 < hx2))
-        hoff = hoff <= 0 ? -hoff + 9 : -hoff;
+      while (g2++ < 12 && hlanes.some(v => Math.abs(v.y - (pb.y + hoff)) < 6 && hx1 < v.x2 + 8 && v.x1 - 8 < hx2))
+        hoff = hoff <= 0 ? -hoff + 6 : -hoff;
       if (Math.abs(hoff) > 0 && Math.abs(mx - pb.x) < 26) hoff = 0; /* קטע קצר מדי לפס נפרד */
       hlanes.push({ y: pb.y + hoff, x1: hx1, x2: hx2 });
       it.hoff = hoff;
@@ -3394,7 +3394,7 @@ function renderWires() {
   for (const it of items) {
     const { c, i, pa, pb } = it;
     const col = cableColor(c);
-    const selw = c.id === selCable ? 4 : (c.type === 'multi' ? 3.2 : 2.2);   /* מולטי עבה יותר — נבדל גם בלי צבע */
+    const selw = c.id === selCable ? 3 : (c.type === 'multi' ? 2.4 : 1.6);   /* מולטי עבה יותר — נבדל גם בלי צבע */
     let dpath;
     if (ortho && it.vert) {
       dpath = Math.abs(pa.x - pb.x) < 2 ? `M${pa.x} ${pa.y} V ${pb.y}` : `M${pa.x} ${pa.y} V ${it.my} H ${pb.x} V ${pb.y}`;
@@ -3409,7 +3409,7 @@ function renderWires() {
         const mk = side => {
           const key = box.x + '|' + box.y + '|' + side + '|' + (up ? 'T' : 'B');
           const li = (escCnt[key] = (escCnt[key] || 0) + 1) - 1;
-          return { x: side === 'R' ? R + 14 + li * 11 : L - 14 - li * 11, y: up ? T - 12 - li * 11 : B + 12 + li * 11 };
+          return { x: side === 'R' ? R + 10 + li * 6 : L - 10 - li * 6, y: up ? T - 8 - li * 6 : B + 8 + li * 6 };
         };
         if (Math.abs(pt.x - R) < 3 && towardX < pt.x - 4) return mk('R');
         if (Math.abs(pt.x - L) < 3 && towardX > pt.x + 4) return mk('L');
@@ -3450,8 +3450,8 @@ function renderWires() {
       const tip = (cn && CONNS[cn] ? 'מחבר: ' + CONNS[cn].n + ' · ' : '') + 'גרור למכשיר אחר';
       if (toUnit) /* בלתי-נראה — רק אזור אחיזה לגרירה בנקודת החיבור למכשיר */
         return `<circle cx="${x}" cy="${y}" r="${Math.max(7, 10 * shrink)}" fill="transparent" style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title></circle>`;
-      const r = Math.max(6, (big ? 11 : 9) * shrink);
-      const fs = Math.max(5.5, (big ? 8.5 : 10) * shrink);
+      const r = Math.max(4.5, (big ? 8 : 6.5) * shrink);
+      const fs = Math.max(4.5, (big ? 6.2 : 7.5) * shrink);
       return `<g style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title>
         <circle cx="${x}" cy="${y}" r="${r.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3 : 2) * shrink}"/>
         <text x="${x}" y="${y + fs * 0.36}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="800" fill="${col}" style="user-select:none">${lbl}</text></g>`;
@@ -3466,8 +3466,8 @@ function renderWires() {
     }
     const btip = esc(`${CTYPES[c.type].n}${c.cores ? ' · ' + c.cores + '× ' + coreTxt(c) : ''}${c.fiber ? ' · ' + c.fiber : ''}${c.spec ? ' · ' + c.spec : ''}${c.len ? ' · ' + c.len + ' מ׳' : ''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.note ? ' · ' + c.note : ''}${c.pOut || c.pIn ? ' · ' + (c.pOut || '?') + ' ← ' + (c.pIn || '?') : ''}`);
     /* המספר יושב בתוך עיגול הקצה עצמו (handle) — אין תג נפרד */
-    const bR = Math.max(7, (String(LBL[c.id]).length > 2 ? 13 : 11) * shrink);
-    const bF = Math.max(6, (String(LBL[c.id]).length > 2 ? 9.5 : 11) * shrink);
+    const bR = Math.max(5, (String(LBL[c.id]).length > 2 ? 9 : 7.5) * shrink);
+    const bF = Math.max(4.5, (String(LBL[c.id]).length > 2 ? 6.5 : 8) * shrink);
     out += `<g style="pointer-events:all;cursor:grab" data-cbadge="${c.id}"><title>${btip}</title><circle cx="${it.bx}" cy="${it.by}" r="${bR.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3.5 : 2) * shrink}"/><text x="${it.bx}" y="${it.by + bF * 0.37}" text-anchor="middle" font-size="${bF.toFixed(1)}" font-weight="700" fill="${col}" style="user-select:none">${LBL[c.id]}</text></g>`;
   }
   /* קווי יישור בזמן גרירת מוקד */
