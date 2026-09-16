@@ -3516,9 +3516,9 @@ function renderWires() {
     out += handle(pa.x, pa.y, 'from') + handle(pb.x, pb.y, 'to');
     if (ortho && it.vert) {
       /* פינות הפס הרוחבי — גרירה אנכית מזיזה את הפס (bend.dy) */
-      if (Math.abs(pa.x - pb.x) >= 2) out += [[pa.x, it.my], [pb.x, it.my]].map(([x, y]) => `<rect x="${x - 3}" y="${y - 3}" width="6" height="6" rx="1.5" fill="#fff" stroke="${col}" stroke-width="1.2" style="pointer-events:all;cursor:ns-resize" data-cbadge="${c.id}"><title>גרירה — הזזת הפס הרוחבי</title></rect>`).join('');
+      if (Math.abs(pa.x - pb.x) >= 2) out += [[pa.x, it.my], [pb.x, it.my]].map(([x, y]) => `<rect x="${x - 6}" y="${y - 3.5}" width="12" height="7" rx="2" fill="#fff" stroke="${col}" stroke-width="1.2" style="pointer-events:all;cursor:ns-resize" data-cbadge="${c.id}"><title>גרירה — הזזת הפס הרוחבי</title></rect>`).join('');
     } else if (ortho) {
-      const corner = (x, y, end) => `<rect x="${x - 3}" y="${y - 3}" width="6" height="6" rx="1.5" fill="#fff" stroke="${col}" stroke-width="1.2" style="pointer-events:all;cursor:move" data-corner="${c.id}|${end}"><title>גרירה אופקית — הזזת הקו · אנכית — נקודת החיבור</title></rect>`;
+      const corner = (x, y, end) => `<rect x="${x - 6}" y="${y - 3.5}" width="12" height="7" rx="2" fill="#fff" stroke="${col}" stroke-width="1.2" style="pointer-events:all;cursor:move" data-corner="${c.id}|${end}"><title>גרירה אופקית — הזזת הקו · אנכית — נקודת החיבור</title></rect>`;
       out += corner(it.mx, pa.y, 'from') + corner(it.mx, pb.y, 'to');
     }
     const btip = esc(`${CTYPES[c.type].n}${c.cores ? ' · ' + c.cores + '× ' + coreTxt(c) : ''}${c.fiber ? ' · ' + c.fiber : ''}${c.spec ? ' · ' + c.spec : ''}${c.len ? ' · ' + c.len + ' מ׳' : ''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.note ? ' · ' + c.note : ''}${c.pOut || c.pIn ? ' · ' + (c.pOut || '?') + ' ← ' + (c.pIn || '?') : ''}`);
@@ -4039,12 +4039,26 @@ function shortModel(name) {
   const s = String(name || '').replace(/\(\d+\)\s*$/, '').trim();
   const m = /מדגם\s+(.{2,22}?)(?:\s+(?:בעוצמה|וואט|\d+W\b|גודל|בצבע|עם|\d+X)|$)/i.exec(s);
   if (m) return m[1].trim();
-  const en = s.match(/[A-Z][A-Z0-9\- ]{2,22}/);
-  if (en) return stripBrand(en[0].trim());
+  const s2 = s.replace(BRAND_ANY, ' ').replace(/\s+/g, ' ');   /* "FUNKTION ONE SB 121" → "SB 121" */
+  const en = s2.match(/[A-Z][A-Z0-9\- ]{1,22}/);
+  if (en && en[0].trim().length >= 2) return en[0].trim();
   return s.replace(/^(רמקול|סאב|מגבר)\s+(פאסיבי|אקטיבי|מוגבר)?\s*(תוצרת)?\s*/i, '').slice(0, 18).trim();
+}
+/* שם הדגם של יחידה בארון לפי טבלאות הנתונים (מגברים/פרוססורים/רמקולים) — אחרת שם קצר מהשם המלא */
+function modelOf(name) {
+  const k = rearKey(name);
+  if (store.ampLib && store.ampLib[k]) return k;
+  if (store.spkLib && store.spkLib[k]) return k;
+  const d = (typeof AMP_DATA !== 'undefined' && AMP_DATA.find(x => x.re.test(name || ''))) || (typeof SPEAKER_DATA !== 'undefined' && SPEAKER_DATA.find(x => x.re.test(name || '')));
+  if (!d) return shortModel(name);
+  /* מהחלופות בביטוי (למשל DPA|DC1048) — זו שבאמת תואמת לשם */
+  const alts = String(d.re.source).split('|'), hit = alts.find(al => { try { return new RegExp(al, 'i').test(name || ''); } catch { return false; } });
+  const pr = prettyRe('/' + (hit || alts[0]) + '/');
+  return !pr || BRAND_RX.test(pr + ' ') ? shortModel(name) : pr;   /* חלופה שהיא רק שם מותג — לוקחים את הדגם מהשם */
 }
 /* שם דגם בלי המותג — "FUNKTION ONE EVO X" → "EVO X" (בשבבי הפאץ׳ ובתוויות קצרות) */
 const BRAND_RX = /^(FUNKTION[\s-]?ONE|F1|KLING\s*&?\s*FREITAG|K&F|KT\s?AUDIO|XTA|YAMAHA|SAE|LAB[.\s-]?GRUPPEN|CROWN|DIGISYNTHETIC|LAMBDA\s?LABS|NST|SYMETRIX|DYNACORD|QSC|JBL|BOSE|RCF|DB\s?TECHNOLOGIES|ELECTRO[\s-]?VOICE|EV|MARTIN\s?AUDIO|NEXO|D&B|L-?ACOUSTICS|MEYER|ALLEN\s*&\s*HEATH|SHURE|SENNHEISER|BEHRINGER|POWERSOFT|AUDAC|BIAMP|BSS|DBX)\s+/i;
+const BRAND_ANY = new RegExp('(?:^|\\s)' + BRAND_RX.source.replace(/^\^\(/, '(').replace(/\)\\s\+\/?i?$/, ')') + '(?=\\s|$)', 'gi');
 function stripBrand(s) { const t = String(s || '').replace(BRAND_RX, '').trim(); return t.length >= 2 ? t : String(s || '').trim(); }
 /* סוג המוצר מטבלת הנתונים הטכניים — כולל דריסות ידניות בעמודת "סוג" */
 function dbSpkType(prodName) {
@@ -4065,7 +4079,7 @@ function patchOpen(z, amps, lines, leftover) {
   PATCH = {
     zid: z.id, sel: null, mode: 'spk',
     amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set(), bridge: !!a.u.bridged })),
-    slots: {}, pool: leftover.flatMap(n => bandIds(n))   /* רמקול bi/tri-amp מופיע פעם לכל פס (HI/MID/LOW) — קו הגברה נפרד לכל פס */
+    slots: {}, cab: {}, pool: leftover.flatMap(n => bandIds(n))   /* רמקול bi/tri-amp מופיע פעם לכל פס (HI/MID/LOW) — קו הגברה נפרד לכל פס */
   };
   lines.forEach(l => { PATCH.slots[amps.indexOf(l.amp) + '|' + l.ch] = [l.head.id, ...l.seg.map(s => s.to.id)]; });
   /* ערוצים שכבר מחוברים — מציגים את הרמקולים המחוברים בפועל; 🔓 משחרר לעריכה */
@@ -4276,6 +4290,30 @@ function delayPlan(chans, src, mode) {
   return out;
 }
 function patchZ(ids) { const inv = ids.map(byId).filter(Boolean).reduce((s, n) => s + 1 / spkOhm(n), 0); return inv ? 1 / inv : 0; }
+/* סוג כבל הרמקול לערוץ: אוטומטי לפי מרחק והספק (≤20 מ׳ → 2.5 ממ״ר · ≤40 → 4 · מעבר → 6; מעל 1000W מדרגה אחת למעלה; סאב מוגבר → XLR), וניתן לשינוי לכל ערוץ */
+function patchAutoCab(key) {
+  const [ai] = key.split('|').map(Number), a = PATCH.amps[ai], ids = PATCH.slots[key] || [];
+  const nodes = ids.map(byId).filter(Boolean); if (!a || !nodes.length) return '2.5';
+  if (nodes.every(n => isActiveSub(n.name))) return 'xlr';
+  const dmax = P.scale ? Math.max(...nodes.map(n => Math.hypot(a.rk.x - n.x, a.rk.y - n.y) * P.scale)) : 0;
+  const sw = nodes.reduce((s3, n3) => { const pw = n3.pow ?? (spkData(n3.name) || {}).w; return s3 + (pw == null ? 150 : +pw); }, 0);
+  let mm = dmax <= 20 ? 2.5 : dmax <= 40 ? 4 : 6;
+  if (sw > 1000) mm = mm === 2.5 ? 4 : 6;
+  return String(mm);
+}
+const PATCH_CABS = [['1.5', 'NL4 · 1.5 ממ״ר'], ['2.5', 'NL4 · 2.5 ממ״ר'], ['4', 'NL4 · 4 ממ״ר'], ['6', 'NL4 · 6 ממ״ר'], ['xlr', 'XLR (סאב מוגבר)']];
+function patchCabSel(key) {
+  const auto = patchAutoCab(key), cur = (PATCH.cab || {})[key] || '';
+  const lbl = v => (PATCH_CABS.find(x => x[0] === v) || [v, v])[1];
+  return `<select class="pchCab" title="סוג כבל הרמקול לערוץ — נקבע אוטומטית לפי מרחק והספק, אפשר לשנות" style="font-size:10.5px;padding:1px 4px;border:1px solid #ddd;border-radius:6px;background:#fff;max-width:150px" onchange="patchCabSet('${key}',this.value)">
+    <option value="" ${cur ? '' : 'selected'}>אוטו · ${esc(lbl(auto))}</option>${PATCH_CABS.map(([v, t]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+}
+function patchCabSet(key, v) { PATCH.cab = PATCH.cab || {}; if (v) PATCH.cab[key] = v; else delete PATCH.cab[key]; }
+function patchApplyCab(key, c) {
+  const v = (PATCH.cab || {})[key] || patchAutoCab(key);
+  if (v === 'xlr') { c.type = 'xlr'; c.conn = 'xlrm'; c.conn2 = 'rca'; c.note = (c.note ? c.note + ' · ' : '') + 'סיגנל לסאב מוגבר'; return; }
+  c.mm = +v; if (!c.spec) c.spec = 'NL4 · ' + v + ' ממ״ר';
+}
 function patchChip(id, ro) {
   const n = byId(id); if (!n) return '';
   const full = nodeFullName(n);
@@ -4397,9 +4435,10 @@ function patchRender() {
           ${ids.length > 1 ? `<button onclick="patchTopoToggle('${key}')" title="${patchTopo(key) === 'direct' ? 'כל רמקול בכבל נפרד ישירות מהריכוז — לחץ לשרשור כולם · אפשר גם לשרשר זוגות עם ה-🔗 שבין הרמקולים' : 'לחץ להחזרת כולם לקווים ישירים'}" style="border:1px solid ${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};background:${patchTopo(key) === 'direct' ? '#eef7f1' : '#fdf3e6'};color:${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};border-radius:6px;cursor:pointer;font-size:9.5px;padding:1px 6px;font-weight:800">${patchTopo(key) === 'direct' ? '⫘ ישיר' : patchTopo(key) === 'chain' ? '🔗 שרשור' : '⛓ מעורב'}</button>` : ''}
           ${ids.length ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
         <div class="pchChips">${ids.map((id2, i2) => patchChip(id2) + (i2 < ids.length - 1 ? chLinkBtn(key, ids[i2], ids[i2 + 1]) : '')).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
+        ${ids.length ? patchCabSel(key) : ''}
         <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" ${tight ? 'style="color:#c96a13"' : ''} title="${tight ? `⚠ ${zz.toFixed(1)}Ω = בדיוק המינימום של המגבר (${minEff}Ω) — חוקי אבל בלי מרווח: ${ids.length}× ${spkOhm(byId(ids[0])) || 8}Ω במקביל. רמקול נוסף על הערוץ יוריד מתחת למינימום.\n` : ''}עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
     }
-    return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(a.u.name)}">🎚 ${esc(shortModel(a.u.name))}
+    return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(a.u.name)}">🎚 ${esc(modelOf(a.u.name))}
         <small>
           <input type="number" min="1" max="16" value="${a.chTotal}" title="מספר ערוצי המגבר — ניתן לתיקון, נשמר לדגם" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchAmpSet(${ai},'ch',this.value)"> ערוצים ·
           מינ׳ <input type="number" min="1" max="16" step="0.1" value="${a.minOhm}" title="אום מינימלי לערוץ (סטריאו) — ניתן לתיקון, נשמר לדגם" style="width:38px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchAmpSet(${ai},'mo',this.value)">Ω ·
@@ -4419,7 +4458,7 @@ function patchRender() {
         <div class="pchChips">${ids.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>'}</div>
         <span class="pchZ ${ids.length ? 'ok' : 'emp'}">${ids.length ? ids.length + ' מקור' + (ids.length > 1 ? 'ות' : '') : '—'}</span></div>`);
     }
-    return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(t.u.name)}">🎛 ${esc(shortModel(t.u.name))}
+    return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(t.u.name)}">🎛 ${esc(modelOf(t.u.name))}
       <small><input type="number" min="1" max="32" value="${t.inTotal}" title="מספר הכניסות של היחידה — נשמר לדגם" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchInSet(${ii},this.value)"> כניסות · ${esc(t.rk.name.slice(0, 14))}</small></div>${rows.join('')}</div>`;
   }).join('');
   const insBlock = (PATCH.ins || []).length ? `
@@ -4954,11 +4993,13 @@ async function patchApply() {
       if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
       if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
       if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
+      patchApplyCab(key, cc);
       P.cables.push(cc); n2++; made.push(cc);
       for (let i = 1; i < run.length; i++) {
         const cb = { id: uid('c'), from: spkBase(run[i - 1].id), to: spkBase(run[i].id), type: 'nl4', qty: '1', spec: '', note: 'שרשור' + (run[i].band ? ' · פס ' + BAND_LBL[run[i].band] : ''), conn: 'speakon', conn2: 'speakon', pIn: run[i].band ? BAND_LBL[run[i].band] : undefined };
         if (P.scale) cb.len = +(dist(run[i - 1], run[i]) * P.scale).toFixed(1);
         if (cblRef) applyStockRef(cblRef, null, cb);
+        patchApplyCab(key, cb);
         P.cables.push(cb); n2++; made.push(cb);
       }
     });
