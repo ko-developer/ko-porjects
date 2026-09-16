@@ -8522,6 +8522,7 @@ function erpLineToItem(x, src) {
     /* "תאורה" במילון = ציוד ראק לתאורה (דימר/ספליטר/נוד/בקר); גופי תאורה, נורות, סטריפים ופרופילים הם נקודות בתכנית */
     const FIXTURE_RE = /גוף\s?תאורה|גופי|נורת|נורה|סטריפ|strip|\bLED\b|\bלד\b|פרופיל|ספוט|spot|פנס|מנורה|צילינדר|שקוע|downlight|track|פס\s?צביר/i, LIGHT_RACK_RE = /דימר|dimmer|ספליטר|splitter|\bnode\b|בקר|controller|ספק\s?כח|power\s?supply|driver/i;
     let dest = d ? d.dest : isSvc ? 'ignore' : isSpeakerItem(name) ? 'point' : RACK_RE.test(name) ? 'unit' : 'point';
+    if ((dest === 'unit' || dest === 'panelUnit') && isSpeakerItem(name)) dest = 'point';   /* רמקול/סאב לעולם לא נכנס לארון — גם אם מילון המפרט אומר אחרת */
     if (d && d.cat === 'light' && FIXTURE_RE.test(name) && !LIGHT_RACK_RE.test(name)) dest = 'point';
     it = { on: dest !== 'ignore', qty: +x.qty || 1, name, dest, cat: d?.cat || 'other', u: d?.u || 1, src };
   }
@@ -8668,7 +8669,8 @@ function importItemsJSON(inp) {
           }
           if (!dest) {
             const d = SPEC_DICT.find(d => d.re.test(name));
-            dest = d ? d.dest : 'unit';
+            dest = d ? d.dest : isSpeakerItem(name) ? 'point' : 'unit';
+            if ((dest === 'unit' || dest === 'panelUnit') && isSpeakerItem(name)) dest = 'point';
             cat = cat || d?.cat || 'other';
             u = u || d?.u || 1;
           }
@@ -11195,6 +11197,8 @@ function ensureStockItem(it) {
 let dragI = null, wireStock = null;
 function dropImported(it, pt, nel, clientY) {
   it.iid = it.iid || uid('i');
+  /* פריט שסווג בטעות כציוד ראק אבל הוא רמקול/סאב — נקירה על התכנית מציבה אותו כמוקד, לא בתוך ארון */
+  if ((it.dest === 'unit' || it.dest === 'panelUnit') && isSpeakerItem(it.name)) it.dest = 'point';
   /* רישום האזור שבו ננעץ המוצר */
   const zn = zoneAt(pt);
   if (zn && ['unit', 'panelUnit', 'point', 'panelNode', 'rack'].includes(it.dest)) {
