@@ -805,6 +805,11 @@ function nodeBox(n) {
   const el = document.getElementById('nd_' + n.id);
   /* _fanX/_fanY — היסט התצוגה של מוקדים שיושבים באותה נקודה, כדי שהקווים יגיעו לאייקון */
   const x = n.x + (n._fanX || 0), y = n.y + (n._fanY || 0);
+  /* אייקון מוקטן (transform: scale) — הקופסה הנראית קטנה מהאלמנט; מודדים אותה מה-DOM כדי שהכבל ייגמר צמוד לאייקון */
+  if (el && el.style.transform) {
+    const cv = document.getElementById('canvas');
+    if (cv) { const r = el.getBoundingClientRect(), cr = cv.getBoundingClientRect(), Z = getZ() || 1; return { x: 2200 - (r.right - cr.left) / Z, y: (r.top - cr.top) / Z, w: r.width / Z, h: r.height / Z }; }
+  }
   return el ? { x, y, w: el.offsetWidth, h: el.offsetHeight } : { x, y, w: 172, h: 80 };
 }
 
