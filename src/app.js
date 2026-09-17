@@ -1263,8 +1263,8 @@ function renderHeader() {
   const auto = P.autoIds && P.autoIds.length;
   $('#actBtn').classList.toggle('on', P.route === 'ortho' || !!auto);
   $('#actionsMenu').innerHTML = `
-    <button onclick="tidy()">${P.route === 'ortho' ? '〰 סדר אותי — חזור למעוגל' : '⚡ סדר אותי — קווים ישרים'}</button>
-    <button onclick="autoConnect()">${auto ? `🔌 בטל חיבור אוטומטי (${P.autoIds.length})` : '🔌 חבר אותי — שידוך אוטומטי'}</button>
+    <button onclick="openOutWire()">🔌 טבלת החיווט — יציאות (רמקולים ↔ מגברים)</button>
+    <button onclick="openInWire()">🎧 טבלת החיווט — כניסות (מקורות ↔ פרוססור)</button>
     <button onclick="designBrief()">🎯 תכנן לי מערכת לחלל זה</button>
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
     <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
@@ -4688,6 +4688,16 @@ function openSrcWire(zid, onClose) {
   });
 }
 window.openSrcWire = openSrcWire;
+/* פתיחת טבלת החיווט מתפריט הפעולות — לאזור הנבחר / אזור המוקד הנבחר / האזור הראשון */
+function wireZoneId() {
+  const zs = P.zones || []; if (!zs.length) return null;
+  if (selZone && zs.find(z => z.id === selZone)) return selZone;
+  const n = sel && byId(sel); if (n && n.kind === 'point') { const z = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }); if (z) return z.id; }
+  return zs[0].id;
+}
+function openOutWire() { const zid = wireZoneId(); if (!zid) { uiToast('אין אזור בתכנית — סמן אזור קודם'); return; } smartWire(zid); }
+function openInWire() { const zid = wireZoneId(); if (!zid) { uiToast('אין אזור בתכנית — סמן אזור קודם'); return; } openSrcWire(zid); }
+window.openOutWire = openOutWire; window.openInWire = openInWire;
 function patchSrcChip(id) {
   const ch = srcCh(id), chTag = ch ? ` <b style="font-size:9.5px;background:rgba(0,0,0,.08);border-radius:4px;padding:0 4px">${ch}</b>` : '';
   if (isVsrc(id)) {
