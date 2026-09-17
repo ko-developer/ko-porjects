@@ -551,6 +551,15 @@ function viewCenterPt() {
 const RACK_TYPES = { rack: { n: 'ארון Rack', ic: '🗄', c: '#2d3444' }, rackWp: { n: 'ארון Rack מוגן מים (IP65)', ic: '💧', c: '#185fa5' }, elec: { n: 'ארון חשמל', ic: '⚡', c: '#a32222' }, boxWp: { n: 'ארון מוגן מים (קופסת ציוד)', ic: '💧', c: '#0f6e56' } };
 function rackTypeOf(n) { return RACK_TYPES[n && n.rtype] || RACK_TYPES.rack; }
 function setRackType(id, v) { const n = byId(id); if (!n) return; if (v === 'rack') delete n.rtype; else n.rtype = v; if (!n.name || /^ארון( Rack| חשמל| מוגן מים)?( חדש)?$/.test(n.name)) n.name = RACK_TYPES[v].n + ' חדש'; render(); save(); }
+/* תפריט הוספה: "ארון" אחד — בחירת הסוג בחלון קטן */
+function pickRackType() {
+  const ov = uiModal(`<b style="font-size:14px">🗄 איזה ארון להוסיף?</b>
+    <div style="display:grid;gap:6px;margin:10px 0">${Object.entries(RACK_TYPES).map(([k, t]) => `<button data-rt="${k}" style="text-align:right;padding:9px 12px;font-size:13px;border:1.5px solid ${t.c};border-radius:9px;background:#fff;cursor:pointer"><span style="display:inline-block;width:22px">${t.ic}</span> ${esc(t.n)}</button>`).join('')}</div>
+    <button data-close style="width:100%;padding:7px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">ביטול</button>`);
+  ov.querySelectorAll('[data-rt]').forEach(b => b.onclick = () => { ov.remove(); addNode('rack', b.dataset.rt); });
+  ov.querySelector('[data-close]').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
 function addNode(kind, rtype) {
   const id = uid('n'), c = viewCenterPt(), w = kind === 'rack' ? 240 : kind === 'panel' || kind === 'power' ? 300 : 172;   /* רוחב הכרטיס בקנבס — כדי שמרכזו יהיה במרכז המסך */
   const x = Math.max(0, Math.round(2200 - c.x - w / 2)), y = Math.max(0, c.y - 20);   /* n.x נמדד מימין (right) — כמו toNodeX */
@@ -2038,10 +2047,9 @@ function renderNodes() {
       + (wireMode?.from?.nid === n.id ? ' wsrc' : '');
     d.id = 'nd_' + n.id;
     let sx = 0, sy = 0;
-    if (stk) { /* פריסה במניפה: 15px לכל שכבה, לסירוגין ימין-שמאל ומעלה-מטה */
-      const a = stk.i * (Math.PI * 2 / Math.max(3, stk.tot)) - Math.PI / 4;
-      const r = 15 + stk.i * 3;
-      sx = Math.round(Math.cos(a) * r); sy = Math.round(Math.sin(a) * r);
+    if (stk) { /* פריסה בשורה: האייקונים זה לצד זה במרווח קבוע, ממורכזים סביב הנקודה — אף אחד לא מסתיר את השני */
+      const step = 36;
+      sx = Math.round((stk.i - (stk.tot - 1) / 2) * step); sy = 0;
       d.dataset.stack = stk.i + '/' + stk.tot;
       n._fanX = sx; n._fanY = sy;
     }
@@ -2942,7 +2950,10 @@ function setHolePhase(nid, ui, idx, ph) { const h = panelOf(nid, ui).holes[idx];
 /* ===== פאנל נגדי — "הצד השני": עותק זהה של הפאנל שמייצג את הקצה אליו הוא מתחבר, טבלת כבלים/מחברים לכל חור, וחיבור בלחיצה ===== */
 function makePairPanel(nid) {
   const n = byId(nid); if (!n || !n.panel) return;
-  const id = uid('n'), p2 = JSON.parse(JSON.stringify(n.panel)); p2.holes.forEach(h => { delete h.x; delete h.y; });
+  const id = uid('n'), p2 = JSON.parse(JSON.stringify(n.panel));
+  /* הצד השני = המחבר ההפוך: נקבה כאן ↔ זכר שם (כבל XLR זכר→נקבה); שאר המחברים זהים */
+  const MIRROR = { xlrf: 'xlrm', xlrm: 'xlrf' };
+  p2.holes.forEach(h => { delete h.x; delete h.y; if (MIRROR[h.conn]) h.conn = MIRROR[h.conn]; });
   P.nodes.push({ id, kind: 'panel', name: (n.name || 'פאנל') + ' — צד ב׳', sub: 'הצד השני של ' + (n.name || 'הפאנל'), x: n.x, y: n.y + 260, ptype: n.ptype, mount: n.mount, panel: p2, pair: nid });
   n.pair = id; sel = nid; ui.tab = 'node'; render(); save();
   uiToast('🔁 נוצר פאנל נגדי מתחת — גרור אותו למקומו, בדוק את הטבלה ולחץ "חבר בין השניים"');
