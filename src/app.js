@@ -9338,7 +9338,7 @@ function renderImp() {
         <td style="min-width:190px"><textarea rows="2" style="width:190px;resize:vertical;font-family:inherit;font-size:12px;line-height:1.25;vertical-align:middle" ${it.added ? 'disabled' : `onchange="impItems[${i}].name=this.value"`}>${esc(it.name)}</textarea><button onclick="startReplace('${it.iid}')" title="החלף מוצר — הקלד בחיפוש ובחר" style="padding:0 4px;font-size:11px;${replOn ? 'background:#7aa2ff' : 'background:transparent'}">🔄</button>${acc ? `<div style="margin-top:2px"><span style="font-size:10px;color:#8a6a00">🔩 משויך ל:</span> <select style="font-size:10px;max-width:150px" onchange="impItems[${i}].parentIid=this.value||undefined;save()">
           <option value="">— בחר מוצר —</option>
           ${impItems.filter(x => x.iid !== it.iid && isSpeakerItem(x.name)).map(x => `<option value="${x.iid}" ${it.parentIid === x.iid ? 'selected' : ''}>${esc(x.name.slice(0, 30))}</option>`).join('')}
-        </select></div>` : ''}</td>
+        </select></div>` : ''}${`<div style="margin-top:2px"><select title="סיווג הפריט — קובע מה קורה בנקירה/גרירה על התכנית: מוקד (רמקול/סאב/מכשיר בודד), יחידה בארון, פאנל, ארון, כבל, שירות" style="font-size:10px;max-width:190px;color:${DEST_COL[it.dest] || '#555'}" onchange="setItemDest(${i},this.value)">${Object.entries(DEST_HE).map(([v, t]) => `<option value="${v}" ${(it.dest || 'point') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`}</td>
         <td style="white-space:nowrap"><input style="width:76px;font-size:11px;${it.key ? '' : 'border-color:#c1121f'}" value="${esc(it.key || '')}" placeholder="ללא מק״ט" title="${it.key ? 'מק״ט ERP — ניתן לתיקון' : 'אין מק״ט — השורה לא תיקלט בהצעה ב-ERP'}" onchange="impItems[${i}].key=this.value.trim()||undefined;autoPrice(impItems[${i}]);renderImp();save()"></td>
         <td><input style="width:58px" type="number" min="0" value="${it.price ?? ''}" onchange="impItems[${i}].price=+this.value;renderImp();save()"></td>
         <td style="white-space:nowrap;font-weight:600">${it.price ? '₪' + (it.price * (cnt != null ? cnt : (it.placed || it.qty))).toLocaleString() : '—'}</td>
@@ -11195,6 +11195,15 @@ function ensureStockItem(it) {
 }
 /* גרירת פריט מהרשימה אל התכנית */
 let dragI = null, wireStock = null;
+/* סיווג הפריט בהצעה (dest) — מוצג ונערך בטבלת ההצעה */
+const DEST_HE = { point: '📍 מוקד על התכנית (רמקול / סאב / מכשיר)', unit: '🗄 יחידה בארון (מגבר / פרוססור)', panelUnit: '🧩 פאנל 19″ בארון', panelNode: '🔌 פאנל / קופסה על התכנית', rack: '🗄 ארון', cable: '🔗 כבל', reel: '🧵 גליל כבל', conn: '🔩 מחבר', acc: '🔩 אביזר (משויך למוצר)', work: '🔧 עבודה / שירות', ignore: '— לא מוצב' };
+const DEST_COL = { point: '#0f6e56', unit: '#534ab7', panelUnit: '#534ab7', panelNode: '#185fa5', rack: '#534ab7', cable: '#c96f4a', reel: '#c96f4a', work: '#8a8377', ignore: '#8a8377' };
+function setItemDest(i, v) {
+  const it = impItems[i]; if (!it) return;
+  it.dest = v; it.on = v !== 'ignore';
+  if (v === 'point' || v === 'panelNode' || v === 'rack') delete it.rack;
+  renderImp(); save(); uiToast('סיווג עודכן: ' + (DEST_HE[v] || v));
+}
 function dropImported(it, pt, nel, clientY) {
   it.iid = it.iid || uid('i');
   /* פריט שסווג בטעות כציוד ראק אבל הוא רמקול/סאב — נקירה על התכנית מציבה אותו כמוקד, לא בתוך ארון */
