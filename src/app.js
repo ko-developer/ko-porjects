@@ -1312,7 +1312,9 @@ function viewMenuHTML() {
     <div style="display:flex;gap:4px;margin-bottom:4px">
       <button style="flex:1;border:1px solid #444d61" onclick="setAllVis(true)">הצג הכל</button>
       <button style="flex:1;border:1px solid #444d61" onclick="setAllVis(false)">הסתר הכל</button>
-    </div>` +
+    </div>
+    <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="מפת ה-SPL, קונוסי הכיסוי וההחזרות מהקירות">
+      <input type="checkbox" style="width:auto" ${P.showCoverage ? 'checked' : ''} onchange="P.showCoverage=this.checked;render();save()"><span style="flex:1">🔊 פיזור אקוסטי (מפת SPL וקונוסי כיסוי)</span></label>` +
     (cabRows ? `<div style="display:flex;align-items:center;gap:6px;margin:6px 4px 2px">
         <span style="flex:1;font-weight:700;font-size:11px;color:#9aa3b5">כבלים לפי סוג</span>
         <button style="font-size:10px;padding:1px 8px;border:1px solid #444d61" onclick="cabVisAll()">הצג/הסתר</button>
