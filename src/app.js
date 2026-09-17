@@ -11474,8 +11474,14 @@ function exportPDF() {
     const holder = document.createElement('div');
     holder.style.cssText = `width:${Math.round((xmax + 30) * k)}px;height:${Math.round((ymax + 30) * k)}px;overflow:hidden;border:1px solid #ddd;border-radius:8px;position:relative;margin:0 auto;page-break-inside:avoid`;
     const clone = $('#canvas').cloneNode(true);
+    /* ה-CSS של הקנבס והשכבות (#canvas, #wires, #zonesc, #nodes, #bgimg…) תלוי ב-id; ההעתק מאבד את ה-id כדי לא להתנגש —
+       לכן מעתיקים לכל שכבה את המידות/המיקום המחושבים כ-inline לפני הסרת ה-id (אחרת רוחב 0 והתכנית נדחפת מחוץ למסגרת) */
+    const KEEP = ['position', 'left', 'top', 'right', 'bottom', 'width', 'height', 'zIndex', 'overflow', 'opacity', 'display'];
+    { const cs = getComputedStyle($('#canvas')); clone.style.width = cs.width; clone.style.height = cs.height; clone.style.overflow = 'visible'; clone.style.background = cs.backgroundColor; }
     clone.removeAttribute('id');
-    clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+    clone.querySelectorAll('[id]').forEach(el => { const org = document.getElementById(el.id); if (org) { const cs = getComputedStyle(org); KEEP.forEach(k => { if (!el.style[k]) el.style[k] = cs[k]; }); } el.removeAttribute('id'); });
+    /* אריח ה-PDF החד (canvas) — העתק של canvas ריק; מחליפים בתמונה של התוכן */
+    clone.querySelectorAll('canvas').forEach((cv2, i2) => { const org = document.querySelectorAll('#canvas canvas')[i2]; if (!org || !org.width) { cv2.remove(); return; } try { const im2 = document.createElement('img'); im2.src = org.toDataURL('image/jpeg', 0.85); im2.style.cssText = cv2.style.cssText; cv2.replaceWith(im2); } catch { cv2.remove(); } });
     const f = Math.max(1, Math.min(2.6, 0.85 / k));
     clone.querySelectorAll('svg [stroke-width]').forEach(el => el.setAttribute('stroke-width', (parseFloat(el.getAttribute('stroke-width')) || 1) * f));
     clone.querySelectorAll('svg circle').forEach(c2 => c2.setAttribute('r', (parseFloat(c2.getAttribute('r')) || 3) * Math.min(f, 2)));
