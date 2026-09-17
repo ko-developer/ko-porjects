@@ -547,11 +547,15 @@ function viewCenterPt() {
   } catch (e) {}
   return { x: 150, y: 150 };
 }
-function addNode(kind) {
+/* סוגי ארונות: Rack רגיל, Rack מוגן מים, ארון חשמל, ארון/קופסה מוגני מים לציוד */
+const RACK_TYPES = { rack: { n: 'ארון Rack', ic: '🗄', c: '#2d3444' }, rackWp: { n: 'ארון Rack מוגן מים (IP65)', ic: '💧', c: '#185fa5' }, elec: { n: 'ארון חשמל', ic: '⚡', c: '#a32222' }, boxWp: { n: 'ארון מוגן מים (קופסת ציוד)', ic: '💧', c: '#0f6e56' } };
+function rackTypeOf(n) { return RACK_TYPES[n && n.rtype] || RACK_TYPES.rack; }
+function setRackType(id, v) { const n = byId(id); if (!n) return; if (v === 'rack') delete n.rtype; else n.rtype = v; if (!n.name || /^ארון( Rack| חשמל| מוגן מים)?( חדש)?$/.test(n.name)) n.name = RACK_TYPES[v].n + ' חדש'; render(); save(); }
+function addNode(kind, rtype) {
   const id = uid('n'), c = viewCenterPt(), w = kind === 'rack' ? 240 : kind === 'panel' || kind === 'power' ? 300 : 172;   /* רוחב הכרטיס בקנבס — כדי שמרכזו יהיה במרכז המסך */
   const x = Math.max(0, Math.round(2200 - c.x - w / 2)), y = Math.max(0, c.y - 20);   /* n.x נמדד מימין (right) — כמו toNodeX */
   P.nodes.push(kind === 'rack'
-    ? { id, kind, name:'ארון חדש', sub:'', x, y, ru:12, units:[] }
+    ? { id, kind, name: (rtype && RACK_TYPES[rtype] ? RACK_TYPES[rtype].n : 'ארון') + ' חדש', sub:'', x, y, ru: rtype === 'elec' ? 8 : 12, units:[], rtype: rtype && rtype !== 'rack' ? rtype : undefined }
     : kind === 'panel'
     ? { id, kind, name:'פאנל מחברים', sub:'', x, y, panel: defPanel(16, 2) }
     : kind === 'power'
@@ -2292,8 +2296,10 @@ function renderNodes() {
         if (wireMode || pinMode || connPin || calMode || zoneMode || window.__moveEnd) return;
         miniOpenOnTap(e, () => toggleMini(n.id, false), n.id);
       });
-    } else
-    d.innerHTML = `<div class="hd" data-drag="${n.id}"><span class="hdt">${esc(n.name)}${n.kind === 'panel' && n.mount ? ` <small style="opacity:.75">· ${esc(n.mount)}</small>` : ''}</span><span class="hdb" style="display:flex;gap:4px;align-items:center;flex:none;flex-wrap:wrap;justify-content:flex-end">${n.kind === 'point' ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();toggleMini('${n.id}',true)" title="כווץ לאייקון" style="background:#ff8a50;color:#1a1e28;font-weight:800">⤡</span>` : ''}<small>${n.kind === 'rack' ? n.ru + 'U' : n.kind === 'panel' ? n.panel.holes.length + ' חורים · ' + P.cables.filter(c => c.from === n.id || c.to === n.id).length + ' חיבורים' : ''}</small>${n.kind === 'panel' ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="byId('${n.id}').pmin=${n.pmin ? 'false' : 'true'};render();save()" title="${n.pmin ? 'פתח פאנל' : 'כווץ פאנל'}" style="background:#ff8a50;color:#1a1e28;font-weight:800">${n.pmin ? '⤢' : '⤡'}</span><span class="flip" onpointerdown="event.stopPropagation()" onclick="multiView('${n.id}')" title="תצוגה מורחבת — כל הניתוב">⤢</span>` : ''}${flip}</span></div>` + body;
+    } else {
+    const rtB = n.kind === 'rack' && n.rtype && RACK_TYPES[n.rtype] ? `<span title="${esc(RACK_TYPES[n.rtype].n)}" style="background:${RACK_TYPES[n.rtype].c};color:#fff;border-radius:5px;padding:0 5px;font-size:10px;margin-inline-end:4px">${RACK_TYPES[n.rtype].ic}</span>` : '';
+    d.innerHTML = `<div class="hd" data-drag="${n.id}"${n.kind === 'rack' && n.rtype && RACK_TYPES[n.rtype] ? ` style="box-shadow:inset 0 3px 0 ${RACK_TYPES[n.rtype].c}"` : ''}><span class="hdt">${rtB}${esc(n.name)}${n.kind === 'panel' && n.mount ? ` <small style="opacity:.75">· ${esc(n.mount)}</small>` : ''}</span><span class="hdb" style="display:flex;gap:4px;align-items:center;flex:none;flex-wrap:wrap;justify-content:flex-end">${n.kind === 'point' ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();toggleMini('${n.id}',true)" title="כווץ לאייקון" style="background:#ff8a50;color:#1a1e28;font-weight:800">⤡</span>` : ''}<small>${n.kind === 'rack' ? n.ru + 'U' : n.kind === 'panel' ? n.panel.holes.length + ' חורים · ' + P.cables.filter(c => c.from === n.id || c.to === n.id).length + ' חיבורים' : ''}</small>${n.kind === 'panel' ? `<span class="flip" onpointerdown="event.stopPropagation()" onclick="byId('${n.id}').pmin=${n.pmin ? 'false' : 'true'};render();save()" title="${n.pmin ? 'פתח פאנל' : 'כווץ פאנל'}" style="background:#ff8a50;color:#1a1e28;font-weight:800">${n.pmin ? '⤢' : '⤡'}</span><span class="flip" onpointerdown="event.stopPropagation()" onclick="multiView('${n.id}')" title="תצוגה מורחבת — כל הניתוב">⤢</span>` : ''}${flip}</span></div>` + body;
+    }
     d.addEventListener('pointerdown', e => {
       if (pinMode || calMode) return; /* מטופל ברמת המסמך */
       if (wireMode) {
@@ -6881,7 +6887,8 @@ function renderPanel() {
         + ioRoutingHTML(rp.name, n.id, rp.id);
     }
     const sorted = n.units.map((u, i) => ({ u, i })).sort((a, b) => a.u.pos - b.u.pos);
-    html += `<div class="fld"><label>גובה ארון (U)</label><input type="number" min="1" max="48" value="${n.ru}" onchange="byId('${n.id}').ru=+this.value;render()"></div>
+    html += `<div class="fld"><label>סוג ארון</label><select onchange="setRackType('${n.id}',this.value)">${Object.entries(RACK_TYPES).map(([k, t]) => `<option value="${k}" ${(n.rtype || 'rack') === k ? 'selected' : ''}>${t.ic} ${t.n}</option>`).join('')}</select></div>
+    <div class="fld"><label>גובה ארון (U)</label><input type="number" min="1" max="48" value="${n.ru}" onchange="byId('${n.id}').ru=+this.value;render()"></div>
       <h3 class="sec">יחידות בארון — ▲▼ להזזה, או הקלד מיקום U</h3><ul class="ulist">` +
       sorted.map(({ u, i }) => `<li>
         <span class="sw" style="background:${CATS[u.cat].c}"></span><b>${esc(u.name)}</b>
@@ -11364,7 +11371,7 @@ function rackSection(n) {
     ct += `<tr><td><span class="badge" style="background:${cableColor(c)}">${i + 1}</span></td><td>${dirTxt}</td><td>${dev ? esc(dev.name) : '—'}</td><td>${other}</td><td>${CTYPES[c.type].n}</td><td>${esc(c.spec || '')}</td></tr>`;
   }
   const used = n.units.reduce((s, u) => s + u.u, 0);
-  return `<div class="rp-sec"><h3>${esc(n.name)}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
+  return `<div class="rp-sec"><h3>${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
     <div class="rp-flex">
       <div class="rp-rails"><div class="rails" style="height:${n.ru * UPX}px;position:relative">${rows}</div></div>
       <div style="flex:1"><table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table></div>
