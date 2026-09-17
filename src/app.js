@@ -1267,7 +1267,9 @@ function renderHeader() {
     <button onclick="openInWire()">🎧 טבלת החיווט — כניסות (מקורות ↔ פרוססור)</button>
     <button onclick="designBrief()">🎯 תכנן לי מערכת לחלל זה</button>
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
-    <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
+    <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>`;
+  /* 📚 נתונים — הטבלאות והספריות שמאחורי התכנון (לא פעולות על הפרויקט) */
+  const dm = document.getElementById('dataMenu'); if (dm) dm.innerHTML = `
     <a class="ddlink" href="/logic">🎯 לוגיקת תכלית ← מערכת — טבלאות ההיגיון</a>
     <button onclick="verManager()">🕘 היסטוריית גרסאות — שחזור מצב קודם</button>
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>

@@ -280,6 +280,10 @@ body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer
     <button id="actBtn" onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">⚡ פעולות ▾</button>
     <div class="ddm" id="actionsMenu"></div>
   </div>
+  <div class="dd">
+    <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()" title="טבלאות וספריות: לוגיקה, גרסאות, תמחור, גבי מוצרים, נתוני רמקולים/מגברים">📚 נתונים ▾</button>
+    <div class="ddm" id="dataMenu"></div>
+  </div>
   <div class="zctl" title="זום (גם Ctrl+גלגלת)">
     <button onclick="zoomBy(1/1.2)">−</button>
     <input id="zlab" value="100" title="הקלד אחוז זום ולחץ Enter" onchange="setZoomPct(this.value)" onkeydown="if(event.key==='Enter')this.blur()">
