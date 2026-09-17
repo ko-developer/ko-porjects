@@ -7694,11 +7694,13 @@ document.addEventListener('pointermove', e => {
   }
   /* קווי יישור: כשהמוקד הנגרר מתיישר עם רמקול/סאב אחר — קו מנחה + הצמדה */
   window.__alignG = null;
-  if (drag.n.kind === 'point') {
+  /* אייקונים (מוקד, פאנל מכווץ, ארון מכווץ) נצמדים זה לזה — כך אפשר להניח פאנל בדיוק על מוקד/פאנל אחר והם נפרשים במניפה כמו רמקולים */
+  const isIcon = nn => nn.kind === 'point' || (nn.kind === 'panel' && nn.pmin) || (nn.kind === 'rack' && nn.min);
+  if (isIcon(drag.n)) {
     const TH = 8 / Z;
     let gx = null, gy = null;
     for (const nn of P.nodes) {
-      if (nn === drag.n || nn.kind !== 'point') continue;
+      if (nn === drag.n || !isIcon(nn) || nn.hidden) continue;
       if (gx == null && Math.abs(nn.x - drag.n.x) < TH) gx = nn.x;
       if (gy == null && Math.abs(nn.y - drag.n.y) < TH) gy = nn.y;
     }
