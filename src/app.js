@@ -1323,7 +1323,9 @@ function viewMenuHTML() {
       <button style="flex:1;border:1px solid #444d61" onclick="setAllVis(false)">הסתר הכל</button>
     </div>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="מפת ה-SPL, קונוסי הכיסוי וההחזרות מהקירות">
-      <input type="checkbox" style="width:auto" ${P.showCoverage ? 'checked' : ''} onchange="P.showCoverage=this.checked;render();save()"><span style="flex:1">🔊 פיזור אקוסטי (מפת SPL וקונוסי כיסוי)</span></label>` +
+      <input type="checkbox" style="width:auto" ${P.showCoverage ? 'checked' : ''} onchange="P.showCoverage=this.checked;render();save()"><span style="flex:1">🔊 פיזור אקוסטי (מפת SPL וקונוסי כיסוי)</span></label>
+    <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;border-radius:5px;background:rgba(255,255,255,.06)" title="מוקדים/פאנלים שהונחו על אותה נקודה — איך לסדר אותם">
+      <span style="flex:1">🧱 מוקדים צמודים באותה נקודה</span><select style="width:auto;font-size:11px;padding:2px 4px" onchange="P.stackDir=this.value;render();save()"><option value="v" ${P.stackDir !== 'h' ? 'selected' : ''}>בטור — זה מעל זה</option><option value="h" ${P.stackDir === 'h' ? 'selected' : ''}>בשורה — זה ליד זה</option></select></label>` +
     (cabRows ? `<div style="display:flex;align-items:center;gap:6px;margin:6px 4px 2px">
         <span style="flex:1;font-weight:700;font-size:11px;color:#9aa3b5">כבלים לפי סוג</span>
         <button style="font-size:10px;padding:1px 8px;border:1px solid #444d61" onclick="cabVisAll()">הצג/הסתר</button>
@@ -2020,6 +2022,24 @@ function rearLibImport(inp) {
   };
   r.readAsText(f);
 }
+/* מוקדים/פאנלים שהונחו על אותה נקודה: מסודרים צמודים זה לזה — בטור (ברירת מחדל) או בשורה (P.stackDir='h') —
+   לפי הגודל הנראה בפועל של כל אייקון (כולל ההקטנה לקנה מידה), כך שאף אחד לא מסתיר את השני */
+function stackArrange(stackAt) {
+  const horiz = P.stackDir === 'h', GAP = 2;
+  Object.values(stackAt).forEach(ids => {
+    if (ids.length < 2) return;
+    const els = ids.map(id => ({ n: byId(id), el: document.getElementById('nd_' + id) })).filter(x => x.n && x.el);
+    const sizes = els.map(({ el }) => { const m = /scale\(([\d.]+)\)/.exec(el.style.transform || ''); const k = m ? +m[1] : 1; return { w: el.offsetWidth * k, h: el.offsetHeight * k }; });
+    const total = sizes.reduce((a, s2) => a + (horiz ? s2.w : s2.h) + GAP, -GAP);
+    let cur = -total / 2;
+    els.forEach(({ n, el }, i) => {
+      const s2 = sizes[i], off = cur + (horiz ? s2.w : s2.h) / 2; cur += (horiz ? s2.w : s2.h) + GAP;
+      const sx = horiz ? Math.round(off) : 0, sy = horiz ? 0 : Math.round(off);
+      n._fanX = sx; n._fanY = sy;
+      el.style.right = (n.x + sx) + 'px'; el.style.top = (n.y + sy) + 'px';
+    });
+  });
+}
 function renderNodes() {
   const host = $('#nodes');
   host.innerHTML = '';
@@ -2047,9 +2067,7 @@ function renderNodes() {
       + (wireMode?.from?.nid === n.id ? ' wsrc' : '');
     d.id = 'nd_' + n.id;
     let sx = 0, sy = 0;
-    if (stk) { /* פריסה בשורה: האייקונים זה לצד זה במרווח קבוע, ממורכזים סביב הנקודה — אף אחד לא מסתיר את השני */
-      const step = 36;
-      sx = Math.round((stk.i - (stk.tot - 1) / 2) * step); sy = 0;
+    if (stk) { /* אייקונים באותה נקודה — המיקום הסופי (צמודים בטור/בשורה לפי הגודל בפועל) נקבע אחרי הרינדור ב-stackArrange */
       d.dataset.stack = stk.i + '/' + stk.tot;
       n._fanX = sx; n._fanY = sy;
     }
@@ -2365,6 +2383,7 @@ function renderNodes() {
     hd.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); aiming = sn.id; });
     host.appendChild(hd);
   }
+  stackArrange(stackAt);
   if (window.__rackFocus) rackFocusMount();   /* ארון בגדול: האלמנט החדש עובר לחלון הצף */
 }
 /* מצייר את חיבורי הגב לפי מדידת מיקום המחברים בפועל — הקו נוגע ממש במחבר */
