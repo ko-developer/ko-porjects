@@ -81,6 +81,17 @@
   .rails::before, .rails::after { content: ''; position: absolute; top: 0; bottom: 0; width: 11px; z-index: 1;
     background: #383c44 radial-gradient(circle at 5.5px 7.5px, #1d1f23 2px, transparent 2.6px); background-size: 11px 15px; }
   .rails::before { right: 0; } .rails::after { left: 0; }
+  /* ארון חשמל: לוח בהיר עם מסילת DIN (פס מתכת מחורר) בכל שורה, בלי אוזני 19" */
+  .rails.din { border-color: #9aa0a6; background: #e9ebe6 repeating-linear-gradient(180deg, transparent 0 4px, #b9bec4 4px 5px, #d7dbd4 5px 6px, #8f959b 6px 7px, #d7dbd4 7px 8px, #b9bec4 8px 9px, transparent 9px 15px); background-size: 100% 15px; }
+  .rails.din::before, .rails.din::after { display: none; }
+  .rails.din .unit { left: 6px; right: 6px; border: 1px solid #6b7075; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.35); }
+  /* קופסה מוגנת מים: דלת מתכת אפורה חלקה עם שתי נעילות; הציוד נראה כרשימה על הדלת */
+  .rails.boxwp { border: 3px solid #b5b9b3; border-radius: 6px; background: linear-gradient(90deg, #d9dcd6, #cfd3cc 60%, #c3c7c0); }
+  .rails.boxwp::before, .rails.boxwp::after { display: none; }
+  .rails.boxwp .unit { left: 18px; right: 18px; opacity: .92; border-radius: 4px; }
+  .wplock { position: absolute; left: 10px; width: 9px; height: 9px; border-radius: 50%; background: #5d6166; box-shadow: inset 0 0 0 2px #9ea3a8, 0 0 0 1px #8a8f94; transform: translateY(-50%); z-index: 3; }
+  .wpip { position: absolute; right: 6px; bottom: 3px; font-size: 9px; font-weight: 800; color: #185fa5; background: rgba(255,255,255,.85); border-radius: 4px; padding: 0 4px; z-index: 3; }
+  .rails.wp { border-color: #185fa5; box-shadow: 0 0 0 2px rgba(24,95,165,.25); }
   .unit { position: absolute; left: 12px; right: 12px; border-block: 1px solid rgba(0,0,0,.35); padding: 0 10px; font-size: 11px; display: flex; align-items: center; justify-content: space-between; color: #fff; overflow: hidden; white-space: nowrap; z-index: 2; cursor: grab; box-shadow: inset 0 1px 0 rgba(255,255,255,.15), inset 0 -2px 3px rgba(0,0,0,.2);
     background-image: radial-gradient(circle at 5px 50%, rgba(0,0,0,.45) 1.6px, transparent 2.2px), radial-gradient(circle at calc(100% - 5px) 50%, rgba(0,0,0,.45) 1.6px, transparent 2.2px); }
   .node.droptgt { border-color: #2e7d32; box-shadow: 0 0 0 3px rgba(46,125,50,.35); }

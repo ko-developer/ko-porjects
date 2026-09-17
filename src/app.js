@@ -2205,8 +2205,11 @@ function renderNodes() {
             }
           }
         }
-        body = `<div class="rackbody"><div class="rails" style="height:${n.ru * UPX * (n.uz || 1)}px">${rows}</div>
-          <div class="muted" style="margin-top:4px">${used}U בשימוש · ${Math.max(0, n.ru - used)}U פנוי</div></div>`;
+        /* מראה לפי סוג הארון: ארון חשמל = מסילות DIN בלוח בהיר, קופסה מוגנת מים = דלת מתכת אפורה עם נעילות, Rack מוגן מים = מסילות + סימון IP65 */
+        const rcls = n.rtype === 'elec' ? ' din' : n.rtype === 'boxWp' ? ' boxwp' : n.rtype === 'rackWp' ? ' wp' : '';
+        const uLbl = n.rtype === 'elec' ? 'מסילות DIN' : 'U';
+        body = `<div class="rackbody"><div class="rails${rcls}" style="height:${n.ru * UPX * (n.uz || 1)}px">${rows}${n.rtype === 'boxWp' ? '<span class="wplock" style="top:14%"></span><span class="wplock" style="top:84%"></span>' : ''}${n.rtype === 'rackWp' || n.rtype === 'boxWp' ? '<span class="wpip">💧 IP65</span>' : ''}</div>
+          <div class="muted" style="margin-top:4px">${used}${uLbl === 'U' ? 'U' : ' ' + uLbl} בשימוש · ${Math.max(0, n.ru - used)}${uLbl === 'U' ? 'U' : ''} פנוי</div></div>`;
       }
     } else if (n.kind === 'panel' && n.pmin) {
       /* פאנל מכווץ — אייקון קטן כמו רמקול מוקטן */
@@ -6888,7 +6891,7 @@ function renderPanel() {
     }
     const sorted = n.units.map((u, i) => ({ u, i })).sort((a, b) => a.u.pos - b.u.pos);
     html += `<div class="fld"><label>סוג ארון</label><select onchange="setRackType('${n.id}',this.value)">${Object.entries(RACK_TYPES).map(([k, t]) => `<option value="${k}" ${(n.rtype || 'rack') === k ? 'selected' : ''}>${t.ic} ${t.n}</option>`).join('')}</select></div>
-    <div class="fld"><label>גובה ארון (U)</label><input type="number" min="1" max="48" value="${n.ru}" onchange="byId('${n.id}').ru=+this.value;render()"></div>
+    <div class="fld"><label>${n.rtype === 'elec' ? 'מספר מסילות DIN' : n.rtype === 'boxWp' ? 'גובה פנימי (שורות ציוד)' : 'גובה ארון (U)'}</label><input type="number" min="1" max="48" value="${n.ru}" onchange="byId('${n.id}').ru=+this.value;render()"></div>
       <h3 class="sec">יחידות בארון — ▲▼ להזזה, או הקלד מיקום U</h3><ul class="ulist">` +
       sorted.map(({ u, i }) => `<li>
         <span class="sw" style="background:${CATS[u.cat].c}"></span><b>${esc(u.name)}</b>
