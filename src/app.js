@@ -885,13 +885,12 @@ function delCable(id) {
       else if (k === 'reel') { const s = P.stock.reels.find(x => x.id === sid); if (s) s.used = Math.max(0, (s.used || 0) - (+c.len || 0)); }
     }
     if (c.connUse) {
-      const it = impItems.find(x => x.iid === c.connUse);
-      if (it) {
-        it.placed = Math.max(0, (it.placed || 0) - 2);
+      /* "iid" (2 מחברים, פורמט ישן) או "iid:count,iid:count" (כבל רב-גידי: NL4×פסים + NL8×1) */
+      String(c.connUse).split(',').forEach(part => { const [iid, cnt] = part.split(':'); const it = impItems.find(x => x.iid === iid); if (!it) return; const n = +cnt || 2;
+        it.placed = Math.max(0, (it.placed || 0) - n);
         const s = it.stockId && P.stock.conns.find(x => x.id === it.stockId);
-        if (s) s.used = Math.max(0, (s.used || 0) - 2);
-        if (it.placed < it.qty) it.added = false;
-      }
+        if (s) s.used = Math.max(0, (s.used || 0) - n);
+        if (it.placed < it.qty) it.added = false; });
     }
   }
   P.cables = P.cables.filter(c => c.id !== id);
@@ -2900,7 +2899,7 @@ function ocpPick(key, name, cid, isReel) {
 /* בכל חיבור: מציע/צורך 2 מחברים מתאימים מרשימת הפריטים */
 /* מונחי חיפוש למחבר-שטח לפי סוג המחבר בפועל — HDMI↔HDMI, רשת↔keystone, XLR↔XLR */
 const CONN_SEARCH = {
-  speakon: /ספיקון|speakon|NL4/i, xlrf: /XLR/i, xlrm: /XLR/i,
+  speakon: /ספיקון|speakon|NL4/i, nl8: /ספיקון\s?8|NL8|speakon\s?8/i, xlrf: /XLR/i, xlrm: /XLR/i,
   rj45: /keystone|קיסטון|RJ ?45/i, hdmi: /HDMI/i, bnc: /BNC/i, fiber: /אופטי|LC |SC /i, pwr: /פאוור|powercon/i
 };
 /* פאץ׳ פנימי בארון (פרוססור→מגבר, סטרימר→פרוססור) = כבל XLR קצר מוכן אחד — לא 2 מחברים.
@@ -2920,41 +2919,46 @@ function usePatchCable(c) {
   c.stockRef = 'cable|' + s.id; c.spec = c.spec || it.name.slice(0, 42);
 }
 async function autoConnectors(c) {
+  /* כבל רב-גידי לרמקול tri/bi-amp: בצד המגברים תקע NL4 לכל פס, בצד הרמקול NL8 אחד */
+  if (c.bands && c.bands.length) { await autoConnectorsKind(c, 'speakon', c.bands.length); await autoConnectorsKind(c, 'nl8', 1); return; }
   /* קצה מולטי = פיצול XLR — מחבר XLR לכל גיד בכל קצה (לא ספיקון) */
   let kind = c.conn || connFor(c.type);
   if (kind === 'multi') kind = 'xlrm';
   if (kind === 'empty') return;
   const per = c.type === 'multi' && +c.cores > 0 ? +c.cores : 1;
+  await autoConnectorsKind(c, kind, 2 * per);
+}
+/* המחבר מהצעה/קטלוג לסוג נתון (dry = רק לבדוק, בלי להוסיף להצעה) */
+function connItemFor(kind, dry) {
   const re = CONN_SEARCH[kind] || /מחבר/i;
-  /* 1. מחבר קיים ברשימת הפריטים — מאותו סוג בדיוק */
-  /* שורת "כבל …" (כבל XLR מוכן) היא לא מחבר — גם אם יושבת תחת dest 'conn' */
   const notCable = x => !/^כבל/.test(x.name || '');
   let it = impItems.find(x => x.dest === 'conn' && notCable(x) && ((x.kind || connKindOf(x.name)) === kind))
     || impItems.find(x => notCable(x) && /מחבר|קונקטור|connector|keystone|קיסטון/i.test(x.name) && re.test(x.name));
-  if (it && it.dest !== 'conn') { it.dest = 'conn'; it.kind = it.kind || kind; }
-  /* 2. חיפוש בקטלוג ה-ERP — מחבר מתאים אמיתי (למשל keystone זכר לרשת) */
-  if (!it && typeof ERP_ITEMS !== 'undefined') {
-    /* מחבר בודד לפני פנל/קופסה "כולל קונקטור" */
+  if (it) return { it, inOffer: true };
+  if (typeof ERP_ITEMS !== 'undefined') {
     const hit = ERP_ITEMS.filter(([k, n]) => n && /מחבר|קונקטור|connector|keystone|קיסטון/i.test(n) && re.test(n))
       .sort((a, b) => ((/^מחבר|^connector/i.test(a[1]) ? 0 : 1) - (/^מחבר|^connector/i.test(b[1]) ? 0 : 1)) || byStockThenSold(a[0], b[0]))[0];
-    if (hit) {
-      it = { on: true, qty: 0, name: hit[1], key: hit[0], src: 'אוטומטי — קטלוג', dest: 'conn', kind, cat: 'other', u: 1, iid: uid('i') };
-      impItems.push(it); autoPrice(it);
-    }
+    if (hit) { if (dry) return { name: hit[1], key: hit[0], inOffer: false }; it = { on: true, qty: 0, name: hit[1], key: hit[0], src: 'אוטומטי — קטלוג', dest: 'conn', kind, cat: 'other', u: 1, iid: uid('i') }; impItems.push(it); autoPrice(it); return { it, inOffer: false }; }
   }
+  return null;
+}
+async function autoConnectorsKind(c, kind, count) {
+  const re = CONN_SEARCH[kind] || /מחבר/i;
+  const found = connItemFor(kind, false); let it = found && found.it;
+  if (it && it.dest !== 'conn') { it.dest = 'conn'; it.kind = it.kind || kind; }
   if (!it) {
     const nm = 'מחבר ' + ((CONNS[kind] && CONNS[kind].n) || kind);
-    if (!(await uiConfirm('לחיבור זה דרושים 2× ' + nm + ' ואין כזה ברשימת הפריטים.\nלהוסיף אותו להצעת המחיר ולצרוך 2 יחידות?'))) return;
+    if (!(await uiConfirm('לחיבור זה דרושים ' + count + '× ' + nm + ' ואין כזה ברשימת הפריטים.\nלהוסיף אותו להצעת המחיר ולצרוך ' + count + ' יחידות?'))) return;
     it = { on: true, qty: 0, name: nm, src: 'אוטומטי — חיבור כבל', dest: 'conn', kind, cat: 'other', u: 1, iid: uid('i') };
     impItems.push(it);
     autoPrice(it);
   }
   const s = ensureStockItem(it);
   s.kind = s.kind || kind;
-  s.used = (s.used || 0) + 2 * per;
+  s.used = (s.used || 0) + count;
   if (s.used > (s.qty || 0)) s.qty = s.used;
-  for (let k = 0; k < 2 * per; k++) bumpPlaced(it); /* ההערה נשארת ריקה — המחברים מוצגים בשדות המחבר */
-  c.connUse = it.iid; /* נשמר כדי להחזיר 2 מחברים אם הכבל יימחק */
+  for (let k = 0; k < count; k++) bumpPlaced(it); /* ההערה נשארת ריקה — המחברים מוצגים בשדות המחבר */
+  c.connUse = (c.connUse ? c.connUse + ',' : '') + it.iid + ':' + count; /* נשמר כדי להחזיר את המחברים אם הכבל יימחק */
 }
 function wireStockName() {
   if (!wireStock) return '';
@@ -4446,14 +4450,14 @@ function spkCableProducts() {
   const out = [];
   if (typeof ERP_ITEMS !== 'undefined') for (const [k, n] of ERP_ITEMS) {
     if (!n || !/כבל|גליל|תוף/.test(n) || !/רמקול|סאונד/.test(n) || /XLR|RCA|מולטי|מיקרופון|TOSLINK|\bPL|ממיר|CAT\s?[5-7]/i.test(n)) continue;
-    const m = /(\d)\s*[xX×]\s*(\d+(?:\.\d+)?)/.exec(n); if (!m) continue;
+    const m = /(\d)\s*[xX×*]\s*(\d+(?:\.\d+)?)\s*(?:mm|ממ)?/.exec(n); if (!m) continue;
     const perM = /לפי מטר|מטר רץ/.test(n), lm = /(\d{2,3})\s*(?:מ'|מ׳|מטר|m\b)/i.exec(n);
     out.push({ k, n, cores: +m[1], mm: +m[2], perM, len: perM ? 1 : (lm ? +lm[1] : 100) });
   }
   out.sort((a, b) => byStockThenSold(a.k, b.k));
   return window.__spkCab = out;
 }
-const spkCabLabel = pr => `${pr.cores}×${pr.mm} · ${pr.n.slice(0, 42)}${pr.perM ? ' (לפי מטר)' : ''}`;
+const spkCabLabel = pr => `${pr.cores}×${pr.mm} · ${pr.perM ? 'לפי מטר' : pr.len + ' מ׳'} · ${pr.n.replace(/כבל רמקול\s*/, '').slice(0, 40)}`;
 /* המוצר האוטומטי לערוץ: לפי החתך מהכלל (מרחק/הספק) — 2 גידים לרמקול רגיל; רמקול bi/tri-amp מקבל כבל רב-גידי (≥ 2×פסים) אם קיים בקטלוג */
 function patchAutoProduct(key) {
   const mm = +patchAutoCab(key); if (!mm) return null;
@@ -4502,6 +4506,32 @@ function patchBundleDiagrams() {
   }
   return out.length ? `<div style="font-size:12px;font-weight:700;margin:10px 0 4px">🧵 כבלים משותפים (רמקולי tri/bi-amp)</div>` + out.join('') : '';
 }
+/* 📦 מה ייכנס להצעה בעת החיבור: כבלים (מטרים / גלילים) ומחברים — לפי הבחירות הנוכחיות, בלי לשנות כלום */
+function patchOfferPreview() {
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const cab = {}, conn = {}, seen = new Set();
+  const addConn = (kind, n) => { conn[kind] = (conn[kind] || 0) + n; };
+  for (const [key, ids] of Object.entries(PATCH.slots)) {
+    if (!ids.length || seen.has(key)) continue;
+    const [ai] = key.split('|').map(Number), a = PATCH.amps[ai]; if (!a) continue;
+    const bd = ids.length === 1 && patchBundleOf(key, ids);
+    const r = patchCabResolve(key, true);
+    const head = byId(spkBase(ids[0])); if (!head) continue;
+    const L = P.scale ? +(dist(a.rk, head) * P.scale).toFixed(1) : 0;
+    if (r.xlr) { addConn('xlrm', ids.length); addConn('rca', ids.length); continue; }
+    const nm = r.pr ? r.pr.n : (r.ref ? (P.stock.reels.find(x => 'reel|' + x.id === r.ref) || {}).name : null) || (r.mm + ' ממ״ר');
+    const e = cab[nm] = cab[nm] || { m: 0, lines: 0, pr: r.pr, inOffer: r.inOffer || !!r.ref };
+    if (bd) { bd.parts.forEach(pt => seen.add(pt.key)); e.m += L; e.lines++; addConn('speakon', bd.parts.length); addConn('nl8', 1); continue; }
+    /* קו לכל ריצה (שרשור = קטעים בין רמקולים) */
+    const nodes = ids.map(byId).filter(Boolean); e.m += L + nodes.slice(1).reduce((s2, n, i) => s2 + (P.scale ? dist(nodes[i], n) * P.scale : 0), 0); e.lines += nodes.length; addConn('speakon', nodes.length * 2);
+  }
+  const cabRows = Object.entries(cab).map(([nm, e]) => { const pr = e.pr; const reels = pr && !pr.perM && pr.len ? Math.ceil(e.m / pr.len) : 0;
+    return `<div style="display:flex;gap:8px;align-items:center"><span style="flex:1">🧵 ${esc(nm.slice(0, 48))}</span><b>${e.lines} קווים · ~${Math.ceil(e.m)} מ׳${reels ? ' · ' + reels + ' גליל' + (reels > 1 ? 'ים' : '') + ' של ' + pr.len : pr && pr.perM ? ' (לפי מטר)' : ''}</b><span style="color:${e.inOffer ? '#0f6e56' : '#c96f4a'};font-size:10.5px">${e.inOffer ? '✓ בהצעה' : '➕ יתווסף'}</span></div>`; }).join('');
+  const KN = { speakon: 'ספיקון NL4', nl8: 'ספיקון NL8', xlrm: 'XLR זכר', rca: 'RCA' };
+  const connRows = Object.entries(conn).map(([k, n]) => { const f = connItemFor(k, true); const have = f && f.it ? Math.max(0, (+f.it.qty || 0) - ((f.it.stockId && (P.stock.conns.find(x => x.id === f.it.stockId) || {}).used) || 0)) : 0;
+    return `<div style="display:flex;gap:8px;align-items:center"><span style="flex:1">🔌 ${esc(KN[k] || k)}${f ? ' — ' + esc((f.it ? f.it.name : f.name).slice(0, 40)) : ' — <span style="color:#c1121f">אין בקטלוג</span>'}</span><b>× ${n}</b><span style="color:${have >= n ? '#0f6e56' : '#c96f4a'};font-size:10.5px">${f && f.inOffer ? (have >= n ? '✓ בהצעה' : '➕ יתווספו ' + (n - have)) : '➕ יתווסף'}</span></div>`; }).join('');
+  return `<div style="font-size:11.5px;margin-top:8px;background:#f7f5f0;border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;gap:4px"><b style="color:#534ab7">📦 ייכנס להצעה בעת החיבור (לפי הבחירות כאן)</b>${cabRows}${connRows}</div>`;
+}
 function patchCabPick(key) {
   const cur = (PATCH.cab || {})[key] || '', ap = patchAutoProduct(key);
   ensureStock(P);
@@ -4541,13 +4571,14 @@ function patchBundleInfo(key) {
 function patchBundleIndex(base) { PATCH._bIdx = PATCH._bIdx || []; let i = PATCH._bIdx.indexOf(base); if (i < 0) { PATCH._bIdx.push(base); i = PATCH._bIdx.length - 1; } return i + 1; }
 function patchCabSet(key, v) { PATCH.cab = PATCH.cab || {}; if (v) PATCH.cab[key] = v; else delete PATCH.cab[key]; }
 /* המוצר שנבחר/אוטומטי לערוץ; מחזיר {pr, ref} — ref = 'reel|id' של פריט בהצעה (נוצר אם צריך) */
-function patchCabResolve(key) {
+function patchCabResolve(key, dry) {
   const v = (PATCH.cab || {})[key] || '';
   if (v === 'xlr') return { xlr: true };
   if (v.startsWith('ref:')) { const id = v.slice(9); const st = P.stock.reels.find(x => x.id === id); return { ref: 'reel|' + id, mm: st && st.mm, cores: (st && st.cores) || 2 }; }
   const pr = v.startsWith('key:') ? spkCableProducts().find(x => x.k === v.slice(4)) : patchAutoProduct(key);
   if (!pr) return { mm: +patchAutoCab(key) };
   let it = impItems.find(x => x.key === pr.k && x.on !== false);
+  if (dry) return { pr, mm: pr.mm, cores: pr.cores, it, inOffer: !!it, dry: true };
   if (!it) { it = { on: true, qty: 1, name: pr.n, key: pr.k, src: 'חיווט — כבל רמקול', dest: 'reel', len: pr.len, mm: pr.mm, type: 'nl4', cores: pr.cores, perM: pr.perM, iid: uid('i') }; autoPrice(it); impItems.push(it); }
   const st = ensureStockItem(it); st.mm = pr.mm; st.cores = pr.cores; if (pr.perM) st.perM = true;
   return { ref: 'reel|' + st.id, mm: pr.mm, cores: pr.cores, it };
@@ -4561,7 +4592,7 @@ function patchApplyCab(key, c) {
 /* רמקול bi/tri-amp עם כבל רב-גידי: כל הפסים (HI/MID/LOW, גם מערוצים/מגברים שונים) עוברים בכבל אחד מהארון לרמקול */
 function patchBundleOf(key, ids) {
   const n0 = ids[0] && byId(ids[0]); if (!n0 || !n0.band) return null;
-  const r = patchCabResolve(key); const cores = r.cores || 2, need = bandIds(n0).length * 2;
+  const r = patchCabResolve(key, true); const cores = r.cores || 2, need = bandIds(n0).length * 2;
   if (cores < need) return null;
   const base = spkBase(n0.id), parts = [];
   for (const [k2, ids2] of Object.entries(PATCH.slots)) { const i = ids2.findIndex(id => spkBase(id) === base && spkBand(id)); if (i < 0) continue; const [ai, ch] = k2.split('|').map(Number); parts.push({ key: k2, band: spkBand(ids2[i]), a: PATCH.amps[ai], ch, single: ids2.length === 1 }); }
@@ -4730,7 +4761,7 @@ function patchRender() {
       ${PATCH.amps.length ? `<button onclick="patchAddAmp()" style="flex:1;background:#0f6e56;color:#fff;border:none;border-radius:9px;padding:7px;font-weight:700;cursor:pointer;font-size:12px">⚡ עוד ${esc(shortModel(PATCH.amps[PATCH.amps.length - 1].u.name).slice(0, 16))} — הוסף להצעה</button>` : ''}
       <button onclick="patchAmpPicker()" style="flex:1;background:#534ab7;color:#fff;border:none;border-radius:9px;padding:7px;font-weight:700;cursor:pointer;font-size:12px">🎚 בחר מגבר מהקטלוג</button>
     </div>` : ''}
-    ${estCables ? `<div style="font-size:11px;color:#8a8377;margin-top:6px;background:#f7f5f0;border-radius:8px;padding:6px 8px">🔌 בעת החיבור ייווצרו ${estCables} קווים · ~${estCables * 2} מחברים ייצרכו/יתווספו להצעה אוטומטית</div>` : ''}
+    ${estCables ? patchOfferPreview() : ''}
     ${totSpkW ? `<div style="font-size:11px;color:#8a8377;margin-top:4px;background:#f7f5f0;border-radius:8px;padding:6px 8px">⚡ סיכום הספקים: 🎚 מגברים ${totAmpW ? totAmpW.toLocaleString() + 'W' : '—'} זמינים בערוצים המאוישים · 🔊 רמקולים צורכים ${totSpkW.toLocaleString()}W RMS<br>
       <span style="font-size:10.5px">יחס הספק לערוץ: <b style="color:#c1121f">אדום</b> = מגבר חלש מהרמקולים · <b style="color:#c96a13">כתום</b> = פחות מ-×2 · <b style="color:#0f8a5f">ירוק</b> = ×2 ומעלה · <b style="color:#b7900f">זהב</b> = ×3 ומעלה</span></div>` : ''}
     <div style="font-size:11px;color:#8a8377;margin-top:4px;background:${anySpread ? '#fdeeee' : '#f7f5f0'};border-radius:8px;padding:6px 8px">
@@ -5664,7 +5695,7 @@ async function gapFixConnectors() {
   let n = 0, skip = 0;
   for (const c of P.cables) {
     if (c.inst === 'exist' || c.internal) continue;
-    if (c.connUse && impItems.some(it => it.iid === c.connUse && !/^כבל/.test(it.name || ''))) { skip++; continue; }
+    if (c.connUse && impItems.some(it => String(c.connUse).split(',').some(pt => pt.split(':')[0] === it.iid) && !/^כבל/.test(it.name || ''))) { skip++; continue; }
     try { await autoConnectors(c); n++; } catch (e) {}
   }
   render(); save();
