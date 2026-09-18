@@ -11574,13 +11574,13 @@ function exportPDF() {
   const k = Math.min(1, 700 / (xmax + 30), 950 / (ymax + 30));
   /* צילום תכנית — פעם אחת מלא, ואז שרטוט נפרד לכל דיסציפלינת כבלים */
   /* region (אופציונלי) — חיתוך לאזור {L,T,R,B} בקואורדינטות הקנבס (משמאל) והגדלה עד ×2.2: לשרטוט של דיסציפלינה מציגים רק את החלק הרלוונטי, גדול וברור */
-  const makeSnap = (title, region) => {
+  const makeSnap = (title, region, maxW) => {
     const snap = document.createElement('div');
     snap.className = 'rp-sec';
     snap.innerHTML = '<h3>' + title + '</h3>';
     const holder = document.createElement('div');
-    let kR = k, hw = (xmax + 30) * k, hh = (ymax + 30) * k;
-    if (region) { const bw = region.R - region.L, bh = region.B - region.T; kR = Math.min(2.2, 700 / bw, 950 / bh); hw = bw * kR; hh = bh * kR; }
+    let kR = maxW ? Math.min(1, maxW / (xmax + 30), 950 / (ymax + 30)) : k, hw = (xmax + 30) * kR, hh = (ymax + 30) * kR;
+    if (region) { const bw = region.R - region.L, bh = region.B - region.T; kR = Math.min(2.2, (maxW || 700) / bw, 950 / bh); hw = bw * kR; hh = bh * kR; }
     holder.style.cssText = `width:${Math.round(hw)}px;height:${Math.round(hh)}px;overflow:hidden;border:1px solid #ddd;border-radius:8px;position:relative;margin:0 auto;page-break-inside:avoid`;
     const clone = $('#canvas').cloneNode(true);
     /* ה-CSS של הקנבס והשכבות (#canvas, #wires, #zonesc, #nodes, #bgimg…) תלוי ב-id; ההעתק מאבד את ה-id כדי לא להתנגש —
@@ -11603,7 +11603,22 @@ function exportPDF() {
     clone.style.right = region ? (-(2200 - region.R) * kR) + 'px' : '0';
     holder.appendChild(clone);
     snap.appendChild(holder);
+    snap._holder = holder;
     return snap;
+  };
+  /* כרטיס פירוט: העתק של ארון/פאנל פתוח (עם המחברים, היחידות ומספרי הכבלים) — לעמודת הפירוט שליד השרטוט */
+  const detailCard = (n, col, maxW) => {
+    const el = document.getElementById('nd_' + n.id); if (!el) return null;
+    const clone = el.cloneNode(true); clone.removeAttribute('id'); clone.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    clone.classList.remove('sel'); clone.style.cssText = ''; clone.style.position = 'relative'; clone.style.right = 'auto'; clone.style.top = 'auto'; clone.style.transform = ''; clone.style.opacity = '';
+    const w = el.offsetWidth, h = el.offsetHeight, kk = Math.min(1, maxW / w);
+    const box = document.createElement('div');
+    box.style.cssText = `width:${Math.round(w * kk)}px;height:${Math.round(h * kk)}px;overflow:hidden;position:relative;border:2px solid ${col};border-radius:10px;page-break-inside:avoid`;
+    clone.style.transformOrigin = 'top right'; clone.style.transform = `scale(${kk})`; clone.style.position = 'absolute'; clone.style.top = '0'; clone.style.right = '0'; clone.style.width = w + 'px';
+    box.appendChild(clone);
+    const wrap = document.createElement('div'); wrap.style.cssText = 'margin-bottom:10px';
+    wrap.innerHTML = `<div style="font-size:12px;font-weight:700;color:${col};margin:0 0 3px">${esc(n.name)}${n.sub ? ' <span style="color:#777;font-weight:400">· ' + esc(n.sub) + '</span>' : ''}</div>`;
+    wrap.appendChild(box); return wrap;
   };
   const snaps = [];
   const savedVis = JSON.stringify(P.cabVis || {});
@@ -11617,21 +11632,25 @@ function exportPDF() {
       if (!present.includes(cat)) continue;
       const cabs = (P.cables || []).filter(c => (CAB_GROUP[c.type] || 'audio') === cat);
       const inv = new Set(); cabs.forEach(c => { inv.add(c.from); inv.add(c.to); });
-      /* פותחים ארונות/פאנלים מכווצים שמעורבים בדיסציפלינה — כדי שיראו את היחידות והחורים המחוברים */
-      const opened = [];
-      P.nodes.forEach(n => { if (!inv.has(n.id)) return; if (n.kind === 'panel' && n.pmin) { n.pmin = false; opened.push([n, 'pmin']); } if (n.kind === 'rack' && n.min) { n.min = false; opened.push([n, 'min']); } });
       P.cabVis = {}; ['audio', 'light', 'video', 'data', 'power'].forEach(k2 => P.cabVis[k2] = (k2 === cat));
       renderNodes(); renderWires();
-      /* הדגשה: מעורבים במסגרת בצבע הדיסציפלינה, השאר מעומעמים; חיתוך לאזור המעורבים + הכבלים */
-      const cr2 = $('#canvas').getBoundingClientRect(), Z2 = getZ();
-      let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
-      const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr2.left) / Z2); T = Math.min(T, (rb.top - cr2.top) / Z2); R = Math.max(R, (rb.right - cr2.left) / Z2); B = Math.max(B, (rb.bottom - cr2.top) / Z2); };
-      document.querySelectorAll('#nodes > .node').forEach(el => { const id = el.id.slice(3); if (inv.has(id)) { el.style.outline = '3px solid ' + CAT_COL[cat]; el.style.outlineOffset = '2px'; el.style.opacity = ''; addR(el.getBoundingClientRect()); } else el.style.opacity = '0.22'; });
-      document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
-      const region = L < Infinity ? { L: Math.max(0, L - 40), T: Math.max(0, T - 40), R: Math.min(2200, R + 40), B: Math.min(1400, B + 40) } : null;
-      snaps.push(makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', region));
+      /* שמאל: התכנית המלאה — המעורבים במסגרת בצבע הדיסציפלינה, השאר מעומעמים */
+      document.querySelectorAll('#nodes > .node').forEach(el => { const id = el.id.slice(3); if (inv.has(id)) { el.style.outline = '3px solid ' + CAT_COL[cat]; el.style.outlineOffset = '2px'; el.style.opacity = ''; } else el.style.opacity = '0.22'; });
+      const sec = makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', null, 560);
       document.querySelectorAll('#nodes > .node').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; el.style.opacity = ''; });
+      /* ימין: הארונות והפאנלים המעורבים — פתוחים, עם המחברים ומספרי הכבלים */
+      const opened = [];
+      P.nodes.forEach(n => { if (!inv.has(n.id)) return; if (n.kind === 'panel' && n.pmin) { n.pmin = false; opened.push([n, 'pmin']); } if (n.kind === 'rack' && n.min) { n.min = false; opened.push([n, 'min']); } });
+      renderNodes(); renderWires();
+      const right = document.createElement('div'); right.style.cssText = 'flex:1;min-width:280px;max-width:380px';
+      right.innerHTML = `<div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px">ארונות ופאנלים בשרטוט זה</div>`;
+      let cards = 0; P.nodes.forEach(n => { if (!inv.has(n.id) || n.kind === 'point') return; const card = detailCard(n, CAT_COL[cat], 360); if (card) { right.appendChild(card); cards++; } });
       opened.forEach(([n, f2]) => n[f2] = true);
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap';
+      const holder = sec._holder; holder.style.margin = '0'; holder.style.flex = 'none';
+      if (cards) row.appendChild(right); row.appendChild(holder);   /* RTL: הפירוט מימין, השרטוט משמאלו */
+      sec.appendChild(row);
+      snaps.push(sec);
     }
     P.cabVis = JSON.parse(savedVis);
     renderNodes(); renderWires();
