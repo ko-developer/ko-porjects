@@ -1030,9 +1030,22 @@ function setZoomPct(v) {
   if (!isNaN(p) && p > 0) P.zoom = Math.min(5, Math.max(0.15, p / 100));
   applyZoom(); save();
 }
-function zoomBy(f) {
-  P.zoom = Math.min(5, Math.max(0.15, getZ() * f));
-  applyZoom(); save();
+/* זום סביב נקודת עוגן: הנקודה בתכנית שמתחת לסמן (או מרכז המסך, מכפתורי +/−) נשארת במקומה על המסך */
+function zoomBy(f, anchor) {
+  const wrap = $('#canvasWrap'), cv = $('#canvas');
+  let ax, ay;
+  if (anchor && anchor.clientX != null) { ax = anchor.clientX; ay = anchor.clientY; }
+  else if (wrap) { const wr = wrap.getBoundingClientRect(); ax = wr.left + wr.width / 2; ay = wr.top + wr.height / 2; }
+  const Z1 = getZ(), r1 = cv ? cv.getBoundingClientRect() : null;
+  const px = r1 ? (ax - r1.left) / Z1 : 0, py = r1 ? (ay - r1.top) / Z1 : 0;   /* הנקודה בקואורדינטות הקנבס */
+  P.zoom = Math.min(5, Math.max(0.15, Z1 * f));
+  applyZoom();
+  if (wrap && r1) {
+    const Z2 = getZ(), r2 = cv.getBoundingClientRect();
+    wrap.scrollLeft += (r2.left + px * Z2) - ax;   /* עובד גם ב-RTL (scrollLeft שלילי) — ההזזה יחסית */
+    wrap.scrollTop += (r2.top + py * Z2) - ay;
+  }
+  save();
 }
 /* תיבת התוכן בקואורדינטות הקנבס (2200×1400, x משמאל): התכנית + כל המוקדים והאזורים.
    מאז שהתכנית יושבת במרכז הקנבס, "התאם לתצוגה" חייב להתאים לתוכן — לא לקנבס כולו */
@@ -1072,7 +1085,7 @@ function fitView() {
 document.addEventListener('wheel', e => {
   if (!e.ctrlKey || !e.target.closest('#canvasWrap')) return;
   e.preventDefault();
-  zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15);
+  zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, e);   /* זום סביב הסמן */
 }, { passive: false });
 function render() {
   renderHeader(); renderBg(); applyZoom(); renderZones(); renderCoverage(); renderNodes(); renderWires(); renderPanel(); renderLegend(); renderCableKey();
