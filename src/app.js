@@ -67,6 +67,7 @@ const CONNS = {
   xlrf:    { n: 'XLR נקבה', c: '#5f5e5a' },
   xlrm:    { n: 'XLR זכר',  c: '#5f5e5a', fill: 1 },
   speakon: { n: 'ספיקון NL4', c: '#e65100' },
+  nl8:     { n: 'ספיקון NL8 (רב-גידי)', c: '#bf360c' },
   bnc:     { n: 'BNC/SDI', c: '#2e7d32' },
   rj45:    { n: 'RJ45 רשת', c: '#6a4fc9', sq: 1 },
   hdmi:    { n: 'HDMI', c: '#185fa5', sq: 1 },
@@ -3002,6 +3003,7 @@ function connGlyph(conn) {
     case 'xlrf': return `<svg ${S}><circle cx="11" cy="11" r="9" fill="#fff" stroke="${C}" stroke-width="1.8"/><circle cx="11" cy="6.4" r="1.5" fill="${C}"/><circle cx="6.8" cy="14" r="1.5" fill="${C}"/><circle cx="15.2" cy="14" r="1.5" fill="${C}"/><text x="11" y="13.8" font-size="7" font-weight="700" fill="${C}" text-anchor="middle" font-family="Arial">F</text></svg>`;
     case 'xlrm': return `<svg ${S}><circle cx="11" cy="11" r="9" fill="${C}"/><circle cx="11" cy="6.4" r="1.5" fill="none" stroke="#fff" stroke-width="1"/><circle cx="6.8" cy="14" r="1.5" fill="none" stroke="#fff" stroke-width="1"/><circle cx="15.2" cy="14" r="1.5" fill="none" stroke="#fff" stroke-width="1"/><text x="11" y="13.8" font-size="7" font-weight="700" fill="#fff" text-anchor="middle" font-family="Arial">M</text></svg>`;
     case 'speakon': return `<svg ${S}><circle cx="11" cy="11" r="9" fill="#fff" stroke="${C}" stroke-width="1.8"/><rect x="9.6" y="2" width="2.8" height="4.2" fill="${C}"/><circle cx="11" cy="12" r="3.2" fill="none" stroke="${C}" stroke-width="1.6"/></svg>`;
+    case 'nl8': return `<svg ${S}><circle cx="11" cy="11" r="9" fill="#fff" stroke="${C}" stroke-width="1.8"/><rect x="9.6" y="2" width="2.8" height="4.2" fill="${C}"/><circle cx="11" cy="12" r="4.2" fill="none" stroke="${C}" stroke-width="1.4"/><text x="11" y="14" text-anchor="middle" font-size="5.5" font-weight="800" fill="${C}">8</text></svg>`;
     case 'bnc': return `<svg ${S}><circle cx="11" cy="11" r="9" fill="#fff" stroke="${C}" stroke-width="1.8"/><circle cx="11" cy="11" r="4.6" fill="none" stroke="${C}" stroke-width="1.4"/><circle cx="11" cy="11" r="1.6" fill="${C}"/></svg>`;
     case 'rj45': return `<svg ${S}><rect x="3" y="4" width="16" height="14" rx="2" fill="#fff" stroke="${C}" stroke-width="1.8"/><path d="M6.5 4.9v3.6M9.5 4.9v3.6M12.5 4.9v3.6M15.5 4.9v3.6" stroke="${C}" stroke-width="1.2"/><rect x="8" y="14" width="6" height="4" fill="${C}"/></svg>`;
     case 'hdmi': return `<svg ${S}><path d="M2.5 7.5h17v5l-3.2 3.2H5.7L2.5 12.5z" fill="#fff" stroke="${C}" stroke-width="1.8"/><path d="M6 10.5h10" stroke="${C}" stroke-width="1.4"/></svg>`;
@@ -4447,12 +4449,42 @@ function patchAutoProduct(key) {
 function patchCabSel(key) {
   const cur = (PATCH.cab || {})[key] || '', ap = patchAutoProduct(key), mm = patchAutoCab(key);
   ensureStock(P);
-  const reels = P.stock.reels.filter(st => !st.type || st.type === 'nl4' || /רמקול/.test(st.name));
-  return `<select class="pchCab" title="כבל הרמקול לערוץ — מוצר אמיתי מהקטלוג (נכנס להצעה בעת החיבור). אוטו = לפי מרחק והספק; כבל רב-גידי (6–8 גידים) לרמקול tri/bi-amp מאחד את כל הפסים לכבל אחד" style="font-size:10.5px;padding:1px 4px;border:1px solid #ddd;border-radius:6px;background:#fff;max-width:190px" onchange="patchCabSet('${key}',this.value)">
-    <option value="" ${cur ? '' : 'selected'}>אוטו · ${ap ? esc(spkCabLabel(ap)) : mm + ' ממ״ר (אין מוצר בקטלוג)'}</option>
-    ${reels.map(st => `<option value="ref:reel|${st.id}" ${cur === 'ref:reel|' + st.id ? 'selected' : ''}>🧵 בהצעה: ${esc(st.name.slice(0, 40))} · נותרו ${Math.max(0, (st.total || 0) - (st.used || 0))} מ׳</option>`).join('')}
-    <optgroup label="כבלי רמקול בקטלוג">${spkCableProducts().map(pr => `<option value="key:${pr.k}" ${cur === 'key:' + pr.k ? 'selected' : ''}>${esc(spkCabLabel(pr))}</option>`).join('')}</optgroup>
-    <option value="xlr" ${cur === 'xlr' ? 'selected' : ''}>XLR (סאב מוגבר)</option></select>`;
+  let lbl = 'אוטו · ' + (ap ? spkCabLabel(ap).slice(0, 34) : mm + ' ממ״ר');
+  if (cur === 'xlr') lbl = 'XLR (סאב מוגבר)';
+  else if (cur.startsWith('ref:')) { const st = P.stock.reels.find(x => 'reel|' + x.id === cur.slice(4)); lbl = st ? '🧵 ' + st.name.slice(0, 34) : lbl; }
+  else if (cur.startsWith('key:')) { const pr = spkCableProducts().find(x => x.k === cur.slice(4)); lbl = pr ? spkCabLabel(pr).slice(0, 38) : lbl; }
+  const bi = patchBundleInfo(key);
+  return `<button class="pchCab" title="כבל הרמקול לערוץ — לחיצה פותחת חיפוש בקטלוג. אוטו = לפי מרחק והספק; כבל רב-גידי (6–8 גידים) לרמקול tri/bi-amp מאחד את כל הפסים לכבל אחד" style="font-size:10.5px;padding:2px 7px;border:1px solid ${cur ? '#c96f4a' : '#ddd'};border-radius:6px;background:#fff;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="patchCabPick('${key}')">🔍 ${esc(lbl)}</button>${bi ? `<div style="font-size:10px;color:#534ab7;margin-top:2px">${bi}</div>` : ''}`;
+}
+/* חלון בחירה עם חיפוש: כבלי רמקול מהקטלוג, גלילים שבהצעה, XLR */
+function patchCabPick(key) {
+  const cur = (PATCH.cab || {})[key] || '', ap = patchAutoProduct(key);
+  ensureStock(P);
+  const rows = [{ v: '', t: 'אוטו · ' + (ap ? spkCabLabel(ap) : patchAutoCab(key) + ' ממ״ר') + ' — לפי מרחק והספק', g: '' }];
+  P.stock.reels.filter(st => !st.type || st.type === 'nl4' || /רמקול/.test(st.name)).forEach(st => rows.push({ v: 'ref:reel|' + st.id, t: '🧵 בהצעה: ' + st.name + ' · נותרו ' + Math.max(0, (st.total || 0) - (st.used || 0)) + ' מ׳', g: 'בהצעה' }));
+  spkCableProducts().forEach(pr => rows.push({ v: 'key:' + pr.k, t: spkCabLabel(pr), k: pr.k, g: 'קטלוג', cores: pr.cores }));
+  rows.push({ v: 'xlr', t: 'XLR — סיגנל לסאב מוגבר', g: '' });
+  const ov = uiModal(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">🔍 כבל רמקול לערוץ</b><button data-x>✕</button></div>
+    <input data-q placeholder="חפש: 2X2.5 · 4X4 · 7X2.5 · WIRES · KLOTZ · לפי מטר…" style="width:100%;padding:7px;box-sizing:border-box;margin-bottom:8px">
+    <div data-list style="max-height:52vh;overflow-y:auto"></div>`);
+  const listEl = ov.querySelector('[data-list]');
+  const paint = q => { const ql = (q || '').toLowerCase().replace(/[×x]/g, 'x'); const f = rows.filter(r => !ql || r.t.toLowerCase().replace(/[×x]/g, 'x').includes(ql));
+    listEl.innerHTML = f.map(r => `<div data-v="${esc(r.v)}" style="display:flex;gap:8px;align-items:center;padding:6px 9px;border:1px solid ${r.v === cur ? '#c96f4a' : '#eee'};border-radius:9px;margin-bottom:4px;cursor:pointer;background:${r.v === cur ? '#fdf4f0' : '#fff'}">${r.k ? imgCell(r.k, 30, r.t) : ''}<span style="flex:1;font-size:12.5px">${esc(r.t)}${r.cores >= 6 ? ' <b style="color:#534ab7;font-size:10.5px">רב-גידי — פס לכל זוג</b>' : ''}</span>${r.k ? stockBadge(r.k) : ''}<small class="muted">${esc(r.g)}</small></div>`).join('') || '<p class="muted">אין תוצאות</p>';
+    listEl.querySelectorAll('[data-v]').forEach(el => el.onclick = () => { patchCabSet(key, el.dataset.v); ov.remove(); patchRender(); }); };
+  ov.querySelector('[data-q]').oninput = e => paint(e.target.value); ov.querySelector('[data-x]').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  paint(''); setTimeout(() => ov.querySelector('[data-q]').focus(), 50);
+}
+window.patchCabPick = patchCabPick;
+/* פיני NL8 וזוג הגידים לכל פס בכבל רב-גידי: ברירת מחדל LOW 1± · MID 2± · HI 3± (ניתן לשינוי בטבלת הרמקולים, שדה "פיני NL8") */
+const BAND_ORDER = ['low', 'mid', 'hi'], BAND_PIN_DEF = { low: '1±', mid: '2±', hi: '3±' };
+function bandPins(name, band) { const b = spkBandData(name, band); return (b && b.pins) || BAND_PIN_DEF[band] || ''; }
+function bandPair(name, band) { const present = bandIds({ id: 'x', name }).map(spkBand).filter(Boolean); const ord = BAND_ORDER.filter(b => present.includes(b)); const i = ord.indexOf(band); return i < 0 ? '' : (i * 2 + 1) + '-' + (i * 2 + 2); }
+/* תיאור לפאץ׳: הערוץ הזה = זוג גידים בכבל המשותף של הרמקול */
+function patchBundleInfo(key) {
+  const ids = PATCH.slots[key] || []; if (ids.length !== 1) return '';
+  const bd = patchBundleOf(key, ids); if (!bd) return '';
+  const n = byId(ids[0]), nm = nodeFullName(n), pr = bd.r && bd.r.cores;
+  return `🧵 כבל משותף ל${esc(shortModel(nm))} (${pr} גידים, ${bd.parts.length} פסים) · פס ${BAND_LBL[n.band]} = גידים ${bandPair(nm, n.band)} → NL8 ${esc(bandPins(nm, n.band))}`;
 }
 function patchCabSet(key, v) { PATCH.cab = PATCH.cab || {}; if (v) PATCH.cab[key] = v; else delete PATCH.cab[key]; }
 /* המוצר שנבחר/אוטומטי לערוץ; מחזיר {pr, ref} — ref = 'reel|id' של פריט בהצעה (נוצר אם צריך) */
@@ -5161,8 +5193,9 @@ async function patchApply() {
     if (bd) {
       const head = byId(spkBase(ids[0])), a0 = bd.parts[0].a;
       const BL = { hi: 'HI', mid: 'MID', low: 'LOW' };
-      const desc = bd.parts.map(pt => BL[pt.band] + ' ← ' + modelOf(pt.a.u.name) + ' OUT ' + pt.ch).join(' · ');
-      const cc = { id: uid('c'), from: a0.rk.id, fromUnit: a0.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note: 'כבל רב-גידי (' + bd.parts.length + ' פסים בכבל אחד) · ' + desc, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + bd.parts[0].ch, cores: bd.parts.length, bands: bd.parts.map(pt => ({ band: pt.band, unitId: pt.a.u.id, port: 'OUT ' + pt.ch })) };
+      const hn = nodeFullName(head);
+      const desc = bd.parts.map(pt => BL[pt.band] + ' ← ' + modelOf(pt.a.u.name) + ' OUT ' + pt.ch + ' · גידים ' + bandPair(hn, pt.band) + ' → NL8 ' + bandPins(hn, pt.band)).join(' · ');
+      const cc = { id: uid('c'), from: a0.rk.id, fromUnit: a0.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note: 'כבל רב-גידי (' + bd.parts.length + ' פסים בכבל אחד, ' + (bd.r.cores || '') + ' גידים) · ' + desc, conn: 'speakon', conn2: 'nl8', pOut: 'OUT ' + bd.parts[0].ch, cores: bd.parts.length, bands: bd.parts.map(pt => ({ band: pt.band, unitId: pt.a.u.id, port: 'OUT ' + pt.ch, pair: bandPair(hn, pt.band), pins: bandPins(hn, pt.band) })) };
       if (P.scale) cc.len = +(dist(a0.rk, head) * P.scale).toFixed(1);
       patchApplyCab(key, cc); P.cables.push(cc); n2++; made.push(cc);
       bd.parts.forEach(pt => bundled.add(pt.key));
@@ -6275,7 +6308,7 @@ function spkDataManager(tab) {
     const bandRow = tab === 'spk' && (ampMode === 'bi' || ampMode === 'tri') ? (() => { const bands = ampMode === 'tri' ? ['hi', 'mid', 'low'] : ['hi', 'low'], BL = { hi: 'HI', mid: 'MID', low: 'LOW' }, bd = meta.bands || {}, mu = matrixMulti(r.name);
       const inp = (b, f, w, ph) => { const mx = matrixBand(r.name, b) || {}; const ed = (bd[b] || {})[f]; const v = ed ?? mx[f] ?? ''; return `<input value="${esc(v)}" placeholder="${ph}" title="${mx[f] != null ? 'ממטריצת ההתאמות (' + esc(mx.row) + ')' : ''}" style="width:${w}px;text-align:center;border:1px solid ${ed != null && ed !== '' ? '#c96f4a' : '#cfe3d8'};border-radius:4px;font-size:11px;${ed == null || ed === '' ? 'color:#0f6e56' : ''}" onchange="spkBandSet('${nmA}','${b}','${f}',this.value)">`; };
       return `<tr style="background:#f4faf6;border-bottom:1px solid #eee"><td colspan="${colspan}" style="padding:4px 8px 6px"><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:11px"><b style="color:#0f6e56">${ampMode === 'tri' ? 'Tri-amp' : 'Bi-amp'} — נתונים לכל פס${mu ? ' · ממטריצת ההתאמות (' + esc(mu.name) + ')' : ''}:</b>
-        ${bands.map(b => `<span style="display:inline-flex;gap:4px;align-items:center;border:1px solid #d8e9df;border-radius:7px;padding:2px 6px;background:#fff"><b style="min-width:30px">${BL[b]}</b> ${inp(b, 'o', 34, 'Ω')}Ω ${inp(b, 'w', 44, 'W')}W ${inp(b, 'sens', 40, 'dB')}dB ${inp(b, 'max', 40, 'SPL')}max ${inp(b, 'f', 82, 'תדרים Hz')}</span>`).join('')}</div></td></tr>`; })() : '';
+        ${bands.map(b => `<span style="display:inline-flex;gap:4px;align-items:center;border:1px solid #d8e9df;border-radius:7px;padding:2px 6px;background:#fff"><b style="min-width:30px">${BL[b]}</b> ${inp(b, 'o', 34, 'Ω')}Ω ${inp(b, 'w', 44, 'W')}W ${inp(b, 'sens', 40, 'dB')}dB ${inp(b, 'max', 40, 'SPL')}max ${inp(b, 'f', 82, 'תדרים Hz')} <span title="פיני ספיקון NL8 של הפס — לכבל רב-גידי">NL8 ${inp(b, 'pins', 34, BAND_PIN_DEF[b])}</span></span>`).join('')}</div></td></tr>`; })() : '';
     return `${brandHdr}<tr style="border-bottom:1px solid #eee">
         <td style="padding:4px 5px;font-weight:600"><a href="#" onclick="event.preventDefault();specSheet('${tab}','${esc(r.name).replace(/'/g, '&#39;')}')" style="color:#c9502e;text-decoration:none;border-bottom:1px dotted #c9502e">${esc(r.name)}</a><div class="muted" style="font-size:9px">${r.src}${r.variants ? ' · גרסאות צבע: ' + esc(r.variants.join(', ')) : ''}</div></td>
         ${cells}
@@ -11788,7 +11821,8 @@ function exportPDF() {
     const LBLl = cableLabels(), endTxt = (nid, unitId, hole, port) => { const n = byId(nid); if (!n) return '?'; const u = unitOf(nid, unitId); return esc((u ? u.name + ' (' + n.name + ')' : n.name).slice(0, 34)) + (hole ? ' · חור ' + hole : port ? ' · ' + esc(port) : ''); };
     const rows = [];
     for (const c of cabs) {
-      if (c.chans && c.chans.length) c.chans.forEach((ch, i) => rows.push({ c, lbl: LBLl[c.id] + '.' + (i + 1), a: endTxt(c.from, c.fromUnit, ch.a), b: endTxt(c.to, c.toUnit, ch.b), sub: 'ליבה ' + (i + 1) + ' מתוך ' + c.chans.length }));
+      if (c.bands && c.bands.length) c.bands.forEach((bd, i) => rows.push({ c, lbl: LBLl[c.id] + '.' + (i + 1), a: endTxt(c.from, bd.unitId, null, bd.port), b: endTxt(c.to, c.toUnit) + ' · NL8 ' + esc(bd.pins || '') + ' (' + BAND_LBL[bd.band] + ')', sub: 'גידים ' + (bd.pair || '') + ' בכבל המשותף' }));
+      else if (c.chans && c.chans.length) c.chans.forEach((ch, i) => rows.push({ c, lbl: LBLl[c.id] + '.' + (i + 1), a: endTxt(c.from, c.fromUnit, ch.a), b: endTxt(c.to, c.toUnit, ch.b), sub: 'ליבה ' + (i + 1) + ' מתוך ' + c.chans.length }));
       else rows.push({ c, lbl: LBLl[c.id], a: endTxt(c.from, c.fromUnit, c.fromHole, c.pOut), b: endTxt(c.to, c.toUnit, c.toHole, c.pIn), sub: '' });
     }
     if (!rows.length) return '';
