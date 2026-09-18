@@ -7772,6 +7772,18 @@ document.addEventListener('pointermove', e => {
   if (isIcon(drag.n) && !P.snapOff && !e.altKey) {   /* הצמדה — אפשר לבטל בתפריט התצוגה, או זמנית עם Alt בזמן הגרירה */
     const TH = 8 / Z;
     let gx = null, gy = null;
+    /* לוחות וקופסאות מותקנים הרבה פעמים צמודים זה לזה: כשהאייקון מתקרב לצד של אייקון אחר הוא נצמד אליו קצה-לקצה (ומיושר איתו) */
+    const kk = (() => { const want = P.scale ? Math.min(30 / Z, Math.max(16 / Z, 0.5 / P.scale)) : 30 / Z; return Math.min(1, want / 30); })();
+    const elD = document.getElementById('nd_' + drag.n.id), wD = (elD ? elD.offsetWidth : 40) * kk, hD = (elD ? elD.offsetHeight : 54) * kk, TA = Math.max(12 / Z, wD * 0.75);   /* טווח ההצמדה — כשלושה רבעים מרוחב האייקון */
+    for (const nn of P.nodes) {
+      if (nn === drag.n || !isIcon(nn) || nn.hidden) continue;
+      const elO = document.getElementById('nd_' + nn.id), wO = (elO ? elO.offsetWidth : 40) * kk, hO = (elO ? elO.offsetHeight : 54) * kk;
+      const dxs = (wO + wD) / 2 + 2, dys = (hO + hD) / 2 + 2;   /* מרחק מרכזים כשצמודים */
+      for (const sx2 of [-1, 1]) { const tx = nn.x + sx2 * dxs; if (Math.abs(tx - drag.n.x) < TA && Math.abs(nn.y - drag.n.y) < hO) { gx = tx; gy = nn.y; break; } }
+      if (gx != null) break;
+      for (const sy2 of [-1, 1]) { const ty = nn.y + sy2 * dys; if (Math.abs(ty - drag.n.y) < TA && Math.abs(nn.x - drag.n.x) < wO) { gy = ty; gx = nn.x; break; } }
+      if (gy != null) break;
+    }
     for (const nn of P.nodes) {
       if (nn === drag.n || !isIcon(nn) || nn.hidden) continue;
       if (gx == null && Math.abs(nn.x - drag.n.x) < TH) gx = nn.x;
