@@ -4211,7 +4211,17 @@ function patchOpen(z, amps, lines, leftover) {
       const head = P.cables.find(c => c.from === a.rk.id && (c.fromUnit || null) === (a.u.id || null) && c.pOut === port);
       if (!head) return;
       const cl = chainLoad(a.rk.id, a.u.id, port);
-      const ids = cl && cl.spks && cl.spks.length ? cl.spks.map(n => n.id) : [head.to];
+      let ids = cl && cl.spks && cl.spks.length ? cl.spks.map(n => n.id) : [head.to];
+      /* רמקול tri/bi-amp: הכבל הקיים שייך לפס אחד (לפי pIn / bands של כבל משותף); אותו פס לא ניתן פעמיים לאותו רמקול */
+      PATCH._bandUsed = PATCH._bandUsed || {};
+      ids = ids.map(id => { const n = byId(id); if (!n || spkBand(id)) return id; const b = bandIds(n); if (b.length <= 1) return id;
+        const used = PATCH._bandUsed[id] = PATCH._bandUsed[id] || new Set();
+        const BK = { HI: 'hi', MID: 'mid', LOW: 'low' };
+        let band = head.bands ? (head.bands.find(x => x.unitId === a.u.id && x.port === port) || {}).band : BK[String(head.pIn || '').toUpperCase()];
+        if (!band || used.has(band)) band = ['hi', 'mid', 'low'].find(x => b.includes(id + '#' + x) && !used.has(x)) || band || 'hi';
+        used.add(band);
+        if (!head.bands && head.pIn !== BAND_LBL[band]) { head.pIn = BAND_LBL[band]; head.note = String(head.note || '').replace(/ · פס (HI|MID|LOW)$/, '') + ' · פס ' + BAND_LBL[band]; }   /* תיקון כבל שנשמר עם פס שגוי */
+        return id + '#' + band; });
       PATCH.slots[ai + '|' + ch] = ids;
       PATCH.orig[ai + '|' + ch] = ids.join(',');
       const inSet = new Set(ids);
@@ -4477,7 +4487,7 @@ function patchBundleDiagrams() {
         <circle cx="${xS - 14}" cy="${y}" r="9" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${xS - 14}" y="${y + 3.5}" text-anchor="middle" font-size="8.5" font-weight="800" fill="${col}">${esc(bandPins(hn, pt.band))}</text>
         <text x="${xS - 30}" y="${y + 4}" text-anchor="end" font-size="9" fill="#666">${BAND_LBL[pt.band]}</text>`; }).join('');
     out.push(`<div style="border:1.5px solid #534ab7;border-radius:10px;padding:6px 8px;margin:6px 0;background:#f8f7fd">
-      <div style="font-size:12px;font-weight:700;color:#534ab7">🧵 כבל משותף רב-גידי → ${esc(shortModel(hn))} (${parts.length} פסים) · ${esc(prName)}</div>
+      <div style="font-size:12px;font-weight:700;color:#534ab7">🧵 כבל ${patchBundleIndex(bd.base)} — רב-גידי → ${esc(nodeFullName(head).replace(/\s*\(\d+\)\s*$/, '').slice(0, 40))}${/\(\d+\)\s*$/.test(nodeFullName(head)) ? ' ' + nodeFullName(head).match(/\((\d+)\)\s*$/)[1] : ''} (${parts.length} פסים) · ${esc(prName)}</div>
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="direction:ltr;display:block;max-width:100%;font-family:inherit">
         <rect x="${xCab1}" y="${yMid - 9}" width="${xCab2 - xCab1}" height="18" rx="9" fill="#534ab7"/><text x="${(xCab1 + xCab2) / 2}" y="${yMid + 4}" text-anchor="middle" font-size="10.5" font-weight="800" fill="#fff">${cores} גידים · כבל אחד</text>
         ${rows}<text x="${xS - 14}" y="${H - 4}" text-anchor="middle" font-size="9" fill="#666">NL8</text></svg></div>`);
@@ -4510,9 +4520,17 @@ function bandPair(name, band) { const present = bandIds({ id: 'x', name }).map(s
 function patchBundleInfo(key) {
   const ids = PATCH.slots[key] || []; if (ids.length !== 1) return '';
   const bd = patchBundleOf(key, ids); if (!bd) return '';
-  const n = byId(ids[0]), nm = nodeFullName(n), pr = bd.r && bd.r.cores;
-  return `🧵 כבל משותף ל${esc(shortModel(nm))} (${pr} גידים, ${bd.parts.length} פסים) · פס ${BAND_LBL[n.band]} = גידים ${bandPair(nm, n.band)} → NL8 ${esc(bandPins(nm, n.band))}`;
+  const n = byId(ids[0]), nm = nodeFullName(n), col = { hi: '#c2185b', mid: '#b8860b', low: '#185fa5' }[n.band] || '#555';
+  const idx = patchBundleIndex(bd.base), pair = bandPair(nm, n.band), pins = bandPins(nm, n.band);
+  /* מיני-תרשים: הערוץ → נכנס לכבל המשותף (מספר הכבל) → זוג הגידים → פין NL8 */
+  return `<svg width="200" height="24" viewBox="0 0 200 24" style="direction:ltr;display:block" title="כבל משותף #${idx} ל${esc(shortModel(nm))}: פס ${BAND_LBL[n.band]} על גידים ${pair} → NL8 ${esc(pins)}">
+    <path d="M2 12 H 30" stroke="${col}" stroke-width="2.5"/><rect x="30" y="4" width="54" height="16" rx="8" fill="#534ab7"/><text x="57" y="15.5" text-anchor="middle" font-size="9.5" font-weight="800" fill="#fff">🧵 כבל ${idx}</text>
+    <path d="M84 12 H 118" stroke="${col}" stroke-width="2.5"/><text x="101" y="9" text-anchor="middle" font-size="8" fill="${col}">${pair}</text>
+    <circle cx="130" cy="12" r="9" fill="#fff" stroke="${col}" stroke-width="1.6"/><text x="130" y="15.5" text-anchor="middle" font-size="8.5" font-weight="800" fill="${col}">${esc(pins)}</text>
+    <text x="146" y="15.5" font-size="9" fill="#666">NL8 · ${BAND_LBL[n.band]}</text></svg>`;
 }
+/* מספר סידורי לכבל משותף (לפי סדר הרמקולים בפאץ׳) — מופיע בשורות ובתרשים */
+function patchBundleIndex(base) { PATCH._bIdx = PATCH._bIdx || []; let i = PATCH._bIdx.indexOf(base); if (i < 0) { PATCH._bIdx.push(base); i = PATCH._bIdx.length - 1; } return i + 1; }
 function patchCabSet(key, v) { PATCH.cab = PATCH.cab || {}; if (v) PATCH.cab[key] = v; else delete PATCH.cab[key]; }
 /* המוצר שנבחר/אוטומטי לערוץ; מחזיר {pr, ref} — ref = 'reel|id' של פריט בהצעה (נוצר אם צריך) */
 function patchCabResolve(key) {
@@ -4622,6 +4640,7 @@ function chLinkBtn(key, a, b) {
   return `<button onclick="event.stopPropagation();chLinkToggle('${key}','${a}','${b}')" title="${on ? 'משורשרים — כבל אחד עובר מהראשון לשני · לחץ לניתוק לקווים ישירים' : 'קווים ישירים נפרדים · לחץ לשרשור השניים בכבל אחד'}" style="border:1px ${on ? 'solid #0f6e56' : 'dashed #bbb'};background:${on ? '#0f6e56' : '#fff'};color:${on ? '#fff' : '#999'};border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:10px;padding:0;flex:none;line-height:1">${on ? '🔗' : '∥'}</button>`;
 }
 function patchRender() {
+  if (PATCH) PATCH._bIdx = [];
   const body = document.getElementById('patchBody'); if (!body || !PATCH) return;
   let totAmpW = 0, totSpkW = 0;
   /* דיליי — לפי המקור העיקרי (במה/DJ) ובמצב שנבחר; ערוץ אחד לפחות תמיד 0 */
