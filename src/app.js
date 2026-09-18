@@ -1373,6 +1373,8 @@ function viewMenuHTML() {
       <input type="checkbox" style="width:auto" ${P.showCoverage ? 'checked' : ''} onchange="P.showCoverage=this.checked;render();save()"><span style="flex:1">🔊 פיזור אקוסטי (מפת SPL וקונוסי כיסוי)</span></label>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="בגרירה: יישור לאייקונים אחרים והצמדה לשולחן/ריהוט. כבוי = מיקום חופשי לגמרי. Alt בזמן הגרירה מבטל זמנית">
       <input type="checkbox" style="width:auto" ${P.snapOff ? '' : 'checked'} onchange="P.snapOff=!this.checked;save()"><span style="flex:1">🧲 הצמדה ויישור בגרירה (Alt = מיקום חופשי)</span></label>
+    <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="הילות ותגי הצינורות/התעלות על הקווים">
+      <input type="checkbox" style="width:auto" ${P.hideConduits ? '' : 'checked'} onchange="P.hideConduits=!this.checked;renderWires();save()"><span style="flex:1">🛤 צנרת — צינורות ותעלות על הקווים</span></label>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;border-radius:5px;background:rgba(255,255,255,.06)" title="מוקדים/פאנלים שהונחו על אותה נקודה — איך לסדר אותם">
       <span style="flex:1">🧱 מוקדים צמודים באותה נקודה</span><select style="width:auto;font-size:11px;padding:2px 4px" onchange="P.stackDir=this.value;render();save()"><option value="v" ${P.stackDir !== 'h' ? 'selected' : ''}>בטור — זה מעל זה</option><option value="h" ${P.stackDir === 'h' ? 'selected' : ''}>בשורה — זה ליד זה</option></select></label>` +
     (cabRows ? `<div style="display:flex;align-items:center;gap:6px;margin:6px 4px 2px">
@@ -3616,7 +3618,7 @@ function renderWires() {
     }
     const instDash = c.inst === 'exist' ? '7 5' : c.inst === 'pull' ? '14 6' : null;
     /* קו בתוך צינור/תעלה: הילה רחבה בצבע הצינור מתחת לקו + תג "צ1 Ø50" פעם אחת לכל צינור */
-    const cdOf = c.conduit && (P.conduits || []).find(x => x.id === c.conduit);
+    const cdOf = !P.hideConduits && c.conduit && (P.conduits || []).find(x => x.id === c.conduit);
     if (cdOf) { const cc2 = conduitColor(cdOf); out += `<path d="${dpath}" fill="none" stroke="${cc2}" stroke-width="${(selw + 7)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.28" style="pointer-events:none"/>`;
       cdBadged = cdBadged || new Set(); if (!cdBadged.has(cdOf.id)) { cdBadged.add(cdOf.id); const bx2 = it.mx || it.bx, by2 = it.by || (pa.y + pb.y) / 2; const t2 = conduitTag(cdOf); out += `<g style="pointer-events:all;cursor:pointer" onclick="routeManager()"><rect x="${bx2 - t2.length * 3.2 - 4}" y="${by2 - 18}" width="${t2.length * 6.4 + 8}" height="12" rx="4" fill="${cc2}"/><text x="${bx2}" y="${by2 - 9}" text-anchor="middle" font-size="8.5" font-weight="800" fill="#fff">${esc(t2)}</text></g>`; } }
     if (conduitMode && cdOf && cdOf.id === conduitMode.id) out += `<path d="${dpath}" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 3" style="pointer-events:none"/>`;
@@ -7722,6 +7724,9 @@ function routeReportHTML() {
   const cds = P.conduits || [], LBL = cableLabels(); const routed = (P.cables || []).filter(c => c.route);
   if (!cds.length && !routed.length) return '';
   const KN = Object.fromEntries(ROUTE_KINDS);
+  /* שרטוט הצנרת: כל צינור בצבעו, קווים עבים, תג צ1 Ø50, וטבלת מקרא — מהיכן לאן וכמה קווים בפנים */
+  const legend = cds.map(cd => { const f = conduitFill(cd); const ends = [...new Set(f.cabs.flatMap(c => [endNameTxt(c.from, c.fromUnit), endNameTxt(c.to, c.toUnit)]))]; return `<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${conduitColor(cd)};vertical-align:middle"></span> <b style="color:${conduitColor(cd)}">${esc(conduitTag(cd))}</b> ${esc(cd.name)}</td><td>${esc(ends.slice(0, 4).join(' ↔ ').slice(0, 60))}</td><td>${cd.len ? cd.len + ' מ׳' : '—'}</td><td>${f.cabs.length}</td><td style="color:${f.ok ? '#0f6e56' : '#c1121f'};font-weight:700">${Math.round(f.pct * 100)}%${f.ok ? '' : ' ⚠ צריך Ø' + (f.need || '>110')}</td></tr>`; }).join('');
+  window.__rpConduitLegend = `<table class="cablelist" style="margin-top:6px"><tr><th>צינור</th><th>מ־ ↔ אל</th><th>אורך</th><th>קווים</th><th>מילוי</th></tr>${legend}</table>`;
   return `<div class="rp-sec"><h3>🛤 תשתית העברה — תעלות, צינורות ומסלולי הקווים</h3>
     ${cds.length ? `<table class="cablelist"><tr><th>שם</th><th>סוג</th><th>מידה</th><th>אורך</th><th>קווים בפנים</th><th>מילוי</th></tr>${cds.map(cd => { const f = conduitFill(cd); return `<tr><td><b>${esc(cd.name)}</b></td><td>${cd.kind === 'tray' ? 'תעלה' : 'צינור'}</td><td>${cd.kind === 'tray' ? cd.size + ' מ״מ' : 'Ø' + cd.size + ' מ״מ'}</td><td>${cd.len ? cd.len + ' מ׳' : '—'}</td><td>${f.cabs.map(c => LBL[c.id] + ' (' + esc(cableKindLabel(c)) + ')').join(' · ') || '—'}</td><td style="color:${f.ok ? '#0f6e56' : '#c1121f'};font-weight:700">${Math.round(f.pct * 100)}%${f.ok ? '' : ' ⚠'}</td></tr>`; }).join('')}</table>` : ''}
     <table class="cablelist" style="margin-top:8px"><tr><th>#</th><th>מ־ ← אל</th><th>סוג</th><th>מעבר</th><th>צינור/תעלה</th></tr>${(P.cables || []).filter(c => c.from !== c.to && !c.internal).map(c => { const cd = cds.find(x => x.id === c.conduit); return `<tr><td>${LBL[c.id]}</td><td>${esc(endNameTxt(c.from, c.fromUnit).slice(0, 30))} ← ${esc(endNameTxt(c.to, c.toUnit).slice(0, 30))}</td><td>${esc(cableKindLabel(c))}</td><td>${esc(KN[c.route || ''] || '—')}</td><td>${cd ? esc(cd.name) : '—'}</td></tr>`; }).join('')}</table></div>`;
@@ -12050,7 +12055,8 @@ function exportPDF() {
   if (P.bg && bgim.style.display !== 'none') consider(bgim);
   document.querySelectorAll('#nodes > .node').forEach(consider);
   document.querySelectorAll('#zonesc > *').forEach(consider);
-  const k = Math.min(1, 700 / (xmax + 30), 950 / (ymax + 30));
+  /* גודל התצוגה בדוח: לפחות כגודל התכנית (רוחב הרקע), עד רוחב העמוד — לא מוקטן ל-700px */
+  const k = Math.min(1, 1000 / (xmax + 30), 1400 / (ymax + 30));
   /* צילום תכנית — פעם אחת מלא, ואז שרטוט נפרד לכל דיסציפלינת כבלים */
   /* region (אופציונלי) — חיתוך לאזור {L,T,R,B} בקואורדינטות הקנבס (משמאל) והגדלה עד ×2.2: לשרטוט של דיסציפלינה מציגים רק את החלק הרלוונטי, גדול וברור */
   const makeSnap = (title, region, maxW) => {
@@ -12059,7 +12065,7 @@ function exportPDF() {
     snap.innerHTML = '<h3>' + title + '</h3>';
     const holder = document.createElement('div');
     let kR = maxW ? Math.min(1, maxW / (xmax + 30), 950 / (ymax + 30)) : k, hw = (xmax + 30) * kR, hh = (ymax + 30) * kR;
-    if (region) { const bw = region.R - region.L, bh = region.B - region.T; kR = Math.min(2.2, (maxW || 700) / bw, 950 / bh); hw = bw * kR; hh = bh * kR; }
+    if (region) { const bw = region.R - region.L, bh = region.B - region.T; kR = Math.min(2.2, (maxW || 700) / bw, 1300 / bh); hw = bw * kR; hh = bh * kR; }
     holder.style.cssText = `width:${Math.round(hw)}px;height:${Math.round(hh)}px;overflow:hidden;border:1px solid #ddd;border-radius:8px;position:relative;margin:0 auto;page-break-inside:avoid`;
     const clone = $('#canvas').cloneNode(true);
     /* ה-CSS של הקנבס והשכבות (#canvas, #wires, #zonesc, #nodes, #bgimg…) תלוי ב-id; ההעתק מאבד את ה-id כדי לא להתנגש —
@@ -12122,6 +12128,12 @@ function exportPDF() {
   const snaps = [];
   const savedVis = JSON.stringify(P.cabVis || {});
   snaps.push(makeSnap('תכנית כללית — פריסה וחיווט'));
+  /* אזור הפעילות: חיתוך למקום שבו המוקדים והכבלים, מוגדל — כשהתכנית גדולה והציוד מרוכז בפינה */
+  { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+    const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
+    document.querySelectorAll('#nodes > .node').forEach(el => addR(el.getBoundingClientRect()));
+    document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
+    if (L < Infinity && (R - L) < (xmax + 30) * 0.6) { const pad = 60; snaps.push(makeSnap('🔎 אזור הפעילות — תקריב', { L: Math.max(0, L - pad), T: Math.max(0, T - pad), R: Math.min(2200, R + pad), B: Math.min(1400, B + pad) }, 1000)); } }
   /* שרטוט לכל קטגוריה שיש בה כבלים: מדליקים רק אותה, מרנדרים, מצלמים */
   const CAT_TITLES = { audio: '🔊 שרטוט חיווט סאונד', light: '💡 שרטוט חיווט תאורה', video: '📺 שרטוט חיווט וידאו', data: '🌐 שרטוט רשת ואופטי', power: '⚡ שרטוט חשמל' };
   const present = [...new Set((P.cables || []).map(c => CAB_GROUP[c.type] || 'audio'))];
@@ -12154,6 +12166,20 @@ function exportPDF() {
     }
     P.cabVis = JSON.parse(savedVis);
     renderNodes(); renderWires();
+  }
+  /* 🛤 שרטוט הצנרת: הקווים בהילת הצינור בלבד, כל השאר מעומעם, עם מקרא */
+  if ((P.conduits || []).length) {
+    const saved2 = P.hideConduits; P.hideConduits = false; renderNodes(); renderWires();
+    document.querySelectorAll('#nodes > .node').forEach(el => { const inv = (P.cables || []).some(c => c.conduit && (c.from === el.id.slice(3) || c.to === el.id.slice(3))); el.style.opacity = inv ? '' : '0.25'; });
+    const cr2 = $('#canvas').getBoundingClientRect(), Z2 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+    const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr2.left) / Z2); T = Math.min(T, (rb.top - cr2.top) / Z2); R = Math.max(R, (rb.right - cr2.left) / Z2); B = Math.max(B, (rb.bottom - cr2.top) / Z2); };
+    document.querySelectorAll('#wires path[opacity="0.28"]').forEach(pth => addR(pth.getBoundingClientRect()));
+    const region = L < Infinity ? { L: Math.max(0, L - 50), T: Math.max(0, T - 50), R: Math.min(2200, R + 50), B: Math.min(1400, B + 50) } : null;
+    const sec = makeSnap('🛤 שרטוט הצנרת — צינורות ותעלות (' + P.conduits.length + ')', region, 900);
+    document.querySelectorAll('#nodes > .node').forEach(el => { el.style.opacity = ''; });
+    P.hideConduits = saved2; renderWires();
+    if (window.__rpConduitLegend) { const lg = document.createElement('div'); lg.innerHTML = window.__rpConduitLegend; sec.appendChild(lg.firstChild); }
+    snaps.push(sec);
   }
   for (let si = snaps.length - 1; si >= 0; si--) r.insertBefore(snaps[si], r.children[1]);
   reportPreview();
