@@ -11573,12 +11573,15 @@ function exportPDF() {
   document.querySelectorAll('#zonesc > *').forEach(consider);
   const k = Math.min(1, 700 / (xmax + 30), 950 / (ymax + 30));
   /* צילום תכנית — פעם אחת מלא, ואז שרטוט נפרד לכל דיסציפלינת כבלים */
-  const makeSnap = (title) => {
+  /* region (אופציונלי) — חיתוך לאזור {L,T,R,B} בקואורדינטות הקנבס (משמאל) והגדלה עד ×2.2: לשרטוט של דיסציפלינה מציגים רק את החלק הרלוונטי, גדול וברור */
+  const makeSnap = (title, region) => {
     const snap = document.createElement('div');
     snap.className = 'rp-sec';
     snap.innerHTML = '<h3>' + title + '</h3>';
     const holder = document.createElement('div');
-    holder.style.cssText = `width:${Math.round((xmax + 30) * k)}px;height:${Math.round((ymax + 30) * k)}px;overflow:hidden;border:1px solid #ddd;border-radius:8px;position:relative;margin:0 auto;page-break-inside:avoid`;
+    let kR = k, hw = (xmax + 30) * k, hh = (ymax + 30) * k;
+    if (region) { const bw = region.R - region.L, bh = region.B - region.T; kR = Math.min(2.2, 700 / bw, 950 / bh); hw = bw * kR; hh = bh * kR; }
+    holder.style.cssText = `width:${Math.round(hw)}px;height:${Math.round(hh)}px;overflow:hidden;border:1px solid #ddd;border-radius:8px;position:relative;margin:0 auto;page-break-inside:avoid`;
     const clone = $('#canvas').cloneNode(true);
     /* ה-CSS של הקנבס והשכבות (#canvas, #wires, #zonesc, #nodes, #bgimg…) תלוי ב-id; ההעתק מאבד את ה-id כדי לא להתנגש —
        לכן מעתיקים לכל שכבה את המידות/המיקום המחושבים כ-inline לפני הסרת ה-id (אחרת רוחב 0 והתכנית נדחפת מחוץ למסגרת) */
@@ -11588,16 +11591,16 @@ function exportPDF() {
     clone.querySelectorAll('[id]').forEach(el => { const org = document.getElementById(el.id); if (org) { const cs = getComputedStyle(org); KEEP.forEach(k => { if (!el.style[k]) el.style[k] = cs[k]; }); } el.removeAttribute('id'); });
     /* אריח ה-PDF החד (canvas) — העתק של canvas ריק; מחליפים בתמונה של התוכן */
     clone.querySelectorAll('canvas').forEach((cv2, i2) => { const org = document.querySelectorAll('#canvas canvas')[i2]; if (!org || !org.width) { cv2.remove(); return; } try { const im2 = document.createElement('img'); im2.src = org.toDataURL('image/jpeg', 0.85); im2.style.cssText = cv2.style.cssText; cv2.replaceWith(im2); } catch { cv2.remove(); } });
-    const f = Math.max(1, Math.min(2.6, 0.85 / k));
+    const f = Math.max(1, Math.min(2.6, 0.85 / kR));
     clone.querySelectorAll('svg [stroke-width]').forEach(el => el.setAttribute('stroke-width', (parseFloat(el.getAttribute('stroke-width')) || 1) * f));
     clone.querySelectorAll('svg circle').forEach(c2 => c2.setAttribute('r', (parseFloat(c2.getAttribute('r')) || 3) * Math.min(f, 2)));
     clone.querySelectorAll('svg text').forEach(t => t.setAttribute('font-size', (parseFloat(t.getAttribute('font-size')) || 11) * Math.min(f, 1.8)));
     clone.querySelectorAll('.node.mini').forEach(m => { m.style.transform = `scale(${Math.min(f, 2)})`; m.style.transformOrigin = 'top center'; });
-    clone.style.transform = `scale(${k})`;
+    clone.style.transform = `scale(${kR})`;
     clone.style.transformOrigin = 'top right';
     clone.style.position = 'absolute';
-    clone.style.top = '0';
-    clone.style.right = '0';
+    clone.style.top = region ? (-region.T * kR) + 'px' : '0';
+    clone.style.right = region ? (-(2200 - region.R) * kR) + 'px' : '0';
     holder.appendChild(clone);
     snap.appendChild(holder);
     return snap;
@@ -11609,14 +11612,29 @@ function exportPDF() {
   const CAT_TITLES = { audio: '🔊 שרטוט חיווט סאונד', light: '💡 שרטוט חיווט תאורה', video: '📺 שרטוט חיווט וידאו', data: '🌐 שרטוט רשת ואופטי', power: '⚡ שרטוט חשמל' };
   const present = [...new Set((P.cables || []).map(c => CAB_GROUP[c.type] || 'audio'))];
   if (present.length > 1) {
+    const CAT_COL = { audio: '#c2185b', light: '#b8860b', video: '#2e7d32', data: '#6a4fc9', power: '#616161' };
     for (const cat of ['audio', 'light', 'video', 'data', 'power']) {
       if (!present.includes(cat)) continue;
+      const cabs = (P.cables || []).filter(c => (CAB_GROUP[c.type] || 'audio') === cat);
+      const inv = new Set(); cabs.forEach(c => { inv.add(c.from); inv.add(c.to); });
+      /* פותחים ארונות/פאנלים מכווצים שמעורבים בדיסציפלינה — כדי שיראו את היחידות והחורים המחוברים */
+      const opened = [];
+      P.nodes.forEach(n => { if (!inv.has(n.id)) return; if (n.kind === 'panel' && n.pmin) { n.pmin = false; opened.push([n, 'pmin']); } if (n.kind === 'rack' && n.min) { n.min = false; opened.push([n, 'min']); } });
       P.cabVis = {}; ['audio', 'light', 'video', 'data', 'power'].forEach(k2 => P.cabVis[k2] = (k2 === cat));
-      renderWires(); renderNodes();
-      snaps.push(makeSnap(CAT_TITLES[cat] + ' (' + (P.cables || []).filter(c => (CAB_GROUP[c.type] || 'audio') === cat).length + ' כבלים)'));
+      renderNodes(); renderWires();
+      /* הדגשה: מעורבים במסגרת בצבע הדיסציפלינה, השאר מעומעמים; חיתוך לאזור המעורבים + הכבלים */
+      const cr2 = $('#canvas').getBoundingClientRect(), Z2 = getZ();
+      let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+      const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr2.left) / Z2); T = Math.min(T, (rb.top - cr2.top) / Z2); R = Math.max(R, (rb.right - cr2.left) / Z2); B = Math.max(B, (rb.bottom - cr2.top) / Z2); };
+      document.querySelectorAll('#nodes > .node').forEach(el => { const id = el.id.slice(3); if (inv.has(id)) { el.style.outline = '3px solid ' + CAT_COL[cat]; el.style.outlineOffset = '2px'; el.style.opacity = ''; addR(el.getBoundingClientRect()); } else el.style.opacity = '0.22'; });
+      document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
+      const region = L < Infinity ? { L: Math.max(0, L - 40), T: Math.max(0, T - 40), R: Math.min(2200, R + 40), B: Math.min(1400, B + 40) } : null;
+      snaps.push(makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', region));
+      document.querySelectorAll('#nodes > .node').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; el.style.opacity = ''; });
+      opened.forEach(([n, f2]) => n[f2] = true);
     }
     P.cabVis = JSON.parse(savedVis);
-    renderWires(); renderNodes();
+    renderNodes(); renderWires();
   }
   for (let si = snaps.length - 1; si >= 0; si--) r.insertBefore(snaps[si], r.children[1]);
   reportPreview();
