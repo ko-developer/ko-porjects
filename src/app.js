@@ -12131,10 +12131,10 @@ function exportPDF() {
     const ids = [...new Set(cabs.flatMap(c => [c.from, c.to]))].map(byId).filter(n => n && n.kind !== 'point'); if (ids.length < 2) return null;
     const tops = ids.filter(n => cabs.some(c => c.from === n.id)), bots = ids.filter(n => !tops.includes(n));
     if (!bots.length) { bots.push(tops.pop()); }
-    const CW = 520, GAP = 40 + 34 * Math.max(3, cabs.length);
+    const CW = 520, GAP = 40 + 44 + 34 * Math.max(3, cabs.length);
     const host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-20000px;top:0;visibility:hidden;width:1000px';
     const wrap = document.createElement('div'); wrap.style.cssText = 'position:relative;display:inline-block;padding:4px';
-    const row = (arr, below) => { const d = document.createElement('div'); d.style.cssText = 'display:flex;gap:40px;align-items:flex-start;justify-content:center'; arr.forEach(n => { const card = detailCard(n, col, CW, { up: 1.6, titleBelow: below }); if (card) { card.dataset.nid = n.id; card.style.marginBottom = '0'; d.appendChild(card); } }); return d; };
+    const row = (arr, below) => { const d = document.createElement('div'); d.style.cssText = 'display:flex;gap:40px;align-items:flex-start;justify-content:center'; arr.forEach(n => { const card = detailCard(n, col, CW, { up: 1.35, titleBelow: below }); if (card) { card.dataset.nid = n.id; card.style.marginBottom = '0'; d.appendChild(card); } }); return d; };
     const rTop = row(tops, false), sp = document.createElement('div'); sp.style.height = GAP + 'px'; const rBot = row(bots, true);
     wrap.appendChild(rTop); wrap.appendChild(sp); wrap.appendChild(rBot); host.appendChild(wrap); document.body.appendChild(host);
     const wr = wrap.getBoundingClientRect();
@@ -12148,29 +12148,47 @@ function exportPDF() {
     for (const c of cabs) {
       const A = isTop(c.from) ? { nid: c.from, u: c.fromUnit } : { nid: c.to, u: c.toUnit }, B = A.nid === c.from ? { nid: c.to, u: c.toUnit } : { nid: c.from, u: c.fromUnit };
       const fw = A.nid === c.from;
-      const list = c.chans && c.chans.length ? c.chans.map((ch, i) => ({ ha: fw ? ch.a : ch.b, hb: fw ? ch.b : ch.a, lbl: LBLc[c.id] + '.' + (i + 1) })) : c.bands && c.bands.length ? c.bands.map((bd, i) => ({ ha: null, hb: null, pa: bd.port, ua: bd.unitId, lbl: LBLc[c.id] + '.' + (i + 1) })) : [{ ha: fw ? c.fromHole : c.toHole, hb: fw ? c.toHole : c.fromHole, pa: fw ? c.pOut : c.pIn, pb: fw ? c.pIn : c.pOut, lbl: LBLc[c.id] }];
+      if (c.chans && c.chans.length) {
+        /* מולטי: כבל אחד בין הקופסאות, שנפתח בקצה לליבות — כל ליבה לחור שלה */
+        const cores = c.chans.map((ch, i) => { const a = pt(A.nid, A.u, fw ? ch.a : ch.b), b = pt(B.nid, B.u, fw ? ch.b : ch.a); return a && b ? { a, b, i } : null; }).filter(Boolean);
+        if (cores.length) segs.push({ c, multi: true, cores, a: { nid: A.nid }, b: { nid: B.nid }, lbl: LBLc[c.id], sub: cores.length + ' ליבות' });
+        continue;
+      }
+      const list = c.bands && c.bands.length ? c.bands.map((bd, i) => ({ ha: null, hb: null, pa: bd.port, ua: bd.unitId, lbl: LBLc[c.id] + '.' + (i + 1) })) : [{ ha: fw ? c.fromHole : c.toHole, hb: fw ? c.toHole : c.fromHole, pa: fw ? c.pOut : c.pIn, pb: fw ? c.pIn : c.pOut, lbl: LBLc[c.id] }];
       list.forEach(it => { const a = pt(A.nid, it.ua || A.u, it.ha, it.pa), b = pt(B.nid, B.u, it.hb, it.pb); if (a && b) segs.push({ c, a, b, lbl: it.lbl }); });
     }
     if (!segs.length) { host.remove(); return null; }
     /* קצה בלי חור ידוע: פורשים את הקצוות לאורך שפת הקופסה לפי סדר הצד השני — בלי קווים אחד על השני */
-    const fan = (side, other) => { const g = {}; segs.forEach(sg => { if (!sg[side].el) (g[sg[side].nid] = g[sg[side].nid] || []).push(sg); });
-      Object.values(g).forEach(arr => { arr.sort((s1, s2) => s1[other].x - s2[other].x); arr.forEach((sg, i) => { const e = sg[side]; e.x = e.l + (e.r - e.l) * (i + 1) / (arr.length + 1); }); }); };
+    const pairs = segs.flatMap(sg => sg.multi ? sg.cores.map(co => ({ a: co.a, b: co.b })) : [{ a: sg.a, b: sg.b }]);
+    const fan = (side, other) => { const g = {}; pairs.forEach(pr => { if (!pr[side].el) (g[pr[side].nid] = g[pr[side].nid] || []).push(pr); });
+      Object.values(g).forEach(arr => { arr.sort((s1, s2) => s1[other].x - s2[other].x); arr.forEach((pr, i) => { const e = pr[side]; e.x = e.l + (e.r - e.l) * (i + 1) / (arr.length + 1); }); }); };
     fan('a', 'b'); fan('b', 'a');
+    /* למולטי: נקודת האיחוד של הליבות (הגזע יוצא ממרכז החורים, קצת מתחת/מעל לשפה) */
+    const JD = 22;
+    segs.forEach(sg => { if (!sg.multi) return; const mx = arr => arr.reduce((t, v) => t + v, 0) / arr.length;
+      sg.a.x = mx(sg.cores.map(co => co.a.x)); sg.a.y = sg.cores[0].a.y + JD; sg.b.x = mx(sg.cores.map(co => co.b.x)); sg.b.y = sg.cores[0].b.y - JD; });
     /* קווים: ירידה מהשפה, פס אופקי בגובה משלו (לפי הסדר), ירידה אל שפת היעד — מסודר, בלי חציות מיותרות */
     segs.sort((s1, s2) => (s1.a.x - s2.a.x) || (s1.b.x - s2.b.x));
     const yTop = Math.max(...segs.map(sg => sg.a.y)), yBot = Math.min(...segs.map(sg => sg.b.y)); const lanes = segs.length; const laneY = i => yTop + (yBot - yTop) * (i + 1) / (lanes + 1);
     let svg = '';
     /* רצועות צינור: סביב כל הקווים של אותו צינור */
     const byCd = {}; segs.forEach((sg, i) => { if (sg.c.conduit) (byCd[sg.c.conduit] = byCd[sg.c.conduit] || []).push(i); });
-    for (const [cdId, idx] of Object.entries(byCd)) { const cd = (P.conduits || []).find(x => x.id === cdId); if (!cd) continue; const cc = conduitColor(cd); const xs = idx.flatMap(i => [segs[i].a.x, segs[i].b.x]), ys = idx.map(laneY);
-      const x0 = Math.min(...xs) - 12, x1 = Math.max(...xs) + 12, y0 = Math.min(...ys) - 11, y1 = Math.max(...ys) + 11; const tg = conduitTag(cd) + ' · ' + idx.length + ' קווים'; const tw = tg.length * 6.4 + 16;
+    const pillW = sg => { const txt = sg.sub ? sg.lbl + ' · ' + sg.sub : sg.lbl; return Math.max(26, txt.length * 6.6 + 12); };
+    for (const [cdId, idx] of Object.entries(byCd)) { const cd = (P.conduits || []).find(x => x.id === cdId); if (!cd) continue; const cc = conduitColor(cd); const xs = idx.flatMap(i => { const sg = segs[i], mx = (sg.a.x + sg.b.x) / 2, hw = pillW(sg) / 2; return [sg.a.x, sg.b.x, mx - hw, mx + hw]; }), ys = idx.map(laneY);
+      const x0 = Math.min(...xs) - 12, x1 = Math.max(...xs) + 12, y0 = Math.min(...ys) - 11, y1 = Math.max(...ys) + 11; const tg = conduitTag(cd) + ' · ' + idx.length + (idx.length === 1 ? ' כבל' : ' כבלים'); const tw = tg.length * 6.4 + 16;
       svg += `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="10" fill="${cc}" opacity="0.14" stroke="${cc}" stroke-width="1.5" stroke-dasharray="6 4"/><rect x="${x1 + 6}" y="${(y0 + y1) / 2 - 9}" width="${tw}" height="18" rx="6" fill="${cc}"/><text x="${x1 + 6 + tw / 2}" y="${(y0 + y1) / 2 + 4}" text-anchor="middle" font-size="10.5" font-weight="800" fill="#fff" direction="rtl">${esc(tg)}</text>`; }
-    segs.forEach((sg, i) => { const cc = cableColor(sg.c), y = laneY(i); const d = `M${sg.a.x} ${sg.a.y} V ${y} H ${sg.b.x} V ${sg.b.y}`; const mx = (sg.a.x + sg.b.x) / 2, pw = Math.max(26, sg.lbl.length * 7 + 10);
-      svg += `<path d="${d}" fill="none" stroke="${cc}" stroke-width="2.2" stroke-linejoin="round"/><circle cx="${sg.a.x}" cy="${sg.a.y}" r="3.2" fill="${cc}"/><circle cx="${sg.b.x}" cy="${sg.b.y}" r="3.2" fill="${cc}"/>
-        <rect x="${mx - pw / 2}" y="${y - 8}" width="${pw}" height="16" rx="8" fill="#fff" stroke="${cc}" stroke-width="1.4"/><text x="${mx}" y="${y + 4}" text-anchor="middle" font-size="9.5" font-weight="800" fill="${cc}">${esc(sg.lbl)}</text>`; });
+    segs.forEach((sg, i) => { const cc = cableColor(sg.c), y = laneY(i); const mx = (sg.a.x + sg.b.x) / 2, txt = sg.sub ? sg.lbl + ' · ' + sg.sub : sg.lbl, pw = pillW(sg);
+      if (sg.multi) {
+        /* הליבות: קו דק מכל חור אל נקודת האיחוד; הגזע: קו עבה אחד עם המספר */
+        sg.cores.forEach(co => { svg += `<path d="M${co.a.x} ${co.a.y} L ${sg.a.x} ${sg.a.y}" fill="none" stroke="${cc}" stroke-width="1.1" opacity="0.75"/><circle cx="${co.a.x}" cy="${co.a.y}" r="2.2" fill="${cc}"/><path d="M${sg.b.x} ${sg.b.y} L ${co.b.x} ${co.b.y}" fill="none" stroke="${cc}" stroke-width="1.1" opacity="0.75"/><circle cx="${co.b.x}" cy="${co.b.y}" r="2.2" fill="${cc}"/>`; });
+        svg += `<path d="M${sg.a.x} ${sg.a.y} V ${y} H ${sg.b.x} V ${sg.b.y}" fill="none" stroke="${cc}" stroke-width="5" stroke-linejoin="round" opacity="0.9"/><circle cx="${sg.a.x}" cy="${sg.a.y}" r="4" fill="${cc}"/><circle cx="${sg.b.x}" cy="${sg.b.y}" r="4" fill="${cc}"/>`;
+      } else {
+        svg += `<path d="M${sg.a.x} ${sg.a.y} V ${y} H ${sg.b.x} V ${sg.b.y}" fill="none" stroke="${cc}" stroke-width="2.2" stroke-linejoin="round"/><circle cx="${sg.a.x}" cy="${sg.a.y}" r="3.2" fill="${cc}"/><circle cx="${sg.b.x}" cy="${sg.b.y}" r="3.2" fill="${cc}"/>`;
+      }
+      svg += `<rect x="${mx - pw / 2}" y="${y - 8}" width="${pw}" height="16" rx="8" fill="#fff" stroke="${cc}" stroke-width="1.4"/><text x="${mx}" y="${y + 4}" text-anchor="middle" font-size="9.5" font-weight="800" fill="${cc}">${esc(txt)}</text>`; });
     const ov = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); ov.setAttribute('class', 'cd-ov'); ov.setAttribute('width', wr.width); ov.setAttribute('height', wr.height); ov.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5'; ov.innerHTML = svg; wrap.appendChild(ov);
     host.remove(); wrap.style.direction = 'ltr'; wrap.style.margin = '0 auto';
-    const out = document.createElement('div'); out.style.cssText = 'text-align:center;margin-top:8px;page-break-inside:avoid'; out.innerHTML = `<div style="font-size:12px;font-weight:700;color:${col};margin-bottom:4px;direction:rtl">🔗 תרשים חיבורים — כל קו יוצא מהחור שלו בקופסה ומגיע לחור שלו בקופסה השנייה (המספר על הקו = מספר הכבל)${Object.keys(byCd).length ? ' · הרצועה המקווקוות = הצינור' : ''}</div>`; out.appendChild(wrap); return out;
+    const out = document.createElement('div'); out.style.cssText = 'text-align:center;margin-top:8px;page-break-inside:avoid'; out.innerHTML = `<div style="font-size:12px;font-weight:700;color:${col};margin-bottom:4px;direction:rtl">🔗 תרשים חיבורים — כל קו מהחור שלו לחור שלו בקופסה השנייה (המספר על הקו = מספר הכבל; מולטי = גזע עבה אחד שנפתח לליבות בקצוות)${Object.keys(byCd).length ? ' · הרצועה המקווקוות = הצינור' : ''}</div>`; out.appendChild(wrap); return out;
   };
   /* כרטיס פירוט: העתק של ארון/פאנל פתוח (עם המחברים, היחידות ומספרי הכבלים) — לעמודת הפירוט שליד השרטוט */
   const detailCard = (n, col, maxW, opts = {}) => {
@@ -12217,7 +12235,7 @@ function exportPDF() {
         document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
         if (L < Infinity) { const pad = 80, bw = Math.max(R - L, 500), bh = Math.max(B - T, 350), cx = (L + R) / 2, cy = (T + B) / 2;
           regC = { L: Math.max(0, cx - bw / 2 - pad), T: Math.max(0, cy - bh / 2 - pad), R: Math.min(2200, cx + bw / 2 + pad), B: Math.min(1400, cy + bh / 2 + pad) }; } }
-      const sec = makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', regC, 1000);
+      const sec = makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', regC, 640);
       document.querySelectorAll('#nodes > .node').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; el.style.opacity = ''; });
       /* ימין: הארונות והפאנלים המעורבים — פתוחים, עם המחברים ומספרי הכבלים */
       const opened = [];
@@ -12227,11 +12245,13 @@ function exportPDF() {
       right.innerHTML = `<div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px">ארונות ופאנלים בשרטוט זה</div>`;
       let cards = 0; P.nodes.forEach(n => { if (!inv.has(n.id) || n.kind === 'point') return; const card = detailCard(n, CAT_COL[cat], 360); if (card) { right.appendChild(card); cards++; } });
       opened.forEach(([n, f2]) => n[f2] = true);
-      const holder = sec._holder; holder.style.margin = '0 auto';
-      /* התכנית ברוחב מלא; מתחתיה תרשים חיבורים חור-אל-חור בין הקופסאות — כשיש לפחות שתיים; אחרת כרטיסי הפירוט */
+      const holder = sec._holder; holder.style.margin = '0'; holder.style.flex = 'none';
+      /* התכנית מימין ולידה (לא מתחתיה) תרשים החיבורים חור-אל-חור — כשיש לפחות שתי קופסאות; אחרת כרטיסי הפירוט */
       const diag = connDiagram(cabs, CAT_COL[cat]);
-      if (diag) sec.appendChild(diag);
-      else if (cards) { right.style.cssText = 'display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:10px'; sec.appendChild(right); }
+      const rowD = document.createElement('div'); rowD.style.cssText = 'display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap'; rowD.appendChild(holder);
+      if (diag) { diag.style.cssText += ';flex:1;min-width:260px;margin-top:0'; rowD.appendChild(diag); }
+      else if (cards) { right.style.cssText = 'flex:1;min-width:260px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center'; rowD.appendChild(right); }
+      sec.appendChild(rowD);
       const lad = document.createElement('div'); lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); if (lad.firstChild) sec.appendChild(lad.firstChild);
       snaps.push(sec);
     }
