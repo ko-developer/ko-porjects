@@ -1324,6 +1324,8 @@ function viewMenuHTML() {
     </div>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="מפת ה-SPL, קונוסי הכיסוי וההחזרות מהקירות">
       <input type="checkbox" style="width:auto" ${P.showCoverage ? 'checked' : ''} onchange="P.showCoverage=this.checked;render();save()"><span style="flex:1">🔊 פיזור אקוסטי (מפת SPL וקונוסי כיסוי)</span></label>
+    <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="בגרירה: יישור לאייקונים אחרים והצמדה לשולחן/ריהוט. כבוי = מיקום חופשי לגמרי. Alt בזמן הגרירה מבטל זמנית">
+      <input type="checkbox" style="width:auto" ${P.snapOff ? '' : 'checked'} onchange="P.snapOff=!this.checked;save()"><span style="flex:1">🧲 הצמדה ויישור בגרירה (Alt = מיקום חופשי)</span></label>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;border-radius:5px;background:rgba(255,255,255,.06)" title="מוקדים/פאנלים שהונחו על אותה נקודה — איך לסדר אותם">
       <span style="flex:1">🧱 מוקדים צמודים באותה נקודה</span><select style="width:auto;font-size:11px;padding:2px 4px" onchange="P.stackDir=this.value;render();save()"><option value="v" ${P.stackDir !== 'h' ? 'selected' : ''}>בטור — זה מעל זה</option><option value="h" ${P.stackDir === 'h' ? 'selected' : ''}>בשורה — זה ליד זה</option></select></label>` +
     (cabRows ? `<div style="display:flex;align-items:center;gap:6px;margin:6px 4px 2px">
@@ -2024,6 +2026,31 @@ function rearLibImport(inp) {
 }
 /* מוקדים/פאנלים שהונחו על אותה נקודה: מסודרים צמודים זה לזה — בטור (ברירת מחדל) או בשורה (P.stackDir='h') —
    לפי הגודל הנראה בפועל של כל אייקון (כולל ההקטנה לקנה מידה), כך שאף אחד לא מסתיר את השני */
+/* ===== אייקונים על אובייקט משורטט (שולחן / בר / ספה): שחרור בתוך המלבן מצמיד, והאייקונים מסתדרים בשורה לרוחב האובייקט ===== */
+const isIconNode = nn => nn.kind === 'point' || (nn.kind === 'panel' && nn.pmin) || (nn.kind === 'rack' && nn.min);
+function objAttachDrop(n) {
+  const objs = (P.sketch && P.sketch.objs) || [];
+  const cx = 2200 - n.x - 20, cy = n.y + 24, M = 12;
+  let hit = null;
+  for (const o of objs) {
+    o.id = o.id || uid('o');
+    const ang = -(o.r || 0) * Math.PI / 180, dx = cx - o.x, dy = cy - o.y;   /* לקואורדינטות של האובייקט (מסובב) */
+    const lx = dx * Math.cos(ang) - dy * Math.sin(ang), ly = dx * Math.sin(ang) + dy * Math.cos(ang);
+    if (Math.abs(lx) <= o.w / 2 + M && Math.abs(ly) <= o.h / 2 + M) { hit = o; break; }
+  }
+  if (!hit) { if (n.onObj) { delete n.onObj; return false; } return false; }
+  n.onObj = hit.id; objArrange(hit); return true;
+}
+function objArrange(o) {
+  const nodes = P.nodes.filter(nn => nn.onObj === o.id && !nn.hidden); if (!nodes.length) return;
+  const Zs = getZ() || 1, want = P.scale ? Math.min(30 / Zs, Math.max(16 / Zs, 0.5 / P.scale)) : 30 / Zs, kk = Math.min(1, want / 30), iw = 40 * kk + 4;
+  const ang = (o.r || 0) * Math.PI / 180, ux = Math.cos(ang), uy = Math.sin(ang);           /* ציר האורך של האובייקט */
+  const L = o.w;   /* w = הצד לאורך ציר האובייקט */
+  const proj = nn => ((2200 - nn.x - 20) - o.x) * ux + ((nn.y + 24) - o.y) * uy;
+  nodes.sort((a, b) => proj(a) - proj(b));
+  const span = Math.min(L, nodes.length * iw), step = nodes.length > 1 ? span / nodes.length : 0, start = -span / 2 + step / 2;
+  nodes.forEach((nn, i) => { const t = nodes.length > 1 ? start + i * step : 0; const cx = o.x + ux * t, cy = o.y + uy * t; nn.x = Math.max(0, 2200 - cx - 20); nn.y = Math.max(0, cy - 24); });
+}
 function stackArrange(stackAt) {
   const horiz = P.stackDir === 'h', GAP = 2;
   Object.values(stackAt).forEach(ids => {
@@ -7742,7 +7769,7 @@ document.addEventListener('pointermove', e => {
   window.__alignG = null;
   /* אייקונים (מוקד, פאנל מכווץ, ארון מכווץ) נצמדים זה לזה — כך אפשר להניח פאנל בדיוק על מוקד/פאנל אחר והם נפרשים במניפה כמו רמקולים */
   const isIcon = nn => nn.kind === 'point' || (nn.kind === 'panel' && nn.pmin) || (nn.kind === 'rack' && nn.min);
-  if (isIcon(drag.n)) {
+  if (isIcon(drag.n) && !P.snapOff && !e.altKey) {   /* הצמדה — אפשר לבטל בתפריט התצוגה, או זמנית עם Alt בזמן הגרירה */
     const TH = 8 / Z;
     let gx = null, gy = null;
     for (const nn of P.nodes) {
@@ -7894,6 +7921,8 @@ document.addEventListener('pointerup', e => {
     const n = moved.n;
     const movedFar = Math.abs(n.x - moved.ox) > 3 || Math.abs(n.y - moved.oy) > 3;
     document.querySelectorAll('.node.droptgt').forEach(el => el.classList.remove('droptgt'));
+    /* שחרור אייקון על שולחן/בר משורטט — נצמד אליו ומסתדר בשורה לרוחבו יחד עם שאר האייקונים שעל אותו אובייקט */
+    if (movedFar && isIconNode(n) && !P.snapOff && !e.altKey && objAttachDrop(n)) { render(); save(); return; }
     if (movedFar && n.kind === 'point') {
       /* שחרור מעל ארון — המוצר נכנס לארון כיחידה (drag & drop), הכבלים שלו עוברים איתו */
       const me = document.getElementById('nd_' + n.id); const pe = me ? me.style.pointerEvents : ''; if (me) me.style.pointerEvents = 'none';
