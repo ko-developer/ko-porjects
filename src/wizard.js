@@ -165,7 +165,9 @@ function wizStepHTML(s) {
       return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${SOURCES.map(chip).join('')}</div>${wizSourcePlacesHTML(z)}`; })()}
     ${(() => { const nd = sourceNeeds(z); return nd.length ? `<p class="hint" style="margin:-2px 0 8px;color:#0f6e56">נדרש בארון: ${esc(nd.join(' · '))}</p>` : ''; })()}` : ''}
     <button class="big" onclick="wizDrawZone()">➕ ${(P.zones || []).length ? 'צייר אזור נוסף' : 'צייר אזור'} — ניקור נקודות על התכנית</button>
-    <button class="sec" onclick="autoZones()">🤖 זיהוי אזורים אוטומטי (AI)</button>`;
+    <button class="sec" onclick="autoZones()">🤖 זיהוי אזורים אוטומטי (AI)</button>
+    <button class="sec" onclick="planTextScan()" title="קורא את המילים שעל השרטוט (OCR מקומי, בלי AI) ומסווג: אזורי קהל, מטבח/תפעול, שירותים, ריהוט — בסיס לחלוקה לאזורים">🔤 קרא את הכיתובים בתכנית (OCR)</button>
+    <button class="sec" onclick="ptPartition()" title="חלוקה אוטומטית של החלל לאזורים לפי הקירות והכיתובים (אחרי קריאת הכיתובים)">🧩 חלק את כל החלל לאזורים</button>`;
   }
   if (s === 3) {
     if (!z) return '<p class="hint">קודם סמן אזור בשלב הקודם.</p>';

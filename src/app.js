@@ -11606,6 +11606,25 @@ function exportPDF() {
     snap._holder = holder;
     return snap;
   };
+  /* סולם חיווט: שורה לכל כבל (ולכל ליבה במולטי) — מאיפה, לאן, מספר הכבל, סוג ומחבר — קריא ומסודר */
+  const ladderHTML = (cabs, col) => {
+    const LBLl = cableLabels(), endTxt = (nid, unitId, hole, port) => { const n = byId(nid); if (!n) return '?'; const u = unitOf(nid, unitId); return esc((u ? u.name + ' (' + n.name + ')' : n.name).slice(0, 34)) + (hole ? ' · חור ' + hole : port ? ' · ' + esc(port) : ''); };
+    const rows = [];
+    for (const c of cabs) {
+      if (c.chans && c.chans.length) c.chans.forEach((ch, i) => rows.push({ c, lbl: LBLl[c.id] + '.' + (i + 1), a: endTxt(c.from, c.fromUnit, ch.a), b: endTxt(c.to, c.toUnit, ch.b), sub: 'ליבה ' + (i + 1) + ' מתוך ' + c.chans.length }));
+      else rows.push({ c, lbl: LBLl[c.id], a: endTxt(c.from, c.fromUnit, c.fromHole, c.pOut), b: endTxt(c.to, c.toUnit, c.toHole, c.pIn), sub: '' });
+    }
+    if (!rows.length) return '';
+    const RH = 22, W = 940, x1 = 300, x2 = 640, H = rows.length * RH + 8;
+    const svg = rows.map((r, i) => { const y = 14 + i * RH, cc = cableColor(r.c); const kind = esc(cableKindLabel(r.c)) + (r.c.spec ? ' · ' + esc(r.c.spec) : '');
+      return `<text x="${x1 - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="#333">${r.a}</text>
+        <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${cc}" stroke-width="${r.c.chans ? 2.4 : 1.8}"/>
+        <rect x="${(x1 + x2) / 2 - 22}" y="${y - 8}" width="44" height="16" rx="8" fill="#fff" stroke="${cc}" stroke-width="1.5"/><text x="${(x1 + x2) / 2}" y="${y + 4}" text-anchor="middle" font-size="10" font-weight="800" fill="${cc}">${esc(r.lbl)}</text>
+        <text x="${x2 + 8}" y="${y + 4}" font-size="11" fill="#333">${r.b}</text>
+        <text x="${W - 4}" y="${y + 4}" text-anchor="end" font-size="9.5" fill="#777">${r.sub ? r.sub + ' · ' : ''}${kind}</text>`; }).join('');
+    return `<div style="margin-top:12px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${col};margin-bottom:4px">🧵 חיווט — כבל אחר כבל (${rows.length} קווים)</div>
+      <div style="overflow-x:auto"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="direction:ltr;display:block;font-family:inherit">${svg}</svg></div></div>`;
+  };
   /* כרטיס פירוט: העתק של ארון/פאנל פתוח (עם המחברים, היחידות ומספרי הכבלים) — לעמודת הפירוט שליד השרטוט */
   const detailCard = (n, col, maxW) => {
     const el = document.getElementById('nd_' + n.id); if (!el) return null;
@@ -11650,6 +11669,7 @@ function exportPDF() {
       const holder = sec._holder; holder.style.margin = '0'; holder.style.flex = 'none';
       if (cards) row.appendChild(right); row.appendChild(holder);   /* RTL: הפירוט מימין, השרטוט משמאלו */
       sec.appendChild(row);
+      const lad = document.createElement('div'); lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); if (lad.firstChild) sec.appendChild(lad.firstChild);
       snaps.push(sec);
     }
     P.cabVis = JSON.parse(savedVis);
