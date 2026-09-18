@@ -2505,9 +2505,13 @@ function drawPanelCables(n, d) {
   if (stk.length) {
     const maxRight = Math.max(...Object.values(holePos).map(p2 => p2.hx + (p2.hw || 24) / 2));
     const ups = stk.filter(x => !x.down).sort((a2, b2) => a2.e.hy - b2.e.hy), dns = stk.filter(x => x.down).sort((a2, b2) => b2.e.hy - a2.e.hy);
-    const ordered = [...ups, ...dns]; const need = maxRight + 6 + (ordered.length - 1) * 2.5 + 6;
-    if (need > W) { const extra = Math.ceil(need - W); d.style.width = (d.offsetWidth + extra) + 'px'; W2 = W + extra; }
-    ordered.forEach((x, j) => { TR[x.k] = maxRight + 6 + j * 2.5; });
+    const ordered = [...ups, ...dns];
+    /* רצועה ייעודית מימין לקופסה — הקופסה מתרחבת ימינה ברוחב הערוץ, הכותרת זזה שמאלה ממנו: הקווים לא מסתירים כלום */
+    const chW = Math.ceil(10 + (ordered.length - 1) * 2.5 + 8);
+    d.style.width = (d.offsetWidth + chW) + 'px'; W2 = W + chW;
+    const hd = d.querySelector('.hd'); if (hd) hd.style.paddingRight = (8 + chW) + 'px';
+    ordered.forEach((x, j) => { TR[x.k] = W + 8 + j * 2.5; });
+    void maxRight;
   }
   W = W2;
   const rowIdx = {};
