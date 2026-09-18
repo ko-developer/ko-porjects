@@ -45,9 +45,8 @@ function asParse(t, unit) {
   if (!(v > 0)) return null;
   const dec = s.includes('.');
   if (unit === 'm') { if (dec ? v <= 60 : v >= 1 && v <= 60) return v; return null; }
-  if (dec) return null;                              /* מ״מ וס״מ נכתבים כמספר שלם */
-  if (unit === 'mm') return v >= 100 && v <= 60000 ? v / 1000 : null;
-  if (unit === 'cm') return v >= 10 && v <= 6000 ? v / 100 : null;
+  if (unit === 'mm') return !dec && v >= 100 && v <= 60000 ? v / 1000 : null;   /* מ״מ = מספר שלם */
+  if (unit === 'cm') return v >= 10 && v <= 6000 ? v / 100 : null;               /* ס״מ — גם עם עשרוני (482.5) */
   return null;
 }
 const asMedian = a => { const s = [...a].sort((x, y) => x - y); const n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : 0; };
@@ -104,15 +103,16 @@ function asChainEstimate(lines, unit) {
       const d = Math.abs(b.tk[along] - a.tk[along]);
       const real = (a.v + b.v) / 2;
       if (d < Math.max(4, a.tk.h * 1.2) || real < 0.3 || real > 80) continue;
+      if (!/^\d{3,}|\d\.\d/.test(a.tk.t) || !/^\d{3,}|\d\.\d/.test(b.tk.t)) continue;   /* "2" / "3" הם מספרי חדרים/מפלסים, לא מידות */
       const k = d / real;
       const vt = a.tk.frame !== 'h';   /* טקסט אנכי: הרוחב רץ לאורך y */
       ks.push(k); samples.push({ a: a.tk.t, b: b.tk.t, va: a.v, vb: b.v, vert: vt, d, real, k, ax: a.tk.x, ay: a.tk.y, aw: vt ? a.tk.h : a.tk.w, ah: vt ? a.tk.w : a.tk.h, bx: b.tk.x, by: b.tk.y, bw: vt ? b.tk.h : b.tk.w, bh: vt ? b.tk.w : b.tk.h });
     }
   }
-  if (ks.length < 2) return null;
+  if (!ks.length) return null;
   const med = asMedian(ks);
   const inl = samples.filter(s => Math.abs(s.k - med) / med <= 0.06);
-  if (inl.length < 2) return null;
+  if (!inl.length) return null;
   const k2 = asMedian(inl.map(s => s.k));
   const mad = asMedian(inl.map(s => Math.abs(s.k - k2))) / k2;
   return { unit, k: k2, n: inl.length, total: ks.length, mad, samples: inl.slice(0, 6), marks: inl.slice(0, 60) };
@@ -140,9 +140,9 @@ function asDecide(tokens, ratio, unitPerM_ratio) {
     if (r.dev <= 0.03) { r.unitPerM = chain.k; r.conf = 'high'; r.method = 'ratio+dims'; r.note = 'הכיתוב 1:' + ratio.n + ' והמידות בשרטוט מסכימים'; }
     else if (chain.n >= 4) { r.unitPerM = chain.k; r.conf = strongChain ? 'high' : 'medium'; r.method = 'dims'; r.note = 'הכיתוב אומר 1:' + ratio.n + ' אבל המידות בשרטוט לא מסכימות (' + Math.round(r.dev * 100) + '%) — כנראה הודפס בהתאמה לדף. נלקחו המידות'; }
     else { r.unitPerM = unitPerM_ratio; r.conf = 'medium'; r.method = 'ratio'; r.note = 'לפי הכיתוב 1:' + ratio.n + ' וגודל הדף; מעט מידות בשרטוט לאימות (' + Math.round(r.dev * 100) + '% סטייה)'; }
-  } else if (chain && chain.n >= 3) {
+  } else if (chain && chain.n >= 1) {
     r.unitPerM = chain.k; r.conf = strongChain ? 'high' : (chain.n >= 4 ? 'medium' : 'low'); r.method = 'dims';
-    r.note = (ratio ? 'הכיתוב 1:' + ratio.n + ' נמצא אבל אין גודל דף להצלבה; ' : 'לא נמצא כיתוב 1:N; ') + 'לפי ' + chain.n + ' זוגות מידות בשרטוט';
+    r.note = (ratio ? 'הכיתוב 1:' + ratio.n + ' נמצא אבל אין גודל דף להצלבה; ' : 'לא נמצא כיתוב 1:N; ') + 'לפי ' + chain.n + (chain.n === 1 ? ' זוג מידות אחד בשרטוט — בדוק בעין' : ' זוגות מידות בשרטוט');
   } else if (unitPerM_ratio) {
     r.unitPerM = unitPerM_ratio; r.conf = 'medium'; r.method = 'ratio'; r.note = 'לפי הכיתוב 1:' + ratio.n + ' וגודל הדף בלבד — לא נמצאו מידות לאימות. אם ההדפסה הותאמה לדף, כייל ידנית';
   } else {
@@ -225,7 +225,22 @@ async function autoScalePdf(pg, bgW) {
       const cy = f + Math.sin(rot) * w / 2 + Math.cos(rot) * h / 2;
       tokens.push({ t, x: cx, y: cy, w, h, frame: vert ? 'v' : 'h' });
     }
-    const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v')].map(l => l.text);
+    /* שכבת טקסט ריקה (הכיתובים הומרו לקווים) — מרנדרים את הדף ברזולוציה גבוהה וקוראים OCR באריחים */
+    if (tokens.length < 12) {
+      uiToast('🔍 ב-PDF אין שכבת טקסט — קורא את המידות מהשרטוט (OCR, כמה עשרות שניות)…', 8000);
+      const SC = Math.min(8, 7200 / Math.max(vp.width, vp.height));   /* מידות בשרטוט אדריכלי קטנות — כ-6× של הדף */
+      const vp2 = pg.getViewport({ scale: SC }), cv = document.createElement('canvas'); cv.width = Math.round(vp2.width); cv.height = Math.round(vp2.height);
+      const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+      await pg.render({ canvasContext: g, viewport: vp2 }).promise;
+      const id = g.getImageData(0, 0, cv.width, cv.height), px = id.data;
+      for (let i = 0; i < px.length; i += 4) { const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; const v = l < 200 ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; }
+      g.putImageData(id, 0, 0);
+      const toks = await asOcrTiles(cv);
+      /* חזרה לנקודות PDF (ציר y הפוך: תמונה מלמעלה, PDF מלמטה) */
+      toks.forEach(tk => tokens.push({ t: tk.t, x: tk.x / SC, y: vp.height - tk.y / SC, w: tk.w / SC, h: tk.h / SC, frame: tk.frame }));
+      window.__asTokens = toks;
+    }
+    const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')].map(l => l.text);
     const ratio = asFindRatio(lines);
     /* דגימת טקסט — לבדוק מה נמצא בשכבת הטקסט (למשל למה לא זוהה 1:N) */
     const textSample = lines.filter(t => /[:\/]/.test(t) || /1\s*[:\/]\s*\d/.test(t)).slice(0, 25);
@@ -269,6 +284,30 @@ async function asOcrTokens(cv) {
   await worker.terminate();
   return tokens;
 }
+/* OCR באריחים על קנבס גדול (מידות בשרטוט אדריכלי קטנות — מפוזרות על דף ענק): אריחי ~1600px עם חפיפה, שלושה כיוונים לכל אריח */
+async function asOcrTiles(cv) {
+  if (!window.Tesseract) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
+  const worker = await Tesseract.createWorker('eng');
+  await worker.setParameters({ tessedit_char_whitelist: '0123456789.,:/', preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
+  const T = 1600, OV = 120, out = [], seen = new Set();
+  const rot = (src, ang) => { const rc = document.createElement('canvas'); rc.width = src.height; rc.height = src.width; const g = rc.getContext('2d'); g.translate(rc.width / 2, rc.height / 2); g.rotate(ang); g.drawImage(src, -src.width / 2, -src.height / 2); return rc; };
+  for (let ty = 0; ty < cv.height; ty += T - OV) for (let tx = 0; tx < cv.width; tx += T - OV) {
+    const w = Math.min(T, cv.width - tx), h = Math.min(T, cv.height - ty); if (w < 60 || h < 60) continue;
+    const tile = document.createElement('canvas'); tile.width = w; tile.height = h; tile.getContext('2d').drawImage(cv, tx, ty, w, h, 0, 0, w, h);
+    /* אריח לבן לגמרי — דילוג */
+    const d = tile.getContext('2d').getImageData(0, 0, w, h).data; let dark = 0; for (let i = 0; i < d.length; i += 64) if (d[i] < 128) dark++; if (dark < 20) continue;
+    const passes = [[tile, 'h', (x, y) => ({ x, y })], [rot(tile, Math.PI / 2), 'v', (x, y) => ({ x: y, y: h - x })], [rot(tile, -Math.PI / 2), 'w', (x, y) => ({ x: w - y, y: x })]];
+    for (const [c2, frame, map] of passes) {
+      const res = await worker.recognize(c2);
+      for (const wd of (res.data.words || [])) { const t = (wd.text || '').trim(); if (!t || wd.confidence < 55 || !/\d/.test(t)) continue;
+        const bb = wd.bbox, p = map((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2), X = p.x + tx, Y = p.y + ty;
+        const key = frame + '|' + t + '|' + Math.round(X / 8) + '|' + Math.round(Y / 8); if (seen.has(key)) continue; seen.add(key);
+        out.push({ t, x: X, y: Y, w: bb.x1 - bb.x0, h: bb.y1 - bb.y0, frame, c: wd.confidence }); }
+    }
+  }
+  await worker.terminate();
+  return out;
+}
 async function autoScaleImage(img, bgW) {
   try {
     uiToast('🔍 מזהה קנה מידה מהתמונה (OCR מקומי, בלי AI) — ממשיכים בינתיים…', 5000);
@@ -295,8 +334,16 @@ async function autoScaleImage(img, bgW) {
   } catch (e) { console.warn('autoScaleImage', e); uiToast('⚠ זיהוי אוטומטי נכשל: ' + (e.message || e)); return null; }
 }
 /* הרצה חוזרת על תכנית קיימת (תמונת הרקע השמורה) */
-function autoScaleFromBg() {
+async function autoScaleFromBg() {
   if (!P.bg) { uiToast('אין תכנית'); return; }
+  if (P.bgPdf) {   /* יש PDF — קוראים ממנו (שכבת טקסט, או רינדור ברזולוציה גבוהה + OCR) — הרבה יותר מדויק מתמונת התצוגה */
+    try {
+      if (!window.pdfjsLib) { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+      const bytes = typeof bgPdfBytes === 'function' ? bgPdfBytes() : Uint8Array.from(atob(P.bgPdf.replace(/^data:[^,]*,/, '')), ch => ch.charCodeAt(0));
+      const doc = await pdfjsLib.getDocument({ data: bytes }).promise, pg = await doc.getPage(P.bgPdfPage || 1);
+      return autoScalePdf(pg, P.bgW || 1400);
+    } catch (e) { console.warn('autoScaleFromBg pdf', e); }
+  }
   const img = new Image();
   img.onload = () => autoScaleImage(img, P.bgW || 1400);
   img.src = P.bg;

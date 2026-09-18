@@ -1322,7 +1322,8 @@ function renderHeader() {
     <button onclick="designBrief()">🎯 תכנן לי מערכת לחלל זה</button>
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
     <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
-    <button onclick="routeManager()">🛤 מסלולי העברה — תעלות וצינורות (כמה קווים בצינור)</button>`;
+    <button onclick="routeManager()">🛤 מסלולי העברה — תעלות וצינורות (כמה קווים בצינור)</button>
+    <button onclick="mountManager()">🪝 אביזרי תלייה לפי הרמקולים — טבעות / מתקן ח / מתקן מתכוונן</button>`;
   /* 📚 נתונים — הטבלאות והספריות שמאחורי התכנון (לא פעולות על הפרויקט) */
   const dm = document.getElementById('dataMenu'); if (dm) dm.innerHTML = `
     <a class="ddlink" href="/logic">🎯 לוגיקת תכלית ← מערכת — טבלאות ההיגיון</a>
@@ -7588,6 +7589,76 @@ window.routeGroupApply = routeGroupApply;
 function routeApplyAll() { const gs = window.__rtGroups || {}; Object.entries(gs).forEach(([k, arr]) => { if (!arr.every(c => c.conduit)) routeGroupApply(k, 'conduit'); }); }
 window.routeApplyAll = routeApplyAll;
 const routePairKey = c => [c.from, c.to].sort().join('|');
+/* ===== 🪝 אביזרי תלייה לפי הרמקולים =====
+   כללי הבית: תלייה מהתקרה = 3 טבעות (בורג עין) לרמקול · מתקן ח (YOKE) = לתקרה (מוט הברגה / ישירות) רק כשהרמקול ישר בלי צידוד ·
+   אחרת מתקן מתכוונן: Unicorn/KT → GU40, שאר המותגים → המתקן המתכוונן של היצרן · רצפה/סטאק/בארון = בלי אביזר */
+const HANG_HE = { rings: '🔗 3 טבעות (תלייה מהתקרה)', yoke: '⊓ מתקן ח (ישר, בלי צידוד)', adj: '↗ מתקן מתכוונן', none: '— בלי אביזר' };
+function spkBrandOf(name) { const n = String(name || ''); return /FUNKTION|F\s?1201|\bF\s?(5|55|61|81|88|101)\b|EVO|RES\s?[12]|PSM|BR\s?1\d\d|SB\s?\d/i.test(n) ? 'Funktion-One' : /K&F|KLING|GRAVIS|SONA|PASSIO|NOMOS|PIA|VIDA|SCENA|SPECTRA|SEQUENZA|CA\s?106/i.test(n) ? 'K&F' : /UNICORN|יוניקורן|EUPHORIA|PAGAZ|TILL|INTERPID|WR\s?600|ARRAY|BOLD|\bKT\b/i.test(n) ? 'Unicorn' : /CELTO/i.test(n) ? 'Celto' : /YAMAHA|ימהה/i.test(n) ? 'Yamaha' : 'אחר'; }
+function spkModelTok(name) { const m = String(name || '').match(/\b(F\s?1201|F\s?101|F\s?88|F\s?81|F\s?61|F\s?55|F\s?5|EVO\s?\d?\s?\w+|RES(OLUTION)?\s?\d\w*|PSM\s?15|GRAVIS\s?\d+|SONA\s?\d|PASSIO\s?\w*|PIA\s?\w+|CA\s?106|EUPHORIA\s?\d+|PAGAZ\s?\d+|TILL\s?\d+|INTERPID\s?\d+|CT\s?\d+|IFIX\s?\d+)/i); return m ? m[1].replace(/\s+/g, '\\s?') : ''; }
+/* אופן התלייה לפי המיקום וה"ישר" של המוקד */
+function hangKindOf(n) {
+  if (n.hang) return n.hang;
+  const m = n.mount || '';
+  if (/רצפה|סטאק|ארון|במה/.test(m)) return 'none';
+  if (/מוט הברגה/.test(m)) return n.straight ? 'yoke' : 'adj';
+  if (/תקרה/.test(m)) return 'rings';
+  if (/קיר/.test(m)) return n.straight ? 'yoke' : 'adj';
+  return n.straight ? 'yoke' : 'adj';
+}
+/* המוצר מהקטלוג לאביזר: [key, name, qty] או null */
+function mountProductFor(n, kind) {
+  const nm = nodeFullName(n), brand = spkBrandOf(nm), tok = spkModelTok(nm), items = typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : [];
+  const find = (rx, notRx) => { const hits = items.filter(([k, s]) => s && rx.test(s) && !(notRx && notRx.test(s))).sort((a, b) => byStockThenSold(a[0], b[0])); return hits[0] || null; };
+  const tokRx = tok ? new RegExp('(^|[^A-Z0-9])' + tok + '([^0-9]|$)', 'i') : null;
+  if (kind === 'rings') { const th = brand === 'Funktion-One' ? /M\s?10/i : /M\s?8\b/i; const h = find(/בורג עין.*טבעת תלי/i, null) && (items.filter(([k, s2]) => s2 && /בורג עין.*טבעת תלי/i.test(s2) && th.test(s2)).sort((a, b) => byStockThenSold(a[0], b[0]))[0] || find(/בורג עין.*טבעת תלי/i)); return h ? { key: h[0], name: h[1], qty: 3, why: '3 טבעות לרמקול — תלייה מהתקרה (' + (brand === 'Funktion-One' ? 'M10 לתבריגי Funktion-One' : 'M8') + ')' } : null; }
+  if (kind === 'yoke') { const h = (tokRx && find(new RegExp('מתקן ח|YOKE|U-mount', 'i'), null) && items.filter(([k, s]) => s && /מתקן ח|YOKE|U-mount/i.test(s) && tokRx.test(s)).sort((a, b) => byStockThenSold(a[0], b[0]))[0]) || null; return h ? { key: h[0], name: h[1], qty: 1, why: 'מתקן ח — לתקרה (מוט הברגה / ישירות), רמקול ישר' } : { key: '', name: 'מתקן ח (YOKE) ל' + (tok || nm.slice(0, 20)) + ' — אין בקטלוג', qty: 1, why: 'מתקן ח — לא נמצא בקטלוג לדגם', missing: true }; }
+  if (kind === 'adj') {
+    if (brand === 'Unicorn' || brand === 'Celto' || brand === 'Yamaha' || brand === 'אחר') { const h = find(/GU\s?40/i); return h ? { key: h[0], name: h[1], qty: 1, why: 'מתקן מתכוונן GU40 — ' + brand } : null; }
+    const h = tokRx && items.filter(([k, s]) => s && /מתקן|bracket|mount/i.test(s) && /מתכוונן|WALL MOUNT|לקיר|סיבובי|Adjustable|bracket/i.test(s) && !/מתקן ח|YOKE|U-mount|קרקע|Ground|GSB|dolly/i.test(s) && tokRx.test(s)).sort((a, b) => byStockThenSold(a[0], b[0]))[0];
+    return h ? { key: h[0], name: h[1], qty: 1, why: 'מתקן מתכוונן של ' + brand + ' לדגם' } : { key: '', name: 'מתקן מתכוונן ' + brand + ' ל' + (tok || nm.slice(0, 20)) + ' — אין בקטלוג', qty: 1, why: 'מתקן מתכוונן — לא נמצא בקטלוג לדגם', missing: true };
+  }
+  return null;
+}
+function mountRows() {
+  return P.nodes.filter(n => n.kind === 'point' && !n.hidden && (n.srcIid ? isSpeakerItem(nodeFullName(n)) : /רמקול|סאב|speaker|sub/i.test(n.name || '')) && (n.ptype == null || n.ptype === 'speaker' || n.ptype === 'sub')).map(n => { const kind = hangKindOf(n); return { n, kind, pr: mountProductFor(n, kind) }; });
+}
+function mountSet(id, f, v) { const n = byId(id); if (!n) return; if (f === 'hang') { if (v === 'auto') delete n.hang; else n.hang = v; } else if (f === 'straight') n.straight = !!v; else if (f === 'mount') n.mount = v; save(); mountManager(); }
+function mountAddAll(onlyId) {
+  const rows = mountRows().filter(r => r.pr && r.pr.key && (!onlyId || r.n.id === onlyId)); let added = 0, qty = 0;
+  const need = {}; rows.forEach(r => { const e = need[r.pr.key] = need[r.pr.key] || { pr: r.pr, qty: 0, parents: new Set() }; e.qty += r.pr.qty; if (r.n.srcIid) e.parents.add(r.n.srcIid); });
+  for (const [key, e] of Object.entries(need)) {
+    let it = impItems.find(x => x.key === key && x.on !== false);
+    if (!it) { it = { on: true, qty: 0, name: e.pr.name, key, src: 'אביזרי תלייה', dest: 'acc', cat: 'other', u: 1, iid: uid('i') }; autoPrice(it); impItems.push(it); added++; }
+    if ((+it.qty || 0) < e.qty) { qty += e.qty - (+it.qty || 0); it.qty = e.qty; }
+    if (!it.parentIid && e.parents.size) it.parentIid = [...e.parents][0];
+  }
+  save(); renderImp && renderImp(); mountManager(); uiToast('🪝 ' + (added ? added + ' אביזרים נוספו להצעה' : 'האביזרים כבר בהצעה') + (qty ? ' · הכמות עודכנה ב-' + qty : ''));
+}
+function mountManager() {
+  const old = document.getElementById('mountOv'); if (old) old.remove();
+  const rows = mountRows(); const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'בתוך ארון', 'אחר'];
+  const inOffer = key => { const it = impItems.find(x => x.key === key && x.on !== false); return it ? (+it.qty || 0) : 0; };
+  const tr = rows.map(({ n, kind, pr }) => { const nm = nodeFullName(n); const have = pr && pr.key ? inOffer(pr.key) : 0; return `<tr>
+    <td><b>${esc(shortModel(nm))}</b><br><small class="muted">${esc(nm.slice(0, 44))}</small></td>
+    <td><select onchange="mountSet('${n.id}','mount',this.value)"><option value="">—</option>${MOUNTS.map(m => `<option ${n.mount === m ? 'selected' : ''}>${m}</option>`).join('')}</select></td>
+    <td style="text-align:center"><input type="checkbox" style="width:auto" ${n.straight ? 'checked' : ''} title="רמקול ישר בלי צידוד — אז מותר מתקן ח" onchange="mountSet('${n.id}','straight',this.checked)"></td>
+    <td><select onchange="mountSet('${n.id}','hang',this.value)"><option value="auto" ${!n.hang ? 'selected' : ''}>אוטו · ${HANG_HE[kind]}</option>${Object.entries(HANG_HE).map(([k, t]) => `<option value="${k}" ${n.hang === k ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+    <td style="font-size:11.5px">${pr ? `${pr.key ? imgCell(pr.key, 30, pr.name) : ''} ${esc(pr.name.slice(0, 52))}<br><small class="muted">${esc(pr.why)}</small>` : '<span class="muted">—</span>'}</td>
+    <td style="text-align:center;font-weight:700">${pr ? '× ' + pr.qty : ''}</td>
+    <td style="text-align:center">${pr && pr.key ? (have >= pr.qty ? '<span style="color:#0f6e56">✓ בהצעה</span>' : `<button onclick="mountAddAll('${n.id}')">➕ להצעה</button>`) : pr && pr.missing ? '<span style="color:#c1121f">⚠ אין בקטלוג</span>' : ''}</td></tr>`; }).join('');
+  const tot = {}; rows.forEach(r => { if (r.pr && r.pr.key) { const e = tot[r.pr.key] = tot[r.pr.key] || { name: r.pr.name, qty: 0 }; e.qty += r.pr.qty; } });
+  const ov = uiModal(`<div id="mountOv"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:15px;flex:1">🪝 אביזרי תלייה לפי הרמקולים</b><button data-x>✕</button></div>
+    <p class="muted" style="font-size:11.5px;margin:0 0 8px">כללי הבית: תלייה מהתקרה = <b>3 טבעות</b> (בורג עין) לכל רמקול · <b>מתקן ח</b> (YOKE) לתקרה במוט הברגה או ישירות — רק כשהרמקול ישר בלי צידוד · אחרת <b>מתקן מתכוונן</b>: Unicorn/KT → GU40, שאר המותגים → המתקן המתכוונן של היצרן · רצפה / סטאק / בארון = בלי אביזר.</p>
+    <div style="max-height:52vh;overflow-y:auto"><table class="cablelist" style="width:100%"><tr><th>רמקול</th><th>מותקן על</th><th title="ישר בלי צידוד">ישר</th><th>אופן התלייה</th><th>אביזר מהקטלוג</th><th>כמות</th><th></th></tr>${tr || '<tr><td colspan="7" class="muted">אין רמקולים בתכנית</td></tr>'}</table></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><span style="flex:1;font-size:12px">סה״כ: ${Object.values(tot).map(e => e.qty + '× ' + esc(e.name.slice(0, 30))).join(' · ') || '—'}</span><button style="background:#0f6e56;color:#fff;font-weight:700" onclick="mountAddAll()">➕ הוסף את כל האביזרים להצעה</button></div></div>`);
+  ov.querySelector('div').style.maxWidth = '960px'; ov.querySelector('div').style.width = '96vw';
+  ov.querySelector('[data-x]').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
+window.mountManager = mountManager; window.mountSet = mountSet; window.mountAddAll = mountAddAll;
+function mountReportHTML() {
+  const rows = mountRows().filter(r => r.kind !== 'none'); if (!rows.length) return '';
+  return `<div class="rp-sec"><h3>🪝 אביזרי תלייה — לפי הרמקולים</h3><table class="cablelist"><tr><th>רמקול</th><th>מותקן על</th><th>אופן התלייה</th><th>אביזר</th><th>כמות</th></tr>${rows.map(r => `<tr><td>${esc(nodeFullName(r.n).slice(0, 40))}</td><td>${esc(r.n.mount || '—')}</td><td>${esc(HANG_HE[r.kind])}</td><td>${r.pr ? esc(r.pr.name.slice(0, 50)) : '—'}</td><td>${r.pr ? r.pr.qty : ''}</td></tr>`).join('')}</table></div>`;
+}
 function routeManager() {
   const old = document.getElementById('routeOv'); if (old) old.remove();
   P.conduits = P.conduits || []; const LBL = cableLabels();
@@ -8509,12 +8580,14 @@ function panelFromItem(it, rows) {
   return defPanel(it.dest === 'panelUnit' ? 8 : 16, rows || (it.dest === 'panelUnit' ? 1 : 2));
 }
 /* פריט אביזר (מתקן/יוק/סוגר/כננת) — משויך למוצר, לא מוצב בתכנית */
-const ACCESSORY_RE = /מתקן|יוק|\byoke\b|סוגר|תושבת|כננת|מתלה|ברקט|bracket|תלייה|תליה|adapter|מתאם|רגל|stand|clamp|אומגה|flybar|רייל|פלייבר/i;
-function isAccessory(name) { return ACCESSORY_RE.test(name || '') && !/רמקול|סאב|מגבר|פרוססור/i.test((name || '').replace(ACCESSORY_RE, '')); }
+const ACCESSORY_RE = /מתקן|יוק|\byoke\b|סוגר|תושבת|כננת|מתלה|ברקט|bracket|תלייה|תליה|adapter|מתאם|רגל|stand|clamp|אומגה|flybar|רייל|פלייבר|בורג|ברגים|טבעת|עין\s|אום\b|אומים|וו\b|ווים|שרשרת|כבל פלדה|סטרפ|רצועה|כיסוי|מעמד|חצובה|סטנד|ספייסר|כבל ביטחון|safety/i;
+function isAccessory(name) { const n = String(name || ''); if (!ACCESSORY_RE.test(n)) return false; if (/^\s*(בורג|ברגים|טבעת|מתקן|תושבת|ברקט|מתלה|כננת|יוק|וו|ווים|שרשרת|מעמד|חצובה|סטנד|רצועה|כיסוי|ספייסר|אום|כבל פלדה|כבל ביטחון|מתאם|אדפטר)(?=\s|$|[^\u05d0-\u05ea])/.test(n)) return true;   /* \b לא עובד בעברית */   /* מתחיל במילת אביזר = אביזר */
+  return !/רמקול|סאב|מגבר|פרוססור/i.test(n.replace(new RegExp(ACCESSORY_RE.source, 'gi'), '').replace(/\bל(רמקול|סאב|מגבר)/g, '')); }   /* "…לרמקול" = מיועד לרמקול, לא רמקול */
 /* פריט רמקול/סאב אמיתי — לא כבל, לא מחבר, לא אביזר */
 function isSpeakerItem(name) {
   const n = name || '';
   if (/כבל|מחבר|קונקטור|cable|מתקן|יוק|\byoke\b|סוגר|ברקט|תושבת|כננת|מתלה/i.test(n)) return false;
+  if (typeof ACCESSORY_RE !== 'undefined' && ACCESSORY_RE.test(n) && !/^(רמקול|סאב|קולונ)/.test(n.trim())) return false;   /* "בורג … לרמקול" = אביזר, לא רמקול */
   /* מגבר/פרוססור אינם רמקול — גם אם בשם מוזכר "קרוס בין סאבים" וכד' */
   if (/מגבר|\bamp(lifier)?\b|פרוססור|processor|קרוסאובר|crossover|מטריצ|matrix|\bDSP\b/i.test(n)) return false;
   return /רמקול|סאב|קולונה|speaker|sub|woofer|monitor/i.test(n);
@@ -9006,8 +9079,9 @@ function erpLineToItem(x, src) {
     const isSvc = /שירות|התקנה|משלוח|כיוון|תכנות|הובלה|עבודה|שעות/.test(name);
     /* "תאורה" במילון = ציוד ראק לתאורה (דימר/ספליטר/נוד/בקר); גופי תאורה, נורות, סטריפים ופרופילים הם נקודות בתכנית */
     const FIXTURE_RE = /גוף\s?תאורה|גופי|נורת|נורה|סטריפ|strip|\bLED\b|\bלד\b|פרופיל|ספוט|spot|פנס|מנורה|צילינדר|שקוע|downlight|track|פס\s?צביר/i, LIGHT_RACK_RE = /דימר|dimmer|ספליטר|splitter|\bnode\b|בקר|controller|ספק\s?כח|power\s?supply|driver/i;
-    let dest = d ? d.dest : isSvc ? 'ignore' : isSpeakerItem(name) ? 'point' : RACK_RE.test(name) ? 'unit' : 'point';
+    let dest = d ? d.dest : isSvc ? 'ignore' : isAccessory(name) ? 'acc' : isSpeakerItem(name) ? 'point' : RACK_RE.test(name) ? 'unit' : 'point';
     if ((dest === 'unit' || dest === 'panelUnit') && isSpeakerItem(name)) dest = 'point';   /* רמקול/סאב לעולם לא נכנס לארון — גם אם מילון המפרט אומר אחרת */
+    if (dest === 'point' && isAccessory(name)) dest = 'acc';   /* בורג/טבעת/מתקן — אביזר משויך למוצר, לא מוקד */
     if (d && d.cat === 'light' && FIXTURE_RE.test(name) && !LIGHT_RACK_RE.test(name)) dest = 'point';
     it = { on: dest !== 'ignore', qty: +x.qty || 1, name, dest, cat: d?.cat || 'other', u: d?.u || 1, src };
   }
@@ -10540,6 +10614,15 @@ function placeZoneSpeakers(z, name, spacingPx, iid, extra) {
   return pts.length;
 }
 /* קטע הקיר שממנו מקרינים — ברירת מחדל הקיר הארוך; מחזיר קצוות, נורמל פנימה, זווית וטווח */
+/* ניחוש קיר הבמה: הקיר הקרוב ביותר לבמה משורטטת/מוקד "במה" אם יש, אחרת הקיר הארוך ביותר */
+function stageWallGuess(z) {
+  const objs = ((P.sketch && P.sketch.objs) || []).filter(o => /STAGE|במה/i.test((SK_OBJS[o.t] || {}).n || o.t || ''));
+  const st = objs[0] || (P.nodes.find(n => /במה|stage/i.test(n.name || '')) ? (() => { const n = P.nodes.find(n2 => /במה|stage/i.test(n2.name || '')); return { x: 2200 - n.x - 20, y: n.y + 24 }; })() : null);
+  if (!st) return null;
+  let best = null;
+  z.poly.forEach((p, i) => { const q = z.poly[(i + 1) % z.poly.length]; const d = Math.hypot((p.x + q.x) / 2 - st.x, (p.y + q.y) / 2 - st.y); if (!best || d < best.d) best = { d, i }; });
+  return best ? 'e' + best.i : null;
+}
 function zoneWallSeg(z) {
   if (z.poly && z.poly.length >= 2) {
     const cxz = z.poly.reduce((s, p) => s + p.x, 0) / z.poly.length, cyz = z.poly.reduce((s, p) => s + p.y, 0) / z.poly.length;
@@ -10708,15 +10791,23 @@ function buildZoneFromItems(zid) {
   let nS = 0, nSub = 0;
   const spkItems = zi.filter(it => !isSub(it.name)), subItems = zi.filter(it => isSub(it.name));
   const totalS = spkItems.reduce((s, it) => s + remQ(it), 0);
-  /* פיזור אחיד סביב המרכז (נופל לפיזור לאורך הקירות אם האזור לא סגור) */
+  /* הופעות חיות: פרונטלי מקיר הבמה — L/R בקצוות הקיר (ועוד זוגות לאורכו כשיש יותר), מכוונים אל הקהל; אחרת פיזור היקפי */
+  const live = z._place === 'live' || /הופעות|LIVE/i.test(z.usage || '');
   const nWanted = Math.max(1, totalS);
-  const pts = evenRingPts(z, nWanted).length === nWanted ? evenRingPts(z, nWanted) : ringPts(z, 0, nWanted);
+  let pts;
+  if (live) {
+    if (!z._wall && z.poly && z.poly.length >= 3) z._wall = stageWallGuess(z);
+    const seg = zoneWallSeg(z);
+    if (seg) { const inset = P.scale ? 0.8 / P.scale : 30, ux = (seg.x2 - seg.x1) / seg.len, uy = (seg.y2 - seg.y1) / seg.len, A = Math.round(seg.aim);
+      pts = []; for (let k = 0; k < nWanted; k++) { const t = nWanted === 1 ? seg.len / 2 : inset + (seg.len - 2 * inset) * k / (nWanted - 1); pts.push({ cx: seg.x1 + ux * t + seg.nx * inset, cy: seg.y1 + uy * t + seg.ny * inset, aim: A, lbl: nWanted === 2 ? (k ? 'R' : 'L') : '' }); } }
+  }
+  if (!pts) pts = evenRingPts(z, nWanted).length === nWanted ? evenRingPts(z, nWanted) : ringPts(z, 0, nWanted);
   let pi = 0;
   for (const it of spkItems) {
     const q = remQ(it);
     for (let k = 0; k < q && pi < pts.length; k++, pi++) {
       const p = pts[pi];
-      const nd = { id: uid('n'), kind: 'point', name: it.name.slice(0, 40) + ' (' + (k + 1) + ')', sub: 'היקפי · ' + z.name, x: 2200 - p.cx - 20, y: p.cy - 24, srcIid: it.iid, mini: true, mount: 'קיר בלוק', hgt: 2.6, aim: p.aim, disp: guessDisp(it.name), spl: (guessSpl(it.name) || 120) - 20 };
+      const nd = { id: uid('n'), kind: 'point', name: it.name.slice(0, 40) + ' (' + (p.lbl || (k + 1)) + ')', sub: (live ? 'מיין במה · ' : 'היקפי · ') + z.name, x: 2200 - p.cx - 20, y: p.cy - 24, srcIid: it.iid, mini: true, mount: live ? 'טראס/הנפה' : 'קיר בלוק', hgt: live ? 3.5 : 2.6, aim: p.aim, disp: guessDisp(it.name), spl: (guessSpl(it.name) || 120) - 20 };
       P.nodes.push(nd); created.push(nd.id); nS++;
     }
     it.placed = (it.placed || 0) + q; it.zones[z.name] = (it.zones[z.name] || 0) + q; it.added = true;
@@ -10724,7 +10815,8 @@ function buildZoneFromItems(zid) {
   /* סאבים — בפינות (צימוד פינה מגביר בס) */
   const inM = P.scale ? 0.6 / P.scale : 24;
   const totalSub = subItems.reduce((s2, it) => s2 + remQ(it), 0);
-  const spts = zoneSubPts(z, Math.max(1, totalSub), inM), cpts = spts.length ? spts.map(p => [p.cx, p.cy]) : zoneCornerPts(z, inM);
+  let spts = zoneSubPts(z, Math.max(1, totalSub), inM), cpts = spts.length ? spts.map(p => [p.cx, p.cy]) : zoneCornerPts(z, inM);
+  if (live && totalSub) { const seg = zoneWallSeg(z); if (seg) { const ux = (seg.x2 - seg.x1) / seg.len, uy = (seg.y2 - seg.y1) / seg.len, gap = P.scale ? 1.2 / P.scale : 40; cpts = []; for (let k = 0; k < totalSub; k++) { const t = seg.len / 2 + (k - (totalSub - 1) / 2) * gap; cpts.push([seg.x1 + ux * t + seg.nx * inM, seg.y1 + uy * t + seg.ny * inM]); } } }
   let ci = 0;
   for (const it of subItems) {
     const q = remQ(it);
@@ -11187,13 +11279,19 @@ function zoneTierKits(z) {
   ];
   const target = (typeof USAGE_SPL !== 'undefined' && z && USAGE_SPL[z.usage]) || 90;
   const need = target + 8;   /* מרווח לפסגות בלי קליפ */
+  /* התאמה לתכלית: הופעות חיות → רק קיטים להופעות/במה/אולם (בית קפה, רקע, בר לא רלוונטיים); רקע/קפה → בלי קיטי הופעות */
+  const usage = (z && z.usage) || '', isLive = /הופעות|LIVE/i.test(usage), isBg = /רקע|קפה|כושר/.test(usage);
+  const LIVE_RX = /הופע|במה|אולם|celto|res\s?2|evo|f\s?88|f\s?101|f101|1201|נופ|אירועים|line|ליין|היקפי לאולם/i, BG_RX = /בית קפה|רקע|ביתי|שקוע|שנאי קו|סניפ|אורבניק|ביתית/i;
   const ks = allKits().map((k, i) => ({ k, i }))
     .filter(x => !kitHidden(x.k.name) && kitCatOf(x.k) !== 'lighting' && kitCatOf(x.k) !== 'video')
+    .filter(x => !isLive || !BG_RX.test(x.k.name || ''))
+    .filter(x => !isBg || !/הופע|במה|אולם אירועים/i.test(x.k.name || ''))
     .filter(x => (x.k.items || []).some(it => isSpeakerItem(it.name || '')))
     /* התקנת קבע: אף פעם לא רמקולים מוגברים */
     .filter(x => !(x.k.items || []).some(it => isSpeakerItem(it.name || '') && /מוגבר|אקטיבי/.test(it.name || '')));
   ks.forEach(x => {
     x._price = kitPriceOf(x.k); x._stock = kitStock(x.k); x._spl = kitMaxSpl(x.k);
+    x._liveFit = isLive && LIVE_RX.test(x.k.name || '');
     /* דרגה לפי מותג הרמקולים בלבד — מגבר SAE בקיט KT לא הופך אותו ל"ביניים" */
     x._spkTxt = (x.k.items || []).filter(it => isSpeakerItem(it.name || '')).map(it => it.name).join(' ');
   });
@@ -11213,7 +11311,7 @@ function zoneTierKits(z) {
     const inTier = byTier(ti);
     if (!inTier.length) return null;
     const fit = inTier.filter(x => x._spl >= need)
-      .sort((a, b) => (a._price - b._price) || (a._stock.dead - b._stock.dead));
+      .sort((a, b) => ((b._liveFit ? 1 : 0) - (a._liveFit ? 1 : 0)) || (a._price - b._price) || (a._stock.dead - b._stock.dead));   /* בהופעות: קיטים ייעודיים להופעות קודם */
     const above = fit.filter(x => x._price >= floor);
     /* קיט שעומד ביעד אבל יקר מהדרגות שמעליו = נתון חשוד/מוצר לא מתאים — נופלים לקרוב ביותר */
     if (above.length && above[0]._price <= cap) {
@@ -11921,6 +12019,7 @@ function exportPDF() {
       }).join('') + '</table></div>';
   }
   h += routeReportHTML();
+  h += mountReportHTML();
   h += `<div class="rp-sec"><h3>מפתח כבלים מלא</h3>${cableTableHTML()}</div>`;
   h += `<p style="color:#999;font-size:11px;text-align:center">הופק ב-KO Projects · ${new Date().toLocaleString('he-IL')}</p>`;
   const r = $('#report');
