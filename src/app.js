@@ -11981,11 +11981,24 @@ function exportPDF() {
   </div></div>`;
   for (const n of racks) h += rackSection(n);
   /* פאנלים וקופסאות מולטי */
+  /* פאנלים שכבר מופיעים במקום אחר בדוח לא חוזרים כאן: הכנות חשמל (בפרק החשמל), ופאנלים עם כבלים (בשרטוטי הדיסציפלינות) */
   const panels = [];
+  const catsN = new Set((P.cables || []).map(c => CAB_GROUP[c.type] || 'audio')).size;
+  const isPwPanel = n => n.ptype === 'power' || n.panel.holes.some(hh => (CONNS[hh.conn] || {}).pw);
+  const shownInDisc = n => catsN > 1 && (P.cables || []).some(c => c.from === n.id || c.to === n.id);
   P.nodes.forEach(n => {
-    if (n.kind === 'panel' && n.panel) panels.push({ t: n.name + (n.sub ? ' — ' + n.sub : ''), p: n.panel });
+    if (n.kind === 'panel' && n.panel && !isPwPanel(n) && !shownInDisc(n)) panels.push({ t: n.name + (n.sub ? ' — ' + n.sub : ''), p: n.panel });
     if (n.kind === 'rack') n.units.forEach(u => { if (u.panel) panels.push({ t: `${u.name} (${u.u}U, פאנל 19″) — בתוך ${n.name}`, p: u.panel, rack: true }); });
   });
+  /* שרטוט פאנל לדוח (מטריצה/חופשי) — משותף להכנות החשמל ולפאנלים */
+  const panelBodyHTML = p => {
+    const cellW = hh => { const t = CONNS[hh.conn] || CONNS.empty; return t.pw ? (t.cw || 40) : 24; };
+    const rowW = () => { const cpr = pCols(p); let m = 0; for (let r = 0; r < (p.rows || 1); r++) { const hs = p.holes.slice(r * cpr, (r + 1) * cpr); m = Math.max(m, hs.reduce((a, hh) => a + cellW(hh), 0) + Math.max(0, hs.length - 1) * 5); } return m; };
+    const w = p.mode === 'matrix' ? rowW() + 24 : (p.w || 260);
+    return p.mode === 'free'
+      ? `<div class="pnl" style="position:relative;height:${p.h || 140}px;width:${w}px;display:block;border:1px solid #ccc;border-radius:8px">${holesHTML(p, '', -1, true)}</div>`
+      : `<div class="pnl" style="width:${w}px;display:flex;flex-direction:column;gap:5px;border:1px solid #ccc;border-radius:8px">${holesMatrixHTML(p, '', -1, true)}</div>`;
+  };
   /* ⚡ הכנות חשמל — כל פאנל עם שקעים/סיקונים: סיכום לפי סוג ופאזה, וטבלה לכל שקע (מס׳, סוג, פאזה, שם, אזור) */
   const pwPanels = P.nodes.filter(n => n.kind === 'panel' && n.panel && (n.ptype === 'power' || n.panel.holes.some(hh => (CONNS[hh.conn] || {}).pw)));
   if (pwPanels.length) {
@@ -11998,10 +12011,14 @@ function exportPDF() {
       const byPh = {}; p.holes.forEach(hh => { const t = CONNS[hh.conn]; if (t && t.pw) byPh[hh.ph || 0] = (byPh[hh.ph || 0] || 0) + 1; });
       const phLine = [1, 2, 3].filter(k => byPh[k]).map(k => `${PHN[k]}: ${byPh[k]}`).join(' · ') + (byPh[0] ? (Object.keys(byPh).length > 1 ? ' · ' : '') + 'בלי פאזה: ' + byPh[0] : '');
       const rows = p.holes.map((hh, i) => { const t = CONNS[hh.conn]; if (!t || !t.pw) return ''; return `<tr><td>${i + 1}</td><td>${esc(t.n)}</td><td>${t.amp ? t.amp + 'A' : '16A'}${t.ph3 ? ' · 3 פאזות' : ''}</td><td>${hh.ph ? PHN[hh.ph] : '—'}</td><td>${esc(hh.label || '')}</td></tr>`; }).join('');
+      /* השרטוט של הפאנל ליד הרשימה — אותם מספרים בשרטוט ובטבלה, קל לחבר ביניהם */
       return `<div style="margin-bottom:14px;page-break-inside:avoid"><b style="font-size:13px">${esc(n.name)}${n.sub ? ' — ' + esc(n.sub) : ''}</b>${zn ? ` <span style="color:#666;font-size:12px">· אזור: ${esc(zn.name)}</span>` : ''}${n.mount ? ` <span style="color:#666;font-size:12px">· מותקן על: ${esc(n.mount)}</span>` : ''}
         <div style="font-size:12px;color:#444;margin:4px 0">${sum}</div>
         ${phLine ? `<div style="font-size:12px;color:#444;margin:0 0 6px">חלוקת פאזות: ${phLine}</div>` : ''}
-        <table class="cablelist"><tr><th>#</th><th>סוג</th><th>זרם</th><th>פאזה</th><th>שם / ייעוד</th></tr>${rows}</table></div>`;
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:none">${panelBodyHTML(p)}<div style="font-size:11px;color:#666;margin-top:3px;text-align:center">המספרים בשרטוט = # בטבלה</div></div>
+          <table class="cablelist" style="flex:1;min-width:320px"><tr><th>#</th><th>סוג</th><th>זרם</th><th>פאזה</th><th>שם / ייעוד</th></tr>${rows}</table>
+        </div></div>`;
     }).join('') + '</div>';
   }
   if (panels.length) {
@@ -12010,16 +12027,7 @@ function exportPDF() {
       p.holes.forEach(hh => counts[hh.conn] = (counts[hh.conn] || 0) + 1);
       const cs = Object.entries(counts).map(([k, v]) => `${v}× ${CONNS[k].n}`).join(' · ');
       const lbls = p.holes.map((hh, i) => hh.label ? `${i + 1}: ${esc(hh.label)}` : null).filter(Boolean).join(' · ');
-      let body;
-      if (rack) body = faceHTML(p, '', -1, true);
-      else {
-        const cellW = hh => { const t = CONNS[hh.conn] || CONNS.empty; return t.pw ? (t.cw || 40) : 24; };
-        const rowW = () => { const cpr = pCols(p); let m = 0; for (let r = 0; r < (p.rows || 1); r++) { const hs = p.holes.slice(r * cpr, (r + 1) * cpr); m = Math.max(m, hs.reduce((a, hh) => a + cellW(hh), 0) + Math.max(0, hs.length - 1) * 5); } return m; };
-        const w = p.mode === 'matrix' ? rowW() + 24 : (p.w || 260);
-        body = p.mode === 'free'
-          ? `<div class="pnl" style="position:relative;height:${p.h || 140}px;width:${w}px;display:block;border:1px solid #ccc;border-radius:8px">${holesHTML(p, '', -1, true)}</div>`
-          : `<div class="pnl" style="width:${w}px;display:flex;flex-direction:column;gap:5px;border:1px solid #ccc;border-radius:8px">${holesMatrixHTML(p, '', -1, true)}</div>`;
-      }
+      const body = rack ? faceHTML(p, '', -1, true) : panelBodyHTML(p);
       return `<div style="margin-bottom:16px;page-break-inside:avoid"><b style="font-size:13px">${esc(t)}</b>
         <div style="margin:6px 0">${body}</div>
         <span style="color:#666;font-size:12px">${cs}</span>
@@ -12111,19 +12119,67 @@ function exportPDF() {
     return `<div style="margin-top:12px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${col};margin-bottom:4px">🧵 חיווט — כבל אחר כבל (${rows.length} קווים)</div>
       <div style="overflow-x:auto"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="direction:ltr;display:block;font-family:inherit">${svg}</svg></div></div>`;
   };
+  /* תרשים חיבורים: הקופסאות/הארונות המעורבים (מקורות למעלה, יעדים למטה) עם קווים חור-אל-חור בצבע הכבל, מספר הכבל,
+     ורצועה בצבע הצינור סביב הקווים שעוברים באותו צינור (תג צ1 Ø50) */
+  const connDiagram = (cabs, col) => {
+    const ids = [...new Set(cabs.flatMap(c => [c.from, c.to]))].map(byId).filter(n => n && n.kind !== 'point'); if (ids.length < 2) return null;
+    const tops = ids.filter(n => cabs.some(c => c.from === n.id)), bots = ids.filter(n => !tops.includes(n));
+    if (!bots.length) { bots.push(tops.pop()); }
+    const CW = 520, GAP = 40 + 34 * Math.max(3, cabs.length);
+    const host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-20000px;top:0;visibility:hidden;width:1000px';
+    const wrap = document.createElement('div'); wrap.style.cssText = 'position:relative;display:inline-block;padding:4px';
+    const row = (arr, below) => { const d = document.createElement('div'); d.style.cssText = 'display:flex;gap:40px;align-items:flex-start;justify-content:center'; arr.forEach(n => { const card = detailCard(n, col, CW, { up: 1.6, titleBelow: below }); if (card) { card.dataset.nid = n.id; card.style.marginBottom = '0'; d.appendChild(card); } }); return d; };
+    const rTop = row(tops, false), sp = document.createElement('div'); sp.style.height = GAP + 'px'; const rBot = row(bots, true);
+    wrap.appendChild(rTop); wrap.appendChild(sp); wrap.appendChild(rBot); host.appendChild(wrap); document.body.appendChild(host);
+    const wr = wrap.getBoundingClientRect();
+    const isTop = nid => tops.some(n => n.id === nid);
+    /* נקודת קצה: בשפת הקופסה (למטה בעליונות, למעלה בתחתונות) — בעמודה של החור/היחידה; הקווים לא חוצים את גוף הקופסה */
+    const pt = (nid, unitId, hole, port) => { const card = wrap.querySelector(`[data-nid="${nid}"]`); if (!card) return null; const box = card.querySelector('[data-box]') || card;
+      let el = hole ? card.querySelector(`[data-hole$="|-1|${hole - 1}"]`) : (unitId && port ? card.querySelector(`[data-cport="${unitId}|${port}"]`) : null) || (unitId ? card.querySelector(`[data-uid="${unitId}"],[data-runit="${unitId}"]`) : null);
+      const r = (el || box).getBoundingClientRect(), br = box.getBoundingClientRect();
+      return { nid, x: r.left + r.width / 2 - wr.left, y: (isTop(nid) ? br.bottom : br.top) - wr.top, el: !!el, l: br.left - wr.left, r: br.right - wr.left }; };
+    const segs = []; const LBLc = cableLabels();
+    for (const c of cabs) {
+      const A = isTop(c.from) ? { nid: c.from, u: c.fromUnit } : { nid: c.to, u: c.toUnit }, B = A.nid === c.from ? { nid: c.to, u: c.toUnit } : { nid: c.from, u: c.fromUnit };
+      const fw = A.nid === c.from;
+      const list = c.chans && c.chans.length ? c.chans.map((ch, i) => ({ ha: fw ? ch.a : ch.b, hb: fw ? ch.b : ch.a, lbl: LBLc[c.id] + '.' + (i + 1) })) : c.bands && c.bands.length ? c.bands.map((bd, i) => ({ ha: null, hb: null, pa: bd.port, ua: bd.unitId, lbl: LBLc[c.id] + '.' + (i + 1) })) : [{ ha: fw ? c.fromHole : c.toHole, hb: fw ? c.toHole : c.fromHole, pa: fw ? c.pOut : c.pIn, pb: fw ? c.pIn : c.pOut, lbl: LBLc[c.id] }];
+      list.forEach(it => { const a = pt(A.nid, it.ua || A.u, it.ha, it.pa), b = pt(B.nid, B.u, it.hb, it.pb); if (a && b) segs.push({ c, a, b, lbl: it.lbl }); });
+    }
+    if (!segs.length) { host.remove(); return null; }
+    /* קצה בלי חור ידוע: פורשים את הקצוות לאורך שפת הקופסה לפי סדר הצד השני — בלי קווים אחד על השני */
+    const fan = (side, other) => { const g = {}; segs.forEach(sg => { if (!sg[side].el) (g[sg[side].nid] = g[sg[side].nid] || []).push(sg); });
+      Object.values(g).forEach(arr => { arr.sort((s1, s2) => s1[other].x - s2[other].x); arr.forEach((sg, i) => { const e = sg[side]; e.x = e.l + (e.r - e.l) * (i + 1) / (arr.length + 1); }); }); };
+    fan('a', 'b'); fan('b', 'a');
+    /* קווים: ירידה מהשפה, פס אופקי בגובה משלו (לפי הסדר), ירידה אל שפת היעד — מסודר, בלי חציות מיותרות */
+    segs.sort((s1, s2) => (s1.a.x - s2.a.x) || (s1.b.x - s2.b.x));
+    const yTop = Math.max(...segs.map(sg => sg.a.y)), yBot = Math.min(...segs.map(sg => sg.b.y)); const lanes = segs.length; const laneY = i => yTop + (yBot - yTop) * (i + 1) / (lanes + 1);
+    let svg = '';
+    /* רצועות צינור: סביב כל הקווים של אותו צינור */
+    const byCd = {}; segs.forEach((sg, i) => { if (sg.c.conduit) (byCd[sg.c.conduit] = byCd[sg.c.conduit] || []).push(i); });
+    for (const [cdId, idx] of Object.entries(byCd)) { const cd = (P.conduits || []).find(x => x.id === cdId); if (!cd) continue; const cc = conduitColor(cd); const xs = idx.flatMap(i => [segs[i].a.x, segs[i].b.x]), ys = idx.map(laneY);
+      const x0 = Math.min(...xs) - 12, x1 = Math.max(...xs) + 12, y0 = Math.min(...ys) - 11, y1 = Math.max(...ys) + 11; const tg = conduitTag(cd) + ' · ' + idx.length + ' קווים'; const tw = tg.length * 6.4 + 16;
+      svg += `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="10" fill="${cc}" opacity="0.14" stroke="${cc}" stroke-width="1.5" stroke-dasharray="6 4"/><rect x="${x1 + 6}" y="${(y0 + y1) / 2 - 9}" width="${tw}" height="18" rx="6" fill="${cc}"/><text x="${x1 + 6 + tw / 2}" y="${(y0 + y1) / 2 + 4}" text-anchor="middle" font-size="10.5" font-weight="800" fill="#fff" direction="rtl">${esc(tg)}</text>`; }
+    segs.forEach((sg, i) => { const cc = cableColor(sg.c), y = laneY(i); const d = `M${sg.a.x} ${sg.a.y} V ${y} H ${sg.b.x} V ${sg.b.y}`; const mx = (sg.a.x + sg.b.x) / 2, pw = Math.max(26, sg.lbl.length * 7 + 10);
+      svg += `<path d="${d}" fill="none" stroke="${cc}" stroke-width="2.2" stroke-linejoin="round"/><circle cx="${sg.a.x}" cy="${sg.a.y}" r="3.2" fill="${cc}"/><circle cx="${sg.b.x}" cy="${sg.b.y}" r="3.2" fill="${cc}"/>
+        <rect x="${mx - pw / 2}" y="${y - 8}" width="${pw}" height="16" rx="8" fill="#fff" stroke="${cc}" stroke-width="1.4"/><text x="${mx}" y="${y + 4}" text-anchor="middle" font-size="9.5" font-weight="800" fill="${cc}">${esc(sg.lbl)}</text>`; });
+    const ov = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); ov.setAttribute('class', 'cd-ov'); ov.setAttribute('width', wr.width); ov.setAttribute('height', wr.height); ov.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5'; ov.innerHTML = svg; wrap.appendChild(ov);
+    host.remove(); wrap.style.direction = 'ltr'; wrap.style.margin = '0 auto';
+    const out = document.createElement('div'); out.style.cssText = 'text-align:center;margin-top:8px;page-break-inside:avoid'; out.innerHTML = `<div style="font-size:12px;font-weight:700;color:${col};margin-bottom:4px;direction:rtl">🔗 תרשים חיבורים — כל קו יוצא מהחור שלו בקופסה ומגיע לחור שלו בקופסה השנייה (המספר על הקו = מספר הכבל)${Object.keys(byCd).length ? ' · הרצועה המקווקוות = הצינור' : ''}</div>`; out.appendChild(wrap); return out;
+  };
   /* כרטיס פירוט: העתק של ארון/פאנל פתוח (עם המחברים, היחידות ומספרי הכבלים) — לעמודת הפירוט שליד השרטוט */
-  const detailCard = (n, col, maxW) => {
+  const detailCard = (n, col, maxW, opts = {}) => {
     const el = document.getElementById('nd_' + n.id); if (!el) return null;
     const clone = el.cloneNode(true); clone.removeAttribute('id'); clone.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
     clone.classList.remove('sel'); clone.style.cssText = ''; clone.style.position = 'relative'; clone.style.right = 'auto'; clone.style.top = 'auto'; clone.style.transform = ''; clone.style.opacity = '';
-    const w = el.offsetWidth, h = el.offsetHeight, kk = Math.min(1, maxW / w);
-    const box = document.createElement('div');
+    const w = el.offsetWidth, h = el.offsetHeight, kk = Math.min(opts.up || 1, maxW / w);
+    const box = document.createElement('div'); box.dataset.box = '1';
     box.style.cssText = `width:${Math.round(w * kk)}px;height:${Math.round(h * kk)}px;overflow:hidden;position:relative;border:2px solid ${col};border-radius:10px;page-break-inside:avoid`;
     clone.style.transformOrigin = 'top right'; clone.style.transform = `scale(${kk})`; clone.style.position = 'absolute'; clone.style.top = '0'; clone.style.right = '0'; clone.style.width = w + 'px';
     box.appendChild(clone);
     const wrap = document.createElement('div'); wrap.style.cssText = 'margin-bottom:10px';
-    wrap.innerHTML = `<div style="font-size:12px;font-weight:700;color:${col};margin:0 0 3px">${esc(n.name)}${n.sub ? ' <span style="color:#777;font-weight:400">· ' + esc(n.sub) + '</span>' : ''}</div>`;
-    wrap.appendChild(box); return wrap;
+    const ttl = `<div style="font-size:12px;font-weight:700;color:${col};margin:${opts.titleBelow ? '3px 0 0' : '0 0 3px'}">${esc(n.name)}${n.sub ? ' <span style="color:#777;font-weight:400">· ' + esc(n.sub) + '</span>' : ''}</div>`;
+    if (opts.titleBelow) { wrap.appendChild(box); wrap.insertAdjacentHTML('beforeend', ttl); } else { wrap.innerHTML = ttl; wrap.appendChild(box); }
+    return wrap;
   };
   const snaps = [];
   const savedVis = JSON.stringify(P.cabVis || {});
@@ -12147,7 +12203,15 @@ function exportPDF() {
       renderNodes(); renderWires();
       /* שמאל: התכנית המלאה — המעורבים במסגרת בצבע הדיסציפלינה, השאר מעומעמים */
       document.querySelectorAll('#nodes > .node').forEach(el => { const id = el.id.slice(3); if (inv.has(id)) { el.style.outline = '3px solid ' + CAT_COL[cat]; el.style.outlineOffset = '2px'; el.style.opacity = ''; } else el.style.opacity = '0.22'; });
-      const sec = makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', null, 560);
+      /* חיתוך לאזור הציוד של הדיסציפלינה (המעורבים + הקווים), ברוחב מלא — לא תכנית שלמה קטנה עם שוליים ריקים */
+      let regC = null;
+      { const crC = $('#canvas').getBoundingClientRect(), ZC = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+        const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - crC.left) / ZC); T = Math.min(T, (rb.top - crC.top) / ZC); R = Math.max(R, (rb.right - crC.left) / ZC); B = Math.max(B, (rb.bottom - crC.top) / ZC); };
+        document.querySelectorAll('#nodes > .node').forEach(el => { if (inv.has(el.id.slice(3))) addR(el.getBoundingClientRect()); });
+        document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
+        if (L < Infinity) { const pad = 80, bw = Math.max(R - L, 500), bh = Math.max(B - T, 350), cx = (L + R) / 2, cy = (T + B) / 2;
+          regC = { L: Math.max(0, cx - bw / 2 - pad), T: Math.max(0, cy - bh / 2 - pad), R: Math.min(2200, cx + bw / 2 + pad), B: Math.min(1400, cy + bh / 2 + pad) }; } }
+      const sec = makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', regC, 1000);
       document.querySelectorAll('#nodes > .node').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; el.style.opacity = ''; });
       /* ימין: הארונות והפאנלים המעורבים — פתוחים, עם המחברים ומספרי הכבלים */
       const opened = [];
@@ -12157,10 +12221,11 @@ function exportPDF() {
       right.innerHTML = `<div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px">ארונות ופאנלים בשרטוט זה</div>`;
       let cards = 0; P.nodes.forEach(n => { if (!inv.has(n.id) || n.kind === 'point') return; const card = detailCard(n, CAT_COL[cat], 360); if (card) { right.appendChild(card); cards++; } });
       opened.forEach(([n, f2]) => n[f2] = true);
-      const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap';
-      const holder = sec._holder; holder.style.margin = '0'; holder.style.flex = 'none';
-      if (cards) row.appendChild(right); row.appendChild(holder);   /* RTL: הפירוט מימין, השרטוט משמאלו */
-      sec.appendChild(row);
+      const holder = sec._holder; holder.style.margin = '0 auto';
+      /* התכנית ברוחב מלא; מתחתיה תרשים חיבורים חור-אל-חור בין הקופסאות — כשיש לפחות שתיים; אחרת כרטיסי הפירוט */
+      const diag = connDiagram(cabs, CAT_COL[cat]);
+      if (diag) sec.appendChild(diag);
+      else if (cards) { right.style.cssText = 'display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:10px'; sec.appendChild(right); }
       const lad = document.createElement('div'); lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); if (lad.firstChild) sec.appendChild(lad.firstChild);
       snaps.push(sec);
     }
