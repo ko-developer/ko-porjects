@@ -902,7 +902,7 @@ function pickCable(id) { if (conduitMode) { conduitToggleCable(id); return; } se
 function nodeBox(n) {
   const el = document.getElementById('nd_' + n.id);
   /* _fanX/_fanY — היסט התצוגה של מוקדים שיושבים באותה נקודה, כדי שהקווים יגיעו לאייקון */
-  const x = n.x + (n._fanX || 0), y = n.y + (n._fanY || 0);
+  const x = n.x + (n._fanX || 0) - (n._chW || 0), y = n.y + (n._fanY || 0);   /* _chW — פאנל שהורחב ימינה לערוץ הכבלים */
   /* אייקון מוקטן (transform: scale) — הקופסה הנראית קטנה מהאלמנט; מודדים אותה מה-DOM כדי שהכבל ייגמר צמוד לאייקון */
   if (el && el.style.transform) {
     const cv = document.getElementById('canvas');
@@ -2112,7 +2112,7 @@ function stackArrange(stackAt) {
       const s2 = sizes[i], off = cur + (horiz ? s2.w : s2.h) / 2; cur += (horiz ? s2.w : s2.h) + GAP;
       const sx = horiz ? Math.round(off) : 0, sy = horiz ? 0 : Math.round(off);
       n._fanX = sx; n._fanY = sy;
-      el.style.right = (n.x + sx) + 'px'; el.style.top = (n.y + sy) + 'px';
+      el.style.right = (n.x + sx - (n._chW || 0)) + 'px'; el.style.top = (n.y + sy) + 'px';
     });
   });
 }
@@ -2501,7 +2501,7 @@ function drawPanelCables(n, d) {
   /* מעבר ראשי בצד ימין של הפאנל: כל הקווים שיוצאים מהשפה העליונה/התחתונה (פאנל מעל/מתחת) עוברים בו,
      וכל קו פונה שמאלה בפס שמתחת לשורה שלו אל המחבר — בלי לחצות מחברים. הסדר: מי שפונה ראשון הכי פנימי, בלי הצלבות */
   const stk = []; ents.forEach((e, k) => { const other = byId(e.c.from === n.id ? e.c.to : e.c.from), st = other && other.kind !== 'point' ? stackedBoxes(myBox, nodeBox(other)) : null; if (st) stk.push({ e, k, down: st === 'AB' }); });
-  const TR = {}; let W2 = W;
+  const TR = {}; let W2 = W; n._chW = 0;
   if (stk.length) {
     const maxRight = Math.max(...Object.values(holePos).map(p2 => p2.hx + (p2.hw || 24) / 2));
     const ups = stk.filter(x => !x.down).sort((a2, b2) => a2.e.hy - b2.e.hy), dns = stk.filter(x => x.down).sort((a2, b2) => b2.e.hy - a2.e.hy);
@@ -2509,6 +2509,8 @@ function drawPanelCables(n, d) {
     /* רצועה ייעודית מימין לקופסה — הקופסה מתרחבת ימינה ברוחב הערוץ, הכותרת זזה שמאלה ממנו: הקווים לא מסתירים כלום */
     const chW = Math.ceil(10 + (ordered.length - 1) * 2.5 + 8);
     d.style.width = (d.offsetWidth + chW) + 'px'; W2 = W + chW;
+    /* הקופסה מעוגנת בשפה הימנית — מזיזים את העוגן ימינה ברוחב הערוץ, כך שהתוכן נשאר במקומו והרצועה נוספת מימין */
+    d.style.right = (parseFloat(d.style.right) - chW) + 'px'; n._chW = chW;
     const hd = d.querySelector('.hd'); if (hd) hd.style.paddingRight = (8 + chW) + 'px';
     ordered.forEach((x, j) => { TR[x.k] = W + 8 + j * 2.5; });
     void maxRight;
@@ -8293,7 +8295,7 @@ document.addEventListener('pointermove', e => {
     if (gx != null || gy != null) window.__alignG = { x: gx, y: gy };
   }
   const el = document.getElementById('nd_' + drag.n.id);
-  el.style.right = drag.n.x + 'px';
+  el.style.right = (drag.n.x - (drag.n._chW || 0)) + 'px';
   el.style.top = drag.n.y + 'px';
   renderWires();
   /* עורך החיווט פתוח? הדיליי והעומסים מתעדכנים חי תוך כדי גרירה */
