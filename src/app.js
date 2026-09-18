@@ -7635,7 +7635,7 @@ function mountAddAll(onlyId) {
   save(); renderImp && renderImp(); mountManager(); uiToast('🪝 ' + (added ? added + ' אביזרים נוספו להצעה' : 'האביזרים כבר בהצעה') + (qty ? ' · הכמות עודכנה ב-' + qty : ''));
 }
 function mountManager() {
-  const old = document.getElementById('mountOv'); if (old) old.remove();
+  const old = document.getElementById('mountOv'); if (old) (old.closest('.uiDlgOv') || old).remove();   /* ה-id על התוכן — מסירים את השכבה כולה, לא רק אותו (אחרת נשארת קופסה ריקה) */
   const rows = mountRows(); const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'בתוך ארון', 'אחר'];
   const inOffer = key => { const it = impItems.find(x => x.key === key && x.on !== false); return it ? (+it.qty || 0) : 0; };
   const tr = rows.map(({ n, kind, pr }) => { const nm = nodeFullName(n); const have = pr && pr.key ? inOffer(pr.key) : 0; return `<tr>
@@ -7660,7 +7660,7 @@ function mountReportHTML() {
   return `<div class="rp-sec"><h3>🪝 אביזרי תלייה — לפי הרמקולים</h3><table class="cablelist"><tr><th>רמקול</th><th>מותקן על</th><th>אופן התלייה</th><th>אביזר</th><th>כמות</th></tr>${rows.map(r => `<tr><td>${esc(nodeFullName(r.n).slice(0, 40))}</td><td>${esc(r.n.mount || '—')}</td><td>${esc(HANG_HE[r.kind])}</td><td>${r.pr ? esc(r.pr.name.slice(0, 50)) : '—'}</td><td>${r.pr ? r.pr.qty : ''}</td></tr>`).join('')}</table></div>`;
 }
 function routeManager() {
-  const old = document.getElementById('routeOv'); if (old) old.remove();
+  const old = document.getElementById('routeOv'); if (old) (old.closest('.uiDlgOv') || old).remove();   /* ה-id על התוכן — מסירים את השכבה כולה, לא רק אותו (אחרת נשארת קופסה ריקה) */
   P.conduits = P.conduits || []; const LBL = cableLabels();
   const cabs = (P.cables || []).filter(c => byId(c.from) && byId(c.to) && c.from !== c.to && !c.internal);   /* פאץ׳ פנימי בתוך הארון — לא עובר בתעלה/צינור */
   const cdOpts = sel => `<option value="">—</option>` + P.conduits.map(cd => { const f = conduitFill(cd); return `<option value="${cd.id}" ${sel === cd.id ? 'selected' : ''}>${esc(cd.name)} ${cd.kind === 'tray' ? cd.size : 'Ø' + cd.size} · ${Math.round(f.pct * 100)}%</option>`; }).join('');
