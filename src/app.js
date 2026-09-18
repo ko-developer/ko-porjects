@@ -2107,6 +2107,18 @@ function objArrange(o) {
   const span = Math.min(L, nodes.length * iw), step = nodes.length > 1 ? span / nodes.length : 0, start = -span / 2 + step / 2;
   nodes.forEach((nn, i) => { const t = nodes.length > 1 ? start + i * step : 0; const cx = o.x + ux * t, cy = o.y + uy * t; nn.x = Math.max(0, 2200 - cx - 20); nn.y = Math.max(0, cy - 24); });
 }
+/* פאנלים פתוחים שעולים זה על זה — נדחפים למטה בזה אחר זה, ומסלולי הכבלים שלהם מחושבים מחדש */
+function panelUnstack() {
+  const opn = P.nodes.filter(n => !n.hidden && n.kind === 'panel' && !n.pmin && document.getElementById('nd_' + n.id)).sort((a, b) => a.y - b.y);
+  const placed = []; let moved = false;
+  for (const n of opn) {
+    const el = document.getElementById('nd_' + n.id); const bx = nodeBox(n);
+    let L = 2200 - bx.x - bx.w, R = 2200 - bx.x, T = bx.y, B = bx.y + bx.h;
+    for (const pb of placed) if (L < pb.R + 10 && R > pb.L - 10 && T < pb.B + 10 && B > pb.T - 10) { const ny = pb.B + 14; n._fanY = ny - n.y; el.style.top = ny + 'px'; B = ny + (B - T); T = ny; moved = true; }
+    placed.push({ L, R, T, B });
+  }
+  if (moved) opn.forEach(n => drawPanelCables(n, document.getElementById('nd_' + n.id)));
+}
 function stackArrange(stackAt) {
   const horiz = P.stackDir === 'h', GAP = 2;
   Object.values(stackAt).forEach(ids => {
@@ -2355,6 +2367,8 @@ function renderNodes() {
       const rowW = () => { const cpr = pCols(p); let m = 0; for (let r = 0; r < (p.rows || 1); r++) { const hs = p.holes.slice(r * cpr, (r + 1) * cpr); m = Math.max(m, hs.reduce((a, h) => a + cellW(h), 0) + Math.max(0, hs.length - 1) * 9); } return m; };
       const w = p.mode === 'matrix' ? Math.max(140, rowW() + 6) : (p.w || 240);
       d.style.width = (w + 22) + 'px';
+      /* פאנל פתוח על התכנית — מוקטן (PANEL_K) כדי שלא יכסה את השרטוט; המסלולים הפנימיים מחושבים בקואורדינטות המקוריות ומוכפלים */
+      if (!n.pmin) { d.style.transformOrigin = 'top right'; d.style.transform = 'scale(' + PANEL_K + ')'; }
       body = p.mode === 'free'
         ? `<div class="pnl" style="position:relative;height:${p.h || 140}px;display:block">${holesHTML(p, n.id, -1)}</div>`
         : `<div class="pnl" style="display:flex;flex-direction:column;gap:5px">${holesMatrixHTML(p, n.id, -1)}</div>`;
@@ -2467,6 +2481,7 @@ function renderNodes() {
     host.appendChild(hd);
   }
   stackArrange(stackAt);
+  panelUnstack();
   if (window.__rackFocus) rackFocusMount();   /* ארון בגדול: האלמנט החדש עובר לחלון הצף */
 }
 /* מצייר את חיבורי הגב לפי מדידת מיקום המחברים בפועל — הקו נוגע ממש במחבר */
@@ -2477,8 +2492,12 @@ function drawPanelCables(n, d) {
   const holes = d.querySelectorAll('[data-hole]');
   if (!holes.length) return;
   const z = getZ ? getZ() : 1;
+  const km = /scale\(([\d.]+)\)/.exec(d.style.transform || ''), PK = km ? +km[1] : 1;   /* הפאנל מוקטן — מודדים בקואורדינטות המקוריות (לפני ההקטנה) */
+  const zk = z * PK;
   const rect = d.getBoundingClientRect();
-  let W = rect.width / z; const H = rect.height / z;
+  let W = rect.width / zk; const H = rect.height / zk;
+  const widened = d._chW != null, W0 = widened ? W - d._chW : W;   /* רוחב לפני ערוץ הכבלים — הפונקציה יכולה לרוץ שוב על אותו אלמנט */
+  const fy = n._fanY || 0;
   let out = '';
   /* מפת מיקומי החורים מה-DOM */
   const holePos = {};
@@ -2486,7 +2505,7 @@ function drawPanelCables(n, d) {
     const [nid, ui2, idx] = el.dataset.hole.split('|');
     if (+ui2 !== -1 || nid !== n.id) return;
     const r2 = el.getBoundingClientRect();
-    holePos[+idx] = { hx: (r2.left + r2.width / 2 - rect.left) / z, hy: (r2.top + r2.height / 2 - rect.top) / z, hw: r2.width / z };
+    holePos[+idx] = { hx: (r2.left + r2.width / 2 - rect.left) / zk, hy: (r2.top + r2.height / 2 - rect.top) / zk, hw: r2.width / zk };
   });
   /* איסוף לפי כבלים — כל כבל (וגם כל ליבת מולטי) מקבל מעבר פנימי עד המחבר שלו,
      גם כשכמה כבלים יושבים על אותו חור */
@@ -2503,23 +2522,26 @@ function drawPanelCables(n, d) {
   }
   if (!ents.length) return;
   const LBLc = cableLabels();
-  const nodeLeft = 2200 - n.x - W; /* שמאל הפאנל בקואורדינטות קנבס */
+  const nodeLeft = 2200 - (n.x + (n._fanX || 0)) - W0 * PK; /* שמאל הפאנל בקואורדינטות קנבס (השפה הימנית ב-n.x, פחות רוחב התוכן המוקטן) */
   const myBox = nodeBox(n);
   /* מעבר ראשי בצד ימין של הפאנל: כל הקווים שיוצאים מהשפה העליונה/התחתונה (פאנל מעל/מתחת) עוברים בו,
      וכל קו פונה שמאלה בפס שמתחת לשורה שלו אל המחבר — בלי לחצות מחברים. הסדר: מי שפונה ראשון הכי פנימי, בלי הצלבות */
   const stk = []; ents.forEach((e, k) => { const other = byId(e.c.from === n.id ? e.c.to : e.c.from), st = other && other.kind !== 'point' ? stackedBoxes(myBox, nodeBox(other)) : null; if (st) stk.push({ e, k, down: st === 'AB' }); });
-  const TR = {}; let W2 = W; n._chW = 0;
+  const TR = {}; let W2 = W; n._chW = widened ? d._chW * PK : 0;
   if (stk.length) {
     const maxRight = Math.max(...Object.values(holePos).map(p2 => p2.hx + (p2.hw || 24) / 2));
     const ups = stk.filter(x => !x.down).sort((a2, b2) => a2.e.hy - b2.e.hy), dns = stk.filter(x => x.down).sort((a2, b2) => b2.e.hy - a2.e.hy);
     const ordered = [...ups, ...dns];
     /* רצועה ייעודית מימין לקופסה — הקופסה מתרחבת ימינה ברוחב הערוץ, הכותרת זזה שמאלה ממנו: הקווים לא מסתירים כלום */
-    const chW = Math.ceil(10 + (ordered.length - 1) * 2.5 + 8);
-    d.style.width = (d.offsetWidth + chW) + 'px'; W2 = W + chW;
-    /* הקופסה מעוגנת בשפה הימנית — מזיזים את העוגן ימינה ברוחב הערוץ, כך שהתוכן נשאר במקומו והרצועה נוספת מימין */
-    d.style.right = (parseFloat(d.style.right) - chW) + 'px'; n._chW = chW;
-    const hd = d.querySelector('.hd'); if (hd) hd.style.paddingRight = (8 + chW) + 'px';
-    ordered.forEach((x, j) => { TR[x.k] = W + 8 + j * 2.5; });
+    const chW = widened ? d._chW : Math.ceil(10 + (ordered.length - 1) * 2.5 + 8);
+    if (!widened) {
+      d.style.width = (d.offsetWidth + chW) + 'px'; d._chW = chW;
+      /* הקופסה מעוגנת בשפה הימנית — מזיזים את העוגן ימינה ברוחב הערוץ (מוקטן), כך שהתוכן נשאר במקומו והרצועה נוספת מימין */
+      d.style.right = (parseFloat(d.style.right) - chW * PK) + 'px';
+      const hd = d.querySelector('.hd'); if (hd) hd.style.paddingRight = (8 + chW) + 'px';
+    }
+    W2 = W0 + chW; n._chW = chW * PK;
+    ordered.forEach((x, j) => { TR[x.k] = W0 + 8 + j * 2.5; });
     void maxRight;
   }
   W = W2;
@@ -2533,7 +2555,7 @@ function drawPanelCables(n, d) {
       const rk = 'r' + Math.round(e.hy); rowIdx[rk] = (rowIdx[rk] || 0) + 1;
       const rowY = e.hy + 14 + ((rowIdx[rk] - 1) % 4) * 2.5;
       out += `<path d="M ${e.hx} ${e.hy + 11} V ${rowY} H ${tx} V ${edgeY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
-      PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + tx, y: n.y + edgeY };
+      PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + tx * PK, y: n.y + fy + edgeY * PK };
       const lb2 = LBLc[e.c.id];
       out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${e.hx}" cy="${rowY}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${e.hx}" y="${rowY + 2.6}" text-anchor="middle" font-size="${String(lb2).length > 2 ? 5.5 : 7}" font-weight="800" fill="${col}" style="user-select:none">${lb2}</text></g>`;
       return;
@@ -2546,7 +2568,7 @@ function drawPanelCables(n, d) {
     /* קו רציף: הכבל החיצוני מסתיים בדיוק בנקודה הזו על שפת הפאנל (PANELPORT),
        והמעבר הפנימי ממשיך ממנה ישר אל המחבר — בלי קטעים מנותקים */
     out += `<path d="M ${edgeX} ${rowY} L ${inX} ${rowY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" opacity="0.85"/>`;
-    PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + edgeX, y: n.y + rowY };
+    PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + edgeX * PK, y: n.y + fy + rowY * PK };
     /* מספר הכבל בנקודת החיבור עצמה — פעם אחת, למטה, בלי לתפוס מקום מעל המחבר */
     const lb = LBLc[e.c.id];
     out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${inX}" cy="${rowY}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${inX}" y="${rowY + 2.6}" text-anchor="middle" font-size="${String(lb).length > 2 ? 5.5 : 7}" font-weight="800" fill="${col}">${lb}</text></g>`;
@@ -7540,6 +7562,7 @@ new MutationObserver(ms => {
 document.querySelectorAll('body > div').forEach(floatScan);
 /* ===== 🛤 מסלולי העברה — תעלות וצינורות: איך כל קו עובר (צינור / תעלה / על הטיח / בקיר / תשתית קיימת),
    וכמה קווים נכנסים לצינור אחד לפי חישוב מילוי (שטח חתך הכבלים מול שטח הצינור: 53% לכבל אחד, 31% לשניים, 40% לשלושה ומעלה; תעלה 50%) ===== */
+const PANEL_K = 0.5;   /* קנה המידה של פאנל פתוח על התכנית */
 const ROUTE_KINDS = [['', '— לא הוגדר —'], ['conduit', '🟠 צינור'], ['tray', '🟫 תעלה'], ['surface', '📎 על הטיח / גלוי'], ['wall', '🧱 בתוך הקיר/תקרה'], ['existing', '♻ תשתית קיימת']];
 const CONDUIT_DIAS = [16, 20, 25, 32, 40, 50, 63, 75, 90, 110];
 const TRAY_SIZES = ['50×50', '100×50', '150×60', '200×60', '300×60', '400×100'];
