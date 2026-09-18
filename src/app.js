@@ -61,6 +61,7 @@ function conduitFor(c) {
 /*__DATA:REAR_LAYOUTS__*/
 /*__DATA:ERP_SOLD__*/
 /*__DATA:ERP_FILTERS__*/
+/*__DATA:MATRIX_SPK__*/
 
 const CONNS = {
   xlrf:    { n: 'XLR נקבה', c: '#5f5e5a' },
@@ -513,12 +514,42 @@ const byId = id => {
   return P.nodes.find(n => n.id === id);
 };
 /* הגברה של רמקול לפי טבלת הנתונים (עמודת "הגברה"): passive / bi / tri → כמה קווי הגברה נפרדים הוא צריך */
-function spkAmpMode(name) {
+/* רשומת הטבלה (spkMeta) של רמקול לפי שמו: שם מלא → שורת הטבלה שהביטוי שלה תואם → השוואת דגם מנורמל
+   ("FUNKTION ONE EVO X" ≈ "EVOLUTION X": מותג מוסר, EVOLUTION→EVO, בלי רווחים/סימנים) */
+const spkNorm = s => String(s || '').toUpperCase().replace(BRAND_ANY, ' ').replace(/EVOLUTION/g, 'EVO').replace(/\(\d+\)\s*$/, '').replace(/[^A-Z0-9]+/g, '');
+function spkMetaFor(name) {
   const meta = store.spkMeta || {}, k1 = rearKey(name);
-  if (meta[k1] && meta[k1].amp) return meta[k1].amp;                                   /* שם מיובא / שם מלא */
+  if (meta[k1]) return meta[k1];
   const d = (typeof SPEAKER_DATA !== 'undefined') && SPEAKER_DATA.find(x => x.re.test(name || ''));
-  if (d) { const k2 = rearKey(prettyRe(d.re)); if (meta[k2] && meta[k2].amp) return meta[k2].amp; }   /* שם הדגם כפי שמופיע בטבלה */
-  if (/EVO\s?X\b/i.test(name || '')) return 'tri';                                     /* Funktion-One EVO X — tri-amp (HI/MID/LOW) */
+  if (d) { const k2 = rearKey(prettyRe(d.re)); if (meta[k2]) return meta[k2]; }
+  const nm = spkNorm(shortModel(name)); if (nm.length < 3) return null;
+  for (const k of Object.keys(meta)) { const nk = spkNorm(k); if (nk && (nk === nm || nk === spkNorm(name))) return meta[k]; }
+  return null;
+}
+/* מטריצת ההתאמות: רמקולי bi/tri-amp (multi) עם שורת מטריצה לכל פס — W/Ω/רגישות/SPL/תדרים לכל פס */
+const MX_BAND = { 'HI': 'hi', 'MID-HI': 'hi', 'MID': 'mid', 'LOW-MID': 'low', 'LF': 'low', 'LOW': 'low' };
+function matrixMulti(name) {
+  if (typeof MATRIX_SPK === 'undefined' || !name) return null;
+  const nm = spkNorm(shortModel(name)), nf = spkNorm(name);
+  for (const mu of MATRIX_SPK.multi || []) {
+    const cands = [mu.name, ...String(mu.name).split('/')].map(x => spkNorm(x)).filter(Boolean);
+    if (cands.some(c => c === nm || c === nf || (c.length >= 4 && (nm.endsWith(c) || nf.endsWith(c))))) return mu;
+    if ((mu.bands || []).some(([, row]) => spkNorm(row) === nm)) return mu;
+  }
+  return null;
+}
+/* נתוני פס מהמטריצה: {o, w, sens, spl, freq, row} */
+function matrixBand(name, band) {
+  const mu = matrixMulti(name); if (!mu) return null;
+  const hit = (mu.bands || []).find(([lbl]) => MX_BAND[String(lbl).toUpperCase()] === band); if (!hit) return null;
+  const row = hit[1], wo = (MATRIX_SPK.spk || {})[row], sp = (MATRIX_SPK.specs || {})[row] || {};
+  return { row, w: sp.w ?? (wo ? wo[0] : undefined), o: sp.o ?? (wo ? wo[1] : undefined), sens: sp.sens, spl: sp.spl, freq: sp.freq, note: sp.note };
+}
+function spkAmpMode(name) {
+  const m = spkMetaFor(name); if (m && m.amp) return m.amp;
+  const mu = matrixMulti(name);
+  if (mu) { const bands = new Set((mu.bands || []).map(([l]) => MX_BAND[String(l).toUpperCase()]).filter(Boolean)); if (bands.size >= 3) return 'tri'; if (bands.size === 2) return 'bi'; }
+  if (/EVO(LUTION)?\s?X\b/i.test(name || '')) return 'tri';
   return 'passive';
 }
 /* רמקול bi/tri-amp שכבר יושב בערוץ (חיבור קיים / תכנון אוטומטי) — הפס הראשון נשאר בערוץ, שאר הפסים חוזרים למאגר לניתוב */
@@ -1289,7 +1320,8 @@ function renderHeader() {
     <button onclick="openInWire()">🎧 טבלת החיווט — כניסות (מקורות ↔ פרוססור)</button>
     <button onclick="designBrief()">🎯 תכנן לי מערכת לחלל זה</button>
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
-    <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>`;
+    <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
+    <button onclick="routeManager()">🛤 מסלולי העברה — תעלות וצינורות (כמה קווים בצינור)</button>`;
   /* 📚 נתונים — הטבלאות והספריות שמאחורי התכנון (לא פעולות על הפרויקט) */
   const dm = document.getElementById('dataMenu'); if (dm) dm.innerHTML = `
     <a class="ddlink" href="/logic">🎯 לוגיקת תכלית ← מערכת — טבלאות ההיגיון</a>
@@ -4383,23 +4415,73 @@ function patchAutoCab(key) {
   const nodes = ids.map(byId).filter(Boolean); if (!a || !nodes.length) return '2.5';
   if (nodes.every(n => isActiveSub(n.name))) return 'xlr';
   const dmax = P.scale ? Math.max(...nodes.map(n => Math.hypot(a.rk.x - n.x, a.rk.y - n.y) * P.scale)) : 0;
-  const sw = nodes.reduce((s3, n3) => { const pw = n3.pow ?? (spkData(n3.name) || {}).w; return s3 + (pw == null ? 150 : +pw); }, 0);
+  const sw = nodes.reduce((s3, n3) => { const pw = spkWatt(n3); return s3 + (pw == null ? 150 : pw); }, 0);
   let mm = dmax <= 20 ? 2.5 : dmax <= 40 ? 4 : 6;
   if (sw > 1000) mm = mm === 2.5 ? 4 : 6;
   return String(mm);
 }
-const PATCH_CABS = [['1.5', 'NL4 · 1.5 ממ״ר'], ['2.5', 'NL4 · 2.5 ממ״ר'], ['4', 'NL4 · 4 ממ״ר'], ['6', 'NL4 · 6 ממ״ר'], ['xlr', 'XLR (סאב מוגבר)']];
+/* כבלי רמקול אמיתיים מהקטלוג (ERP): "כבל רמקול/סאונד N×M" — גידים (N), חתך (M ממ״ר), גליל/לפי מטר */
+function spkCableProducts() {
+  if (window.__spkCab) return window.__spkCab;
+  const out = [];
+  if (typeof ERP_ITEMS !== 'undefined') for (const [k, n] of ERP_ITEMS) {
+    if (!n || !/כבל|גליל|תוף/.test(n) || !/רמקול|סאונד/.test(n) || /XLR|RCA|מולטי|מיקרופון|TOSLINK|\bPL|ממיר|CAT\s?[5-7]/i.test(n)) continue;
+    const m = /(\d)\s*[xX×]\s*(\d+(?:\.\d+)?)/.exec(n); if (!m) continue;
+    const perM = /לפי מטר|מטר רץ/.test(n), lm = /(\d{2,3})\s*(?:מ'|מ׳|מטר|m\b)/i.exec(n);
+    out.push({ k, n, cores: +m[1], mm: +m[2], perM, len: perM ? 1 : (lm ? +lm[1] : 100) });
+  }
+  out.sort((a, b) => byStockThenSold(a.k, b.k));
+  return window.__spkCab = out;
+}
+const spkCabLabel = pr => `${pr.cores}×${pr.mm} · ${pr.n.slice(0, 42)}${pr.perM ? ' (לפי מטר)' : ''}`;
+/* המוצר האוטומטי לערוץ: לפי החתך מהכלל (מרחק/הספק) — 2 גידים לרמקול רגיל; רמקול bi/tri-amp מקבל כבל רב-גידי (≥ 2×פסים) אם קיים בקטלוג */
+function patchAutoProduct(key) {
+  const mm = +patchAutoCab(key); if (!mm) return null;
+  const ids = PATCH.slots[key] || [], n0 = ids[0] && byId(ids[0]);
+  const bands = n0 && n0.band ? bandIds(n0).length : 1;
+  const prods = spkCableProducts();
+  const pick = f => prods.find(f);
+  if (bands > 1) { const need = bands * 2; const p = pick(x => x.cores >= need && x.mm === mm) || pick(x => x.cores >= need); if (p) return p; }
+  return pick(x => x.cores === 2 && x.mm === mm) || pick(x => x.mm === mm) || pick(x => x.cores === 2) || prods[0] || null;
+}
 function patchCabSel(key) {
-  const auto = patchAutoCab(key), cur = (PATCH.cab || {})[key] || '';
-  const lbl = v => (PATCH_CABS.find(x => x[0] === v) || [v, v])[1];
-  return `<select class="pchCab" title="סוג כבל הרמקול לערוץ — נקבע אוטומטית לפי מרחק והספק, אפשר לשנות" style="font-size:10.5px;padding:1px 4px;border:1px solid #ddd;border-radius:6px;background:#fff;max-width:150px" onchange="patchCabSet('${key}',this.value)">
-    <option value="" ${cur ? '' : 'selected'}>אוטו · ${esc(lbl(auto))}</option>${PATCH_CABS.map(([v, t]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+  const cur = (PATCH.cab || {})[key] || '', ap = patchAutoProduct(key), mm = patchAutoCab(key);
+  ensureStock(P);
+  const reels = P.stock.reels.filter(st => !st.type || st.type === 'nl4' || /רמקול/.test(st.name));
+  return `<select class="pchCab" title="כבל הרמקול לערוץ — מוצר אמיתי מהקטלוג (נכנס להצעה בעת החיבור). אוטו = לפי מרחק והספק; כבל רב-גידי (6–8 גידים) לרמקול tri/bi-amp מאחד את כל הפסים לכבל אחד" style="font-size:10.5px;padding:1px 4px;border:1px solid #ddd;border-radius:6px;background:#fff;max-width:190px" onchange="patchCabSet('${key}',this.value)">
+    <option value="" ${cur ? '' : 'selected'}>אוטו · ${ap ? esc(spkCabLabel(ap)) : mm + ' ממ״ר (אין מוצר בקטלוג)'}</option>
+    ${reels.map(st => `<option value="ref:reel|${st.id}" ${cur === 'ref:reel|' + st.id ? 'selected' : ''}>🧵 בהצעה: ${esc(st.name.slice(0, 40))} · נותרו ${Math.max(0, (st.total || 0) - (st.used || 0))} מ׳</option>`).join('')}
+    <optgroup label="כבלי רמקול בקטלוג">${spkCableProducts().map(pr => `<option value="key:${pr.k}" ${cur === 'key:' + pr.k ? 'selected' : ''}>${esc(spkCabLabel(pr))}</option>`).join('')}</optgroup>
+    <option value="xlr" ${cur === 'xlr' ? 'selected' : ''}>XLR (סאב מוגבר)</option></select>`;
 }
 function patchCabSet(key, v) { PATCH.cab = PATCH.cab || {}; if (v) PATCH.cab[key] = v; else delete PATCH.cab[key]; }
+/* המוצר שנבחר/אוטומטי לערוץ; מחזיר {pr, ref} — ref = 'reel|id' של פריט בהצעה (נוצר אם צריך) */
+function patchCabResolve(key) {
+  const v = (PATCH.cab || {})[key] || '';
+  if (v === 'xlr') return { xlr: true };
+  if (v.startsWith('ref:')) { const id = v.slice(9); const st = P.stock.reels.find(x => x.id === id); return { ref: 'reel|' + id, mm: st && st.mm, cores: (st && st.cores) || 2 }; }
+  const pr = v.startsWith('key:') ? spkCableProducts().find(x => x.k === v.slice(4)) : patchAutoProduct(key);
+  if (!pr) return { mm: +patchAutoCab(key) };
+  let it = impItems.find(x => x.key === pr.k && x.on !== false);
+  if (!it) { it = { on: true, qty: 1, name: pr.n, key: pr.k, src: 'חיווט — כבל רמקול', dest: 'reel', len: pr.len, mm: pr.mm, type: 'nl4', cores: pr.cores, perM: pr.perM, iid: uid('i') }; autoPrice(it); impItems.push(it); }
+  const st = ensureStockItem(it); st.mm = pr.mm; st.cores = pr.cores; if (pr.perM) st.perM = true;
+  return { ref: 'reel|' + st.id, mm: pr.mm, cores: pr.cores, it };
+}
 function patchApplyCab(key, c) {
-  const v = (PATCH.cab || {})[key] || patchAutoCab(key);
-  if (v === 'xlr') { c.type = 'xlr'; c.conn = 'xlrm'; c.conn2 = 'rca'; c.note = (c.note ? c.note + ' · ' : '') + 'סיגנל לסאב מוגבר'; return; }
-  c.mm = +v; if (!c.spec) c.spec = 'NL4 · ' + v + ' ממ״ר';
+  const r = patchCabResolve(key);
+  if (r.xlr) { c.type = 'xlr'; c.conn = 'xlrm'; c.conn2 = 'rca'; c.note = (c.note ? c.note + ' · ' : '') + 'סיגנל לסאב מוגבר'; return; }
+  if (r.ref) { applyStockRef(r.ref, null, c); if (r.it && r.it.perM) { r.it.qty = Math.max(1, Math.ceil(P.stock.reels.find(x => 'reel|' + x.id === r.ref).used || 1)); } }
+  if (r.mm) c.mm = r.mm; if (!c.spec && r.mm) c.spec = 'NL4 · ' + r.mm + ' ממ״ר';
+}
+/* רמקול bi/tri-amp עם כבל רב-גידי: כל הפסים (HI/MID/LOW, גם מערוצים/מגברים שונים) עוברים בכבל אחד מהארון לרמקול */
+function patchBundleOf(key, ids) {
+  const n0 = ids[0] && byId(ids[0]); if (!n0 || !n0.band) return null;
+  const r = patchCabResolve(key); const cores = r.cores || 2, need = bandIds(n0).length * 2;
+  if (cores < need) return null;
+  const base = spkBase(n0.id), parts = [];
+  for (const [k2, ids2] of Object.entries(PATCH.slots)) { const i = ids2.findIndex(id => spkBase(id) === base && spkBand(id)); if (i < 0) continue; const [ai, ch] = k2.split('|').map(Number); parts.push({ key: k2, band: spkBand(ids2[i]), a: PATCH.amps[ai], ch, single: ids2.length === 1 }); }
+  if (parts.length < 2) return null;
+  return { base, parts, r };
 }
 function patchChip(id, ro) {
   const n = byId(id); if (!n) return '';
@@ -4499,7 +4581,7 @@ function patchRender() {
       const key = ai + '|' + ch, ids = PATCH.slots[key] || [], locked = false;
       const zz = patchZ(ids), w = ids.length ? (a.bridge ? bridgeChW(a.u.name, zz) : ampChW(a.u.name, zz)) : null;
       /* צריכת הרמקולים בערוץ — RMS מנתוני הדגם (150W ברירת מחדל כשלא ידוע) */
-      const sw = ids.reduce((s3, id2) => { const n3 = byId(id2); const pw = n3 ? (n3.pow ?? (spkData(n3.name) || {}).w) : null; return s3 + (pw == null ? 150 : +pw); }, 0);
+      const sw = ids.reduce((s3, id2) => { const n3 = byId(id2); const pw = n3 ? spkWatt(n3) : null; return s3 + (pw == null ? 150 : +pw); }, 0);
       if (w) totAmpW += w; totSpkW += sw;
       const minEff = a.bridge ? a.minOhm * 2 : a.minOhm;
       const bad = ids.length && zz < minEff - 0.05;
@@ -4978,7 +5060,7 @@ async function patchApply() {
       if (st) cblRef = (it.dest === 'reel' ? 'reel|' : 'cable|') + st.id;
     } else cblRef = srcSel.value.slice(4);
   }
-  let n2 = 0;
+  let n2 = 0, bundled = null;
   /* קווי כניסה נגזרים קודם מכבל שכבר בהצעה (בד״כ מקיט ההתקנה): מולטי → כבל מולטי,
      XLR → כבל XLR. אין כזה — הקו נשאר בלי שיוך ובדיקת השלמות מציעה להשלים. */
   const inRefFor = type => {
@@ -5072,6 +5154,20 @@ async function patchApply() {
     }
     const nodes = ids.map(byId).filter(Boolean);
     if (!nodes.length) continue;
+    /* כבל רב-גידי לרמקול tri/bi-amp: כל הפסים בכבל אחד — נוצר פעם אחת (בפס הראשון), שאר הפסים מדלגים */
+    bundled = bundled || new Set();
+    if (bundled.has(key)) continue;
+    const bd = ids.length === 1 && patchBundleOf(key, ids);
+    if (bd) {
+      const head = byId(spkBase(ids[0])), a0 = bd.parts[0].a;
+      const BL = { hi: 'HI', mid: 'MID', low: 'LOW' };
+      const desc = bd.parts.map(pt => BL[pt.band] + ' ← ' + modelOf(pt.a.u.name) + ' OUT ' + pt.ch).join(' · ');
+      const cc = { id: uid('c'), from: a0.rk.id, fromUnit: a0.u.id, to: head.id, type: 'nl4', qty: '1', spec: '', note: 'כבל רב-גידי (' + bd.parts.length + ' פסים בכבל אחד) · ' + desc, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + bd.parts[0].ch, cores: bd.parts.length, bands: bd.parts.map(pt => ({ band: pt.band, unitId: pt.a.u.id, port: 'OUT ' + pt.ch })) };
+      if (P.scale) cc.len = +(dist(a0.rk, head) * P.scale).toFixed(1);
+      patchApplyCab(key, cc); P.cables.push(cc); n2++; made.push(cc);
+      bd.parts.forEach(pt => bundled.add(pt.key));
+      continue;
+    }
     const dlyTxt = dlyPlanMap[key] != null ? ' · ⏱ דיליי ' + (dlyPlanMap[key] ? '~' + dlyPlanMap[key].toFixed(1) + 'ms' : '0ms (ייחוס)') : '';
     const pOutLbl = a.bridge ? 'OUT ' + ch + '+' + (ch + 1) + ' Bridge' : 'OUT ' + ch;
     const brTxt = a.bridge ? ' · 🌉 Bridge' : '';
@@ -5090,14 +5186,14 @@ async function patchApply() {
       const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: spkBase(head.id), type: 'nl4', qty: '1', spec: '', note: note + (head.band ? ' · פס ' + BAND_LBL[head.band] : ''), conn: 'speakon', conn2: 'speakon', pOut: pOutLbl, pIn: head.band ? BAND_LBL[head.band] : undefined };
       if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
       if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
-      if (cblRef && cc.type === 'nl4') applyStockRef(cblRef, null, cc);
       patchApplyCab(key, cc);
+      if (cblRef && cc.type === 'nl4' && !cc.stockRef) applyStockRef(cblRef, null, cc);
       P.cables.push(cc); n2++; made.push(cc);
       for (let i = 1; i < run.length; i++) {
         const cb = { id: uid('c'), from: spkBase(run[i - 1].id), to: spkBase(run[i].id), type: 'nl4', qty: '1', spec: '', note: 'שרשור' + (run[i].band ? ' · פס ' + BAND_LBL[run[i].band] : ''), conn: 'speakon', conn2: 'speakon', pIn: run[i].band ? BAND_LBL[run[i].band] : undefined };
         if (P.scale) cb.len = +(dist(run[i - 1], run[i]) * P.scale).toFixed(1);
-        if (cblRef) applyStockRef(cblRef, null, cb);
         patchApplyCab(key, cb);
+        if (cblRef && !cb.stockRef) applyStockRef(cblRef, null, cb);
         P.cables.push(cb); n2++; made.push(cb);
       }
     });
@@ -5708,7 +5804,11 @@ async function autoChainFrom(nid, forceAmp) {
   render(); save();
 }
 /* ===== חוק אום — עומס מקבילי על קו רמקולים ===== */
-function spkOhm(n) { return n.ohm ?? (spkData(n.name)?.o) ?? 8; }
+/* נתוני פס (HI/MID/LOW) לרמקול bi/tri-amp — מטבלת הנתונים (spkMeta[דגם].bands) */
+function spkBandData(name, band) { const m = spkMetaFor(name), ed = (m && m.bands && m.bands[band]) || null, mx = matrixBand(name, band); if (!ed && !mx) return null; return { ...(mx || {}), ...Object.fromEntries(Object.entries(ed || {}).filter(([, v]) => v !== '' && v != null)) }; }
+function spkOhm(n) { if (n.band) { const b = spkBandData(nodeFullName(n), n.band); if (b && b.o) return +b.o; } return n.ohm ?? (spkData(n.name)?.o) ?? 8; }
+function spkWatt(n) { if (n.band) { const b = spkBandData(nodeFullName(n), n.band); if (b && b.w) return +b.w; } const pw = n.pow ?? (spkData(n.name) || {}).w; return pw == null ? null : +pw; }
+function spkBandSet(name, band, field, val) { const ms = store.spkMeta = store.spkMeta || {}; const k = rearKey(name); ms[k] = ms[k] || {}; ms[k].bands = ms[k].bands || {}; ms[k].bands[band] = ms[k].bands[band] || {}; if (val === '' || val == null) delete ms[k].bands[band][field]; else ms[k].bands[band][field] = val; save(); }
 /* כל הרמקולים שמוזנים מיציאה מסוימת (כולל שרשור רמקול→רמקול) — מחושבים במקביל */
 function chainLoad(nid, unitId, port) {
   const seen = new Set(); const spks = [];
@@ -6159,7 +6259,7 @@ function spkDataManager(tab) {
        <td style="text-align:center"><input value="${cell(r.d.max)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'max',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.w)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.o)}" style="width:32px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'o',this.value)"></td>
-       <td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','amp',this.value)">${[['passive', 'פסיבי'], ['bi', 'Bi-amp'], ['tri', 'Tri-amp']].map(([v, t]) => `<option value="${v}" ${(meta.amp || 'passive') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+       <td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','amp',this.value);spkDataManager('spk')">${[['passive', 'פסיבי'], ['bi', 'Bi-amp'], ['tri', 'Tri-amp']].map(([v, t]) => `<option value="${v}" ${(meta.amp || spkAmpMode(r.name)) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="מפרט PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="ערוך קישור/PDF" onclick="editSpkLink(${arg})">✎</button></td>` :
       tab === 'amp' ?
         `<td style="text-align:center"><input value="${cell(r.d.ch)}" style="width:40px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'ch',this.value)"></td>
@@ -6171,12 +6271,17 @@ function spkDataManager(tab) {
        <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="?" title="רשת דיגיטלית (Dante / AES67 / OMNEO) ותאימות תכנה עם מוצרים אחרים" style="width:110px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
        <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid #ccc;border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>`);
+    const ampMode = tab === 'spk' ? (meta.amp || spkAmpMode(r.name)) : 'passive';
+    const bandRow = tab === 'spk' && (ampMode === 'bi' || ampMode === 'tri') ? (() => { const bands = ampMode === 'tri' ? ['hi', 'mid', 'low'] : ['hi', 'low'], BL = { hi: 'HI', mid: 'MID', low: 'LOW' }, bd = meta.bands || {}, mu = matrixMulti(r.name);
+      const inp = (b, f, w, ph) => { const mx = matrixBand(r.name, b) || {}; const ed = (bd[b] || {})[f]; const v = ed ?? mx[f] ?? ''; return `<input value="${esc(v)}" placeholder="${ph}" title="${mx[f] != null ? 'ממטריצת ההתאמות (' + esc(mx.row) + ')' : ''}" style="width:${w}px;text-align:center;border:1px solid ${ed != null && ed !== '' ? '#c96f4a' : '#cfe3d8'};border-radius:4px;font-size:11px;${ed == null || ed === '' ? 'color:#0f6e56' : ''}" onchange="spkBandSet('${nmA}','${b}','${f}',this.value)">`; };
+      return `<tr style="background:#f4faf6;border-bottom:1px solid #eee"><td colspan="${colspan}" style="padding:4px 8px 6px"><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:11px"><b style="color:#0f6e56">${ampMode === 'tri' ? 'Tri-amp' : 'Bi-amp'} — נתונים לכל פס${mu ? ' · ממטריצת ההתאמות (' + esc(mu.name) + ')' : ''}:</b>
+        ${bands.map(b => `<span style="display:inline-flex;gap:4px;align-items:center;border:1px solid #d8e9df;border-radius:7px;padding:2px 6px;background:#fff"><b style="min-width:30px">${BL[b]}</b> ${inp(b, 'o', 34, 'Ω')}Ω ${inp(b, 'w', 44, 'W')}W ${inp(b, 'sens', 40, 'dB')}dB ${inp(b, 'max', 40, 'SPL')}max ${inp(b, 'f', 82, 'תדרים Hz')}</span>`).join('')}</div></td></tr>`; })() : '';
     return `${brandHdr}<tr style="border-bottom:1px solid #eee">
         <td style="padding:4px 5px;font-weight:600"><a href="#" onclick="event.preventDefault();specSheet('${tab}','${esc(r.name).replace(/'/g, '&#39;')}')" style="color:#c9502e;text-decoration:none;border-bottom:1px dotted #c9502e">${esc(r.name)}</a><div class="muted" style="font-size:9px">${r.src}${r.variants ? ' · גרסאות צבע: ' + esc(r.variants.join(', ')) : ''}</div></td>
         ${cells}
         <td style="text-align:center;color:${c};font-weight:700;cursor:pointer" title="לחץ לשינוי" onclick="${fn}(${arg},'ok',${r.ok ? 'false' : 'true'})">${r.ok ? '✓' : '⚠'}</td>
         <td style="text-align:center">${r.lk ? `<button style="padding:0 6px" onclick="delete store.${tab === 'spk' ? 'spkLib' : 'ampLib'}['${esc(r.lk).replace(/'/g, '&#39;')}'];save();spkDataManager()">✕</button>` : ''}</td>
-      </tr>`;
+      </tr>${bandRow}`;
   }).join('')}
       </tbody></table>
     <p class="muted" style="font-size:10px;margin-top:6px">להרחבת הטבלה עם כל המוצרים מאתרי היצרנים — שלח לצ׳אט את שמות הדגמים או דפי נתונים ואחזיר קובץ ייבוא.</p></div>`;
@@ -7276,6 +7381,77 @@ new MutationObserver(ms => {
   if (ms.some(m => m.removedNodes.length)) floatSync();
 }).observe(document.body, { childList: true });
 document.querySelectorAll('body > div').forEach(floatScan);
+/* ===== 🛤 מסלולי העברה — תעלות וצינורות: איך כל קו עובר (צינור / תעלה / על הטיח / בקיר / תשתית קיימת),
+   וכמה קווים נכנסים לצינור אחד לפי חישוב מילוי (שטח חתך הכבלים מול שטח הצינור: 53% לכבל אחד, 31% לשניים, 40% לשלושה ומעלה; תעלה 50%) ===== */
+const ROUTE_KINDS = [['', '— לא הוגדר —'], ['conduit', '🟠 צינור'], ['tray', '🟫 תעלה'], ['surface', '📎 על הטיח / גלוי'], ['wall', '🧱 בתוך הקיר/תקרה'], ['existing', '♻ תשתית קיימת']];
+const CONDUIT_DIAS = [16, 20, 25, 32, 40, 50, 63, 75, 90, 110];
+const TRAY_SIZES = ['50×50', '100×50', '150×60', '200×60', '300×60', '400×100'];
+/* קוטר חיצוני משוער (מ״מ) לפי סוג הכבל והחתך */
+function cableOD(c) {
+  const mm = cableMm(c) || 2.5, cores = c.cores || (c.chans ? c.chans.length : 0);
+  if (c.type === 'nl4') return cores >= 6 ? 15 : cores >= 4 ? (mm >= 4 ? 13 : 11) : (mm >= 4 ? 10 : mm >= 2.5 ? 8.5 : 7);
+  if (c.type === 'multi') return 8 + Math.max(4, cores || 8) * 0.45;
+  if (c.type === 'cat') return cores > 1 ? 6 + cores * 3 : 6;
+  if (c.type === 'fiber') return cores > 1 ? 7 + cores * 0.5 : 6;
+  if (c.type === 'pwr') return 9; if (c.type === 'sdi') return 7; if (c.type === 'aes' || c.type === 'dmx' || c.type === 'xlr') return 6.5;
+  return 7;
+}
+function conduitArea(cd) { if (cd.kind === 'tray') { const [w, h] = String(cd.size || '100×50').split('×').map(Number); return w * h; } const d = +cd.size || 25; return Math.PI * (d * 0.86 / 2) ** 2; }   /* קוטר פנימי ≈ 86% מהחיצוני */
+function conduitFill(cd) {
+  const cabs = (P.cables || []).filter(c => c.conduit === cd.id);
+  const area = cabs.reduce((a, c) => a + Math.PI * (cableOD(c) / 2) ** 2, 0);
+  const lim = cd.kind === 'tray' ? 0.5 : cabs.length <= 1 ? 0.53 : cabs.length === 2 ? 0.31 : 0.4;
+  const cap = conduitArea(cd) * lim, pct = cap ? area / cap : 0;
+  /* הקוטר המינימלי שיכיל את הכבלים האלה */
+  let need = null; if (cd.kind !== 'tray') for (const d of CONDUIT_DIAS) { if (Math.PI * (d * 0.86 / 2) ** 2 * lim >= area) { need = d; break; } }
+  return { cabs, area, cap, pct, ok: pct <= 1, need };
+}
+function conduitAdd(kind) { P.conduits = P.conduits || []; const n = P.conduits.filter(c => c.kind === kind).length + 1; const cd = { id: uid('cd'), kind, name: (kind === 'tray' ? 'תעלה ' : 'צינור ') + n, size: kind === 'tray' ? '100×50' : 25, len: '' }; P.conduits.push(cd); save(); routeManager(); }
+function conduitSet(id, f, v) { const cd = (P.conduits || []).find(x => x.id === id); if (!cd) return; cd[f] = f === 'size' && cd.kind !== 'tray' ? +v : v; save(); routeManager(); }
+function conduitDel(id) { P.conduits = (P.conduits || []).filter(x => x.id !== id); (P.cables || []).forEach(c => { if (c.conduit === id) delete c.conduit; }); save(); routeManager(); }
+function cableRouteSet(cid, f, v) { const c = cById(cid); if (!c) return; if (v) c[f] = v; else delete c[f]; if (f === 'route' && v !== 'conduit' && v !== 'tray') delete c.conduit; if (f === 'conduit' && v) { const cd = (P.conduits || []).find(x => x.id === v); if (cd) c.route = cd.kind; } save(); routeManager(); }
+/* איחוד: כל הקווים באותו מסלול (אותם שני קצוות) → צינור חדש בקוטר המינימלי שמכיל אותם */
+function routeGroupToConduit(pairKey) {
+  const cabs = (P.cables || []).filter(c => routePairKey(c) === pairKey); if (!cabs.length) return;
+  P.conduits = P.conduits || []; const cd = { id: uid('cd'), kind: 'conduit', name: 'צינור ' + (P.conduits.filter(c => c.kind === 'conduit').length + 1), size: 25, len: cabs[0].len || '' }; P.conduits.push(cd);
+  cabs.forEach(c => { c.route = 'conduit'; c.conduit = cd.id; });
+  const f = conduitFill(cd); if (f.need) cd.size = f.need; else cd.size = 110;
+  save(); routeManager(); uiToast('🛤 ' + cabs.length + ' קווים בצינור אחד Ø' + cd.size + ' מ״מ');
+}
+const routePairKey = c => [c.from, c.to].sort().join('|');
+function routeManager() {
+  const old = document.getElementById('routeOv'); if (old) old.remove();
+  P.conduits = P.conduits || []; const LBL = cableLabels();
+  const cabs = (P.cables || []).filter(c => byId(c.from) && byId(c.to));
+  const cdOpts = sel => `<option value="">—</option>` + P.conduits.map(cd => { const f = conduitFill(cd); return `<option value="${cd.id}" ${sel === cd.id ? 'selected' : ''}>${esc(cd.name)} ${cd.kind === 'tray' ? cd.size : 'Ø' + cd.size} · ${Math.round(f.pct * 100)}%</option>`; }).join('');
+  const groups = {}; cabs.forEach(c => { const k = routePairKey(c); (groups[k] = groups[k] || []).push(c); });
+  const cdRows = P.conduits.map(cd => { const f = conduitFill(cd); const sz = cd.kind === 'tray' ? `<select onchange="conduitSet('${cd.id}','size',this.value)">${TRAY_SIZES.map(t => `<option ${cd.size === t ? 'selected' : ''}>${t}</option>`).join('')}</select> מ״מ` : `Ø<select onchange="conduitSet('${cd.id}','size',this.value)">${CONDUIT_DIAS.map(d => `<option value="${d}" ${+cd.size === d ? 'selected' : ''}>${d}</option>`).join('')}</select> מ״מ`;
+    return `<tr style="${f.ok ? '' : 'background:#fdeee8'}"><td><input value="${esc(cd.name)}" style="width:110px" onchange="conduitSet('${cd.id}','name',this.value)"></td><td>${cd.kind === 'tray' ? '🟫 תעלה' : '🟠 צינור'}</td><td style="white-space:nowrap">${sz}</td><td><input type="number" min="0" value="${cd.len || ''}" placeholder="מ׳" style="width:56px" onchange="conduitSet('${cd.id}','len',this.value)"></td>
+      <td style="font-size:11px">${f.cabs.length ? f.cabs.map(c => `<span class="badge" style="background:${cableColor(c)};margin:1px">${LBL[c.id]}</span>`).join('') : '<span class="muted">ריק</span>'}</td>
+      <td style="text-align:center;font-weight:700;color:${f.ok ? '#0f6e56' : '#c1121f'}">${Math.round(f.pct * 100)}%${f.ok ? ' ✓' : f.need ? ' ⚠ צריך Ø' + f.need : ' ⚠ גדול מדי'}</td><td><button onclick="conduitDel('${cd.id}')">✕</button></td></tr>`; }).join('');
+  const cabRows = cabs.map(c => `<tr><td><span class="badge" style="background:${cableColor(c)}">${LBL[c.id]}</span></td><td style="font-size:11px">${esc(endName(c.from, c.fromUnit).slice(0, 26))} ← ${esc(endName(c.to, c.toUnit).slice(0, 26))}</td><td style="font-size:11px">${esc(cableKindLabel(c))}</td><td style="text-align:center">${c.len ? c.len + ' מ׳' : '—'}</td><td style="text-align:center">Ø${cableOD(c).toFixed(0)}</td>
+      <td><select onchange="cableRouteSet('${c.id}','route',this.value)">${ROUTE_KINDS.map(([v, t]) => `<option value="${v}" ${(c.route || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+      <td>${c.route === 'conduit' || c.route === 'tray' ? `<select onchange="cableRouteSet('${c.id}','conduit',this.value)">${cdOpts(c.conduit)}</select>` : ''}</td></tr>`).join('');
+  const grpRows = Object.entries(groups).filter(([, arr]) => arr.length > 1).map(([k, arr]) => { const inOne = arr.every(c => c.conduit && c.conduit === arr[0].conduit); return `<div style="display:flex;gap:8px;align-items:center;border:1px solid #eee;border-radius:8px;padding:5px 8px;margin-bottom:4px;font-size:12px"><span style="flex:1">${esc(endName(arr[0].from, arr[0].fromUnit).slice(0, 24))} ↔ ${esc(endName(arr[0].to, arr[0].toUnit).slice(0, 24))} · ${arr.length} קווים: ${arr.map(c => LBL[c.id]).join(', ')}</span>${inOne ? '<b style="color:#0f6e56">✓ בצינור אחד</b>' : `<button onclick="routeGroupToConduit('${k}')">🛤 צינור אחד לכולם</button>`}</div>`; }).join('');
+  const ov = uiModal(`<div id="routeOv"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:15px;flex:1">🛤 מסלולי העברה — תעלות וצינורות</b><button data-x>✕</button></div>
+    <p class="muted" style="font-size:11.5px;margin:0 0 8px">לכל קו: איך הוא עובר. כמה קווים יכולים לעבור בצינור אחד — לפי מילוי החתך (כבל אחד עד 53%, שניים 31%, שלושה ומעלה 40%; תעלה 50%). צינור מלא מדי מסומן באדום עם הקוטר הדרוש.</p>
+    <h3 class="sec">קווים באותו מסלול</h3>${grpRows || '<p class="muted">אין שני קווים באותו מסלול</p>'}
+    <h3 class="sec">צינורות ותעלות <button onclick="conduitAdd('conduit')" style="margin-right:8px">+ צינור</button><button onclick="conduitAdd('tray')">+ תעלה</button></h3>
+    <table class="cablelist" style="width:100%"><tr><th>שם</th><th>סוג</th><th>מידה</th><th>אורך</th><th>קווים</th><th>מילוי</th><th></th></tr>${cdRows || '<tr><td colspan="7" class="muted">אין צינורות/תעלות — הוסף, או לחץ "צינור אחד לכולם" למעלה</td></tr>'}</table>
+    <h3 class="sec">כל הקווים</h3>
+    <div style="max-height:40vh;overflow-y:auto"><table class="cablelist" style="width:100%"><tr><th>#</th><th>מ־ ← אל</th><th>סוג</th><th>אורך</th><th>קוטר</th><th>מעבר</th><th>צינור/תעלה</th></tr>${cabRows || '<tr><td colspan="7" class="muted">אין קווים</td></tr>'}</table></div></div>`);
+  ov.querySelector('div').style.maxWidth = '900px'; ov.querySelector('div').style.width = '96vw';
+  ov.querySelector('[data-x]').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
+window.routeManager = routeManager; window.conduitAdd = conduitAdd; window.conduitSet = conduitSet; window.conduitDel = conduitDel; window.cableRouteSet = cableRouteSet; window.routeGroupToConduit = routeGroupToConduit;
+function routeReportHTML() {
+  const cds = P.conduits || [], LBL = cableLabels(); const routed = (P.cables || []).filter(c => c.route);
+  if (!cds.length && !routed.length) return '';
+  const KN = Object.fromEntries(ROUTE_KINDS);
+  return `<div class="rp-sec"><h3>🛤 תשתית העברה — תעלות, צינורות ומסלולי הקווים</h3>
+    ${cds.length ? `<table class="cablelist"><tr><th>שם</th><th>סוג</th><th>מידה</th><th>אורך</th><th>קווים בפנים</th><th>מילוי</th></tr>${cds.map(cd => { const f = conduitFill(cd); return `<tr><td><b>${esc(cd.name)}</b></td><td>${cd.kind === 'tray' ? 'תעלה' : 'צינור'}</td><td>${cd.kind === 'tray' ? cd.size + ' מ״מ' : 'Ø' + cd.size + ' מ״מ'}</td><td>${cd.len ? cd.len + ' מ׳' : '—'}</td><td>${f.cabs.map(c => LBL[c.id] + ' (' + esc(cableKindLabel(c)) + ')').join(' · ') || '—'}</td><td style="color:${f.ok ? '#0f6e56' : '#c1121f'};font-weight:700">${Math.round(f.pct * 100)}%${f.ok ? '' : ' ⚠'}</td></tr>`; }).join('')}</table>` : ''}
+    <table class="cablelist" style="margin-top:8px"><tr><th>#</th><th>מ־ ← אל</th><th>סוג</th><th>מעבר</th><th>צינור/תעלה</th></tr>${(P.cables || []).map(c => { const cd = cds.find(x => x.id === c.conduit); return `<tr><td>${LBL[c.id]}</td><td>${esc(endName(c.from, c.fromUnit).slice(0, 30))} ← ${esc(endName(c.to, c.toUnit).slice(0, 30))}</td><td>${esc(cableKindLabel(c))}</td><td>${esc(KN[c.route || ''] || '—')}</td><td>${cd ? esc(cd.name) : '—'}</td></tr>`; }).join('')}</table></div>`;
+}
 function uiModal(inner) { /* בסיס משותף: מחזיר {ov, box} */
   const ov = document.createElement('div');
   ov.className = 'uiDlgOv';
@@ -11553,6 +11729,7 @@ function exportPDF() {
         return `<tr><td><b>${esc(n.name)}</b></td><td>${esc(n.sub || '')}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${n.hgt ?? '—'}</td><td>${esc(n.mount || '—')}</td><td>${cbs || '—'}</td></tr>`;
       }).join('') + '</table></div>';
   }
+  h += routeReportHTML();
   h += `<div class="rp-sec"><h3>מפתח כבלים מלא</h3>${cableTableHTML()}</div>`;
   h += `<p style="color:#999;font-size:11px;text-align:center">הופק ב-KO Projects · ${new Date().toLocaleString('he-IL')}</p>`;
   const r = $('#report');

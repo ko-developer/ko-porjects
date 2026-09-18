@@ -5,10 +5,18 @@ import { readFileSync } from 'node:fs';
 export const DATA = ['CONDUIT_RULES', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_KITS', 'ERP_CATALOG', 'ERP_IMAGES', 'MODEL_IMAGES', 'REAR_IMAGES', 'REAR_LAYOUTS', 'ERP_SOLD', 'ERP_FILTERS', 'KIT_META'];
 
 // JS מלא של האפליקציה עם נתוני ה-ERP מוזרקים + אשף הזרימה (V2)
+export function matrixSpkJson() {
+  const html = readFileSync('src/pages/matrix.html', 'utf8');
+  const m = /<script id="mdata" type="application\/json">([\s\S]*?)<\/script>/.exec(html);
+  if (!m) return '{}';
+  const d = JSON.parse(m[1]);
+  return JSON.stringify({ spk: d.spk || {}, specs: d.specs || {}, multi: d.multi || [], src: d.src || {} });
+}
 export function assembleAppJs() {
   let app = readFileSync('src/app.js', 'utf8');
-  for (const name of DATA) {
-    const json = readFileSync(`data/${name.toLowerCase()}.json`, 'utf8');
+  for (const name of [...DATA, 'MATRIX_SPK']) {
+    /* MATRIX_SPK — נתוני הרמקולים ממטריצת ההתאמות (src/pages/matrix.html): W/Ω לכל פס, מפרטים, ורמקולי bi/tri-amp (multi) */
+    const json = name === 'MATRIX_SPK' ? matrixSpkJson() : readFileSync(`data/${name.toLowerCase()}.json`, 'utf8');
     const marker = `/*__DATA:${name}__*/`;
     if (!app.includes(marker)) throw new Error(`marker missing: ${name}`);
     app = app.replace(marker, () => `const ${name} = ${json};/*__END:${name}__*/`);   /* סמן סיום: השרת מחליף נתונים שנערכים באפליקציה בזמן הגשה */
