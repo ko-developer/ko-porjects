@@ -2345,7 +2345,7 @@ function renderNodes() {
       const p = n.panel || (n.panel = defPanel());
       /* רוחב לפי התאים בפועל — תא רגיל 24px, שקע/סיקון 40px, רב-שקע 66px (+5px רווח) */
       const cellW = h => { const t = CONNS[h.conn] || CONNS.empty; return t.pw ? (t.cw || 40) : 24; };
-      const rowW = () => { const cpr = pCols(p); let m = 0; for (let r = 0; r < (p.rows || 1); r++) { const hs = p.holes.slice(r * cpr, (r + 1) * cpr); m = Math.max(m, hs.reduce((a, h) => a + cellW(h), 0) + Math.max(0, hs.length - 1) * 5); } return m; };
+      const rowW = () => { const cpr = pCols(p); let m = 0; for (let r = 0; r < (p.rows || 1); r++) { const hs = p.holes.slice(r * cpr, (r + 1) * cpr); m = Math.max(m, hs.reduce((a, h) => a + cellW(h), 0) + Math.max(0, hs.length - 1) * 9); } return m; };
       const w = p.mode === 'matrix' ? Math.max(140, rowW() + 6) : (p.w || 240);
       d.style.width = (w + 22) + 'px';
       body = p.mode === 'free'
@@ -2479,8 +2479,13 @@ function drawPanelCables(n, d) {
     const [nid, ui2, idx] = el.dataset.hole.split('|');
     if (+ui2 !== -1 || nid !== n.id) return;
     const r2 = el.getBoundingClientRect();
-    holePos[+idx] = { hx: (r2.left + r2.width / 2 - rect.left) / z, hy: (r2.top + r2.height / 2 - rect.top) / z };
+    holePos[+idx] = { hx: (r2.left + r2.width / 2 - rect.left) / z, hy: (r2.top + r2.height / 2 - rect.top) / z, hw: r2.width / z };
   });
+  /* מרזבים אנכיים: הרווח שבין עמודות החורים — שם עוברים הקווים אל השפה העליונה/התחתונה, לא מעל מחברים אחרים */
+  const colXs = [...new Set(Object.values(holePos).map(p2 => Math.round(p2.hx)))].sort((a2, b2) => a2 - b2);
+  const gutterOf = hx => { const i2 = colXs.findIndex(x2 => Math.abs(x2 - hx) < 2); const hw = (Object.values(holePos).find(p2 => Math.abs(p2.hx - hx) < 2) || {}).hw || 24;
+    if (i2 >= 0 && i2 < colXs.length - 1) return (colXs[i2] + colXs[i2 + 1]) / 2;
+    return Math.min(W - 4, hx + hw / 2 + Math.max(6, (W - hx - hw / 2) / 2)); };
   /* איסוף לפי כבלים — כל כבל (וגם כל ליבת מולטי) מקבל מעבר פנימי עד המחבר שלו,
      גם כשכמה כבלים יושבים על אותו חור */
   const ents = [];
@@ -2498,16 +2503,22 @@ function drawPanelCables(n, d) {
   const LBLc = cableLabels();
   const nodeLeft = 2200 - n.x - W; /* שמאל הפאנל בקואורדינטות קנבס */
   const myBox = nodeBox(n);
+  const gutN = {}, gutI = {}, gutTot = {};
+  ents.forEach(e => { const other = byId(e.c.from === n.id ? e.c.to : e.c.from); if (other && other.kind !== 'point' && stackedBoxes(myBox, nodeBox(other))) { const gk = 'g' + Math.round(gutterOf(e.hx)); gutTot[gk] = (gutTot[gk] || 0) + 1; } });
   ents.forEach((e, k) => {
     const col = cableColor(e.c);
     /* הקצה השני יושב מעל/מתחת — המעבר הפנימי יורד/עולה ישר מהמחבר לשפה, והכבל ממשיך ישר */
     const other = byId(e.c.from === n.id ? e.c.to : e.c.from), st = other && other.kind !== 'point' ? stackedBoxes(myBox, nodeBox(other)) : null;
     if (st) {
-      const down = st === 'AB', edgeY = down ? H : 0, sx = e.hx + ((k % 3) - 1) * 2.5;
-      out += `<path d="M ${sx} ${edgeY} L ${sx} ${e.hy + (down ? 12 : -12)}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" opacity="0.85"/>`;
-      PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + sx, y: n.y + edgeY };
-      const lb2 = LBLc[e.c.id], ly = e.hy + (down ? 20 : -20);
-      out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${sx}" cy="${ly}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${sx}" y="${ly + 2.6}" text-anchor="middle" font-size="7" font-weight="800" fill="${col}" style="user-select:none">${lb2}</text></g>`;
+      /* כמו מעגל מודפס: מהמחבר יורדים לפס שמתחת לשורה, ממשיכים למרזב שבין העמודות, ובו עולים/יורדים ישר לשפה — בלי לחצות מחברים ומספרים */
+      const down = st === 'AB', edgeY = down ? H : 0;
+      const g0 = gutterOf(e.hx); const gk = 'g' + Math.round(g0); gutN[gk] = (gutN[gk] || 0) + 1; gutI[gk] = (gutI[gk] || 0) + 1;
+      const gx = g0 + (gutI[gk] - 1 - ((gutTot[gk] || 1) - 1) / 2) * 2;
+      const rowY = e.hy + 14 + (k % 3) * 2.5;
+      out += `<path d="M ${e.hx} ${e.hy + 11} V ${rowY} H ${gx} V ${edgeY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
+      PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + gx, y: n.y + edgeY };
+      const lb2 = LBLc[e.c.id];
+      out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${e.hx}" cy="${rowY}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${e.hx}" y="${rowY + 2.6}" text-anchor="middle" font-size="${String(lb2).length > 2 ? 5.5 : 7}" font-weight="800" fill="${col}" style="user-select:none">${lb2}</text></g>`;
       return;
     }
     const rowY = e.hy + 14 + (k % 3) * 2.5; /* חציה מתחת לשורת המחברים (השמות למעלה — האזור פנוי) */
@@ -3130,7 +3141,7 @@ function holesMatrixHTML(p, nid, ui, ro) {
   let out = '';
   for (let r = 0; r < (p.rows || 1); r++) {
     const cells = p.holes.slice(r * cpr, (r + 1) * cpr).map((h, j) => holeCell(p, h, r * cpr + j, nid, ui, ro, true)).join('');
-    out += `<div style="display:flex;gap:5px;direction:ltr;margin-bottom:16px">${cells}</div>`;
+    out += `<div style="display:flex;gap:9px;direction:ltr;margin-bottom:16px">${cells}</div>`;   /* רווח 9px בין העמודות — מרזב לקווים שעוברים בין המחברים */
   }
   return out;
 }
@@ -11999,7 +12010,7 @@ function exportPDF() {
   /* שרטוט פאנל לדוח (מטריצה/חופשי) — משותף להכנות החשמל ולפאנלים */
   const panelBodyHTML = p => {
     const cellW = hh => { const t = CONNS[hh.conn] || CONNS.empty; return t.pw ? (t.cw || 40) : 24; };
-    const rowW = () => { const cpr = pCols(p); let m = 0; for (let r = 0; r < (p.rows || 1); r++) { const hs = p.holes.slice(r * cpr, (r + 1) * cpr); m = Math.max(m, hs.reduce((a, hh) => a + cellW(hh), 0) + Math.max(0, hs.length - 1) * 5); } return m; };
+    const rowW = () => { const cpr = pCols(p); let m = 0; for (let r = 0; r < (p.rows || 1); r++) { const hs = p.holes.slice(r * cpr, (r + 1) * cpr); m = Math.max(m, hs.reduce((a, hh) => a + cellW(hh), 0) + Math.max(0, hs.length - 1) * 9); } return m; };
     const w = p.mode === 'matrix' ? rowW() + 24 : (p.w || 260);
     return p.mode === 'free'
       ? `<div class="pnl" style="position:relative;height:${p.h || 140}px;width:${w}px;display:block;border:1px solid #ccc;border-radius:8px">${holesHTML(p, '', -1, true)}</div>`
@@ -12207,7 +12218,15 @@ function exportPDF() {
   };
   const snaps = [];
   const savedVis = JSON.stringify(P.cabVis || {});
-  snaps.push(makeSnap('תכנית כללית — פריסה וחיווט'));
+  /* התכנית הכללית ממלאת את העמוד: חיתוך לתוכן (שרטוט הרקע + המוקדים + הקווים), בלי שוליים ריקים של הקנבס */
+  { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+    const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
+    const bgim = $('#bgimg'); if (bgim && bgim.style.display !== 'none' && bgim.offsetWidth) addR(bgim.getBoundingClientRect());
+    document.querySelectorAll('#canvas canvas').forEach(cv2 => { if (cv2.width) addR(cv2.getBoundingClientRect()); });
+    document.querySelectorAll('#nodes > .node').forEach(el => addR(el.getBoundingClientRect()));
+    document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
+    const reg0 = L < Infinity ? { L: Math.max(0, L - 10), T: Math.max(0, T - 10), R: Math.min(2200, R + 10), B: Math.min(1400, B + 10) } : null;
+    snaps.push(makeSnap('תכנית כללית — פריסה וחיווט', reg0, 1000)); }
   /* אזור הפעילות: חיתוך למקום שבו המוקדים והכבלים, מוגדל — כשהתכנית גדולה והציוד מרוכז בפינה */
   { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
     const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
