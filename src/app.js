@@ -4472,7 +4472,8 @@ function patchCabSel(key) {
   else if (cur.startsWith('ref:')) { const st = P.stock.reels.find(x => 'reel|' + x.id === cur.slice(4)); lbl = st ? '🧵 ' + st.name.slice(0, 34) : lbl; }
   else if (cur.startsWith('key:')) { const pr = spkCableProducts().find(x => x.k === cur.slice(4)); lbl = pr ? spkCabLabel(pr).slice(0, 38) : lbl; }
   const bi = patchBundleInfo(key);
-  return `<button class="pchCab" title="כבל הרמקול לערוץ — לחיצה פותחת חיפוש בקטלוג. אוטו = לפי מרחק והספק; כבל רב-גידי (6–8 גידים) לרמקול tri/bi-amp מאחד את כל הפסים לכבל אחד" style="font-size:10.5px;padding:2px 7px;border:1px solid ${cur ? '#c96f4a' : '#ddd'};border-radius:6px;background:#fff;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="patchCabPick('${key}')">🔍 ${esc(lbl)}</button>${bi ? `<div style="font-size:10px;color:#534ab7;margin-top:2px">${bi}</div>` : ''}`;
+  /* סוג הכבל תמיד גלוי (גם בכבל משותף) — הכפתור בשורה עליונה, המיני-תרשים מתחתיו */
+  return `<div style="display:flex;flex-direction:column;gap:2px;min-width:200px"><button class="pchCab" title="כבל הרמקול לערוץ — לחיצה פותחת חיפוש בקטלוג. אוטו = לפי מרחק והספק; כבל רב-גידי (6–8 גידים) לרמקול tri/bi-amp מאחד את כל הפסים לכבל אחד" style="font-size:10.5px;padding:2px 7px;border:1px solid ${cur ? '#c96f4a' : '#ddd'};border-radius:6px;background:#fff;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;text-align:right" onclick="patchCabPick('${key}')">🔍 ${esc(lbl)}</button>${bi || ''}</div>`;
 }
 /* חלון בחירה עם חיפוש: כבלי רמקול מהקטלוג, גלילים שבהצעה, XLR */
 /* תרשים לכל כבל משותף: יציאות המגברים משמאל → כבל אחד עבה → זוגות גידים → פיני NL8 ברמקול מימין */
@@ -4528,10 +4529,10 @@ function patchBundleInfo(key) {
   const ids = PATCH.slots[key] || []; if (ids.length !== 1) return '';
   const bd = patchBundleOf(key, ids); if (!bd) return '';
   const n = byId(ids[0]), nm = nodeFullName(n), col = { hi: '#c2185b', mid: '#b8860b', low: '#185fa5' }[n.band] || '#555';
-  const idx = patchBundleIndex(bd.base), pair = bandPair(nm, n.band), pins = bandPins(nm, n.band);
+  const idx = patchBundleIndex(bd.base), pair = bandPair(nm, n.band), pins = bandPins(nm, n.band), cm = bd.r.cores ? bd.r.cores + '×' + (bd.r.mm || '') : '';
   /* מיני-תרשים: הערוץ → נכנס לכבל המשותף (מספר הכבל) → זוג הגידים → פין NL8 */
   return `<svg width="200" height="24" viewBox="0 0 200 24" style="direction:ltr;display:block" title="כבל משותף #${idx} ל${esc(shortModel(nm))}: פס ${BAND_LBL[n.band]} על גידים ${pair} → NL8 ${esc(pins)}">
-    <path d="M2 12 H 30" stroke="${col}" stroke-width="2.5"/><rect x="30" y="4" width="54" height="16" rx="8" fill="#534ab7"/><text x="57" y="15.5" text-anchor="middle" font-size="9.5" font-weight="800" fill="#fff">🧵 כבל ${idx}</text>
+    <path d="M2 12 H 30" stroke="${col}" stroke-width="2.5"/><rect x="30" y="4" width="54" height="16" rx="8" fill="#534ab7"/><text x="57" y="15.5" text-anchor="middle" font-size="9.5" font-weight="800" fill="#fff">🧵 כבל ${idx}${cm ? ' · ' + cm : ''}</text>
     <path d="M84 12 H 118" stroke="${col}" stroke-width="2.5"/><text x="101" y="9" text-anchor="middle" font-size="8" fill="${col}">${pair}</text>
     <circle cx="130" cy="12" r="9" fill="#fff" stroke="${col}" stroke-width="1.6"/><text x="130" y="15.5" text-anchor="middle" font-size="8.5" font-weight="800" fill="${col}">${esc(pins)}</text>
     <text x="146" y="15.5" font-size="9" fill="#666">NL8 · ${BAND_LBL[n.band]}</text></svg>`;
