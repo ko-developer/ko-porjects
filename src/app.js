@@ -2471,7 +2471,7 @@ function drawPanelCables(n, d) {
   if (!holes.length) return;
   const z = getZ ? getZ() : 1;
   const rect = d.getBoundingClientRect();
-  const W = rect.width / z, H = rect.height / z;
+  let W = rect.width / z; const H = rect.height / z;
   let out = '';
   /* מפת מיקומי החורים מה-DOM */
   const holePos = {};
@@ -2481,11 +2481,6 @@ function drawPanelCables(n, d) {
     const r2 = el.getBoundingClientRect();
     holePos[+idx] = { hx: (r2.left + r2.width / 2 - rect.left) / z, hy: (r2.top + r2.height / 2 - rect.top) / z, hw: r2.width / z };
   });
-  /* מרזבים אנכיים: הרווח שבין עמודות החורים — שם עוברים הקווים אל השפה העליונה/התחתונה, לא מעל מחברים אחרים */
-  const colXs = [...new Set(Object.values(holePos).map(p2 => Math.round(p2.hx)))].sort((a2, b2) => a2 - b2);
-  const gutterOf = hx => { const i2 = colXs.findIndex(x2 => Math.abs(x2 - hx) < 2); const hw = (Object.values(holePos).find(p2 => Math.abs(p2.hx - hx) < 2) || {}).hw || 24;
-    if (i2 >= 0 && i2 < colXs.length - 1) return (colXs[i2] + colXs[i2 + 1]) / 2;
-    return Math.min(W - 4, hx + hw / 2 + Math.max(6, (W - hx - hw / 2) / 2)); };
   /* איסוף לפי כבלים — כל כבל (וגם כל ליבת מולטי) מקבל מעבר פנימי עד המחבר שלו,
      גם כשכמה כבלים יושבים על אותו חור */
   const ents = [];
@@ -2503,20 +2498,29 @@ function drawPanelCables(n, d) {
   const LBLc = cableLabels();
   const nodeLeft = 2200 - n.x - W; /* שמאל הפאנל בקואורדינטות קנבס */
   const myBox = nodeBox(n);
-  const gutN = {}, gutI = {}, gutTot = {};
-  ents.forEach(e => { const other = byId(e.c.from === n.id ? e.c.to : e.c.from); if (other && other.kind !== 'point' && stackedBoxes(myBox, nodeBox(other))) { const gk = 'g' + Math.round(gutterOf(e.hx)); gutTot[gk] = (gutTot[gk] || 0) + 1; } });
+  /* מעבר ראשי בצד ימין של הפאנל: כל הקווים שיוצאים מהשפה העליונה/התחתונה (פאנל מעל/מתחת) עוברים בו,
+     וכל קו פונה שמאלה בפס שמתחת לשורה שלו אל המחבר — בלי לחצות מחברים. הסדר: מי שפונה ראשון הכי פנימי, בלי הצלבות */
+  const stk = []; ents.forEach((e, k) => { const other = byId(e.c.from === n.id ? e.c.to : e.c.from), st = other && other.kind !== 'point' ? stackedBoxes(myBox, nodeBox(other)) : null; if (st) stk.push({ e, k, down: st === 'AB' }); });
+  const TR = {}; let W2 = W;
+  if (stk.length) {
+    const maxRight = Math.max(...Object.values(holePos).map(p2 => p2.hx + (p2.hw || 24) / 2));
+    const ups = stk.filter(x => !x.down).sort((a2, b2) => a2.e.hy - b2.e.hy), dns = stk.filter(x => x.down).sort((a2, b2) => b2.e.hy - a2.e.hy);
+    const ordered = [...ups, ...dns]; const need = maxRight + 6 + (ordered.length - 1) * 2.5 + 6;
+    if (need > W) { const extra = Math.ceil(need - W); d.style.width = (d.offsetWidth + extra) + 'px'; W2 = W + extra; }
+    ordered.forEach((x, j) => { TR[x.k] = maxRight + 6 + j * 2.5; });
+  }
+  W = W2;
+  const rowIdx = {};
   ents.forEach((e, k) => {
     const col = cableColor(e.c);
     /* הקצה השני יושב מעל/מתחת — המעבר הפנימי יורד/עולה ישר מהמחבר לשפה, והכבל ממשיך ישר */
     const other = byId(e.c.from === n.id ? e.c.to : e.c.from), st = other && other.kind !== 'point' ? stackedBoxes(myBox, nodeBox(other)) : null;
     if (st) {
-      /* כמו מעגל מודפס: מהמחבר יורדים לפס שמתחת לשורה, ממשיכים למרזב שבין העמודות, ובו עולים/יורדים ישר לשפה — בלי לחצות מחברים ומספרים */
-      const down = st === 'AB', edgeY = down ? H : 0;
-      const g0 = gutterOf(e.hx); const gk = 'g' + Math.round(g0); gutN[gk] = (gutN[gk] || 0) + 1; gutI[gk] = (gutI[gk] || 0) + 1;
-      const gx = g0 + (gutI[gk] - 1 - ((gutTot[gk] || 1) - 1) / 2) * 2;
-      const rowY = e.hy + 14 + (k % 3) * 2.5;
-      out += `<path d="M ${e.hx} ${e.hy + 11} V ${rowY} H ${gx} V ${edgeY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
-      PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + gx, y: n.y + edgeY };
+      const down = st === 'AB', edgeY = down ? H : 0, tx = TR[k];
+      const rk = 'r' + Math.round(e.hy); rowIdx[rk] = (rowIdx[rk] || 0) + 1;
+      const rowY = e.hy + 14 + ((rowIdx[rk] - 1) % 4) * 2.5;
+      out += `<path d="M ${e.hx} ${e.hy + 11} V ${rowY} H ${tx} V ${edgeY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
+      PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + tx, y: n.y + edgeY };
       const lb2 = LBLc[e.c.id];
       out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${e.hx}" cy="${rowY}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${e.hx}" y="${rowY + 2.6}" text-anchor="middle" font-size="${String(lb2).length > 2 ? 5.5 : 7}" font-weight="800" fill="${col}" style="user-select:none">${lb2}</text></g>`;
       return;
