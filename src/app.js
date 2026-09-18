@@ -898,7 +898,7 @@ function delCable(id) {
   if (selCable === id) selCable = null;
   render();
 }
-function pickCable(id) { selCable = id; ui.tab = 'cable'; render(); }
+function pickCable(id) { if (conduitMode) { conduitToggleCable(id); return; } selCable = id; ui.tab = 'cable'; render(); }
 
 function nodeBox(n) {
   const el = document.getElementById('nd_' + n.id);
@@ -2994,6 +2994,7 @@ document.addEventListener('keydown', e => {
   if (aiming) { aiming = null; save(); render(); return; }
   if (selHole || brushOn) { selHole = null; brushOn = false; render(); return; }
   if (sketchMode) { if (sketchMode.cur && sketchMode.cur.length) { sketchMode.cur = []; renderWires(); } else sketchEnd(); return; }
+  if (conduitMode) { conduitPickEnd(); return; }
   if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; render(); }
 });
 function connGlyph(conn) {
@@ -3567,6 +3568,7 @@ function renderWires() {
   /* בזום גבוה העיגולים מתכווצים ביחס הפוך — שלא יסתירו את המוצרים */
   const ZW = getZ() || 1, shrink = Math.min(1, 1.6 / ZW);
   const escCnt = {}; /* מונה עקיפות לכל קופסה+צד — מסלולים מקבילים נפרדים */
+  let cdBadged = null;
   for (const it of items) {
     const { c, i, pa, pb } = it;
     const col = cableColor(c);
@@ -3608,6 +3610,11 @@ function renderWires() {
       dpath = `M${pa.x} ${pa.y} Q ${cx} ${cy} ${pb.x} ${pb.y}`;
     }
     const instDash = c.inst === 'exist' ? '7 5' : c.inst === 'pull' ? '14 6' : null;
+    /* קו בתוך צינור/תעלה: הילה רחבה בצבע הצינור מתחת לקו + תג "צ1 Ø50" פעם אחת לכל צינור */
+    const cdOf = c.conduit && (P.conduits || []).find(x => x.id === c.conduit);
+    if (cdOf) { const cc2 = conduitColor(cdOf); out += `<path d="${dpath}" fill="none" stroke="${cc2}" stroke-width="${(selw + 7)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.28" style="pointer-events:none"/>`;
+      cdBadged = cdBadged || new Set(); if (!cdBadged.has(cdOf.id)) { cdBadged.add(cdOf.id); const bx2 = it.mx || it.bx, by2 = it.by || (pa.y + pb.y) / 2; const t2 = conduitTag(cdOf); out += `<g style="pointer-events:all;cursor:pointer" onclick="routeManager()"><rect x="${bx2 - t2.length * 3.2 - 4}" y="${by2 - 18}" width="${t2.length * 6.4 + 8}" height="12" rx="4" fill="${cc2}"/><text x="${bx2}" y="${by2 - 9}" text-anchor="middle" font-size="8.5" font-weight="800" fill="#fff">${esc(t2)}</text></g>`; } }
+    if (conduitMode && cdOf && cdOf.id === conduitMode.id) out += `<path d="${dpath}" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 3" style="pointer-events:none"/>`;
     /* קצה שמחובר למכשיר בארון או למחבר ספציפי בפאנל — הקו נכנס ישר, בלי חץ ובלי עיגול
        (המספר מוצג על נקודת החיבור עצמה בתוך הפאנל/הגב) */
     const aUnit = !!unitOf(c.from, c.fromUnit) || !!c.fromHole, bUnit = !!unitOf(c.to, c.toUnit) || !!c.toHole;
@@ -7485,6 +7492,46 @@ function conduitFill(cd) {
   let need = null; if (cd.kind !== 'tray') for (const d of CONDUIT_DIAS) { if (Math.PI * (d * 0.86 / 2) ** 2 * lim >= area) { need = d; break; } }
   return { cabs, area, cap, pct, ok: pct <= 1, need };
 }
+const CD_PAL = ['#e65100', '#1976d2', '#2e7d32', '#7b1fa2', '#c2185b', '#00838f', '#5d4037', '#f9a825'];
+function conduitColor(cd) { const i = (P.conduits || []).indexOf(cd); return CD_PAL[Math.max(0, i) % CD_PAL.length]; }
+function conduitNum(cd) { const same = (P.conduits || []).filter(x => x.kind === cd.kind); return same.indexOf(cd) + 1; }
+const conduitTag = cd => (cd.kind === 'tray' ? 'ת' : 'צ') + conduitNum(cd) + (cd.kind === 'tray' ? ' ' + cd.size : ' Ø' + cd.size);
+/* 🎯 מצב צינור על התכנית: לחיצה על קו מכניסה/מוציאה אותו מהצינור הנבחר */
+let conduitMode = null;
+function conduitPickStart(id) {
+  const cd = (P.conduits || []).find(x => x.id === id); if (!cd) return;
+  conduitMode = { id }; const ov = document.querySelector('#routeOv'); if (ov) ov.closest('.uiDlgOv').remove();
+  conduitBar(); render();
+}
+function conduitPickEnd() { conduitMode = null; conduitBar(); render(); save(); routeManager(); }
+function conduitBar() {
+  const old2 = document.getElementById('conduitBar'); if (old2) old2.remove();
+  if (!conduitMode) return;
+  const cd = (P.conduits || []).find(x => x.id === conduitMode.id); if (!cd) { conduitMode = null; return; }
+  const f = conduitFill(cd), col = conduitColor(cd);
+  const bar = document.createElement('div'); bar.id = 'conduitBar';
+  bar.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:82;background:#1a1e28;color:#fff;border-radius:12px;padding:7px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 30px rgba(0,0,0,.4);direction:rtl;font-size:12.5px';
+  bar.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${col}"></span><b>🛤 ${esc(cd.name)} · ${cd.kind === 'tray' ? cd.size : 'Ø' + cd.size} מ״מ</b>
+    <span>לחץ על קווים בתכנית — כניסה/יציאה מהצינור</span><span style="font-weight:800;color:${f.ok ? '#8fe0b5' : '#ff9a8a'}">${f.cabs.length} קווים · ${Math.round(f.pct * 100)}%${f.ok ? '' : ' ⚠ צריך Ø' + (f.need || '>110')}</span>
+    <button style="padding:5px 10px;border-radius:8px;border:none;cursor:pointer;background:#0f6e56;color:#fff;font-weight:700" onclick="conduitPickEnd()">✓ סיום</button>`;
+  document.body.appendChild(bar);
+}
+function conduitToggleCable(cid) {
+  const c = cById(cid), cd = (P.conduits || []).find(x => x.id === conduitMode.id); if (!c || !cd) return;
+  if (c.conduit === cd.id) { delete c.conduit; delete c.route; } else { c.conduit = cd.id; c.route = cd.kind; }
+  conduitBar(); renderWires(); renderLegend && renderLegend();
+}
+/* שיוך מרוכז: כל הקווים המסומנים בטבלה → צינור קיים / חדש */
+function conduitAssignChecked(v) {
+  const ids = [...document.querySelectorAll('#routeOv input[data-cab]:checked')].map(x => x.dataset.cab); if (!ids.length) { uiToast('סמן קווים בטבלה קודם'); return; }
+  let cd = (P.conduits || []).find(x => x.id === v);
+  if (v === '__new' || v === '__newTray') { P.conduits = P.conduits || []; const kind = v === '__newTray' ? 'tray' : 'conduit'; cd = { id: uid('cd'), kind, name: (kind === 'tray' ? 'תעלה ' : 'צינור ') + (P.conduits.filter(x => x.kind === kind).length + 1), size: kind === 'tray' ? '100×50' : 25, len: '' }; P.conduits.push(cd); }
+  if (!cd) return;
+  ids.forEach(id => { const c = cById(id); if (c) { c.conduit = cd.id; c.route = cd.kind; } });
+  if (cd.kind !== 'tray' && (v === '__new')) { const f = conduitFill(cd); cd.size = f.need || 110; }
+  save(); routeManager(); render(); uiToast('🛤 ' + ids.length + ' קווים → ' + cd.name + (cd.kind !== 'tray' ? ' Ø' + cd.size : ''));
+}
+window.conduitPickStart = conduitPickStart; window.conduitPickEnd = conduitPickEnd; window.conduitAssignChecked = conduitAssignChecked;
 function conduitAdd(kind) { P.conduits = P.conduits || []; const n = P.conduits.filter(c => c.kind === kind).length + 1; const cd = { id: uid('cd'), kind, name: (kind === 'tray' ? 'תעלה ' : 'צינור ') + n, size: kind === 'tray' ? '100×50' : 25, len: '' }; P.conduits.push(cd); save(); routeManager(); }
 function conduitSet(id, f, v) { const cd = (P.conduits || []).find(x => x.id === id); if (!cd) return; cd[f] = f === 'size' && cd.kind !== 'tray' ? +v : v; save(); routeManager(); }
 function conduitDel(id) { P.conduits = (P.conduits || []).filter(x => x.id !== id); (P.cables || []).forEach(c => { if (c.conduit === id) delete c.conduit; }); save(); routeManager(); }
@@ -7505,12 +7552,12 @@ function routeManager() {
   const cdOpts = sel => `<option value="">—</option>` + P.conduits.map(cd => { const f = conduitFill(cd); return `<option value="${cd.id}" ${sel === cd.id ? 'selected' : ''}>${esc(cd.name)} ${cd.kind === 'tray' ? cd.size : 'Ø' + cd.size} · ${Math.round(f.pct * 100)}%</option>`; }).join('');
   const groups = {}; cabs.forEach(c => { const k = routePairKey(c); (groups[k] = groups[k] || []).push(c); });
   const cdRows = P.conduits.map(cd => { const f = conduitFill(cd); const sz = cd.kind === 'tray' ? `<select onchange="conduitSet('${cd.id}','size',this.value)">${TRAY_SIZES.map(t => `<option ${cd.size === t ? 'selected' : ''}>${t}</option>`).join('')}</select> מ״מ` : `Ø<select onchange="conduitSet('${cd.id}','size',this.value)">${CONDUIT_DIAS.map(d => `<option value="${d}" ${+cd.size === d ? 'selected' : ''}>${d}</option>`).join('')}</select> מ״מ`;
-    return `<tr style="${f.ok ? '' : 'background:#fdeee8'}"><td><input value="${esc(cd.name)}" style="width:110px" onchange="conduitSet('${cd.id}','name',this.value)"></td><td>${cd.kind === 'tray' ? '🟫 תעלה' : '🟠 צינור'}</td><td style="white-space:nowrap">${sz}</td><td><input type="number" min="0" value="${cd.len || ''}" placeholder="מ׳" style="width:56px" onchange="conduitSet('${cd.id}','len',this.value)"></td>
+    return `<tr style="${f.ok ? '' : 'background:#fdeee8'}"><td style="white-space:nowrap"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${conduitColor(cd)};vertical-align:middle;margin-left:4px"></span><b style="color:${conduitColor(cd)}">${esc(conduitTag(cd))}</b> <input value="${esc(cd.name)}" style="width:96px" onchange="conduitSet('${cd.id}','name',this.value)"> <button title="בחר קווים על התכנית — לחיצה על קו מכניסה/מוציאה אותו מהצינור" onclick="conduitPickStart('${cd.id}')">🎯 על התכנית</button></td><td>${cd.kind === 'tray' ? '🟫 תעלה' : '🟠 צינור'}</td><td style="white-space:nowrap">${sz}</td><td><input type="number" min="0" value="${cd.len || ''}" placeholder="מ׳" style="width:56px" onchange="conduitSet('${cd.id}','len',this.value)"></td>
       <td style="font-size:11px">${f.cabs.length ? f.cabs.map(c => `<span class="badge" style="background:${cableColor(c)};margin:1px">${LBL[c.id]}</span>`).join('') : '<span class="muted">ריק</span>'}</td>
       <td style="text-align:center;font-weight:700;color:${f.ok ? '#0f6e56' : '#c1121f'}">${Math.round(f.pct * 100)}%${f.ok ? ' ✓' : f.need ? ' ⚠ צריך Ø' + f.need : ' ⚠ גדול מדי'}</td><td><button onclick="conduitDel('${cd.id}')">✕</button></td></tr>`; }).join('');
-  const cabRows = cabs.map(c => `<tr><td><span class="badge" style="background:${cableColor(c)}">${LBL[c.id]}</span></td><td style="font-size:11px">${esc(endNameTxt(c.from, c.fromUnit).slice(0, 26))} ← ${esc(endNameTxt(c.to, c.toUnit).slice(0, 26))}</td><td style="font-size:11px">${esc(cableKindLabel(c))}</td><td style="text-align:center">${c.len ? c.len + ' מ׳' : '—'}</td><td style="text-align:center">Ø${cableOD(c).toFixed(0)}</td>
+  const cabRows = cabs.map(c => { const cd0 = P.conduits.find(x => x.id === c.conduit); return `<tr><td><input type="checkbox" data-cab="${c.id}" style="width:auto"></td><td><span class="badge" style="background:${cableColor(c)}">${LBL[c.id]}</span>${cd0 ? ` <b style="color:${conduitColor(cd0)};font-size:10.5px;white-space:nowrap">${esc(conduitTag(cd0))}</b>` : ''}</td><td style="font-size:11px">${esc(endNameTxt(c.from, c.fromUnit).slice(0, 26))} ← ${esc(endNameTxt(c.to, c.toUnit).slice(0, 26))}</td><td style="font-size:11px">${esc(cableKindLabel(c))}</td><td style="text-align:center">${c.len ? c.len + ' מ׳' : '—'}</td><td style="text-align:center">Ø${cableOD(c).toFixed(0)}</td>
       <td><select onchange="cableRouteSet('${c.id}','route',this.value)">${ROUTE_KINDS.map(([v, t]) => `<option value="${v}" ${(c.route || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
-      <td>${c.route === 'conduit' || c.route === 'tray' ? `<select onchange="cableRouteSet('${c.id}','conduit',this.value)">${cdOpts(c.conduit)}</select>` : ''}</td></tr>`).join('');
+      <td>${c.route === 'conduit' || c.route === 'tray' ? `<select onchange="cableRouteSet('${c.id}','conduit',this.value)">${cdOpts(c.conduit)}</select>` : ''}</td></tr>`; }).join('');
   const grpRows = Object.entries(groups).filter(([, arr]) => arr.length > 1).map(([k, arr]) => { const inOne = arr.every(c => c.conduit && c.conduit === arr[0].conduit); return `<div style="display:flex;gap:8px;align-items:center;border:1px solid #eee;border-radius:8px;padding:5px 8px;margin-bottom:4px;font-size:12px"><span style="flex:1">${esc(endNameTxt(arr[0].from, arr[0].fromUnit).slice(0, 24))} ↔ ${esc(endNameTxt(arr[0].to, arr[0].toUnit).slice(0, 24))} · ${arr.length} קווים: ${arr.map(c => LBL[c.id]).join(', ')}</span>${inOne ? '<b style="color:#0f6e56">✓ בצינור אחד</b>' : `<button onclick="routeGroupToConduit('${k}')">🛤 צינור אחד לכולם</button>`}</div>`; }).join('');
   const ov = uiModal(`<div id="routeOv"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:15px;flex:1">🛤 מסלולי העברה — תעלות וצינורות</b><button data-x>✕</button></div>
     <p class="muted" style="font-size:11.5px;margin:0 0 8px">לכל קו: איך הוא עובר. כמה קווים יכולים לעבור בצינור אחד — לפי מילוי החתך (כבל אחד עד 53%, שניים 31%, שלושה ומעלה 40%; תעלה 50%). צינור מלא מדי מסומן באדום עם הקוטר הדרוש.</p>
@@ -7518,7 +7565,10 @@ function routeManager() {
     <h3 class="sec">צינורות ותעלות <button onclick="conduitAdd('conduit')" style="margin-right:8px">+ צינור</button><button onclick="conduitAdd('tray')">+ תעלה</button></h3>
     <table class="cablelist" style="width:100%"><tr><th>שם</th><th>סוג</th><th>מידה</th><th>אורך</th><th>קווים</th><th>מילוי</th><th></th></tr>${cdRows || '<tr><td colspan="7" class="muted">אין צינורות/תעלות — הוסף, או לחץ "צינור אחד לכולם" למעלה</td></tr>'}</table>
     <h3 class="sec">כל הקווים</h3>
-    <div style="max-height:40vh;overflow-y:auto"><table class="cablelist" style="width:100%"><tr><th>#</th><th>מ־ ← אל</th><th>סוג</th><th>אורך</th><th>קוטר</th><th>מעבר</th><th>צינור/תעלה</th></tr>${cabRows || '<tr><td colspan="7" class="muted">אין קווים</td></tr>'}</table></div></div>`);
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;font-size:12px"><label><input type="checkbox" style="width:auto" onchange="document.querySelectorAll('#routeOv input[data-cab]').forEach(x=>x.checked=this.checked)"> סמן הכל</label><span>שייך את המסומנים אל:</span>
+      <select id="rtAssign" style="font-size:12px"><option value="">— בחר —</option>${P.conduits.map(cd => `<option value="${cd.id}">${esc(conduitTag(cd))} · ${esc(cd.name)}</option>`).join('')}<option value="__new">➕ צינור חדש (קוטר אוטומטי)</option><option value="__newTray">➕ תעלה חדשה</option></select>
+      <button style="background:#0f6e56;color:#fff;font-weight:700" onclick="conduitAssignChecked(document.getElementById('rtAssign').value)">🛤 שייך</button></div>
+    <div style="max-height:40vh;overflow-y:auto"><table class="cablelist" style="width:100%"><tr><th></th><th>#</th><th>מ־ ← אל</th><th>סוג</th><th>אורך</th><th>קוטר</th><th>מעבר</th><th>צינור/תעלה</th></tr>${cabRows || '<tr><td colspan="8" class="muted">אין קווים</td></tr>'}</table></div></div>`);
   ov.querySelector('div').style.maxWidth = '900px'; ov.querySelector('div').style.width = '96vw';
   ov.querySelector('[data-x]').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
