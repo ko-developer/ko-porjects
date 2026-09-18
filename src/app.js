@@ -2123,16 +2123,24 @@ function stackArrange(stackAt) {
   const horiz = P.stackDir === 'h', GAP = 2;
   Object.values(stackAt).forEach(ids => {
     if (ids.length < 2) return;
-    const els = ids.map(id => ({ n: byId(id), el: document.getElementById('nd_' + id) })).filter(x => x.n && x.el);
-    const sizes = els.map(({ el }) => { const m = /scale\(([\d.]+)\)/.exec(el.style.transform || ''); const k = m ? +m[1] : 1; return { w: el.offsetWidth * k, h: el.offsetHeight * k }; });
+    const all = ids.map(id => ({ n: byId(id), el: document.getElementById('nd_' + id) })).filter(x => x.n && x.el);
+    const sizeOf = el => { const m = /scale\(([\d.]+)\)/.exec(el.style.transform || ''); const k = m ? +m[1] : 1; return { w: el.offsetWidth * k, h: el.offsetHeight * k }; };
+    const place = (n, el, sx, sy) => { n._fanX = sx; n._fanY = sy; el.style.right = (n.x + sx - (n._chW || 0)) + 'px'; el.style.top = (n.y + sy) + 'px'; };
+    /* פאנלים פתוחים באותה נקודה: נפתחים ממנה לכיוונים הפוכים (הראשון למעלה — התחתית שלו בנקודה, השני למטה — הראש שלו בנקודה), רחוקים זה מזה ככל האפשר */
+    const opn = all.filter(x => x.n.kind === 'panel' && !x.n.pmin), els = opn.length >= 2 ? all.filter(x => !opn.includes(x)) : all;
+    const sizes = els.map(({ el }) => sizeOf(el));
     const total = sizes.reduce((a, s2) => a + (horiz ? s2.w : s2.h) + GAP, -GAP);
     let cur = -total / 2;
     els.forEach(({ n, el }, i) => {
       const s2 = sizes[i], off = cur + (horiz ? s2.w : s2.h) / 2; cur += (horiz ? s2.w : s2.h) + GAP;
-      const sx = horiz ? Math.round(off) : 0, sy = horiz ? 0 : Math.round(off);
-      n._fanX = sx; n._fanY = sy;
-      el.style.right = (n.x + sx - (n._chW || 0)) + 'px'; el.style.top = (n.y + sy) + 'px';
+      place(n, el, horiz ? Math.round(off) : 0, horiz ? 0 : Math.round(off));
     });
+    if (opn.length >= 2) {
+      let up = total > 0 ? total / 2 + GAP : 0, down = total > 0 ? total / 2 + GAP : 0;
+      opn.forEach(({ n, el }, i) => { const s2 = sizeOf(el), len = horiz ? s2.w : s2.h; let off;
+        if (i % 2 === 0) { off = -(up + len); up += len + GAP; } else { off = down; down += len + GAP; }
+        place(n, el, horiz ? Math.round(off) : 0, horiz ? 0 : Math.round(off)); });
+    }
   });
 }
 function renderNodes() {
@@ -3522,13 +3530,17 @@ function renderWires() {
     items.push({ c, i, pa, pb, off, A: f.A, B: f.B, vert: !!f.vert });
   });
 
+  /* צרור: כבלים שעוברים באותו צינור בין אותן שתי קופסאות מצוירים כמו מולטי — מסלול אחד, תווית אחת (3–6), בלי פסים נפרדים */
+  const grpFirst = {};
+  items.forEach(it => { const c = it.c; if (!c.conduit) return; const k = c.conduit + '|' + c.from + '|' + c.to; if (!grpFirst[k]) { grpFirst[k] = it; it.gmem = [c]; } else { grpFirst[k].gmem.push(c); it.gof = grpFirst[k]; } });
   /* הקצאת נתיבים אנכיים ואופקיים ללא חפיפה (מצב מעגל חשמלי) */
   const lanes = [], hlanes = [];
   for (const it of items) {
     const { pa, pb, off, c } = it;
     if (ortho && it.vert) {
       /* מסלול אנכי: ירידה ישרה, פס רוחבי קצר באמצע (אם הנקודות לא באותו x) וכניסה מלמעלה/מלמטה */
-      let my = (pa.y + pb.y) / 2 + off + (c.bend?.dy || 0);
+      if (it.gof) { it.my = it.gof.my; it.mx = (pa.x + pb.x) / 2; it.bx = it.mx; it.by = it.my; continue; }
+      let my = (pa.y + pb.y) / 2 + (it.gmem ? 0 : off) + (c.bend?.dy || 0);
       const x1 = Math.min(pa.x, pb.x), x2 = Math.max(pa.x, pb.x);
       let g = 0;
       while (g++ < 60 && hlanes.some(v => Math.abs(v.y - my) < 2.6 && x1 < v.x2 + 4 && v.x1 - 4 < x2)) my += 3;
@@ -3537,7 +3549,8 @@ function renderWires() {
       continue;
     }
     if (ortho) {
-      let mx = (pa.x + pb.x) / 2 + off + (c.bend?.dx || 0);
+      if (it.gof) { it.mx = it.gof.mx; it.hoff = it.gof.hoff; it.bx = it.gof.bx; it.by = it.gof.by; continue; }
+      let mx = (pa.x + pb.x) / 2 + (it.gmem ? 0 : off) + (c.bend?.dx || 0);
       /* הקו האנכי לא חוצה את הארון/פאנל של הקצוות — עובר לצד החיצוני שלהם */
       for (const box of [it.A, it.B]) {
         if (!box) continue;
@@ -3698,9 +3711,11 @@ function renderWires() {
     };
     out += handle(pa.x, pa.y, 'from') + handle(pb.x, pb.y, 'to');
     /* מלבן פינה עם מספר הכבל בתוכו — במקום עיגול נפרד על הקו; לחיצה בוחרת את הכבל, גרירה מזיזה את הפינה */
-    const lblS = String(LBL[c.id]), cw2 = Math.max(12, lblS.length * 5 + 6), cfs = 6.5;
+    const grpLbl = mem => { const ns = mem.map(x => LBL[x.id]).filter(v => v != null); const nums = ns.map(Number); if (nums.every(v => !isNaN(v))) { nums.sort((a2, b2) => a2 - b2); const consec = nums.every((v, j) => j === 0 || v === nums[j - 1] + 1); return consec && nums.length > 2 ? nums[0] + '–' + nums[nums.length - 1] : nums.join(','); } return ns.join(','); };
+    const lblS = it.gmem && it.gmem.length > 1 ? grpLbl(it.gmem) : String(LBL[c.id]), cw2 = Math.max(12, lblS.length * 5 + 6), cfs = 6.5;
     const cornerLbl = (x, y, attrs, cur, tip) => `<g ${attrs} style="pointer-events:all;cursor:${cur}" onclick="pickCable('${c.id}')"><title>${tip}</title><rect x="${x - cw2 / 2}" y="${y - 4.5}" width="${cw2}" height="9" rx="2.5" fill="#fff" stroke="${col}" stroke-width="${c.id === selCable ? 2 : 1.2}"/><text x="${x}" y="${y + cfs * 0.37}" text-anchor="middle" font-size="${cfs}" font-weight="800" fill="${col}" style="user-select:none;pointer-events:none">${lblS}</text></g>`;
-    if (ortho && it.vert) {
+    if (it.gof) { /* חבר בצרור — התווית והפינות מצוירות פעם אחת, על הראשון */ }
+    else if (ortho && it.vert) {
       /* פינות הפס הרוחבי — גרירה אנכית מזיזה את הפס (bend.dy) */
       if (Math.abs(pa.x - pb.x) >= 2) out += [[pa.x, it.my], [pb.x, it.my]].map(([x, y]) => cornerLbl(x, y, `data-cbadge="${c.id}"`, 'ns-resize', 'גרירה — הזזת הפס הרוחבי')).join('');
     } else if (ortho) {
