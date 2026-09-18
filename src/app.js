@@ -533,6 +533,7 @@ function matrixMulti(name) {
   if (typeof MATRIX_SPK === 'undefined' || !name) return null;
   const nm = spkNorm(shortModel(name)), nf = spkNorm(name);
   for (const mu of MATRIX_SPK.multi || []) {
+    if ((mu.bands || []).some(([l]) => /MID-HI/i.test(l)) || (mu.bands || []).length < 2) continue;   /* טופ + סאב (שני מוצרים) — לא רמקול רב-פסי אחד */
     const cands = [mu.name, ...String(mu.name).split('/')].map(x => spkNorm(x)).filter(Boolean);
     if (cands.some(c => c === nm || c === nf || (c.length >= 4 && (nm.endsWith(c) || nf.endsWith(c))))) return mu;
     if ((mu.bands || []).some(([, row]) => spkNorm(row) === nm)) return mu;
@@ -4457,6 +4458,32 @@ function patchCabSel(key) {
   return `<button class="pchCab" title="כבל הרמקול לערוץ — לחיצה פותחת חיפוש בקטלוג. אוטו = לפי מרחק והספק; כבל רב-גידי (6–8 גידים) לרמקול tri/bi-amp מאחד את כל הפסים לכבל אחד" style="font-size:10.5px;padding:2px 7px;border:1px solid ${cur ? '#c96f4a' : '#ddd'};border-radius:6px;background:#fff;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="patchCabPick('${key}')">🔍 ${esc(lbl)}</button>${bi ? `<div style="font-size:10px;color:#534ab7;margin-top:2px">${bi}</div>` : ''}`;
 }
 /* חלון בחירה עם חיפוש: כבלי רמקול מהקטלוג, גלילים שבהצעה, XLR */
+/* תרשים לכל כבל משותף: יציאות המגברים משמאל → כבל אחד עבה → זוגות גידים → פיני NL8 ברמקול מימין */
+function patchBundleDiagrams() {
+  const seen = new Set(), out = [];
+  const BC = { hi: '#c2185b', mid: '#b8860b', low: '#185fa5' };
+  for (const [key, ids] of Object.entries(PATCH.slots)) {
+    if (ids.length !== 1 || seen.has(key)) continue;
+    const bd = patchBundleOf(key, ids); if (!bd) continue;
+    bd.parts.forEach(pt => seen.add(pt.key));
+    const head = byId(spkBase(ids[0])), hn = nodeFullName(head), parts = bd.parts.slice().sort((a, b) => BAND_ORDER.indexOf(a.band) - BAND_ORDER.indexOf(b.band));
+    const cores = bd.r.cores || parts.length * 2, prName = bd.r.it ? bd.r.it.name.slice(0, 44) : cores + ' גידים';
+    const W = 640, RH = 34, H = parts.length * RH + 30, xA = 20, xCab1 = 250, xCab2 = 430, xS = 610, yMid = H / 2;
+    const rows = parts.map((pt, i) => { const y = 22 + i * RH, col = BC[pt.band] || '#555';
+      return `<rect x="${xA}" y="${y - 12}" width="150" height="24" rx="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${xA + 75}" y="${y + 4}" text-anchor="middle" font-size="11" font-weight="700" fill="${col}">${esc(modelOf(pt.a.u.name))} OUT ${pt.ch}</text>
+        <path d="M${xA + 150} ${y} C ${xA + 200} ${y}, ${xCab1 - 40} ${yMid}, ${xCab1} ${yMid}" fill="none" stroke="${col}" stroke-width="2.5"/>
+        <path d="M${xCab2} ${yMid} C ${xCab2 + 40} ${yMid}, ${xS - 60} ${y}, ${xS - 20} ${y}" fill="none" stroke="${col}" stroke-width="2.5"/>
+        <text x="${(xCab2 + xS - 20) / 2}" y="${y - 6}" text-anchor="middle" font-size="9.5" fill="${col}">גידים ${bandPair(hn, pt.band)}</text>
+        <circle cx="${xS - 14}" cy="${y}" r="9" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${xS - 14}" y="${y + 3.5}" text-anchor="middle" font-size="8.5" font-weight="800" fill="${col}">${esc(bandPins(hn, pt.band))}</text>
+        <text x="${xS - 30}" y="${y + 4}" text-anchor="end" font-size="9" fill="#666">${BAND_LBL[pt.band]}</text>`; }).join('');
+    out.push(`<div style="border:1.5px solid #534ab7;border-radius:10px;padding:6px 8px;margin:6px 0;background:#f8f7fd">
+      <div style="font-size:12px;font-weight:700;color:#534ab7">🧵 כבל משותף רב-גידי → ${esc(shortModel(hn))} (${parts.length} פסים) · ${esc(prName)}</div>
+      <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="direction:ltr;display:block;max-width:100%;font-family:inherit">
+        <rect x="${xCab1}" y="${yMid - 9}" width="${xCab2 - xCab1}" height="18" rx="9" fill="#534ab7"/><text x="${(xCab1 + xCab2) / 2}" y="${yMid + 4}" text-anchor="middle" font-size="10.5" font-weight="800" fill="#fff">${cores} גידים · כבל אחד</text>
+        ${rows}<text x="${xS - 14}" y="${H - 4}" text-anchor="middle" font-size="9" fill="#666">NL8</text></svg></div>`);
+  }
+  return out.length ? `<div style="font-size:12px;font-weight:700;margin:10px 0 4px">🧵 כבלים משותפים (רמקולי tri/bi-amp)</div>` + out.join('') : '';
+}
 function patchCabPick(key) {
   const cur = (PATCH.cab || {})[key] || '', ap = patchAutoProduct(key);
   ensureStock(P);
@@ -4669,7 +4696,7 @@ function patchRender() {
     <div class="pchPool ${PATCH.srcPool.length ? '' : 'ok'}" data-slot="srcpool">${PATCH.srcPool.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל המקורות מחוברים ✓</small>'}</div>
     <div style="height:1px;background:#e3ded3;margin:12px 0"></div>` :
     ((PATCH.srcPool || []).length ? `<div style="font-size:11.5px;color:#c96a13;background:#fdf3e6;border-radius:9px;padding:7px 9px;margin-bottom:9px">🎧 יש ${PATCH.srcPool.length} מקורות נגינה בתכנית, אבל אין בארון פרוססור/מיקסר לחבר אליו — הוסף אחד להצעה ולארון.</div>` : '');
-  const spkBlock = amps + `
+  const spkBlock = amps + patchBundleDiagrams() + `
     <div style="font-size:12px;font-weight:700;margin:10px 0 5px">${PATCH.pool.length ? '⚠ ' : '✓ '}רמקולים ללא ערוץ (${PATCH.pool.length})</div>
     <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(id2 => patchChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>
     ${PATCH.pool.length ? `<div style="display:flex;gap:6px;margin-top:6px">
