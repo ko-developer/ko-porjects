@@ -3558,18 +3558,20 @@ function renderWires() {
         <text x="${x}" y="${y + fs * 0.36}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="800" fill="${col}" style="user-select:none">${lbl}</text></g>`;
     };
     out += handle(pa.x, pa.y, 'from') + handle(pb.x, pb.y, 'to');
+    /* מלבן פינה עם מספר הכבל בתוכו — במקום עיגול נפרד על הקו; לחיצה בוחרת את הכבל, גרירה מזיזה את הפינה */
+    const lblS = String(LBL[c.id]), cw2 = Math.max(12, lblS.length * 5 + 6), cfs = 6.5;
+    const cornerLbl = (x, y, attrs, cur, tip) => `<g ${attrs} style="pointer-events:all;cursor:${cur}" onclick="pickCable('${c.id}')"><title>${tip}</title><rect x="${x - cw2 / 2}" y="${y - 4.5}" width="${cw2}" height="9" rx="2.5" fill="#fff" stroke="${col}" stroke-width="${c.id === selCable ? 2 : 1.2}"/><text x="${x}" y="${y + cfs * 0.37}" text-anchor="middle" font-size="${cfs}" font-weight="800" fill="${col}" style="user-select:none;pointer-events:none">${lblS}</text></g>`;
     if (ortho && it.vert) {
       /* פינות הפס הרוחבי — גרירה אנכית מזיזה את הפס (bend.dy) */
-      if (Math.abs(pa.x - pb.x) >= 2) out += [[pa.x, it.my], [pb.x, it.my]].map(([x, y]) => `<rect x="${x - 6}" y="${y - 3.5}" width="12" height="7" rx="2" fill="#fff" stroke="${col}" stroke-width="1.2" style="pointer-events:all;cursor:ns-resize" data-cbadge="${c.id}"><title>גרירה — הזזת הפס הרוחבי</title></rect>`).join('');
+      if (Math.abs(pa.x - pb.x) >= 2) out += [[pa.x, it.my], [pb.x, it.my]].map(([x, y]) => cornerLbl(x, y, `data-cbadge="${c.id}"`, 'ns-resize', 'גרירה — הזזת הפס הרוחבי')).join('');
     } else if (ortho) {
-      const corner = (x, y, end) => `<rect x="${x - 6}" y="${y - 3.5}" width="12" height="7" rx="2" fill="#fff" stroke="${col}" stroke-width="1.2" style="pointer-events:all;cursor:move" data-corner="${c.id}|${end}"><title>גרירה אופקית — הזזת הקו · אנכית — נקודת החיבור</title></rect>`;
-      out += corner(it.mx, pa.y, 'from') + corner(it.mx, pb.y, 'to');
+      out += cornerLbl(it.mx, pa.y, `data-corner="${c.id}|from"`, 'move', 'גרירה אופקית — הזזת הקו · אנכית — נקודת החיבור') + cornerLbl(it.mx, pb.y, `data-corner="${c.id}|to"`, 'move', 'גרירה אופקית — הזזת הקו · אנכית — נקודת החיבור');
     }
     const btip = esc(`${CTYPES[c.type].n}${c.cores ? ' · ' + c.cores + '× ' + coreTxt(c) : ''}${c.fiber ? ' · ' + c.fiber : ''}${c.spec ? ' · ' + c.spec : ''}${c.len ? ' · ' + c.len + ' מ׳' : ''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.note ? ' · ' + c.note : ''}${c.pOut || c.pIn ? ' · ' + (c.pOut || '?') + ' ← ' + (c.pIn || '?') : ''}`);
     /* המספר יושב בתוך עיגול הקצה עצמו (handle) — אין תג נפרד */
     const bR = Math.max(3.2, (String(LBL[c.id]).length > 2 ? 6 : 5) * shrink);
     const bF = Math.max(3.2, (String(LBL[c.id]).length > 2 ? 4.4 : 5.5) * shrink);
-    out += `<g style="pointer-events:all;cursor:grab" data-cbadge="${c.id}"><title>${btip}</title><circle cx="${it.bx}" cy="${it.by}" r="${bR.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3.5 : 2) * shrink}"/><text x="${it.bx}" y="${it.by + bF * 0.37}" text-anchor="middle" font-size="${bF.toFixed(1)}" font-weight="700" fill="${col}" style="user-select:none">${LBL[c.id]}</text></g>`;
+    if (!ortho) out += `<g style="pointer-events:all;cursor:grab" data-cbadge="${c.id}"><title>${btip}</title><circle cx="${it.bx}" cy="${it.by}" r="${bR.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3.5 : 2) * shrink}"/><text x="${it.bx}" y="${it.by + bF * 0.37}" text-anchor="middle" font-size="${bF.toFixed(1)}" font-weight="700" fill="${col}" style="user-select:none">${LBL[c.id]}</text></g>`;
   }
   /* קווי יישור בזמן גרירת מוקד */
   if (window.__alignG) {
@@ -7747,6 +7749,12 @@ document.addEventListener('pointermove', e => {
       if (nn === drag.n || !isIcon(nn) || nn.hidden) continue;
       if (gx == null && Math.abs(nn.x - drag.n.x) < TH) gx = nn.x;
       if (gy == null && Math.abs(nn.y - drag.n.y) < TH) gy = nn.y;
+    }
+    /* הצמדה לאובייקטים משורטטים (שולחן, בר, ספה): לצדדים ולמרכז — האייקון "נדבק" לקצה השולחן */
+    for (const o of (P.sketch && P.sketch.objs) || []) {
+      const cxs = [o.x - o.w / 2, o.x, o.x + o.w / 2].map(v => 2200 - v - 20), cys = [o.y - o.h / 2, o.y, o.y + o.h / 2].map(v => v - 24);
+      if (gx == null) for (const v of cxs) if (Math.abs(v - drag.n.x) < TH) { gx = v; break; }
+      if (gy == null) for (const v of cys) if (Math.abs(v - drag.n.y) < TH) { gy = v; break; }
     }
     if (gx != null) drag.n.x = gx;
     if (gy != null) drag.n.y = gy;
