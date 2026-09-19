@@ -2123,12 +2123,12 @@ function panelUnstack() {
 function stackArrange(stackAt) {
   const horiz = P.stackDir === 'h', GAP = 2;
   Object.values(stackAt).forEach(ids => {
-    if (ids.length < 2) return;
     const all = ids.map(id => ({ n: byId(id), el: document.getElementById('nd_' + id) })).filter(x => x.n && x.el);
+    if (all.length < 2 && !all.some(x => x.n.kind === 'panel' && !x.n.pmin)) return;
     const sizeOf = el => { const m = /scale\(([\d.]+)\)/.exec(el.style.transform || ''); const k = m ? +m[1] : 1; return { w: el.offsetWidth * k, h: el.offsetHeight * k }; };
     const place = (n, el, sx, sy) => { n._fanX = sx; n._fanY = sy; el.style.right = (n.x + sx - (n._chW || 0)) + 'px'; el.style.top = (n.y + sy) + 'px'; };
-    /* פאנלים פתוחים באותה נקודה: נפתחים ממנה לכיוונים הפוכים (הראשון למעלה — התחתית שלו בנקודה, השני למטה — הראש שלו בנקודה), רחוקים זה מזה ככל האפשר */
-    const opn = all.filter(x => x.n.kind === 'panel' && !x.n.pmin), els = opn.length >= 2 ? all.filter(x => !opn.includes(x)) : all;
+    /* פאנל פתוח נפתח תמיד הפוך מכיוון התשתית שמזינה אותו — כך הקופסה לא מסתירה את הכבלים שלה; שאר המוקדים שבנקודה נשארים בעמודה */
+    const opn = all.filter(x => x.n.kind === 'panel' && !x.n.pmin), els = all.filter(x => !opn.includes(x));
     const sizes = els.map(({ el }) => sizeOf(el));
     const total = sizes.reduce((a, s2) => a + (horiz ? s2.w : s2.h) + GAP, -GAP);
     let cur = -total / 2;
@@ -2136,11 +2136,14 @@ function stackArrange(stackAt) {
       const s2 = sizes[i], off = cur + (horiz ? s2.w : s2.h) / 2; cur += (horiz ? s2.w : s2.h) + GAP;
       place(n, el, horiz ? Math.round(off) : 0, horiz ? 0 : Math.round(off));
     });
-    if (opn.length >= 2) {
-      let up = total > 0 ? total / 2 + GAP : 0, down = total > 0 ? total / 2 + GAP : 0;
-      opn.forEach(({ n, el }, i) => { const s2 = sizeOf(el), len = horiz ? s2.w : s2.h; let off;
-        if (i % 2 === 0) { off = -(up + len); up += len + GAP; } else { off = down; down += len + GAP; }
-        place(n, el, horiz ? Math.round(off) : 0, horiz ? 0 : Math.round(off)); });
+    if (opn.length) {
+      /* כיוון התשתית: סכום הכיוונים (מנורמלים) מהנקודה אל הקצה השני של כל כבל; קצה באותה נקודה לא נספר */
+      let dx = 0, dy = 0; const ids2 = new Set(opn.map(x => x.n.id)), n0 = opn[0].n, px = 2200 - n0.x, py = n0.y;
+      (P.cables || []).forEach(c => { const mine = ids2.has(c.from) ? c.to : ids2.has(c.to) ? c.from : null; if (!mine || ids2.has(mine)) return; const o = byId(mine); if (!o || o.hidden) return; const vx = (2200 - o.x) - px, vy = o.y - py, d = Math.hypot(vx, vy); if (d < 30) return; dx += vx / d; dy += vy / d; });
+      const mag = Math.hypot(dx, dy) || 1, openUp = dy / mag > 0.2, openRight = dx / mag < -0.6;   /* כבלים יורדים → נפתח למעלה; כבלים הולכים שמאלה → נפתח ימינה */
+      let acc = total > 0 ? total / 2 + GAP : 0;
+      opn.forEach(({ n, el }) => { const s2 = sizeOf(el); const sy = openUp ? -(acc + s2.h) : acc; acc += s2.h + 6;
+        place(n, el, openRight ? -Math.round(s2.w) : 0, Math.round(sy)); });
     }
   });
 }
