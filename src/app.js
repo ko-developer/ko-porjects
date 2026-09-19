@@ -12237,6 +12237,26 @@ function exportPDF() {
      ורצועה בצבע הצינור סביב הקווים שעוברים באותו צינור (תג צ1 Ø50) */
   const snaps = [];
   const savedVis = JSON.stringify(P.cabVis || {});
+  /* בתכנית הכללית (ובתקריב) הכול סגור — אייקונים בלבד, והשם המלא כתוב מעל כל אייקון; גם קופסה שנשארה פתוחה במסך נסגרת כאן, ומוחזרת אחרי הצילום */
+  const ovSaved = P.nodes.map(n => [n, n.min, n.pmin, n.mini, n.full]);
+  P.nodes.forEach(n => { if (n.kind === 'rack') n.min = true; else if (n.kind === 'panel') n.pmin = true; else if (n.kind === 'point') { n.mini = true; n.full = false; } });
+  renderNodes(); renderWires();
+  { const host = $('#nodes'), cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ();
+    const rects = [...document.querySelectorAll('#nodes > .node')].map(el => { const r = el.getBoundingClientRect(); return { id: el.id.slice(3), L: (r.left - cr0.left) / Z0, R: (r.right - cr0.left) / Z0, T: (r.top - cr0.top) / Z0, B: (r.bottom - cr0.top) / Z0 }; });
+    /* השם מעל האייקון (ומעל תג הספירה שלו); אם המקום תפוס — בשם אחר, באייקון או בתג של שכן — השם עולה שורה, עד שמתפנה */
+    const placedL = [], hit = (a2, o) => a2.L < o.R && a2.R > o.L && a2.T < o.B && a2.B > o.T;
+    rects.slice().sort((a2, b2) => a2.T - b2.T).forEach(rc => { const n = byId(rc.id); if (!n || !n.name) return;
+      const w = Math.min(160, n.name.length * 5.4 + 12), cx = (rc.L + rc.R) / 2; let box = null;
+      for (let k2 = 0; k2 < 8; k2++) { const bot = rc.T - 20 - k2 * 15, cand = { L: cx - w / 2, R: cx + w / 2, T: bot - 14, B: bot };
+        if (!placedL.some(o => hit(cand, o)) && !rects.some(o => o !== rc && hit(cand, { L: o.L, R: o.R, T: o.T - 20, B: o.B }))) { box = cand; break; } }
+      if (!box) box = { L: cx - w / 2, R: cx + w / 2, T: rc.T - 34, B: rc.T - 20 };
+      placedL.push(box);
+      const lb = document.createElement('div'); lb.className = 'rpTmpLbl'; lb.textContent = n.name;
+      lb.style.cssText = `position:absolute;z-index:9;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:9px;font-weight:700;color:#1a1e28;background:rgba(255,255,255,.92);border:1px solid #c9c2b4;border-radius:5px;padding:0 4px;line-height:13px;pointer-events:none;direction:rtl;left:${cx}px;top:${box.B}px;transform:translate(-50%,-100%)`;
+      host.appendChild(lb);
+      /* קו דק מהשם אל האייקון כשהשם הורחק */
+      if (box.B < rc.T - 21) { const ln = document.createElement('div'); ln.className = 'rpTmpLbl'; ln.style.cssText = `position:absolute;z-index:8;left:${cx}px;top:${box.B}px;width:1px;height:${rc.T - 19 - box.B}px;background:#8a8377;pointer-events:none`; host.appendChild(ln); } }); }
+  const ovRestore = () => { document.querySelectorAll('#nodes > .rpTmpLbl').forEach(x => x.remove()); ovSaved.forEach(([n, a, b2, c2, d2]) => { if (a === undefined) delete n.min; else n.min = a; if (b2 === undefined) delete n.pmin; else n.pmin = b2; if (c2 === undefined) delete n.mini; else n.mini = c2; if (d2 === undefined) delete n.full; else n.full = d2; }); renderNodes(); renderWires(); };
   /* התכנית הכללית ממלאת את העמוד: חיתוך לתוכן (שרטוט הרקע + המוקדים + הקווים), בלי שוליים ריקים של הקנבס */
   { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
     const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
@@ -12252,6 +12272,7 @@ function exportPDF() {
     document.querySelectorAll('#nodes > .node').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
     if (L < Infinity && (R - L) < (xmax + 30) * 0.6) { const pad = 60; snaps.push(makeSnap('🔎 אזור הפעילות — תקריב', { L: Math.max(0, L - pad), T: Math.max(0, T - pad), R: Math.min(2200, R + pad), B: Math.min(1400, B + pad) }, 1000)); } }
+  ovRestore();
   /* שרטוט לכל קטגוריה שיש בה כבלים: מדליקים רק אותה, מרנדרים, מצלמים */
   const CAT_TITLES = { audio: '🔊 שרטוט חיווט סאונד', light: '💡 שרטוט חיווט תאורה', video: '📺 שרטוט חיווט וידאו', data: '🌐 שרטוט רשת ואופטי', power: '⚡ שרטוט חשמל' };
   const present = [...new Set((P.cables || []).map(c => CAB_GROUP[c.type] || 'audio'))];
