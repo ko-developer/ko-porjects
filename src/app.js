@@ -2107,6 +2107,25 @@ function objArrange(o) {
   const span = Math.min(L, nodes.length * iw), step = nodes.length > 1 ? span / nodes.length : 0, start = -span / 2 + step / 2;
   nodes.forEach((nn, i) => { const t = nodes.length > 1 ? start + i * step : 0; const cx = o.x + ux * t, cy = o.y + uy * t; nn.x = Math.max(0, 2200 - cx - 20); nn.y = Math.max(0, cy - 24); });
 }
+/* אייקונים צמודים (n.att = {id, sx, sy}): ממוקמים ביחס לאייקון העוגן לפי הגודל הנוכחי על המסך — גודל האייקון תלוי בזום, ולכן הצמידות מחושבת בכל רינדור */
+/* אייקון צמוד מוצג בהיסט מהמיקום השמור; בתחילת גרירה ההיסט נכנס למיקום עצמו — האייקון לא קופץ כשמתחילים לגרור */
+function bakeAtt(n) { if (n && n.att && isIconNode(n) && (n._fanX || n._fanY)) { n.x += n._fanX || 0; n.y += n._fanY || 0; n._fanX = 0; n._fanY = 0; } }
+function attachArrange() {
+  const list = P.nodes.filter(n => n.att); if (!list.length) return;
+  const cv = document.getElementById('canvas'); if (!cv) return; const Z = getZ() || 1;
+  const bx = el2 => { const cvr = cv.getBoundingClientRect(), r = el2.getBoundingClientRect(); return { cx: (r.left + r.width / 2 - cvr.left) / Z, cy: (r.top + r.height / 2 - cvr.top) / Z, W: r.width / Z, H: r.height / Z }; };
+  for (let pass = 0; pass < 6; pass++) { let changed = false;
+    for (const n of list) { const a = byId(n.att && n.att.id);
+      if (!n.att) continue;
+      if (!a || a.hidden || n.hidden || !isIconNode(a) || !isIconNode(n)) { if (!a) delete n.att; continue; }
+      const el = document.getElementById('nd_' + n.id), ea = document.getElementById('nd_' + a.id); if (!el || !ea) continue;
+      const mN = bx(el.querySelector('.mic') || el), nN = bx(el), mA = bx(ea.querySelector('.mic') || ea), nA = bx(ea), t = n.att;
+      const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1), tcy = t.sy === 0 ? mA.cy : (nA.cy + t.sy * ((nA.H + nN.H) / 2 + 1)) + (mN.cy - nN.cy);
+      const dX = tcx - mN.cx, dY = tcy - mN.cy; if (Math.abs(dX) < 0.3 && Math.abs(dY) < 0.3) continue;
+      const nr = parseFloat(el.style.right) - dX, nt = parseFloat(el.style.top) + dY; el.style.right = nr + 'px'; el.style.top = nt + 'px';
+      n._fanX = nr - n.x + (n._chW || 0); n._fanY = nt - n.y; changed = true; }
+    if (!changed) break; }
+}
 /* פאנלים פתוחים שעולים זה על זה — נדחפים למטה בזה אחר זה, ומסלולי הכבלים שלהם מחושבים מחדש */
 function panelUnstack() {
   const opn = P.nodes.filter(n => !n.hidden && n.kind === 'panel' && !n.pmin && document.getElementById('nd_' + n.id)).sort((a, b) => a.y - b.y);
@@ -2493,6 +2512,7 @@ function renderNodes() {
     host.appendChild(hd);
   }
   stackArrange(stackAt);
+  attachArrange();
   panelUnstack();
   if (window.__rackFocus) rackFocusMount();   /* ארון בגדול: האלמנט החדש עובר לחלון הצף */
 }
@@ -8213,6 +8233,12 @@ document.addEventListener('pointerdown', e => {
     e.preventDefault();
     return;
   }
+  /* אייקון קטן מכוסה חלקית בידיות הכבלים (קצה/תג) — כשהלחיצה בתוך אייקון, גוררים את האייקון ולא את הכבל */
+  let iconUnder = null;
+  if (!wireMode && e.target.closest && e.target.closest('[data-cend],[data-cbadge]') && document.elementsFromPoint) {
+    for (const q of document.elementsFromPoint(e.clientX, e.clientY)) { const nd = q.closest && q.closest('#nodes > .node.mini'); if (nd) { const nn = byId(nd.id.slice(3)); if (nn) { iconUnder = nn; break; } } }
+  }
+  if (iconUnder) { sel = iconUnder.id; ui.tab = 'node'; bakeAtt(iconUnder); drag = { n: iconUnder, sx: e.clientX, sy: e.clientY, ox: iconUnder.x, oy: iconUnder.y }; e.preventDefault(); return; }
   const ce = e.target.closest('[data-cend]');
   if (ce) {
     const [cid, end] = ce.dataset.cend.split('|');
@@ -8240,6 +8266,7 @@ document.addEventListener('pointerdown', e => {
   }
   const n = byId(h.dataset.drag);
   sel = n.id; ui.tab = 'node';
+  bakeAtt(n);
   drag = { n, sx: e.clientX, sy: e.clientY, ox: n.x, oy: n.y };
   e.preventDefault();
 });
@@ -8362,18 +8389,26 @@ document.addEventListener('pointermove', e => {
   if (isIcon(drag.n) && !P.snapOff && !e.altKey) {   /* הצמדה — אפשר לבטל בתפריט התצוגה, או זמנית עם Alt בזמן הגרירה */
     const TH = 8 / Z;
     let gx = null, gy = null;
-    /* לוחות וקופסאות מותקנים הרבה פעמים צמודים זה לזה: כשהאייקון מתקרב לצד של אייקון אחר הוא נצמד אליו קצה-לקצה (ומיושר איתו) */
-    const kk = (() => { const want = P.scale ? Math.min(30 / Z, Math.max(16 / Z, 0.5 / P.scale)) : 30 / Z; return Math.min(1, want / 30); })();
-    const elD = document.getElementById('nd_' + drag.n.id), wD = (elD ? elD.offsetWidth : 40) * kk, hD = (elD ? elD.offsetHeight : 54) * kk, TA = Math.max(12 / Z, wD * 0.75);   /* טווח ההצמדה — כשלושה רבעים מרוחב האייקון */
-    for (const nn of P.nodes) {
-      if (nn === drag.n || !isIcon(nn) || nn.hidden) continue;
-      const elO = document.getElementById('nd_' + nn.id), wO = (elO ? elO.offsetWidth : 40) * kk, hO = (elO ? elO.offsetHeight : 54) * kk;
-      const dxs = (wO + wD) / 2 + 2, dys = (hO + hD) / 2 + 2;   /* מרחק מרכזים כשצמודים */
-      for (const sx2 of [-1, 1]) { const tx = nn.x + sx2 * dxs; if (Math.abs(tx - drag.n.x) < TA && Math.abs(nn.y - drag.n.y) < hO) { gx = tx; gy = nn.y; break; } }
-      if (gx != null) break;
-      for (const sy2 of [-1, 1]) { const ty = nn.y + sy2 * dys; if (Math.abs(ty - drag.n.y) < TA && Math.abs(nn.x - drag.n.x) < wO) { gy = ty; gx = nn.x; break; } }
-      if (gy != null) break;
-    }
+    /* הצמדה לפי משבצות: לכל אייקון אחר ארבע משבצות צמודות (ימין/שמאל/מעל/מתחת). האייקון הנגרר נצמד למשבצת הפנויה הקרובה —
+       וכשהוא משוחרר מעל אייקון אחר הוא עובר למשבצת הפנויה הקרובה ביותר (אף פעם לא לאותה נקודה, שגורמת לשניהם לזוז) */
+    drag.att = null;
+    { const cvr = $('#canvas').getBoundingClientRect(), bx = el2 => { const r = el2.getBoundingClientRect(); return { cx: (r.left + r.width / 2 - cvr.left) / Z, cy: (r.top + r.height / 2 - cvr.top) / Z, W: r.width / Z, H: r.height / Z }; };
+      const elD = document.getElementById('nd_' + drag.n.id), micD = elD && (elD.querySelector('.mic') || elD);
+      if (elD && micD) {
+        if (!drag.off) { const m0 = bx(micD), n0 = bx(elD); drag.off = { x: 2200 - drag.ox - m0.cx + 0, y: m0.cy - drag.oy, dmy: m0.cy - n0.cy, W: m0.W, H: m0.H, nH: n0.H };
+          /* נקודת הייחוס נמדדה כשהאייקון במקומו המקורי (כולל היסט תצוגה) — מנקים את ההיסט כדי שהמיקום יהיה n.x/n.y בלבד */
+          drag.off.x -= (drag.n._fanX || 0); drag.off.y -= (drag.n._fanY || 0); }
+        const o = drag.off, raw = { cx: 2200 - drag.n.x - o.x, cy: drag.n.y + o.y };
+        const others = P.nodes.filter(nn => nn !== drag.n && isIcon(nn) && !nn.hidden).map(nn => { const e2 = document.getElementById('nd_' + nn.id); if (!e2) return null; const m = bx(e2.querySelector('.mic') || e2), nb = bx(e2); return { nn, m, nb }; }).filter(Boolean);
+        const over = (cx, cy, q) => Math.abs(cx - q.m.cx) < (o.W + q.m.W) / 2 - 1 && Math.abs(cy - q.m.cy) < (o.H + q.m.H) / 2 - 1;
+        const overlapping = others.some(q => over(raw.cx, raw.cy, q));
+        const range = overlapping ? o.W * 4 : Math.max(12 / Z, o.W * 0.75); let best = null;
+        for (const q of others) for (const [sx2, sy2] of [[1, 0], [-1, 0], [0, -1], [0, 1]]) {
+          const cx = q.m.cx + sx2 * ((q.m.W + o.W) / 2 + 1), cy = sy2 === 0 ? q.m.cy : (q.nb.cy + sy2 * ((q.nb.H + o.nH) / 2 + 1)) + o.dmy;
+          if (others.some(q2 => over(cx, cy, q2))) continue;
+          const d = Math.hypot(cx - raw.cx, cy - raw.cy); if (d < range && (!best || d < best.d)) best = { d, cx, cy, id: q.nn.id, sx: sx2, sy: sy2 }; }
+        if (best) { gx = 2200 - best.cx - o.x; gy = best.cy - o.y; drag.att = { id: best.id, sx: best.sx, sy: best.sy }; }
+      } }
     for (const nn of P.nodes) {
       if (nn === drag.n || !isIcon(nn) || nn.hidden) continue;
       if (gx == null && Math.abs(nn.x - drag.n.x) < TH) gx = nn.x;
@@ -8525,6 +8560,12 @@ document.addEventListener('pointerup', e => {
     document.querySelectorAll('.node.droptgt').forEach(el => el.classList.remove('droptgt'));
     /* שחרור אייקון על שולחן/בר משורטט — נצמד אליו ומסתדר בשורה לרוחבו יחד עם שאר האייקונים שעל אותו אובייקט */
     if (movedFar && isIconNode(n) && !P.snapOff && !e.altKey && objAttachDrop(n)) { render(); save(); return; }
+    if (movedFar) {
+      /* צמוד לאייקון אחר = קשר שנשמר (n.att) ומסודר מחדש בכל רינדור — נשאר צמוד בכל זום; גרירה הצידה מנתקת */
+      if (isIconNode(n) && moved.att) { let q = byId(moved.att.id), g = 0; while (q && q.att && g++ < 20) { if (q.att.id === n.id) { delete q.att; break; } q = byId(q.att.id); } n.att = moved.att; } else delete n.att;
+      /* הכבלים של מוקד שהוזז חוזרים למסלול הישר והקצר — כיפוף ידני ישן כבר לא מתאים למיקום החדש */
+      (P.cables || []).forEach(c => { if (c.from === n.id || c.to === n.id) { delete c.bend; delete c.aoff; } });
+    }
     if (movedFar && n.kind === 'point') {
       /* שחרור מעל ארון — המוצר נכנס לארון כיחידה (drag & drop), הכבלים שלו עוברים איתו */
       const me = document.getElementById('nd_' + n.id); const pe = me ? me.style.pointerEvents : ''; if (me) me.style.pointerEvents = 'none';
