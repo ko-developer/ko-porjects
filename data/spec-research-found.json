@@ -1,0 +1,236 @@
+{
+ "speakers": [
+  {
+   "model": "Euphoria 8 WR",
+   "url": "https://www.kt-audio.com/products/unicorn-euphoria-8-wr",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Euphoria_8_manual.pdf?v=1782209004"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/unicorn-euphoria-8-wr"
+   }
+  },
+  {
+   "model": "Euphoria 8",
+   "url": "https://www.kt-audio.com/products/unicorn-euphoria-8",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Euphoria_8_manual.pdf?v=1782209004"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/unicorn-euphoria-8"
+   }
+  },
+  {
+   "model": "INTERPID 800",
+   "url": "https://www.kt-audio.com/products/kt-interpid-800",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Interpid_800.pdf?v=1699200974"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/kt-interpid-800"
+   }
+  },
+  {
+   "model": "Till 15P SUB",
+   "url": "https://www.kt-audio.com/products/unicorn-till-15p-sub",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Till_Series.pdf?v=1699201518"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/unicorn-till-15p-sub"
+   }
+  },
+  {
+   "model": "Till 18P SUB",
+   "url": "https://www.kt-audio.com/products/unicorn-till-18p-sub",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Till_Series.pdf?v=1699201518"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/unicorn-till-18p-sub"
+   }
+  },
+  {
+   "model": "Till 12P",
+   "url": "https://www.kt-audio.com/products/unicorn-till-12p",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Till_Series.pdf?v=1699201518"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/unicorn-till-12p"
+   }
+  },
+  {
+   "model": "Till 8P",
+   "url": "https://www.kt-audio.com/products/unicorn-till-8p",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Till_Series.pdf?v=1699201518"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/unicorn-till-8p"
+   }
+  },
+  {
+   "model": "ARRAY 400",
+   "url": "https://www.kt-audio.com/products/kt-array-400",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/ARRAY-400-manual.pdf?v=1700998962"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/kt-array-400"
+   }
+  },
+  {
+   "model": "ARRAY 500",
+   "url": "https://www.kt-audio.com/products/kt-array-500",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/ARRAY_500_Manual.pdf?v=1700999730"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/kt-array-500"
+   }
+  },
+  {
+   "model": "ARRAY 650",
+   "url": "https://www.kt-audio.com/products/kt-array-650",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/ARRAY-650-manual.pdf?v=1700999919"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/kt-array-650"
+   }
+  },
+  {
+   "model": "Array 300",
+   "url": "https://www.kt-audio.com/products/kt-array-300",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MINIRAY_300.pdf?v=1699199488"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/kt-array-300"
+   }
+  },
+  {
+   "model": "WR 600",
+   "url": "https://www.kt-audio.com/products/kt-wr-600",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/WR_600.pdf?v=1699201011"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/kt-wr-600"
+   }
+  },
+  {
+   "model": "AX 8",
+   "url": "https://funktion-one.com/product/ax8",
+   "found": {
+    "h": 50,
+    "v": 25
+   },
+   "sources": {
+    "h": "https://funktion-one.cdn.prismic.io/funktion-one/a190ccc1-c5b1-4801-bc44-3a1a3ad0a893_Funktion-One_AX8_Spec_Sheet.pdf",
+    "v": "https://funktion-one.cdn.prismic.io/funktion-one/a190ccc1-c5b1-4801-bc44-3a1a3ad0a893_Funktion-One_AX8_Spec_Sheet.pdf"
+   }
+  },
+  {
+   "model": "F 5 : 2",
+   "url": "https://funktion-one.com/product/f5.2",
+   "found": {
+    "h": 45,
+    "v": 45
+   },
+   "sources": {
+    "h": "https://funktion-one.cdn.prismic.io/funktion-one/Z2Qh25bqstJ98rf__F5.2-F1-DS%3DD0014-01.pdf",
+    "v": "https://funktion-one.cdn.prismic.io/funktion-one/Z2Qh25bqstJ98rf__F5.2-F1-DS%3DD0014-01.pdf"
+   }
+  },
+  {
+   "model": "V 90",
+   "url": "https://funktion-one.com/product/v90",
+   "found": {
+    "v": 12
+   },
+   "sources": {
+    "v": "https://funktion-one.cdn.prismic.io/api/v2/documents/search (type=product, uid=v90) - the CMS feed behind funktion-one.com/product/v90"
+   }
+  },
+  {
+   "model": "PSM 318 DJ",
+   "url": "https://funktion-one.com/product/psm318-dj",
+   "found": {
+    "v": 70
+   },
+   "sources": {
+    "v": "https://funktion-one.cdn.prismic.io/api/v2/documents/search (type=product, uid=psm318-dj) - the CMS feed behind funktion-one.com/product/psm318-dj"
+   }
+  },
+  {
+   "model": "PSM 12",
+   "url": "https://funktion-one.com/product/psm12-point-source",
+   "found": {
+    "v": 70
+   },
+   "sources": {
+    "v": "https://funktion-one.cdn.prismic.io/api/v2/documents/search (type=product, uid=psm12-point-source) - the CMS feed behind funktion-one.com/product/psm12-point-source"
+   }
+  },
+  {
+   "model": "PSM 18",
+   "url": "https://funktion-one.com/product/psm18-point-source",
+   "found": {
+    "v": 70
+   },
+   "sources": {
+    "v": "https://funktion-one.cdn.prismic.io/api/v2/documents/search (type=product, uid=psm18-point-source) - the CMS feed behind funktion-one.com/product/psm18-point-source"
+   }
+  }
+ ],
+ "amps": [
+  {
+   "model": "DYNAMIQ 450",
+   "url": "https://www.kt-audio.com/products/unicorn-dynamiq-450",
+   "found": {
+    "io": "XLR balanced input, dual RJ45 (AES67) / Speakon 4-pole output",
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf?v=1774536680"
+   },
+   "sources": {
+    "io": "https://www.kt-audio.com/products/unicorn-dynamiq-450",
+    "man": "https://www.kt-audio.com/products/unicorn-dynamiq-450"
+   }
+  },
+  {
+   "model": "DYNAMIQ 750",
+   "url": "https://www.kt-audio.com/products/unicorn-dynamiq-750",
+   "found": {
+    "io": "XLR balanced input, dual RJ45 (AES67) / Speakon 4-pole output",
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf?v=1774536680"
+   },
+   "sources": {
+    "io": "https://www.kt-audio.com/products/unicorn-dynamiq-750",
+    "man": "https://www.kt-audio.com/products/unicorn-dynamiq-750"
+   }
+  },
+  {
+   "model": "MX3 700",
+   "url": "https://www.kt-audio.com/products/unicorn-mx3-700",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MX3_Series_Manual.pdf?v=1776079829"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/unicorn-mx3-700",
+    "io": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MX3_Series_Manual.pdf?v=1776079829"
+   }
+  },
+  {
+   "model": "MX3 200",
+   "url": "https://www.kt-audio.com/products/unicorn-mx3-200-750",
+   "found": {
+    "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MX3_Series_Manual.pdf?v=1776079829"
+   },
+   "sources": {
+    "man": "https://www.kt-audio.com/products/unicorn-mx3-200-750",
+    "io": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MX3_Series_Manual.pdf?v=1776079829"
+   }
+  }
+ ]
+}
