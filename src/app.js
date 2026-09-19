@@ -558,13 +558,19 @@ function matrixBand(name, band) {
   const row = hit[1], wo = (MATRIX_SPK.spk || {})[row], sp = (MATRIX_SPK.specs || {})[row] || {};
   return { row, w: sp.w ?? (wo ? wo[0] : undefined), o: sp.o ?? (wo ? wo[1] : undefined), sens: sp.sens, spl: sp.spl, freq: sp.freq, note: sp.note };
 }
+/* אופן ההגברה לפי דגם — כפי שנקבע על ידי הבעלים (Funktion-One). סיומת " 1"/" 11" בשם = שארית מזהה האתר (evo-7eh1), לא חלק מהדגם */
+const AMP_MODE_RULES = [
+  ['active', /\bRES(OLUTION)?\s*2\s*A\b/i],
+  ['tri', /\bEVO(LUTION)?\s*X$|\bEVO\s*7\s*T$|\bRES(OLUTION)?\s*[45]\s*[EST]$|\bPSM\s*318|\bVX?\s*(60|90)$/i],
+  ['bi', /\bEVO\s*2$|\bEVO\s*7\s*(EH|TH|SH(\s*SKELETAL)?)$|\bEVO(LUTION)?\s*XSH$|\bRES(OLUTION)?\s*(1(\s*[. ]\s*5(\s*TT)?)?|2)$|\bPSM\s*1[25]$|\bRM\s*1[25]$/i],
+];
+function ampModeRule(name) { const raw = (name || '').trim(); for (const nm of [raw, raw.replace(/\s+1{1,2}$/, '')]) for (const [mode, re] of AMP_MODE_RULES) if (re.test(nm)) return mode; return null; }
 function spkAmpMode(name) {
   const m = spkMetaFor(name); if (m && m.amp) return m.amp;
+  const rl = ampModeRule(name); if (rl) return rl;
   const mu = matrixMulti(name);
   if (mu) { const bands = new Set((mu.bands || []).map(([l]) => MX_BAND[String(l).toUpperCase()]).filter(Boolean)); if (bands.size >= 3) return 'tri'; if (bands.size === 2) return 'bi'; }
   if (/EVO(LUTION)?\s?X\b/i.test(name || '')) return 'tri';
-  /* Funktion-One Resolution 1 / 1.5 / 1.5TT / 2 — bi-amp (לא 2SH הפסיבי, לא 2A ולא הבסים) */
-  if (/\bRES(OLUTION)?\s*(1(\s*[. ]\s*5(\s*TT)?)?|2)\s*$/i.test((name || '').trim())) return 'bi';
   return 'passive';
 }
 /* רמקול bi/tri-amp שכבר יושב בערוץ (חיבור קיים / תכנון אוטומטי) — הפס הראשון נשאר בערוץ, שאר הפסים חוזרים למאגר לניתוב */
@@ -6245,10 +6251,9 @@ const SPEAKER_DATA = [
   { re: /EVO\s?7SH\s?SKELETAL\s?-?1\b/i, h: 40, v: 20, sens: 112, max: 136, w: 250, o: 24, ok: 1, url: 'https://funktion-one.com/product/evo-7sh-skeletal1', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/c0305dbd-39be-4e84-b359-d6fd40e2e2df_Funktion-One_Evo7SH_Spec_Sheet.pdf' }, /* Funktion-One EVO 7SH SKELETAL1 — 10" · 200Hz - 4kHz · 40° Horizontal x 20° Vertical · 2-way */
   { re: /EVO\s?6SH\s?SKELETAL/i, h: 50, v: 25, sens: 112, max: 136, w: 250, o: 24, ok: 1, url: 'https://funktion-one.com/product/evo-6sh-skeletal', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/7931aacf-0dec-41f5-a350-ee4e3cea6a81_Funktion-One_Evo6SH_Spec_Sheet.pdf' }, /* Funktion-One EVO 6SH SKELETAL — 10" · 200Hz - 4kHz · 50° Horizontal x 25° Vertical · 2-way */
   { re: /EVO\s?7SH\s?SKELETAL/i, h: 40, v: 20, sens: 112, max: 136, w: 250, o: 24, ok: 1, url: 'https://funktion-one.com/product/evo-7sh-skeletal', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/c0305dbd-39be-4e84-b359-d6fd40e2e2df_Funktion-One_Evo7SH_Spec_Sheet.pdf' }, /* Funktion-One EVO 7SH SKELETAL — 10" · 200Hz - 4kHz · 40° Horizontal x 20° Vertical · 2-way */
-  { re: /EVOLUTION\s?XSH\s?-?11\b/i, h: 90, v: 13, sens: 107, max: 130, w: 200, o: 16, ok: 1, url: 'https://funktion-one.com/product/evolution-xsh11', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/ZogKYx5LeNNTw009_EvolutionXSH-F1-DS%3DD0002-01.pdf' }, /* Funktion-One EVOLUTION XSH11 — 8" · 280Hz - 5kHz · 90° Horizontal x 13° Vertical · 2-way */
   { re: /Euphoria\s?12\s?Sub/i, h: 360, v: 360, sens: 99, max: 125, w: 400, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/unicorn-euphoria-12-sub' }, /* KT Audio Euphoria 12 Sub — 50Hz-200Hz ± 3dB */
   { re: /Array\s?SUB\s?1000\b/i, h: 360, v: 360, sens: 86, max: 111, w: 300, o: 4, ok: 1, url: 'https://www.kt-audio.com/products/array-sub', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Array_SUB.pdf' }, /* KT Audio Array SUB 1000 — 10" Polypropylene Cone · 20 - 300Hz */
-  { re: /EVOLUTION\s?XSH\s?-?1\b/i, h: 90, v: 13, sens: 107, max: 130, w: 200, o: 16, ok: 1, url: 'https://funktion-one.com/product/evolution-xsh1', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/ZogKYx5LeNNTw009_EvolutionXSH-F1-DS%3DD0002-01.pdf' }, /* Funktion-One EVOLUTION XSH1 — 8" · 280Hz - 5kHz · 90° Horizontal x 13° Vertical · 2-way */
+  { re: /EVOLUTION\s?XSH\b/i, h: 90, v: 13, sens: 107, max: 130, w: 200, o: 16, ok: 1, url: 'https://funktion-one.com/product/evolution-xsh1', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/ZogKYx5LeNNTw009_EvolutionXSH-F1-DS%3DD0002-01.pdf' }, /* Funktion-One EVOLUTION XSH1 — 8" · 280Hz - 5kHz · 90° Horizontal x 13° Vertical · 2-way */
   { re: /Euphoria\s?8\s?WR/i, h: 90, v: 60, sens: 94, max: 117, w: 200, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/unicorn-euphoria-8-wr' }, /* KT Audio Euphoria 8 WR — 60Hz–20KHz ± 3dB · 90° horizontal, 60° vertical */
   { re: /INTERPID\s?800\b/i, h: 90, v: 60, sens: 90, max: 109, w: 80, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/kt-interpid-800', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Interpid_800.pdf' }, /* KT Audio INTERPID 800 — 8" (203mm) Graphite Cone with Rubber Surround · 56Hz to 20Khz · PDF: 8 */
   { re: /Till\s?15P\s?SUB/i, h: 360, v: 360, sens: 96, max: 123, w: 500, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/unicorn-till-15p-sub', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Till_Series.pdf' }, /* KT Audio Till 15P SUB — 15” subwoofer · 38-120Hz */
@@ -6622,7 +6627,7 @@ function spkDataManager(tab) {
        <td style="text-align:center"><input value="${cell(r.d.max)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'max',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.w)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.o)}" style="width:32px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'o',this.value)"></td>
-       <td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','amp',this.value);spkDataManager('spk')">${[['passive', 'פסיבי'], ['bi', 'Bi-amp'], ['tri', 'Tri-amp']].map(([v, t]) => `<option value="${v}" ${(meta.amp || spkAmpMode(r.name)) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+       <td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','amp',this.value);spkDataManager('spk')">${[['passive', 'פסיבי'], ['bi', 'Bi-amp'], ['tri', 'Tri-amp'], ['active', 'מוגבר (אקטיבי)']].map(([v, t]) => `<option value="${v}" ${(meta.amp || spkAmpMode(r.name)) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="מפרט PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="ערוך קישור/PDF" onclick="editSpkLink(${arg})">✎</button></td>` :
       tab === 'amp' ?
         `<td style="text-align:center"><input value="${cell(r.d.ch)}" style="width:40px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'ch',this.value)"></td>

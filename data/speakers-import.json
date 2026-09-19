@@ -76,7 +76,7 @@
  },
  {
   "brand": "Funktion-One",
-  "model": "EVOLUTION XSH11",
+  "model": "EVOLUTION XSH",
   "h": 90,
   "v": 13,
   "sens": 107,
@@ -84,7 +84,7 @@
   "w": 200,
   "o": 16,
   "ok": 1,
-  "url": "https://funktion-one.com/product/evolution-xsh11",
+  "url": "https://funktion-one.com/product/evolution-xsh1",
   "pdf": "https://funktion-one.cdn.prismic.io/funktion-one/ZogKYx5LeNNTw009_EvolutionXSH-F1-DS%3DD0002-01.pdf",
   "man": null,
   "note": "8\" · 280Hz - 5kHz · 90° Horizontal x 13° Vertical · 2-way"
@@ -118,21 +118,6 @@
   "pdf": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Array_SUB.pdf",
   "man": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Array_SUB.pdf",
   "note": "10\" Polypropylene Cone · 20 - 300Hz"
- },
- {
-  "brand": "Funktion-One",
-  "model": "EVOLUTION XSH1",
-  "h": 90,
-  "v": 13,
-  "sens": 107,
-  "max": 130,
-  "w": 200,
-  "o": 16,
-  "ok": 1,
-  "url": "https://funktion-one.com/product/evolution-xsh1",
-  "pdf": "https://funktion-one.cdn.prismic.io/funktion-one/ZogKYx5LeNNTw009_EvolutionXSH-F1-DS%3DD0002-01.pdf",
-  "man": null,
-  "note": "8\" · 280Hz - 5kHz · 90° Horizontal x 13° Vertical · 2-way"
  },
  {
   "brand": "KT Audio",
