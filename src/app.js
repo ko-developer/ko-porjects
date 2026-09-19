@@ -12647,6 +12647,38 @@ function exportPDF() {
   reportPreview();
 }
 /* תצוגה מקדימה של הדוח לפני הדפסה — רואים את כל הפריסה ואז מחליטים */
+/* הורדת הדוח כקובץ PDF ישירות למחשב (בלי חלון ההדפסה של הדפדפן): כל מקטע מצולם (html2canvas) ונכנס לעמודי A4 (jsPDF); מקטע גבוה נחתך לכמה עמודים */
+async function reportDownloadPdf(page, btn) {
+  const lbl = btn.textContent; btn.disabled = true;
+  try {
+    btn.textContent = '⏳ טוען…';
+    if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    if (!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    const root = page.firstElementChild, blocks = [...root.children].filter(el => el.offsetHeight > 4);
+    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }), PW = 210, PH = 297, M = 9, CW = PW - 2 * M, CH = PH - 2 * M;
+    let y = M, first = true;
+    for (let i = 0; i < blocks.length; i++) {
+      btn.textContent = '⏳ ' + (i + 1) + '/' + blocks.length;
+      const cv = await window.html2canvas(blocks[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: root.scrollWidth });
+      if (!cv.width || !cv.height) continue;
+      const mmPerPx = CW / cv.width; let done = 0;
+      /* מקטע שנכנס בעמוד — לא נחתך: אם אין לו מקום ביתרת העמוד, עובר לעמוד חדש */
+      if (!first && cv.height * mmPerPx <= CH && y + cv.height * mmPerPx > PH - M) { pdf.addPage(); y = M; }
+      while (done < cv.height) {
+        const room = (PH - M - y) / mmPerPx; if (room < 40 / mmPerPx * 0.25) { pdf.addPage(); y = M; continue; }
+        const hPx = Math.min(cv.height - done, Math.floor(room)), part = document.createElement('canvas'); part.width = cv.width; part.height = hPx;
+        part.getContext('2d').drawImage(cv, 0, done, cv.width, hPx, 0, 0, cv.width, hPx);
+        pdf.addImage(part.toDataURL('image/jpeg', 0.86), 'JPEG', M, y, CW, hPx * mmPerPx, undefined, 'FAST');
+        done += hPx; y += hPx * mmPerPx + 3; first = false;
+        if (done < cv.height) { pdf.addPage(); y = M; }
+      }
+    }
+    const name = 'KO-דוח-' + String(P.name || 'פרויקט').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + '-' + new Date().toISOString().slice(0, 10) + '.pdf';
+    window.__lastReportPdf = { pages: pdf.getNumberOfPages(), name };
+    pdf.save(name); uiToast('⬇ הדוח ירד למחשב: ' + name);
+  } catch (e) { alert('יצירת ה-PDF נכשלה: ' + (e && e.message || e)); }
+  finally { btn.disabled = false; btn.textContent = lbl; }
+}
 function reportPreview() {
   const old = document.getElementById('rpPrev'); if (old) old.remove();
   const r = $('#report');
@@ -12659,6 +12691,7 @@ function reportPreview() {
       <b style="font-size:15px;flex:1;white-space:nowrap">📑 תצוגה מקדימה — ${esc(P.name.slice(0, 24))}</b>
       <span class="muted" style="font-size:11.5px">${pages} מקטעים · גלול לראות את כל הפריסה</span>
       <button id="rpPrint" style="background:#0f6e56;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer">🖨 הדפס / שמור PDF</button>
+      <button id="rpDl" style="background:#185fa5;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer" title="יוצר קובץ PDF ומוריד אותו למחשב — בלי חלון ההדפסה">⬇ הורד PDF למחשב</button>
       <button id="rpShare" style="background:#25D366;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer">📲 שתף</button>
       <button id="rpClose" style="border:1px solid #ddd;background:#fff;border-radius:9px;padding:9px 14px;cursor:pointer">ביטול</button>
     </div>
@@ -12674,6 +12707,7 @@ function reportPreview() {
     document.body.classList.add('printing');
     setTimeout(() => window.print(), 80);
   };
+  ov.querySelector('#rpDl').onclick = () => reportDownloadPdf(ov.querySelector('#rpPage'), ov.querySelector('#rpDl'));
   ov.querySelector('#rpShare').onclick = async () => {
     const txt = 'דוח פרויקט KO — ' + P.name + '\n' + (P.zones || []).length + ' אזורים · ' + P.cables.length + ' כבלים · ' + impItems.length + ' פריטים';
     if (navigator.share) { try { await navigator.share({ title: 'KO Projects — ' + P.name, text: txt }); return; } catch (e) {} }
