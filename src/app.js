@@ -2207,6 +2207,21 @@ function floatArrange() {
   }
   opn.forEach(n => floatRedraw(n, document.getElementById('ndo_' + n.id)));
 }
+/* קנה המידה של קופסה צפה (scale ב-transform) — המדידות בתוכה מחולקות בו */
+function fkOf(el) { const m = /scale\(([\d.]+)\)/.exec((el && el.style.transform) || ''); return m ? +m[1] : 1; }
+/* ידית הגדלה/הקטנה בפינה השמאלית-תחתונה של קופסה צפה (ארון/פאנל) — הגודל נשמר ב-n.fk וזהה לחזית ולגב */
+function floatResizeHandle(n, d) {
+  if (n.kind === 'rack') { d.style.transformOrigin = 'top right'; d.style.transform = 'scale(' + (n.fk || 1).toFixed(3) + ')'; }
+  const h = document.createElement('div'); h.title = 'גרור להגדלה / הקטנה של התצוגה (לחיצה כפולה = גודל רגיל)';
+  h.style.cssText = 'position:absolute;left:-7px;bottom:-7px;width:18px;height:18px;border-radius:50%;background:#ff8a50;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:nesw-resize;z-index:50;touch-action:none';
+  h.addEventListener('dblclick', e => { e.stopPropagation(); delete n.fk; render(); save(); });
+  h.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); h.setPointerCapture(e.pointerId);
+    const r0 = d.getBoundingClientRect(), fk0 = n.fk || 1, d0 = Math.hypot(r0.right - e.clientX, e.clientY - r0.top) || 1, base = n.kind === 'panel' ? PANEL_K : 1;
+    const mv = ev => { const dd = Math.hypot(r0.right - ev.clientX, ev.clientY - r0.top); n.fk = Math.max(0.4, Math.min(4, fk0 * dd / d0)); d.style.transform = 'scale(' + (base * n.fk).toFixed(3) + ')'; floatRedraw(n, d); renderWires(); };
+    const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); if (Math.abs((n.fk || 1) - 1) < 0.03) delete n.fk; render(); save(); };
+    h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); });
+  d.appendChild(h);
+}
 function floatRedraw(n, el) { if (!el) return; if (n.kind === 'panel') drawPanelCables(n, el); else if (n.kind === 'rack') { if (n.rear) drawRearCables(n, el); else drawRackFrontCables(n, el); } }
 function stackArrange(stackAt) {
   const horiz = P.stackDir === 'h', GAP = 2;
@@ -2318,7 +2333,7 @@ function renderNodes() {
         /* הגב מוקטן לרוחב החזית — לא תופס יותר שטח יחסי בתכנית; הזום מפצה על הקריאות */
         const rearWnat = panelW + CHW + LBLW + 44;
         /* הארון הפתוח צף ולא תופס מקום בתכנית — הגב נפתח ברוחב כפול מהחזית לפחות (עד גודל טבעי), כדי שהמחברים יהיו קריאים */
-        const RK = Math.min(1, Math.max(2 * Math.max(n._frontW || 240, 240), 520) / rearWnat);
+        const RK = Math.min(1, Math.max(n._frontW || 240, 172) / rearWnat);   /* הגב באותו רוחב של החזית — את הגודל קובעים בידית ההגדלה (n.fk), זהה לשני המצבים */
         n._rearK = RK; d._rearK = RK;
         d.style.width = Math.round(rearWnat * RK) + 'px';
         const pnum = s => { const m = /(\d+)/.exec(s || ''); return m ? +m[1] : null; };
@@ -2470,7 +2485,7 @@ function renderNodes() {
       const w = p.mode === 'matrix' ? Math.max(140, rowW() + 6) : (p.w || 240);
       d.style.width = (w + 22) + 'px';
       /* פאנל פתוח על התכנית — מוקטן (PANEL_K) כדי שלא יכסה את השרטוט; המסלולים הפנימיים מחושבים בקואורדינטות המקוריות ומוכפלים */
-      if (!n.pmin) { d.style.transformOrigin = 'top right'; d.style.transform = 'scale(' + PANEL_K + ')'; d.style.boxShadow = '0 6px 22px rgba(0,0,0,.28)'; }
+      if (!n.pmin) { d.style.transformOrigin = 'top right'; d.style.transform = 'scale(' + (PANEL_K * (n.fk || 1)).toFixed(3) + ')'; d.style.boxShadow = '0 6px 22px rgba(0,0,0,.28)'; }
       body = p.mode === 'free'
         ? `<div class="pnl" style="position:relative;height:${p.h || 140}px;display:block">${holesHTML(p, n.id, -1)}</div>`
         : `<div class="pnl" style="display:flex;flex-direction:column;gap:5px">${holesMatrixHTML(p, n.id, -1)}</div>`;
@@ -2558,6 +2573,7 @@ function renderNodes() {
       /* דאבל-קליק על רמקול → הצג כיסוי ובחר (הסיבוב עצמו בגרירת הידית) */
       e.stopPropagation(); sel = n.id; ui.tab = 'node'; P.showCoverage = true; render();
     });
+    if (floatPass) floatResizeHandle(n, d);
     host.appendChild(d);
     if (d._drawRear) drawRearCables(n, d); else if (floatPass && n.kind === 'rack') drawRackFrontCables(n, d);
     if (n.kind === 'panel' && !n.pmin) drawPanelCables(n, d);
@@ -2692,7 +2708,7 @@ function drawRearCables(n, d) {
   /* הגב מוקטן ב-scale(K) — המדידות מוחזרות לקואורדינטות הטבעיות של השלדה,
      כי ה-SVG הפנימי עצמו כבר בתוך העטיפה המוקטנת */
   const cr = chassis.getBoundingClientRect(), dr = d.getBoundingClientRect(), Z = getZ() || 1;
-  const K = d._rearK || 1, ZK = Z * K;
+  const FK = fkOf(d), K = (d._rearK || 1) * FK, ZK = Z * K;
   const ooR = ooOf(n), nodeLeftCanvas = 2200 - (n.x + (n._fanX || 0) - ooR.x) - d.offsetWidth;
   const ctr = el => { const r = el.getBoundingClientRect(); return { x: (r.left + r.width / 2 - cr.left) / ZK, y: (r.top + r.height / 2 - cr.top) / ZK }; };
   const toCanvas = (chx, chy) => ({ x: nodeLeftCanvas + (cr.left + chx * ZK - dr.left) / Z, y: n.y + (n._fanY || 0) + ooR.y + (cr.top + chy * ZK - dr.top) / Z });
@@ -2749,8 +2765,8 @@ function drawRearCables(n, d) {
 function drawRackFrontCables(n, d) {
   const old = d.querySelector('.rfsvg'); if (old) old.remove();
   const ext = P.cables.filter(c => (c.from === n.id) !== (c.to === n.id) && cableVisible(c) && byId(c.from) && byId(c.to)); if (!ext.length) return;
-  const Z = getZ() || 1, dr = d.getBoundingClientRect(), cvr = $('#canvas').getBoundingClientRect(), ib = nodeBox(n), H = dr.height / Z;
-  const exitDown = (ib.y + (ib.h || 0) / 2) > ((dr.top + dr.bottom) / 2 - cvr.top) / Z, LBL = cableLabels(), perU = {};
+  const FK = fkOf(d), Zs = getZ() || 1, Z = Zs * FK, dr = d.getBoundingClientRect(), cvr = $('#canvas').getBoundingClientRect(), ib = nodeBox(n), H = dr.height / Z;   /* Z — יחידות פנימיות של הקופסה (כולל n.fk) */
+  const exitDown = (ib.y + (ib.h || 0) / 2) > ((dr.top + dr.bottom) / 2 - cvr.top) / Zs, LBL = cableLabels(), perU = {};
   const ents = ext.map(c => { const uid = c.from === n.id ? c.fromUnit : c.toUnit, el = uid && d.querySelector(`[data-uid="${uid}"]`), r = el && el.getBoundingClientRect(); const k = uid || '-'; perU[k] = (perU[k] || 0) + 1;
     return r ? { c, x: (r.left - dr.left) / Z, y: (r.top + r.height / 2 - dr.top) / Z + (perU[k] - 1) * 4 - (perU[k] > 1 ? 2 : 0) } : null; }).filter(Boolean);   /* כבל שמחובר לארון כולו (בלי יחידה) — אין לו מסלול פנימי */
   if (!ents.length) return;
@@ -2761,7 +2777,7 @@ function drawRackFrontCables(n, d) {
     out += `<path d="M ${e.x} ${e.y} H ${tx} V ${exitDown ? H : 0}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round" opacity="0.9"/><circle cx="${e.x}" cy="${e.y}" r="2.6" fill="${col}"/>
       <g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${e.x + 9}" cy="${e.y}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${e.x + 9}" y="${e.y + 2.6}" text-anchor="middle" font-size="${String(LBL[e.c.id]).length > 2 ? 5.5 : 7}" font-weight="800" fill="${col}" style="user-select:none">${LBL[e.c.id]}</text></g>`; });
   const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', 'rfsvg'); sv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:2'; sv.innerHTML = out; d.appendChild(sv);
-  const mx = (Math.min(...xs) + Math.max(...xs)) / 2; FLOATPORT[n.id] = { x: (dr.left - cvr.left) / Z + mx, y: (exitDown ? dr.bottom : dr.top) / 1 / Z - cvr.top / Z, n: xs.length };
+  const mx = (Math.min(...xs) + Math.max(...xs)) / 2; FLOATPORT[n.id] = { x: (dr.left - cvr.left) / Zs + mx * FK, y: ((exitDown ? dr.bottom : dr.top) - cvr.top) / Zs, n: xs.length };
 }
 let rearPick = null, brush = 'xlrf', brushOn = false, panelEdit = null, wireMode = null, selHole = null;
 /* לחיצה על חור: מברשת פעילה → צביעה · אחרת בחירה, וחור שני בפאנל אחר → מתיחת כבל בין החורים */
@@ -3456,17 +3472,10 @@ function toggleRear(id) {
     /* הארון נשאר במקומו! הגב מוקטן לאותו שטח כמו החזית (scale ברינדור),
        והזום של כל הקנבס עולה (עד 400%) כדי שהפירוט יהיה קריא. */
     { const elF = document.getElementById('ndo_' + id) || el; n._frontW = elF && elF.offsetWidth > 120 ? elF.offsetWidth : 240; }   /* רוחב הארון הפתוח (הצף), לא של האייקון */
-    n._preZoom = getZ();
-    setTimeout(() => {
-      const k = n._rearK || 0.35;
-      const target = Math.min(5, (n._preZoom || 1) / Math.max(k, 0.2)); /* עד 500% אם הגב זקוק לזה */
-      if (target > getZ()) { P.zoom = target; applyZoom(); }
-      const el2 = document.getElementById('ndo_' + n.id) || document.getElementById('nd_' + n.id);
-      if (el2 && el2.scrollIntoView) el2.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-    }, 80);
+    /* היפוך צד בלבד: בלי שינוי זום ובלי גלילה — הארון הצף נשאר באותו מקום ובאותו גודל */
   } else {
     if (n._preRear) { n.x = n._preRear.x; n.y = n._preRear.y; n._preRear = undefined; } /* ארונות שהוזזו בגרסה הישנה */
-    if (n._preZoom) { P.zoom = n._preZoom; applyZoom(); n._preZoom = undefined; }
+    n._preZoom = undefined;
   }
   render(); }
 function pickRear(nodeId, unitId) {
@@ -9698,7 +9707,7 @@ function rackFocusMount() {
   /* האלמנט ממוקם absolute בקנבס — בחלון הוא סטטי, מוגדל לרוחב הזמין */
   body.innerHTML = '';
   const wrap = document.createElement('div'); wrap.style.cssText = 'position:relative;transform-origin:top center;';
-  el.style.position = 'relative'; el.style.right = 'auto'; el.style.top = 'auto'; el.style.left = 'auto'; el.style.zIndex = '1';
+  el.style.position = 'relative'; el.style.right = 'auto'; el.style.top = 'auto'; el.style.left = 'auto'; el.style.zIndex = '1'; el.style.transform = '';   /* בחלון הגדול קנה המידה נקבע על העטיפה, לא לפי n.fk */
   const natW = el.offsetWidth || Math.round((n._frontW || 240) / (n._rearK || 1)) || 600;
   const availW = Math.max(300, window.innerWidth - 60);
   const k = Math.min(availW / Math.max(1, natW), 3) * (window.__rackFocusK || 1);
