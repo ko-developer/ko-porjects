@@ -31,9 +31,13 @@ export async function initAuth(storage) {
 }
 /* הקובץ באחסון הוא האמת (המחשב והענן כותבים אליו): לפני כל שינוי קוראים אותו מחדש (force),
    ובקריאות רגילות מרעננים כל 10 שניות — כך סשן/הזמנה שנוצרו בצד השני נראים כאן, ומחיקה בצד אחד לא "קמה לתחייה" בצד השני */
+let refreshing = null;
 export async function authRefresh(force) {
   if (!ST || (!force && DB && Date.now() - loadedAt < 10e3)) return;
-  try { DB = normalize(await ST.readJson(FILE, null)); loadedAt = Date.now(); } catch (e) { if (!DB) throw e; console.warn('users.json refresh failed:', e.message); }
+  const run = async () => { try { DB = normalize(await ST.readJson(FILE, null)); loadedAt = Date.now(); } catch (e) { if (!DB) throw e; console.warn('users.json refresh failed:', e.message); } finally { refreshing = null; } };
+  /* כשכבר יש עותק בזיכרון — הרענון רץ ברקע ולא מעכב את הבקשה (כל בקשה לדף חיכתה כאן לקריאה מהדלי); רק טעינה ראשונה או force ממתינים */
+  if (DB && !force) { if (!refreshing) { loadedAt = Date.now(); refreshing = run().catch(() => {}); } return; }
+  return run();
 }
 function load() { if (!DB) throw new Error('auth not initialized — call initAuth(storage) first'); return DB; }
 export function config() { return load().config; }

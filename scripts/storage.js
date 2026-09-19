@@ -18,10 +18,11 @@ import { request as httpsRequest, Agent } from 'node:https';
    עם חיבור חי כל קריאה = סיבוב אחד לשרת (~0.4 שניות מהמחשב, מילישניות בענן) */
 const agent = new Agent({ keepAlive: true, keepAliveMsecs: 30e3, maxSockets: 24, timeout: 60e3 });
 /* timeout קצר לקריאות/רשימות (חיבור תקוע לא עוצר את הדף לדקה), ארוך להעלאות של פרויקטים גדולים */
-function http(url, { method = 'GET', headers = {}, body, timeout } = {}) {
+function http(url, { method = 'GET', headers = {}, body, timeout, fresh } = {}) {
   const tmo = timeout || (body && body.length > 65536 ? 120e3 : 15e3);
   return new Promise((resolve, reject) => {
-    const r = httpsRequest(url, { method, headers, agent }, res => {
+    /* fresh — ניסיון חוזר על חיבור חדש: חיבור חי "מת" (אחרי שינה/החלפת רשת) נתקע עד ה-timeout, וחזרה לאותו מאגר חיבורים רק חוזרת על התקיעה */
+    const r = httpsRequest(url, { method, headers, agent: fresh ? new Agent({ keepAlive: false }) : agent }, res => {
       const ch = []; res.on('data', c => ch.push(c));
       res.on('end', () => { const buf = Buffer.concat(ch); resolve({ status: res.statusCode, ok: res.statusCode >= 200 && res.statusCode < 300, arrayBuffer: async () => buf, text: async () => buf.toString('utf8'), json: async () => JSON.parse(buf.toString('utf8') || 'null') }); });
       res.on('error', reject);
@@ -80,7 +81,9 @@ function gcsStorage(bucket) {
     let last;
     for (let i = 0; i < tries; i++) {
       try {
-        const r = await http(url, { ...opts, headers: { ...(opts.headers || {}), authorization: 'Bearer ' + await token() } });
+        /* קריאות (בלי גוף): timeout קצר שעולה בהדרגה — 5, 8, 12 שניות — והניסיונות החוזרים על חיבור חדש; קודם כל תקיעה עלתה 3×15 שניות והדף חיכה לה */
+        const quick = !opts.body && !opts.timeout ? { timeout: [5e3, 8e3, 12e3][Math.min(i, 2)], fresh: i > 0 } : { fresh: i > 0 && !opts.body };
+        const r = await http(url, { ...opts, ...quick, headers: { ...(opts.headers || {}), authorization: 'Bearer ' + await token() } });
         if (r.status === 401 && i === 0) { tok = null; continue; }
         if ((r.status >= 500 || r.status === 429) && i < tries - 1) { await sleep(300 * 2 ** i); continue; }
         return r;

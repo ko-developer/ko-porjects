@@ -5,7 +5,7 @@
 //   sqlite — data/projects.sqlite (ברירת המחדל הישנה בלי DATA_BUCKET; נתוני משתמש, מחוץ ל-git)
 // הממשק אחיד ו-async: readStore(h) / writeStore(h, store).
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, readdirSync } from 'node:fs';
 import { makeStorage } from './storage.js';
 
 /* מטמון דיסק מקומי לאובייקטים מהדלי (data/.cache-gcs, gitignored): אחרי הפעלה מחדש של השרת המקומי
@@ -78,7 +78,37 @@ async function fetchChanged(h, items) {
     }
   }));
 }
+/* קריאת המאגר לא מחכה לדלי איטי: כשיש עותק בזיכרון והדלי לא ענה תוך 2.5 שניות — מגישים את העותק, והרענון ממשיך ברקע (הקריאה הבאה כבר מעודכנת) */
+/* הפעלה קרה (שרת שזה עתה עלה) מול דלי איטי: בונים את המאגר מהעותקים שבמטמון הדיסק, והקריאה מהדלי ממשיכה ברקע */
+function storeFromDisk(h) {
+  if (!DISK || h.st.kind !== 'gcs') return null;
+  try {
+    const pre = (h.prefix + 'p_').replace(/[^A-Za-z0-9._-]/g, '_'), metaF = (h.prefix + 'meta.json').replace(/[^A-Za-z0-9._-]/g, '_');
+    const projects = []; let meta = {};
+    for (const f of readdirSync(DISK)) { if (!f.startsWith(pre) && f !== metaF) continue; try { const j = JSON.parse(readFileSync(DISK + '/' + f, 'utf8')); if (f === metaF) meta = JSON.parse(j.str); else projects.push(JSON.parse(j.str)); } catch {} }
+    if (!projects.length) return null;
+    /* רק פרויקטים שהמטא מכיר — קובץ מטמון של פרויקט שנמחק לא חוזר לחיים */
+    const known = meta.order ? projects.filter(p2 => meta.order.includes(p2.id)) : projects;
+    if (meta.order) { const rank = Object.fromEntries(meta.order.map((id, i) => [id, i])); known.sort((a, b) => (rank[a.id] ?? 1e9) - (rank[b.id] ?? 1e9)); }
+    return { ...(meta.extra || {}), cur: meta.cur || (known[0] && known[0].id) || 'p1', projects: known };
+  } catch { return null; }
+}
 async function readJsonStore(h) {
+  if (!h.cache.size) {
+    if (!h.refreshing) h.refreshing = readJsonStoreFresh(h).finally(() => { h.refreshing = null; });
+    const cold = await Promise.race([h.refreshing.catch(() => null), new Promise(res => setTimeout(() => res(null), 3000))]);
+    if (cold) return cold;
+    const d = storeFromDisk(h); if (d) { console.warn('store: bucket slow on cold start — serving the local disk copy, refresh continues in background'); return d; }
+    return h.refreshing || readJsonStoreFresh(h);
+  }
+  if (!h.refreshing) h.refreshing = readJsonStoreFresh(h).then(v => { h.lastGood = v; return v; }).finally(() => { h.refreshing = null; });
+  const slow = new Promise(res => setTimeout(() => res(null), 2500));
+  const v = await Promise.race([h.refreshing.catch(() => null), slow]);
+  if (v) return v;
+  if (h.lastGood) { console.warn('store: bucket slow — serving the in-memory copy, refresh continues in background'); return h.lastGood; }
+  return h.refreshing;
+}
+async function readJsonStoreFresh(h) {
   let items;
   try { items = (await h.st.list(h.prefix)).filter(it => /(^|\/)(p_[^/]*\.json|meta\.json)$/.test(it.name)); h.lastList = items; }
   catch (e) {
@@ -95,7 +125,8 @@ async function readJsonStore(h) {
     try { if (it.name.endsWith('meta.json')) meta = JSON.parse(c.str); else projects.push(JSON.parse(c.str)); } catch {}
   }
   if (meta.order) { const rank = Object.fromEntries(meta.order.map((id, i) => [id, i])); projects.sort((a, b) => (rank[a.id] ?? 1e9) - (rank[b.id] ?? 1e9)); }
-  return { ...(meta.extra || {}), cur: meta.cur || (projects[0] && projects[0].id) || 'p1', projects };
+  const out = { ...(meta.extra || {}), cur: meta.cur || (projects[0] && projects[0].id) || 'p1', projects };
+  h.lastGood = out; return out;
 }
 async function writeJsonStore(h, store) {
   const { projects = [], cur, ...extra } = store;
