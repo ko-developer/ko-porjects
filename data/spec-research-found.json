@@ -183,6 +183,504 @@
    "sources": {
     "v": "https://funktion-one.cdn.prismic.io/api/v2/documents/search (type=product, uid=psm18-point-source) - the CMS feed behind funktion-one.com/product/psm18-point-source"
    }
+  },
+  {
+   "model": "SPECTRA 212 30 60",
+   "url": "https://www.kling-freitag.com/prorental/spectra/spectra-212/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_spectra-212_en.pdf",
+    "f": "56 Hz – 20 kHz (-10 dB, Full Range)"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/spectra/spectra-212/",
+    "f": "https://www.kling-freitag.com/prorental/spectra/spectra-212/"
+   }
+  },
+  {
+   "model": "SPECTRA 212 HI",
+   "url": "https://www.kling-freitag.com/prorental/spectra/spectra-212/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_spectra-212_en.pdf",
+    "f": "56 Hz – 20 kHz (-10 dB, Full Range)"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/spectra/spectra-212/",
+    "f": "https://www.kling-freitag.com/prorental/spectra/spectra-212/"
+   }
+  },
+  {
+   "model": "SPECTRA 212 XW",
+   "url": "https://www.kling-freitag.com/prorental/spectra/spectra-212-xw/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_spectra-212_en.pdf",
+    "f": "56 Hz – 20 kHz (-10 dB, Full Range)"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/spectra/spectra-212-xw/",
+    "f": "https://www.kling-freitag.com/prorental/spectra/spectra-212-xw/"
+   }
+  },
+  {
+   "model": "GRAVIS 12+ XW",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-12p-xw/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-12-plus_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-12p-xw/"
+   }
+  },
+  {
+   "model": "SUB NOMOS XLT",
+   "url": "https://www.kling-freitag.com/prorental/nomos/nomos-xlt/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_nomos-xlt_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/nomos/nomos-xlt/"
+   }
+  },
+  {
+   "model": "PASSIO SUB 12",
+   "url": "https://www.kling-freitag.com/prorental/passio/passio-sub-12/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_passio-sub-12_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/passio/passio-sub-12/"
+   }
+  },
+  {
+   "model": "PASSIO SUB 15",
+   "url": "https://www.kling-freitag.com/prorental/passio/passio-sub-15/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_passio-sub-15_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/passio/passio-sub-15/"
+   }
+  },
+  {
+   "model": "GRAVIS 12+ N",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-12p-n/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-12-plus_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-12p-n/"
+   }
+  },
+  {
+   "model": "GRAVIS 12+ W",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-12p-w/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-12-plus_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-12p-w/"
+   }
+  },
+  {
+   "model": "GRAVIS 15 XW",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-15-xw/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-15_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-15-xw/"
+   }
+  },
+  {
+   "model": "SEQUENZA 5 W",
+   "url": "https://www.kling-freitag.com/prorental/sequenza-5/sequenza-5-w/",
+   "found": {
+    "h": 100,
+    "v": 15,
+    "man": "https://www.kling-freitag.com/content/uploads/man_sequenza-5_en.pdf"
+   },
+   "sources": {
+    "h": "https://www.kling-freitag.com/prorental/sequenza-5/sequenza-5-w/",
+    "v": "https://www.kling-freitag.com/prorental/sequenza-5/sequenza-5-w/",
+    "man": "https://www.kling-freitag.com/prorental/sequenza-5/sequenza-5-w/"
+   }
+  },
+  {
+   "model": "SEQUENZA 8 B",
+   "url": "https://www.kling-freitag.com/prorental/sequenza-8/sequenza-8-b/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_sequenza-8_en.pdf",
+    "f": "33 Hz – 143 Hz (-10 dB)"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/sequenza-8/sequenza-8-b/",
+    "f": "https://www.kling-freitag.com/prorental/sequenza-8/sequenza-8-b/"
+   }
+  },
+  {
+   "model": "GRAVIS 15 N",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-15-n/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-15_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-15-n/"
+   }
+  },
+  {
+   "model": "GRAVIS 15 W",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-15-w/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-15_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-15-w/"
+   }
+  },
+  {
+   "model": "GRAVIS 8 XW",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-8-xw/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-8_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-8-xw/"
+   }
+  },
+  {
+   "model": "SPECTRA 212",
+   "url": "https://www.kling-freitag.com/prorental/spectra/spectra-212/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_spectra-212_en.pdf",
+    "f": "56 Hz – 20 kHz (-10 dB, Full Range)"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/spectra/spectra-212/",
+    "f": "https://www.kling-freitag.com/prorental/spectra/spectra-212/"
+   }
+  },
+  {
+   "model": "GRAVIS 8 W",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-8-w/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-8_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-8-w/"
+   }
+  },
+  {
+   "model": "NOMOS LS 2",
+   "url": "https://www.kling-freitag.com/prorental/nomos/nomos-ls-2/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_nomos-ls-2_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/nomos/nomos-ls-2/"
+   }
+  },
+  {
+   "model": "SEQUENZA 5",
+   "url": "https://www.kling-freitag.com/prorental/sequenza-5/",
+   "found": {
+    "h": 100,
+    "v": 15,
+    "man": "https://www.kling-freitag.com/content/uploads/man_sequenza-5_en.pdf"
+   },
+   "sources": {
+    "h": "https://www.kling-freitag.com/prorental/sequenza-5/",
+    "v": "https://www.kling-freitag.com/prorental/sequenza-5/",
+    "man": "https://www.kling-freitag.com/prorental/sequenza-5/sequenza-5-w/"
+   }
+  },
+  {
+   "model": "SEQUENZA 8",
+   "url": "https://www.kling-freitag.com/prorental/sequenza-8/sequenza-8/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_sequenza-8_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/sequenza-8/sequenza-8/"
+   }
+  },
+  {
+   "model": "SONA 8 XW",
+   "url": "https://www.kling-freitag.com/prorental/sona/sona-8-xw/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_sona-8_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/sona/sona-8-xw/"
+   }
+  },
+  {
+   "model": "GRAVIS 12",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-12p-n/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-12-plus_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-12p-n/"
+   }
+  },
+  {
+   "model": "GRAVIS 15",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-15-n/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-15_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-15-n/"
+   }
+  },
+  {
+   "model": "NOMOS XLS",
+   "url": "https://www.kling-freitag.com/prorental/nomos/nomos-xls/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_nomos-xls_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/nomos/nomos-xls/"
+   }
+  },
+  {
+   "model": "NOMOS XLT",
+   "url": "https://www.kling-freitag.com/prorental/nomos/nomos-xlt/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_nomos-xlt_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/nomos/nomos-xlt/"
+   }
+  },
+  {
+   "model": "LS 2 NOMOS",
+   "url": "https://www.kling-freitag.com/prorental/nomos/nomos-ls-2/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_nomos-ls-2_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/nomos/nomos-ls-2/"
+   }
+  },
+  {
+   "model": "SONA SUB",
+   "url": "https://www.kling-freitag.com/prorental/sona/sona-sub/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_sona-sub_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/sona/sona-sub/"
+   }
+  },
+  {
+   "model": "GRAVIS 8",
+   "url": "https://www.kling-freitag.com/prorental/gravis/gravis-8-w/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_gravis-8_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/gravis/gravis-8-w/"
+   }
+  },
+  {
+   "model": "NOMOS LT",
+   "url": "https://www.kling-freitag.com/prorental/nomos/nomos-lt/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_nomos-lt_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/nomos/nomos-lt/"
+   }
+  },
+  {
+   "model": "SCENA 12",
+   "url": "https://www.kling-freitag.com/prorental/scena/scena-12/",
+   "found": {
+    "h": 80,
+    "v": 80,
+    "man": "https://www.kling-freitag.com/content/uploads/man_scena-12_en.pdf"
+   },
+   "sources": {
+    "h": "https://www.kling-freitag.com/prorental/scena/scena-12/",
+    "v": "https://www.kling-freitag.com/prorental/scena/scena-12/",
+    "man": "https://www.kling-freitag.com/prorental/scena/scena-12/"
+   }
+  },
+  {
+   "model": "SCENA 15",
+   "url": "https://www.kling-freitag.com/prorental/scena/scena-15/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_scena-15_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/scena/scena-15/"
+   }
+  },
+  {
+   "model": "CA 1215 9",
+   "url": "https://www.kling-freitag.com/content/uploads/ds_ca-1215-9_en.pdf",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_ca-12xx-1515_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/service/downloads/"
+   }
+  },
+  {
+   "model": "CA 1515 9",
+   "url": "https://www.kling-freitag.com/content/uploads/ds_ca-1515-9_en.pdf",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_ca-12xx-1515_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/service/downloads/"
+   }
+  },
+  {
+   "model": "VIDA 110",
+   "url": "https://www.kling-freitag.com/prorental/vida/vida-m/",
+   "found": {
+    "h": 90,
+    "man": "https://www.kling-freitag.com/content/uploads/man_vida-m_en.pdf",
+    "f": "95 Hz – 22 kHz (-10 dB)"
+   },
+   "sources": {
+    "h": "https://www.kling-freitag.com/prorental/vida/vida-m/",
+    "man": "https://www.kling-freitag.com/prorental/vida/vida-m/",
+    "f": "https://www.kling-freitag.com/prorental/vida/vida-m/"
+   }
+  },
+  {
+   "model": "VIDA 220",
+   "url": "https://www.kling-freitag.com/prorental/vida/vida-m/",
+   "found": {
+    "h": 90,
+    "man": "https://www.kling-freitag.com/content/uploads/man_vida-m_en.pdf",
+    "f": "95 Hz – 22 kHz (-10 dB)"
+   },
+   "sources": {
+    "h": "https://www.kling-freitag.com/prorental/vida/vida-m/",
+    "man": "https://www.kling-freitag.com/prorental/vida/vida-m/",
+    "f": "https://www.kling-freitag.com/prorental/vida/vida-m/"
+   }
+  },
+  {
+   "model": "PASSIO W",
+   "url": "https://www.kling-freitag.com/prorental/passio/passio-w/",
+   "found": {
+    "pdf": "https://www.kling-freitag.com/content/uploads/ds_passio-w_en.pdf",
+    "man": "https://www.kling-freitag.com/content/uploads/man_passio_en.pdf"
+   },
+   "sources": {
+    "pdf": "https://www.kling-freitag.com/prorental/passio/passio-w/",
+    "man": "https://www.kling-freitag.com/prorental/passio/passio-w/"
+   }
+  },
+  {
+   "model": "PIA LFX",
+   "url": "https://www.kling-freitag.com/prorental/pia/pia-lfx/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_pia-lfx_en.pdf",
+    "f": "52 Hz – 240 Hz (10 dB limits); 65 Hz – 160 Hz (±3 dB)"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/pia/pia-lfx/",
+    "f": "https://www.kling-freitag.com/prorental/pia/pia-lfx/"
+   }
+  },
+  {
+   "model": "SONA 5",
+   "url": "https://www.kling-freitag.com/prorental/sona/sona-5/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_sona-5_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/sona/sona-5/"
+   }
+  },
+  {
+   "model": "SONA 6",
+   "url": "https://www.kling-freitag.com/prorental/sona/sona-6/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_sona-6_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/sona/sona-6/"
+   }
+  },
+  {
+   "model": "SONA 8",
+   "url": "https://www.kling-freitag.com/prorental/sona/sona-8/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_sona-8_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/sona/sona-8/"
+   }
+  },
+  {
+   "model": "CA 106",
+   "url": "https://www.kling-freitag.com/content/uploads/ds_ca-106_en.pdf",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_ca-106_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/service/downloads/"
+   }
+  },
+  {
+   "model": "SW 118E",
+   "url": "https://www.kling-freitag.com/content/uploads/ds_sw-118-e_en.pdf",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_sw-subwoofer_en.pdf",
+    "sens": 97
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/service/downloads/",
+    "sens": "https://www.kling-freitag.com/content/uploads/ds_sw-118-e_en.pdf"
+   }
+  },
+  {
+   "model": "SW 215E",
+   "url": "https://www.kling-freitag.com/content/uploads/ds_sw-215-e_en.pdf",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_sw-subwoofer_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/service/downloads/"
+   }
+  },
+  {
+   "model": "C 1001",
+   "url": "https://www.kling-freitag.com/content/uploads/ds_ca-1001_en.pdf",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_ca-1001_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/service/downloads/"
+   }
+  },
+  {
+   "model": "PIA M",
+   "url": "https://www.kling-freitag.com/prorental/pia/pia-m/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_pia-m_en.pdf",
+    "f": "85 Hz – 23 kHz (10 dB limits, Bass Reflex mode); 102 Hz – 22 kHz (±3 dB)"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/prorental/pia/pia-m/",
+    "f": "https://www.kling-freitag.com/prorental/pia/pia-m/"
+   }
+  },
+  {
+   "model": "CD 44",
+   "url": "https://www.kling-freitag.com/content/uploads/ds_cd-44_en.pdf",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_cd-44-digitaler-systemcontroller_en.pdf"
+   },
+   "sources": {
+    "man": "https://www.kling-freitag.com/service/downloads/"
+   }
   }
  ],
  "amps": [
@@ -230,6 +728,160 @@
    "sources": {
     "man": "https://www.kt-audio.com/products/unicorn-mx3-200-750",
     "io": "https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MX3_Series_Manual.pdf?v=1776079829"
+   }
+  },
+  {
+   "model": "IPX 20: 4",
+   "url": "https://www.kling-freitag.com/proinstall/ipx-series/ipx204/",
+   "found": {
+    "io": "In: 2 x 6-pin Euroblock male (analog in/thru), OMNEO/Dante network audio 8 in / 2 monitor out; Out: 1 x 8-pin Euroblock 6 mm female (speaker)",
+    "man": "https://www.kling-freitag.com/content/uploads/man_ipx-dsp_en.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/content/uploads/ds_ipx-dsp_en.pdf",
+    "man": "https://www.kling-freitag.com/proinstall/ipx-series/ipx204/"
+   }
+  },
+  {
+   "model": "IPX 10: 8",
+   "url": "https://www.kling-freitag.com/proinstall/ipx-series/ipx108/",
+   "found": {
+    "io": "In: 4 x 6-pin Euroblock male (analog in/thru), OMNEO/Dante network audio 8 in / 2 monitor out; Out: 2 x 8-pin Euroblock 6 mm female (speaker)",
+    "man": "https://www.kling-freitag.com/content/uploads/man_ipx-dsp_en.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/content/uploads/ds_ipx-dsp_en.pdf",
+    "man": "https://www.kling-freitag.com/proinstall/ipx-series/ipx108/"
+   }
+  },
+  {
+   "model": "IPX 10: 4",
+   "url": "https://www.kling-freitag.com/proinstall/ipx-series/ipx104/",
+   "found": {
+    "io": "In: 2 x 6-pin Euroblock male (analog in/thru), OMNEO/Dante network audio 8 in / 2 monitor out; Out: 1 x 8-pin Euroblock 6 mm female (speaker)",
+    "man": "https://www.kling-freitag.com/content/uploads/man_ipx-dsp_en.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/content/uploads/ds_ipx-dsp_en.pdf",
+    "man": "https://www.kling-freitag.com/proinstall/ipx-series/ipx104/"
+   }
+  },
+  {
+   "model": "IPX 5: 4",
+   "url": "https://www.kling-freitag.com/proinstall/ipx-series/ipx54/",
+   "found": {
+    "io": "In: 2 x 6-pin Euroblock male (analog in/thru), OMNEO/Dante network audio 8 in / 2 monitor out; Out: 1 x 8-pin Euroblock 6 mm female (speaker)",
+    "man": "https://www.kling-freitag.com/content/uploads/man_ipx-dsp_en.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/content/uploads/ds_ipx-dsp_en.pdf",
+    "man": "https://www.kling-freitag.com/proinstall/ipx-series/ipx54/"
+   }
+  },
+  {
+   "model": "IPX 2400",
+   "url": "https://www.kling-freitag.com/proinstall/kf-ipx/kf-ipx/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_ipx-quick-start-guide.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/proinstall/kf-ipx/kf-ipx/",
+    "man": "https://www.kling-freitag.com/proinstall/kf-ipx/kf-ipx/"
+   }
+  },
+  {
+   "model": "IPX 1200",
+   "url": "https://www.kling-freitag.com/proinstall/kf-ipx/kf-ipx/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_ipx-quick-start-guide.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/proinstall/kf-ipx/kf-ipx/",
+    "man": "https://www.kling-freitag.com/proinstall/kf-ipx/kf-ipx/"
+   }
+  },
+  {
+   "model": "TGX \\d",
+   "url": "https://www.kling-freitag.com/proinstall/tgx-series/",
+   "found": {
+    "io": "In: 4 x 3-pin XLR female/male (analog in/thru), 2 x 3-pin XLR AES3, 2 x Neutrik etherCON RJ45 (OMNEO/Dante 8 in / 2 monitor out); Out: 4 x NL4",
+    "pdf": "https://www.kling-freitag.com/content/uploads/ds_tgx_en.pdf",
+    "man": "https://www.kling-freitag.com/content/uploads/man_tgx_en.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/content/uploads/ds_tgx_en.pdf",
+    "pdf": "https://www.kling-freitag.com/proinstall/tgx-series/tgx20/",
+    "man": "https://www.kling-freitag.com/proinstall/tgx-series/tgx20/"
+   }
+  },
+  {
+   "model": "IX 15: 4",
+   "url": "https://www.kling-freitag.com/proinstall/ix-series/ix154/",
+   "found": {
+    "man": "https://www.kling-freitag.com/content/uploads/man_ix_en.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/proinstall/ix-series/ix154/",
+    "man": "https://www.kling-freitag.com/proinstall/ix-series/ix154/"
+   }
+  },
+  {
+   "model": "IX \\d",
+   "url": "https://www.kling-freitag.com/proinstall/ix-series/",
+   "found": {
+    "pdf": "https://www.kling-freitag.com/content/uploads/ds_ix_en.pdf",
+    "man": "https://www.kling-freitag.com/content/uploads/man_ix_en.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/content/uploads/ds_ix_en.pdf",
+    "pdf": "https://www.kling-freitag.com/proinstall/ix-series/ix154/",
+    "man": "https://www.kling-freitag.com/proinstall/ix-series/ix154/"
+   }
+  },
+  {
+   "model": "D 40: 4",
+   "url": "https://www.kling-freitag.com/proinstall/d-series/d-40-4/",
+   "found": {
+    "io": "In: 4 x terminal block (analog), 2 x terminal block (AES, 4 ch), 8x8 Dante via 2 x etherCON RJ45; Out: 4 x 2-pole terminal block (speaker)",
+    "man": "https://www.kling-freitag.com/content/uploads/man_kf-d-series-quick-start-guide.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/content/uploads/ds_d-40-4_en.pdf",
+    "man": "https://www.kling-freitag.com/proinstall/d-series/d-40-4/"
+   }
+  },
+  {
+   "model": "D 120: 4",
+   "url": "https://www.kling-freitag.com/proinstall/d-series/d-120-4/",
+   "found": {
+    "io": "In: 4 x terminal block (analog), 2 x terminal block (AES, 4 ch), 8x8 Dante via 2 x etherCON RJ45; Out: 4 x 2-pole terminal block (speaker)",
+    "man": "https://www.kling-freitag.com/content/uploads/man_kf-d-series-quick-start-guide.pdf"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/content/uploads/ds_d-120-4_en.pdf",
+    "man": "https://www.kling-freitag.com/proinstall/d-series/d-120-4/"
+   }
+  },
+  {
+   "model": "TOPAS",
+   "url": "https://www.kling-freitag.com/content/uploads/ds_topas_en.pdf",
+   "found": {
+    "pdf": "https://www.kling-freitag.com/content/uploads/ds_topas_en.pdf",
+    "man": "https://www.kling-freitag.com/content/uploads/man_topas_en.pdf"
+   },
+   "sources": {
+    "pdf": "https://www.kling-freitag.com/service/downloads/",
+    "man": "https://www.kling-freitag.com/service/downloads/"
+   }
+  },
+  {
+   "model": "SCALA",
+   "url": "https://www.kling-freitag.com/proinstall/kf-scala/",
+   "found": {
+    "io": "Dante, MADI, AES67, AVB; up to 128 live inputs / up to 128 output channels (immersive audio processor, no power stage)"
+   },
+   "sources": {
+    "io": "https://www.kling-freitag.com/proinstall/kf-scala/"
    }
   }
  ]
