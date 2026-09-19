@@ -2095,7 +2095,7 @@ function objAttachDrop(n) {
     if (Math.abs(lx) <= o.w / 2 + M && Math.abs(ly) <= o.h / 2 + M) { hit = o; break; }
   }
   if (!hit) { if (n.onObj) { delete n.onObj; return false; } return false; }
-  n.onObj = hit.id; objArrange(hit); return true;
+  n.onObj = hit.id; return false;   /* משויך לאובייקט, אבל נשאר בדיוק במקום שבו הונח — בלי סידור אוטומטי */
 }
 function objArrange(o) {
   const nodes = P.nodes.filter(nn => nn.onObj === o.id && !nn.hidden); if (!nodes.length) return;
@@ -2158,7 +2158,7 @@ function renderNodes() {
     if (n.hidden) continue;
     /* ארון פתוח הוא גדול — רק ארון מכווץ נחשב "אייקון" שאפשר לפרוש */
     if (n.kind === 'rack' && !n.min) continue;
-    const k = Math.round(n.x / 26) + '|' + Math.round(n.y / 26);
+    const k = Math.round(n.x / 4) + '|' + Math.round(n.y / 4);   /* רק מוקדים שיושבים ממש באותה נקודה נפרשים — אייקון שהונח ליד אחר נשאר בדיוק איפה שהונח */
     (stackAt[k] = stackAt[k] || []).push(n.id);
   }
   Object.values(stackAt).forEach(ids => {
@@ -3462,25 +3462,33 @@ function renderWires() {
     }
     const st = stackedBoxes(A, B);
     if (st) return { A, B, aside: st === 'AB' ? 'B' : 'T', bside: st === 'AB' ? 'T' : 'B', vert: true };
+    /* שני אייקונים שאחד מהם מעל השני (גם בלי חפיפה מלאה ברוחב): מסלול ישר — יציאה מלמטה, כניסה מלמעלה, פס קצר אחד אם צריך; בלי לולאות מהצד */
+    const icn = q => q.kind === 'point' || (q.kind === 'panel' && q.pmin) || (q.kind === 'rack' && q.min);
+    if (icn(a) && icn(b)) { const gapV = Math.max(B.y - (A.y + (A.h || 0)), A.y - (B.y + (B.h || 0))), dxc = Math.abs(acx - bcx);
+      if (gapV > 8 && gapV >= dxc * 0.6) { const ab = B.y > A.y; return { A, B, aside: ab ? 'B' : 'T', bside: ab ? 'T' : 'B', vert: true }; } }
     return { A, B, aside: bcx < acx ? 'L' : 'R', bside: acx < bcx ? 'L' : 'R' };
   };
   /* ספירת חיבורים לכל צד של מוקד — כדי לפזר כניסות */
-  const sideTot = {}, sideIdx = {};
+  const sideTot = {}, sideIdx = {}, sideSeen = {}, sideGrp = {};
+  const grpKeyOf = c => c.conduit ? c.conduit + '|' + c.from + '|' + c.to : c.id;
+  const nextIdx = (k, c) => { const g2 = k + '|' + grpKeyOf(c); return sideGrp[g2] ??= (sideIdx[k] = (sideIdx[k] || 0) + 1); };
   P.cables.forEach(c => {
     const f = info(c); if (!f || !cableVisible(c)) return;
     const fn2 = byId(c.from), tn2 = byId(c.to);
     /* ארון ממוזער — גם חיבורי יחידות נספרים, כדי לפרוש יציאה נפרדת לכל כבל */
-    if (!unitOf(c.from, c.fromUnit) || (fn2 && fn2.min)) { const k = c.from + '|' + f.aside; sideTot[k] = (sideTot[k] || 0) + 1; }
-    if (!unitOf(c.to, c.toUnit) || (tn2 && tn2.min)) { const k = c.to + '|' + f.bside; sideTot[k] = (sideTot[k] || 0) + 1; }
+    /* צרור (אותו צינור בין אותן קופסאות) נספר פעם אחת — כל הצרור נכנס מאותה נקודה */
+    if (!unitOf(c.from, c.fromUnit) || (fn2 && fn2.min)) { const k = c.from + '|' + f.aside, g2 = k + '|' + grpKeyOf(c); if (!sideSeen[g2]) { sideSeen[g2] = 1; sideTot[k] = (sideTot[k] || 0) + 1; } }
+    if (!unitOf(c.to, c.toUnit) || (tn2 && tn2.min)) { const k = c.to + '|' + f.bside, g2 = k + '|' + grpKeyOf(c); if (!sideSeen[g2]) { sideSeen[g2] = 1; sideTot[k] = (sideTot[k] || 0) + 1; } }
   });
   const endPt = (c, end, side, box) => {
     const nid = c[end], unitId = c[end + 'Unit'];
     if (side === 'T' || side === 'B') {
       /* יציאה מהשפה העליונה/התחתונה — פאנל/קופסה שיושבים זה מעל זה */
       const pp0 = PANELPORT[c.id + '|' + nid]; if (pp0) return { x: pp0.x, y: pp0.y, dot: false };
-      const k = nid + '|' + side, idx = sideIdx[k] = (sideIdx[k] || 0) + 1;
-      const cx0 = W - box.x - box.w / 2 + (idx - 1 - ((sideTot[k] || 1) - 1) / 2) * 26;
-      return { x: Math.max(W - box.x - box.w + 8, Math.min(W - box.x - 8, cx0 + (c.aoff?.[end] || 0))), y: side === 'T' ? box.y : box.y + (box.h || 0), dot: true };
+      const k = nid + '|' + side, idx = nextIdx(k, c);
+      const small = box.w < 60, step = small ? Math.min(4, Math.max(1.5, (box.w - 4) / Math.max(1, sideTot[k] || 1))) : 26, mg = small ? 2 : 8;   /* אייקון קטן — הכניסות צפופות ובתוך רוחב האייקון */
+      const cx0 = W - box.x - box.w / 2 + (idx - 1 - ((sideTot[k] || 1) - 1) / 2) * step;
+      return { x: Math.max(W - box.x - box.w + mg, Math.min(W - box.x - mg, cx0 + (c.aoff?.[end] || 0))), y: side === 'T' ? box.y : box.y + (box.h || 0), dot: true };
     }
     const x = side === 'L' ? W - box.x - box.w : W - box.x;
     const u = unitOf(nid, unitId);
@@ -3490,7 +3498,7 @@ function renderWires() {
       if (mnode && mnode.min) {
         /* יציאה נפרדת לכל כבל מארון ממוזער — נפרשות במניפה על גובה הארון */
         const k = nid + '|' + side;
-        const idx = sideIdx[k] = (sideIdx[k] || 0) + 1;
+        const idx = nextIdx(k, c);
         const tot = sideTot[k] || 1;
         const span = Math.min(box.h + 26, Math.max(22, (tot - 1) * 19));
         y = box.y + box.h / 2 + (tot > 1 ? (idx - 1) / (tot - 1) - 0.5 : 0) * span;
@@ -3518,7 +3526,7 @@ function renderWires() {
       const pp = PANELPORT[c.id + '|' + nid];
       if (pp) return { x: pp.x, y: pp.y, dot: false };
       const k = nid + '|' + side;
-      const idx = sideIdx[k] = (sideIdx[k] || 0) + 1;
+      const idx = nextIdx(k, c);
       /* ריווח 26px — עיגולי הקצה הממוספרים לא עולים זה על זה ולא מסתירים קווים */
       y = box.y + box.h / 2 + (idx - 1 - ((sideTot[k] || 1) - 1) / 2) * 26;
     }
