@@ -912,7 +912,7 @@ function ooOf(n) { return n && n.openOff && isOpenNode(n) ? n.openOff : { x: 0, 
 function nodeBox(n) {
   const el = document.getElementById('nd_' + n.id);
   /* _fanX/_fanY — היסט התצוגה של מוקדים שיושבים באותה נקודה, כדי שהקווים יגיעו לאייקון */
-  const oo = ooOf(n), x = n.x + (n._fanX || 0) - (n._chW || 0) - oo.x, y = n.y + (n._fanY || 0) + oo.y;   /* _chW — פאנל שהורחב ימינה לערוץ הכבלים */
+  const oo = n.kind === 'panel' ? { x: 0, y: 0 } : ooOf(n), x = n.x + (n._fanX || 0) - (n._chW || 0) - oo.x, y = n.y + (n._fanY || 0) + oo.y;   /* _chW — פאנל שהורחב ימינה לערוץ הכבלים */
   /* אייקון מוקטן (transform: scale) — הקופסה הנראית קטנה מהאלמנט; מודדים אותה מה-DOM כדי שהכבל ייגמר צמוד לאייקון */
   if (el && el.style.transform) {
     const cv = document.getElementById('canvas');
@@ -2086,7 +2086,7 @@ function rearLibImport(inp) {
 /* מוקדים/פאנלים שהונחו על אותה נקודה: מסודרים צמודים זה לזה — בטור (ברירת מחדל) או בשורה (P.stackDir='h') —
    לפי הגודל הנראה בפועל של כל אייקון (כולל ההקטנה לקנה מידה), כך שאף אחד לא מסתיר את השני */
 /* ===== אייקונים על אובייקט משורטט (שולחן / בר / ספה): שחרור בתוך המלבן מצמיד, והאייקונים מסתדרים בשורה לרוחב האובייקט ===== */
-const isIconNode = nn => nn.kind === 'point' || (nn.kind === 'panel' && nn.pmin) || (nn.kind === 'rack' && nn.min);
+const isIconNode = nn => nn.kind === 'point' || nn.kind === 'panel' || (nn.kind === 'rack' && nn.min);   /* פאנל הוא תמיד אייקון בתכנית — הקופסה הפתוחה שלו צפה לידו */
 function objAttachDrop(n) {
   const objs = (P.sketch && P.sketch.objs) || [];
   const cx = 2200 - n.x - 20, cy = n.y + 24, M = 12;
@@ -2147,28 +2147,37 @@ function attachArrange() {
       n._fanX = nr - n.x + (n._chW || 0); n._fanY = nt - n.y; changed = true; }
     if (!changed) break; }
 }
-/* פאנלים פתוחים שעולים זה על זה — נדחפים למטה בזה אחר זה, ומסלולי הכבלים שלהם מחושבים מחדש */
-function panelUnstack() {
-  const opn = P.nodes.filter(n => !n.hidden && n.kind === 'panel' && !n.pmin && document.getElementById('nd_' + n.id)).sort((a, b) => a.y - b.y);
-  const placed = []; let moved = false;
-  for (const n of opn) {
-    const el = document.getElementById('nd_' + n.id); const bx = nodeBox(n);
-    let L = 2200 - bx.x - bx.w, R = 2200 - bx.x, T = bx.y, B = bx.y + bx.h;
-    if (!n.openOff) for (const pb of placed) if (L < pb.R + 10 && R > pb.L - 10 && T < pb.B + 10 && B > pb.T - 10) { const ny = pb.B + 14; n._fanY = ny - n.y; el.style.top = ny + 'px'; B = ny + (B - T); T = ny; moved = true; }
-    placed.push({ L, R, T, B });
+/* הקופסאות הצפות של פאנלים פתוחים: ליד האייקון, בצד הרחוק מהכבלים שלו (או במקום שהמשתמש גרר אליו — n.openOff), בלי לעלות זו על זו */
+function floatArrange() {
+  const opn = P.nodes.filter(n => !n.hidden && n.kind === 'panel' && !n.pmin && document.getElementById('ndo_' + n.id)); if (!opn.length) return;
+  const cv = document.getElementById('canvas'), Z = getZ() || 1, cvr = cv.getBoundingClientRect();
+  const bx = el => { const r = el.getBoundingClientRect(); return { L: (r.left - cvr.left) / Z, R: (r.right - cvr.left) / Z, T: (r.top - cvr.top) / Z, B: (r.bottom - cvr.top) / Z }; };
+  const placed = [];
+  /* קודם מי שהמשתמש מיקם, אחר כך האוטומטיים — שמפנים להם מקום */
+  for (const n of opn.slice().sort((a, b) => (b.openOff ? 1 : 0) - (a.openOff ? 1 : 0))) {
+    const el = document.getElementById('ndo_' + n.id), ic = document.getElementById('nd_' + n.id), fb = bx(el), w = fb.R - fb.L, h = fb.B - fb.T;
+    let L, T;
+    if (n.openOff) { L = 2200 - (n.x - n.openOff.x) - w; T = n.y + n.openOff.y; }
+    else { const ib = ic ? bx(ic) : { L: 2200 - n.x - 40, R: 2200 - n.x, T: n.y, B: n.y + 40 };
+      /* כיוון התשתית: לאן הולכים הכבלים של הפאנל — הקופסה נפתחת לצד ההפוך */
+      let dy = 0, dx = 0; (P.cables || []).forEach(c => { const o = byId(c.from === n.id ? c.to : c.to === n.id ? c.from : null); if (!o || o.hidden) return; const vx = (2200 - o.x) - (2200 - n.x), vy = o.y - n.y, dd = Math.hypot(vx, vy); if (dd < 30) return; dx += vx / dd; dy += vy / dd; });
+      const mag = Math.hypot(dx, dy) || 1, up = dy / mag > 0.2, rightSide = dx / mag < -0.6;
+      L = rightSide ? ib.R + 14 : ib.R - w; T = up ? ib.T - 14 - h : ib.B + 14;
+      let g = 0; const hit = () => placed.some(o => L < o.R + 8 && L + w > o.L - 8 && T < o.B + 8 && T + h > o.T - 8);
+      while (hit() && g++ < 12) T += up ? -(h + 12) : (h + 12);
+      n._fo = { x: (L + w) - (2200 - n.x), y: T - n.y }; }
+    el.style.right = (2200 - (L + w)) + 'px'; el.style.top = T + 'px'; placed.push({ L, R: L + w, T, B: T + h });
   }
-  /* תמיד מחשבים מחדש אחרי שכל הקופסאות במקומן הסופי (פריסת ערימה/דחיפה) — צד היציאה ונקודות היציאה תלויים במיקום הסופי */
-  void moved; opn.forEach(n => drawPanelCables(n, document.getElementById('nd_' + n.id)));
+  opn.forEach(n => drawPanelCables(n, document.getElementById('ndo_' + n.id)));
 }
 function stackArrange(stackAt) {
   const horiz = P.stackDir === 'h', GAP = 2;
   Object.values(stackAt).forEach(ids => {
     const all = ids.map(id => ({ n: byId(id), el: document.getElementById('nd_' + id) })).filter(x => x.n && x.el);
-    if (all.length < 2 && !all.some(x => x.n.kind === 'panel' && !x.n.pmin)) return;
+    if (all.length < 2) return;
     const sizeOf = el => { const m = /scale\(([\d.]+)\)/.exec(el.style.transform || ''); const k = m ? +m[1] : 1; return { w: el.offsetWidth * k, h: el.offsetHeight * k }; };
     const place = (n, el, sx, sy) => { const oo = ooOf(n); n._fanX = sx; n._fanY = sy; el.style.right = (n.x + sx - (n._chW || 0) - oo.x) + 'px'; el.style.top = (n.y + sy + oo.y) + 'px'; };
-    /* פאנל פתוח נפתח תמיד הפוך מכיוון התשתית שמזינה אותו — כך הקופסה לא מסתירה את הכבלים שלה; שאר המוקדים שבנקודה נשארים בעמודה */
-    const opn = all.filter(x => x.n.kind === 'panel' && !x.n.pmin), els = all.filter(x => !opn.includes(x));
+    const opn = [], els = all;
     const sizes = els.map(({ el }) => sizeOf(el));
     const total = sizes.reduce((a, s2) => a + (horiz ? s2.w : s2.h) + GAP, -GAP);
     let cur = -total / 2;
@@ -2191,7 +2200,7 @@ function stackArrange(stackAt) {
 function renderNodes() {
   const host = $('#nodes');
   host.innerHTML = '';
-  MCOLS = {}; REARPORTS = {}; REAREXIT = {}; REARUNIT = {}; PANELPORT = {}; /* מאופסים בכל רינדור */
+  MCOLS = {}; REARPORTS = {}; REAREXIT = {}; REARUNIT = {}; PANELPORT = {}; FLOATPORT = {}; /* מאופסים בכל רינדור */
   /* היסט ערוץ הכבלים שייך רק לפאנל פתוח ונקבע מחדש ב-drawPanelCables; ערך ישן שנשאר על פאנל שכווץ לאייקון הזיז אותו הצידה בזמן גרירה */
   for (const n0 of P.nodes) if (n0._chW) n0._chW = 0;
   /* מוקדים שיושבים בדיוק אחד על השני — נפרשים במניפה קטנה כדי ששניהם יהיו גלויים
@@ -2209,19 +2218,21 @@ function renderNodes() {
     ids.forEach((id, i) => stackOf[id] = { i, tot: ids.length });
   });
   P.nodes.forEach(n => { n._fanX = 0; n._fanY = 0; });
-  for (const n of P.nodes) {
+  /* פאנל פתוח מצויר פעמיים: האייקון נשאר במקומו (והכבלים מגיעים אליו כרגיל), והקופסה הפתוחה צפה לידו (floatPass) */
+  const passList = []; for (const n of P.nodes) { passList.push([n, false]); if (n.kind === 'panel' && !n.pmin && !n.hidden) passList.push([n, true]); }
+  for (const [n, floatPass] of passList) {
     if (n.hidden) continue;
-    const stk = stackOf[n.id];
+    const stk = floatPass ? null : stackOf[n.id];
     const d = document.createElement('div');
     d.className = 'node' + (sel === n.id ? ' sel' : '') + (n.kind === 'rack' && n.rear ? ' rear' : '')
       + (wireMode?.from?.nid === n.id ? ' wsrc' : '');
-    d.id = 'nd_' + n.id;
+    d.id = (floatPass ? 'ndo_' : 'nd_') + n.id; if (floatPass) { d.className += ' floatbox'; d.style.zIndex = 30; }
     let sx = 0, sy = 0;
     if (stk) { /* אייקונים באותה נקודה — המיקום הסופי (צמודים בטור/בשורה לפי הגודל בפועל) נקבע אחרי הרינדור ב-stackArrange */
       d.dataset.stack = stk.i + '/' + stk.tot;
       n._fanX = sx; n._fanY = sy;
     }
-    { const oo = ooOf(n); d.style.right = (n.x + sx - oo.x) + 'px'; d.style.top = (n.y + sy + oo.y) + 'px'; }
+    { const oo = (n.kind === 'panel' && !floatPass) ? { x: 0, y: 0 } : ooOf(n); d.style.right = (n.x + sx - oo.x) + 'px'; d.style.top = (n.y + sy + oo.y) + 'px'; }
     if (stk) { d.style.zIndex = 9 + stk.i; d.title = (d.title || '') + ' · ' + stk.tot + ' מוקדים באותה נקודה — נפרשו לתצוגה'; }
     /* גב ארון = שכבה עליונה כדי שלא יוסתר ע"י פאנלים/מוקדים אחרים */
     if (n.kind === 'rack' && n.rear) d.style.zIndex = (sel === n.id ? 60 : 20);
@@ -2390,8 +2401,8 @@ function renderNodes() {
         body = `<div class="rackbody"><div class="rails${rcls}" style="height:${n.ru * UPX * (n.uz || 1)}px">${rows}${n.rtype === 'boxWp' ? '<span class="wplock" style="top:14%"></span><span class="wplock" style="top:84%"></span>' : ''}${n.rtype === 'rackWp' || n.rtype === 'boxWp' ? '<span class="wpip">💧 IP65</span>' : ''}</div>
           <div class="muted" style="margin-top:4px">${used}${uLbl === 'U' ? 'U' : ' ' + uLbl} בשימוש · ${Math.max(0, n.ru - used)}${uLbl === 'U' ? 'U' : ''} פנוי</div></div>`;
       }
-    } else if (n.kind === 'panel' && n.pmin) {
-      /* פאנל מכווץ — אייקון קטן כמו רמקול מוקטן */
+    } else if (n.kind === 'panel' && (n.pmin || !floatPass)) {
+      /* פאנל — אייקון קטן כמו רמקול מוקטן; גם כשהפאנל פתוח האייקון נשאר במקומו */
       const p = n.panel || (n.panel = defPanel());
       const cnt = P.cables.filter(c => c.from === n.id || c.to === n.id).length;
       d.className += ' mini';
@@ -2407,7 +2418,7 @@ function renderNodes() {
       d.addEventListener('pointerdown', e => {
         if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
         sel = n.id; ui.tab = 'node';
-        miniOpenOnTap(e, () => { n.pmin = false; render(); save(); }, n.id);
+        miniOpenOnTap(e, () => { n.pmin = !n.pmin; render(); save(); }, n.id);   /* לחיצה פותחת / סוגרת את הקופסה הצפה */
       });
       $('#nodes').appendChild(d);
       /* מוקטן בקנה מידה של התכנית כמו אייקון מוקד (≈0.5 מ׳, 16–30px על המסך) */
@@ -2422,7 +2433,7 @@ function renderNodes() {
       const w = p.mode === 'matrix' ? Math.max(140, rowW() + 6) : (p.w || 240);
       d.style.width = (w + 22) + 'px';
       /* פאנל פתוח על התכנית — מוקטן (PANEL_K) כדי שלא יכסה את השרטוט; המסלולים הפנימיים מחושבים בקואורדינטות המקוריות ומוכפלים */
-      if (!n.pmin) { d.style.transformOrigin = 'top right'; d.style.transform = 'scale(' + PANEL_K + ')'; }
+      if (!n.pmin) { d.style.transformOrigin = 'top right'; d.style.transform = 'scale(' + PANEL_K + ')'; d.style.boxShadow = '0 6px 22px rgba(0,0,0,.28)'; }
       body = p.mode === 'free'
         ? `<div class="pnl" style="position:relative;height:${p.h || 140}px;display:block">${holesHTML(p, n.id, -1)}</div>`
         : `<div class="pnl" style="display:flex;flex-direction:column;gap:5px">${holesMatrixHTML(p, n.id, -1)}</div>`;
@@ -2536,7 +2547,7 @@ function renderNodes() {
   }
   stackArrange(stackAt);
   attachArrange();
-  panelUnstack();
+  floatArrange();
   if (window.__rackFocus) rackFocusMount();   /* ארון בגדול: האלמנט החדש עובר לחלון הצף */
 }
 /* מצייר את חיבורי הגב לפי מדידת מיקום המחברים בפועל — הקו נוגע ממש במחבר */
@@ -2552,7 +2563,6 @@ function drawPanelCables(n, d) {
   const rect = d.getBoundingClientRect();
   let W = rect.width / zk; const H = rect.height / zk;
   const widened = d._chW != null, W0 = widened ? W - d._chW : W;   /* רוחב לפני ערוץ הכבלים — הפונקציה יכולה לרוץ שוב על אותו אלמנט */
-  const fy = (n._fanY || 0) + ooOf(n).y;
   let out = '';
   /* מפת מיקומי החורים מה-DOM */
   const holePos = {};
@@ -2577,13 +2587,16 @@ function drawPanelCables(n, d) {
   }
   if (!ents.length) return;
   const LBLc = cableLabels();
-  const nodeLeft = 2200 - (n.x + (n._fanX || 0) - ooOf(n).x) - W0 * PK; /* שמאל הפאנל בקואורדינטות קנבס (השפה הימנית ב-n.x, פחות רוחב התוכן המוקטן) */
+  void W0; /* שמאל הפאנל בקואורדינטות קנבס (השפה הימנית ב-n.x, פחות רוחב התוכן המוקטן) */
   const myBox = nodeBox(n);
   /* מעבר ראשי בצד ימין של הפאנל: כל הקווים שיוצאים מהשפה העליונה/התחתונה (פאנל מעל/מתחת) עוברים בו,
      וכל קו פונה שמאלה בפס שמתחת לשורה שלו אל המחבר — בלי לחצות מחברים. הסדר: מי שפונה ראשון הכי פנימי, בלי הצלבות */
-  const exitOf = e => { const other = byId(e.c.from === n.id ? e.c.to : e.c.from); return other && !other.hidden ? panelExitSide(myBox, nodeBox(other)) : 'T'; };
+  /* הקופסה צפה: הכבלים החיצוניים נגמרים באייקון, והצרור הפנימי יוצא מהערוץ בשפה שפונה אל האייקון */
+  const cvrF = $('#canvas').getBoundingClientRect(), fBox = { T: (rect.top - cvrF.top) / z, B: (rect.bottom - cvrF.top) / z, L: (rect.left - cvrF.left) / z }, icB = nodeBox(n);
+  const exitSide = (icB.y + (icB.h || 0) / 2) > (fBox.T + fBox.B) / 2 ? 'B' : 'T';
+  const exitOf = () => exitSide; void myBox;
   const stk = []; ents.forEach((e, k) => { stk.push({ e, k, down: exitOf(e) === 'B' }); });
-  const TR = {}; let W2 = W; n._chW = widened ? d._chW * PK : 0;
+  const TR = {}; let W2 = W;
   if (stk.length) {
     const maxRight = Math.max(...Object.values(holePos).map(p2 => p2.hx + (p2.hw || 24) / 2));
     const ups = stk.filter(x => !x.down).sort((a2, b2) => a2.e.hy - b2.e.hy), dns = stk.filter(x => x.down).sort((a2, b2) => b2.e.hy - a2.e.hy);
@@ -2596,8 +2609,10 @@ function drawPanelCables(n, d) {
       d.style.right = (parseFloat(d.style.right) - chW * PK) + 'px';
       const hd = d.querySelector('.hd'); if (hd) hd.style.paddingRight = (8 + chW) + 'px';
     }
-    W2 = W0 + chW; n._chW = chW * PK;
+    W2 = W0 + chW;
     ordered.forEach((x, j) => { TR[x.k] = W0 + 8 + j * 2.5; });
+    /* נקודת היציאה של הצרור (מרכז הערוץ בשפה) — ממנה נמשך הקו אל האייקון */
+    FLOATPORT[n.id] = { x: fBox.L + (W0 + 8 + (ordered.length - 1) * 1.25) * PK, y: exitSide === 'B' ? fBox.T + H * PK : fBox.T, n: ordered.length };
     void maxRight;
   }
   W = W2;
@@ -2611,7 +2626,6 @@ function drawPanelCables(n, d) {
       const rk = 'r' + Math.round(e.hy); rowIdx[rk] = (rowIdx[rk] || 0) + 1;
       const rowY = e.hy + 14 + ((rowIdx[rk] - 1) % 4) * 2.5;
       out += `<path d="M ${e.hx} ${e.hy + 11} V ${rowY} H ${tx} V ${edgeY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
-      PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + tx * PK, y: n.y + fy + edgeY * PK };
       const lb2 = LBLc[e.c.id];
       out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${e.hx}" cy="${rowY}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${e.hx}" y="${rowY + 2.6}" text-anchor="middle" font-size="${String(lb2).length > 2 ? 5.5 : 7}" font-weight="800" fill="${col}" style="user-select:none">${lb2}</text></g>`;
       return;
@@ -2624,7 +2638,6 @@ function drawPanelCables(n, d) {
     /* קו רציף: הכבל החיצוני מסתיים בדיוק בנקודה הזו על שפת הפאנל (PANELPORT),
        והמעבר הפנימי ממשיך ממנה ישר אל המחבר — בלי קטעים מנותקים */
     out += `<path d="M ${edgeX} ${rowY} L ${inX} ${rowY}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" opacity="0.85"/>`;
-    PANELPORT[e.c.id + '|' + n.id] = { x: nodeLeft + edgeX * PK, y: n.y + fy + rowY * PK };
     /* מספר הכבל בנקודת החיבור עצמה — פעם אחת, למטה, בלי לתפוס מקום מעל המחבר */
     const lb = LBLc[e.c.id];
     out += `<g style="pointer-events:all;cursor:pointer" onclick="pickCable('${e.c.id}')"><circle cx="${inX}" cy="${rowY}" r="6" fill="#fff" stroke="${col}" stroke-width="1.5"/><text x="${inX}" y="${rowY + 2.6}" text-anchor="middle" font-size="${String(lb).length > 2 ? 5.5 : 7}" font-weight="800" fill="${col}">${lb}</text></g>`;
@@ -3498,7 +3511,7 @@ function renderWires() {
     if (a.hidden || b.hidden) return null; /* מוצר מוסתר — גם הכבלים שלו מוסתרים */
     const A = nodeBox(a), B = nodeBox(b);
     const acx = W - A.x - A.w / 2, bcx = W - B.x - B.w / 2;
-    const opA = isOpenPanel(a), opB = isOpenPanel(b);
+    const opA = false, opB = false;   /* פאנל פתוח צף ליד האייקון שלו — הכבלים מגיעים לאייקון, כמו בפאנל סגור */
     if (opA || opB) {
       const as = opA ? panelExitSide(A, B) : (bcx < acx ? 'L' : 'R'), bs = opB ? panelExitSide(B, A) : (acx < bcx ? 'L' : 'R');
       return { A, B, aside: as, bside: bs, vert: opA && opB, elbow: !(opA && opB), panelEnd: opA ? 'a' : 'b' };
@@ -3506,7 +3519,7 @@ function renderWires() {
     const st = stackedBoxes(A, B);
     if (st) return { A, B, aside: st === 'AB' ? 'B' : 'T', bside: st === 'AB' ? 'T' : 'B', vert: true };
     /* שני אייקונים שאחד מהם מעל השני (גם בלי חפיפה מלאה ברוחב): מסלול ישר — יציאה מלמטה, כניסה מלמעלה, פס קצר אחד אם צריך; בלי לולאות מהצד */
-    const icn = q => q.kind === 'point' || (q.kind === 'panel' && q.pmin) || (q.kind === 'rack' && q.min);
+    const icn = isIconNode;
     if (icn(a) && icn(b)) { const gapV = Math.max(B.y - (A.y + (A.h || 0)), A.y - (B.y + (B.h || 0))), dxc = Math.abs(acx - bcx);
       if (gapV > 8 && gapV >= dxc * 0.6) { const ab = B.y > A.y; return { A, B, aside: ab ? 'B' : 'T', bside: ab ? 'T' : 'B', vert: true }; } }
     return { A, B, aside: bcx < acx ? 'L' : 'R', bside: acx < bcx ? 'L' : 'R' };
@@ -3715,7 +3728,7 @@ function renderWires() {
   /* בזום גבוה העיגולים מתכווצים ביחס הפוך — שלא יסתירו את המוצרים */
   const ZW = getZ() || 1, shrink = Math.min(1, 1.6 / ZW);
   /* קופסאות פתוחות (פאנלים/ארונות) שאינן קצה של הכבל הן מכשול: קטע אנכי שחוצה אחת מהן עוקף אותה מהצד הקרוב */
-  const obst = P.nodes.filter(n => !n.hidden && (isOpenPanel(n) || (n.kind === 'rack' && !n.min))).map(n => { const b = nodeBox(n); return { id: n.id, L: 2200 - b.x - b.w, R: 2200 - b.x, T: b.y, B: b.y + (b.h || 0) }; });
+  const obst = P.nodes.filter(n => !n.hidden && n.kind === 'rack' && !n.min).map(n => { const b = nodeBox(n); return { id: n.id, L: 2200 - b.x - b.w, R: 2200 - b.x, T: b.y, B: b.y + (b.h || 0) }; });
   const detCnt = {};
   const detourV = (pts, c) => { const out2 = [pts[0]];
     for (let j = 1; j < pts.length; j++) { const p0 = out2[out2.length - 1], p1 = pts[j];
@@ -3820,8 +3833,15 @@ function renderWires() {
     const bF = Math.max(3.2, (String(LBL[c.id]).length > 2 ? 4.4 : 5.5) * shrink);
     if (!ortho) out += `<g style="pointer-events:all;cursor:grab" data-cbadge="${c.id}"><title>${btip}</title><circle cx="${it.bx}" cy="${it.by}" r="${bR.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3.5 : 2) * shrink}"/><text x="${it.bx}" y="${it.by + bF * 0.37}" text-anchor="middle" font-size="${bF.toFixed(1)}" font-weight="700" fill="${col}" style="user-select:none">${LBL[c.id]}</text></g>`;
   }
-  /* קופסה פתוחה שהוזזה מהמקום שלה: קו מקווקו דק מהמיקום האמיתי בתכנית אל הקופסה — ברור לאן היא שייכת */
-  for (const n of P.nodes) { if (n.hidden || !n.openOff || !isOpenNode(n)) continue; const b = nodeBox(n), L = 2200 - b.x - b.w, R = 2200 - b.x, T = b.y, B = b.y + (b.h || 0), px = 2200 - n.x - 20, py = n.y + 24;
+  /* פאנל פתוח: קו מהאייקון אל נקודת היציאה של הצרור בקופסה הצפה — ברור לאיזה אייקון הקופסה שייכת ומאיפה הכבלים שלה מגיעים */
+  for (const n of P.nodes) { if (n.hidden || n.kind !== 'panel' || n.pmin) continue; const fe = document.getElementById('ndo_' + n.id); if (!fe) continue;
+    const ib = nodeBox(n), icx = 2200 - ib.x - ib.w / 2, icy = ib.y + (ib.h || 0) / 2, cvr2 = $('#canvas').getBoundingClientRect(), Z2 = getZ() || 1, fr = fe.getBoundingClientRect();
+    const fl = { L: (fr.left - cvr2.left) / Z2, R: (fr.right - cvr2.left) / Z2, T: (fr.top - cvr2.top) / Z2, B: (fr.bottom - cvr2.top) / Z2 };
+    const fp = FLOATPORT[n.id] || { x: Math.max(fl.L, Math.min(fl.R, icx)), y: icy > (fl.T + fl.B) / 2 ? fl.B : fl.T, n: 0 };
+    const sw = Math.min(3, 1.2 + (fp.n || 0) * 0.15), yMid = (fp.y + icy) / 2;
+    out += `<path d="M${fp.x} ${fp.y} V ${yMid} H ${icx} V ${icy}" fill="none" stroke="#4a463e" stroke-width="${sw.toFixed(1)}" stroke-linejoin="round" stroke-dasharray="${fp.n ? '' : '4 3'}" opacity="0.75" style="pointer-events:none"/><circle cx="${icx}" cy="${icy}" r="2.6" fill="#4a463e" style="pointer-events:none"/>`; }
+  /* ארון/מוקד פתוח שהוזז מהמקום שלו: קו מקווקו דק מהמיקום האמיתי אל הקופסה */
+  for (const n of P.nodes) { if (n.hidden || n.kind === 'panel' || !n.openOff || !isOpenNode(n)) continue; const b = nodeBox(n), L = 2200 - b.x - b.w, R = 2200 - b.x, T = b.y, B = b.y + (b.h || 0), px = 2200 - n.x - 20, py = n.y + 24;
     if (px >= L && px <= R && py >= T && py <= B) continue; const qx = Math.max(L, Math.min(R, px)), qy = Math.max(T, Math.min(B, py));
     out += `<line x1="${px}" y1="${py}" x2="${qx}" y2="${qy}" stroke="#6b6558" stroke-width="1" stroke-dasharray="4 3" style="pointer-events:none"/><circle cx="${px}" cy="${py}" r="3.2" fill="#fff" stroke="#6b6558" stroke-width="1.4" style="pointer-events:none"/><circle cx="${px}" cy="${py}" r="1.2" fill="#6b6558" style="pointer-events:none"/>`; }
   /* קווי יישור בזמן גרירת מוקד */
@@ -8153,7 +8173,7 @@ document.addEventListener('pointerdown', e => {
     const it = impItems.find(x => x.iid === pinMode.iid);
     const nel = e.target.closest('.node');
     /* לחיצה על מוקד שכבר ננקר מאותו פריט → עריכה שלו (מצב הנעיצה נשאר פעיל; קליק על התכנית ימשיך לנקר) */
-    if (nel) { const tn = byId(nel.id.slice(3)); if (tn && tn.kind === 'point' && tn.srcIid === pinMode.iid) { sel = tn.id; ui.tab = 'node'; e.preventDefault(); render(); return; } }
+    if (nel) { const tn = byId(nel.id.replace(/^ndo?_/, '')); if (tn && tn.kind === 'point' && tn.srcIid === pinMode.iid) { sel = tn.id; ui.tab = 'node'; e.preventDefault(); render(); return; } }
     if (it) {
       dropImported(it, canvasPt(e), nel, e.clientY);
       /* מגבר/פרוססור/ציוד ראק — נעיצה בודדת: שחרור אוטומטי אחרי לחיצה אחת */
@@ -8184,7 +8204,7 @@ document.addEventListener('pointermove', e => {
   const hit = document.elementFromPoint(e.clientX, e.clientY);
   const nel = hit && hit.closest('.node');
   if (nel && (dragI.it.dest === 'unit' || dragI.it.dest === 'panelUnit')) {
-    const tn = byId(nel.id.slice(3));
+    const tn = byId(nel.id.replace(/^ndo?_/, ''));
     if (tn && tn.kind === 'rack') nel.classList.add('droptgt');
   }
 });
@@ -8263,7 +8283,7 @@ document.addEventListener('pointerdown', e => {
   /* אייקון קטן מכוסה חלקית בידיות הכבלים (קצה/תג) — כשהלחיצה בתוך אייקון, גוררים את האייקון ולא את הכבל */
   let iconUnder = null;
   if (!wireMode && e.target.closest && e.target.closest('[data-cend],[data-cbadge]') && document.elementsFromPoint) {
-    for (const q of document.elementsFromPoint(e.clientX, e.clientY)) { const nd = q.closest && q.closest('#nodes > .node.mini'); if (nd) { const nn = byId(nd.id.slice(3)); if (nn) { iconUnder = nn; break; } } }
+    for (const q of document.elementsFromPoint(e.clientX, e.clientY)) { const nd = q.closest && q.closest('#nodes > .node.mini'); if (nd) { const nn = byId(nd.id.replace(/^ndo?_/, '')); if (nn) { iconUnder = nn; break; } } }
   }
   if (iconUnder) { sel = iconUnder.id; ui.tab = 'node'; bakeAtt(iconUnder); drag = { n: iconUnder, sx: e.clientX, sy: e.clientY, ox: iconUnder.x, oy: iconUnder.y }; e.preventDefault(); return; }
   const ce = e.target.closest('[data-cend]');
@@ -8295,9 +8315,10 @@ document.addEventListener('pointerdown', e => {
   sel = n.id; ui.tab = 'node';
   bakeAtt(n);
   drag = { n, sx: e.clientX, sy: e.clientY, ox: n.x, oy: n.y };
-  if (isOpenNode(n) && (n.kind === 'rack' || n.kind === 'panel' || (n.kind === 'point' && !n.mini))) {
+  const onFloat = !!h.closest('.floatbox');
+  if (onFloat || (n.kind !== 'panel' && isOpenNode(n) && (n.kind === 'rack' || (n.kind === 'point' && !n.mini)))) {
     /* התצוגה הנוכחית (כולל פריסה אוטומטית) היא נקודת המוצא של ההיסט, כדי שהקופסה לא תקפוץ בתחילת הגרירה */
-    const oo0 = n.openOff || { x: -(n._fanX || 0), y: (n._fanY || 0) }; drag.open = true; drag.oox = oo0.x; drag.ooy = oo0.y; }
+    const oo0 = n.openOff || (onFloat ? (n._fo || { x: 0, y: 0 }) : { x: -(n._fanX || 0), y: (n._fanY || 0) }); drag.open = true; drag.float = onFloat; drag.oox = oo0.x; drag.ooy = oo0.y; }
   e.preventDefault();
 });
 document.addEventListener('pointermove', e => {
@@ -8337,7 +8358,7 @@ document.addEventListener('pointermove', e => {
     let m = document.getElementById('marqBox');
     if (!m) { m = document.createElement('div'); m.id = 'marqBox'; m.style.cssText = 'position:absolute;border:1.5px dashed #c9502e;background:rgba(201,80,46,.12);z-index:40;pointer-events:none'; $('#canvas').appendChild(m); }
     m.style.left = x0 + 'px'; m.style.top = y0 + 'px'; m.style.width = (x1 - x0) + 'px'; m.style.height = (y1 - y0) + 'px';
-    document.querySelectorAll('.node').forEach(el => { const id = el.id.slice(3); el.style.outline = selMulti.has(id) ? '2.5px solid #c9502e' : ''; });
+    document.querySelectorAll('.node').forEach(el => { const id = el.id.replace(/^ndo?_/, ''); el.style.outline = selMulti.has(id) ? '2.5px solid #c9502e' : ''; });
     return;
   }
   if (sketchMode && (sketchMode.tool === 'wall' || sketchMode.tool === 'rect') && sketchMode.cur.length) {
@@ -8369,7 +8390,7 @@ document.addEventListener('pointermove', e => {
     const hit = document.elementFromPoint(e.clientX, e.clientY);
     const nel = hit && hit.closest('.node');
     if (nel) {
-      const tn = byId(nel.id.slice(3));
+      const tn = byId(nel.id.replace(/^ndo?_/, ''));
       if (tn && tn.kind === 'rack' && !tn.rear) nel.classList.add('droptgt');
     }
     return;
@@ -8405,10 +8426,10 @@ document.addEventListener('pointermove', e => {
   if (drag.open) {
     /* קופסה פתוחה: זזה רק התצוגה שלה (n.openOff) — המיקום בתכנית, האייקון ואורכי הכבלים לא משתנים */
     const dxs = (e.clientX - drag.sx) / Z, dys = (e.clientY - drag.sy) / Z;
-    if (Math.abs(dxs) + Math.abs(dys) > 2 || drag.n.openOff) { drag.n.openOff = { x: drag.oox + dxs, y: drag.ooy + dys }; drag.n._fanX = 0; drag.n._fanY = 0; }   /* הפריסה האוטומטית כבר בתוך ההיסט */
-    const elO = document.getElementById('nd_' + drag.n.id), oo = ooOf(drag.n);
-    if (elO) { elO.style.right = (drag.n.x + (drag.n._fanX || 0) - (drag.n._chW || 0) - oo.x) + 'px'; elO.style.top = (drag.n.y + (drag.n._fanY || 0) + oo.y) + 'px'; }
-    if (drag.n.kind === 'panel') drawPanelCables(drag.n, elO);
+    if (Math.abs(dxs) + Math.abs(dys) > 2 || drag.n.openOff) { drag.n.openOff = { x: drag.oox + dxs, y: drag.ooy + dys }; if (!drag.float) { drag.n._fanX = 0; drag.n._fanY = 0; } }   /* הפריסה האוטומטית כבר בתוך ההיסט */
+    const elO = document.getElementById((drag.float ? 'ndo_' : 'nd_') + drag.n.id), oo = ooOf(drag.n);
+    if (elO && drag.float) { elO.style.right = (drag.n.x - oo.x) + 'px'; elO.style.top = (drag.n.y + oo.y) + 'px'; drawPanelCables(drag.n, elO); }
+    else if (elO) { elO.style.right = (drag.n.x + (drag.n._fanX || 0) - (drag.n._chW || 0) - oo.x) + 'px'; elO.style.top = (drag.n.y + (drag.n._fanY || 0) + oo.y) + 'px'; }
     renderWires(); return;
   }
   drag.n.x = Math.max(0, drag.ox - (e.clientX - drag.sx) / Z);
@@ -8418,13 +8439,13 @@ document.addEventListener('pointermove', e => {
     document.querySelectorAll('.node.droptgt').forEach(el => el.classList.remove('droptgt'));
     const me = document.getElementById('nd_' + drag.n.id); const pe = me ? me.style.pointerEvents : ''; if (me) me.style.pointerEvents = 'none';
     const hit = document.elementFromPoint(e.clientX, e.clientY); if (me) me.style.pointerEvents = pe;
-    const nel = hit && hit.closest('.node'); const tn = nel && byId(nel.id.slice(3));
+    const nel = hit && hit.closest('.node'); const tn = nel && byId(nel.id.replace(/^ndo?_/, ''));
     if (tn && tn.kind === 'rack' && !tn.rear && !tn.min) nel.classList.add('droptgt');
   }
   /* קווי יישור: כשהמוקד הנגרר מתיישר עם רמקול/סאב אחר — קו מנחה + הצמדה */
   window.__alignG = null;
   /* אייקונים (מוקד, פאנל מכווץ, ארון מכווץ) נצמדים זה לזה — כך אפשר להניח פאנל בדיוק על מוקד/פאנל אחר והם נפרשים במניפה כמו רמקולים */
-  const isIcon = nn => nn.kind === 'point' || (nn.kind === 'panel' && nn.pmin) || (nn.kind === 'rack' && nn.min);
+  const isIcon = isIconNode;
   if (isIcon(drag.n) && !P.snapOff && !e.altKey) {   /* הצמדה — אפשר לבטל בתפריט התצוגה, או זמנית עם Alt בזמן הגרירה */
     const TH = 8 / Z;
     let gx = null, gy = null;
@@ -8488,7 +8509,7 @@ document.addEventListener('pointerup', e => {
     const hit = document.elementFromPoint(e.clientX, e.clientY);
     const nel = hit && hit.closest('.node');
     if (nel) {
-      const dst = byId(nel.id.slice(3));
+      const dst = byId(nel.id.replace(/^ndo?_/, ''));
       if (dst && dst.kind === 'rack' && !dst.rear) {
         const rails = nel.querySelector('.rails');
         const rr = rails.getBoundingClientRect();
@@ -8517,7 +8538,7 @@ document.addEventListener('pointerup', e => {
     svg.style.display = '';
     const nel = hit && hit.closest('.node');
     if (!nel) { render(); return; }
-    const node = byId(nel.id.slice(3));
+    const node = byId(nel.id.replace(/^ndo?_/, ''));
     let unitId, portName;
     /* רמת החיבור נקבעת ממה שנחת עליו: מחבר > מכשיר > ארון.
        כך אפשר לגרור קצה כבל מהארון אל מכשיר, ומשם אל מחבר ספציפי — ובחזרה. */
@@ -8595,7 +8616,7 @@ document.addEventListener('pointerup', e => {
       /* שחרור מעל ארון — המוצר נכנס לארון כיחידה (drag & drop), הכבלים שלו עוברים איתו */
       const me = document.getElementById('nd_' + n.id); const pe = me ? me.style.pointerEvents : ''; if (me) me.style.pointerEvents = 'none';
       const hit = document.elementFromPoint(e.clientX, e.clientY); if (me) me.style.pointerEvents = pe;
-      const nel = hit && hit.closest('.node'); const dst = nel && byId(nel.id.slice(3));
+      const nel = hit && hit.closest('.node'); const dst = nel && byId(nel.id.replace(/^ndo?_/, ''));
       if (dst && dst.kind === 'rack' && !dst.rear && !dst.min) {
         const rails = nel.querySelector('.rails'); let slot = -1;
         if (rails) { const rr = rails.getBoundingClientRect(); slot = Math.max(0, Math.min(dst.ru - 1, Math.floor((e.clientY - rr.top) / (rr.height / dst.ru)))); }
@@ -9473,7 +9494,7 @@ async function importSpec(inp) {
   impItems = impItems.concat(items); /* אפשר לייבא כמה קבצים ברצף לאותו פרויקט */
   renderImp();
 }
-let dockOpen = true, dockQ = '', dockMin = false, dockWide = false, connPin = null, replFor = null, WIREPTS = {}, PANELPORT = {};
+let dockOpen = true, dockQ = '', dockMin = false, dockWide = false, connPin = null, replFor = null, WIREPTS = {}, PANELPORT = {}, FLOATPORT = {};
 function openPlanSettings() {
   sel = null; selCable = null; selZone = null; panelEdit = null; ui.tab = 'node';
   document.body.classList.remove('smin');
@@ -12023,7 +12044,7 @@ function dropImported(it, pt, nel, clientY) {
     case 'unit': case 'panelUnit': {
       let r = null, slot = null;
       if (nel) {
-        const tn = byId(nel.id.slice(3));
+        const tn = byId(nel.id.replace(/^ndo?_/, ''));
         if (tn && tn.kind === 'rack') {
           r = tn;
           const rails = nel.querySelector('.rails');
@@ -12317,7 +12338,7 @@ function exportPDF() {
   P.nodes.forEach(n => { if (n.kind === 'rack') n.min = true; else if (n.kind === 'panel') n.pmin = true; else if (n.kind === 'point') { n.mini = true; n.full = false; } });
   renderNodes(); renderWires();
   { const host = $('#nodes'), cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ();
-    const rects = [...document.querySelectorAll('#nodes > .node')].map(el => { const r = el.getBoundingClientRect(); return { id: el.id.slice(3), L: (r.left - cr0.left) / Z0, R: (r.right - cr0.left) / Z0, T: (r.top - cr0.top) / Z0, B: (r.bottom - cr0.top) / Z0 }; });
+    const rects = [...document.querySelectorAll('#nodes > .node')].map(el => { const r = el.getBoundingClientRect(); return { id: el.id.replace(/^ndo?_/, ''), L: (r.left - cr0.left) / Z0, R: (r.right - cr0.left) / Z0, T: (r.top - cr0.top) / Z0, B: (r.bottom - cr0.top) / Z0 }; });
     /* שמות ברורים: האייקונים מקובצים לפי קרבה; לכל קבוצה עמודת שמות מסודרת בצד (בסדר האייקונים, בלי הצלבות), ומכל אייקון יוצא חץ אל השם שלו */
     const named = rects.filter(rc => { const n = byId(rc.id); return n && n.name; }), cl = [];
     named.forEach(rc => { let g = cl.find(g2 => g2.some(o => Math.abs((o.L + o.R) / 2 - (rc.L + rc.R) / 2) < 70 && Math.abs((o.T + o.B) / 2 - (rc.T + rc.B) / 2) < 70)); if (g) g.push(rc); else cl.push([rc]); });
@@ -12386,12 +12407,12 @@ function exportPDF() {
       P.nodes.forEach(n => { if (!inv.has(n.id)) return; if (n.kind === 'panel' && n.pmin) { n.pmin = false; opened.push([n, 'pmin']); } if (n.kind === 'rack' && n.min) { n.min = false; opened.push([n, 'min']); } });
       renderNodes(); renderWires();
       /* התכנית — המעורבים במסגרת בצבע הדיסציפלינה, השאר מעומעמים */
-      document.querySelectorAll('#nodes > .node').forEach(el => { const id = el.id.slice(3); if (inv.has(id)) { el.style.outline = '3px solid ' + CAT_COL[cat]; el.style.outlineOffset = '2px'; el.style.opacity = ''; } else el.style.opacity = '0.22'; });
+      document.querySelectorAll('#nodes > .node').forEach(el => { const id = el.id.replace(/^ndo?_/, ''); if (inv.has(id)) { el.style.outline = '3px solid ' + CAT_COL[cat]; el.style.outlineOffset = '2px'; el.style.opacity = ''; } else el.style.opacity = '0.22'; });
       /* חיתוך לאזור הציוד של הדיסציפלינה (המעורבים + הקווים), ברוחב מלא — לא תכנית שלמה קטנה עם שוליים ריקים */
       let regC = null;
       { const crC = $('#canvas').getBoundingClientRect(), ZC = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
         const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - crC.left) / ZC); T = Math.min(T, (rb.top - crC.top) / ZC); R = Math.max(R, (rb.right - crC.left) / ZC); B = Math.max(B, (rb.bottom - crC.top) / ZC); };
-        document.querySelectorAll('#nodes > .node').forEach(el => { if (inv.has(el.id.slice(3))) addR(el.getBoundingClientRect()); });
+        document.querySelectorAll('#nodes > .node').forEach(el => { if (inv.has(el.id.replace(/^ndo?_/, ''))) addR(el.getBoundingClientRect()); });
         document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
         if (L < Infinity) { const pad = 40, bw = Math.max(R - L, 320), bh = Math.max(B - T, 260), cx = (L + R) / 2, cy = (T + B) / 2;
           regC = { L: Math.max(0, cx - bw / 2 - pad), T: Math.max(0, cy - bh / 2 - pad), R: Math.min(2200, cx + bw / 2 + pad), B: Math.min(1400, cy + bh / 2 + pad) }; } }
@@ -12411,7 +12432,7 @@ function exportPDF() {
   /* 🛤 שרטוט הצנרת: הקווים בהילת הצינור בלבד, כל השאר מעומעם, עם מקרא */
   if ((P.conduits || []).length) {
     const saved2 = P.hideConduits; P.hideConduits = false; renderNodes(); renderWires();
-    document.querySelectorAll('#nodes > .node').forEach(el => { const inv = (P.cables || []).some(c => c.conduit && (c.from === el.id.slice(3) || c.to === el.id.slice(3))); el.style.opacity = inv ? '' : '0.25'; });
+    document.querySelectorAll('#nodes > .node').forEach(el => { const inv = (P.cables || []).some(c => c.conduit && (c.from === el.id.replace(/^ndo?_/, '') || c.to === el.id.replace(/^ndo?_/, ''))); el.style.opacity = inv ? '' : '0.25'; });
     const cr2 = $('#canvas').getBoundingClientRect(), Z2 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
     const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr2.left) / Z2); T = Math.min(T, (rb.top - cr2.top) / Z2); R = Math.max(R, (rb.right - cr2.left) / Z2); B = Math.max(B, (rb.bottom - cr2.top) / Z2); };
     document.querySelectorAll('#wires path[opacity="0.28"]').forEach(pth => addR(pth.getBoundingClientRect()));
