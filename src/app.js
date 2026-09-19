@@ -2117,7 +2117,8 @@ function panelUnstack() {
     for (const pb of placed) if (L < pb.R + 10 && R > pb.L - 10 && T < pb.B + 10 && B > pb.T - 10) { const ny = pb.B + 14; n._fanY = ny - n.y; el.style.top = ny + 'px'; B = ny + (B - T); T = ny; moved = true; }
     placed.push({ L, R, T, B });
   }
-  if (moved) opn.forEach(n => drawPanelCables(n, document.getElementById('nd_' + n.id)));
+  /* תמיד מחשבים מחדש אחרי שכל הקופסאות במקומן הסופי (פריסת ערימה/דחיפה) — צד היציאה ונקודות היציאה תלויים במיקום הסופי */
+  void moved; opn.forEach(n => drawPanelCables(n, document.getElementById('nd_' + n.id)));
 }
 function stackArrange(stackAt) {
   const horiz = P.stackDir === 'h', GAP = 2;
@@ -2534,7 +2535,8 @@ function drawPanelCables(n, d) {
   const myBox = nodeBox(n);
   /* מעבר ראשי בצד ימין של הפאנל: כל הקווים שיוצאים מהשפה העליונה/התחתונה (פאנל מעל/מתחת) עוברים בו,
      וכל קו פונה שמאלה בפס שמתחת לשורה שלו אל המחבר — בלי לחצות מחברים. הסדר: מי שפונה ראשון הכי פנימי, בלי הצלבות */
-  const stk = []; ents.forEach((e, k) => { const other = byId(e.c.from === n.id ? e.c.to : e.c.from), st = other && other.kind !== 'point' ? stackedBoxes(myBox, nodeBox(other)) : null; if (st) stk.push({ e, k, down: st === 'AB' }); });
+  const exitOf = e => { const other = byId(e.c.from === n.id ? e.c.to : e.c.from); return other && !other.hidden ? panelExitSide(myBox, nodeBox(other)) : 'T'; };
+  const stk = []; ents.forEach((e, k) => { stk.push({ e, k, down: exitOf(e) === 'B' }); });
   const TR = {}; let W2 = W; n._chW = widened ? d._chW * PK : 0;
   if (stk.length) {
     const maxRight = Math.max(...Object.values(holePos).map(p2 => p2.hx + (p2.hw || 24) / 2));
@@ -2557,7 +2559,7 @@ function drawPanelCables(n, d) {
   ents.forEach((e, k) => {
     const col = cableColor(e.c);
     /* הקצה השני יושב מעל/מתחת — המעבר הפנימי יורד/עולה ישר מהמחבר לשפה, והכבל ממשיך ישר */
-    const other = byId(e.c.from === n.id ? e.c.to : e.c.from), st = other && other.kind !== 'point' ? stackedBoxes(myBox, nodeBox(other)) : null;
+    const st = exitOf(e) === 'B' ? 'AB' : 'BA';
     if (st) {
       const down = st === 'AB', edgeY = down ? H : 0, tx = TR[k];
       const rk = 'r' + Math.round(e.hy); rowIdx[rk] = (rowIdx[rk] || 0) + 1;
@@ -3424,6 +3426,9 @@ function cableLabels() {
   return lbl;
 }
 /* שתי קופסאות זו מעל זו (חפיפה אופקית, מרווח אנכי) — הכבל יוצא מלמטה/מלמעלה וממשיך ישר, בלי עקיפה מהצד */
+/* פאנל פתוח: כל הכבלים נכנסים דרך הערוץ הימני ויוצאים מהשפה העליונה או התחתונה — למטה רק כשהקצה השני כולו מתחת לפאנל */
+function panelExitSide(my, other) { return other && other.y >= my.y + (my.h || 0) - 2 ? 'B' : 'T'; }
+function isOpenPanel(n) { return !!n && n.kind === 'panel' && !n.pmin && !n.hideInt; }
 function stackedBoxes(A, B) {
   if (!A || !B) return null;
   const aL = 2200 - A.x - A.w, aR = 2200 - A.x, bL = 2200 - B.x - B.w, bR = 2200 - B.x;
@@ -3447,6 +3452,11 @@ function renderWires() {
     if (a.hidden || b.hidden) return null; /* מוצר מוסתר — גם הכבלים שלו מוסתרים */
     const A = nodeBox(a), B = nodeBox(b);
     const acx = W - A.x - A.w / 2, bcx = W - B.x - B.w / 2;
+    const opA = isOpenPanel(a), opB = isOpenPanel(b);
+    if (opA || opB) {
+      const as = opA ? panelExitSide(A, B) : (bcx < acx ? 'L' : 'R'), bs = opB ? panelExitSide(B, A) : (acx < bcx ? 'L' : 'R');
+      return { A, B, aside: as, bside: bs, vert: opA && opB, elbow: !(opA && opB), panelEnd: opA ? 'a' : 'b' };
+    }
     const st = stackedBoxes(A, B);
     if (st) return { A, B, aside: st === 'AB' ? 'B' : 'T', bside: st === 'AB' ? 'T' : 'B', vert: true };
     return { A, B, aside: bcx < acx ? 'L' : 'R', bside: acx < bcx ? 'L' : 'R' };
@@ -3527,7 +3537,7 @@ function renderWires() {
     const sib = sibG[c.from + '|' + c.to];
     const off = (sib.indexOf(c) - (sib.length - 1) / 2) * 3;   /* צפוף מאוד: 3px בין כבלים מקבילים */
     WIREPTS[c.id] = { a: { x: pa.x, y: pa.y }, b: { x: pb.x, y: pb.y } };
-    items.push({ c, i, pa, pb, off, A: f.A, B: f.B, vert: !!f.vert });
+    items.push({ c, i, pa, pb, off, A: f.A, B: f.B, vert: !!f.vert, elbow: !!f.elbow, panelEnd: f.panelEnd, as: f.aside, bs: f.bside });
   });
 
   /* צרור: כבלים שעוברים באותו צינור בין אותן שתי קופסאות מצוירים כמו מולטי — מסלול אחד, תווית אחת (3–6), בלי פסים נפרדים */
@@ -3541,11 +3551,24 @@ function renderWires() {
       /* מסלול אנכי: ירידה ישרה, פס רוחבי קצר באמצע (אם הנקודות לא באותו x) וכניסה מלמעלה/מלמטה */
       if (it.gof) { it.my = it.gof.my; it.mx = (pa.x + pb.x) / 2; it.bx = it.mx; it.by = it.my; continue; }
       let my = (pa.y + pb.y) / 2 + (it.gmem ? 0 : off) + (c.bend?.dy || 0);
+      /* שני הקצוות יוצאים מאותה שפה (קופסאות זו לצד זו) — הפס הרוחבי עובר מעל/מתחת לשתיהן, לא דרכן */
+      if (it.as === it.bs && it.A && it.B) my = (it.as === 'T' ? Math.min(it.A.y, it.B.y) - 12 : Math.max(it.A.y + (it.A.h || 0), it.B.y + (it.B.h || 0)) + 12) + (c.bend?.dy || 0);
       const x1 = Math.min(pa.x, pb.x), x2 = Math.max(pa.x, pb.x);
       let g = 0;
       while (g++ < 60 && hlanes.some(v => Math.abs(v.y - my) < 2.6 && x1 < v.x2 + 4 && v.x1 - 4 < x2)) my += 3;
       hlanes.push({ y: my, x1, x2 });
       it.my = my; it.mx = (pa.x + pb.x) / 2; it.bx = it.mx; it.by = my;
+      continue;
+    }
+    if (ortho && it.elbow) {
+      /* פאנל פתוח ↔ מוקד/ארון: יציאה אנכית מהערוץ, ואז אופקית אל הקצה השני */
+      const Pp = it.panelEnd === 'a' ? pa : pb, Q = it.panelEnd === 'a' ? pb : pa, side = it.panelEnd === 'a' ? it.as : it.bs, qside = it.panelEnd === 'a' ? it.bs : it.as;
+      const gi = it.gof ? 0 : 0; void gi;
+      const yOut = side === 'T' ? Pp.y - 10 : Pp.y + 10, outside = side === 'T' ? Q.y <= yOut : Q.y >= yOut;
+      const pts = outside ? [[Pp.x, Pp.y], [Pp.x, Q.y], [Q.x, Q.y]] : [[Pp.x, Pp.y], [Pp.x, yOut], [Q.x + (qside === 'L' ? -10 : 10), yOut], [Q.x + (qside === 'L' ? -10 : 10), Q.y], [Q.x, Q.y]];
+      if (it.panelEnd === 'b') pts.reverse();
+      it.epts = pts; const cr = outside ? pts[1] : pts[it.panelEnd === 'b' ? pts.length - 2 : 1];
+      it.mx = cr[0]; it.bx = cr[0]; it.by = cr[1]; it.ecorner = cr;
       continue;
     }
     if (ortho) {
@@ -3644,8 +3667,10 @@ function renderWires() {
     const col = cableColor(c);
     const selw = c.id === selCable ? 2.2 : (c.type === 'multi' ? 1.6 : 1.1);   /* מולטי עבה יותר — נבדל גם בלי צבע */
     let dpath;
-    if (ortho && it.vert) {
-      dpath = Math.abs(pa.x - pb.x) < 2 ? `M${pa.x} ${pa.y} V ${pb.y}` : `M${pa.x} ${pa.y} V ${it.my} H ${pb.x} V ${pb.y}`;
+    if (ortho && it.elbow && it.epts) {
+      dpath = 'M' + it.epts.map(q => q[0] + ' ' + q[1]).join(' L ');
+    } else if (ortho && it.vert) {
+      dpath = Math.abs(pa.x - pb.x) < 2 && it.as !== it.bs ? `M${pa.x} ${pa.y} V ${pb.y}` : `M${pa.x} ${pa.y} V ${it.my} H ${pb.x} V ${pb.y}`;
     } else if (ortho) {
       /* קצה שנכנס בשפת פאנל/ארון והיעד בצד הנגדי — בורח החוצה ועוקף את הקופסה
          מבחוץ (מעל/מתחת) במקום לחצות אותה. זה מה שקורה בשטח עם כבל אמיתי. */
@@ -3713,8 +3738,9 @@ function renderWires() {
     /* מלבן פינה עם מספר הכבל בתוכו — במקום עיגול נפרד על הקו; לחיצה בוחרת את הכבל, גרירה מזיזה את הפינה */
     const grpLbl = mem => { const ns = mem.map(x => LBL[x.id]).filter(v => v != null); const nums = ns.map(Number); if (nums.every(v => !isNaN(v))) { nums.sort((a2, b2) => a2 - b2); const consec = nums.every((v, j) => j === 0 || v === nums[j - 1] + 1); return consec && nums.length > 2 ? nums[0] + '–' + nums[nums.length - 1] : nums.join(','); } return ns.join(','); };
     const lblS = it.gmem && it.gmem.length > 1 ? grpLbl(it.gmem) : String(LBL[c.id]), cw2 = Math.max(12, lblS.length * 5 + 6), cfs = 6.5;
-    const cornerLbl = (x, y, attrs, cur, tip) => `<g ${attrs} style="pointer-events:all;cursor:${cur}" onclick="pickCable('${c.id}')"><title>${tip}</title><rect x="${x - cw2 / 2}" y="${y - 4.5}" width="${cw2}" height="9" rx="2.5" fill="#fff" stroke="${col}" stroke-width="${c.id === selCable ? 2 : 1.2}"/><text x="${x}" y="${y + cfs * 0.37}" text-anchor="middle" font-size="${cfs}" font-weight="800" fill="${col}" style="user-select:none;pointer-events:none">${lblS}</text></g>`;
+    const cornerLbl = (x, y, attrs, cur, tip) => `<g ${attrs} style="pointer-events:all;cursor:${cur}" onclick="pickCable('${c.id}')"><title>${tip}</title><rect x="${x - cw2 / 2}" y="${y - 4.5}" width="${cw2}" height="9" rx="2.5" fill="#fff" stroke="${col}" stroke-width="${c.id === selCable ? 2 : 1.2}"/><text x="${x}" y="${y + cfs * 0.37}" text-anchor="middle" font-size="${cfs}" font-weight="800" fill="${col}" direction="ltr" style="user-select:none;pointer-events:none;unicode-bidi:isolate">${lblS}</text></g>`;
     if (it.gof) { /* חבר בצרור — התווית והפינות מצוירות פעם אחת, על הראשון */ }
+    else if (ortho && it.elbow && it.ecorner) { out += cornerLbl(it.ecorner[0], it.ecorner[1], `data-cbadge="${c.id}"`, 'pointer', 'מספר הכבל'); }
     else if (ortho && it.vert) {
       /* פינות הפס הרוחבי — גרירה אנכית מזיזה את הפס (bend.dy) */
       if (Math.abs(pa.x - pb.x) >= 2) out += [[pa.x, it.my], [pb.x, it.my]].map(([x, y]) => cornerLbl(x, y, `data-cbadge="${c.id}"`, 'ns-resize', 'גרירה — הזזת הפס הרוחבי')).join('');
