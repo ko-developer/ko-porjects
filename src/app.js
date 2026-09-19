@@ -330,6 +330,10 @@ async function verRestore(idx) {
 }
 function normalizeAll() {
   for (const pr of store.projects) { ensureStock(pr); pr.route = pr.route || 'ortho'; }
+  /* זוויות פיזור / Max SPL ש"צולמו" למוקד בזמן היצירה מהערכה היוריסטית (לא הוזנו ידנית): כשהדגם קיים בטבלת הנתונים — הערך נמחק מהמוקד והטבלה קובעת */
+  try { for (const pr of store.projects) for (const n of pr.nodes || []) { if (n.kind !== 'point' || n.dispM || (n.disp == null && n.vdisp == null)) continue;
+    const it = n.srcIid && (pr.impSaved || []).find(x => x.iid === n.srcIid), d = spkData((it && it.name) || n.name) || spkData(n.name); if (!d || !d.h) continue;
+    if (n.disp != null && n.disp !== d.h) delete n.disp; if (n.vdisp != null && d.v && n.vdisp !== d.v) delete n.vdisp; } } catch (e) {}
   /* כבלים רב-גידיים שנשמרו עם פיני ברירת המחדל הישנים (LOW 1± · MID 2± · HI 3±) מתעדכנים לפינים הנכונים */
   for (const pr of store.projects) for (const c of pr.cables || []) { if (!c.bands || !c.bands.length) continue;
     const sp = (pr.nodes || []).find(n => n.id === c.to && n.kind === 'point') || (pr.nodes || []).find(n => n.id === c.from && n.kind === 'point'); if (!sp) continue;
@@ -2137,15 +2141,21 @@ function objArrange(o) {
 /* אייקונים צמודים (n.att = {id, sx, sy}): ממוקמים ביחס לאייקון העוגן לפי הגודל הנוכחי על המסך — גודל האייקון תלוי בזום, ולכן הצמידות מחושבת בכל רינדור */
 /* משבצת צמודה פנויה לאייקון הנגרר. בזמן הגרירה (wide=false) נצמדים רק כשקרובים למשבצת — מעבר מעל אייקון אחר לא מקפיץ את הנגרר לצדדים;
    בשחרור (wide=true) אייקון שנשאר מעל אייקון אחר עובר למשבצת הפנויה הקרובה, כדי שלא יישבו שניים באותה נקודה */
-function iconSlotFor(drag, wide) {
+function iconSlotFor(drag, wide, rawPos) {
   const Z = getZ() || 1, cvr = $('#canvas').getBoundingClientRect(), bx = el2 => { const r = el2.getBoundingClientRect(); return { cx: (r.left + r.width / 2 - cvr.left) / Z, cy: (r.top + r.height / 2 - cvr.top) / Z, W: r.width / Z, H: r.height / Z }; };
   const elD = document.getElementById('nd_' + drag.n.id), micD = elD && (elD.querySelector('.mic') || elD); if (!elD || !micD) return null;
   if (!drag.off) { const m0 = bx(micD), n0 = bx(elD); drag.off = { x: 2200 - drag.ox - m0.cx - (drag.n._fanX || 0), y: m0.cy - drag.oy - (drag.n._fanY || 0), dmy: m0.cy - n0.cy, W: m0.W, H: m0.H, nH: n0.H }; }
-  const o = drag.off, raw = { cx: 2200 - drag.n.x - o.x, cy: drag.n.y + o.y };
+  const o = drag.off, rp = rawPos || { x: drag.n.x, y: drag.n.y }, raw = { cx: 2200 - rp.x - o.x, cy: rp.y + o.y };   /* rawPos — מיקום הסמן בלי ההצמדה שכבר הוחלה בזמן הגרירה */
   const others = P.nodes.filter(nn => nn !== drag.n && isIconNode(nn) && !nn.hidden).map(nn => { const e2 = document.getElementById('nd_' + nn.id); if (!e2) return null; return { nn, m: bx(e2.querySelector('.mic') || e2), nb: bx(e2) }; }).filter(Boolean);
   const over = (cx, cy, q) => Math.abs(cx - q.m.cx) < (o.W + q.m.W) / 2 - 1 && Math.abs(cy - q.m.cy) < (o.H + q.m.H) / 2 - 1;
   const overlapping = others.some(q => over(raw.cx, raw.cy, q));
   if (wide && !overlapping) return null;
+  if (wide) {   /* טופ ששוחרר על סאב יושב מעליו (כמו בשטח); סאב ששוחרר על טופ — מתחתיו */
+    const isSubN = q2 => (q2.ptype === 'sub') || (q2.kind === 'point' && !q2.ptype && /סאב|\bsub\b|וופר/i.test(q2.name || ''));
+    const tgt = others.filter(q => over(raw.cx, raw.cy, q)).sort((a2, b2) => Math.hypot(a2.m.cx - raw.cx, a2.m.cy - raw.cy) - Math.hypot(b2.m.cx - raw.cx, b2.m.cy - raw.cy))[0];
+    if (tgt && drag.n.kind === 'point' && tgt.nn.kind === 'point' && isSubN(drag.n) !== isSubN(tgt.nn)) { const sy2 = isSubN(tgt.nn) ? -1 : 1;
+      const cx = tgt.m.cx, cy = (tgt.nb.cy + sy2 * ((tgt.nb.H + o.nH) / 2 + 1)) + o.dmy;
+      if (!others.some(q2 => q2 !== tgt && over(cx, cy, q2))) return { gx: 2200 - cx - o.x, gy: cy - o.y, att: { id: tgt.nn.id, sx: 0, sy: sy2 } }; } }
   const range = wide ? o.W * 4 : Math.max(10 / Z, o.W * 0.45); let best = null;
   for (const q of others) for (const [sx2, sy2] of [[1, 0], [-1, 0], [0, -1], [0, 1]]) {
     const cx = q.m.cx + sx2 * ((q.m.W + o.W) / 2 + 1), cy = sy2 === 0 ? q.m.cy : (q.nb.cy + sy2 * ((q.nb.H + o.nH) / 2 + 1)) + o.dmy;
@@ -2154,7 +2164,7 @@ function iconSlotFor(drag, wide) {
   return best ? { gx: 2200 - best.cx - o.x, gy: best.cy - o.y, att: { id: best.id, sx: best.sx, sy: best.sy } } : null;
 }
 /* אייקון צמוד מוצג בהיסט מהמיקום השמור; בתחילת גרירה ההיסט נכנס למיקום עצמו — האייקון לא קופץ כשמתחילים לגרור */
-function bakeAtt(n) { if (n && n.att && isIconNode(n) && (n._fanX || n._fanY)) { n.x += n._fanX || 0; n.y += n._fanY || 0; n._fanX = 0; n._fanY = 0; } }
+function bakeAtt(n) { if (n && isIconNode(n) && (n._fanX || n._fanY)) {   /* גם אייקון שנפרש מערימה באותה נקודה — הגרירה מתחילה מהמקום שבו הוא נראה */ n.x += n._fanX || 0; n.y += n._fanY || 0; n._fanX = 0; n._fanY = 0; } }
 function attachArrange() {
   const list = P.nodes.filter(n => n.att); if (!list.length) return;
   const cv = document.getElementById('canvas'); if (!cv) return; const Z = getZ() || 1;
@@ -6308,13 +6318,13 @@ const SPEAKER_DATA = [
   { re: /EVO\s?7SH\s?SKELETAL/i, h: 40, v: 20, sens: 112, max: 136, w: 250, o: 24, ok: 1, url: 'https://funktion-one.com/product/evo-7sh-skeletal', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/c0305dbd-39be-4e84-b359-d6fd40e2e2df_Funktion-One_Evo7SH_Spec_Sheet.pdf', f: '200Hz - 4kHz', kg: '23kg (51lbs)', conn: 'Neutrik NL4 or Junction box option', drv: '10"', bd: { bi: { low: { o: 24, w: 250, sens: 112, f: '200Hz - 4kHz', drv: '10"', sensAt: '4.9V' }, hi: { o: 32, w: 75, sens: 114, f: '4kHz - 18kHz', drv: '1.4"', sensAt: '5.6V' } } }, vf: '2026-09-19' }, /* Funktion-One EVO 7SH SKELETAL — 10" · 200Hz - 4kHz · 40° Horizontal x 20° Vertical · 2-way */
   { re: /Euphoria\s?12\s?Sub/i, h: 360, v: 360, sens: 99, max: 125, w: 400, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/unicorn-euphoria-12-sub', f: '50Hz-200Hz ± 3dB', kg: '36KG', dims: '350 x 450 x 500 mm', drv: '12" bass driver', vf: '2026-09-19' }, /* KT Audio Euphoria 12 Sub — 50Hz-200Hz ± 3dB */
   { re: /Array\s?SUB\s?1000\b/i, h: 360, v: 360, sens: 86, max: 111, w: 300, o: 4, ok: 1, url: 'https://www.kt-audio.com/products/array-sub', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Array_SUB.pdf', f: '20 - 300Hz', dims: '12.2" x 16.5" x 16.5" inch', drv: '10" Polypropylene Cone', vf: '2026-09-19' }, /* KT Audio Array SUB 1000 — 10" Polypropylene Cone · 20 - 300Hz */
-  { re: /EVOLUTION\s?XSH\b/i, h: 90, v: 13, sens: 107, max: 130, w: 200, o: 16, ok: 1, url: 'https://funktion-one.com/product/evolution-xsh1', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/ZogKYx5LeNNTw009_EvolutionXSH-F1-DS%3DD0002-01.pdf', f: '280Hz - 5kHz', kg: '13.5kg (30lbs) (including yoke)', conn: '2 x Neutrik NL4', drv: '8"', bd: { bi: { low: { o: 16, w: 200, sens: 107, f: '280Hz - 5kHz', drv: '8"', sensAt: '4V' }, hi: { o: 16, w: 100, sens: 109, f: '5kHz - 18kHz', drv: '1"', sensAt: '4V' } } }, vf: '2026-09-19' }, /* Funktion-One EVOLUTION XSH1 — 8" · 280Hz - 5kHz · 90° Horizontal x 13° Vertical · 2-way */
+  { re: /EVO(LUTION)?\s?XSH\b/i, h: 90, v: 13, sens: 107, max: 130, w: 200, o: 16, ok: 1, url: 'https://funktion-one.com/product/evolution-xsh1', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/ZogKYx5LeNNTw009_EvolutionXSH-F1-DS%3DD0002-01.pdf', f: '280Hz - 5kHz', kg: '13.5kg (30lbs) (including yoke)', conn: '2 x Neutrik NL4', drv: '8"', bd: { bi: { low: { o: 16, w: 200, sens: 107, f: '280Hz - 5kHz', drv: '8"', sensAt: '4V' }, hi: { o: 16, w: 100, sens: 109, f: '5kHz - 18kHz', drv: '1"', sensAt: '4V' } } }, vf: '2026-09-19' }, /* Funktion-One EVOLUTION XSH1 — 8" · 280Hz - 5kHz · 90° Horizontal x 13° Vertical · 2-way */
   { re: /Euphoria\s?8\s?WR/i, h: 90, v: 60, sens: 94, max: 117, w: 200, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/unicorn-euphoria-8-wr', f: '60Hz–20KHz ± 3dB', kg: '8.4KG', dims: '260 x 200 x 340 mm', drv: '8” bass driver | 1” / 25mm HF', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Euphoria_8_manual.pdf?v=1782209004', vf: '2026-09-19' }, /* KT Audio Euphoria 8 WR — 60Hz–20KHz ± 3dB · 90° horizontal, 60° vertical */
   { re: /INTERPID\s?800\b/i, h: 90, v: 60, sens: 90, max: 109, w: 80, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/kt-interpid-800', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Interpid_800.pdf', f: '56Hz to 20Khz', drv: '8" (203mm) Graphite Cone with Rubber Surround', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Interpid_800.pdf?v=1699200974', vf: '2026-09-19' }, /* KT Audio INTERPID 800 — 8" (203mm) Graphite Cone with Rubber Surround · 56Hz to 20Khz · PDF: 8 */
   { re: /Till\s?15P\s?SUB/i, h: 360, v: 360, sens: 96, max: 123, w: 500, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/unicorn-till-15p-sub', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Till_Series.pdf', f: '38-120Hz', kg: '35kg', dims: '650x445x720mm', drv: '15” subwoofer', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Till_Series.pdf?v=1699201518', vf: '2026-09-19' }, /* KT Audio Till 15P SUB — 15” subwoofer · 38-120Hz */
   { re: /Till\s?18P\s?SUB/i, h: 360, v: 360, sens: 96, max: 124, w: 600, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/unicorn-till-18p-sub', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Till_Series.pdf', f: '35-120Hz', kg: '44.8kg', dims: '730x510x820mm', drv: '18” subwoofer', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Till_Series.pdf?v=1699201518', vf: '2026-09-19' }, /* KT Audio Till 18P SUB — 18” subwoofer · 35-120Hz */
   { re: /EVO\s?7TL\s?215\b/i, h: 360, v: 360, sens: 102, max: 128, w: 400, o: 8, ok: 1, url: 'https://funktion-one.com/product/evo-7tl-215', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/37f9ba41-e0da-4c94-95fd-178168c2a177_Funktion-One_Evo7TL_Spec_Sheet.pdf', f: '65Hz - 300Hz', kg: '61kg (135lbs) without wheelboard', conn: '2 x Neutrik NL8', drv: '2 x 15"', perDrv: '2 x 400W · 2 x 8Ω', vf: '2026-09-19' }, /* Funktion-One EVO 7TL 215 — 2 x 15" · 65Hz - 300Hz · Array dependent */
-  { re: /EVOLUTION\s?X/i, h: 90, v: 13, sens: 102, max: 128, w: 400, o: 8, ok: 1, url: 'https://funktion-one.com/product/evolution-x', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/ZessfXUurf2G3NzE_EvolutionX-F1-DS%3DD0001-02.pdf', man: 'https://funktion-one.cdn.prismic.io/funktion-one/ZestRHUurf2G3Nzi_Evolution_X_User_Guide_V1.3.pdf', f: '35/85Hz - 280Hz', kg: '47kg (103lbs) without wheelboard', conn: '2 x Neutrik NL8', drv: '15"', bd: { tri: { low: { o: 8, w: 400, sens: 102, f: '35/85Hz - 280Hz', drv: '15"', sensAt: '2.8V' }, mid: { o: 16, w: 200, sens: 107, f: '280Hz - 5kHz', drv: '8"', sensAt: '4V' }, hi: { o: 16, w: 100, sens: 109, f: '5kHz - 18kHz', drv: '1"', sensAt: '4V' } } }, vf: '2026-09-19' }, /* Funktion-One EVOLUTION X — 15" · 35/85Hz - 280Hz · 90° Horizontal x 13° Vertical · 3-way */
+  { re: /EVO(LUTION)?\s?X(?![A-Za-z])/i, h: 90, v: 13, sens: 102, max: 128, w: 400, o: 8, ok: 1, url: 'https://funktion-one.com/product/evolution-x', pdf: 'https://funktion-one.cdn.prismic.io/funktion-one/ZessfXUurf2G3NzE_EvolutionX-F1-DS%3DD0001-02.pdf', man: 'https://funktion-one.cdn.prismic.io/funktion-one/ZestRHUurf2G3Nzi_Evolution_X_User_Guide_V1.3.pdf', f: '35/85Hz - 280Hz', kg: '47kg (103lbs) without wheelboard', conn: '2 x Neutrik NL8', drv: '15"', bd: { tri: { low: { o: 8, w: 400, sens: 102, f: '35/85Hz - 280Hz', drv: '15"', sensAt: '2.8V' }, mid: { o: 16, w: 200, sens: 107, f: '280Hz - 5kHz', drv: '8"', sensAt: '4V' }, hi: { o: 16, w: 100, sens: 109, f: '5kHz - 18kHz', drv: '1"', sensAt: '4V' } } }, vf: '2026-09-19' }, /* Funktion-One EVOLUTION X — 15" · 35/85Hz - 280Hz · 90° Horizontal x 13° Vertical · 3-way */
   { re: /Euphoria\s?5\b/i, h: 80, v: 60, sens: 90, max: 110, w: 100, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/unicorn-euphoria-5', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Euphoria_5_Specifications.pdf', f: '80Hz-20KHz ± 3dB', kg: '5.2KG', dims: '200 x 160 x 270 mm', drv: '5" bass driver | 2.75" paper Ultra tweeter', vf: '2026-09-19' }, /* KT Audio Euphoria 5 — 80Hz-20KHz ± 3dB · 80° horizontal, 60° vertical */
   { re: /Euphoria\s?8\b/i, h: 90, v: 60, sens: 94, max: 117, w: 200, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/unicorn-euphoria-8', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Euphoria_8_manual.pdf', f: '60Hz–20KHz ± 3dB', kg: '8.4KG', dims: '260 x 200 x 340 mm', drv: '8” bass driver | 1” / 25mm HF', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Euphoria_8_manual.pdf?v=1782209004', vf: '2026-09-19' }, /* KT Audio Euphoria 8 — 60Hz–20KHz ± 3dB · 90° horizontal, 60° vertical */
   { re: /Pagaz\s?115S/i, h: 360, v: 360, sens: 94, max: 113, w: 75, o: 8, ok: 1, url: 'https://www.kt-audio.com/products/kt-array-sub', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Pagaz_115S.pdf', f: '45Hz-3.5kHz', kg: '25kg', dims: '498mm (W) x 501mm (H) x 596mm (D)', drv: '1×15"(385mm)/3"voice coil LF', vf: '2026-09-19' }, /* KT Audio Pagaz 115S — 45Hz-3.5kHz */
@@ -6564,7 +6574,7 @@ const AMP_DATA = [
   { re: /\bMX36\b|XTA.*MX/i, kind: 'proc', io: '3×6', w: 'XTA MX', ok: 1, url: 'https://xta.co.uk/portfolio/mx36/' },
   { re: /DS8000/i, kind: 'proc', io: '8×8', w: 'XTA DS8000', ok: 1, url: 'https://xta.co.uk/portfolio/ds8000/' }
 ];
-const prettyRe = re => String(re).replace(/^\/|\/i?$/g, '').replace(/\(\?![^)]*\)/g, '').replace(/\\\+/g, '+').split('|')[0]
+const prettyRe = re => String(re).replace(/^\/|\/i?$/g, '').replace(/\(\?![^)]*\)/g, '').replace(/\(([^()|?]*)\)\?/g, '$1').replace(/\\\+/g, '+').split('|')[0]
   .replace(/\[[^\]]*\]\??/g, ' ').replace(/\\s\?|\\s\*|\\s|\\b|\\\.|\(|\)|\?|\^|\$|-\?/g, ' ').replace(/\s+/g, ' ').trim();
 /* ===== מנהל טבלת נתונים — טאבים: רמקולים / מגברים / פרוססורים ===== */
 function spkDataManager(tab) {
@@ -6878,6 +6888,15 @@ function gearAudit(sel) {
 function gaAns(key, qk, val) { store.gearAudit = store.gearAudit || {}; const st = store.gearAudit[key] = store.gearAudit[key] || {}; st.ans = st.ans || {}; st.ans[qk] = st.ans[qk] === val ? undefined : val; st.ts = Date.now(); save(); gearAudit(); }
 function gaDone(key, on) { store.gearAudit = store.gearAudit || {}; const st = store.gearAudit[key] = store.gearAudit[key] || {}; st.done = on ? 1 : 0; st.ts = Date.now(); save(); if (on) { const rows = gearAuditRows(); const i = rows.findIndex(r => !r.done); gearAudit(i >= 0 ? i : 0); } else gearAudit(); }
 /* דף מוצר — כל הנתונים, טבלת הספק לפי אימפדנס, קישורים למדריך ולדף היצרן */
+/* פתיחת טבלת הנתונים על השורה של הרמקול הזה */
+function spkTableGoto(nid) {
+  const n = byId(nid); if (!n) return; const full = nodeFullName(n), d = spkData(full) || spkData(n.name);
+  spkDataManager('spk');
+  setTimeout(() => { const want = d && d.re ? prettyRe(d.re) : null; const a = [...document.querySelectorAll('#spkDbOv td a[onclick*="specSheet"]')].find(x => want ? x.textContent.trim() === want : false);
+    if (!a) { uiToast('הדגם לא נמצא בטבלת הנתונים — אפשר להוסיף אותו שם'); return; }
+    const tr = a.closest('tr'); tr.scrollIntoView({ block: 'center' }); tr.style.outline = '3px solid #ff8a50'; tr.style.background = '#fff4ec'; }, 250);
+}
+window.spkTableGoto = spkTableGoto;
 function specSheet(tab, name) {
   const key = rearKey(name);
   let d = null;
@@ -7453,16 +7472,17 @@ function renderPanel() {
     </div>
     ${!isSpk ? `<p class="muted" style="font-size:11px">מוקד מסוג ${PTYPES.find(x => x[0] === pt)[1]} — ללא כיסוי אקוסטי.</p>
     <button style="width:100%;margin:4px 0 6px;background:#0f6e56;color:#fff;font-weight:700" onclick="wireMode={from:{nid:'${n.id}'}};wireStock=null;pinMode=null;connPin=null;render()">🔌 חבר כבל מכאן — ואז לחץ על מוצר היעד בתכנית</button>` : `
-    <h3 class="sec">🔊 נתונים אקוסטיים (EASE/GLL) וכיסוי</h3>`}
+    <h3 class="sec" style="display:flex;align-items:center;gap:6px">🔊 נתונים אקוסטיים (EASE/GLL) וכיסוי<span style="flex:1"></span><button style="font-size:11px;padding:2px 8px" title="פתיחת הרמקול הזה בטבלת נתוני הרמקולים — שם הנתונים נערכים ומאומתים" onclick="spkTableGoto('${n.id}')">📋 בטבלת הנתונים</button></h3>
+    ${(() => { const sd0 = spkDataN(n); return sd0 ? `<p class="muted" style="font-size:10.5px;margin:0 0 4px">מטבלת הנתונים: ${sd0.h ? sd0.h + '°' : '?'}×${sd0.v ? sd0.v + '°' : '?'} · ${sd0.sens ?? '?'} dB · ${sd0.w ?? '?'} W · ${sd0.o ?? '?'} Ω${sd0.vf ? ' · <b style="color:#0f6e56">✔ 100%</b>' : ''}</p>` : '<p style="font-size:10.5px;margin:0 0 4px;color:#c1121f">⚠ הדגם לא נמצא בטבלת הנתונים — הערכים למטה הם הערכה</p>'; })()}`}
     ${isSpk ? `
     ${(() => {
       const sd = spkData(n.name);
-      const manual = n.disp != null || n.vdisp != null;
+      const manual = !!n.dispM && (n.disp != null || n.vdisp != null);
       const vfd = manual || (sd && sd.ok);
       const st = vfd ? 'border:2px solid #0f8a5f;background:#eef7f1' : 'border:2px solid #c1121f;background:#fdeeee';
       return `<div class="row2">
-      <div class="fld"><label>זווית H° ${vfd ? '<span style="color:#0f8a5f;font-size:10px">✓ ' + (manual ? 'ידני' : 'מאומת יצרן') + '</span>' : '<span style="color:#c1121f;font-size:10px">⚠ לא מאומת</span>'}</label><input type="number" min="10" max="360" style="${st}" value="${n.disp ?? guessDisp(n.name)}" onchange="byId('${n.id}').disp=+this.value;render();save()"></div>
-      <div class="fld"><label>זווית V°</label><input type="number" min="10" max="360" style="${st}" value="${n.vdisp ?? guessVdisp(n.name)}" onchange="byId('${n.id}').vdisp=+this.value;save();render()"></div>
+      <div class="fld"><label>זווית H° ${vfd ? '<span style="color:#0f8a5f;font-size:10px">✓ ' + (manual ? 'ידני' : 'מאומת יצרן') + '</span>' : '<span style="color:#c1121f;font-size:10px">⚠ לא מאומת</span>'}</label><input type="number" min="10" max="360" style="${st}" value="${n.disp ?? guessDisp(nodeFullName(n))}" onchange="byId('${n.id}').dispM=true;byId('${n.id}').disp=+this.value;render();save()"></div>
+      <div class="fld"><label>זווית V°</label><input type="number" min="10" max="360" style="${st}" value="${n.vdisp ?? guessVdisp(nodeFullName(n))}" onchange="byId('${n.id}').dispM=true;byId('${n.id}').vdisp=+this.value;save();render()"></div>
     </div>`;
     })()}
     <div class="row2">
@@ -8723,7 +8743,8 @@ document.addEventListener('pointerup', e => {
     document.querySelectorAll('.node.droptgt').forEach(el => el.classList.remove('droptgt'));
     /* שחרור אייקון על שולחן/בר משורטט — נצמד אליו ומסתדר בשורה לרוחבו יחד עם שאר האייקונים שעל אותו אובייקט */
     if (movedFar && isIconNode(n) && !P.snapOff && !e.altKey && objAttachDrop(n)) { render(); save(); return; }
-    if (movedFar && isIconNode(n) && !P.snapOff && !e.altKey && !moved.att) { const sl = iconSlotFor(moved, true); if (sl) { n.x = sl.gx; n.y = sl.gy; moved.att = sl.att; } }
+    if (movedFar && isIconNode(n) && !P.snapOff && !e.altKey) { const Zd = getZ() || 1, rawPos = { x: Math.max(0, moved.ox - (e.clientX - moved.sx) / Zd), y: Math.max(0, moved.oy + (e.clientY - moved.sy) / Zd) };
+      const sl = iconSlotFor(moved, true, rawPos); if (sl && (sl.att.sx === 0 || !moved.att)) { n.x = sl.gx; n.y = sl.gy; moved.att = sl.att; } }
     if (movedFar) {
       /* צמוד לאייקון אחר = קשר שנשמר (n.att) ומסודר מחדש בכל רינדור — נשאר צמוד בכל זום; גרירה הצידה מנתקת */
       if (isIconNode(n) && moved.att) { let q = byId(moved.att.id), g = 0; while (q && q.att && g++ < 20) { if (q.att.id === n.id) { delete q.att; break; } q = byId(q.att.id); } n.att = moved.att; } else delete n.att;
@@ -11151,7 +11172,7 @@ function buildZoneFromItems(zid) {
     const q = remQ(it);
     for (let k = 0; k < q && pi < pts.length; k++, pi++) {
       const p = pts[pi];
-      const nd = { id: uid('n'), kind: 'point', name: it.name.slice(0, 40) + ' (' + (p.lbl || (k + 1)) + ')', sub: (live ? 'מיין במה · ' : 'היקפי · ') + z.name, x: 2200 - p.cx - 20, y: p.cy - 24, srcIid: it.iid, mini: true, mount: live ? 'טראס/הנפה' : 'קיר בלוק', hgt: live ? 3.5 : 2.6, aim: p.aim, disp: guessDisp(it.name), spl: (guessSpl(it.name) || 120) - 20 };
+      const nd = { id: uid('n'), kind: 'point', name: it.name.slice(0, 40) + ' (' + (p.lbl || (k + 1)) + ')', sub: (live ? 'מיין במה · ' : 'היקפי · ') + z.name, x: 2200 - p.cx - 20, y: p.cy - 24, srcIid: it.iid, mini: true, mount: live ? 'טראס/הנפה' : 'קיר בלוק', hgt: live ? 3.5 : 2.6, aim: p.aim, spl: (guessSpl(it.name) || 120) - 20 };
       P.nodes.push(nd); created.push(nd.id); nS++;
     }
     it.placed = (it.placed || 0) + q; it.zones[z.name] = (it.zones[z.name] || 0) + q; it.added = true;
