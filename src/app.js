@@ -563,6 +563,8 @@ function spkAmpMode(name) {
   const mu = matrixMulti(name);
   if (mu) { const bands = new Set((mu.bands || []).map(([l]) => MX_BAND[String(l).toUpperCase()]).filter(Boolean)); if (bands.size >= 3) return 'tri'; if (bands.size === 2) return 'bi'; }
   if (/EVO(LUTION)?\s?X\b/i.test(name || '')) return 'tri';
+  /* Funktion-One Resolution 1 / 1.5 / 1.5TT / 2 — bi-amp (לא 2SH הפסיבי, לא 2A ולא הבסים) */
+  if (/\bRES(OLUTION)?\s*(1(\s*[. ]\s*5(\s*TT)?)?|2)\s*$/i.test((name || '').trim())) return 'bi';
   return 'passive';
 }
 /* רמקול bi/tri-amp שכבר יושב בערוץ (חיבור קיים / תכנון אוטומטי) — הפס הראשון נשאר בערוץ, שאר הפסים חוזרים למאגר לניתוב */
@@ -4786,7 +4788,7 @@ window.patchCabPick = patchCabPick;
 /* פיני NL8 וזוג הגידים לכל פס בכבל רב-גידי: ברירת מחדל LOW 2± · MID 3± · HI 4± (ניתן לשינוי בטבלת הרמקולים, שדה "פיני NL8") */
 /* מקור: Funktion-One Evo X User Guide V1.2 — NL8: 1± through (לא בשימוש) · 2± LF · 3± MF · 4± HF */
 const BAND_ORDER = ['low', 'mid', 'hi'], BAND_PIN_DEF = { low: '2±', mid: '3±', hi: '4±' };
-function bandPins(name, band) { const b = spkBandData(name, band); return (b && b.pins) || BAND_PIN_DEF[band] || ''; }
+function bandPins(name, band) { const b = spkBandData(name, band); return (b && b.pins) || (spkAmpMode(name) === 'tri' ? BAND_PIN_DEF[band] : '') || ''; }
 /* זוג הגידים נגזר ממספר הפין ב-NL8: פין k± = גידים (2k−1)-(2k) — 2± = 3-4, 3± = 5-6, 4± = 7-8 */
 function bandPair(name, band) { const k = parseInt(bandPins(name, band), 10); if (k > 0) return (2 * k - 1) + '-' + (2 * k); const present = bandIds({ id: 'x', name }).map(spkBand).filter(Boolean); const ord = BAND_ORDER.filter(b => present.includes(b)); const i = ord.indexOf(band); return i < 0 ? '' : (i * 2 + 1) + '-' + (i * 2 + 2); }
 /* תיאור לפאץ׳: הערוץ הזה = זוג גידים בכבל המשותף של הרמקול */
@@ -6633,10 +6635,14 @@ function spkDataManager(tab) {
        <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid #ccc;border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>`);
     const ampMode = tab === 'spk' ? (meta.amp || spkAmpMode(r.name)) : 'passive';
-    const bandRow = tab === 'spk' && (ampMode === 'bi' || ampMode === 'tri') ? (() => { const bands = ampMode === 'tri' ? ['hi', 'mid', 'low'] : ['hi', 'low'], BL = { hi: 'HI', mid: 'MID', low: 'LOW' }, bd = meta.bands || {}, mu = matrixMulti(r.name);
+    const bandRow = tab === 'spk' && (ampMode === 'bi' || ampMode === 'tri') ? (() => { const bands = ampMode === 'tri' ? ['low', 'mid', 'hi'] : ['low', 'hi'], BL = { hi: 'HI', mid: 'MID', low: 'LOW' }, bd = meta.bands || {}, mu = matrixMulti(r.name);
       const inp = (b, f, w, ph) => { const mx = matrixBand(r.name, b) || {}; const ed = (bd[b] || {})[f]; const v = ed ?? mx[f] ?? ''; return `<input value="${esc(v)}" placeholder="${ph}" title="${mx[f] != null ? 'ממטריצת ההתאמות (' + esc(mx.row) + ')' : ''}" style="width:${w}px;text-align:center;border:1px solid ${ed != null && ed !== '' ? '#c96f4a' : '#cfe3d8'};border-radius:4px;font-size:11px;${ed == null || ed === '' ? 'color:#0f6e56' : ''}" onchange="spkBandSet('${nmA}','${b}','${f}',this.value)">`; };
-      return `<tr style="background:#f4faf6;border-bottom:1px solid #eee"><td colspan="${colspan}" style="padding:4px 8px 6px"><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:11px"><b style="color:#0f6e56">${ampMode === 'tri' ? 'Tri-amp' : 'Bi-amp'} — נתונים לכל פס${mu ? ' · ממטריצת ההתאמות (' + esc(mu.name) + ')' : ''}:</b>
-        ${bands.map(b => `<span style="display:inline-flex;gap:4px;align-items:center;border:1px solid #d8e9df;border-radius:7px;padding:2px 6px;background:#fff"><b style="min-width:30px">${BL[b]}</b> ${inp(b, 'o', 34, 'Ω')}Ω ${inp(b, 'w', 44, 'W')}W ${inp(b, 'sens', 40, 'dB')}dB ${inp(b, 'max', 40, 'SPL')}max ${inp(b, 'f', 82, 'תדרים Hz')} <span title="פיני ספיקון NL8 של הפס — לכבל רב-גידי">NL8 ${inp(b, 'pins', 34, BAND_PIN_DEF[b])}</span></span>`).join('')}</div></td></tr>`; })() : '';
+      /* פיני NL8 — רשימה לבחירה מהירה; ריק = ברירת המחדל של הדגם */
+      const pinSel = b2 => { const mx = matrixBand(r.name, b2) || {}, ed = (bd[b2] || {}).pins, def = mx.pins || (ampMode === 'tri' ? BAND_PIN_DEF[b2] : ''); const cur = ed || '';
+        return `<select title="פיני ספיקון NL8 של הפס — לכבל רב-גידי" style="width:66px;font-size:11px;border:1px solid ${cur ? '#c96f4a' : '#cfe3d8'};border-radius:4px;${cur ? '' : 'color:#0f6e56'}" onchange="spkBandSet('${nmA}','${b2}','pins',this.value)"><option value="">${def || '—'}</option>${['1±', '2±', '3±', '4±'].map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`; };
+      /* כותרת בשורה משלה, ומתחתיה הפסים LOW → MID → HI אחד מתחת לשני, עמודות מיושרות */
+      return `<tr style="background:#f4faf6;border-bottom:1px solid #eee"><td colspan="${colspan}" style="padding:4px 8px 6px"><div style="font-size:11px"><b style="color:#0f6e56;display:block;margin-bottom:3px">${ampMode === 'tri' ? 'Tri-amp' : 'Bi-amp'} — נתונים לכל פס${mu ? ' · ממטריצת ההתאמות (' + esc(mu.name) + ')' : ''}:</b>
+        <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">${bands.map(b => `<span style="display:inline-flex;gap:4px;align-items:center;border:1px solid #d8e9df;border-radius:7px;padding:2px 6px;background:#fff"><b style="width:34px">${BL[b]}</b> ${inp(b, 'o', 34, 'Ω')}Ω ${inp(b, 'w', 44, 'W')}W ${inp(b, 'sens', 40, 'dB')}dB ${inp(b, 'max', 40, 'SPL')}max ${inp(b, 'f', 82, 'תדרים Hz')} NL8 ${pinSel(b)}</span>`).join('')}</div></div></td></tr>`; })() : '';
     return `${brandHdr}<tr style="border-bottom:1px solid #eee">
         <td style="padding:4px 5px;font-weight:600"><a href="#" onclick="event.preventDefault();specSheet('${tab}','${esc(r.name).replace(/'/g, '&#39;')}')" style="color:#c9502e;text-decoration:none;border-bottom:1px dotted #c9502e">${esc(r.name)}</a><div class="muted" style="font-size:9px">${r.src}${r.variants ? ' · גרסאות צבע: ' + esc(r.variants.join(', ')) : ''}</div></td>
         ${cells}
