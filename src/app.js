@@ -2317,7 +2317,8 @@ function renderNodes() {
         const chanXlocal = 8 + panelW + CHW / 2; /* תעלה אנכית בין פאנל לתווית */
         /* הגב מוקטן לרוחב החזית — לא תופס יותר שטח יחסי בתכנית; הזום מפצה על הקריאות */
         const rearWnat = panelW + CHW + LBLW + 44;
-        const RK = Math.min(1, (n._frontW || 240) / rearWnat);
+        /* הארון הפתוח צף ולא תופס מקום בתכנית — הגב נפתח ברוחב כפול מהחזית לפחות (עד גודל טבעי), כדי שהמחברים יהיו קריאים */
+        const RK = Math.min(1, Math.max(2 * Math.max(n._frontW || 240, 240), 520) / rearWnat);
         n._rearK = RK; d._rearK = RK;
         d.style.width = Math.round(rearWnat * RK) + 'px';
         const pnum = s => { const m = /(\d+)/.exec(s || ''); return m ? +m[1] : null; };
@@ -3454,7 +3455,7 @@ function toggleRear(id) {
   if (n.rear) {
     /* הארון נשאר במקומו! הגב מוקטן לאותו שטח כמו החזית (scale ברינדור),
        והזום של כל הקנבס עולה (עד 400%) כדי שהפירוט יהיה קריא. */
-    n._frontW = el ? el.offsetWidth : 240;
+    { const elF = document.getElementById('ndo_' + id) || el; n._frontW = elF && elF.offsetWidth > 120 ? elF.offsetWidth : 240; }   /* רוחב הארון הפתוח (הצף), לא של האייקון */
     n._preZoom = getZ();
     setTimeout(() => {
       const k = n._rearK || 0.35;
