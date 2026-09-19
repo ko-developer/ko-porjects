@@ -12256,7 +12256,8 @@ function exportPDF() {
     clone.querySelectorAll('svg [stroke-width]').forEach(el => el.setAttribute('stroke-width', (parseFloat(el.getAttribute('stroke-width')) || 1) * f));
     clone.querySelectorAll('svg circle').forEach(c2 => c2.setAttribute('r', (parseFloat(c2.getAttribute('r')) || 3) * Math.min(f, 2)));
     clone.querySelectorAll('svg text').forEach(t => t.setAttribute('font-size', (parseFloat(t.getAttribute('font-size')) || 11) * Math.min(f, 1.8)));
-    clone.querySelectorAll('.node.mini').forEach(m => { m.style.transform = `scale(${Math.min(f, 2)})`; m.style.transformOrigin = 'top center'; });
+    /* האייקונים שומרים על קנה המידה שלהם בתכנית (אחרת הם מתנפחים ועולים זה על זה); הגדלה קלה בלבד בצילום מוקטן */
+    clone.querySelectorAll('.node.mini').forEach(m => { const km = /scale\(([\d.]+)\)/.exec(m.style.transform || ''), k0 = km ? +km[1] : 1; m.style.transform = `scale(${(k0 * Math.min(f, 1.25)).toFixed(3)})`; if (!km) m.style.transformOrigin = 'top center'; });
     clone.style.transform = `scale(${kR})`;
     clone.style.transformOrigin = 'top right';
     clone.style.position = 'absolute';
@@ -12297,33 +12298,56 @@ function exportPDF() {
   renderNodes(); renderWires();
   { const host = $('#nodes'), cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ();
     const rects = [...document.querySelectorAll('#nodes > .node')].map(el => { const r = el.getBoundingClientRect(); return { id: el.id.slice(3), L: (r.left - cr0.left) / Z0, R: (r.right - cr0.left) / Z0, T: (r.top - cr0.top) / Z0, B: (r.bottom - cr0.top) / Z0 }; });
-    /* השם מעל האייקון (ומעל תג הספירה שלו); אם המקום תפוס — בשם אחר, באייקון או בתג של שכן — השם עולה שורה, עד שמתפנה */
-    const placedL = [], hit = (a2, o) => a2.L < o.R && a2.R > o.L && a2.T < o.B && a2.B > o.T;
-    rects.slice().sort((a2, b2) => a2.T - b2.T).forEach(rc => { const n = byId(rc.id); if (!n || !n.name) return;
-      const w = Math.min(160, n.name.length * 5.4 + 12), cx = (rc.L + rc.R) / 2; let box = null;
-      for (let k2 = 0; k2 < 8; k2++) { const bot = rc.T - 20 - k2 * 15, cand = { L: cx - w / 2, R: cx + w / 2, T: bot - 14, B: bot };
-        if (!placedL.some(o => hit(cand, o)) && !rects.some(o => o !== rc && hit(cand, { L: o.L, R: o.R, T: o.T - 20, B: o.B }))) { box = cand; break; } }
-      if (!box) box = { L: cx - w / 2, R: cx + w / 2, T: rc.T - 34, B: rc.T - 20 };
-      placedL.push(box);
-      const lb = document.createElement('div'); lb.className = 'rpTmpLbl'; lb.textContent = n.name;
-      lb.style.cssText = `position:absolute;z-index:9;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:9px;font-weight:700;color:#1a1e28;background:rgba(255,255,255,.92);border:1px solid #c9c2b4;border-radius:5px;padding:0 4px;line-height:13px;pointer-events:none;direction:rtl;left:${cx}px;top:${box.B}px;transform:translate(-50%,-100%)`;
-      host.appendChild(lb);
-      /* קו דק מהשם אל האייקון כשהשם הורחק */
-      if (box.B < rc.T - 21) { const ln = document.createElement('div'); ln.className = 'rpTmpLbl'; ln.style.cssText = `position:absolute;z-index:8;left:${cx}px;top:${box.B}px;width:1px;height:${rc.T - 19 - box.B}px;background:#8a8377;pointer-events:none`; host.appendChild(ln); } }); }
+    /* שמות ברורים: האייקונים מקובצים לפי קרבה; לכל קבוצה עמודת שמות מסודרת בצד (בסדר האייקונים, בלי הצלבות), ומכל אייקון יוצא חץ אל השם שלו */
+    const named = rects.filter(rc => { const n = byId(rc.id); return n && n.name; }), cl = [];
+    named.forEach(rc => { let g = cl.find(g2 => g2.some(o => Math.abs((o.L + o.R) / 2 - (rc.L + rc.R) / 2) < 70 && Math.abs((o.T + o.B) / 2 - (rc.T + rc.B) / 2) < 70)); if (g) g.push(rc); else cl.push([rc]); });
+    const allL = Math.min(...rects.map(r2 => r2.L)), allR = Math.max(...rects.map(r2 => r2.R)); let svgL = '';
+    const colBoxes = [];
+    cl.forEach(g => { const gL = Math.min(...g.map(o => o.L)), gR = Math.max(...g.map(o => o.R)), gT = Math.min(...g.map(o => o.T)), gB = Math.max(...g.map(o => o.B));
+      const wMax = Math.max(...g.map(o => Math.min(170, byId(o.id).name.length * 5.4 + 14))), rowH = 16, colH = g.length * rowH;
+      /* צד העמודה: ימין כברירת מחדל; שמאל כשהקבוצה בקצה הימני של השרטוט או כשהצד הימני תפוס בעמודה אחרת */
+      let right = (gR + 40 + wMax) <= Math.max(allR + 220, 2200) && !((allR - gR) < 10 && (gL - allL) > 200), y0 = (gT + gB) / 2 - colH / 2;
+      const boxOf = rt => ({ L: rt ? gR + 34 : gL - 34 - wMax, R: rt ? gR + 34 + wMax : gL - 34, T: y0, B: y0 + colH });
+      const clash = bxx => colBoxes.some(o => bxx.L < o.R && bxx.R > o.L && bxx.T < o.B + 4 && bxx.B > o.T - 4) || rects.some(o => !g.includes(o) && bxx.L < o.R && bxx.R > o.L && bxx.T < o.B && bxx.B > o.T);
+      if (clash(boxOf(right)) && !clash(boxOf(!right))) right = !right;
+      let bx0 = boxOf(right), tries = 0; while (clash(bx0) && tries++ < 12) { y0 -= rowH; bx0 = boxOf(right); }
+      colBoxes.push(bx0);
+      const mkLbl = (n, lx, ly) => { const lb = document.createElement('div'); lb.className = 'rpTmpLbl'; lb.textContent = n.name;
+        lb.style.cssText = `position:absolute;z-index:9;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;font-size:9px;font-weight:700;color:#1a1e28;background:rgba(255,255,255,.95);border:1px solid #6b6558;border-radius:5px;padding:0 5px;line-height:13px;pointer-events:none;direction:rtl;top:${ly}px;${right ? `left:${lx}px;transform:translateY(-50%)` : `left:${lx}px;transform:translate(-100%,-50%)`}`;
+        host.appendChild(lb); };
+      const arrow = (ex, ly) => right ? `M${ex} ${ly} l -4 -2.2 v 4.4 z` : `M${ex} ${ly} l 4 -2.2 v 4.4 z`;   /* ראש החץ מצויר ידנית — מזהי marker נמחקים בהעתק של הדוח */
+      if ((gR - gL) >= (gB - gT) && g.length > 1) {
+        /* שורת אייקונים: החצים יוצאים מלמעלה (או מלמטה — הרחק מהכבלים) לגבהים מדורגים ופונים לצד; הקרוב לעמודה מקבל את השורה הקרובה — בלי הצלבות */
+        const gi = new Set(g.map(o => o.id)); let up = 0, dn = 0; (P.cables || []).forEach(c => { const mine = gi.has(c.from) ? c.to : gi.has(c.to) ? c.from : null; if (!mine || gi.has(mine)) return; const o2 = byId(mine); if (!o2) return; if (o2.y < gT) up++; else dn++; });
+        const below = up > dn; bx0 = { L: right ? gR + 14 : gL - 14 - wMax, R: right ? gR + 14 + wMax : gL - 14, T: below ? gB + 4 : gT - 4 - colH, B: below ? gB + 4 + colH : gT - 4 }; colBoxes[colBoxes.length - 1] = bx0;
+        const ord = g.slice().sort((a2, b2) => right ? (b2.R - a2.R) : (a2.L - b2.L));
+        ord.forEach((rc, i) => { const n = byId(rc.id), ly = below ? gB + 4 + i * rowH + rowH / 2 : gT - 4 - i * rowH - rowH / 2, lx = right ? bx0.L : bx0.R, icx = (rc.L + rc.R) / 2, iy = below ? rc.B + 1 : rc.T - 1, ex = right ? lx - 1 : lx + 1;
+          mkLbl(n, lx, ly);
+          svgL += `<path d="M${icx} ${iy} V ${ly} H ${ex}" fill="none" stroke="#3d3a33" stroke-width="0.9"/><path d="${arrow(ex, ly)}" fill="#3d3a33" stroke="none"/><circle cx="${icx}" cy="${iy}" r="1.6" fill="#3d3a33"/>`; });
+      } else {
+        /* עמודת אייקונים / אייקון בודד: השמות בצד, לפי גובה האייקון */
+        const ord = g.slice().sort((a2, b2) => ((a2.T + a2.B) / 2 - (b2.T + b2.B) / 2) || (right ? (b2.R - a2.R) : (a2.L - b2.L)));
+        ord.forEach((rc, i) => { const n = byId(rc.id), ly = y0 + i * rowH + rowH / 2, lx = right ? bx0.L : bx0.R, ix = right ? rc.R + 1 : rc.L - 1, iy = (rc.T + rc.B) / 2;
+          mkLbl(n, lx, ly);
+          const ex = right ? lx - 1 : lx + 1, mx2 = right ? Math.max(ix + 8, lx - 14) : Math.min(ix - 8, lx + 14);
+          svgL += `<path d="M${ix} ${iy} L ${mx2} ${ly} L ${ex} ${ly}" fill="none" stroke="#3d3a33" stroke-width="0.9"/><path d="${arrow(ex, ly)}" fill="#3d3a33" stroke="none"/><circle cx="${ix}" cy="${iy}" r="1.6" fill="#3d3a33"/>`; });
+      } });
+    if (svgL) { const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', 'rpTmpLbl'); sv.style.cssText = 'position:absolute;left:0;top:0;width:2200px;height:1400px;overflow:visible;pointer-events:none;z-index:8';
+      sv.innerHTML = svgL; host.appendChild(sv); } }
   const ovRestore = () => { document.querySelectorAll('#nodes > .rpTmpLbl').forEach(x => x.remove()); ovSaved.forEach(([n, a, b2, c2, d2]) => { if (a === undefined) delete n.min; else n.min = a; if (b2 === undefined) delete n.pmin; else n.pmin = b2; if (c2 === undefined) delete n.mini; else n.mini = c2; if (d2 === undefined) delete n.full; else n.full = d2; }); renderNodes(); renderWires(); };
   /* התכנית הכללית ממלאת את העמוד: חיתוך לתוכן (שרטוט הרקע + המוקדים + הקווים), בלי שוליים ריקים של הקנבס */
   { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
     const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
     const bgim = $('#bgimg'); if (bgim && bgim.style.display !== 'none' && bgim.offsetWidth) addR(bgim.getBoundingClientRect());
     document.querySelectorAll('#canvas canvas').forEach(cv2 => { if (cv2.width) addR(cv2.getBoundingClientRect()); });
-    document.querySelectorAll('#nodes > .node').forEach(el => addR(el.getBoundingClientRect()));
+    document.querySelectorAll('#nodes > .node, #nodes > div.rpTmpLbl').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
     const reg0 = L < Infinity ? { L: Math.max(0, L - 10), T: Math.max(0, T - 10), R: Math.min(2200, R + 10), B: Math.min(1400, B + 10) } : null;
     snaps.push(makeSnap('תכנית כללית — פריסה וחיווט', reg0, 1000)); }
   /* אזור הפעילות: חיתוך למקום שבו המוקדים והכבלים, מוגדל — כשהתכנית גדולה והציוד מרוכז בפינה */
   { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
     const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
-    document.querySelectorAll('#nodes > .node').forEach(el => addR(el.getBoundingClientRect()));
+    document.querySelectorAll('#nodes > .node, #nodes > div.rpTmpLbl').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
     if (L < Infinity && (R - L) < (xmax + 30) * 0.6) { const pad = 60; snaps.push(makeSnap('🔎 אזור הפעילות — תקריב', { L: Math.max(0, L - pad), T: Math.max(0, T - pad), R: Math.min(2200, R + pad), B: Math.min(1400, B + pad) }, 1000)); } }
   ovRestore();
