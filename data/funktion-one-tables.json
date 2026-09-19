@@ -1,0 +1,5161 @@
+{
+ "source": "https://funktion-one.cdn.prismic.io/api/v2",
+ "harvested": "2026-09-19",
+ "products": [
+  {
+   "uid": "psm15",
+   "url": "https://funktion-one.com/product/psm15",
+   "title": "Advanced Stage Monitoring for Live Applications",
+   "table": [
+    {
+     "driver": "MHF",
+     "operatingBand": "1kHz - up",
+     "sensitivity": "105dB at 2.8V",
+     "power": "100W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "15\" (LF)",
+     "operatingBand": "60Hz - 1kHz",
+     "sensitivity": "96dB at 2.8V",
+     "power": "600W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "80Hz - 18kHz",
+     "weight": "28kg (62lbs)",
+     "dispersion": "50° Horizontal x 70° Vertical (rotatable by 90°)",
+     "connectors": "2 x NLT4M"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aWYn0QIvOtkhBbt2_PSM15-F1-DS%3DD0086-01.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Ec5TUmvf1GpP1Uw8_PSM15_User_Guide_V1.1.pdf"
+    },
+    {
+     "label": "3D CAD (DWG)",
+     "url": "https://images.prismic.io/funktion-one/aUliSnNYClf9ok-G_PSM15-F1-3DM%3DT0323-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "2D CAD (DWG)",
+     "url": "https://images.prismic.io/funktion-one/aUliVHNYClf9ok-K_PSM15-F1-2DM%3DT0322-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aUliXnNYClf9ok-P_PSM15-F1-TD%3DT0320-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aUliaHNYClf9ok-T_PSM15-F1-DD%3DT0321-00.PDF"
+    },
+    {
+     "label": "Flight Case (FC-2PSM15)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aUligHNYClf9ok-b_FC-2PSM15-F1-AD%3DT0324-00.PDF"
+    },
+    {
+     "label": "Stand Top Adapter (STA-2M8)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aUlim3NYClf9ok-i_STA-2M8-F1-AD%3DT0327-00.PDF"
+    },
+    {
+     "label": "Universal Yoke (YK-UPSM15)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aUljGXNYClf9ok-0_YK-UPSM15-F1-AD%3DT0326-00.PDF"
+    },
+    {
+     "label": "Simple Yoke (YK-SPSM15)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aUlj_HNYClf9ok_j_YK-SPSM15-F1-AD%3DT0325-00.PDF"
+    }
+   ]
+  },
+  {
+   "uid": "evo2l",
+   "url": "https://funktion-one.com/product/evo2l",
+   "title": "Increased Headroom for Evo 2 Systems",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "60/85Hz - 280Hz",
+     "sensitivity": "100dB at 2.8V",
+     "power": "600W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "85Hz - 280Hz",
+     "weight": "21kg (46lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL8 or NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aF0g3nfc4bHWivrP_Evo2UserGuideV2.0.pdf"
+    },
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ad-KnZ1ZCF7ETNuk_Evo2L-F1-DS%3DD0075-02.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/SSWfjNumvnxlCeQ9_Evo2L-F1-TD%3DT0294-02.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/UliSbmVfRN7yEDbW_Evo2L-F1-DD%3DT0295-02.PDF"
+    },
+    {
+     "label": "3D CAD (DWG)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5ondJbqstJ99_aI_Evo2L-F1-3DM%3DT0297-00.dwg"
+    },
+    {
+     "label": "2D CAD (DWG)",
+     "url": "https://images.prismic.io/funktion-one/wJI2-g3U9VIf2Clw_Evo2L-F1-2DM%3DT0296-01.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "Evo2-BFP Flying Plate",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Znrqw5bWFbowe2PQ_BFP-E2-F1-AD%3DT0252-01.PDF"
+    }
+   ]
+  },
+  {
+   "uid": "f215-mk2",
+   "url": "https://funktion-one.com/product/f215-mk2",
+   "title": "Well Defined Compact Mid-Bass",
+   "table": [
+    {
+     "driver": "2 x 15\"",
+     "operatingBand": "55/85Hz - 250Hz",
+     "sensitivity": "102dB at 2V",
+     "power": "2 x 400W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 250Hz",
+     "weight": "63kg (139lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1e2aba1c-5944-4f65-acc6-322af58e6924_Funktion-One_F215MkII_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/HNubnnhdOvAKJm55_F215_MK2-F1-TD%3DT0200-01.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8hM82zWkaIhYz5g0_F215_MK2-F1-DD%3DT0201-01.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/bf531523-0a56-4821-9486-590cc68b0b3d_F215_MK2-F1-2DM%3DT0202-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XkaZbqstJ97yL__F215_MK2-F1-3DM%3DT0203-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "sb12-compact-range",
+   "url": "https://funktion-one.com/product/sb12-compact-range",
+   "title": "Powerful Compact Bass Performance",
+   "table": [
+    {
+     "driver": "12”",
+     "operatingBand": "35Hz - 150Hz",
+     "sensitivity": "97dB at 2.8V",
+     "power": "350W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "42Hz - 150Hz",
+     "weight": "28kg (62lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aWToPwIvOtkhBTtK_SB12-F1-DS%3DD0077-05.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5pyxJbqstJ9-Alb_SB12-F1-TD%3DT0306-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5pyzJbqstJ9-Ald_SB12-F1-DD%3DT0307-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5py1JbqstJ9-Ale_SB12-F1-2DM%3DT0308-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5py3JbqstJ9-Alf_SB12-F1-3DM%3DT0309-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f88",
+   "url": "https://funktion-one.com/product/f88",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 8\" HF Slot",
+     "operatingBand": "70Hz - 18kHz",
+     "sensitivity": "98dB at 2.4V",
+     "power": "400W (S/N<1462 150W)",
+     "nominalImpedence": "6Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "70Hz - 18kHz",
+     "weight": "13kg (28.5lbs)",
+     "dispersion": "110° x 40°",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e0eb3cc3-db12-47de-9d2b-0ebfbd179ace_Funktion-One_F88_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Accessories",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/44275ef7-535e-455e-9512-2e6bb72ee87b_WME100_f88.pdf"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c89e8172-784c-40e1-bf1d-0ef973affa73_F88-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "res-2sh",
+   "url": "https://funktion-one.com/product/res-2sh",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "8\" + 1\"",
+     "operatingBand": "250Hz - Up",
+     "sensitivity": "106dB at 3.5V",
+     "power": "250W",
+     "nominalImpedence": "12Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "250Hz - 18kHz",
+     "weight": "13kg (29lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "Neutrik NL4 or Junction box option"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4663eb87-d382-42c6-9d4d-0658f2113df0_Funktion-One_Res2SH_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/19c6da92-94d0-4bba-8298-420e7d144237_RES2SH_EaseData.zip"
+    },
+    {
+     "label": "3D CAD ",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4fa9c9a6-81cb-4951-9bd8-adbc3e5b0831_R2SH-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c6a05615-5047-42c9-8923-af24ba2e1827_R2SH-webdxf.dxf"
+    },
+    {
+     "label": "3D CAD Yoke",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4b0b62a7-3799-4764-a005-bde06e515dad_R2SH-M-Yoke-3D-DWG_2106.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "ax88",
+   "url": "https://funktion-one.com/product/ax88",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 8\" + 1\"",
+     "operatingBand": "180Hz - Up",
+     "sensitivity": "108dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "180Hz - 18kHz",
+     "weight": "27kg (60lbs)",
+     "dispersion": "60° Horizontal x 55° Vertical",
+     "connectors": "Wago terminal block"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6eac61b9-ca16-4670-a5e5-017954f0d05e_Funktion-One_AX88_Spec_Sheet.pdf"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d471d936-a2dc-4092-aace-712c29e60ce1_AX88-webdxf.dxf"
+    },
+    {
+     "label": "Coupling Bar",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8a084e95-71c2-4f02-bdbf-6a4be245aeb2_AX88CouplingBar.pdf"
+    },
+    {
+     "label": "Double Cluster Yoke Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/43ad388b-d7c2-4086-b206-713197a42bc6_AX88DoubleClusterYokeKit.pdf"
+    },
+    {
+     "label": "Fabric Scrim",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a7a2512b-26e3-42cc-a343-62dc60c71d9f_AX88FabricScrim.pdf"
+    },
+    {
+     "label": "Triple Cluster Yoke",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/27ef527a-d380-4d8e-a81c-daa2b5adea17_AX88TripleClusterYoke.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-2s8",
+   "url": "https://funktion-one.com/product/res-2s8",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "8\"",
+     "operatingBand": "250Hz - Up",
+     "sensitivity": "106dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "250Hz - 5kHz",
+     "weight": "10.5kg (23lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "Wago terminal/Junction box options"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/0d936a3d-5b7b-44c6-b478-7a062cdd0006_R2S8-F1-DS%3DD0061-00.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-4e",
+   "url": "https://funktion-one.com/product/res-4e",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "114Hz - 445Hz",
+     "sensitivity": "105dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\"",
+     "operatingBand": "445Hz - 5.77kHz",
+     "sensitivity": "108dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5.55kHz - 18kHz",
+     "sensitivity": "109dB at 4V",
+     "power": "50W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "90Hz - 18kHz",
+     "weight": "47 - 53kg",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x speakON NL8"
+    },
+    {
+     "frequencyResponse": null,
+     "weight": null,
+     "dispersion": null,
+     "connectors": null
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9f77740d-feb6-4dc0-b66e-70f6355429ee_Funktion-One_Res4E_Spec_Sheet.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c11b8787-93fc-43d1-897c-009b4b9b2133_Res+4+series+UG+091213.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2adea005-d00c-424e-b818-13953a82c218_R4E-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/972c3159-6333-497b-ac8a-74684558c4d4_RES4_EASEDATA.zip"
+    },
+    {
+     "label": "Flyplate Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/7a16392d-1f2b-4401-9262-8f45f923e90e_FP42-K1.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c6a23843-1411-4c7a-8114-d60ba4ba0af2_GSS.pdf"
+    },
+    {
+     "label": "Wheelboard & Scrim",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fb2acdf7-6003-4488-a74c-bb38e6cb793c_Wheelboard-and-Scrim_web.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-1.5tt",
+   "url": "https://funktion-one.com/product/res-1.5tt",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 12\"",
+     "operatingBand": "25Hz - 520Hz",
+     "sensitivity": "100dB at 2V",
+     "power": "700W",
+     "nominalImpedence": "4Ω"
+    },
+    {
+     "driver": "5\"",
+     "operatingBand": "520Hz - up",
+     "sensitivity": "110dB at 3.5V",
+     "power": "75W",
+     "nominalImpedence": "12Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "55Hz - 15kHz",
+     "weight": "29kg (64lbs)",
+     "dispersion": "90° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4a6278ce-7238-4b39-a3f4-ce6ca5566421_Funktion-One_Res1.5TT_Spec_Sheet.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9f0832f3-5751-45c5-aa65-2b863edf2422_R1_UserManual_EN_1_0_0_1.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/319268d3-f377-49ad-958d-b705dc9b40e1_R1.5TT-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b0a10fc0-b1d1-4b9d-8040-efb1d2799fd0_R1point5TT-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "ax8",
+   "url": "https://funktion-one.com/product/ax8",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "8\"",
+     "operatingBand": "180Hz - 8kHz",
+     "sensitivity": "109dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "180Hz - 8kHz",
+     "weight": "50° Horizontal x 25° Vertical",
+     "dispersion": "13.5kg (30 lbs)",
+     "connectors": "Glanded captive lead"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a190ccc1-c5b1-4801-bc44-3a1a3ad0a893_Funktion-One_AX8_Spec_Sheet.pdf"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f50e461b-310d-4114-a0a0-c63b34fc59f3_AX8-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "res-1",
+   "url": "https://funktion-one.com/product/res-1",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "25Hz - 520Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "350W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "5\"",
+     "operatingBand": "520Hz - 15kHz",
+     "sensitivity": "112dB at 3.5V",
+     "power": "75W",
+     "nominalImpedence": "12Ω"
+    },
+    {
+     "driver": "12\" + 5\" (Optional PX1 Passive Module)",
+     "operatingBand": "25Hz - Up",
+     "sensitivity": "102dB at 2.8V",
+     "power": "350W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "65Hz - 15kHz",
+     "weight": "19kg (42lbs)",
+     "dispersion": "40° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/184a455d-1c5e-49f5-acf2-a7ab8a435a07_Res1-F1-DS%3DD0024-01.pdf"
+    },
+    {
+     "label": "User Manual",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/29882e8e-0600-42d1-adb2-776af18921d0_R1_UserManual_EN_1_0_0_1.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9c7e5683-31fd-4431-bfc0-8b7df71b0f5c_R1-webdxf.dxf"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/0d505ac0-095c-4552-b976-905c637fd39c_R1-webdxf.dxf"
+    },
+    {
+     "label": "Horizontal Yoke Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/49d8e953-50db-4cf5-807e-62e17918365f_1310.pdf"
+    },
+    {
+     "label": "Simple/Universal Yoke Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/19d63810-1210-4d9b-99ee-add3688d3900_1312.pdf"
+    },
+    {
+     "label": "Wall Brackets",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d80e9d1e-f2da-4721-8e4f-ded28a584f34_1307.pdf"
+    },
+    {
+     "label": "Square Bracketing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/23633dda-a3d1-4541-b810-912324f40736_1306.pdf"
+    },
+    {
+     "label": "T-Bar",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ef455d56-631d-4c8b-97b6-147e744e80e2_1302-2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-2",
+   "url": "https://funktion-one.com/product/res-2",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "28Hz - 250Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\" + 1\"",
+     "operatingBand": "250Hz - Up",
+     "sensitivity": "106dB at 4V",
+     "power": "250W",
+     "nominalImpedence": "12Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 18kHz",
+     "weight": "48kg (106lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2deeeb49-3b21-4764-aba2-f6196bf997b1_Funktion-One_Res2_Spec_Sheet.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e84feea2-bb65-4373-a4fc-4933828075bc_R2-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4f09a93d-3aa1-499b-8500-7337c4a8b503_R2-webdxf.dxf"
+    },
+    {
+     "label": "Flyplate Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/27b28c9a-a06d-4975-b7d8-584f562a17ec_FP22-K1.pdf"
+    },
+    {
+     "label": "Yoke Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/dcc55875-0a3a-4fbf-b42a-1785b84b4ab7_YK-SR2.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/92213e87-36fe-4f7f-a696-aa6641a98aed_GroundStacks_April14-2.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Straps",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1025ec1d-c60b-4dbd-bc81-1ffd5f4df132_GSS-2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "sb12",
+   "url": "https://funktion-one.com/product/sb12",
+   "title": "Powerful Compact Bass Performance",
+   "table": [
+    {
+     "driver": "12”",
+     "operatingBand": "35Hz - 150Hz",
+     "sensitivity": "97dB at 2.8V",
+     "power": "350W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "42Hz - 150Hz",
+     "weight": "28kg (62lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aWToPwIvOtkhBTtK_SB12-F1-DS%3DD0077-05.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5pyxJbqstJ9-Alb_SB12-F1-TD%3DT0306-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5pyzJbqstJ9-Ald_SB12-F1-DD%3DT0307-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5py1JbqstJ9-Ale_SB12-F1-2DM%3DT0308-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5py3JbqstJ9-Alf_SB12-F1-3DM%3DT0309-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "br218",
+   "url": "https://funktion-one.com/product/br218",
+   "title": "Compact Dual 18\" Bass Reflex",
+   "table": [
+    {
+     "driver": "2 x 18\"",
+     "operatingBand": "35Hz - 85Hz",
+     "sensitivity": "102dB at 2V",
+     "power": "2 x 550W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "45Hz - 125Hz",
+     "weight": "70kg (152lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b9ac374f-9808-45f5-8386-fed62b205d67_Funktion-One_BR218_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ca1c7c0a-b7bc-473e-8f56-7bbcbce620c7_BR218-F1-TD%3DT0176-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ae5c4153-b9a1-4676-bc78-da93163ecfa7_BR218-F1-DD%3DT0177-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/7c60b736-f783-4eff-a098-6e3ebbf969ba_BR218-F1-2DM%3DT0178-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e62a0900-5fb5-440c-8537-a01387e5d226_BR218-F1-3DM%3DT0179-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "res-1.5",
+   "url": "https://funktion-one.com/product/res-1.5",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "18\"",
+     "operatingBand": "55Hz - 595Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "5\"",
+     "operatingBand": "520Hz - up",
+     "sensitivity": "110dB at 3.5V",
+     "power": "75W",
+     "nominalImpedence": "12Ω"
+    },
+    {
+     "driver": "18\" + 5\" (Optional PX1.5 Passive Module)",
+     "operatingBand": "25Hz - Up",
+     "sensitivity": "102dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "55Hz - 15kHz",
+     "weight": "29kg (64lbs)",
+     "dispersion": "90° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/60ed72e2-fbdc-465c-941c-9f76746893de_Funktion-One_Res1.5_Spec_Sheet.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9f0832f3-5751-45c5-aa65-2b863edf2422_R1_UserManual_EN_1_0_0_1.pdf"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/33a231cb-19af-4afc-bb91-4a0a5d4d341b_R1point5-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "f101.2",
+   "url": "https://funktion-one.com/product/f101.2",
+   "title": "Exceptional Tuning and Driver Optimisation",
+   "table": [
+    {
+     "driver": "10\" + 1\"",
+     "operatingBand": "100Hz - 20kHz",
+     "sensitivity": "100dB at 2.8V",
+     "power": "150W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "100Hz - 20kHz",
+     "weight": "10kg (22lbs)",
+     "dispersion": "90° x 60°",
+     "connectors": "2 x Neutrik NL4 and 1 x Phoenix"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3ac884f-0ba9-4ddd-acd0-978fcf603cb0_Funktion-One_F101.2_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Specification Sheet (IP55)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z6noK5bqstJ9-bFi_F101.2.IP-F1-DS%3DD0082-00.pdf"
+    },
+    {
+     "label": "EASE Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ae1e3b7b-105e-4f9d-86a5-e3c1a8bd7d1b_Funktion-One+F101.2.gll"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/85bd6170-a360-4340-988c-d9f56a82ae6b_F101.2-F1-3DM%3DT0049-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://images.prismic.io/funktion-one/aW9W3gIvOtkhBuq2_F101.2-F1-2DM%3DT0048-01.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e6221219-b7f1-4987-b5b9-80828e749670_F101.2-F1-DD%3DT0046-00.PDF"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/caa4c9d6-b0dd-480e-aa85-c23daa75dad3_F101.2-F1-TD%3DT0045-00.PDF"
+    },
+    {
+     "label": "Yoke (YK-F101)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/410d7ace-3db0-4216-a52e-64195da4d7b2_YK-F101-F1-AD%3DT0058-01.pdf"
+    },
+    {
+     "label": "Wall Mount (WME100-F101)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/64a1ebe0-3451-4b43-9223-865bbaeccf13_WME100-101-F1-AD%3DT0061-01.PDF"
+    }
+   ]
+  },
+  {
+   "uid": "v90",
+   "url": "https://funktion-one.com/product/v90",
+   "title": "Wide Dispersion Vero Array Element",
+   "table": [
+    {
+     "driver": "2 x 10\"",
+     "operatingBand": "200Hz - 4kHz",
+     "sensitivity": "110dB at 3.4V",
+     "power": "500W",
+     "nominalImpedence": "12Ω"
+    },
+    {
+     "driver": "2 x 1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 4V",
+     "power": "150W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "107kg",
+     "dispersion": "90° horizontal x 12º vertical",
+     "connectors": "2 x Syntax SPK 8 (male and female)"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/5fdfc51b-7c33-4155-98a3-654c3240d540_Funktion-One_V90__Spec_Sheet.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a600e254-dc06-4264-a4ec-063e2409e628_Vero+User+Guide+29_04_2018+%28v0.96%29.pdf"
+    },
+    {
+     "label": "Vero Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/43579517-3243-4a75-b002-859eda36af46_VERO+Brochure_Compressed.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "psm18-point-source",
+   "url": "https://funktion-one.com/product/psm18-point-source",
+   "title": "Triaxial Point Source Monitor",
+   "table": [
+    {
+     "driver": "18\"",
+     "operatingBand": "30Hz - 694Hz",
+     "sensitivity": "104dB at 2.8V",
+     "power": "600W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "5\" + VHF (V1)",
+     "operatingBand": "694Hz - Up",
+     "sensitivity": "112dB at 2.8V",
+     "power": "80W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "MF + HF (V2)",
+     "operatingBand": "600Hz - Up",
+     "sensitivity": "111dB at 2.8V",
+     "power": "100W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50Hz - 18kHz",
+     "weight": "35kg (77lbs)",
+     "dispersion": "70° Conical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/acUOSZGXnQHGY_Gv_PSM18-F1-DS%3DD0048-03.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/3c237f2b-8ddb-4ee9-965d-53dfe2beb507_PSM18-F1-TD%3DT0188-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ea790306-99b2-48df-a6b0-bbeff320f0b2_PSM18-F1-DD%3DT0189-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ec979c45-a6d7-493f-8e92-33df2828b4b8_PSM18-F1-2DM%3DT0190-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b56a6dad-9998-4bb9-9c7c-95d4c4430c6f_PSM18-F1-3DM%3DT0191-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "v60",
+   "url": "https://funktion-one.com/product/v60",
+   "title": "Narrow Dispersion Vero Array Element",
+   "table": [
+    {
+     "driver": "2 x 10\"",
+     "operatingBand": "200Hz - 4kHz",
+     "sensitivity": "111dB at 3.4V",
+     "power": "500W",
+     "nominalImpedence": "12Ω"
+    },
+    {
+     "driver": "3 x 1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 3.1V",
+     "power": "225W",
+     "nominalImpedence": "10Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "115kg",
+     "dispersion": "60° horizontal x 6° vertical",
+     "connectors": "2 x Syntax SPK 8 (male and female)"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aa8265b1-b8d7-4487-954e-acc0087f552b_Funktion-One_V60_Spec_Sheet.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a600e254-dc06-4264-a4ec-063e2409e628_Vero+User+Guide+29_04_2018+%28v0.96%29.pdf"
+    },
+    {
+     "label": "Vero Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/43579517-3243-4a75-b002-859eda36af46_VERO+Brochure_Compressed.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "rm15",
+   "url": "https://funktion-one.com/product/rm15",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "30Hz - 721Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "5\"",
+     "operatingBand": "721Hz - Up",
+     "sensitivity": "112dB at 3.5V",
+     "power": "75W",
+     "nominalImpedence": "12Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50Hz - 15kHz",
+     "weight": "27kg (60lbs)",
+     "dispersion": "25° x 50°",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "v315",
+   "url": "https://funktion-one.com/product/v315",
+   "title": "Mid-bass Vero Array Element",
+   "table": [
+    {
+     "driver": "3 x 15\"",
+     "operatingBand": "50Hz - 200Hz",
+     "sensitivity": "106dB at 2.8V",
+     "power": "1500W",
+     "nominalImpedence": "2.7Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50Hz to 250Hz",
+     "weight": "116kg",
+     "dispersion": "Array dependent",
+     "connectors": "1 x Neutrik NLT4MP"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/5a400252-1c5f-4094-9bb0-ae3c82035287_Funktion-One_F315_Spec_Sheet.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a600e254-dc06-4264-a4ec-063e2409e628_Vero+User+Guide+29_04_2018+%28v0.96%29.pdf"
+    },
+    {
+     "label": "Vero Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/43579517-3243-4a75-b002-859eda36af46_VERO+Brochure_Compressed.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "psm318-dj",
+   "url": "https://funktion-one.com/product/psm318-dj",
+   "title": "High Power DJ Monitoring",
+   "table": [
+    {
+     "driver": "2 x 18\" (PSM318L)",
+     "operatingBand": "25Hz - 85Hz",
+     "sensitivity": "101dB at 2V",
+     "power": "1100W",
+     "nominalImpedence": "4Ω"
+    },
+    {
+     "driver": "18\"",
+     "operatingBand": "85Hz - 694Hz",
+     "sensitivity": "104dB at 2.8V",
+     "power": "600W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "5\" + VHF (V1)",
+     "operatingBand": "694Hz - Up",
+     "sensitivity": "112dB at 2.8V",
+     "power": "80W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "MF + HF (V2)",
+     "operatingBand": "600Hz - Up",
+     "sensitivity": "111dB at 2.8V",
+     "power": "100W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "30Hz - 18kHz",
+     "weight": "107kg (236lbs)",
+     "dispersion": "70° Conical",
+     "connectors": "Neutrik NL8 connection to lower section with NL4 glanded lead to top section"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/acUOZZGXnQHGY_Gz_PSM318-F1-DS%3DD0049-05.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/97b61903-bb75-4830-a871-e75155cff928_PSM318-F1-TD%3DT0192-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/43510c7e-e5d5-4cae-a9e9-72f7ec8b68c5_PSM318-F1-DD%3DT0193-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://images.prismic.io/funktion-one/aGajxnfc4bHWjBcu_PSM318-F1-2DM%3DT0194-01.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2c59d966-6c3e-4d6a-9d24-314ec8a103f4_PSM318-F1-3DM%3DT0195-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "vx90",
+   "url": "https://funktion-one.com/product/vx90",
+   "title": "Vertically Arrayable Medium Format Loudspeaker",
+   "table": [
+    {
+     "driver": "2 x 12\"",
+     "operatingBand": "45/85Hz - 280Hz",
+     "sensitivity": "100dB at 4V",
+     "power": "2 x 400W",
+     "nominalImpedence": "2 x 16Ω"
+    },
+    {
+     "driver": "1 x 8\"",
+     "operatingBand": "280Hz – 5kHz",
+     "sensitivity": "107dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1 x 1\"",
+     "operatingBand": "5kHz – 18kHz",
+     "sensitivity": "109dB at 4V",
+     "power": "100W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 18kHz",
+     "weight": "70kg",
+     "dispersion": "90° Horizontal / 13° Vertical",
+     "connectors": "2 x Neutrik NLT8MP"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc25906c-1d9a-461b-b91c-12199f294282_Funktion-One_VX90_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Vero VX Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2461fb46-840f-4be1-abcf-4f91aff7d8e2_Vero+VX+Nov_2022_+webHR.pdf"
+    },
+    {
+     "label": "VX90 3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/10706e5a-7613-40c5-8737-f450d1b75245_VX-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "VX Frame 3D CAD",
+     "url": "https://images.prismic.io/funktion-one/ZmCTfZm069VX1fRg_VX-FRAME-F1-3DM%3DT0267-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "VX M-Beam 3D CAD",
+     "url": "https://images.prismic.io/funktion-one/ZmCTrpm069VX1fRs_VX-MBEAM-F1-3DM%3DT0259-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "VX F-Beam 3D CAD",
+     "url": "https://images.prismic.io/funktion-one/ZmCTvZm069VX1fRu_VX-FBEAM-F1-3DM%3DT0263-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "VX Dolly 3D CAD",
+     "url": "https://images.prismic.io/funktion-one/ZmCTLZm069VX1fRc_VX-DOLLY-F1-3DM%3DT0271-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "VX Dolly & Outrigger Kit 3D CAD",
+     "url": "https://images.prismic.io/funktion-one/ZmCTWJm069VX1fRe_VX-DOLLY%2BDOK-F1-3DM%3DT0275-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "VX GSB 3D CAD",
+     "url": "https://images.prismic.io/funktion-one/Zp_DhR5LeNNTxbdm_GSB-VX-F1-3DM%3DT0249-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/85382029-f3f3-4336-a934-81b4af038d0b_Funktion+One+Vero+VX90+v2.1.gll"
+    },
+    {
+     "label": "Rigging Manual",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b232089e-ac7e-43de-a049-41c8cb4e8306_VX+Rigging+Manual_V1_32.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evo-7el1",
+   "url": "https://funktion-one.com/product/evo-7el1",
+   "title": "Additional Mid-Bass for Evo 7E Systems",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "85Hz - 250Hz",
+     "sensitivity": "103dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "70Hz - 300Hz",
+     "weight": "32kg (70.5lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4acf25bf-10e5-4eb7-a53b-a73e8d58edcf_Funktion-One_Evo7EL_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/014b31bf-3139-49cc-9cd8-9f0ba530c2c3_Evo7EL-F1-TD%3DT0090-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/442b3fc5-fd47-4292-a12c-2eee4ddd89a6_Evo7EL-F1-DD%3DT0091-00.PDF"
+    },
+    {
+     "label": "Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/089df182-ab55-495a-bf8f-e5ea56afeb82_Evo7EL-F1-2DM%3DT0092-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0Xix5bqstJ97yKR_Evo7EL-F1-3DM%3DT0093-00.dwg"
+    },
+    {
+     "label": "Install Flyplate Kit with Evo 7E (CFPK-2E67L)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aeim2sBOoF08xNDo_CFPK-2E67L-F1-AD%3DT0069-01.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc712f5f-f051-42c3-9722-9505e6a2ed33_Evo+Ground+Stack+System.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evo-7e",
+   "url": "https://funktion-one.com/product/evo-7e",
+   "title": "Narrow Dispersion, Arrayable Point Source",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "85Hz - 220Hz",
+     "sensitivity": "103dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "10\"",
+     "operatingBand": "220Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "70Hz - 18kHz",
+     "weight": "61kg (134lbs)",
+     "dispersion": "40° Horizontal x 20° Vertical",
+     "connectors": "2 x Neutrik NL8"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/45dc168c-0538-444e-a185-433751ec9f67_Funktion-One_Evo7E_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8052937a-a0d4-41eb-9f30-3448d21471f6_Evo7E-F1-TD%3DT0062-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VO4ZbqstJ98uhS_Evo7E-F1-DD%3DT0063-01.PDF"
+    },
+    {
+     "label": "Evo Range Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "Wheelboard (WB-E67)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aa8039e1-1105-40e5-8d91-664212846082_WB-E67-F1-AD%3DT0017-01.pdf"
+    },
+    {
+     "label": "Grille Kit (GK-E7)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/bcc1283e-f783-4ec6-b765-2393a0d52411_GK-E7-F1-AD%3DT0019-01.pdf"
+    },
+    {
+     "label": "Yoke Kit (YK-SE7)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b326ad58-f280-49a1-b73f-0fd4f6193cb5_YK-SE7-F1-AD%3DT0067-01.PDF"
+    },
+    {
+     "label": "Install Flyplate Kit (CFPK-2E67)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aeimrMBOoF08xNDa_CFPK-2E67-F1-AD%3DT0068-02.PDF"
+    },
+    {
+     "label": "Install Flyplate Kit with Evo 7EL (CFPK-2E67L)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aeim2sBOoF08xNDo_CFPK-2E67L-F1-AD%3DT0069-01.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aee15888-4ab1-419f-b800-92e43d074b8e_Evo7E-F1-2DM%3DT0064-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XiqZbqstJ97yKK_Evo7E-F1-3DM%3DT0065-00.dwg"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc712f5f-f051-42c3-9722-9505e6a2ed33_Evo+Ground+Stack+System.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Straps",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2a0e358f-788c-42d1-90f4-bcd0ee0a5b1f_New+Ground+Stack+Straps-2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evo-6e",
+   "url": "https://funktion-one.com/product/evo-6e",
+   "title": "Medium Dispersion, Arrayable Point Source",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "85Hz - 220Hz",
+     "sensitivity": "103dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "10\"",
+     "operatingBand": "220Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "70Hz - 18kHz",
+     "weight": "57kg (126lbs) without wheelboard",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL8"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/3c215aa9-5259-4277-9fba-3cd48f64f544_Funktion-One_Evo6E_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZnrqK5bWFbowe2O6_Evo6E-F1-TD%3DT0011-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VPkpbqstJ98uhn_Evo6E-F1-DD%3DT0012-01.PDF"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0Xh0pbqstJ97yJg_Evo6E-F1-3DM%3DT0014-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c5b6c39d-e49f-4133-a652-d4bfd60e7d6b_Evo6E-F1-2DM%3DT0013-00.dwg"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/77544d54-54a2-4389-9663-63a55da7f7c3_EVO6_3-way_PRELIM.gll.zip"
+    },
+    {
+     "label": "Evo Range Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "Grille Kit (GK-E6)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/7acd0d1e-4d65-44a1-a0f1-4160c89f4010_GK-E6-F1-AD%3DT0018-01.pdf"
+    },
+    {
+     "label": "Wheelboard (WB-E67)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aa8039e1-1105-40e5-8d91-664212846082_WB-E67-F1-AD%3DT0017-01.pdf"
+    },
+    {
+     "label": "Yoke Kit (YK-SE6)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1f33711c-e7b2-41c7-95d2-df54911a66cf_YK-SE6-F1-AD%3DT0016-01.PDF"
+    },
+    {
+     "label": "Install Flyplate Kit (CFPK-2E67)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aeimrMBOoF08xNDa_CFPK-2E67-F1-AD%3DT0068-02.PDF"
+    },
+    {
+     "label": "Install Flyplate Kit with Evo 6EL (CFPK-2E67L)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aeim2sBOoF08xNDo_CFPK-2E67L-F1-AD%3DT0069-01.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc712f5f-f051-42c3-9722-9505e6a2ed33_Evo+Ground+Stack+System.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Straps",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2a0e358f-788c-42d1-90f4-bcd0ee0a5b1f_New+Ground+Stack+Straps-2.pdf"
+    },
+    {
+     "label": "Evo 6E + 6EL Installation Rigging",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d9ab4836-1354-47a5-a4f0-2a8e4c693b7f_Evo6E%2BEvo6EL+Flyplate+Guide.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evo-6el",
+   "url": "https://funktion-one.com/product/evo-6el",
+   "title": "Additional Mid-Bass for Evo 6E Systems",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "85Hz - 250Hz",
+     "sensitivity": "103dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "70Hz - 300Hz",
+     "weight": "30kg (66lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4 or NL8 option"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1b61103a-37ff-4714-9ef2-c3ee8be48092_Funktion-One_Evo6EL_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6b9784ae-afec-4808-8891-6d1f9fe82535_Evo6EL-F1-DD%3DT0026-00.PDF"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a9441c0b-8643-4286-a367-eea18f19091d_Evo6EL-F1-TD%3DT0025-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/32bbac2d-52ff-430c-9469-b9c79f6fee1e_Evo6EL-F1-2DM%3DT0027-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XiBJbqstJ97yJp_Evo6EL-F1-3DM%3DT0028-00.dwg"
+    },
+    {
+     "label": "Install Flyplate Kit with Evo 6E (CFPK-2E67L)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aeim2sBOoF08xNDo_CFPK-2E67L-F1-AD%3DT0069-01.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc712f5f-f051-42c3-9722-9505e6a2ed33_Evo+Ground+Stack+System.pdf"
+    },
+    {
+     "label": "Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "mb210lp",
+   "url": "https://funktion-one.com/product/mb210lp",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 10\"",
+     "operatingBand": "55Hz - 160Hz",
+     "sensitivity": "101dB at 2V",
+     "power": "600W",
+     "nominalImpedence": "4Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "55Hz - 160Hz",
+     "weight": "29kg (64lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Speakon NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "f61",
+   "url": "https://funktion-one.com/product/f61",
+   "title": "Outstanding Compact 2-Way Loudspeaker",
+   "table": [
+    {
+     "driver": "6\" + 1\"",
+     "operatingBand": "100Hz - 20kHz",
+     "sensitivity": "92dB at 4V",
+     "power": "100W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "100Hz - 20kHz",
+     "weight": "5.25kg (11.5lbs)",
+     "dispersion": "90° x 60°",
+     "connectors": "2 x Neutrik NL4 and 1 x Phoenix"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aBTvcvIqRLdaB1GT_F61-F1-DS%3DD0074-02.pdf"
+    },
+    {
+     "label": "Specification Sheet (IP55)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aBTw6PIqRLdaB1Gh_F61IP-F1-DS%3DD0080-01.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DnnZbqstJ99uzK_F61-F1-TD%3DT0279-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DnppbqstJ99uzW_F61-F1-DD%3DT0280-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DnsJbqstJ99uzZ_F61-F1-2DM%3DT0281-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DnuZbqstJ99uzc_F61-F1-3DM%3DT0282-00.dwg"
+    },
+    {
+     "label": "EASE GLL",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aC3nGSdWJ-7kSZ0i_Funktion-OneF61.gll"
+    },
+    {
+     "label": "Wall Bracket",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DnxpbqstJ99uzf_WMS50-61-F1-AD%3DT0304-00.PDF"
+    },
+    {
+     "label": "Yoke",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5Dn1pbqstJ99uzh_YK-F61-F1-AD%3DT0305-00.PDF"
+    }
+   ]
+  },
+  {
+   "uid": "mb212",
+   "url": "https://funktion-one.com/product/mb212",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 12\"",
+     "operatingBand": "35Hz - 125Hz",
+     "sensitivity": "104dB at 2.8V",
+     "power": "600W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50Hz - 80Hz",
+     "weight": "48kg (106lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6c4fde0d-bf46-4005-a1ab-237c51794411_Funktion-One_MB212_Spec_Sheet.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/132d000d-6e88-47fa-b361-7a47962a9295_MB212-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/83f4260f-c51b-441f-8ed1-9dda289ab5ee_MB212-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "mb112",
+   "url": "https://funktion-one.com/product/mb112",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "60Hz - 160Hz",
+     "sensitivity": "104dB at 2.8V",
+     "power": "250W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 160Hz",
+     "weight": "19.5kg (43lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b1b69c6e-46a3-479d-9ec7-5572001fa290_Funktion-One_MB112_Spec_Sheet.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/12f31099-6321-41e3-90f1-bd854e87f2cd_MB112-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2b44bc52-28d0-4016-b5ef-61cee3fb74b5_MB112-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "f81-1",
+   "url": "https://funktion-one.com/product/f81-1",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "8\" + 1\"",
+     "operatingBand": "110Hz - 18kHz",
+     "sensitivity": "98dB at 2.8V",
+     "power": "100W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "110Hz - 18kHz",
+     "weight": "5kg (11.5lbs)",
+     "dispersion": "90° x 70°",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aAehI_IqRLdaBd6g_F81UserGuidev1.2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "f101-mk1",
+   "url": "https://funktion-one.com/product/f101-mk1",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "10\" + 1\"",
+     "operatingBand": "100Hz - 18kHz",
+     "sensitivity": "100dB at 2.8V",
+     "power": "150W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "100Hz - 18kHz",
+     "weight": "10kg (22lbs)",
+     "dispersion": "90° x 70°",
+     "connectors": "2 x Neutrik NL4\nor phoenix installation connectors"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aAehX_IqRLdaBd6m_F101UserGuidev1.2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-5s",
+   "url": "https://funktion-one.com/product/res-5s",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "114Hz - 445Hz",
+     "sensitivity": "105dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\"",
+     "operatingBand": "445Hz - 7.55kHz",
+     "sensitivity": "111dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "2 x 1\"",
+     "operatingBand": "5.77kHz - 18kHz",
+     "sensitivity": "113dB at 4V",
+     "power": "100W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "90Hz - 18kHz",
+     "weight": "50kg",
+     "dispersion": "25° Horizontal x 20° Vertical",
+     "connectors": "Wago terminal"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "f218-mk1",
+   "url": "https://funktion-one.com/product/f218-mk1",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 18\"",
+     "operatingBand": "25Hz - 125Hz",
+     "sensitivity": "102dB at 2V",
+     "power": "900W",
+     "nominalImpedence": "2 x 8Ω (4Ω parallel)"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50Hz - 200Hz",
+     "weight": "91.5kg (201lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "res-2a",
+   "url": "https://funktion-one.com/product/res-2a",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "28Hz - 250Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\" + 1\"",
+     "operatingBand": "250Hz - Up",
+     "sensitivity": "106dB at 4V",
+     "power": "250W",
+     "nominalImpedence": "12Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 18kHz",
+     "weight": "48kg (106lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2deeeb49-3b21-4764-aba2-f6196bf997b1_Funktion-One_Res2_Spec_Sheet.pdf"
+    },
+    {
+     "label": "A4/A6 Amplifier User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8ced3bb3-926f-4e3b-9e41-4dce8dc00603_A4_%26_A6_Manual_Live%21_Version.pdf"
+    },
+    {
+     "label": "FunktionNet (A4/A6 Remote Control software)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f9822900-aaa6-4aa6-ab26-5fb6cb7d4e1d_FunktionNetInstaller+v1_11.zip"
+    },
+    {
+     "label": "A4/A6 Diagnostic Tool",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8151d614-2009-417d-a764-6430712b03a0_Backpack+DiagnosticV1016.zip"
+    },
+    {
+     "label": "Final Firmware Update (A4/A6)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aK2F8GGNHVfTOT5j_FunktionNet_Firmware_Sept_13.zip"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e84feea2-bb65-4373-a4fc-4933828075bc_R2-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4f09a93d-3aa1-499b-8500-7337c4a8b503_R2-webdxf.dxf"
+    },
+    {
+     "label": "Flyplate Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/27b28c9a-a06d-4975-b7d8-584f562a17ec_FP22-K1.pdf"
+    },
+    {
+     "label": "Flying Grids and Bridles",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d7293636-78db-4013-a5b8-fe971c4b134e_R2+Flying+Grids+and+Bridles.pdf"
+    },
+    {
+     "label": "Yokes and Wall Mounts",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6d5473f5-a2c1-40d8-be58-310d43f6e039_2135.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/92213e87-36fe-4f7f-a696-aa6641a98aed_GroundStacks_April14-2.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Straps",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1025ec1d-c60b-4dbd-bc81-1ffd5f4df132_GSS-2.pdf"
+    },
+    {
+     "label": "Fabric Scrim Grill",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/90f4dd47-8138-49a2-961c-68227e125000_1305.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "f132",
+   "url": "https://funktion-one.com/product/f132",
+   "title": "Extraordinarily Powerful Bass Enclosure",
+   "table": [
+    {
+     "driver": "1 x Linear motor with 32” cone",
+     "operatingBand": "20Hz - 50Hz",
+     "sensitivity": "134dB at 0dBu",
+     "power": "5000W",
+     "nominalImpedence": "N/A"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "25Hz - 60Hz",
+     "weight": "208kg (458lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "Analogue XLR input and link out, Powercon True (20A), RJ45 for RS485 remote control and firmware update"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/364dcb76-b4a1-4018-8eb9-bb97ae344ae1_F132-A-3D-DWG_2106.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f221",
+   "url": "https://funktion-one.com/product/f221",
+   "title": "High Intensity Funktion-One Bass Performance ",
+   "table": [
+    {
+     "driver": "2 x 21\"",
+     "operatingBand": "20Hz - 85Hz",
+     "sensitivity": "104dB at 2V",
+     "power": "2 x 750W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "40Hz - 250Hz",
+     "weight": "130kg (288lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b944a7e3-aad8-4552-a1ca-ab4415818b9e_Funktion-One_F221_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/407c5ec9-9006-43f0-9123-c5d6d7095210_F221-F1-TD%3DT0216-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c2e40bae-3221-479d-b09f-7df26561898a_F221-F1-DD%3DT0217-00.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XrWJbqstJ97yQ9_F221-F1-3DM%3DT0219-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ac660d65-b425-43d4-bfda-9c1542e64d21_F221-F1-2DM%3DT0218-00.dwg"
+    },
+    {
+     "label": "Bass Linking Joiner Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/be606dc9-b7a4-4b20-b1ad-6300a1ca4d62_1300.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "f221a",
+   "url": "https://funktion-one.com/product/f221a",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 21\"",
+     "operatingBand": "20Hz - 200Hz",
+     "sensitivity": "104dB at 2V",
+     "power": "2 x 750W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "40Hz - 250Hz",
+     "weight": "130kg (288lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b944a7e3-aad8-4552-a1ca-ab4415818b9e_Funktion-One_F221_Spec_Sheet.pdf"
+    },
+    {
+     "label": "A4/A6 Amplifier User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8ced3bb3-926f-4e3b-9e41-4dce8dc00603_A4_%26_A6_Manual_Live%21_Version.pdf"
+    },
+    {
+     "label": "FunktionNet (A4/A6 Remote Control software)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f9822900-aaa6-4aa6-ab26-5fb6cb7d4e1d_FunktionNetInstaller+v1_11.zip"
+    },
+    {
+     "label": "A4/A6 Diagnostic Tool",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8151d614-2009-417d-a764-6430712b03a0_Backpack+DiagnosticV1016.zip"
+    },
+    {
+     "label": "Final Firmware Update (A4/A6)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aK2F8GGNHVfTOT5j_FunktionNet_Firmware_Sept_13.zip"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/900acce3-521b-4fe9-b6a8-7a177490f38f_F221-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/bb1bf6e4-031f-4461-ad76-b210d6708527_F221-webdxf.dxf"
+    },
+    {
+     "label": "Bass Linking Joiner Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/be606dc9-b7a4-4b20-b1ad-6300a1ca4d62_1300.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "v132",
+   "url": "https://funktion-one.com/product/v132",
+   "title": "Extraordinarily Powerful Bass Enclosure",
+   "table": [
+    {
+     "driver": "1 x Linear motor with 32” cone",
+     "operatingBand": "20Hz - 50Hz",
+     "sensitivity": "134dB at 0dBu",
+     "power": "5000W",
+     "nominalImpedence": "N/A"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "26Hz - 60Hz (-10dB points: 20Hz - 75Hz)",
+     "weight": "208kg (458lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "Analogue XLR input and link out, Powercon True (20A), RJ45 for RS485 remote control and firmware update"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/364dcb76-b4a1-4018-8eb9-bb97ae344ae1_F132-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "Vero Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/43579517-3243-4a75-b002-859eda36af46_VERO+Brochure_Compressed.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "v221vero",
+   "url": "https://funktion-one.com/product/v221vero",
+   "title": "Exceptionally Efficient, High-Intensity Bass Enclosure",
+   "table": [
+    {
+     "driver": "2 x 21\"",
+     "operatingBand": "20Hz - 85Hz",
+     "sensitivity": "104dB at 2V",
+     "power": "2 x 750W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "40Hz - 250Hz",
+     "weight": "130kg (288lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b944a7e3-aad8-4552-a1ca-ab4415818b9e_Funktion-One_F221_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/407c5ec9-9006-43f0-9123-c5d6d7095210_F221-F1-TD%3DT0216-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c2e40bae-3221-479d-b09f-7df26561898a_F221-F1-DD%3DT0217-00.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/0aece5aa-b707-4fa1-a165-b2a69debe49a_F221-F1-3DM%3DT0219-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ac660d65-b425-43d4-bfda-9c1542e64d21_F221-F1-2DM%3DT0218-00.dwg"
+    },
+    {
+     "label": "Vero VX Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9cd7f9da-b918-49f1-92f1-992a64a704d7_Vero+VX+Brochure.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evo-2",
+   "url": "https://funktion-one.com/product/evo-2",
+   "title": "Medium Dispersion, Versatile, Point Source",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "60/85Hz - 280Hz",
+     "sensitivity": "100dB at 2.8V",
+     "power": "600W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\" (Tri-amp)",
+     "operatingBand": "280Hz - 5kHz",
+     "sensitivity": "111dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\" (Tri-amp)",
+     "operatingBand": "5kHz - 18kHz",
+     "sensitivity": "112dB at 4V",
+     "power": "75W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "8\" + 1\" (Bi-amp)",
+     "operatingBand": "280Hz - 18kHz",
+     "sensitivity": "111dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "85Hz - 18kHz",
+     "weight": "36kg (80lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL8 (triamp) or NL4 (biamp) option"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0Ryoq8jQArT1RYm_Evo2-F1-DS%3DD0069-02.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aF0g3nfc4bHWivrP_Evo2UserGuideV2.0.pdf"
+    },
+    {
+     "label": "EASE GLL",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZuL1cbVsGrYSvTJh_Funktion-OneEvo2v1.0.gll"
+    },
+    {
+     "label": "3D CAD (DWG)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XreZbqstJ97yRC_Evo2-F1-3DM%3DT0234-00.dwg"
+    },
+    {
+     "label": "2D CAD (DWG)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/7ff2203f-0621-4271-8a18-5f0f9cd0207e_Evo2-F1-2DM%3DT0233-00.dwg"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZnrqjpbWFbowe2PG_Evo2-F1-TD%3DT0231-01.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VQBJbqstJ98uhw_Evo2-F1-DD%3DT0232-01.PDF"
+    },
+    {
+     "label": "Evo2-BFP Flying Plate",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Znrqw5bWFbowe2PQ_BFP-E2-F1-AD%3DT0252-01.PDF"
+    },
+    {
+     "label": "Evo2-WB Wheel Board",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Znrq4pbWFbowe2PV_WB-E2-F1-AD%3DT0276-00.PDF"
+    }
+   ]
+  },
+  {
+   "uid": "res-5t",
+   "url": "https://funktion-one.com/product/res-5t",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "114Hz - 445Hz",
+     "sensitivity": "105dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\"",
+     "operatingBand": "445Hz - 7.55kHz",
+     "sensitivity": "111dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "2 x 1\"",
+     "operatingBand": "5.77kHz - 18kHz",
+     "sensitivity": "113dB at 4V",
+     "power": "100W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "90Hz - 18kHz",
+     "weight": "46kg (101lbs)",
+     "dispersion": "25° Horizontal x 20° Vertical",
+     "connectors": "EP6 panel and captive lead in cable recess"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f5650a88-9f11-4fab-b53d-096c3443a853_Res+5+series+UG+091213.pdf"
+    },
+    {
+     "label": "Ground Stack Configuration",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ec4c6d6e-e40e-458a-a288-d50b21d4d0a0_GroundStacks_April14.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Strap",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c6a23843-1411-4c7a-8114-d60ba4ba0af2_GSS.pdf"
+    },
+    {
+     "label": "Wheelboard & Scrim",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fb2acdf7-6003-4488-a74c-bb38e6cb793c_Wheelboard-and-Scrim_web.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-4s",
+   "url": "https://funktion-one.com/product/res-4s",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "114Hz - 445Hz",
+     "sensitivity": "105dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\"",
+     "operatingBand": "445Hz - 5.77kHz",
+     "sensitivity": "108dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5.55kHz - 18kHz",
+     "sensitivity": "109dB at 4V",
+     "power": "50W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "90Hz - 18kHz",
+     "weight": "38 kg (84 lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "Wago terminals"
+    },
+    {
+     "frequencyResponse": null,
+     "weight": null,
+     "dispersion": null,
+     "connectors": null
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "res-4d",
+   "url": "https://funktion-one.com/product/res-4d",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "8\"",
+     "operatingBand": "445Hz - 5.77kHz",
+     "sensitivity": "108dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5.55kHz - 18kHz",
+     "sensitivity": "109dB at 4V",
+     "power": "50W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "445Hz - 18kHz",
+     "weight": "20kg (44lbs)",
+     "dispersion": "25° Horizontal x 50° Vertical",
+     "connectors": "EP6 panel and captive lead in cable recess"
+    },
+    {
+     "frequencyResponse": null,
+     "weight": null,
+     "dispersion": null,
+     "connectors": null
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Resolution 4 User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c11b8787-93fc-43d1-897c-009b4b9b2133_Res+4+series+UG+091213.pdf"
+    },
+    {
+     "label": "Resolution 5 User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f5650a88-9f11-4fab-b53d-096c3443a853_Res+5+series+UG+091213.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "v221",
+   "url": "https://funktion-one.com/product/v221",
+   "title": "Exceptionally Efficient, High-Intensity Bass Enclosure",
+   "table": [
+    {
+     "driver": "2 x 21\"",
+     "operatingBand": "20Hz - 85Hz",
+     "sensitivity": "104dB at 2V",
+     "power": "2 x 750W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "40Hz - 250Hz",
+     "weight": "130kg (288lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b944a7e3-aad8-4552-a1ca-ab4415818b9e_Funktion-One_F221_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/407c5ec9-9006-43f0-9123-c5d6d7095210_F221-F1-TD%3DT0216-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c2e40bae-3221-479d-b09f-7df26561898a_F221-F1-DD%3DT0217-00.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/0aece5aa-b707-4fa1-a165-b2a69debe49a_F221-F1-3DM%3DT0219-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ac660d65-b425-43d4-bfda-9c1542e64d21_F221-F1-2DM%3DT0218-00.dwg"
+    },
+    {
+     "label": "Vero VX Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2461fb46-840f-4be1-abcf-4f91aff7d8e2_Vero+VX+Nov_2022_+webHR.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-4t",
+   "url": "https://funktion-one.com/product/res-4t",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "114Hz - 445Hz",
+     "sensitivity": "105dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\"",
+     "operatingBand": "445Hz - 5.77kHz",
+     "sensitivity": "108dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5.55kHz - 18kHz",
+     "sensitivity": "109dB at 4V",
+     "power": "50W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "90Hz - 18kHz",
+     "weight": "46 kg (101lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "EP6 panel and captive lead in cable recess"
+    },
+    {
+     "frequencyResponse": null,
+     "weight": null,
+     "dispersion": null,
+     "connectors": null
+    }
+   ],
+   "downloads": [
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c11b8787-93fc-43d1-897c-009b4b9b2133_Res+4+series+UG+091213.pdf"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/972c3159-6333-497b-ac8a-74684558c4d4_RES4_EASEDATA.zip"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c6a23843-1411-4c7a-8114-d60ba4ba0af2_GSS.pdf"
+    },
+    {
+     "label": "Wheelboard & Scrim",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fb2acdf7-6003-4488-a74c-bb38e6cb793c_Wheelboard-and-Scrim_web.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "ds15-bass",
+   "url": "https://funktion-one.com/product/ds15-bass",
+   "title": "Dance Stack Low-Mid Section",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "105Hz - 220Hz",
+     "sensitivity": "103dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "90Hz - 270Hz",
+     "weight": "49kg (108lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/27681974-c14c-450a-bd72-6da38faf3756_Funktion-One_DS15_Spec_Sheet.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XkjpbqstJ97yMS_DS15-F1-3DM%3DT0278-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "ds15",
+   "url": "https://funktion-one.com/product/ds15",
+   "title": "Dance Stack Low-Mid Section",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "105 - 220Hz",
+     "sensitivity": "103dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "90Hz - 270Hz",
+     "weight": "49kg (108lbs)",
+     "dispersion": "-",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/27681974-c14c-450a-bd72-6da38faf3756_Funktion-One_DS15_Spec_Sheet.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XkjpbqstJ97yMS_DS15-F1-3DM%3DT0278-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f5.2",
+   "url": "https://funktion-one.com/product/f5.2",
+   "title": "Ultra Compact Funktion-One Sound",
+   "table": [
+    {
+     "driver": "5”",
+     "operatingBand": "150Hz - 13kHz",
+     "sensitivity": "90dB at 4V",
+     "power": "30W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "150Hz - 13kHz",
+     "weight": "2.7kg (5.9lbs)",
+     "dispersion": "Conical",
+     "connectors": "2 x Neutrik NL4 and 1 x Phoenix"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2Qh25bqstJ98rf__F5.2-F1-DS%3DD0014-01.pdf"
+    },
+    {
+     "label": "Specification Sheet (IP55)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z6nnQ5bqstJ9-bE__F5.2IP-F1-DS%3DD0079-01.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/39d3832c-9e60-4038-8242-81ab29855b50_F5.2-F1-TD%3DT0035-02.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b1f6f507-7519-4913-86fe-e7851874219b_F5.2-F1-DD%3DT0036-02.pdf"
+    },
+    {
+     "label": "Wall Mount Bracket (WMB-F5)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/34b5ba62-225a-471e-9472-fb62e6f76aa1_WMB-F5-F1-AD%3DT0059-01.PDF"
+    },
+    {
+     "label": "Yoke Kit (YK-F5)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4e1b26b7-3f0f-43af-91bf-f04350e7c134_YK-F5-F1-AD%3DT0056-01.PDF"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZuBWDRoQrfVKl7Fz_F5.2-F1-3DM%3DT0038-01.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/feaeb95e-f5a7-4a2a-9aec-c6dcbd5b0589_F5.2-F1-2DM%3DT0037-01.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f1201.2",
+   "url": "https://funktion-one.com/product/f1201.2",
+   "title": "Compact Full Range Performance",
+   "table": [
+    {
+     "driver": "12\" + 1\"",
+     "operatingBand": "55/85Hz - Up",
+     "sensitivity": "100dB at 2.8V",
+     "power": "350W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "55Hz - 20kHz",
+     "weight": "21kg (46.3lbs)",
+     "dispersion": "90° x 60°",
+     "connectors": "2 x Neutrik NL4 and 1 x Phoenix"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/0e6146e3-e38f-47b3-9af7-c1a379fae6f1_Funktion-One_F1201_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Specification Sheet (IP55)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z6noWJbqstJ9-bFn_F1201.2IP-F1-DS%3DD0083-00.pdf"
+    },
+    {
+     "label": "EASE Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Zw6QjoF3NbkBXeMA_F1201.2.gll"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2b03c9da-cd59-41f5-87ab-19d4c6022afa_F1201.2-F1-DD%3DT0081-00.PDF"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a5f817ec-d4b1-4e46-af58-cc8e439c5b91_F1201.2-F1-TD%3DT0080-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e0d9dbe3-a096-403e-a5b1-cb2a11a74735_F1201.2-F1-2DM%3DF0082-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/20c5293f-997d-4aeb-a6f6-be05c12f907c_F1201.2-F1-3DM%3DT0083-00.dwg"
+    },
+    {
+     "label": "Yoke",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/87c0bfdd-1b9e-4366-9686-b5eb80cfcd9c_YK-F1201-F1-AD%3DT0051-00.PDF"
+    },
+    {
+     "label": "Wall Mount Bracket WHHM100",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/0686a877-1f2c-4910-9978-3800f6dfe5a5_WHHM100-1201-F1-AD%3DT0052-00.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "br118",
+   "url": "https://funktion-one.com/product/br118",
+   "title": "Discontinued Product",
+   "table": [
+    {
+     "driver": "18”",
+     "operatingBand": "25Hz - 85Hz",
+     "sensitivity": "100dB at 2.8V",
+     "power": "550W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "45Hz - 200Hz",
+     "weight": "38kg (84lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4169e61e-4594-4a4b-a05a-1d48ee95284b_Funktion-One_BR118_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2f911573-9405-4034-ab2b-80540811a7ba_BR118-F1-TD%3DT0168-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/15ff035e-1f17-4aec-9cff-c127000ad189_BR118-F1-DD%3DT0169-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc910e41-c966-4edf-baf2-38fb7437ad44_BR118-F1-2DM%3DT0170-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ac0d325a-5f3d-40fc-84c5-324f3b035900_BR118-F1-3DM%3DT0171-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "sb212lp",
+   "url": "https://funktion-one.com/product/sb212lp",
+   "title": "Versatile Compact Bass Performance",
+   "table": [
+    {
+     "driver": "12”",
+     "operatingBand": "32Hz - 150Hz",
+     "sensitivity": "100dB at 2V",
+     "power": "700W",
+     "nominalImpedence": "4Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "32Hz - 300Hz",
+     "weight": "50kg (110lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5pyB5bqstJ9-AlE_SB212LP-F1-DS%3DD0073-02.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DpFpbqstJ99u0E_SB212LP-F1-TD%3DT0226-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DpH5bqstJ99u0K_SB212LP-F1-DD%3DT0227-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DpJpbqstJ99u0P_SB212LP-F1-2DM%3DT0228-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DpLpbqstJ99u0S_SB212LP-F1-3DM%3DT0229-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f218-mk2",
+   "url": "https://funktion-one.com/product/f218-mk2",
+   "title": "Tight, Punchy, Well-Defined Bass",
+   "table": [
+    {
+     "driver": "2 x 18\"",
+     "operatingBand": "25Hz - 200Hz",
+     "sensitivity": "102dB at 2V",
+     "power": "2 x 450W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50Hz - 200Hz",
+     "weight": "93kg (204lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/982b3d38-abca-48d7-92c8-8f0acd00194a_Funktion-One_F218MkII_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c55a7583-2879-494e-8367-9d3cbf8bce17_F218_MK2-F1-TD%3DT0208-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a9a969ca-8f9a-4ebf-997c-16fa3c4c45a7_F218_MK2-F1-DD%3DT0209-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1b3576f6-50d0-4604-a4a7-2e56018f0630_F218_MK2-F1-2DM%3DT0210-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XlHpbqstJ97yNJ_F218_MK2-F1-3DM%3DT0211-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f121",
+   "url": "https://funktion-one.com/product/f121",
+   "title": "Outstanding Mid-Size Bass Performance ",
+   "table": [
+    {
+     "driver": "21\"",
+     "operatingBand": "20Hz - 200Hz",
+     "sensitivity": "101dB at 2.8V",
+     "power": "750W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "40Hz - 250Hz",
+     "weight": "72kg (159lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZtWvQUaF0TcGJq7k_Funktion-One_F121_Spec_Sheet_2.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/65c39b9a9be9a5b998b58127_F121-F1-TD%3DT0212-02.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/78b5160c-cdd3-4b95-9984-49d1bbcce181_F121-F1-DD%3DT0213-01.PDF"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XrOZbqstJ97yQ4_F121-F1-3DM%3DT0215-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/255a64c4-eadb-463d-a00d-dc9609ce0205_F121-F1-2DM%3DT0214-00.dwg"
+    },
+    {
+     "label": "Bass Linking Joiner Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/be606dc9-b7a4-4b20-b1ad-6300a1ca4d62_1300.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "f118-mk2",
+   "url": "https://funktion-one.com/product/f118-mk2",
+   "title": "Well Defined Horn-Loaded Bass",
+   "table": [
+    {
+     "driver": "18\"",
+     "operatingBand": "25Hz - 200Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "450W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50 - 200Hz",
+     "weight": "50kg (110lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f7956233-5f45-4677-b3a1-f1779d97b642_Funktion-One_F118MkII_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/cfc282ad-6e2f-4db9-8050-2ca2a6141dc9_F118_MK2-F1-TD%3DT0204-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1a358475-d8da-43b5-be65-9d5c3ac20688_F118_MK2-F1-DD%3DT0205-00.PDF"
+    },
+    {
+     "label": "Bass Linking Joiner Kit ",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/be606dc9-b7a4-4b20-b1ad-6300a1ca4d62_1300.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/dbff924f-72fd-49d8-9072-967d57eef851_F118_MK2-F1-2DM%3DT0206-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XlAJbqstJ97yND_F118_MK2-F1-3DM%3DT0207-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "sb8",
+   "url": "https://funktion-one.com/product/sb8",
+   "title": "Extremely Compact Funktion-One Bass Performance",
+   "table": [
+    {
+     "driver": "8”",
+     "operatingBand": "50Hz - 300Hz",
+     "sensitivity": "95dB at 2.8V",
+     "power": "250W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50Hz - 300Hz",
+     "weight": "14kg (38.8lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/46a4e4d3-697f-48aa-88ff-e656c532a379_SB8-F1-DS%3DD0020-01.pdf"
+    },
+    {
+     "label": "SB8A Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/700dd7c1-1fe5-43a7-bc59-f49169612e7c_SB8A-F1-DS%3DD0065-01.pdf"
+    },
+    {
+     "label": "SB8A/SB10A User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Zv6dWbVsGrYSwVqO_SB8A_SB10A_User_Guide_V1.2.pdf"
+    },
+    {
+     "label": "SB8 Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9511215d-1376-49c9-b1b9-95ee997dd8fe_SB8-F1-TD%3DT0070-00.PDF"
+    },
+    {
+     "label": "SB8 Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4bb729b1-bcfc-46ae-b789-39dec69eb229_SB8-F1-DD%3DT0071-00.PDF"
+    },
+    {
+     "label": "SB8A Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6ebaea9e-7f04-471d-b42e-7b80ddfb87f1_SB8A-F1-TD%3DT0146-00.pdf"
+    },
+    {
+     "label": "SB8A Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/24c34440-ede3-4a66-b09c-0bf08bfb2a77_SB8A-F1-DD%3DT0147-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d960ee50-a458-40b8-b9ae-804b6ba798c1_SB8-F1-2DM%3DT0072-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XkRJbqstJ97yL4_SB8-F1-3DM%3DT0073-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "evo-7eh1",
+   "url": "https://funktion-one.com/product/evo-7eh1",
+   "title": "Narrow Dispersion, Arrayable, Mid-High Point Source",
+   "table": [
+    {
+     "driver": "10\"",
+     "operatingBand": "200Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - up",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "41kg (90lbs)",
+     "dispersion": "40° Horizontal x 20° Vertical",
+     "connectors": "2x Neutrik NL4 or NL8 option"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a3d1b151-f192-48ae-8d3f-ce8576d52687_Funktion-One_Evo7EH_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/3e093e6d-9d02-4eae-8d26-555982d4120c_Evo7EH-F1-TD%3DT0085-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VOzZbqstJ98uhP_Evo7EH-F1-DD%3DT0086-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9930a840-522b-4688-8905-9b62084e8cd7_Evo7EH-F1-2DM%3DT0087-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0Xi8JbqstJ97yKb_Evo7EH-F1-3DM%3DT0088-00.dwg"
+    },
+    {
+     "label": "Grille Kit (GK-E67H)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b9b0be83-4d44-4216-9827-c9cd4a237479_GK-E67H-F1-AD%3DT0009-01.pdf"
+    },
+    {
+     "label": "Wheelboard (WB-E67H)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b14922ea-5b30-40c9-8a7c-0a215d823b8f_WB-E67H-F1-AD%3DT0010-01.pdf"
+    },
+    {
+     "label": "Yoke Kit (YK-SE7H)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/25c3eb02-3101-45ce-a53b-15ec243f059f_YK-SE7H-F1-AD%3DT0054-01.pdf"
+    },
+    {
+     "label": "Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc712f5f-f051-42c3-9722-9505e6a2ed33_Evo+Ground+Stack+System.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Straps",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2a0e358f-788c-42d1-90f4-bcd0ee0a5b1f_New+Ground+Stack+Straps-2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evo-6sh-skeletal1",
+   "url": "https://funktion-one.com/product/evo-6sh-skeletal1",
+   "title": "Lightweight, Medium Dispersion,  Mid-High Point Source",
+   "table": [
+    {
+     "driver": "10\"",
+     "operatingBand": "200Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "20.5kg (45lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "Neutrik NL4 or Junction box option"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/7931aacf-0dec-41f5-a350-ee4e3cea6a81_Funktion-One_Evo6SH_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d352daa4-2066-4379-a481-62f1f32ddf35_Evo6SH-F1-TD%3DT0030-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VO85bqstJ98uhT_Evo6SH-F1-DD%3DT0031-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1f9ceb10-beda-4c23-8d2d-1fd45409d89a_Evo6SH-F1-2DM%3DT0032-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XicZbqstJ97yJ9_Evo6SH-F1-3DM%3DT0033-00.dwg"
+    },
+    {
+     "label": "Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/80ee867c-3864-4236-912d-ad921ba16214_EVO6SH.gll.zip"
+    }
+   ]
+  },
+  {
+   "uid": "evolution-x",
+   "url": "https://funktion-one.com/product/evolution-x",
+   "title": "Wide Dispersion, Full Range, Point Source",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "35/85Hz - 280Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\"",
+     "operatingBand": "280Hz - 5kHz",
+     "sensitivity": "107dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5kHz - 18kHz",
+     "sensitivity": "109dB at 4V",
+     "power": "100W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 18kHz",
+     "weight": "47kg (103lbs) without wheelboard",
+     "dispersion": "90° Horizontal x 13° Vertical",
+     "connectors": "2 x Neutrik NL8"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZessfXUurf2G3NzE_EvolutionX-F1-DS%3DD0001-02.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZestRHUurf2G3Nzi_Evolution_X_User_Guide_V1.3.pdf"
+    },
+    {
+     "label": "3D CAD (DWG)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0Xk25bqstJ97yM7_EX-F1-3DM%3DT0004-00.dwg"
+    },
+    {
+     "label": "2D CAD (DWG)",
+     "url": "https://images.prismic.io/funktion-one/ZoVw5B5LeNNTww05_EX-F1-2DM%3DT0003-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZfsqtwmzsfHOGJQm_EX-F1-TD%3DT0001-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VQSpbqstJ98uh6_EX-F1-DD%3DT0002-01.PDF"
+    },
+    {
+     "label": "Grille Kit (GK-EX)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZoVw5x5LeNNTww0__GK-EX-F1-AD%3DT0008-01.PDF"
+    },
+    {
+     "label": "Yoke Kit (YK-SEX)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZoVzxB5LeNNTwxAv_YK-SEX-F1-AD%3DT0006-01.pdf"
+    },
+    {
+     "label": "Wheelboard (WB-EX)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZfsrIwmzsfHOGJQ6_WB-EX-F1-AD%3DT0007-01.pdf"
+    },
+    {
+     "label": "EASE Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VQmJbqstJ98uh-_Funktion-OneEvolutionX.gll"
+    }
+   ]
+  },
+  {
+   "uid": "evo-7sh-skeletal1",
+   "url": "https://funktion-one.com/product/evo-7sh-skeletal1",
+   "title": "Lightweight, Narrow Dispersion,  Mid-High Point Source",
+   "table": [
+    {
+     "driver": "10\"",
+     "operatingBand": "200Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "23kg (51lbs)",
+     "dispersion": "40° Horizontal x 20° Vertical",
+     "connectors": "Neutrik NL4 or Junction box option"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c0305dbd-39be-4e84-b359-d6fd40e2e2df_Funktion-One_Evo7SH_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/bfab7316-24e4-4db7-8522-73d889621977_Evo7SH-F1-TD%3DT0095-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VOnpbqstJ98ug__Evo7SH-F1-DD%3DT0096-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a1a5cf78-2314-496a-a1d1-735dfedd8d7d_Evo7SH-F1-2DM%3DT0097-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XjHJbqstJ97yKg_Evo7SH-F1-3DM%3DT0098-00.dwg"
+    },
+    {
+     "label": "Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evo-6sh-skeletal",
+   "url": "https://funktion-one.com/product/evo-6sh-skeletal",
+   "title": "Lightweight, Medium Dispersion, Mid-High Point Source",
+   "table": [
+    {
+     "driver": "10\"",
+     "operatingBand": "200Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "20.5kg (45lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "Neutrik NL4 or Junction box option"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/7931aacf-0dec-41f5-a350-ee4e3cea6a81_Funktion-One_Evo6SH_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d352daa4-2066-4379-a481-62f1f32ddf35_Evo6SH-F1-TD%3DT0030-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VO85bqstJ98uhT_Evo6SH-F1-DD%3DT0031-00.PDF"
+    },
+    {
+     "label": "Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/80ee867c-3864-4236-912d-ad921ba16214_EVO6SH.gll.zip"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1f9ceb10-beda-4c23-8d2d-1fd45409d89a_Evo6SH-F1-2DM%3DT0032-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XicZbqstJ97yJ9_Evo6SH-F1-3DM%3DT0033-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "evo-7sh-skeletal",
+   "url": "https://funktion-one.com/product/evo-7sh-skeletal",
+   "title": "Narrow Dispersion, Lightweight Mid-High Point Source",
+   "table": [
+    {
+     "driver": "10\"",
+     "operatingBand": "200Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "23kg (51lbs)",
+     "dispersion": "40° Horizontal x 20° Vertical",
+     "connectors": "Neutrik NL4 or Junction box option"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c0305dbd-39be-4e84-b359-d6fd40e2e2df_Funktion-One_Evo7SH_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/bfab7316-24e4-4db7-8522-73d889621977_Evo7SH-F1-TD%3DT0095-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VOnpbqstJ98ug__Evo7SH-F1-DD%3DT0096-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a1a5cf78-2314-496a-a1d1-735dfedd8d7d_Evo7SH-F1-2DM%3DT0097-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XjHJbqstJ97yKg_Evo7SH-F1-3DM%3DT0098-00.dwg"
+    },
+    {
+     "label": "Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evo-6eh",
+   "url": "https://funktion-one.com/product/evo-6eh",
+   "title": "Medium Dispersion, Arrayable Point Source",
+   "table": [
+    {
+     "driver": "10\"",
+     "operatingBand": "200Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - up",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "38kg (84lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "Neutrik NL4 or NL8 option"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/3cec9b09-09f4-4d76-9c64-82caa0b9d8e7_Funktion-One_Evo6EH_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/37769703-4028-409d-8c6c-11f90b21fcc2_Evo6EH-F1-TD%3DT0020-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VPeZbqstJ98uhk_Evo6EH-F1-DD%3DT0021-00.PDF"
+    },
+    {
+     "label": "Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9e3a3ea5-d0d3-44a4-be75-5f00ba9694e0_Evo6EH-F1-2DM%3DT0022-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XiLpbqstJ97yJz_Evo6EH-F1-3DM%3DT0023-00.dwg"
+    },
+    {
+     "label": "Yoke Kit (YK-SE6H)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1a53548f-5bbd-4a88-a3b5-2d3d0fefb3e1_YK-SE6H-F1-AD%3DT0053-01.pdf"
+    },
+    {
+     "label": "Grille Kit (GK-E67H)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b9b0be83-4d44-4216-9827-c9cd4a237479_GK-E67H-F1-AD%3DT0009-01.pdf"
+    },
+    {
+     "label": "Wheelboard (WB-E67H)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b14922ea-5b30-40c9-8a7c-0a215d823b8f_WB-E67H-F1-AD%3DT0010-01.pdf"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/41805f7a-6150-4657-a229-97808ec7e646_EVO6EH-V10.gll.zip"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc712f5f-f051-42c3-9722-9505e6a2ed33_Evo+Ground+Stack+System.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Straps",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2a0e358f-788c-42d1-90f4-bcd0ee0a5b1f_New+Ground+Stack+Straps-2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evolution-xsh11",
+   "url": "https://funktion-one.com/product/evolution-xsh11",
+   "title": "Lightweight, Wide Dispersion, Mid-High Point Source",
+   "table": [
+    {
+     "driver": "8\"",
+     "operatingBand": "280Hz - 5kHz",
+     "sensitivity": "107dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5kHz - 18kHz",
+     "sensitivity": "109dB at 4V",
+     "power": "100W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "280Hz - 18kHz",
+     "weight": "13.5kg (30lbs) (including yoke)",
+     "dispersion": "90° Horizontal x 13° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZogKYx5LeNNTw009_EvolutionXSH-F1-DS%3DD0002-01.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZfstrwmzsfHOGJSO_EXSH-F1-TD%3DT0140-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VP4ZbqstJ98uhu_EXSH-F1-DD%3DT0141-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://images.prismic.io/funktion-one/Zfst-gmzsfHOGJSZ_EXSH-F1-2DM%3DT0142-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XjeZbqstJ97yLI_EXSH-F1-3DM%3DT0143-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "evolution-xsh1",
+   "url": "https://funktion-one.com/product/evolution-xsh1",
+   "title": "Wide Dispersion, Lightweight, Mid-High Point Source",
+   "table": [
+    {
+     "driver": "8\"",
+     "operatingBand": "280Hz - 5kHz",
+     "sensitivity": "107dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5kHz - 18kHz",
+     "sensitivity": "109dB at 4V",
+     "power": "100W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "280Hz - 18kHz",
+     "weight": "13.5kg (30lbs) (including yoke)",
+     "dispersion": "90° Horizontal x 13° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZogKYx5LeNNTw009_EvolutionXSH-F1-DS%3DD0002-01.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZfstrwmzsfHOGJSO_EXSH-F1-TD%3DT0140-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VP4ZbqstJ98uhu_EXSH-F1-DD%3DT0141-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://images.prismic.io/funktion-one/Zfst-gmzsfHOGJSZ_EXSH-F1-2DM%3DT0142-00.dwg?auto=format,compress?auto=compress,format"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XjeZbqstJ97yLI_EXSH-F1-3DM%3DT0143-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "evo-7t",
+   "url": "https://funktion-one.com/product/evo-7t",
+   "title": "Narrow Dispersion, Point Source with Flying Hardware",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "85Hz - 220Hz",
+     "sensitivity": "103dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "10\"",
+     "operatingBand": "220Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "70Hz - 18kHz",
+     "weight": "70kg (154lbs) without wheelboard",
+     "dispersion": "40° Horizontal x 20° Vertical",
+     "connectors": "2 x Neutrik NL8"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/94bca4de-a856-4c0a-95aa-9c3280a54341_Funktion-One_Evo7T_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/854f1463-935b-4571-bbf2-dd1e166d405f_Evo7T-F1-TD%3DT0150-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VPpJbqstJ98uhp_Evo7T-F1-DD%3DT0151-00.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f9654c9e-fad8-4c84-b3e7-12e1329497f5_Evo7T-F1-3DM%3DT0153-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6c37df70-7d1f-49db-8703-31fb295fc457_Evo7T-F1-2DM%3DT0152-00.dwg"
+    },
+    {
+     "label": "Evo Range Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "Three Wide Touring Flying Kit (TSFK-3E7)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZfgpPcmUzjad_UbC_TSFK-3E7-F1-AD%3DT0163-01.pdf"
+    },
+    {
+     "label": "Two Wide Touring Flying Kit (TSFK-2E7)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aac632ba-5c4c-4066-9606-59965358ea2e_TSFK-2E7-F1-AD%3DT0162-00.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc712f5f-f051-42c3-9722-9505e6a2ed33_Evo+Ground+Stack+System.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Straps",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2a0e358f-788c-42d1-90f4-bcd0ee0a5b1f_New+Ground+Stack+Straps-2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "evo-7th",
+   "url": "https://funktion-one.com/product/evo-7th",
+   "title": "Narrow Dispersion, Mid-High Point Source with Flying Hardware",
+   "table": [
+    {
+     "driver": "10\"",
+     "operatingBand": "200Hz - 4kHz",
+     "sensitivity": "112dB at 4.9V",
+     "power": "250W",
+     "nominalImpedence": "24Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "4kHz - 18kHz",
+     "sensitivity": "114dB at 5.6V",
+     "power": "75W",
+     "nominalImpedence": "32Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "44kg (97lbs) without wheelboard",
+     "dispersion": "40° Horizontal x 20° Vertical",
+     "connectors": "2 x Neutrik NL8"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e6ccb1d3-93e3-4bfe-91a8-3ecd9e0ed7df_Funktion-One_Evo7TH_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/5470ac40-92c2-4dee-a648-0d1eddfdc72a_Evo7TH-F1-TD%3DT0154-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z2VPypbqstJ98uhs_Evo7TH-F1-DD%3DT0155-00.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/85dc4b8d-574b-4597-920e-76bf4fc6e6b2_Evo7TH-F1-3DM%3DT0157-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ccf70b34-daa6-4b9e-b6fe-e604c0356e02_Evo7TH-F1-2DM%3DT0156-00.dwg"
+    },
+    {
+     "label": "Evo Range Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "Three Wide Touring Flying Kit (TSFK-3E7)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZfgpPcmUzjad_UbC_TSFK-3E7-F1-AD%3DT0163-01.pdf"
+    },
+    {
+     "label": "Two Wide Touring Flying Kit (TSFK-2E7)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aac632ba-5c4c-4066-9606-59965358ea2e_TSFK-2E7-F1-AD%3DT0162-00.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc712f5f-f051-42c3-9722-9505e6a2ed33_Evo+Ground+Stack+System.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Straps",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2a0e358f-788c-42d1-90f4-bcd0ee0a5b1f_New+Ground+Stack+Straps-2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "sb10-compact-range",
+   "url": "https://funktion-one.com/product/sb10-compact-range",
+   "title": "Powerful Compact Bass Performance",
+   "table": [
+    {
+     "driver": "10”",
+     "operatingBand": "40Hz - 130Hz",
+     "sensitivity": "98dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "45Hz - 300Hz",
+     "weight": "19kg (42lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZiZ0KvPdc1huKraO_SB10-F1-DS%3DD0021-02.pdf"
+    },
+    {
+     "label": "SB10A Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8846a8f8-dde4-45ad-86b0-5f980b621a80_SB10A-F1-DS%3DD0066-01.pdf"
+    },
+    {
+     "label": "Specification Sheet (IP55)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z6nou5bqstJ9-bF8_SB10IP-F1-DS%3DD0084-00.pdf"
+    },
+    {
+     "label": "SB8A/SB10A User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Zv6dWbVsGrYSwVqO_SB8A_SB10A_User_Guide_V1.2.pdf"
+    },
+    {
+     "label": "SB10 Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9d02c023-26c4-4077-9aea-c76b22b1d5bd_SB10-F1-TD%3DT0075-00.PDF"
+    },
+    {
+     "label": "SB10 Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d98950a3-c3c1-4c64-87f6-cfbfea43259f_SB10-F1-DD%3DT0076-00.PDF"
+    },
+    {
+     "label": "SB10A Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6335275d-96ea-4132-b35f-e629ef4ed60a_SB10A-F1-TD%3DT0148-00.pdf"
+    },
+    {
+     "label": "SB10A Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e443f0a4-afcb-4657-8690-beb90ca03d8e_SB10A-F1-DD%3DT0149-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6063ab52-6285-449a-9f71-0b793fa910ba_SB10-F1-2DM%3DT0077-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XkIpbqstJ97yLu_SB10-F1-3DM%3DT0078-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "sb8-compact-range",
+   "url": "https://funktion-one.com/product/sb8-compact-range",
+   "title": "Extremely Compact Funktion-One Bass Performance",
+   "table": [
+    {
+     "driver": "8”",
+     "operatingBand": "50Hz - 300Hz",
+     "sensitivity": "95dB at 2.8V",
+     "power": "250W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50Hz - 300Hz",
+     "weight": "14kg (38.8lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/46a4e4d3-697f-48aa-88ff-e656c532a379_SB8-F1-DS%3DD0020-01.pdf"
+    },
+    {
+     "label": "SB8A Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/700dd7c1-1fe5-43a7-bc59-f49169612e7c_SB8A-F1-DS%3DD0065-01.pdf"
+    },
+    {
+     "label": "SB8A/SB10A User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Zv6dWbVsGrYSwVqO_SB8A_SB10A_User_Guide_V1.2.pdf"
+    },
+    {
+     "label": "SB8 Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9511215d-1376-49c9-b1b9-95ee997dd8fe_SB8-F1-TD%3DT0070-00.PDF"
+    },
+    {
+     "label": "SB8 Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4bb729b1-bcfc-46ae-b789-39dec69eb229_SB8-F1-DD%3DT0071-00.PDF"
+    },
+    {
+     "label": "SB8A Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6ebaea9e-7f04-471d-b42e-7b80ddfb87f1_SB8A-F1-TD%3DT0146-00.pdf"
+    },
+    {
+     "label": "SB8A Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/24c34440-ede3-4a66-b09c-0bf08bfb2a77_SB8A-F1-DD%3DT0147-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d960ee50-a458-40b8-b9ae-804b6ba798c1_SB8-F1-2DM%3DT0072-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XkRJbqstJ97yL4_SB8-F1-3DM%3DT0073-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "sb212lp-compact-range",
+   "url": "https://funktion-one.com/product/sb212lp-compact-range",
+   "title": "Versatile Compact Bass Performance",
+   "table": [
+    {
+     "driver": "12”",
+     "operatingBand": "32Hz - 150Hz",
+     "sensitivity": "100dB at 2V",
+     "power": "700W",
+     "nominalImpedence": "4Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "32Hz - 300Hz",
+     "weight": "50kg (110lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5pyB5bqstJ9-AlE_SB212LP-F1-DS%3DD0073-02.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DpFpbqstJ99u0E_SB212LP-F1-TD%3DT0226-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DpH5bqstJ99u0K_SB212LP-F1-DD%3DT0227-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DpJpbqstJ99u0P_SB212LP-F1-2DM%3DT0228-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5DpLpbqstJ99u0S_SB212LP-F1-3DM%3DT0229-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "br118.2",
+   "url": "https://funktion-one.com/product/br118.2",
+   "title": "Deep Bass Reflex Performance",
+   "table": [
+    {
+     "driver": "18”",
+     "operatingBand": "35Hz - 100Hz",
+     "sensitivity": "101dB at 2.8V",
+     "power": "550W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "45Hz - 200Hz",
+     "weight": "43kg (95lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5pyp5bqstJ9-AlY_BR118.2-F1-DS%3DD0072-02.pdf"
+    },
+    {
+     "label": "Specification Sheet (IP55)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z6nokpbqstJ9-bFs_BR118.2IP-F1-DS%3DD0085-00.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5onypbqstJ99_an_BR118.2-F1-TD%3DT0284-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5on1JbqstJ99_ar_BR118.2-F1-DD%3DT0285-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z_faYevxEdbNO20-_BR118.2-F1-2DM%3DT0286-01.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z_fVsuvxEdbNO2vY_BR118.2-F1-3DM%3DT0287-01.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f55",
+   "url": "https://funktion-one.com/product/f55",
+   "title": "Wide Dispersion and Excellent Imaging",
+   "table": [
+    {
+     "driver": "2 x 5\"",
+     "operatingBand": "160Hz - 13kHz",
+     "sensitivity": "95dB at 2.8V",
+     "power": "60W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "160Hz - 13kHz",
+     "weight": "3.5kg (7.5lbs)",
+     "dispersion": "90° x 45°",
+     "connectors": "2 x Neutrik NL4 or Phoenix"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/18ca46ce-3d97-411b-823c-5aa0bf7a6a1d_Funktion-One_F55_Spec_Sheet.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/5e3d5a4c-8d64-4ea7-b4b8-b83e249b0407_F55+User+Guide+v1.1-2.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/837f9391-fcfb-448c-a4d7-469d631209ef_F55-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/3e7d90eb-3077-49f9-9cf1-5e19ea4eb53f_F55_EaseData.zip"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/0b46db66-d84e-4afe-af2f-54b6fbd2e7c8_F55-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "f81.2",
+   "url": "https://funktion-one.com/product/f81.2",
+   "title": "Outstanding Definition and Intelligibility",
+   "table": [
+    {
+     "driver": "8\" + 1\"",
+     "operatingBand": "100Hz - 20kHz",
+     "sensitivity": "98dB at 2.8V",
+     "power": "100W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "100Hz - 20kHz",
+     "weight": "5kg (11.5lbs)",
+     "dispersion": "90° x 60°",
+     "connectors": "2 x Neutrik NL4 and 1 x Phoenix"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c09e0b53-9f15-445b-8307-8ea255878dd3_F81.2_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Specification Sheet (IP55)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z6nn9pbqstJ9-bFf_F81.2IP-F1-DS%3DD0081-00.pdf"
+    },
+    {
+     "label": "EASE Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/421368ce-54b4-4eaf-8ce5-7fac40dd37e2_Funktion-One+F81.2.gll"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4a5755ff-11b1-4420-a63d-956a75bcfda0_F81.2-F1-TD%3DT0040-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/27a655da-d019-4576-9f12-bc93ad2f8c1e_F81.2-F1-DD%3DT0041-00.PDF"
+    },
+    {
+     "label": "Wall Mount Kit (WMS50-81)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/3e5e9906-5342-4052-abd6-c66bc6a4d7ed_WMS50-81-F1-AD%3DT0060-01.PDF"
+    },
+    {
+     "label": "Yoke Kit (YK-F81)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e5671d2b-adda-4fb2-947b-70a249dff8c1_YK-F81-F1-AD%3DT0057-01.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8dbfecbc-1a18-4100-89c9-9618faf04225_F81.2-F1-2DM%3DT0043-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/cc282400-9530-470e-92bf-211115df6871_F81.2-F1-3DM%3DT0044-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "evo2sh",
+   "url": "https://funktion-one.com/product/evo2sh",
+   "title": "Medium Dispersion Lightweight Point Source",
+   "table": [
+    {
+     "driver": "8\" + 1\"",
+     "operatingBand": "280Hz - 18kHz",
+     "sensitivity": "111dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "280Hz - 18kHz",
+     "weight": "10kg (22lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5pyW5bqstJ9-AlP_Evo2SH-F1-DS%3DD0076-01.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5onB5bqstJ99_Zy_Evo2SH-F1-TD%3DT0289-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5onDpbqstJ99_Zz_Evo2SH-F1-DD%3DT0290-00.PDF"
+    },
+    {
+     "label": "2D CAD (DWG)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5onF5bqstJ99_Z1_Evo2SH-F1-2DM%3DT0291-00.dwg"
+    },
+    {
+     "label": "3D CAD (DWG)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5onH5bqstJ99_Z2_Evo2SH-F1-3DM%3DT0292-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "evo2shpa",
+   "url": "https://funktion-one.com/product/evo2shpa",
+   "title": "Medium Dispersion Lightweight, Point Source",
+   "table": [
+    {
+     "driver": "8\" + 1\"",
+     "operatingBand": "280Hz - 18kHz",
+     "sensitivity": "111dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "280Hz - 18kHz",
+     "weight": "10kg (22lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5pyW5bqstJ9-AlP_Evo2SH-F1-DS%3DD0076-01.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5onB5bqstJ99_Zy_Evo2SH-F1-TD%3DT0289-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5onDpbqstJ99_Zz_Evo2SH-F1-DD%3DT0290-00.PDF"
+    },
+    {
+     "label": "2D CAD (DWG)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5onF5bqstJ99_Z1_Evo2SH-F1-2DM%3DT0291-00.dwg"
+    },
+    {
+     "label": "3D CAD (DWG)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z5onH5bqstJ99_Z2_Evo2SH-F1-3DM%3DT0292-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "sb10",
+   "url": "https://funktion-one.com/product/sb10",
+   "title": "Powerful Compact Bass Performance",
+   "table": [
+    {
+     "driver": "10”",
+     "operatingBand": "40Hz - 130Hz",
+     "sensitivity": "98dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "45Hz - 300Hz",
+     "weight": "19kg (42lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZiZ0KvPdc1huKraO_SB10-F1-DS%3DD0021-02.pdf"
+    },
+    {
+     "label": "SB10A Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8846a8f8-dde4-45ad-86b0-5f980b621a80_SB10A-F1-DS%3DD0066-01.pdf"
+    },
+    {
+     "label": "Specification Sheet (IP55)",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z6nou5bqstJ9-bF8_SB10IP-F1-DS%3DD0084-00.pdf"
+    },
+    {
+     "label": "SB8A/SB10A User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Zv6dWbVsGrYSwVqO_SB8A_SB10A_User_Guide_V1.2.pdf"
+    },
+    {
+     "label": "SB10 Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9d02c023-26c4-4077-9aea-c76b22b1d5bd_SB10-F1-TD%3DT0075-00.PDF"
+    },
+    {
+     "label": "SB10 Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d98950a3-c3c1-4c64-87f6-cfbfea43259f_SB10-F1-DD%3DT0076-00.PDF"
+    },
+    {
+     "label": "SB10A Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6335275d-96ea-4132-b35f-e629ef4ed60a_SB10A-F1-TD%3DT0148-00.pdf"
+    },
+    {
+     "label": "SB10A Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e443f0a4-afcb-4657-8690-beb90ca03d8e_SB10A-F1-DD%3DT0149-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6063ab52-6285-449a-9f71-0b793fa910ba_SB10-F1-2DM%3DT0077-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/Z0XkIpbqstJ97yLu_SB10-F1-3DM%3DT0078-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f124",
+   "url": "https://funktion-one.com/product/f124",
+   "title": "Next Level Funktion-One Bass Performance",
+   "table": [
+    {
+     "driver": "24\" dual voice coil",
+     "operatingBand": "20Hz - 85Hz",
+     "sensitivity": "104dB at 2V",
+     "power": "2 x 750W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "35Hz - 160Hz",
+     "weight": "103kg (227lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9e3fd306-e4ca-473c-b0c4-2a6acb28a857_Funktion-One_F124_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/3d67a2ec-e582-4db6-b4e7-225b65cfa577_F124-F1-TD%3DT0220-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fbf4eee3-bd14-4a51-883d-812095a7a6a8_F124-F1-DD%3DT0221-00.PDF"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d07b1807-e73a-43ef-ad93-2349bc07ebe1_F124-F1-3DM%3DT0223-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/55d0aba0-d10e-4bad-9266-9fdecf108a16_F124-F1-2DM%3DT0222-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f5_mk1",
+   "url": "https://funktion-one.com/product/f5_mk1",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "5”",
+     "operatingBand": "100Hz - up",
+     "sensitivity": "90dB at 4V",
+     "power": "30W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "150Hz - 13kHz",
+     "weight": "2.7kg (5.9lbs)",
+     "dispersion": "Conical",
+     "connectors": "2 x Neutrik NL4 or Phoenix"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2fcd7901-9203-4e99-8f12-1b19a0585004_F5_Specsheet2020.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "mb308",
+   "url": "https://funktion-one.com/product/mb308",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "3 x 8\"",
+     "operatingBand": "60Hz - 140Hz",
+     "sensitivity": "101dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 140Hz",
+     "weight": "28kg (62lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "ib218",
+   "url": "https://funktion-one.com/product/ib218",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 18\"",
+     "operatingBand": "20Hz - 80Hz",
+     "sensitivity": "100dB at 2V",
+     "power": "2 x 600W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "25Hz - 80Hz",
+     "weight": "90kg (198lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d6c9161e-618b-439d-882c-bba82ac13500_IB218-F1-DS%3DD0059-00.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c11e6c56-2361-4b49-8981-c035fe577bbc_IB218-webdxf.dxf"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/1b298602-767e-45ab-9596-b40fa22d24de_IB218-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "psm12-point-source",
+   "url": "https://funktion-one.com/product/psm12-point-source",
+   "title": "Compact Point Source Monitor",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "40Hz - 2.5kHz",
+     "sensitivity": "101dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "1.4\"",
+     "operatingBand": "2.5kHz - Up",
+     "sensitivity": "111dB at 4V",
+     "power": "75W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "12\" + 1.4\" (Passive mode)",
+     "operatingBand": "40Hz - Up",
+     "sensitivity": "100dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "65Hz - 17kHz",
+     "weight": "23kg (50lbs)",
+     "dispersion": "70° Conical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/5e9fd992-1981-459d-96b2-979adc9ef188_Funktion-One_PSM12_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c695e874-7883-4ab5-a97c-b4ad21bec408_PSM12-F1-TD%3DT0184-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/21d0dad2-6b40-42c7-ad64-509595199f04_PSM12-F1-DD%3DT0185-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/706bef11-a233-4220-8750-ec415db1636e_PSM12-F1-2DM%3DT0186-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9980661a-e75e-4e69-94fd-dc8240adb08a_PSM12-F1-3DM%3DT0187-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "satellite-tweeter-pod",
+   "url": "https://funktion-one.com/product/satellite-tweeter-pod",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "3x HF Slot",
+     "operatingBand": "5kHz - up",
+     "sensitivity": "105dB at 2.2V",
+     "power": "75W",
+     "nominalImpedence": "5Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "5kHz - 20kHz",
+     "weight": null,
+     "dispersion": "360°",
+     "connectors": "1x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "evo-7tl-215",
+   "url": "https://funktion-one.com/product/evo-7tl-215",
+   "title": "Evo Touring Mid-Bass with Flying Hardware",
+   "table": [
+    {
+     "driver": "2 x 15\"",
+     "operatingBand": "65Hz - 300Hz",
+     "sensitivity": "102dB at 2V",
+     "power": "2 x 400W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "65Hz - 300 Hz",
+     "weight": "61kg (135lbs) without wheelboard",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL8"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/37f9ba41-e0da-4c94-95fd-178168c2a177_Funktion-One_Evo7TL_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9db4c569-317e-40db-a3eb-c5abc354296a_Evo7TL-F1-TD%3DT0158-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e5b598bf-fcee-4278-bab0-42f069c7fccd_Evo7TL-F1-DD%3DT0159-00.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/892094c6-fa01-4bcb-a395-1231d070d9ef_Evo7TL-F1-3DM%3DT0161-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d6994927-666e-4d28-9b55-873c14bbfb58_Evo7TL-F1-2DM%3DT0160-00.dwg"
+    },
+    {
+     "label": "Evo Range Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b3811688-12ae-4d08-8df9-a4536c94bfb4_Evo+Brochure+2022+HR.pdf"
+    },
+    {
+     "label": "Three Wide Touring Flying Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ZfgpPcmUzjad_UbC_TSFK-3E7-F1-AD%3DT0163-01.pdf"
+    },
+    {
+     "label": "Two Wide Touring Flying Kit",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/aac632ba-5c4c-4066-9606-59965358ea2e_TSFK-2E7-F1-AD%3DT0162-00.pdf"
+    },
+    {
+     "label": "Ground Stack System",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fc712f5f-f051-42c3-9722-9505e6a2ed33_Evo+Ground+Stack+System.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Straps",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2a0e358f-788c-42d1-90f4-bcd0ee0a5b1f_New+Ground+Stack+Straps-2.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-3",
+   "url": "https://funktion-one.com/product/res-3",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "18\"",
+     "operatingBand": "20Hz - 200Hz",
+     "sensitivity": "103dB at 2.8V",
+     "power": "500W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "10\"",
+     "operatingBand": "200Hz - 5.99Hz",
+     "sensitivity": "111dB at 4V",
+     "power": "250W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5.55kHz - 18kHz",
+     "sensitivity": "112dB at 4V",
+     "power": "50W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "45Hz - 18kHz",
+     "weight": "76kg (167lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x EP6"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Ground Stack Configuration",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ec4c6d6e-e40e-458a-a288-d50b21d4d0a0_GroundStacks_April14.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Strap",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c6a23843-1411-4c7a-8114-d60ba4ba0af2_GSS.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-5e",
+   "url": "https://funktion-one.com/product/res-5e",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "114Hz - 445Hz",
+     "sensitivity": "105dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\"",
+     "operatingBand": "445Hz - 7.55kHz",
+     "sensitivity": "111dB at 4V",
+     "power": "200W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "2 x 1\"",
+     "operatingBand": "5.77kHz - 18kHz",
+     "sensitivity": "113dB at 4V",
+     "power": "100W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "90Hz - 18kHz",
+     "weight": "60kg (132lbs)",
+     "dispersion": "25° Horizontal x 20° Vertical",
+     "connectors": "2 x Neutrik NL8"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/88420eec-31f7-4cd0-802f-db51fcc7a6c2_Funktion-One_Res5E_Spec_Sheet.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f5650a88-9f11-4fab-b53d-096c3443a853_Res+5+series+UG+091213.pdf"
+    },
+    {
+     "label": "Ground Stack Configuration",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ec4c6d6e-e40e-458a-a288-d50b21d4d0a0_GroundStacks_April14.pdf"
+    },
+    {
+     "label": "Ground Stack Tilt Strap",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c6a23843-1411-4c7a-8114-d60ba4ba0af2_GSS.pdf"
+    },
+    {
+     "label": "Wheelboard & Scrim",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fb2acdf7-6003-4488-a74c-bb38e6cb793c_Wheelboard-and-Scrim_web.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-2mk1",
+   "url": "https://funktion-one.com/product/res-2mk1",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "28Hz - 250Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "8\" + 1\"",
+     "operatingBand": "250Hz - Up",
+     "sensitivity": "106dB at 4V",
+     "power": "80W",
+     "nominalImpedence": "12Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 18kHz",
+     "weight": "42kg (92.5lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "v1241vero",
+   "url": "https://funktion-one.com/product/v1241vero",
+   "title": "Next Level Bass Loading and Driver Technology",
+   "table": [
+    {
+     "driver": "24\" dual voice coil",
+     "operatingBand": "20Hz - 85Hz",
+     "sensitivity": "104dB at 2V",
+     "power": "2 x 750W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "35Hz - 160Hz",
+     "weight": "103kg (227lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9e3fd306-e4ca-473c-b0c4-2a6acb28a857_Funktion-One_F124_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/3d67a2ec-e582-4db6-b4e7-225b65cfa577_F124-F1-TD%3DT0220-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fbf4eee3-bd14-4a51-883d-812095a7a6a8_F124-F1-DD%3DT0221-00.PDF"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d07b1807-e73a-43ef-ad93-2349bc07ebe1_F124-F1-3DM%3DT0223-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/55d0aba0-d10e-4bad-9266-9fdecf108a16_F124-F1-2DM%3DT0222-00.dwg"
+    },
+    {
+     "label": "Vero Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/43579517-3243-4a75-b002-859eda36af46_VERO+Brochure_Compressed.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "ds210",
+   "url": "https://funktion-one.com/product/ds210",
+   "title": "Dance Stack Mid-High Section",
+   "table": [
+    {
+     "driver": "2 x 10\"",
+     "operatingBand": "220Hz - 4kHz",
+     "sensitivity": "112dB at 3.5V",
+     "power": "500W",
+     "nominalImpedence": "12Ω"
+    },
+    {
+     "driver": "2 x 1.4\"",
+     "operatingBand": "4kHz - up",
+     "sensitivity": "114dB at 4V",
+     "power": "150W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "64kg (141lbs)",
+     "dispersion": "100° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f823e17f-d8b1-41dd-a0e8-8eddf051d445_Funktion-One_DS210_Spec_Sheet.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/dff7b58e-39ed-4794-add6-766fa50dd64e_DS210-A-Dummy.STEP"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a41b0ccf-b4c5-416d-9eb9-cd97eebf4192_DS210-webdxf.dxf"
+    },
+    {
+     "label": "Flying Hardware",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/4b8bbcbc-9745-44cd-beb4-cba941aea5b4_2+x+DS210F+%2B+4+x+DS15F+Flyware.PDF"
+    },
+    {
+     "label": "Metalwork Assembly",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8d3fed56-193c-4f02-b46d-4db703fbc2be_DS210F+%2B+2+DS15F+Metalwork+Assembly.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "br121",
+   "url": "https://funktion-one.com/product/br121",
+   "title": "Deep Sub-Bass Extension",
+   "table": [
+    {
+     "driver": "21\"",
+     "operatingBand": "25Hz - 85Hz",
+     "sensitivity": "100dB at 2.8V",
+     "power": "650W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "40Hz - 200Hz",
+     "weight": "66kg (146lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8d182a10-ec99-4184-9079-e4027a0f77c4_Funktion-One_BR121_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/32d62d89-e6f6-42c4-8de4-8c0805851d76_BR121-F1-TD%3DT0172-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8774ab22-8a4e-45c2-bf00-a277aa329f24_BR121-F1-DD%3DT0173-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/0e3582e8-c7d4-491e-85d4-3d04e5bd9427_BR121-F1-2DM%3DT0174-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fed8f6bb-53ee-426e-9a01-003d0cc7e90d_BR121-F1-3DM%3DT0175-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "br221",
+   "url": "https://funktion-one.com/product/br221",
+   "title": "Deep, Powerful, Bass Reflex",
+   "table": [
+    {
+     "driver": "2 x 21”",
+     "operatingBand": "25Hz - 85Hz",
+     "sensitivity": "102dB at 2V",
+     "power": "2 x 650W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "32Hz - 200Hz",
+     "weight": "120kg (265lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/365d96a7-0e04-4ea2-9760-6ab86f0161e0_Funktion-One_BR221_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/a99a3c15-ecf2-413c-9009-028c1a21a870_BR221-F1-TD%3DT0180-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f01aa94f-a221-4d47-a26c-43b726e66f3e_BR221-F1-DD%3DT0181-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2ef922f5-67b7-4671-9e98-a6892feb27bc_BR221-F1-2DM%3DT0182-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/bbb5e8f4-bb0a-4815-b404-92d2ca81ab4c_BR221-F1-3DM%3DT0183-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "f215-mk1",
+   "url": "https://funktion-one.com/product/f215-mk1",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 15\"",
+     "operatingBand": "60Hz - 280Hz",
+     "sensitivity": "105dB at 2V",
+     "power": "2 x 400W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "55Hz - 250Hz",
+     "weight": "70kg (154lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "f315",
+   "url": "https://funktion-one.com/product/f315",
+   "title": "High Intensity Mid-Bass for Installations",
+   "table": [
+    {
+     "driver": "3 x 15\"",
+     "operatingBand": "85Hz - 250Hz",
+     "sensitivity": "101dB at 1.6V",
+     "power": "1200W",
+     "nominalImpedence": "2.7Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 250Hz",
+     "weight": "81kg (178lbs)",
+     "dispersion": "N/A",
+     "connectors": "1x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/5a400252-1c5f-4094-9bb0-ae3c82035287_Funktion-One_F315_Spec_Sheet.pdf"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ae3f67bb-5fed-47b0-9c8d-82f54ab84e5a_F315-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "infrahorn",
+   "url": "https://funktion-one.com/product/infrahorn",
+   "title": "Discontinued product",
+   "table": [],
+   "table2": [],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/b4491af3-6eb1-42dc-9a3a-2b9bfa4445ac_Infrahorn-F1-DS%3DD0060-00.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ad391688-03a2-4da3-af30-15892852f54d_IH-D-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "rm12",
+   "url": "https://funktion-one.com/product/rm12",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\"",
+     "operatingBand": "40Hz - 721Hz",
+     "sensitivity": "100dB at 2.8V",
+     "power": "300W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "5\"",
+     "operatingBand": "721Hz - Up",
+     "sensitivity": "112dB at 3.5V",
+     "power": "75W",
+     "nominalImpedence": "12Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "65Hz - 15kHz",
+     "weight": "20kg (45lbs)",
+     "dispersion": "25° x 50°",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "f115-mk2",
+   "url": "https://funktion-one.com/product/f115-mk2",
+   "title": "Compact Horn Loaded Bass Enclosure",
+   "table": [
+    {
+     "driver": "15\"",
+     "operatingBand": "55/85Hz - 250Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 250Hz",
+     "weight": "34kg (75lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ad756b25-06f3-4019-81d0-a175ed004f50_Funktion-One_F115MkII_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/8bc938ae-b303-4451-a59c-834424bbff6c_F115_MK2-F1-TD%3DT0196-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ecc597f8-1277-4770-8ee4-a2347470e20d_F115_MK2-F1-DD%3DT0197-00.PDF"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/7eec8879-d054-4dff-91a8-c25a8b37a906_F115_MK2-F1-2DM%3DT0198-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/99509985-1276-4e4c-af23-a33d5b6bca5d_F115_MK2-F1-3DM%3DT0199-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "br132",
+   "url": "https://funktion-one.com/product/br132",
+   "title": "Extraordinarily Powerful Bass Reflex Enclosure",
+   "table": [],
+   "table2": [],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/43db8eb5-ceaa-4346-ba2e-4ad611301439_BR132A_2017.pdf"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d2c37fab-6c8a-4918-af6b-c7e3428a9d50_BR132-A-3D-DWG_2106.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "br115",
+   "url": "https://funktion-one.com/product/br115",
+   "title": "Lightweight Compact Bass Reflex",
+   "table": [
+    {
+     "driver": "15”",
+     "operatingBand": "45Hz - 100Hz",
+     "sensitivity": "100dB at 2.8V",
+     "power": "500W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "55Hz - 200Hz",
+     "weight": "33kg (73lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/e599794d-7122-48a6-b137-258726c4a63d_Funktion-One_BR115_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/eb4ffd85-4eea-4d40-bbba-b73c1ec82b66_BR115-F1-TD%3DT0164-00.pdf"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/6d05d4b7-10da-490e-aaeb-c09e1aaa81b1_BR115-F1-DD%3DT0165-00.pdf"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/0ba39a7a-f231-46b9-b245-d6144f73db68_BR115-F1-2DM%3DT0166-00.dwg"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/ffdaed58-530b-498c-88e2-e93fd965b87a_BR115-F1-3DM%3DT0167-00.dwg"
+    }
+   ]
+  },
+  {
+   "uid": "v124",
+   "url": "https://funktion-one.com/product/v124",
+   "title": "Next Level Bass Loading and Driver Technology",
+   "table": [
+    {
+     "driver": "24\" dual voice coil",
+     "operatingBand": "20Hz - 85Hz",
+     "sensitivity": "104dB at 2V",
+     "power": "2 x 750W",
+     "nominalImpedence": "2 x 8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "35Hz - 160Hz",
+     "weight": "103kg (227lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9e3fd306-e4ca-473c-b0c4-2a6acb28a857_Funktion-One_F124_Spec_Sheet.pdf"
+    },
+    {
+     "label": "Technical Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/3d67a2ec-e582-4db6-b4e7-225b65cfa577_F124-F1-TD%3DT0220-00.PDF"
+    },
+    {
+     "label": "Detail Drawing",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/fbf4eee3-bd14-4a51-883d-812095a7a6a8_F124-F1-DD%3DT0221-00.PDF"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d07b1807-e73a-43ef-ad93-2349bc07ebe1_F124-F1-3DM%3DT0223-00.dwg"
+    },
+    {
+     "label": "2D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/55d0aba0-d10e-4bad-9266-9fdecf108a16_F124-F1-2DM%3DT0222-00.dwg"
+    },
+    {
+     "label": "Vero VX Brochure",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/2461fb46-840f-4be1-abcf-4f91aff7d8e2_Vero+VX+Nov_2022_+webHR.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "sb210a",
+   "url": "https://funktion-one.com/product/sb210a",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 10\"",
+     "operatingBand": "60Hz - 150Hz",
+     "sensitivity": "105dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "4Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 150Hz",
+     "weight": "43kg (95lbs)",
+     "dispersion": "N/A",
+     "connectors": "2x XLR-TRS combo (input)\n2 x Neutrik NL4 (output)"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "mb210",
+   "url": "https://funktion-one.com/product/mb210",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 10\"",
+     "operatingBand": "50Hz - 150Hz",
+     "sensitivity": "103dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "50Hz - 150Hz",
+     "weight": "34kg (75lbs)",
+     "dispersion": "N/A",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "f1201",
+   "url": "https://funktion-one.com/product/f1201",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "12\" + 1\"",
+     "operatingBand": "80Hz - up",
+     "sensitivity": "100dB at 2.8V",
+     "power": "350W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "60Hz - 18kHz",
+     "weight": "18kg (39lbs)",
+     "dispersion": "90° Horizontal x 40° Vertical (rotatable)",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Specification Sheet",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/d7d58ec9-dfd3-440a-81b7-8f7112e832a1_F1201_WebSheet2015.pdf"
+    },
+    {
+     "label": "User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/7a6f38bf-2138-401a-8eac-93822d4603d5_F1201+User+Guide+v1.41.pdf"
+    },
+    {
+     "label": "Ease Data",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9b7ccabc-cd43-4403-9386-d4b192cb9a2b_F1201_EaseData.zip"
+    },
+    {
+     "label": "3D CAD",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/475cd0f0-8825-480c-9278-21ef5c716b63_F1201-A-3D-DWG_2106.dwg"
+    },
+    {
+     "label": "DXF Elevation",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/9cda8d3e-7ad9-4472-a3bb-a89df9761ba3_F1201-webdxf.dxf"
+    }
+   ]
+  },
+  {
+   "uid": "res-3sh",
+   "url": "https://funktion-one.com/product/res-3sh",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "10\"",
+     "operatingBand": "170Hz - 5.99Hz",
+     "sensitivity": "111dB at 4V",
+     "power": "250W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5.55kHz - 18kHz",
+     "sensitivity": "112dB at 4V",
+     "power": "50W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "170Hz - 18kHz",
+     "weight": "17kg (38lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "Wago terminal block or Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "ds210mk1",
+   "url": "https://funktion-one.com/product/ds210mk1",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 10\"",
+     "operatingBand": "227Hz - 6kHz",
+     "sensitivity": "108dB at 2.8V",
+     "power": "400W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "2 x 1\"",
+     "operatingBand": "5.5kHz - up",
+     "sensitivity": "109dB at 2.8V",
+     "power": "100W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "200Hz - 18kHz",
+     "weight": "64kg (141lbs)",
+     "dispersion": "100° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "res-18",
+   "url": "https://funktion-one.com/product/res-18",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "18\"",
+     "operatingBand": "40Hz - 250Hz",
+     "sensitivity": "102dB at 2.8V",
+     "power": "450W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "40Hz - 250Hz",
+     "weight": "41kg (90lbs)",
+     "dispersion": "Array dependent",
+     "connectors": "NL4 Panel and captive lead in cable recess"
+    }
+   ],
+   "downloads": [
+    {
+     "label": "Resolution 5 User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/f5650a88-9f11-4fab-b53d-096c3443a853_Res+5+series+UG+091213.pdf"
+    },
+    {
+     "label": "Resolution 4 User Guide",
+     "url": "https://funktion-one.cdn.prismic.io/funktion-one/c11b8787-93fc-43d1-897c-009b4b9b2133_Res+4+series+UG+091213.pdf"
+    }
+   ]
+  },
+  {
+   "uid": "res-3eh",
+   "url": "https://funktion-one.com/product/res-3eh",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "10\"",
+     "operatingBand": "170Hz - 5.99Hz",
+     "sensitivity": "111dB at 4V",
+     "power": "250W",
+     "nominalImpedence": "16Ω"
+    },
+    {
+     "driver": "1\"",
+     "operatingBand": "5.55kHz - 18kHz",
+     "sensitivity": "112dB at 4V",
+     "power": "50W",
+     "nominalImpedence": "16Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "170Hz - 18kHz",
+     "weight": "26kg (57lbs)",
+     "dispersion": "50° Horizontal x 25° Vertical",
+     "connectors": "2 x Neutrik NL4"
+    }
+   ],
+   "downloads": []
+  },
+  {
+   "uid": "res-9",
+   "url": "https://funktion-one.com/product/res-9",
+   "title": "Discontinued product",
+   "table": [
+    {
+     "driver": "2 x 15\"",
+     "operatingBand": "75Hz - 445Hz",
+     "sensitivity": "107dB at 2V",
+     "power": "700W",
+     "nominalImpedence": "4Ω"
+    },
+    {
+     "driver": "2 x 8\"",
+     "operatingBand": "445Hz - 5.77kHz",
+     "sensitivity": "111dB at 2.8V",
+     "power": "350W",
+     "nominalImpedence": "8Ω"
+    },
+    {
+     "driver": "4 x 1\"",
+     "operatingBand": "5.55kHz - 18kHz",
+     "sensitivity": "113dB at 2.8V",
+     "power": "200W",
+     "nominalImpedence": "8Ω"
+    }
+   ],
+   "table2": [
+    {
+     "frequencyResponse": "75Hz - 18kHz",
+     "weight": "68kg (150lbs)",
+     "dispersion": "25° Horizontal x 25° Vertical",
+     "connectors": "Wago terminals"
+    }
+   ],
+   "downloads": []
+  }
+ ]
+}
