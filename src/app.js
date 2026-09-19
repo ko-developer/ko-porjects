@@ -3660,6 +3660,18 @@ function renderWires() {
   }
   /* בזום גבוה העיגולים מתכווצים ביחס הפוך — שלא יסתירו את המוצרים */
   const ZW = getZ() || 1, shrink = Math.min(1, 1.6 / ZW);
+  /* קופסאות פתוחות (פאנלים/ארונות) שאינן קצה של הכבל הן מכשול: קטע אנכי שחוצה אחת מהן עוקף אותה מהצד הקרוב */
+  const obst = P.nodes.filter(n => !n.hidden && (isOpenPanel(n) || (n.kind === 'rack' && !n.min))).map(n => { const b = nodeBox(n); return { id: n.id, L: 2200 - b.x - b.w, R: 2200 - b.x, T: b.y, B: b.y + (b.h || 0) }; });
+  const detCnt = {};
+  const detourV = (pts, c) => { const out2 = [pts[0]];
+    for (let j = 1; j < pts.length; j++) { const p0 = out2[out2.length - 1], p1 = pts[j];
+      if (Math.abs(p0[0] - p1[0]) < 0.5) { const x = p0[0], dn = p1[1] > p0[1];
+        const hits = obst.filter(o => o.id !== c.from && o.id !== c.to && x > o.L - 3 && x < o.R + 3 && Math.min(p0[1], p1[1]) < o.T && Math.max(p0[1], p1[1]) > o.B).sort((a2, b2) => dn ? a2.T - b2.T : b2.T - a2.T);
+        for (const o of hits) { const right = (o.R - x) <= (x - o.L), key = o.id + (right ? 'R' : 'L'); const li = c.conduit ? (detCnt[key + c.conduit] ??= (detCnt[key] = (detCnt[key] || 0) + 1) - 1) : (detCnt[key] = (detCnt[key] || 0) + 1) - 1;
+          const sx = right ? o.R + 8 + li * 3 : o.L - 8 - li * 3, yA = dn ? o.T - 8 - li * 3 : o.B + 8 + li * 3, yB = dn ? o.B + 8 + li * 3 : o.T - 8 - li * 3;
+          out2.push([x, yA], [sx, yA], [sx, yB], [x, yB]); } }
+      out2.push(p1); }
+    return out2; };
   const escCnt = {}; /* מונה עקיפות לכל קופסה+צד — מסלולים מקבילים נפרדים */
   let cdBadged = null;
   for (const it of items) {
@@ -3668,9 +3680,10 @@ function renderWires() {
     const selw = c.id === selCable ? 2.2 : (c.type === 'multi' ? 1.6 : 1.1);   /* מולטי עבה יותר — נבדל גם בלי צבע */
     let dpath;
     if (ortho && it.elbow && it.epts) {
-      dpath = 'M' + it.epts.map(q => q[0] + ' ' + q[1]).join(' L ');
+      dpath = 'M' + detourV(it.epts, c).map(q => q[0] + ' ' + q[1]).join(' L ');
     } else if (ortho && it.vert) {
-      dpath = Math.abs(pa.x - pb.x) < 2 && it.as !== it.bs ? `M${pa.x} ${pa.y} V ${pb.y}` : `M${pa.x} ${pa.y} V ${it.my} H ${pb.x} V ${pb.y}`;
+      const vp = Math.abs(pa.x - pb.x) < 2 && it.as !== it.bs ? [[pa.x, pa.y], [pb.x, pb.y]] : [[pa.x, pa.y], [pa.x, it.my], [pb.x, it.my], [pb.x, pb.y]];
+      dpath = 'M' + detourV(vp, c).map(q => q[0] + ' ' + q[1]).join(' L ');
     } else if (ortho) {
       /* קצה שנכנס בשפת פאנל/ארון והיעד בצד הנגדי — בורח החוצה ועוקף את הקופסה
          מבחוץ (מעל/מתחת) במקום לחצות אותה. זה מה שקורה בשטח עם כבל אמיתי. */
