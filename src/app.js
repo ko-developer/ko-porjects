@@ -330,6 +330,10 @@ async function verRestore(idx) {
 }
 function normalizeAll() {
   for (const pr of store.projects) { ensureStock(pr); pr.route = pr.route || 'ortho'; }
+  /* כבלים רב-גידיים שנשמרו עם פיני ברירת המחדל הישנים (LOW 1± · MID 2± · HI 3±) מתעדכנים לפינים הנכונים */
+  for (const pr of store.projects) for (const c of pr.cables || []) { if (!c.bands || !c.bands.length) continue;
+    const sp = (pr.nodes || []).find(n => n.id === c.to && n.kind === 'point') || (pr.nodes || []).find(n => n.id === c.from && n.kind === 'point'); if (!sp) continue;
+    try { for (const bd of c.bands) { const pn = bandPins(sp.name, bd.band); if (pn && bd.pins !== pn) { bd.pins = pn; bd.pair = bandPair(sp.name, bd.band); } } } catch (e) {} }
   /* פאנל וצד ב׳ שלו: חור N בצד א׳ = חור N בצד ב׳ — כבל שיש לו חור רק בצד אחד מקבל את אותו חור גם בצד השני (הקו נראה בשתי הקופסאות) */
   for (const pr of store.projects) for (const c of pr.cables || []) {
     const a = (pr.nodes || []).find(n => n.id === c.from), b = (pr.nodes || []).find(n => n.id === c.to);
@@ -1417,6 +1421,15 @@ function renderCableKey() {
       <div style="display:flex;align-items:center;gap:6px"><span style="width:18px;border-top:2px dashed #555;flex:none"></span><span>♻️ קיים במקום</span></div>
       <div style="display:flex;align-items:center;gap:6px"><span style="width:18px;border-top:3px solid #555;flex:none;opacity:.6"></span><span>🚚 להעברה במקום</span></div></div>` : '');
 }
+/* הדיסציפלינה של כבל: לפי הסוג, אבל XLR/מולטי שמחובר לחורי DMX (שם החור או סוג המחבר) הוא תקשורת תאורה — לא סאונד */
+function cabGroup(c) {
+  const g = CAB_GROUP[c.type] || 'audio';
+  if (g !== 'audio' || (c.type !== 'xlr' && c.type !== 'multi' && c.type !== 'aes')) return g;
+  if (/dmx/i.test((c.spec || '') + ' ' + (c.note || ''))) return 'light';
+  const holesOf = (nid, list) => { const n = (P.nodes || []).find(q => q.id === nid), hs = n && n.panel && n.panel.holes; return hs ? list.map(i => hs[i - 1]).filter(Boolean) : []; };
+  const hs = [...holesOf(c.from, c.fromHole ? [c.fromHole] : (c.chans || []).map(x => x.a)), ...holesOf(c.to, c.toHole ? [c.toHole] : (c.chans || []).map(x => x.b))];
+  return hs.length && hs.every(h => h.conn === 'dmx' || /dmx/i.test(h.label || '')) ? 'light' : g;
+}
 const CAB_GROUP = { multi: 'audio', xlr: 'audio', aes: 'audio', nl4: 'audio', dmx: 'light', sdi: 'video', hdmi: 'video', cat: 'data', fiber: 'data', pwr: 'power' };
 function cableVisible(c) {
   /* בידוד קו בעורך החיווט — מציגים רק את הכבלים של הערוץ שנבחר */
@@ -1427,7 +1440,7 @@ function cableVisible(c) {
     const touches = ids.has(c.to) || ids.has(c.from) || (c.from === rk && ids.has(c.to));
     if (!touches) return false;
   }
-  const g = CAB_GROUP[c.type] || 'audio';
+  const g = cabGroup(c);
   if ((P.cabVis || {})[g] === false) return false;
   /* הסתרה ברמת מוקד — אם אחד הקצוות הסתיר את הקטגוריה, הקו לא מצויר */
   for (const nid of [c.from, c.to]) {
@@ -4752,21 +4765,30 @@ function patchCabPick(key) {
   P.stock.reels.filter(st => !st.type || st.type === 'nl4' || /רמקול/.test(st.name)).forEach(st => rows.push({ v: 'ref:reel|' + st.id, t: '🧵 בהצעה: ' + st.name + ' · נותרו ' + Math.max(0, (st.total || 0) - (st.used || 0)) + ' מ׳', g: 'בהצעה' }));
   spkCableProducts().forEach(pr => rows.push({ v: 'key:' + pr.k, t: spkCabLabel(pr), k: pr.k, g: 'קטלוג', cores: pr.cores }));
   rows.push({ v: 'xlr', t: 'XLR — סיגנל לסאב מוגבר', g: '' });
+  /* מספר גידים לכל שורה — מהקטלוג, או מהשם (4x2.5 · 8*2.5 · 7X2.5) */
+  rows.forEach(r => { if (!r.cores && r.v && r.v !== 'xlr') { const m = /(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/i.exec(r.t); if (m) r.cores = m[1].includes('.') ? +m[2] : +m[1]; } });
+  const coreOpts = [...new Set(rows.map(r => +r.cores).filter(v => v >= 2 && v <= 16))].sort((a, b) => a - b); let coreF = 0;
   const ov = uiModal(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">🔍 כבל רמקול לערוץ</b><button data-x>✕</button></div>
-    <input data-q placeholder="חפש: 2X2.5 · 4X4 · 7X2.5 · WIRES · KLOTZ · לפי מטר…" style="width:100%;padding:7px;box-sizing:border-box;margin-bottom:8px">
+    <input data-q placeholder="חפש: 2X2.5 · 4X4 · 7X2.5 · WIRES · KLOTZ · לפי מטר…" style="width:100%;padding:7px;box-sizing:border-box;margin-bottom:6px">
+    <div data-cores style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px"><span style="color:#666">מספר גידים:</span></div>
     <div data-list style="max-height:52vh;overflow-y:auto"></div>`);
   const listEl = ov.querySelector('[data-list]');
-  const paint = q => { const ql = (q || '').toLowerCase().replace(/[×x]/g, 'x'); const f = rows.filter(r => !ql || r.t.toLowerCase().replace(/[×x]/g, 'x').includes(ql));
+  const paint = q => { const ql = (q || '').toLowerCase().replace(/[×x]/g, 'x'); const f = rows.filter(r => (!ql || r.t.toLowerCase().replace(/[×x]/g, 'x').includes(ql)) && (!coreF || +r.cores === coreF || !r.v));
     listEl.innerHTML = f.map(r => `<div data-v="${esc(r.v)}" style="display:flex;gap:8px;align-items:center;padding:6px 9px;border:1px solid ${r.v === cur ? '#c96f4a' : '#eee'};border-radius:9px;margin-bottom:4px;cursor:pointer;background:${r.v === cur ? '#fdf4f0' : '#fff'}">${r.k ? imgCell(r.k, 30, r.t) : ''}<span style="flex:1;font-size:12.5px">${esc(r.t)}${r.cores >= 6 ? ' <b style="color:#534ab7;font-size:10.5px">רב-גידי — פס לכל זוג</b>' : ''}</span>${r.k ? stockBadge(r.k) : ''}<small class="muted">${esc(r.g)}</small></div>`).join('') || '<p class="muted">אין תוצאות</p>';
     listEl.querySelectorAll('[data-v]').forEach(el => el.onclick = () => { patchCabSet(key, el.dataset.v); ov.remove(); patchRender(); }); };
+  const coreBox = ov.querySelector('[data-cores]'), paintCores = () => { coreBox.querySelectorAll('button').forEach(b => b.remove());
+    [0, ...coreOpts].forEach(v => { const b = document.createElement('button'); b.textContent = v ? v + ' גידים' : 'הכל'; b.style.cssText = 'padding:3px 10px;border-radius:14px;font-size:12px;' + (coreF === v ? 'background:#0f6e56;color:#fff;border-color:#0f6e56;font-weight:700' : ''); b.onclick = () => { coreF = v; paintCores(); paint(ov.querySelector('[data-q]').value); }; coreBox.appendChild(b); }); };
+  paintCores();
   ov.querySelector('[data-q]').oninput = e => paint(e.target.value); ov.querySelector('[data-x]').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   paint(''); setTimeout(() => ov.querySelector('[data-q]').focus(), 50);
 }
 window.patchCabPick = patchCabPick;
-/* פיני NL8 וזוג הגידים לכל פס בכבל רב-גידי: ברירת מחדל LOW 1± · MID 2± · HI 3± (ניתן לשינוי בטבלת הרמקולים, שדה "פיני NL8") */
-const BAND_ORDER = ['low', 'mid', 'hi'], BAND_PIN_DEF = { low: '1±', mid: '2±', hi: '3±' };
+/* פיני NL8 וזוג הגידים לכל פס בכבל רב-גידי: ברירת מחדל LOW 2± · MID 3± · HI 4± (ניתן לשינוי בטבלת הרמקולים, שדה "פיני NL8") */
+/* מקור: Funktion-One Evo X User Guide V1.2 — NL8: 1± through (לא בשימוש) · 2± LF · 3± MF · 4± HF */
+const BAND_ORDER = ['low', 'mid', 'hi'], BAND_PIN_DEF = { low: '2±', mid: '3±', hi: '4±' };
 function bandPins(name, band) { const b = spkBandData(name, band); return (b && b.pins) || BAND_PIN_DEF[band] || ''; }
-function bandPair(name, band) { const present = bandIds({ id: 'x', name }).map(spkBand).filter(Boolean); const ord = BAND_ORDER.filter(b => present.includes(b)); const i = ord.indexOf(band); return i < 0 ? '' : (i * 2 + 1) + '-' + (i * 2 + 2); }
+/* זוג הגידים נגזר ממספר הפין ב-NL8: פין k± = גידים (2k−1)-(2k) — 2± = 3-4, 3± = 5-6, 4± = 7-8 */
+function bandPair(name, band) { const k = parseInt(bandPins(name, band), 10); if (k > 0) return (2 * k - 1) + '-' + (2 * k); const present = bandIds({ id: 'x', name }).map(spkBand).filter(Boolean); const ord = BAND_ORDER.filter(b => present.includes(b)); const i = ord.indexOf(band); return i < 0 ? '' : (i * 2 + 1) + '-' + (i * 2 + 2); }
 /* תיאור לפאץ׳: הערוץ הזה = זוג גידים בכבל המשותף של הרמקול */
 function patchBundleInfo(key) {
   const ids = PATCH.slots[key] || []; if (ids.length !== 1) return '';
@@ -7397,7 +7419,7 @@ function renderPanel() {
       n.cabVis = n.cabVis || {};
       const cats = [['audio', '🔊 סאונד'], ['light', '💡 תאורה'], ['video', '📺 וידאו'], ['data', '🌐 רשת/אופטי'], ['power', '⚡ חשמל']];
       const rows = cats.map(([k, lbl]) => {
-        const cnt = mine.filter(c => (CAB_GROUP[c.type] || 'audio') === k).length;
+        const cnt = mine.filter(c => cabGroup(c) === k).length;
         if (!cnt) return '';
         const on = n.cabVis[k] !== false;
         return `<label style="display:flex;gap:6px;align-items:center;font-size:11px;padding:1px 4px;cursor:pointer">
@@ -12220,7 +12242,7 @@ function exportPDF() {
   /* פאנלים וקופסאות מולטי */
   /* פאנלים שכבר מופיעים במקום אחר בדוח לא חוזרים כאן: הכנות חשמל (בפרק החשמל), ופאנלים עם כבלים (בשרטוטי הדיסציפלינות) */
   const panels = [];
-  const catsN = new Set((P.cables || []).map(c => CAB_GROUP[c.type] || 'audio')).size;
+  const catsN = new Set((P.cables || []).map(c => cabGroup(c))).size;
   const isPwPanel = n => n.ptype === 'power' || n.panel.holes.some(hh => (CONNS[hh.conn] || {}).pw);
   const shownInDisc = n => catsN > 1 && (P.cables || []).some(c => c.from === n.id || c.to === n.id);
   P.nodes.forEach(n => {
@@ -12422,12 +12444,12 @@ function exportPDF() {
   ovRestore();
   /* שרטוט לכל קטגוריה שיש בה כבלים: מדליקים רק אותה, מרנדרים, מצלמים */
   const CAT_TITLES = { audio: '🔊 שרטוט חיווט סאונד', light: '💡 שרטוט חיווט תאורה', video: '📺 שרטוט חיווט וידאו', data: '🌐 שרטוט רשת ואופטי', power: '⚡ שרטוט חשמל' };
-  const present = [...new Set((P.cables || []).map(c => CAB_GROUP[c.type] || 'audio'))];
+  const present = [...new Set((P.cables || []).map(c => cabGroup(c)))];
   if (present.length > 1) {
     const CAT_COL = { audio: '#c2185b', light: '#b8860b', video: '#2e7d32', data: '#6a4fc9', power: '#616161' };
     for (const cat of ['audio', 'light', 'video', 'data', 'power']) {
       if (!present.includes(cat)) continue;
-      const cabs = (P.cables || []).filter(c => (CAB_GROUP[c.type] || 'audio') === cat);
+      const cabs = (P.cables || []).filter(c => cabGroup(c) === cat);
       const inv = new Set(); cabs.forEach(c => { inv.add(c.from); inv.add(c.to); });
       P.cabVis = {}; ['audio', 'light', 'video', 'data', 'power'].forEach(k2 => P.cabVis[k2] = (k2 === cat));
       /* הקופסאות המעורבות נפתחות על התכנית עצמה (עם המחברים והמסלולים הפנימיים) לפני הצילום */
