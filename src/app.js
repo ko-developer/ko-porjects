@@ -3681,6 +3681,7 @@ function renderWires() {
 
   let out = '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.6"/></marker></defs>';
   /* שכבת שרטוט התכנית — קירות ואובייקטים (תחליף להעלאת תמונה) */
+  const skStart = out.length;
   if (P.sketch && ((P.sketch.walls || []).length || (P.sketch.objs || []).length || sketchMode)) {
     const wallW = Math.max(4, Math.min(14, P.scale ? 0.15 / P.scale : 8));
     const dimFz = Math.max(10, 13 / (getZ() || 1));
@@ -3725,6 +3726,8 @@ function renderWires() {
       c.forEach((p2, pi) => out += `<circle cx="${p2.x}" cy="${p2.y}" r="${pi === 0 ? 7 : 5.5}" fill="${pi === 0 ? '#fff' : '#c9502e'}" stroke="#c9502e" stroke-width="2"><title>${pi === 0 ? 'לחיצה כאן סוגרת מסלול' : 'לחיצה על נקודה קיימת מסיימת את הקיר'}</title></circle>`);
     }
   }
+  /* השרטוט (שולחן, בר, קירות) הוא רקע: מחוץ למצב עריכה הוא עובר לשכבה שמתחת למוקדים, כך שאייקון שהונח על שולחן תמיד מעליו ונגיש ללחיצה */
+  { const skSvg = document.getElementById('sketchsvg'); if (skSvg) { if (sketchMode) skSvg.innerHTML = ''; else { skSvg.innerHTML = out.slice(skStart); out = out.slice(0, skStart); } } }
   /* בזום גבוה העיגולים מתכווצים ביחס הפוך — שלא יסתירו את המוצרים */
   const ZW = getZ() || 1, shrink = Math.min(1, 1.6 / ZW);
   /* קופסאות פתוחות (פאנלים/ארונות) שאינן קצה של הכבל הן מכשול: קטע אנכי שחוצה אחת מהן עוקף אותה מהצד הקרוב */
