@@ -1,120 +1,132 @@
 [
  {
   "name": "DPA",
-  "re": "DPA\\s?\\d",
+  "re": "DPA\\s?\\d|XTA\\s*DPA|\\bD\\s?(20|40|80|100)Q\\b|מגבר 4 ערוצים.*FUNKTION[- ]?ONE|FUNKTION[- ]?ONE.*4\\s?(ch|ערוצים)",
   "items": [
    {
     "t": "power",
     "label": "AC",
-    "x": 23.6,
-    "y": 37.8
+    "x": 22.7,
+    "y": 39.9
    },
    {
-    "t": "speakon",
-    "label": "CH4",
-    "port": "OUT 4",
-    "x": 40.1,
-    "y": 52.3
+    "t": "block3",
+    "label": "RS485",
+    "x": 30.0,
+    "y": 32.3
    },
    {
-    "t": "speakon",
-    "label": "CH3",
-    "port": "OUT 3",
-    "x": 54.1,
-    "y": 52.3
-   },
-   {
-    "t": "speakon",
-    "label": "CH2",
-    "port": "OUT 2",
-    "x": 72.7,
-    "y": 54.5
-   },
-   {
-    "t": "speakon",
-    "label": "CH1",
-    "port": "OUT 1",
-    "x": 89.2,
-    "y": 52.3
-   },
-   {
-    "t": "xlrf",
-    "label": "IN1",
-    "port": "IN 1",
-    "x": 92.8,
-    "y": 32.2
-   },
-   {
-    "t": "xlrf",
-    "label": "IN2",
-    "port": "IN 2",
-    "x": 88.4,
-    "y": 27.4
-   },
-   {
-    "t": "xlrf",
-    "label": "IN3",
-    "port": "IN 3",
-    "x": 82.6,
-    "y": 32.5
-   },
-   {
-    "t": "xlrf",
-    "label": "IN4",
-    "port": "IN 4",
-    "x": 77.2,
-    "y": 31.8
+    "t": "block4",
+    "label": "GPIO",
+    "x": 36.1,
+    "y": 37.9
    },
    {
     "t": "rj45",
-    "label": "DANTE",
-    "x": 48.5,
-    "y": 31
+    "label": "CTRL",
+    "x": 40.9,
+    "y": 34.8
+   },
+   {
+    "t": "rj45",
+    "label": "NET 1",
+    "x": 45.1,
+    "y": 29.8
+   },
+   {
+    "t": "rj45",
+    "label": "NET 2",
+    "x": 49.4,
+    "y": 29.8
    },
    {
     "t": "xlrm",
-    "label": "AUX1",
-    "port": "OUT 5",
-    "x": 72.2,
-    "y": 36
+    "label": "AUX4",
+    "port": "OUT 8",
+    "x": 55.0,
+    "y": 32.1
+   },
+   {
+    "t": "xlrm",
+    "label": "AUX3",
+    "port": "OUT 7",
+    "x": 60.4,
+    "y": 32.1
    },
    {
     "t": "xlrm",
     "label": "AUX2",
     "port": "OUT 6",
     "x": 65.9,
-    "y": 31.8
+    "y": 32.1
    },
    {
     "t": "xlrm",
-    "label": "AUX3",
-    "port": "OUT 7",
-    "x": 61.4,
-    "y": 35.8
+    "label": "AUX1",
+    "port": "OUT 5",
+    "x": 71.3,
+    "y": 32.1
    },
    {
-    "t": "xlrm",
-    "label": "AUX4",
-    "port": "OUT 8",
-    "x": 55.1,
-    "y": 31.8
+    "t": "xlrf",
+    "label": "IN4",
+    "port": "IN 4",
+    "x": 76.8,
+    "y": 32.1
    },
    {
-    "t": "rj45",
-    "label": "CTRL",
-    "x": 41,
-    "y": 32
+    "t": "xlrf",
+    "label": "IN3",
+    "port": "IN 3",
+    "x": 82.2,
+    "y": 32.1
    },
    {
-    "t": "block4",
-    "label": "GPIO",
-    "x": 29.6,
-    "y": 35
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 87.6,
+    "y": 32.1
+   },
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 93.0,
+    "y": 32.1
+   },
+   {
+    "t": "speakon",
+    "label": "CH4",
+    "port": "OUT 4",
+    "x": 39.8,
+    "y": 58.6
+   },
+   {
+    "t": "speakon",
+    "label": "CH3",
+    "port": "OUT 3",
+    "x": 52.9,
+    "y": 58.6
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 72.6,
+    "y": 58.6
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 85.8,
+    "y": 58.6
    }
   ],
   "img": "DPA\\s?\\d|DPA d|XTA\\s*DPA",
   "src": "editor",
-  "updated": "2026-09-13"
+  "updated": "2026-09-19"
  },
  {
   "name": "DNA",
