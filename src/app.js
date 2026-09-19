@@ -261,6 +261,7 @@ function renderHistBtns() {
 }
 function save() {
   store.cur = P.id;
+  thumbSync();
   if (typeof impItems !== 'undefined') P.impSaved = impItems;
   verSnapshot();
   /* ה-PDF המקורי (bgPdf) גדול — נשמר בשרת בלבד, לא במראה של localStorage */
@@ -488,12 +489,52 @@ function pmRender(q) {
   window.__pmQ = q;
   el.innerHTML = pmFiltered(q).map(p => `<div style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;${p.id === P.id ? 'background:#f2faf4' : ''}">
       <input type="checkbox" style="width:auto" ${window.__pmSel.has(p.id) ? 'checked' : ''} onchange="this.checked?window.__pmSel.add('${p.id}'):window.__pmSel.delete('${p.id}')">
+      ${pmThumbHTML(p)}
       <b style="flex:1;font-size:12.5px;cursor:pointer" title="עבור לפרויקט" onclick="switchProj('${p.id}');document.getElementById('pmOv').remove()">${esc(p.name)}${p.id === P.id ? ' ←' : ''}</b>
       <span class="muted" style="font-size:11px;white-space:nowrap">👤 ${esc(p.accountName || p.customer || '—')}${p.accountKey ? ' · ' + esc(p.accountKey) : ''}</span>
       <span class="muted" style="font-size:10px;white-space:nowrap">${(p.nodes || []).length} מוקדים</span>
       ${p.offerSent ? '<span title="נשלחה הצעה ל-ERP" style="font-size:12px">📤</span>' : ''}
     </div>`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
+  pmThumbsWatch(el);
 }
+/* תמונה ממוזערת של התכנית בשורת הפרויקט — כדי לזהות במבט על מה מדובר. נוצרת פעם אחת בדפדפן (160px, JPEG) ונשמרת בפרויקט (p.thumb);
+   לפרויקטים קיימים היא נוצרת כשהשורה נגללת לתצוגה, והשמירה נעשית פעם אחת בסוף */
+const pmHasPlan = p => !!(p.hasBg || p.hasPdf || Object.getOwnPropertyDescriptor(p, 'bg')?.value);
+function pmThumbSrc(p) { return p.thumb || (p.hasThumb ? '/api/project/' + encodeURIComponent(p.id) + '/thumb?v=' + (p.thumbSig || 1) : ''); }
+function pmThumbHTML(p) {
+  const box = 'width:58px;height:40px;flex:none;border-radius:6px;border:1px solid #e3ded3;background:#f6f4ee;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;color:#b9b5aa';
+  const src = pmThumbSrc(p);
+  if (src) return `<span style="${box}" title="תכנית הפרויקט"><img loading="lazy" src="${src}" style="width:100%;height:100%;object-fit:cover" onmouseenter="pmThumbZoom(this,true)" onmouseleave="pmThumbZoom(this,false)"></span>`;
+  if (pmHasPlan(p)) return `<span style="${box}" data-pmthumb="${p.id}" title="תכנית הפרויקט — נטענת…">🗺</span>`;
+  return `<span style="${box};border-style:dashed" title="אין תכנית בפרויקט"></span>`;
+}
+/* ריחוף על התמונה הקטנה — תצוגה מוגדלת לצד הרשימה */
+function pmThumbZoom(img, on) { let z = document.getElementById('pmZoom'); if (!on) { if (z) z.remove(); return; }
+  if (!z) { z = document.createElement('img'); z.id = 'pmZoom'; z.style.cssText = 'position:fixed;z-index:120;width:300px;border-radius:10px;border:2px solid #fff;box-shadow:0 10px 36px rgba(0,0,0,.45);pointer-events:none;background:#fff'; document.body.appendChild(z); }
+  const r = img.getBoundingClientRect(); z.src = img.src; z.style.left = Math.max(8, r.left - 312) + 'px'; z.style.top = Math.max(8, Math.min(innerHeight - 230, r.top - 60)) + 'px'; }
+window.pmThumbZoom = pmThumbZoom;
+function makeThumbFrom(dataUrl) { return new Promise(res => { const im = new Image(); im.onload = () => { try { const W = 128, H = Math.max(40, Math.round(W * im.naturalHeight / im.naturalWidth)), cv = document.createElement('canvas'); cv.width = W; cv.height = Math.min(H, 180); const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(im, 0, 0, W, H); res(cv.toDataURL('image/jpeg', 0.55)); } catch (e) { res(null); } }; im.onerror = () => res(null); im.src = dataUrl; }); }
+const pmThumbQ = []; let pmThumbBusy = 0, pmThumbDirty = false;
+function pmThumbsWatch(root) {
+  const els = root.querySelectorAll('[data-pmthumb]'); if (!els.length) return;
+  const io = new IntersectionObserver(ents => ents.forEach(en => { if (!en.isIntersecting) return; io.unobserve(en.target); pmThumbQ.push(en.target); pmThumbPump(); }), { root: root.closest('div[style*="overflow-y"]') || null, rootMargin: '120px' });
+  els.forEach(e2 => io.observe(e2));
+}
+async function pmThumbPump() {
+  while (pmThumbBusy < 2 && pmThumbQ.length) { const el = pmThumbQ.shift(), p = store.projects.find(x => x.id === el.dataset.pmthumb); if (!p || !el.isConnected) continue; pmThumbBusy++;
+    (async () => { try { let bg = Object.getOwnPropertyDescriptor(p, 'bg')?.value;
+        if (!bg && SRV && p.hasBg) bg = (await (await fetch('/api/project/' + encodeURIComponent(p.id) + '?f=bg')).json()).bg;
+        const th = bg && /^data:image/.test(bg) ? await makeThumbFrom(bg) : null;
+        if (th) { p.thumb = th; p.hasThumb = true; p.thumbSig = bg.length; pmThumbDirty = true; if (el.isConnected) el.outerHTML = pmThumbHTML(p); }
+        else if (el.isConnected) el.textContent = '—';
+      } catch (e) {} finally { pmThumbBusy--; if (!pmThumbBusy && !pmThumbQ.length && pmThumbDirty) { pmThumbDirty = false; pushSrv(); } pmThumbPump(); } })(); }
+}
+/* התכנית של הפרויקט הפתוח השתנתה (העלאה / החלפה / מחיקה) — התמונה הממוזערת מתעדכנת */
+const thumbBusy = new Set();
+function thumbSync() { try { const bg = Object.getOwnPropertyDescriptor(P, 'bg')?.value;
+  if (!bg) { if (!P.hasBg && (P.thumb || P.hasThumb)) { delete P.thumb; delete P.hasThumb; delete P.thumbSig; } return; }
+  const pr = P; if (pr.thumbSig === bg.length || thumbBusy.has(pr.id)) return; thumbBusy.add(pr.id);
+  makeThumbFrom(bg).then(th => { thumbBusy.delete(pr.id); if (th) { pr.thumb = th; pr.hasThumb = true; pr.thumbSig = bg.length; pushSrv(); } }); } catch (e) {} }
 function pmToggleAll() {
   const ids = pmFiltered(window.__pmQ || '').map(p => p.id);
   const allOn = ids.every(id => window.__pmSel.has(id));

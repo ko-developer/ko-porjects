@@ -54,10 +54,11 @@ function sendText(req, res, code, headers, body) {
 /* store "קל" לדפדפן: הכבדים (תמונת רקע, PDF מקורי, היסטוריית גרסאות = ~40MB על 113 פרויקטים) לא נשלחים —
    רק הפרויקט הפתוח מקבל את תמונת הרקע שלו; השאר מסומנים hasBg/hasPdf/versN ונטענים לפי דרישה מ-/api/project/<id>.
    בשמירה (POST) הדפדפן מחזיר את הפרויקטים בלי הכבדים — hydrateStore משלים אותם מהעותק השמור */
-const HEAVY = ['bg', 'bgPdf', 'vers'];
+const HEAVY = ['bg', 'bgPdf', 'vers', 'thumb'];
 function liteStore(st, curId) {
   return { ...st, projects: (st.projects || []).map(p => {
-    const { bg, bgPdf, vers, ...rest } = p;
+    const { bg, bgPdf, vers, thumb, ...rest } = p;
+    if (thumb) rest.hasThumb = true;   /* תמונה ממוזערת של התכנית (לרשימת הפרויקטים) — מוגשת מ-/api/project/<id>/thumb */
     if (bg) { if (p.id === curId) rest.bg = bg; else rest.hasBg = true; }
     if (bgPdf) rest.hasPdf = true;
     if (vers && vers.length) rest.versN = vers.length;
@@ -68,7 +69,8 @@ function hydrateStore(full, posted) {
   return { ...posted, projects: (posted.projects || []).map(p => {
     if (!p._lite) return p;
     if (!byId.has(p.id)) return null;   /* פרויקט קל שכבר לא קיים בשרת (נמחק מצד אחר) — לא מוחזר לחיים מעותק חלקי */
-    const { _lite, hasBg, hasPdf, versN, ...q } = p, old = byId.get(p.id) || {};
+    const { _lite, hasBg, hasPdf, hasThumb, versN, ...q } = p, old = byId.get(p.id) || {};
+    if (!('thumb' in q) && hasThumb && old.thumb) q.thumb = old.thumb;
     if (!('bg' in q) && hasBg && old.bg) q.bg = old.bg;              /* לא נשלחה תמונה אבל הייתה — נשארת; בלי hasBg = המשתמש מחק */
     if (!('bgPdf' in q) && hasPdf && old.bgPdf) q.bgPdf = old.bgPdf;
     if (old.vers && old.vers.length) {                                /* גרסאות: הישנות מהשרת + החדשות מהדפדפן, בלי כפילויות, עד 30 */
@@ -133,6 +135,17 @@ createServer(async (req, res) => {
     }
     return;
   }
+  /* תמונה ממוזערת של תכנית הפרויקט — כקובץ תמונה (ל-<img>), עם מטמון בדפדפן לפי הגרסה שב-?v= */
+  { const tm = /^\/api\/project\/([A-Za-z0-9_-]+)\/thumb(?:\?.*)?$/.exec(req.url || '');
+    if (tm && req.method === 'GET') {
+      try {
+        const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v);
+        const p = (filterStore(st, me).projects || []).find(x => x.id === tm[1]), m = p && /^data:(image\/[a-z+]+);base64,(.+)$/.exec(p.thumb || '');
+        if (!m) { res.writeHead(404); res.end('no thumb'); return; }
+        res.writeHead(200, { 'content-type': m[1], 'cache-control': 'private, max-age=86400' }); res.end(Buffer.from(m[2], 'base64'));
+      } catch (e) { res.writeHead(500); res.end(String(e.message)); }
+      return;
+    } }
   /* חלקים כבדים של פרויקט לפי דרישה: /api/project/<id>?f=bg,bgPdf,vers */
   { const pm = /^\/api\/project\/([A-Za-z0-9_-]+)(?:\?f=([a-zA-Z,]+))?$/.exec(req.url || '');
     if (pm && req.method === 'GET') {
