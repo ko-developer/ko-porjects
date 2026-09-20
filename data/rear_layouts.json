@@ -1,5 +1,96 @@
 [
  {
+  "name": "IPX 1200/2400",
+  "re": "IPX[\\s-]?(1200|2400)",
+  "items": [
+   {
+    "t": "xlrf",
+    "label": "IN1",
+    "port": "IN 1",
+    "x": 10,
+    "y": 66.7
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK1",
+    "port": "LNK 1",
+    "x": 15,
+    "y": 66.7
+   },
+   {
+    "t": "xlrf",
+    "label": "IN2",
+    "port": "IN 2",
+    "x": 20.1,
+    "y": 66.7
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK2",
+    "port": "LNK 2",
+    "x": 25.2,
+    "y": 66.7
+   },
+   {
+    "t": "xlrf",
+    "label": "AES",
+    "port": "IN 3",
+    "x": 30.8,
+    "y": 66.7
+   },
+   {
+    "t": "xlrm",
+    "label": "AES LNK",
+    "port": "LNK 3",
+    "x": 35.9,
+    "y": 66.7
+   },
+   {
+    "t": "rj45",
+    "label": "ETH",
+    "x": 41,
+    "y": 73.1
+   },
+   {
+    "t": "speakon",
+    "label": "CH1",
+    "port": "OUT 1",
+    "x": 59.2,
+    "y": 62.9
+   },
+   {
+    "t": "binding",
+    "label": "BP1",
+    "port": "OUT 1",
+    "x": 67.4,
+    "y": 55.6
+   },
+   {
+    "t": "binding",
+    "label": "BP2",
+    "port": "OUT 2",
+    "x": 71.3,
+    "y": 55.6
+   },
+   {
+    "t": "speakon",
+    "label": "CH2",
+    "port": "OUT 2",
+    "x": 79.4,
+    "y": 62.9
+   },
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 87.9,
+    "y": 62.9
+   }
+  ],
+  "img": "IPX[\\s-]?2400",
+  "src": "editor",
+  "updated": "2026-09-20"
+ },
+ {
   "name": "DPA",
   "re": "DPA\\s?\\d|XTA\\s*DPA|\\bD\\s?(20|40|80|100)Q\\b|מגבר 4 ערוצים.*FUNKTION[- ]?ONE|FUNKTION[- ]?ONE.*4\\s?(ch|ערוצים)",
   "items": [
@@ -1520,14 +1611,14 @@
     "t": "speakon",
     "label": "CH2",
     "port": "OUT 2",
-    "x": 60.7,
+    "x": 82.4,
     "y": 45
    },
    {
     "t": "speakon",
     "label": "CH1",
     "port": "OUT 1",
-    "x": 82.4,
+    "x": 60.7,
     "y": 45
    },
    {
@@ -1595,7 +1686,7 @@
   ],
   "img": "IPD[\\s-]?(1200|2400)",
   "src": "editor",
-  "updated": "2026-09-13"
+  "updated": "2026-09-20"
  },
  {
   "name": "IPD 2400",
@@ -1611,14 +1702,14 @@
     "t": "speakon",
     "label": "CH2",
     "port": "OUT 2",
-    "x": 60.7,
+    "x": 82.4,
     "y": 45
    },
    {
     "t": "speakon",
     "label": "CH1",
     "port": "OUT 1",
-    "x": 82.4,
+    "x": 60.7,
     "y": 45
    },
    {
@@ -1686,7 +1777,7 @@
   ],
   "img": "IPD[\\s-]?(1200|2400)",
   "src": "editor",
-  "updated": "2026-09-13"
+  "updated": "2026-09-20"
  },
  {
   "name": "PLM 12K44",

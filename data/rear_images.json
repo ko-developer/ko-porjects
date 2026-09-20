@@ -1,5 +1,41 @@
 [
  {
+  "re": "(K\\s?&\\s?F|KLING).{0,40}IPX[\\s-]?2400|IPX[\\s-]?2400.{0,40}(K\\s?&\\s?F|KLING)",
+  "file": "lab-ipx-rear.jpg",
+  "model": "Kling & Freitag IPX 2400 (אותו מגבר כמו Lab.gruppen IPX 2400, במיתוג K&F)",
+  "src": "תמונות שסיפק הבעלים (צילומי מוצר של Lab.gruppen)",
+  "w": 1400,
+  "h": 250,
+  "v": 1,
+  "front": "kf-ipx2400-front.jpg",
+  "fw": 874,
+  "fh": 144
+ },
+ {
+  "re": "IPX[\\s-]?2400",
+  "file": "lab-ipx-rear.jpg",
+  "model": "Lab.gruppen IPX 2400",
+  "src": "תמונות שסיפק הבעלים (צילומי מוצר של Lab.gruppen)",
+  "w": 1400,
+  "h": 250,
+  "v": 1,
+  "front": "lab-ipx2400-front.jpg",
+  "fw": 1400,
+  "fh": 127
+ },
+ {
+  "re": "IPX[\\s-]?1200",
+  "file": "lab-ipx-rear.jpg",
+  "model": "Lab.gruppen IPX 1200 (הגב זהה ל-IPX 2400 — בצילום מודפס 2400)",
+  "src": "תמונות שסיפק הבעלים (צילומי מוצר של Lab.gruppen)",
+  "w": 1400,
+  "h": 250,
+  "v": 1,
+  "front": "lab-ipx1200-front.jpg",
+  "fw": 1118,
+  "fh": 106
+ },
+ {
   "re": "DNA\\s?\\d|XTA\\s*DNA|DNA d",
   "file": "xta-dna.jpg",
   "model": "XTA DNA 80 (4 ערוצים — אותו גב לכל הסדרה)",
@@ -69,7 +105,7 @@
   },
   "w": 1400,
   "h": 396,
-  "v": 4,
+  "v": 5,
   "front": "xta-dna-front.jpg",
   "fw": 1400,
   "fh": 255
@@ -148,7 +184,7 @@
   },
   "w": 1400,
   "h": 396,
-  "v": 4,
+  "v": 5,
   "front": "xta-dpa80-front.jpg",
   "fw": 1400,
   "fh": 264
@@ -1167,7 +1203,7 @@
   },
   "w": 1320,
   "h": 520,
-  "v": 5,
+  "v": 6,
   "front": "kt-dynamiq-450-front.jpg",
   "fw": 1400,
   "fh": 277
@@ -1180,7 +1216,7 @@
   "page": "https://en.soundlightup.com/archives-3/tests/lab-gruppen-ipd-2400.html",
   "w": 710,
   "h": 72,
-  "v": 2,
+  "v": 3,
   "pos": {
    "AC": [
     91,
@@ -1230,7 +1266,10 @@
     72.5,
     47
    ]
-  }
+  },
+  "front": "lab-ipd2400-front.jpg",
+  "fw": 1080,
+  "fh": 104
  },
  {
   "re": "DS\\s?418",
@@ -1386,7 +1425,7 @@
   "page": "https://www.digisynthetic.com/en/products/dsp-processor/dmx208l",
   "w": 1400,
   "h": 143,
-  "v": 2,
+  "v": 3,
   "pos": {
    "DC": [
     21.5,
@@ -1449,7 +1488,7 @@
   "page": "https://www.digisynthetic.com/en/products/matrix/dmx0808",
   "w": 1400,
   "h": 138,
-  "v": 4,
+  "v": 5,
   "pos": {
    "AC": [
     12,
@@ -1564,7 +1603,7 @@
   "page": "https://www.digisynthetic.com/en/products/karaoke-processor/k7",
   "w": 1400,
   "h": 156,
-  "v": 5,
+  "v": 6,
   "pos": {
    "AC": [
     9.5,
@@ -1691,7 +1730,7 @@
   "page": "https://products.dynacord.com/na/en/ipx10:8",
   "w": 1400,
   "h": 275,
-  "v": 3,
+  "v": 4,
   "pos": {
    "AC": [
     7,
@@ -1786,7 +1825,7 @@
   "page": "https://products.dynacord.com/na/en/ipx10:4",
   "w": 1400,
   "h": 272,
-  "v": 2,
+  "v": 3,
   "pos": {
    "AC": [
     7,
@@ -1849,7 +1888,7 @@
   "page": "https://products.dynacord.com/na/en/ipx20:4",
   "w": 1400,
   "h": 277,
-  "v": 3,
+  "v": 4,
   "pos": {
    "AC": [
     7,
@@ -1912,7 +1951,7 @@
   "page": "https://products.dynacord.com/na/en/ipx5:4",
   "w": 1400,
   "h": 278,
-  "v": 2,
+  "v": 3,
   "pos": {
    "AC": [
     7,
@@ -1975,7 +2014,7 @@
   "page": "https://products.dynacord.com/na/en/ix15:4",
   "w": 1400,
   "h": 136,
-  "v": 2,
+  "v": 3,
   "pos": {
    "AC": [
     6,
@@ -2038,7 +2077,7 @@
   "page": "https://funktion-one.com/product-system/d-series/",
   "w": 1400,
   "h": 396,
-  "v": 4,
+  "v": 5,
   "pos": {
    "AC": [
     24,
@@ -2135,7 +2174,7 @@
   "model": "Lab.gruppen PLM 12K44 SP (צילום הגב הרשמי דרך המפיץ Pro Audio Design; באתר Lab.gruppen יש רק חזית)",
   "src": "https://www.proaudiodesign.com/cdn/shop/products/Image_LG_P0F68_PLM-12K44-SP_Rear_XL.png",
   "page": "https://www.labgruppen.com/en/products/0107-AAA",
-  "v": 3,
+  "v": 4,
   "pos": {
    "AC": [
     90,
