@@ -292,6 +292,7 @@ body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer
   <div class="dd">
     <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייצוא ▾</button>
     <div class="ddm">
+      <button onclick="exportDXF();this.closest('.dd').classList.remove('open')">📐 שרטוט ל-AutoCAD (DXF → DWG)</button>
       <button onclick="exportJSON();this.closest('.dd').classList.remove('open')">💾 ייצוא פרויקט (JSON)</button>
       <button onclick="exportBackup();this.closest('.dd').classList.remove('open')">🗄 גיבוי מלא — כל הפרויקטים · Full Backup</button>
       <button onclick="exportPDF();this.closest('.dd').classList.remove('open')">📑 דוח PDF</button>

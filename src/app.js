@@ -3858,7 +3858,7 @@ function renderWires() {
           out2.push([x, yA], [sx, yA], [sx, yB], [x, yB]); } }
       out2.push(p1); }
     return out2; };
-  const cdLanes = {};
+  const cdLanes = {}; WIREGEO = {};
   const escCnt = {}; /* מונה עקיפות לכל קופסה+צד — מסלולים מקבילים נפרדים */
   let cdBadged = null;
   for (const it of items) {
@@ -3915,6 +3915,7 @@ function renderWires() {
       const cx = 2 * it.bx - (pa.x + pb.x) / 2, cy = 2 * it.by - (pa.y + pb.y) / 2;
       dpath = `M${pa.x} ${pa.y} Q ${cx} ${cy} ${pb.x} ${pb.y}`;
     }
+    WIREGEO[c.id] = dpath;   /* הגאומטריה הסופית של הכבל — לייצוא ל-CAD */
     const instDash = c.inst === 'exist' ? '7 5' : c.inst === 'pull' ? '14 6' : null;
     /* קו בתוך צינור/תעלה: הילה רחבה בצבע הצינור מתחת לקו + תג "צ1 Ø50" פעם אחת לכל צינור */
     const cdOf = !P.hideConduits && c.conduit && (P.conduits || []).find(x => x.id === c.conduit);
@@ -7950,7 +7951,7 @@ function conduitColor(cd) { const i = (P.conduits || []).indexOf(cd); return CD_
 function conduitNum(cd) { const same = (P.conduits || []).filter(x => x.kind === cd.kind); return same.indexOf(cd) + 1; }
 const conduitTag = cd => (cd.kind === 'tray' ? 'ת' : 'צ') + conduitNum(cd) + (cd.kind === 'tray' ? ' ' + cd.size : ' Ø' + cd.size);
 /* 🎯 מצב צינור על התכנית: לחיצה על קו מכניסה/מוציאה אותו מהצינור הנבחר */
-let conduitMode = null;
+let conduitMode = null, WIREGEO = {};
 /* ===== תוואי צינור/תעלה על התכנית: cd.path = [{x,y}…] בקואורדינטות הקנבס. כל כבל שמשויך לצינור מצויר לאורך התוואי (renderWires), והאורכים נמדדים לאורכו ===== */
 let cdPathMode = null, cdPathDrag = null, cdPathTap = { i: -1, t: 0 };
 const cdById = id => (P.conduits || []).find(x => x.id === id);
@@ -12728,6 +12729,50 @@ function exportPDF() {
   reportPreview();
 }
 /* תצוגה מקדימה של הדוח לפני הדפסה — רואים את כל הפריסה ואז מחליטים */
+/* ===== ייצוא ל-AutoCAD: DXF (פורמט ההחלפה של AutoCAD — נפתח ישירות ב-AutoCAD / BricsCAD / DraftSight ונשמר משם כ-DWG). DWG עצמו הוא פורמט בינארי סגור.
+   יחידות: מטרים לפי הכיול (בלי כיול — פיקסלים). ראשית הצירים: הפינה השמאלית-תחתונה של תכנית הרקע. שכבות נפרדות לכל דיסציפלינה, לצנרת, לאזורים, לשרטוט ולטקסט ===== */
+function exportDXF() {
+  renderWires();
+  const k = P.scale || 1, X0 = P.bg ? bgLeft() : 0, Y0 = P.bg ? bgTop() + bgHeightPx() : 1400, tx = x => +((x - X0) * k).toFixed(4), ty = y => +((Y0 - y) * k).toFixed(4);
+  const uni = t => String(t == null ? '' : t).replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7e]/g, ch => '\\U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));
+  const LAY = { 'KO-RACKS': 5, 'KO-PANELS': 30, 'KO-POINTS': 1, 'KO-CBL-AUDIO': 6, 'KO-CBL-LIGHT': 40, 'KO-CBL-VIDEO': 3, 'KO-CBL-DATA': 4, 'KO-CBL-POWER': 8, 'KO-CONDUIT': 30, 'KO-ZONES': 2, 'KO-SKETCH': 7, 'KO-TEXT': 7, 'KO-CBL-NUM': 7 };
+  const out = []; const w = (...a) => { for (let i = 0; i < a.length; i += 2) out.push(String(a[i]), String(a[i + 1])); };
+  w(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$INSUNITS', 70, P.scale ? 6 : 0, 0, 'ENDSEC');
+  w(0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LTYPE', 70, 2, 0, 'LTYPE', 2, 'CONTINUOUS', 70, 0, 3, 'Solid', 72, 65, 73, 0, 40, 0, 0, 'LTYPE', 2, 'DASHED', 70, 0, 3, 'Dashed', 72, 65, 73, 2, 40, 0.6, 49, 0.4, 49, -0.2, 0, 'ENDTAB');
+  w(0, 'TABLE', 2, 'LAYER', 70, Object.keys(LAY).length); for (const [n, c] of Object.entries(LAY)) w(0, 'LAYER', 2, n, 70, 0, 62, c, 6, n === 'KO-CONDUIT' || n === 'KO-ZONES' ? 'DASHED' : 'CONTINUOUS'); w(0, 'ENDTAB');
+  w(0, 'TABLE', 2, 'STYLE', 70, 1, 0, 'STYLE', 2, 'KO', 70, 0, 40, 0, 41, 1, 50, 0, 71, 0, 42, 0.2, 3, 'arial.ttf', 4, '', 0, 'ENDTAB', 0, 'ENDSEC');
+  w(0, 'SECTION', 2, 'ENTITIES');
+  const H = (P.scale ? 0.18 : 9);   /* גובה טקסט: 18 ס״מ */
+  const poly = (layer, pts, closed) => { if (pts.length < 2) return; w(0, 'POLYLINE', 8, layer, 66, 1, 70, closed ? 1 : 0); pts.forEach(q => w(0, 'VERTEX', 8, layer, 10, tx(q[0]), 20, ty(q[1]))); w(0, 'SEQEND', 8, layer); };
+  const text = (layer, x, y, t, h, center) => { if (!t) return; w(0, 'TEXT', 8, layer, 10, tx(x), 20, ty(y), 40, h || H, 1, uni(t), 7, 'KO'); if (center) w(72, 1, 11, tx(x), 21, ty(y)); };
+  const circle = (layer, x, y, r) => w(0, 'CIRCLE', 8, layer, 10, tx(x), 20, ty(y), 40, +(r).toFixed(4));
+  /* d של SVG → נקודות (M/L/V/H ו-Q מדוגם) */
+  const pathPts = d => { const tk = String(d).match(/[MLVHQ]|-?\d*\.?\d+(?:e-?\d+)?/gi) || []; const pts = []; let i = 0, cmd = 'M', cx = 0, cy = 0; const num = () => +tk[i++];
+    while (i < tk.length) { if (/[MLVHQ]/i.test(tk[i])) cmd = tk[i++].toUpperCase(); if (cmd === 'M' || cmd === 'L') { cx = num(); cy = num(); pts.push([cx, cy]); if (cmd === 'M') cmd = 'L'; } else if (cmd === 'V') { cy = num(); pts.push([cx, cy]); } else if (cmd === 'H') { cx = num(); pts.push([cx, cy]); }
+      else if (cmd === 'Q') { const qx = num(), qy = num(), ex = num(), ey = num(); for (let t = 1; t <= 10; t++) { const u = t / 10; pts.push([(1 - u) * (1 - u) * cx + 2 * (1 - u) * u * qx + u * u * ex, (1 - u) * (1 - u) * cy + 2 * (1 - u) * u * qy + u * u * ey]); } cx = ex; cy = ey; } else i++; }
+    return pts.filter((q, j) => !j || Math.hypot(q[0] - pts[j - 1][0], q[1] - pts[j - 1][1]) > 0.01); };
+  /* אזורים */
+  (P.zones || []).forEach(z => { const pp = z.poly && z.poly.length > 2 ? z.poly.map(q => [q.x, q.y]) : (() => { const b = zoneBounds(z); return b && b.W ? [[b.L, b.T], [b.L + b.W, b.T], [b.L + b.W, b.T + b.H], [b.L, b.T + b.H]] : []; })(); if (!pp.length) return; poly('KO-ZONES', pp, true); const cx = pp.reduce((a, q) => a + q[0], 0) / pp.length, cy = pp.reduce((a, q) => a + q[1], 0) / pp.length; text('KO-ZONES', cx, cy, z.name + (z.usage ? ' - ' + z.usage : ''), H * 1.4, true); });
+  /* שרטוט (קירות ואובייקטים) */
+  if (P.sketch) { (P.sketch.walls || []).forEach(wl => poly('KO-SKETCH', wl.map(q => [q.x, q.y]), false));
+    (P.sketch.objs || []).forEach(o => { const a = (o.r || 0) * Math.PI / 180, c = Math.cos(a), s2 = Math.sin(a), cr = [[-o.w / 2, -o.h / 2], [o.w / 2, -o.h / 2], [o.w / 2, o.h / 2], [-o.w / 2, o.h / 2]].map(([x, y]) => [o.x + x * c - y * s2, o.y + x * s2 + y * c]); poly('KO-SKETCH', cr, true); text('KO-SKETCH', o.x, o.y, (typeof SK_OBJS !== 'undefined' && SK_OBJS[o.t] ? SK_OBJS[o.t].n : o.t), H, true); }); }
+  /* צנרת */
+  (P.conduits || []).forEach(cd => { const pp = cd.path || []; if (pp.length < 2) return; poly('KO-CONDUIT', pp.map(q => [q.x, q.y]), false); const m = polyAt(pp, polyLen(pp) / 2); text('KO-CONDUIT', m.x, m.y - 6, conduitTag(cd) + ' ' + cd.name + (cd.len ? ' ' + cd.len + 'm' : ''), H, true); });
+  /* כבלים — הגאומטריה המדויקת מהתכנית, שכבה לכל דיסציפלינה, מספר הכבל באמצע */
+  const LBL = cableLabels(), CL = { audio: 'KO-CBL-AUDIO', light: 'KO-CBL-LIGHT', video: 'KO-CBL-VIDEO', data: 'KO-CBL-DATA', power: 'KO-CBL-POWER' };
+  (P.cables || []).forEach(c => { const d = WIREGEO[c.id]; if (!d) return; const pts = pathPts(d); if (pts.length < 2) return; poly(CL[cabGroup(c)] || 'KO-CBL-AUDIO', pts, false);
+    const m = polyAt(pts.map(q => ({ x: q[0], y: q[1] })), polyLen(pts.map(q => ({ x: q[0], y: q[1] }))) / 2); text('KO-CBL-NUM', m.x + 4, m.y - 3, '#' + LBL[c.id] + ' ' + cableKindLabel(c) + (c.len ? ' ' + c.len + 'm' : ''), H * 0.7); });
+  /* מוקדים, פאנלים וארונות */
+  P.nodes.filter(n => !n.hidden).forEach(n => { const b = nodeBox(n), cx = 2200 - b.x - b.w / 2, cy = b.y + (b.h || 0) / 2, layer = n.kind === 'rack' ? 'KO-RACKS' : n.kind === 'panel' ? 'KO-PANELS' : 'KO-POINTS';
+    if (n.kind === 'point') circle(layer, cx, cy, P.scale ? 0.2 : 10); else { const hw = P.scale ? 0.3 / k : 14, hh = P.scale ? 0.2 / k : 10; poly(layer, [[cx - hw, cy - hh], [cx + hw, cy - hh], [cx + hw, cy + hh], [cx - hw, cy + hh]], true); }
+    text('KO-TEXT', cx + (P.scale ? 0.35 / k : 14), cy, nodeFullName(n).slice(0, 60) + (n.kind === 'rack' ? ' (' + n.ru + 'U)' : n.hgt != null && n.kind === 'point' ? ' h=' + n.hgt + 'm' : ''), H); });
+  w(0, 'ENDSEC', 0, 'EOF');
+  const blob = new Blob([out.join('\r\n') + '\r\n'], { type: 'application/dxf' }), a = document.createElement('a'), name = 'KO-' + String(P.name || 'project').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + '.dxf';
+  window.__lastDxf = { name, bytes: blob.size, entities: out.filter((v, i) => i % 2 === 1 && out[i - 1] === '0' && /^(POLYLINE|TEXT|CIRCLE)$/.test(v)).length };
+  a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  uiToast('⬇ ' + name + ' — נפתח ב-AutoCAD; לשמירה כ-DWG: Save As → DWG' + (P.scale ? ' · יחידות: מטרים' : ' · התכנית לא מכוילת — יחידות: פיקסלים'));
+}
+window.exportDXF = exportDXF;
 /* הורדת הדוח כקובץ PDF ישירות למחשב (בלי חלון ההדפסה של הדפדפן): כל מקטע מצולם (html2canvas) ונכנס לעמודי A4 (jsPDF); מקטע גבוה נחתך לכמה עמודים */
 async function reportDownloadPdf(page, btn) {
   const lbl = btn.textContent; btn.disabled = true;
@@ -12773,6 +12818,7 @@ function reportPreview() {
       <span class="muted" style="font-size:11.5px">${pages} מקטעים · גלול לראות את כל הפריסה</span>
       <button id="rpPrint" style="background:#0f6e56;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer">🖨 הדפס / שמור PDF</button>
       <button id="rpDl" style="background:#185fa5;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer" title="יוצר קובץ PDF ומוריד אותו למחשב — בלי חלון ההדפסה">⬇ הורד PDF למחשב</button>
+      <button id="rpDxf" style="background:#5b4b8a;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer" title="שרטוט וקטורי ל-AutoCAD בפורמט DXF (נפתח ב-AutoCAD ונשמר משם כ-DWG): מוקדים, כבלים לפי דיסציפלינה, צנרת, אזורים — במטרים" onclick="exportDXF()">📐 AutoCAD (DXF/DWG)</button>
       <button id="rpShare" style="background:#25D366;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer">📲 שתף</button>
       <button id="rpClose" style="border:1px solid #ddd;background:#fff;border-radius:9px;padding:9px 14px;cursor:pointer">ביטול</button>
     </div>
