@@ -6742,7 +6742,7 @@ function spkDataManager(tab) {
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
     const nmA = esc(r.name).replace(/'/g, '&#39;');
     const meta = metaOf(r.name);
-    const imgTd = `<td style="text-align:center"><span style="cursor:pointer;display:inline-block" title="לחץ להגדרת תמונה (כתובת URL של תמונת המוצר)" onclick="dbImgSet('${tab}','${nmA}')">${meta.img ? `<img src="${esc(meta.img)}" loading="lazy" style="width:38px;height:38px;object-fit:contain;border-radius:5px;background:#fff" onerror="this.replaceWith('🖼')">` : imgCell('', 38, r.name)}</span></td>`;
+    const imgTd = `<td style="text-align:center"><span style="cursor:pointer;display:inline-block" title="לחץ להגדרת תמונה (כתובת URL של תמונת המוצר)" onclick="dbImgSet('${tab}','${nmA}')">${(() => { const im = dbRowImg(r.name, meta); return im ? `<img src="${esc(im.u)}" loading="lazy" title="${esc(im.src)} · לחץ להחלפה" style="width:${im.wide ? 92 : 40}px;height:38px;object-fit:contain;border-radius:5px;background:${im.wide ? '#1a1e28' : '#fff'}" onerror="this.replaceWith('🖼')">` : imgCell('', 38, r.name); })()}</span></td>`;
     const cells = imgTd + (tab === 'spk' ?
       `<td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','typ',this.value)">${['רמקול', 'סאב', 'קולום', 'שקוע', 'מוניטור', 'אחר'].map(t => `<option ${(meta.typ || guessTyp(r.name)) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
        <td style="text-align:center"><select title="מותג — הבחירה מסדרת את הקיבוץ בטבלה" style="max-width:112px;border:1px solid #ccc;border-radius:4px;font-size:11px;background:#fff" onchange="if(this.value==='__new'){spkBrandNew('${nmA}')}else spkMetaSet('${nmA}','brand',this.value)">${allBrands.map(b2 => `<option ${r.brand === b2 ? 'selected' : ''}>${esc(b2)}</option>`).join('')}<option value="__new">➕ מותג חדש…</option></select></td>
@@ -9839,6 +9839,21 @@ function modelImg(name) {
     }
   }
   return best;
+}
+/* תמונה לשורה בטבלת הנתונים, לפי סדר: תמונה שהוגדרה ידנית → תמונת היצרן לפי דגם → תמונת החנות של פריט ERP מאותו דגם → צילום החזית/הגב של המוצר (מספריית הגבים) */
+let __erpImgIdx = null;
+function erpImgByModel(name) {
+  const nm = String(name || '').toUpperCase().replace(/[^A-Z0-9]+/g, ''); if (nm.length < 4 || !/\d/.test(nm) || typeof ERP_IMAGES === 'undefined' || typeof ERP_ITEMS === 'undefined') return '';
+  if (!__erpImgIdx) __erpImgIdx = ERP_ITEMS.filter(it => ERP_IMAGES[it[0]]).map(it => [String(it[1] || '').toUpperCase().replace(/[^A-Z0-9]+/g, ''), ERP_IMAGES[it[0]]]);
+  /* הדגם חייב להופיע בשם הפריט בלי ספרה נוספת מיד אחריו (IPX 10 לא יתאים ל-IPX 100) */
+  const hit = __erpImgIdx.find(([n2]) => { const i = n2.indexOf(nm); return i >= 0 && !/\d/.test(n2[i + nm.length] || ''); }); return hit ? hit[1] : '';
+}
+function dbRowImg(name, meta) {
+  if (meta && meta.img) return { u: meta.img, src: 'הוגדר ידנית' };
+  const m = modelImg(name); if (m) return { u: m, src: 'תמונת היצרן' };
+  const e = erpImgByModel(name); if (e) return { u: e, src: 'תמונת החנות' };
+  const r = rearImage(name); if (r && (r.furl || r.url)) return { u: r.furl || r.url, src: r.furl ? 'צילום חזית — ' + (r.model || '') : 'צילום גב — ' + (r.model || ''), wide: true };
+  return null;
 }
 function imgCell(key, size, name) {
   const u = erpImg(key) || modelImg(name);
