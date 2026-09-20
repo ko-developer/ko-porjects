@@ -3874,7 +3874,7 @@ function renderWires() {
       /* הכבל עובר בצינור שיש לו תוואי: מהקצה אל פתח הצינור הקרוב, לאורך התוואי (בנתיב מקביל משלו), ומהפתח השני אל הקצה */
       const gk = c.conduit + '|' + [c.from, c.to].sort().join('|'); cdLanes[c.conduit] = cdLanes[c.conduit] || []; if (!cdLanes[c.conduit].includes(gk)) cdLanes[c.conduit].push(gk);
       const tot = new Set((P.cables || []).filter(x => x.conduit === c.conduit && cableVisible(x)).map(x => x.conduit + '|' + [x.from, x.to].sort().join('|'))).size, li = cdLanes[c.conduit].indexOf(gk);
-      let pts = polyOffset(rp, (li - (tot - 1) / 2) * 3);
+      let pts = polyOffset(rp, (li - (tot - 1) / 2) * CD_LANE);
       const f = pts[0], l = pts[pts.length - 1]; if (Math.hypot(pa.x - f.x, pa.y - f.y) + Math.hypot(pb.x - l.x, pb.y - l.y) > Math.hypot(pa.x - l.x, pa.y - l.y) + Math.hypot(pb.x - f.x, pb.y - f.y)) pts = pts.slice().reverse();
       const link = (e0, side, q) => (side === 'T' || side === 'B') ? [[e0.x, q.y]] : [[q.x, e0.y]];   /* חיבור מאונך מהקצה אל פתח הצינור */
       const all = [[pa.x, pa.y], ...(ortho ? link(pa, it.as, pts[0]) : []), ...pts.map(q => [q.x, q.y]), ...(ortho ? link(pb, it.bs, pts[pts.length - 1]) : []), [pb.x, pb.y]];
@@ -7972,11 +7972,21 @@ let cdPathMode = null, cdPathDrag = null, cdPathTap = { i: -1, t: 0 };
 const cdById = id => (P.conduits || []).find(x => x.id === id);
 const polyLen = pts => pts.reduce((a, q, i) => i ? a + Math.hypot(q.x - pts[i - 1].x, q.y - pts[i - 1].y) : 0, 0);
 function polyAt(pts, dist) { for (let i = 1; i < pts.length; i++) { const L = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); if (dist <= L || i === pts.length - 1) { const t = L ? Math.min(1, dist / L) : 0; return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * t }; } dist -= L; } return pts[0]; }
-/* הזזה מקבילה של קו שבור (כל כבל בצינור בנתיב משלו, 3px זה מזה) */
-function polyOffset(pts, d) { if (!d || pts.length < 2) return pts.map(q => ({ x: q.x, y: q.y })); const nrm = (a, b) => { const L = Math.hypot(b.x - a.x, b.y - a.y) || 1; return { x: -(b.y - a.y) / L, y: (b.x - a.x) / L }; };
-  return pts.map((q, i) => { const n1 = i > 0 ? nrm(pts[i - 1], q) : null, n2 = i < pts.length - 1 ? nrm(q, pts[i + 1]) : null; let nx = ((n1 || n2).x + (n2 || n1).x) / 2, ny = ((n1 || n2).y + (n2 || n1).y) / 2; const L = Math.hypot(nx, ny) || 1, k = Math.min(3, 1 / L); return { x: q.x + nx / L * d * k, y: q.y + ny / L * d * k }; }); }
+/* ניקוי תוואי: נקודות צמודות (< 5px) ונקודות על קו ישר נזרקות — מקטעים זעירים ועקומים יוצרים קוצים בהזזה מקבילה */
+function polyClean(pts) { const o = []; for (const q of pts) { const l = o[o.length - 1]; if (!l || Math.hypot(q.x - l.x, q.y - l.y) >= 5) o.push({ x: q.x, y: q.y }); }
+  for (let i = o.length - 2; i > 0; i--) { const a = o[i - 1], q = o[i], c = o[i + 1], cr = Math.abs((q.x - a.x) * (c.y - a.y) - (q.y - a.y) * (c.x - a.x)) / (Math.hypot(c.x - a.x, c.y - a.y) || 1); if (cr < 1.2) o.splice(i, 1); } return o.length > 1 ? o : pts.map(q => ({ x: q.x, y: q.y })); }
+/* הזזה מקבילה של קו שבור: כל מקטע מוזז לאורך הנורמל שלו, והפינות הן חיתוך המקטעים המוזזים; בזווית חדה (החיתוך רחוק מדי) — פינה קטומה במקום קוץ */
+function polyOffset(pts0, d) { const pts = polyClean(pts0); if (!d || pts.length < 2) return pts;
+  const segs = []; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], L = Math.hypot(b.x - a.x, b.y - a.y) || 1, nx = -(b.y - a.y) / L * d, ny = (b.x - a.x) / L * d; segs.push({ a: { x: a.x + nx, y: a.y + ny }, b: { x: b.x + nx, y: b.y + ny } }); }
+  const out = [segs[0].a];
+  for (let i = 1; i < segs.length; i++) { const s1 = segs[i - 1], s2 = segs[i], v = pts[i], x1 = s1.a.x, y1 = s1.a.y, x2 = s1.b.x, y2 = s1.b.y, x3 = s2.a.x, y3 = s2.a.y, x4 = s2.b.x, y4 = s2.b.y, den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+    if (Math.abs(den) < 1e-6) { out.push(s1.b); continue; }
+    const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den, ix = x1 + t * (x2 - x1), iy = y1 + t * (y2 - y1);
+    if (Math.hypot(ix - v.x, iy - v.y) > Math.abs(d) * 2.5 + 2) out.push(s1.b, s2.a); else out.push({ x: ix, y: iy }); }
+  out.push(segs[segs.length - 1].b); return out; }
 /* צינורות שרצים באותו תוואי מסתדרים זה לצד זה: תוואים שרובם (≥70% מהאורך) במרחק עד 20px זה מזה — גם כששורטטו בכיוונים הפוכים או במספר נקודות שונה — הם צרור אחד.
    כל הצרור מצויר לאורך התוואי הארוך ביותר שבו, כרצועות מקבילות ברוחב לפי מספר הכבלים עם רווח קבוע ביניהן, בסדר מספרי הצינורות */
+const CD_LANE = 1.6;   /* מרווח בין כבלים בתוך אותו צינור */
 function cdEffPaths() {
   const cds = (P.conduits || []).filter(cd => cd.path && cd.path.length > 1), out = {}, groups = [];
   const dSeg = (p, a, b) => { const vx = b.x - a.x, vy = b.y - a.y, L2 = vx * vx + vy * vy || 1, t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / L2)); return Math.hypot(p.x - a.x - vx * t, p.y - a.y - vy * t); };
@@ -7984,9 +7994,9 @@ function cdEffPaths() {
   const samp = pl => { const L = polyLen(pl), n = Math.max(8, Math.min(60, Math.round(L / 15))), a = []; for (let i = 0; i <= n; i++) a.push(polyAt(pl, L * i / n)); return a; };
   const cover = (X, Y) => { const s2 = samp(X); return s2.filter(q => dPoly(q, Y) < 20).length / s2.length; };
   cds.forEach(cd => { const g = groups.find(g2 => g2.some(o => Math.min(cover(o.path, cd.path), cover(cd.path, o.path)) >= 0.7)); if (g) g.push(cd); else groups.push([cd]); });
-  const lanesOf = cd => Math.max(1, new Set((P.cables || []).filter(c => c.conduit === cd.id && cableVisible(c)).map(c => [c.from, c.to].sort().join('|'))).size), GAP = 4;
+  const lanesOf = cd => Math.max(1, new Set((P.cables || []).filter(c => c.conduit === cd.id && cableVisible(c)).map(c => [c.from, c.to].sort().join('|'))).size), GAP = 1;   /* במציאות הצינורות (Ø50 = 5 ס״מ) רצים צמודים — רצועות צרות עם רווח של פיקסל */
   out.__groups = groups.map(g => { g.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'tray' ? 1 : -1) || conduitNum(a) - conduitNum(b));
-    const base = g.slice().sort((a, b) => polyLen(b.path) - polyLen(a.path))[0].path, ws = g.map(cd => (lanesOf(cd) - 1) * 3 + 8), tot = ws.reduce((a, b) => a + b, 0) + GAP * (g.length - 1); let acc = -tot / 2;
+    const base = g.slice().sort((a, b) => polyLen(b.path) - polyLen(a.path))[0].path, ws = g.map(cd => (lanesOf(cd) - 1) * CD_LANE + 5), tot = ws.reduce((a, b) => a + b, 0) + GAP * (g.length - 1); let acc = -tot / 2;
     g.forEach((cd, i) => { const off = acc + ws[i] / 2; acc += ws[i] + GAP; out[cd.id] = { pts: polyOffset(base, g.length > 1 ? off : 0), w: ws[i], off: g.length > 1 ? off : 0, n: g.length, i }; });
     return { base, ids: g.map(cd => cd.id), tot }; });
   return out;
