@@ -3861,7 +3861,7 @@ function renderWires() {
   const cdLanes = {}, cdEff = cdEffPaths(); WIREGEO = {};
   /* רצועת הצינור — פס אחיד אחד לכל צינור מתחת לכבלים שלו (במקום הילה לכל כבל שנערמה לכתמים) */
   if (!P.hideConduits) for (const cd of P.conduits || []) { const ef = cdEff[cd.id]; if (!ef) continue; const col = conduitColor(cd), pl = ef.pts.map(q => q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ');
-    out += `<polyline points="${pl}" fill="none" stroke="${col}" stroke-width="${ef.w}" stroke-linecap="butt" stroke-linejoin="miter" opacity="0.42" style="pointer-events:none"/>${cd.kind === 'tray' ? `<polyline points="${pl}" fill="none" stroke="${col}" stroke-width="${ef.w}" opacity="0.9" stroke-dasharray="${0.8 * cdK()} ${5 * cdK()}" style="pointer-events:none"/>` : ''}`; }
+    out += `<polyline points="${pl}" fill="none" stroke="${col}" stroke-width="${ef.w}" stroke-linecap="butt" stroke-linejoin="miter" opacity="0.6" style="pointer-events:none"/>${cd.kind === 'tray' ? `<polyline points="${pl}" fill="none" stroke="${col}" stroke-width="${ef.w}" opacity="0.9" stroke-dasharray="${0.8 * cdK()} ${5 * cdK()}" style="pointer-events:none"/>` : ''}`; }
   const escCnt = {}; /* מונה עקיפות לכל קופסה+צד — מסלולים מקבילים נפרדים */
   let cdBadged = null;
   for (const it of items) {
@@ -3931,7 +3931,7 @@ function renderWires() {
     const mEnd = bUnit ? '' : ' marker-end="url(#ah)"';
     const mStart = (c.dir === 'both' && !aUnit) ? ' marker-start="url(#ah)"' : '';
     out += `<path d="${dpath}" fill="none"stroke="transparent" stroke-width="14" style="pointer-events:stroke;cursor:pointer" onclick="pickCable('${c.id}')"/>`;
-    out += `<path d="${dpath}" fill="none" stroke="${col}" stroke-width="${it.cdRouted ? Math.min(selw, (c.id === selCable ? 2 : 0.9) * cdK()) : selw}"${instDash ? ` stroke-dasharray="${instDash}"` : ''}${mStart}${mEnd} opacity="0.9" style="pointer-events:none"/>`;
+    out += `<path d="${dpath}" fill="none" stroke="${col}" stroke-width="${it.cdRouted ? Math.min(selw, (c.id === selCable ? 1.6 : 0.55) * cdK()) : selw}"${instDash ? ` stroke-dasharray="${instDash}"` : ''}${mStart}${mEnd} opacity="0.9" style="pointer-events:none"/>`;
     /* קצה הכבל = עיגול אחד עם מספר הכבל בתוכו — גם מזהה וגם ידית גרירה.
        קצה שמחובר למכשיר בתוך ארון — נקודה קטנה בלבד, בלי מספר (המספר כבר בגב). */
     const handle = (x, y, end) => {
@@ -7987,7 +7987,7 @@ function polyOffset(pts0, d) { const pts = polyClean(pts0); if (!d || pts.length
 /* צינורות שרצים באותו תוואי מסתדרים זה לצד זה: תוואים שרובם (≥70% מהאורך) במרחק עד 20px זה מזה — גם כששורטטו בכיוונים הפוכים או במספר נקודות שונה — הם צרור אחד.
    כל הצרור מצויר לאורך התוואי הארוך ביותר שבו, כרצועות מקבילות ברוחב לפי מספר הכבלים עם רווח קבוע ביניהן, בסדר מספרי הצינורות */
 /* הצרור בגודל קבוע על המסך (לא מתנפח בזום): רצועה של ~3px לצינור, 1.2px לכל כבל נוסף בתוכו, ורווח של חצי פיקסל בין צינורות — צמוד כמו בשטח */
-const cdK = () => 1 / Math.max(1, getZ() || 1), cdLane = () => 1.2 * cdK();
+const cdK = () => 1 / Math.max(1, getZ() || 1), cdLane = () => 0.7 * cdK();
 function cdEffPaths() {
   const cds = (P.conduits || []).filter(cd => cd.path && cd.path.length > 1), out = {}, groups = [];
   const dSeg = (p, a, b) => { const vx = b.x - a.x, vy = b.y - a.y, L2 = vx * vx + vy * vy || 1, t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / L2)); return Math.hypot(p.x - a.x - vx * t, p.y - a.y - vy * t); };
@@ -7995,9 +7995,9 @@ function cdEffPaths() {
   const samp = pl => { const L = polyLen(pl), n = Math.max(8, Math.min(60, Math.round(L / 15))), a = []; for (let i = 0; i <= n; i++) a.push(polyAt(pl, L * i / n)); return a; };
   const cover = (X, Y) => { const s2 = samp(X); return s2.filter(q => dPoly(q, Y) < 20).length / s2.length; };
   cds.forEach(cd => { const g = groups.find(g2 => g2.some(o => Math.min(cover(o.path, cd.path), cover(cd.path, o.path)) >= 0.7)); if (g) g.push(cd); else groups.push([cd]); });
-  const lanesOf = cd => Math.max(1, new Set((P.cables || []).filter(c => c.conduit === cd.id && cableVisible(c)).map(c => [c.from, c.to].sort().join('|'))).size), GAP = 0.5 * cdK();
+  const lanesOf = cd => Math.max(1, new Set((P.cables || []).filter(c => c.conduit === cd.id && cableVisible(c)).map(c => [c.from, c.to].sort().join('|'))).size), GAP = 0.3 * cdK();
   out.__groups = groups.map(g => { g.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'tray' ? 1 : -1) || conduitNum(a) - conduitNum(b));
-    const base = g.slice().sort((a, b) => polyLen(b.path) - polyLen(a.path))[0].path, ws = g.map(cd => (lanesOf(cd) - 1) * cdLane() + 3.2 * cdK()), tot = ws.reduce((a, b) => a + b, 0) + GAP * (g.length - 1); let acc = -tot / 2;
+    const base = g.slice().sort((a, b) => polyLen(b.path) - polyLen(a.path))[0].path, ws = g.map(cd => (lanesOf(cd) - 1) * cdLane() + 1.7 * cdK()), tot = ws.reduce((a, b) => a + b, 0) + GAP * (g.length - 1); let acc = -tot / 2;
     g.forEach((cd, i) => { const off = acc + ws[i] / 2; acc += ws[i] + GAP; out[cd.id] = { pts: polyOffset(base, g.length > 1 ? off : 0), w: ws[i], off: g.length > 1 ? off : 0, n: g.length, i }; });
     return { base, ids: g.map(cd => cd.id), tot }; });
   return out;
