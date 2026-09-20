@@ -3859,6 +3859,9 @@ function renderWires() {
       out2.push(p1); }
     return out2; };
   const cdLanes = {}, cdEff = cdEffPaths(); WIREGEO = {};
+  /* רצועת הצינור — פס אחיד אחד לכל צינור מתחת לכבלים שלו (במקום הילה לכל כבל שנערמה לכתמים) */
+  if (!P.hideConduits) for (const cd of P.conduits || []) { const ef = cdEff[cd.id]; if (!ef) continue; const col = conduitColor(cd), pl = ef.pts.map(q => q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ');
+    out += `<polyline points="${pl}" fill="none" stroke="${col}" stroke-width="${ef.w}" stroke-linecap="butt" stroke-linejoin="round" opacity="0.26" style="pointer-events:none"/><polyline points="${pl}" fill="none" stroke="${col}" stroke-width="${ef.w}" stroke-linejoin="round" opacity="0.9" stroke-dasharray="0.8 ${cd.kind === 'tray' ? 5 : 1e4}" style="pointer-events:none"/>`; }
   const escCnt = {}; /* מונה עקיפות לכל קופסה+צד — מסלולים מקבילים נפרדים */
   let cdBadged = null;
   for (const it of items) {
@@ -3876,7 +3879,7 @@ function renderWires() {
       const link = (e0, side, q) => (side === 'T' || side === 'B') ? [[e0.x, q.y]] : [[q.x, e0.y]];   /* חיבור מאונך מהקצה אל פתח הצינור */
       const all = [[pa.x, pa.y], ...(ortho ? link(pa, it.as, pts[0]) : []), ...pts.map(q => [q.x, q.y]), ...(ortho ? link(pb, it.bs, pts[pts.length - 1]) : []), [pb.x, pb.y]];
       dpath = 'M' + all.map(q => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L ');
-      const mid = cdEff[cdR.id].badge; it.bx = mid.x; it.by = mid.y + 9; it.mx = mid.x; it.cdRouted = true; it.lblAt = polyAt(pts, Math.min(polyLen(pts) * 0.45, 16 + li * 15));
+      const mid = polyAt(pts, polyLen(pts) / 2); it.bx = mid.x; it.by = mid.y; it.mx = mid.x; it.cdRouted = true; it.lblAt = polyAt(pts, Math.min(polyLen(pts) * 0.45, 16 + li * 15));
     } else if (ortho && it.elbow && it.epts) {
       dpath = 'M' + detourV(it.epts, c).map(q => q[0] + ' ' + q[1]).join(' L ');
     } else if (ortho && it.vert) {
@@ -3919,7 +3922,7 @@ function renderWires() {
     const instDash = c.inst === 'exist' ? '7 5' : c.inst === 'pull' ? '14 6' : null;
     /* קו בתוך צינור/תעלה: הילה רחבה בצבע הצינור מתחת לקו + תג "צ1 Ø50" פעם אחת לכל צינור */
     const cdOf = !P.hideConduits && c.conduit && (P.conduits || []).find(x => x.id === c.conduit);
-    if (cdOf) { const cc2 = conduitColor(cdOf); out += `<path d="${dpath}" fill="none" stroke="${cc2}" stroke-width="${(selw + 7)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.28" style="pointer-events:none"/>`;
+    if (cdOf && !it.cdRouted) { const cc2 = conduitColor(cdOf); out += `<path d="${dpath}" fill="none" stroke="${cc2}" stroke-width="${(selw + 7)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.28" style="pointer-events:none"/>`;
       cdBadged = cdBadged || new Set(); if (!cdBadged.has(cdOf.id)) { cdBadged.add(cdOf.id); const bx2 = it.mx || it.bx, by2 = it.by || (pa.y + pb.y) / 2; const t2 = conduitTag(cdOf); out += `<g style="pointer-events:all;cursor:pointer" onclick="routeManager()"><rect x="${bx2 - t2.length * 3.2 - 4}" y="${by2 - 18}" width="${t2.length * 6.4 + 8}" height="12" rx="4" fill="${cc2}"/><text x="${bx2}" y="${by2 - 9}" text-anchor="middle" font-size="8.5" font-weight="800" fill="#fff">${esc(t2)}</text></g>`; } }
     if (conduitMode && cdOf && cdOf.id === conduitMode.id) out += `<path d="${dpath}" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 3" style="pointer-events:none"/>`;
     /* קצה שמחובר למכשיר בארון או למחבר ספציפי בפאנל — הקו נכנס ישר, בלי חץ ובלי עיגול
@@ -3977,14 +3980,25 @@ function renderWires() {
   for (const n of P.nodes) { if (n.hidden || n.kind !== 'point' || !n.openOff || !isOpenNode(n)) continue; const b = nodeBox(n), L = 2200 - b.x - b.w, R = 2200 - b.x, T = b.y, B = b.y + (b.h || 0), px = 2200 - n.x - 20, py = n.y + 24;
     if (px >= L && px <= R && py >= T && py <= B) continue; const qx = Math.max(L, Math.min(R, px)), qy = Math.max(T, Math.min(B, py));
     out += `<line x1="${px}" y1="${py}" x2="${qx}" y2="${qy}" stroke="#6b6558" stroke-width="1" stroke-dasharray="4 3" style="pointer-events:none"/><circle cx="${px}" cy="${py}" r="3.2" fill="#fff" stroke="#6b6558" stroke-width="1.4" style="pointer-events:none"/><circle cx="${px}" cy="${py}" r="1.2" fill="#6b6558" style="pointer-events:none"/>`; }
-  /* תוואי הצינורות: קו מרכז מקווקו בצבע הצינור (גם כשאין בו עדיין כבלים); במצב עריכה — ידיות לנקודות ומקטעים לחיצים */
-  if (!P.hideConduits || cdPathMode) for (const cd of P.conduits || []) { const pp = cd.path || []; const ed = cdPathMode && cdPathMode.id === cd.id; if (pp.length < 2 && !ed) continue; const col = conduitColor(cd);
-    if (pp.length > 1) { const has = (P.cables || []).some(x => x.conduit === cd.id && cableVisible(x)), ef = !ed && cdEff[cd.id] ? cdEff[cd.id].pts : pp;
-      if (!has) out += `<polyline points="${ef.map(q => q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity="0.22" style="pointer-events:none"/>`;
-      out += `<polyline points="${ef.map(q => q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-width="${ed ? 2.2 : 1.2}" stroke-dasharray="${cd.kind === 'tray' ? '10 4' : '6 4'}" opacity="${ed ? 1 : 0.75}" style="pointer-events:none"/>`;
-      if (!has && !ed) { const m = cdEff[cd.id] ? cdEff[cd.id].badge : polyAt(pp, polyLen(pp) / 2), t2 = conduitTag(cd); out += `<g style="pointer-events:all;cursor:pointer" onclick="routeManager()"><rect x="${m.x - t2.length * 3.2 - 4}" y="${m.y - 8}" width="${t2.length * 6.4 + 8}" height="15" rx="5" fill="${col}"/><text x="${m.x}" y="${m.y + 3}" text-anchor="middle" font-size="9.5" font-weight="800" fill="#fff" direction="ltr" style="unicode-bidi:isolate">${esc(t2)}</text></g>`; } }
-    if (ed) { for (let i = 1; i < pp.length; i++) out += `<line data-cdseg="${i - 1}" x1="${pp[i - 1].x}" y1="${pp[i - 1].y}" x2="${pp[i].x}" y2="${pp[i].y}" stroke="${col}" stroke-opacity="0.25" stroke-width="${12 / ZW}" stroke-linecap="round" style="pointer-events:stroke;cursor:copy"/>`;
-      pp.forEach((q, i) => { out += `<circle data-cdpt="${i}" cx="${q.x}" cy="${q.y}" r="${7 / ZW}" fill="#fff" stroke="${col}" stroke-width="${2.5 / ZW}" style="pointer-events:all;cursor:grab"/>`; }); } }
+  /* תגי הצינורות: לכל צרור עמודה/שורה מסודרת של תגים לצד המקטע הארוך שלו, בסדר הצינורות, עם קו מוביל קצר אל הרצועה של כל צינור */
+  if (!P.hideConduits) for (const g of cdEff.__groups || []) { const base = g.base; let si = 1, sl = 0; for (let i = 1; i < base.length; i++) { const L = Math.hypot(base[i].x - base[i - 1].x, base[i].y - base[i - 1].y); if (L > sl) { sl = L; si = i; } }
+    const A = base[si - 1], B = base[si], vert = Math.abs(B.y - A.y) >= Math.abs(B.x - A.x), M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 }, n = g.ids.length, sf = Math.min(1, 1.25 / ZW), BW = 66 * sf, BH = 15 * sf, PAD = 3 * sf;   /* התגים בגודל קבוע על המסך — לא מתנפחים בזום */
+    /* כיוון הנורמל של polyOffset במקטע הזה — כדי לדעת היכן יושבת הרצועה של כל צינור */
+    const L0 = Math.hypot(B.x - A.x, B.y - A.y) || 1, nx = -(B.y - A.y) / L0, ny = (B.x - A.x) / L0;
+    g.ids.map(id => cdById(id)).forEach((cd, i) => { const ef = cdEff[cd.id], col = conduitColor(cd), cnt = (P.cables || []).filter(c => c.conduit === cd.id).length, f = conduitFill(cd);
+      const bandPt = { x: M.x + nx * ef.off, y: M.y + ny * ef.off }; let bx, by, lx, ly;
+      if (vert) { by = M.y + (i - (n - 1) / 2) * (BH + PAD); bx = M.x + g.tot / 2 + 12 * sf + BW / 2; lx = bx - BW / 2; ly = by; bandPt.y = by; }
+      else { bx = M.x + (i - (n - 1) / 2) * (BW + PAD); by = M.y - g.tot / 2 - 12 * sf - BH / 2; lx = bx; ly = by + BH / 2; bandPt.x = bx; }
+      out += `<line x1="${lx}" y1="${ly}" x2="${bandPt.x}" y2="${bandPt.y}" stroke="${col}" stroke-width="${sf}"/><circle cx="${bandPt.x}" cy="${bandPt.y}" r="${2 * sf}" fill="${col}"/>
+        <g style="pointer-events:all;cursor:pointer" onclick="routeManager()"><title>${esc(cd.name)} · ${cd.kind === 'tray' ? 'תעלה ' + cd.size : 'צינור Ø' + cd.size + ' מ״מ'} · ${cnt} כבלים · מילוי ${Math.round(f.pct * 100)}%${cd.len ? ' · ' + cd.len + ' מ׳' : ''} — לחיצה פותחת את מסך הצנרת</title>
+        <rect x="${bx - BW / 2}" y="${by - BH / 2}" width="${BW}" height="${BH}" rx="${4 * sf}" fill="#fff" stroke="${col}" stroke-width="${1.4 * sf}"/><rect x="${bx + BW / 2 - 21 * sf}" y="${by - BH / 2}" width="${21 * sf}" height="${BH}" rx="${4 * sf}" fill="${col}"/>
+        <text x="${bx + BW / 2 - 10.5 * sf}" y="${by + 3.2 * sf}" text-anchor="middle" font-size="${9 * sf}" font-weight="800" fill="#fff" style="user-select:none">${cd.kind === 'tray' ? 'ת' : 'צ'}${conduitNum(cd)}</text>
+        <text x="${bx - 10 * sf}" y="${by + 3.2 * sf}" text-anchor="middle" font-size="${8.5 * sf}" font-weight="700" fill="${f.ok ? '#333' : '#c1121f'}" direction="ltr" style="user-select:none;unicode-bidi:isolate">${cd.kind === 'tray' ? esc(String(cd.size)) : 'Ø' + cd.size} · ${cnt}</text></g>`; }); }
+  /* עריכת תוואי: הקו המקורי ששורטט, ידיות לנקודות ומקטעים לחיצים */
+  if (cdPathMode) { const cd = cdById(cdPathMode.id), pp = (cd && cd.path) || [], col = cd ? conduitColor(cd) : '#555';
+    if (pp.length > 1) out += `<polyline points="${pp.map(q => q.x + ',' + q.y).join(' ')}" fill="none" stroke="${col}" stroke-width="2.2" stroke-dasharray="6 4" style="pointer-events:none"/>`;
+    for (let i = 1; i < pp.length; i++) out += `<line data-cdseg="${i - 1}" x1="${pp[i - 1].x}" y1="${pp[i - 1].y}" x2="${pp[i].x}" y2="${pp[i].y}" stroke="${col}" stroke-opacity="0.25" stroke-width="${12 / ZW}" stroke-linecap="round" style="pointer-events:stroke;cursor:copy"/>`;
+    pp.forEach((q, i) => { out += `<circle data-cdpt="${i}" cx="${q.x}" cy="${q.y}" r="${7 / ZW}" fill="#fff" stroke="${col}" stroke-width="${2.5 / ZW}" style="pointer-events:all;cursor:grab"/>`; }); }
   /* קווי יישור בזמן גרירת מוקד */
   if (window.__alignG) {
     const g = window.__alignG, EX = 6000;
@@ -7961,21 +7975,20 @@ function polyAt(pts, dist) { for (let i = 1; i < pts.length; i++) { const L = Ma
 /* הזזה מקבילה של קו שבור (כל כבל בצינור בנתיב משלו, 3px זה מזה) */
 function polyOffset(pts, d) { if (!d || pts.length < 2) return pts.map(q => ({ x: q.x, y: q.y })); const nrm = (a, b) => { const L = Math.hypot(b.x - a.x, b.y - a.y) || 1; return { x: -(b.y - a.y) / L, y: (b.x - a.x) / L }; };
   return pts.map((q, i) => { const n1 = i > 0 ? nrm(pts[i - 1], q) : null, n2 = i < pts.length - 1 ? nrm(q, pts[i + 1]) : null; let nx = ((n1 || n2).x + (n2 || n1).x) / 2, ny = ((n1 || n2).y + (n2 || n1).y) / 2; const L = Math.hypot(nx, ny) || 1, k = Math.min(3, 1 / L); return { x: q.x + nx / L * d * k, y: q.y + ny / L * d * k }; }); }
-/* צינורות שרצים באותו תוואי מסתדרים זה לצד זה: מקבצים תוואים חופפים (מרחק ממוצע < 14px), ומזיזים כל צינור הצידה לפי רוחב הרצועה שלו (מספר הכבלים).
-   מחזיר לכל צינור את התוואי המוצג (pts) ואת מיקום התג שלו — מדורג לאורך התוואי כדי שהתגים לא יעלו זה על זה */
+/* צינורות שרצים באותו תוואי מסתדרים זה לצד זה: תוואים שרובם (≥70% מהאורך) במרחק עד 20px זה מזה — גם כששורטטו בכיוונים הפוכים או במספר נקודות שונה — הם צרור אחד.
+   כל הצרור מצויר לאורך התוואי הארוך ביותר שבו, כרצועות מקבילות ברוחב לפי מספר הכבלים עם רווח קבוע ביניהן, בסדר מספרי הצינורות */
 function cdEffPaths() {
-  const cds = (P.conduits || []).filter(cd => cd.path && cd.path.length > 1), out = {};
+  const cds = (P.conduits || []).filter(cd => cd.path && cd.path.length > 1), out = {}, groups = [];
   const dSeg = (p, a, b) => { const vx = b.x - a.x, vy = b.y - a.y, L2 = vx * vx + vy * vy || 1, t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / L2)); return Math.hypot(p.x - a.x - vx * t, p.y - a.y - vy * t); };
   const dPoly = (p, pl) => { let m = Infinity; for (let i = 1; i < pl.length; i++) m = Math.min(m, dSeg(p, pl[i - 1], pl[i])); return m; };
-  const samp = pl => { const L = polyLen(pl), n = Math.max(6, Math.min(40, Math.round(L / 25))), a = []; for (let i = 0; i <= n; i++) a.push(polyAt(pl, L * i / n)); return a; };
-  const near = (A, B) => { const f = (X, Y) => { const s2 = samp(X); return s2.reduce((t, q) => t + dPoly(q, Y), 0) / s2.length; }; return f(A, B) < 14 && f(B, A) < 14; };
-  const groups = []; cds.forEach(cd => { const g = groups.find(g2 => near(g2[0].path, cd.path)); if (g) g.push(cd); else groups.push([cd]); });
-  const lanesOf = cd => Math.max(1, new Set((P.cables || []).filter(c => c.conduit === cd.id && cableVisible(c)).map(c => [c.from, c.to].sort().join('|'))).size);
-  groups.forEach(g => { g.sort((a, b) => conduitNum(a) - conduitNum(b)); const base = g[0].path, ws = g.map(cd => (lanesOf(cd) - 1) * 3 + 11), tot = ws.reduce((a, b) => a + b, 0); let acc = -tot / 2;
-    g.forEach((cd, i) => { let pl = cd.path; /* אותו כיוון כמו הראשון בקבוצה — אחרת ההזזה הצידה מתהפכת */
-      if (i && Math.hypot(pl[0].x - base[0].x, pl[0].y - base[0].y) > Math.hypot(pl[pl.length - 1].x - base[0].x, pl[pl.length - 1].y - base[0].y)) pl = pl.slice().reverse();
-      const off = g.length > 1 ? acc + ws[i] / 2 : 0; acc += ws[i]; const pts = polyOffset(g.length > 1 ? base : pl, off), L = polyLen(pts);
-      out[cd.id] = { pts, badge: polyAt(pts, Math.max(10, Math.min(L - 10, L / 2 + (i - (g.length - 1) / 2) * 64))), n: g.length }; }); });
+  const samp = pl => { const L = polyLen(pl), n = Math.max(8, Math.min(60, Math.round(L / 15))), a = []; for (let i = 0; i <= n; i++) a.push(polyAt(pl, L * i / n)); return a; };
+  const cover = (X, Y) => { const s2 = samp(X); return s2.filter(q => dPoly(q, Y) < 20).length / s2.length; };
+  cds.forEach(cd => { const g = groups.find(g2 => g2.some(o => Math.min(cover(o.path, cd.path), cover(cd.path, o.path)) >= 0.7)); if (g) g.push(cd); else groups.push([cd]); });
+  const lanesOf = cd => Math.max(1, new Set((P.cables || []).filter(c => c.conduit === cd.id && cableVisible(c)).map(c => [c.from, c.to].sort().join('|'))).size), GAP = 4;
+  out.__groups = groups.map(g => { g.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'tray' ? 1 : -1) || conduitNum(a) - conduitNum(b));
+    const base = g.slice().sort((a, b) => polyLen(b.path) - polyLen(a.path))[0].path, ws = g.map(cd => (lanesOf(cd) - 1) * 3 + 8), tot = ws.reduce((a, b) => a + b, 0) + GAP * (g.length - 1); let acc = -tot / 2;
+    g.forEach((cd, i) => { const off = acc + ws[i] / 2; acc += ws[i] + GAP; out[cd.id] = { pts: polyOffset(base, g.length > 1 ? off : 0), w: ws[i], off: g.length > 1 ? off : 0, n: g.length, i }; });
+    return { base, ids: g.map(cd => cd.id), tot }; });
   return out;
 }
 function cdPathStart(id) { const cd = cdById(id); if (!cd) return; cd.path = cd.path || []; cdPathMode = { id }; conduitMode = null; const ov = document.querySelector('#routeOv'); if (ov) (ov.closest('.uiDlgOv') || ov).remove(); P.hideConduits = false; cdPathBar(); render(); }
