@@ -6713,7 +6713,7 @@ function spkDataManager(tab) {
   const allBrands = [...new Set(rows.map(r => r.brand).concat(['Funktion-One', 'Kling & Freitag', 'KT Audio', 'XTA', 'Yamaha', 'SAE', 'Lab Gruppen', 'Crown', 'DigiSynthetic', 'Lambda Labs', 'אחר']))].sort();
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
   const heads = '<th>תמונה</th>' + (tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th title="פסיבי = קו אחד · Bi-amp = HI+LOW · Tri-amp = HI+MID+LOW — כל פס מקבל ערוץ מגבר משלו בפאץ׳">הגברה</th><th>קישורים<br>🔗📄📘</th>' :
-    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th style="text-align:right">הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th style="text-align:right">הערות</th><th>קישור</th>');
+    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th style="text-align:right">הערות</th><th>קישור</th>');
   const ov = document.createElement('div');
   ov.id = 'spkDbOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
@@ -6737,7 +6737,7 @@ function spkDataManager(tab) {
     const c = r.ok ? '#0f8a5f' : '#c1121f';
     const bg = r.ok ? '#eef7f1' : '#fdeeee';
     const arg = r.lk ? `'${esc(r.lk).replace(/'/g, '&#39;')}'` : `null,${r.bi}`;
-    const colspan = tab === 'spk' ? 13 : 8;
+    const colspan = tab === 'spk' ? 13 : tab === 'amp' ? 12 : 8;
     const brandHdr = (ri === 0 || rows[ri - 1].brand !== r.brand) ? `<tr style="background:#e9e4db"><td colspan="${colspan}" style="padding:4px 6px;font-weight:800;font-size:12px">🏷 ${esc(r.brand)}</td></tr>` : '';
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
     const nmA = esc(r.name).replace(/'/g, '&#39;');
@@ -6758,7 +6758,8 @@ function spkDataManager(tab) {
         `<td style="text-align:center"><input value="${cell(r.d.ch)}" style="width:40px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'ch',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.mo)}" placeholder="4" style="width:38px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'mo',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.dsp != null ? meta.dsp : guessDsp(r.d, r.name))}" placeholder="?" title="DSP: ✓ = יש · ציין ערוצים עודפים לשליטה במוצרים ללא DSP" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','dsp',this.value)"></td>
-       <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid ${c};background:${bg};border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
+       ${['8', '4', '2.7', '2'].map(o => { const v = (r.d.pw || {})[o]; return `<td style="text-align:center"><input value="${v ?? ''}" placeholder="—" title="הספק לערוץ ב-${o}Ω (W)" style="width:54px;text-align:center;border:1px solid ${v != null ? c : '#ddd'};background:${v != null ? bg : '#fff'};border-radius:4px;font-size:11.5px;font-weight:${v != null ? 700 : 400}" onchange="${fn}(${arg},'pw:${o}',this.value)"></td>`; }).join('')}
+       <td>${(() => { const ex = Object.entries(r.d.pw || {}).filter(([o]) => !['8', '4', '2.7', '2'].includes(String(o))).map(([o, v]) => `${v}W @${o}${+o >= 50 ? 'V' : 'Ω'}`).join(' · '); return ex ? `<div style="font-size:10.5px;color:#0f6e56;font-weight:700;white-space:nowrap">${esc(ex)}</div>` : ''; })()}<input value="${esc(r.d.w || '')}" title="${esc(r.d.w || '')}" style="width:100%;min-width:150px;border:1px solid #ddd;border-radius:4px;font-size:10.5px;color:#555" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>` :
         `<td style="text-align:center"><input value="${esc(r.d.io || '')}" style="width:56px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'io',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="?" title="רשת דיגיטלית (Dante / AES67 / OMNEO) ותאימות תכנה עם מוצרים אחרים" style="width:110px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
@@ -7031,9 +7032,10 @@ async function editAmpLink(libKey, bi) {
 function editAmpDb(libKey, biOrField, arg3, arg4) {
   store.ampLib = store.ampLib || {};
   let key, field, val;
-  if (libKey === null) { const bi = biOrField; field = arg3; val = arg4; const bd = AMP_DATA[bi]; key = rearKey(prettyRe(bd.re)); if (!store.ampLib[key]) store.ampLib[key] = { re: null, kind: bd.kind, ch: bd.ch, io: bd.io, w: bd.w, ok: bd.ok }; }
+  if (libKey === null) { const bi = biOrField; field = arg3; val = arg4; const bd = AMP_DATA[bi]; key = rearKey(prettyRe(bd.re)); if (!store.ampLib[key]) store.ampLib[key] = { re: null, kind: bd.kind, ch: bd.ch, mo: bd.mo, io: bd.io, w: bd.w, pw: bd.pw ? { ...bd.pw } : undefined, br: bd.br ? { ...bd.br } : undefined, url: bd.url, pdf: bd.pdf, man: bd.man, ok: bd.ok }; }   /* כל הנתונים עוברים לעותק הנערך — קודם טבלת ההספקים (pw) אבדה בעריכה */
   else { key = libKey; field = biOrField; val = arg3; }
   if (!store.ampLib[key]) return;
+  if (/^pw:/.test(field)) { const o = field.slice(3), rec = store.ampLib[key]; rec.pw = { ...(rec.pw || {}) }; if (val === '' || val == null || !(+val > 0)) delete rec.pw[o]; else rec.pw[o] = +val; rec.ok = true; save(); spkDataManager(); return; }
   if (field === 'ok') store.ampLib[key].ok = (val === true || val === 'true');
   else if (field === 'ch' || field === 'mo') { store.ampLib[key][field] = (val === '' || val == null) ? undefined : (+val || undefined); store.ampLib[key].ok = true; }
   else { store.ampLib[key][field] = val; store.ampLib[key].ok = true; }
