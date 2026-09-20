@@ -216,7 +216,8 @@ createServer(async (req, res) => {
     } catch { res.writeHead(404); res.end('no image'); }
     return;
   }
-  if (path === '/api/rear-image' && req.method === 'POST') {
+  /* /api/rear-front — נתיב נפרד לצילום חזית: שרת ישן שלא מכיר אותו מחזיר שגיאה, במקום לדרוס את צילום הגב */
+  if ((path === '/api/rear-image' || path === '/api/rear-front') && req.method === 'POST') {
     if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }
     const chunks = [];
     req.on('data', c => chunks.push(c));
@@ -226,11 +227,18 @@ createServer(async (req, res) => {
         const m = /^data:(image\/(png|jpeg|jpg|webp|gif));base64,(.+)$/s.exec(b.data || ''); if (!m) throw new Error('קובץ תמונה בלבד (PNG/JPG/WebP)');
         const buf = Buffer.from(m[3], 'base64'); if (buf.length > 6 * 1024 * 1024) throw new Error('עד 6MB');
         const name = String(b.name || '').trim(); if (!name) throw new Error('חסר שם דגם');
-        const slug = 'custom-' + name.toLowerCase().replace(/[^a-z0-9\u0590-\u05ff]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '-' + Date.now().toString(36) + '.' + (m[2] === 'jpeg' ? 'jpg' : m[2]);
+        const isFront = path === '/api/rear-front';
+        const slug = (isFront ? 'front-' : 'custom-') + name.toLowerCase().replace(/[^a-z0-9\u0590-\u05ff]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '-' + Date.now().toString(36) + '.' + (m[2] === 'jpeg' ? 'jpg' : m[2]);
         await storage.write('rear_images/' + slug, buf, m[1]);
         const list = JSON.parse((await readCurated('rear_images.json', 'data/rear_images.json')).toString('utf8'));
         const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const i = list.findIndex(x => x.re === esc && x.custom); const rec = { re: esc, file: slug, model: name, src: 'העלאה ידנית', custom: true };
+        const i = list.findIndex(x => x.re === esc && x.custom); let rec;
+        if (isFront) {
+          /* צילום חזית: נשמר לצד צילום הגב. רשומה אישית לדגם — מעתיקה את צילום הגב והמיקומים מהרשומה הכללית שמתאימה לו, כך ששני דגמים עם אותו גב (IPD 1200 / 2400) יכולים לקבל חזית שונה */
+          const base = i >= 0 ? list[i] : (list.find(x => { try { return new RegExp(x.re, 'i').test(name); } catch { return false; } }) || {});
+          rec = { ...base, re: esc, model: i >= 0 ? base.model : name + (base.model ? ' — ' + base.model : ''), custom: true, front: slug, v: (base.v || 1) + 1 };
+          if (+b.w > 0 && +b.h > 0) { rec.fw = Math.round(+b.w); rec.fh = Math.round(+b.h); } else { delete rec.fw; delete rec.fh; }
+        } else rec = { ...(i >= 0 && list[i].front ? { front: list[i].front, fw: list[i].fw, fh: list[i].fh } : {}), re: esc, file: slug, model: name, src: 'העלאה ידנית', custom: true };
         if (i >= 0) list[i] = rec; else list.unshift(rec);   /* העלאה ידנית גוברת על תמונה מהאתר */
         await storage.writeJson('rear_images.json', list); curInvalidate('rear_images.json');
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ ok: true, rec }));

@@ -1769,6 +1769,7 @@ function rearEdRender() {
   }
   h += `<div style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:11px">
       <label style="flex:1;cursor:pointer;background:#f4f2ec;border-radius:8px;padding:5px 8px;text-align:center">📷 ${hasImg ? 'החלף תמונת גב' : 'העלה תמונת גב (צילום או מדף היצרן) — ואז המחברים נערכים ישירות על התמונה'}<input type="file" accept="image/*" style="display:none" onchange="rearUploadImage(this)"></label>
+      <label style="flex:1;cursor:pointer;background:#eaf1fb;border-radius:8px;padding:5px 8px;text-align:center" title="אפשר גם להעתיק תמונה ולהדביק כאן עם ⌘V / Ctrl+V — היא תיקלט כצילום החזית">🖼 ${rearImage(window.__rearName || '')?.furl ? 'החלף צילום חזית' : 'הוסף צילום חזית'} <small style="color:#555">(או הדבק ⌘V)</small><input type="file" accept="image/*" style="display:none" onchange="rearUploadImage(this,true)"></label>
       ${hasImg ? '<button style="padding:4px 8px" onclick="rearResetPos()" title="מחיקת המיקומים שנקבעו ידנית — חזרה למיקום המוכן / פיזור אחיד">↔ אפס מיקומים</button>' : ''}
     </div>`;
   panel.innerHTML = h;
@@ -1902,19 +1903,24 @@ function rearEdKeys(e) {
 }
 function rearResetPos() { window.__rearDraft.forEach(it => { delete it.x; delete it.y; delete it.side; delete it.w; }); rearEdRender(); }
 function rearSetSide(i, side) { const it = window.__rearDraft[i]; if (!it) return; if (side === 'front') it.side = 'front'; else delete it.side; delete it.x; delete it.y; rearEdRender(); }
-function rearUploadImage(inp) {
-  const f = inp.files && inp.files[0]; if (!f) return;
+function rearUploadImage(inp, front) {
+  const f = inp.files && inp.files[0]; if (!f) return; rearUploadFile(f, front); inp.value = '';
+}
+/* front=true — צילום החזית של הדגם (נשמר לצד צילום הגב ופריסת המחברים הקיימים) */
+function rearUploadFile(f, front) {
   const rd = new FileReader();
-  rd.onload = () => {
-    fetch('/api/rear-image', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: window.__rearName, data: rd.result }) })
-      .then(r => r.json()).then(j => {
+  rd.onload = () => { const im = new Image(); im.onload = () => {
+    fetch(front ? '/api/rear-front' : '/api/rear-image', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: window.__rearName, data: rd.result, w: im.naturalWidth, h: im.naturalHeight }) })
+      .then(r => r.text()).then(t => { let j; try { j = JSON.parse(t); } catch (e) { j = { error: front ? 'השרת עוד לא מכיר צילומי חזית — צריך להפעיל אותו מחדש (קוד שרת חדש)' : 'תשובה לא תקינה מהשרת' }; }
         if (j.error) { alert('העלאה נכשלה: ' + j.error); return; }
         if (typeof REAR_IMAGES !== 'undefined') { const k = REAR_IMAGES.findIndex(x => x.re === j.rec.re && x.custom); if (k >= 0) REAR_IMAGES[k] = j.rec; else REAR_IMAGES.unshift(j.rec); }
-        rearEdRender(); uiToast('תמונת הגב נשמרה בשרת (data/rear_images)');
-      }).catch(e => alert('העלאה נכשלה: ' + e));
-  };
-  rd.readAsDataURL(f); inp.value = '';
+        rearEdRender(); uiToast(front ? '🖼 צילום החזית נשמר' : 'תמונת הגב נשמרה בשרת (data/rear_images)');
+      }).catch(e => alert('העלאה נכשלה: ' + e)); }; im.onerror = () => alert('הקובץ אינו תמונה תקינה'); im.src = rd.result; };
+  rd.readAsDataURL(f);
 }
+/* הדבקת תמונה (⌘V) כשעורך הגב פתוח = צילום החזית של הדגם */
+document.addEventListener('paste', e => { if (!document.getElementById('rearEdPanel') || !window.__rearName) return; const it = [...(e.clipboardData?.items || [])].find(x => x.type && x.type.startsWith('image/')); if (!it) return;
+  const f = it.getAsFile(); if (!f) return; e.preventDefault(); uiConfirm('להשתמש בתמונה שהודבקה כצילום החזית של\n"' + String(window.__rearName).slice(0, 60) + '"?', { okText: 'כן — צילום חזית', cancelText: 'ביטול' }).then(ok => { if (ok) rearUploadFile(f, true); }); });
 /* הוספת מחבר צמוד למחבר הנבחר — משמאלו (after=0) או מימינו (after=1) — לפאנל הסכמטי בלבד */
 function rearInsert(i, after) {
   const a = window.__rearDraft;
