@@ -12709,7 +12709,12 @@ function exportPDF() {
     snap.innerHTML = '<h3>' + title + '</h3>';
     const holder = document.createElement('div');
     let kR = maxW ? Math.min(1, maxW / (xmax + 30), 950 / (ymax + 30)) : k, hw = (xmax + 30) * kR, hh = (ymax + 30) * kR;
-    if (region) { const bw = region.R - region.L, bh = region.B - region.T; kR = Math.min(2.2, (maxW || 700) / bw, 1300 / bh); hw = bw * kR; hh = bh * kR; }
+    if (region) {
+      /* אזור צר וגבוה מורחב לצדדים (סביב המרכז) עד שהוא ממלא את רוחב העמוד — במקום תמונה צרה עם שוליים ריקים */
+      const W0 = maxW || 700, H0 = 1300; let { L, T, R, B } = region;
+      if ((R - L) / (B - T) < W0 / H0) { const need = (B - T) * W0 / H0, cx = (L + R) / 2; L = cx - need / 2; R = cx + need / 2; if (L < 0) { R -= L; L = 0; } if (R > 2200) { L = Math.max(0, L - (R - 2200)); R = 2200; } }
+      region = { L, T, R, B };
+      const bw = R - L, bh = B - T; kR = Math.min(3, W0 / bw, H0 / bh); hw = bw * kR; hh = bh * kR; }
     holder.style.cssText = `width:${Math.round(hw)}px;height:${Math.round(hh)}px;overflow:hidden;border:1px solid #ddd;border-radius:8px;position:relative;margin:0 auto;page-break-inside:avoid`;
     const clone = $('#canvas').cloneNode(true);
     /* ה-CSS של הקנבס והשכבות (#canvas, #wires, #zonesc, #nodes, #bgimg…) תלוי ב-id; ההעתק מאבד את ה-id כדי לא להתנגש —
@@ -12811,13 +12816,13 @@ function exportPDF() {
     document.querySelectorAll('#nodes > .node, #nodes > div.rpTmpLbl').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
     const reg0 = L < Infinity ? { L: Math.max(0, L - 10), T: Math.max(0, T - 10), R: Math.min(2200, R + 10), B: Math.min(1400, B + 10) } : null;
-    snaps.push(makeSnap('תכנית כללית — פריסה וחיווט', reg0, 1000)); }
+    snaps.push(makeSnap('תכנית כללית — פריסה וחיווט', reg0, 950)); }
   /* אזור הפעילות: חיתוך למקום שבו המוקדים והכבלים, מוגדל — כשהתכנית גדולה והציוד מרוכז בפינה */
   { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
     const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
     document.querySelectorAll('#nodes > .node, #nodes > div.rpTmpLbl').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
-    if (L < Infinity && (R - L) < (xmax + 30) * 0.6) { const pad = 60; snaps.push(makeSnap('🔎 אזור הפעילות — תקריב', { L: Math.max(0, L - pad), T: Math.max(0, T - pad), R: Math.min(2200, R + pad), B: Math.min(1400, B + pad) }, 1000)); } }
+    if (L < Infinity && (R - L) < (xmax + 30) * 0.6) { const pad = 60; snaps.push(makeSnap('🔎 אזור הפעילות — תקריב', { L: Math.max(0, L - pad), T: Math.max(0, T - pad), R: Math.min(2200, R + pad), B: Math.min(1400, B + pad) }, 950)); } }
   ovRestore();
   /* שרטוט לכל קטגוריה שיש בה כבלים: מדליקים רק אותה, מרנדרים, מצלמים */
   const CAT_TITLES = { audio: '🔊 שרטוט חיווט סאונד', light: '💡 שרטוט חיווט תאורה', video: '📺 שרטוט חיווט וידאו', data: '🌐 שרטוט רשת ואופטי', power: '⚡ שרטוט חשמל' };
