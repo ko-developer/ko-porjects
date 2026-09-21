@@ -12574,33 +12574,6 @@ function addImported() {
 }
 
 /* ---- דוח PDF ---- */
-/* 🔗 חיבורים בין קופסאות — לכל זוג פאנלים/קופסאות שמחוברים בכבלים: קו לכל כבל, מהחורים בקופסה אחת לחורים בשנייה,
-   עם מספר הכבל, סוג, מחבר בכל צד ואורך. כך רואים בדיוק מה עובר בין הקופסאות */
-function boxLinksHTML() {
-  const isBox = n => n && n.kind === 'panel' && n.panel;
-  const pairs = new Map();
-  (P.cables || []).forEach(c => { const a = byId(c.from), b = byId(c.to); if (!isBox(a) || !isBox(b) || a === b) return; const k = [a.id, b.id].sort().join('|'); if (!pairs.has(k)) pairs.set(k, { a, b, cabs: [] }); pairs.get(k).cabs.push(c); });
-  if (!pairs.size) return '';
-  const LBL = cableLabels();
-  const rng = arr => { const v = [...new Set(arr)].sort((x, y) => x - y), out = []; for (let i = 0; i < v.length; i++) { let j = i; while (j + 1 < v.length && v[j + 1] === v[j] + 1) j++; out.push(j > i ? v[i] + '–' + v[j] : '' + v[i]); i = j; } return out.join(', '); };
-  const holesAt = (c, n) => c.from === n.id ? (c.fromHole ? [c.fromHole] : (c.chans || []).map(x => x.a)) : (c.toHole ? [c.toHole] : (c.chans || []).map(x => x.b));
-  const connAt = (n, hs) => { const t = {}; hs.forEach(h2 => { const hh = n.panel.holes[h2 - 1]; const nm = hh && CONNS[hh.conn] ? CONNS[hh.conn].n : '?'; t[nm] = (t[nm] || 0) + 1; }); return Object.entries(t).map(([k, v]) => (Object.keys(t).length > 1 ? v + '× ' : '') + k).join(' + '); };
-  return `<div class="rp-sec"><h3>🔗 חיבורים בין קופסאות — מה עובר מחור לחור</h3>
-    <p style="font-size:12px;color:#555;margin:0 0 8px">קו לכל כבל: מספרי החורים בכל קופסה, סוג המחבר בכל צד, מספר הכבל והאורך. המספרים = מספרי החורים בשרטוט הפאנל.</p>` +
-    [...pairs.values()].map(({ a, b, cabs }) => {
-      const rows = cabs.map(c => { const ha = holesAt(c, a), hb = holesAt(c, b); return { c, ha, hb, ta: ha.length ? 'חור ' + rng(ha) : '—', tb: hb.length ? 'חור ' + rng(hb) : '—', ca: ha.length ? connAt(a, ha) : '', cb: hb.length ? connAt(b, hb) : '' }; })
-        .sort((x, y) => (Math.min(...x.ha, 999)) - (Math.min(...y.ha, 999)));
-      const RH = 46, W = 900, BX = 250, H = rows.length * RH + 16;
-      const box = (x, n) => `<rect x="${x}" y="2" width="${BX}" height="${H - 4}" rx="10" fill="#f7f7f4" stroke="#bbb"/><text x="${x + BX / 2}" y="${H + 16}" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1e28">${esc(n.name.slice(0, 34))}</text>`;
-      const body = rows.map((r, i) => { const y = 10 + i * RH + RH / 2, col = cableColor(r.c), len = +r.c.len > 0 ? r.c.len + ' מ׳' : '';
-        return `<text x="${W - 14}" y="${y - 3}" text-anchor="start" direction="rtl" font-size="13" font-weight="700" fill="#1a1e28">${esc(r.ta)}</text><text x="${W - 14}" y="${y + 13}" text-anchor="start" direction="rtl" font-size="11" fill="#666">${esc(r.ca)}</text>
-          <text x="${BX - 14}" y="${y - 3}" text-anchor="start" direction="rtl" font-size="13" font-weight="700" fill="#1a1e28">${esc(r.tb)}</text><text x="${BX - 14}" y="${y + 13}" text-anchor="start" direction="rtl" font-size="11" fill="#666">${esc(r.cb)}</text>
-          <circle cx="${W - BX}" cy="${y}" r="5" fill="${col}"/><circle cx="${BX}" cy="${y}" r="5" fill="${col}"/><line x1="${W - BX}" y1="${y}" x2="${BX}" y2="${y}" stroke="${col}" stroke-width="${r.ha.length > 1 ? 5 : 2.5}"/>
-          <rect x="${W / 2 - 150}" y="${y - 13}" width="300" height="26" rx="13" fill="#fff" stroke="${col}" stroke-width="1.5"/><circle cx="${W / 2 + 134}" cy="${y}" r="10" fill="${col}"/><text x="${W / 2 + 134}" y="${y + 4}" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${LBL[r.c.id]}</text>
-          <text x="${W / 2 + 118}" y="${y + 4}" text-anchor="start" direction="rtl" font-size="11.5" fill="#1a1e28">${esc((CTYPES[r.c.type] || {}).n || '')}${r.ha.length > 1 ? ' · ' + r.ha.length + ' ערוצים' : ''}${len ? ' · ' + len : ''}</text>`; }).join('');
-      return `<div style="margin-bottom:18px;page-break-inside:avoid"><svg viewBox="0 0 ${W} ${H + 24}" style="width:100%;max-width:${W}px;display:block;margin:0 auto" font-family="Assistant,Arial,sans-serif">${box(W - BX, a)}${box(0, b)}${body}</svg></div>`;
-    }).join('') + '</div>';
-}
 function cableTableHTML() {
   return `<table class="cablelist"><tr><th>#</th><th>מ־</th><th>אל</th><th>סוג</th><th>כמות</th><th>עובי / מפרט</th><th>מרחק · ירידת מתח</th><th>סטטוס</th><th>הערה</th></tr>` +
     P.cables.map((c, i) => `<tr>
@@ -12688,7 +12661,6 @@ function exportPDF() {
         </div></div>`;
     }).join('') + '</div>';
   }
-  h += boxLinksHTML();
   if (panels.length) {
     h += `<div class="rp-sec"><h3>פאנלים וקופסאות מולטי</h3>` + panels.map(({ t, p, rack }) => {
       const counts = {};
@@ -12894,6 +12866,33 @@ function exportPDF() {
     P.cabVis = JSON.parse(savedVis);
     renderNodes(); renderWires();
   }
+  /* 🔗 חיבורים בין קופסאות — כמו בתכנית: שתי הקופסאות פתוחות עם המסלולים הפנימיים וכל קו בנפרד, רק הכבלים שביניהן, השאר מעומעם */
+  { const isBox = n => n && n.kind === 'panel' && n.panel, pairs = new Map();
+    (P.cables || []).forEach(c => { const a = byId(c.from), b = byId(c.to); if (!isBox(a) || !isBox(b) || a === b) return; const k = [a.id, b.id].sort().join('|'); if (!pairs.has(k)) pairs.set(k, { a, b, cabs: [] }); pairs.get(k).cabs.push(c); });
+    const allCab = P.cables, visSaved = JSON.stringify(P.cabVis || {});
+    for (const { a, b, cabs } of pairs.values()) {
+      const opened = []; [a, b].forEach(n => { if (n.pmin) { n.pmin = false; opened.push(n); } });
+      P.cables = cabs; P.cabVis = { audio: true, light: true, video: true, data: true, power: true };
+      renderNodes(); renderWires();
+      document.querySelectorAll('#nodes > .node').forEach(el => { const id = el.id.replace(/^ndo?_/, ''); el.style.opacity = (id === a.id || id === b.id) ? '' : '0.18'; });
+      const crB = $('#canvas').getBoundingClientRect(), ZB = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+      const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - crB.left) / ZB); T = Math.min(T, (rb.top - crB.top) / ZB); R = Math.max(R, (rb.right - crB.left) / ZB); B = Math.max(B, (rb.bottom - crB.top) / ZB); };
+      document.querySelectorAll('#nodes > .node').forEach(el => { const id = el.id.replace(/^ndo?_/, ''); if (id === a.id || id === b.id) addR(el.getBoundingClientRect()); });
+      document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
+      const reg = L < Infinity ? { L: Math.max(0, L - 30), T: Math.max(0, T - 30), R: Math.min(2200, R + 30), B: Math.min(1400, B + 30) } : null;
+      const LBLb = cableLabels();
+      const sec = makeSnap(`🔗 חיבורים בין קופסאות — ${esc(a.name)} ↔ ${esc(b.name)} (${cabs.length} כבלים)`, reg, 950);
+      const leg = document.createElement('div'); leg.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px;font-size:12px';
+      leg.innerHTML = cabs.map(c => { const hs = (n, isA) => c.from === n.id ? (c.fromHole ? [c.fromHole] : (c.chans || []).map(x => x.a)) : (c.toHole ? [c.toHole] : (c.chans || []).map(x => x.b)); const ha = hs(a), hb = hs(b);
+        const r2 = v => { v = [...new Set(v)].sort((x, y) => x - y); const o = []; for (let i = 0; i < v.length; i++) { let j = i; while (j + 1 < v.length && v[j + 1] === v[j] + 1) j++; o.push(j > i ? v[i] + '–' + v[j] : '' + v[i]); i = j; } return o.join(', '); };
+        return `<span style="border:1.5px solid ${cableColor(c)};border-radius:999px;padding:2px 9px;white-space:nowrap"><b style="background:${cableColor(c)};color:#fff;border-radius:999px;padding:0 6px">${LBLb[c.id]}</b> ${esc((CTYPES[c.type] || {}).n || '')} · חור ${r2(ha) || '—'} → חור ${r2(hb) || '—'}${+c.len > 0 ? ' · ' + c.len + ' מ׳' : ''}</span>`; }).join('');
+      sec.appendChild(leg);
+      document.querySelectorAll('#nodes > .node').forEach(el => { el.style.opacity = ''; });
+      opened.forEach(n => n.pmin = true);
+      P.cables = allCab;
+      snaps.push(sec);
+    }
+    if (pairs.size) { P.cables = allCab; P.cabVis = JSON.parse(visSaved); renderNodes(); renderWires(); } }
   /* 🛤 שרטוט הצנרת: הקווים בהילת הצינור בלבד, כל השאר מעומעם, עם מקרא */
   if ((P.conduits || []).length) {
     const saved2 = P.hideConduits; P.hideConduits = false; renderNodes(); renderWires();
