@@ -54,10 +54,11 @@ function sendText(req, res, code, headers, body) {
 /* store "קל" לדפדפן: הכבדים (תמונת רקע, PDF מקורי, היסטוריית גרסאות = ~40MB על 113 פרויקטים) לא נשלחים —
    רק הפרויקט הפתוח מקבל את תמונת הרקע שלו; השאר מסומנים hasBg/hasPdf/versN ונטענים לפי דרישה מ-/api/project/<id>.
    בשמירה (POST) הדפדפן מחזיר את הפרויקטים בלי הכבדים — hydrateStore משלים אותם מהעותק השמור */
-const HEAVY = ['bg', 'bgPdf', 'vers', 'thumb'];
+const HEAVY = ['bg', 'bgPdf', 'vers', 'thumb', 'sndImg'];
 function liteStore(st, curId) {
   return { ...st, projects: (st.projects || []).map(p => {
-    const { bg, bgPdf, vers, thumb, ...rest } = p;
+    const { bg, bgPdf, vers, thumb, sndImg, ...rest } = p;
+    if (sndImg) { if (p.id === curId) rest.sndImg = sndImg; else rest.hasSnd = true; }   /* צילומי סימולציה מדוח הסאונד */
     if (thumb) rest.hasThumb = true;   /* תמונה ממוזערת של התכנית (לרשימת הפרויקטים) — מוגשת מ-/api/project/<id>/thumb */
     if (bg) { if (p.id === curId) rest.bg = bg; else rest.hasBg = true; }
     if (bgPdf) rest.hasPdf = true;
@@ -69,7 +70,8 @@ function hydrateStore(full, posted) {
   return { ...posted, projects: (posted.projects || []).map(p => {
     if (!p._lite) return p;
     if (!byId.has(p.id)) return null;   /* פרויקט קל שכבר לא קיים בשרת (נמחק מצד אחר) — לא מוחזר לחיים מעותק חלקי */
-    const { _lite, hasBg, hasPdf, hasThumb, versN, ...q } = p, old = byId.get(p.id) || {};
+    const { _lite, hasBg, hasPdf, hasThumb, hasSnd, versN, ...q } = p, old = byId.get(p.id) || {};
+    if (!('sndImg' in q) && hasSnd && old.sndImg) q.sndImg = old.sndImg;
     if (!('thumb' in q) && hasThumb && old.thumb) q.thumb = old.thumb;
     if (!('bg' in q) && hasBg && old.bg) q.bg = old.bg;              /* לא נשלחה תמונה אבל הייתה — נשארת; בלי hasBg = המשתמש מחק */
     if (!('bgPdf' in q) && hasPdf && old.bgPdf) q.bgPdf = old.bgPdf;

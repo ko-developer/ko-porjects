@@ -187,7 +187,7 @@ let SRV = false, srvT = null;
 function liteWire(st) {
   for (const p of st.projects || []) {
     if (!p._lite) continue;
-    for (const [f, flag] of [['bg', 'hasBg'], ['bgPdf', 'hasPdf']]) {
+    for (const [f, flag] of [['bg', 'hasBg'], ['bgPdf', 'hasPdf'], ['sndImg', 'hasSnd']]) {
       if (!p[flag] || Object.prototype.hasOwnProperty.call(p, f)) continue;
       let pending = null;
       const settle = v => Object.defineProperty(p, f, { value: v, writable: true, configurable: true, enumerable: true });
@@ -12576,6 +12576,7 @@ function exportPDF() {
         return `<tr><td><b>${esc(n.name)}</b></td><td>${esc(n.sub || '')}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${n.hgt ?? '—'}</td><td>${esc(n.mount || '—')}</td><td>${cbs || '—'}</td></tr>`;
       }).join('') + '</table></div>';
   }
+  if (typeof sndRepReportHTML === 'function') h += sndRepReportHTML();
   h += routeReportHTML();
   h += mountReportHTML();
   h += `<div class="rp-sec"><h3>מפתח כבלים מלא</h3>${cableTableHTML()}</div>`;
