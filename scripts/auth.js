@@ -134,7 +134,9 @@ export function filterStore(store, user) {
   if (!user || user.role === 'owner') return store;
   const g = user.grants || {};
   const projects = (store.projects || []).filter(p => g[p.id]).map(p => ({ ...p, _perm: g[p.id] }));
-  const cur = projects.some(p => p.id === store.cur) ? store.cur : (projects[0] && projects[0].id) || '';
+  /* הפרויקט הפתוח נשמר לכל מוזמן בנפרד — אחרת ריענון מחזיר אותו לפרויקט הראשון (או לזה שהבעלים פתח) */
+  const want = user.cur || store.cur;
+  const cur = projects.some(p => p.id === want) ? want : (projects[0] && projects[0].id) || '';
   return { cur, projects, rearLib: store.rearLib || {}, ampLib: store.ampLib || {}, _shared: true };
 }
 /* שמירה ממשתמש מוזמן: רק פרויקטים בהרשאת עריכה מוחלפים ב-store המלא; השאר לא נגעו */
@@ -142,9 +144,15 @@ export function mergeStore(full, posted, user) {
   if (!user || user.role === 'owner') return posted;
   const g = user.grants || {};
   const byId = new Map((full.projects || []).map(p => [p.id, p]));
+  let dirty = false;
   for (const p of (posted.projects || [])) {
-    if (g[p.id] === 'edit' && byId.has(p.id)) { const { _perm, ...clean } = p; byId.set(p.id, clean); }
+    const { _perm, ...clean } = p;
+    if (g[p.id] === 'edit' && byId.has(p.id)) byId.set(p.id, clean);
+    /* פרויקט חדש שהמוזמן יצר: נשמר ונרשם לו בהרשאת עריכה — בלי זה הוא נעלם בריענון */
+    else if (!byId.has(p.id) && !p._lite && p.id) { clean.by = clean.by || user.id; byId.set(p.id, clean); user.grants = user.grants || {}; user.grants[p.id] = 'edit'; dirty = true; }
   }
+  if (posted.cur && user.grants && user.grants[posted.cur] && user.cur !== posted.cur) { user.cur = posted.cur; dirty = true; }
+  if (dirty && user.id !== 'owner') persist();
   return { ...full, projects: [...byId.values()] };
 }
 

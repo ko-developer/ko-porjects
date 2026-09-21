@@ -180,6 +180,12 @@ createServer(async (req, res) => {
           const raw = JSON.parse(Buffer.concat(chunks).toString('utf8'));
           const fullSt = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : await readStore(db);
           const posted = hydrateStore(fullSt, raw);   /* משלים תמונות רקע / PDF / גרסאות שהדפדפן לא שלח */
+          /* כמה משתמשים על אותו store: לשונית ישנה לא דורסת פרויקט שנערך אחריה במקום אחר (upd חדש יותר),
+             ופרויקט שחסר ברשימה שנשלחה (נוצר ע"י מוזמן אחרי שהלשונית נטענה) נשמר — נמחק רק מה שב-_del */
+          { const srv = new Map((fullSt.projects || []).map(p => [p.id, p])), del = new Set(raw._del || []), seen = new Set();
+            posted.projects = (posted.projects || []).map(p => { seen.add(p.id); const o = srv.get(p.id); return o && (+o.upd || 0) > (+p.upd || 0) ? o : p; });
+            if (me.role === 'owner') for (const o of fullSt.projects || []) if (!seen.has(o.id) && !del.has(o.id)) posted.projects.push(o);
+            delete posted._del; }
           /* מוזמן: רק הפרויקטים שלו בהרשאת עריכה נכתבים; השאר של הבעלים לא נגעו */
           const merged = me.role !== 'owner' ? mergeStore(fullSt, posted, me) : posted;
           const n = await writeStore(db, merged);

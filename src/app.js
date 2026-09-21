@@ -200,13 +200,27 @@ function liteWire(st) {
     }
   }
 }
+/* שמירה לשרת: מקובצת ל-400ms. srvDirty = יש שינוי שעוד לא אושר ע"י השרת — ריענון/סגירה באמצע
+   שולחים מיד ומבקשים מהדפדפן אישור יציאה, כדי שהשינוי האחרון לא ילך לאיבוד */
+let srvDirty = false, srvInFlight = null;
+function pushSrvNow() {
+  if (!SRV) return Promise.resolve();
+  clearTimeout(srvT); srvT = null;
+  const body = JSON.stringify(store);
+  srvDirty = true;
+  const p = srvInFlight = fetch('/api/store', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: body.length < 60000 })
+    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; } if (!r.ok) console.warn('שמירה לשרת נכשלה', r.status); })
+    .catch(() => {});
+  return p;
+}
 function pushSrv() {
   if (!SRV) return;
+  srvDirty = true;
   clearTimeout(srvT);
-  srvT = setTimeout(() => {
-    fetch('/api/store', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(store) }).catch(() => {});
-  }, 800);
+  srvT = setTimeout(pushSrvNow, 400);
 }
+window.addEventListener('beforeunload', e => { if (SRV && srvDirty) { if (srvT) pushSrvNow(); e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && srvT) pushSrvNow(); });
 
 function load() {
   try {
@@ -261,6 +275,7 @@ function renderHistBtns() {
 }
 function save() {
   store.cur = P.id;
+  P.upd = Date.now();   /* חותמת עריכה — השרת לא ידרוס עותק חדש יותר (של משתמש אחר) בעותק ישן מלשונית פתוחה */
   thumbSync();
   if (typeof impItems !== 'undefined') P.impSaved = impItems;
   verSnapshot();
@@ -453,6 +468,7 @@ function dupProj() { const p = JSON.parse(JSON.stringify(P)); p.id = uid('p'); p
 async function delProj() {
   if (store.projects.length === 1) { alert('חייב להישאר לפחות פרויקט אחד'); return; }
   if (!(await uiConfirm('למחוק את הפרויקט "' + P.name + '"?'))) return;
+  store._del = [...(store._del || []), P.id];   /* מחיקה מפורשת — השרת לא ישמור פרויקט רק כי הוא חסר ברשימה */
   store.projects = store.projects.filter(p => p.id !== P.id);
   P = store.projects[0]; sel = selCable = null; impItems = P.impSaved || []; render();
 }
@@ -547,6 +563,7 @@ async function pmDeleteSel() {
   if (store.projects.length - ids.length < 1) { alert('חייב להישאר לפחות פרויקט אחד'); return; }
   const withOffer = ids.filter(id => store.projects.find(p => p.id === id)?.offerSent).length;
   if (!(await uiConfirm(`למחוק ${ids.length} פרויקטים לצמיתות?${withOffer ? '\n⚠ ' + withOffer + ' מהם עם הצעה שכבר נשלחה ל-ERP!' : ''}`, { okText: '🗑 מחק ' + ids.length }))) return;
+  store._del = [...(store._del || []), ...ids];
   store.projects = store.projects.filter(p => !ids.includes(p.id));
   if (!store.projects.find(p => p.id === P.id)) { P = store.projects[0]; impItems = P.impSaved || []; sel = null; selCable = null; }
   window.__pmSel.clear();
