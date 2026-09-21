@@ -8017,6 +8017,17 @@ const conduitTag = cd => (cd.kind === 'tray' ? 'ת' : 'צ') + conduitNum(cd) + (
 let conduitMode = null, WIREGEO = {};
 /* ===== תוואי צינור/תעלה על התכנית: cd.path = [{x,y}…] בקואורדינטות הקנבס. כל כבל שמשויך לצינור מצויר לאורך התוואי (renderWires), והאורכים נמדדים לאורכו ===== */
 let cdPathMode = null, cdPathDrag = null, cdPathTap = { i: -1, t: 0 };
+/* חזרה אחורה/קדימה בתוך עריכת התוואי — צילום של הנקודות לפני כל שינוי */
+let cdPathHist = { past: [], future: [] };
+function cdPathSnap(cd) { cdPathHist.past.push(JSON.stringify(cd.path || [])); if (cdPathHist.past.length > 100) cdPathHist.past.shift(); cdPathHist.future = []; }
+function cdPathUndo(redo) {
+  const cd = cdPathMode && cdById(cdPathMode.id); if (!cd) return;
+  const from = redo ? cdPathHist.future : cdPathHist.past, to = redo ? cdPathHist.past : cdPathHist.future;
+  if (!from.length) return;
+  to.push(JSON.stringify(cd.path || [])); cd.path = JSON.parse(from.pop()); cdPathDrag = null;
+  cdPathBar(); renderWires();
+}
+window.cdPathUndo = cdPathUndo;
 const cdById = id => (P.conduits || []).find(x => x.id === id);
 const polyLen = pts => pts.reduce((a, q, i) => i ? a + Math.hypot(q.x - pts[i - 1].x, q.y - pts[i - 1].y) : 0, 0);
 function polyAt(pts, dist) { for (let i = 1; i < pts.length; i++) { const L = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); if (dist <= L || i === pts.length - 1) { const t = L ? Math.min(1, dist / L) : 0; return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * t }; } dist -= L; } return pts[0]; }
@@ -8050,13 +8061,14 @@ function cdEffPaths() {
     return { base, ids: g.map(cd => cd.id), tot }; });
   return out;
 }
-function cdPathStart(id) { const cd = cdById(id); if (!cd) return; cd.path = cd.path || []; cdPathMode = { id }; conduitMode = null; const ov = document.querySelector('#routeOv'); if (ov) (ov.closest('.uiDlgOv') || ov).remove(); P.hideConduits = false; cdPathBar(); render(); }
+function cdPathStart(id) { const cd = cdById(id); if (!cd) return; cd.path = cd.path || []; cdPathMode = { id }; cdPathHist = { past: [], future: [] }; conduitMode = null; const ov = document.querySelector('#routeOv'); if (ov) (ov.closest('.uiDlgOv') || ov).remove(); P.hideConduits = false; cdPathBar(); render(); }
 function cdPathEnd() { const cd = cdPathMode && cdById(cdPathMode.id); cdPathMode = null; cdPathDrag = null; cdPathBar(); if (cd) { if (cd.path && cd.path.length < 2) delete cd.path; if (cd.path && P.scale) cd.len = +(polyLen(cd.path) * P.scale).toFixed(1); } recalcCableLengths(); render(); save(); }
-function cdPathClear() { const cd = cdPathMode && cdById(cdPathMode.id); if (cd) cd.path = []; cdPathBar(); renderWires(); }
+function cdPathClear() { const cd = cdPathMode && cdById(cdPathMode.id); if (cd && (cd.path || []).length) { cdPathSnap(cd); cd.path = []; } cdPathBar(); renderWires(); }
 function cdPathBar() { const old = document.getElementById('cdPathBar'); if (old) old.remove(); if (!cdPathMode) return; const cd = cdById(cdPathMode.id); if (!cd) { cdPathMode = null; return; }
   const col = conduitColor(cd), n = (cd.path || []).length, m = n > 1 && P.scale ? ' · ' + (polyLen(cd.path) * P.scale).toFixed(1) + ' מ׳' : '';
   const bar = document.createElement('div'); bar.id = 'cdPathBar'; bar.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:82;background:#1a1e28;color:#fff;border-radius:12px;padding:7px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 30px rgba(0,0,0,.4);direction:rtl;font-size:12.5px;max-width:96vw;flex-wrap:wrap';
   bar.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${col}"></span><b>✏ תוואי ${esc(conduitTag(cd))} · ${esc(cd.name)}</b><span>לחיצה על התכנית = נקודה חדשה · גרירה = הזזה · לחיצה על הקו = נקודה באמצע · לחיצה כפולה על נקודה = מחיקה · Shift = קו ישר</span><b style="color:#8fe0b5">${n} נקודות${m}</b>
+    <button title="חזור צעד אחורה (Ctrl+Z)" ${cdPathHist.past.length ? '' : 'disabled'} style="padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700;${cdPathHist.past.length ? '' : 'opacity:.4'}" onclick="cdPathUndo()">↶ אחורה</button><button title="קדימה (Ctrl+Shift+Z)" ${cdPathHist.future.length ? '' : 'disabled'} style="padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700;${cdPathHist.future.length ? '' : 'opacity:.4'}" onclick="cdPathUndo(true)">קדימה ↷</button>
     <button style="padding:5px 10px;border-radius:8px;border:none;cursor:pointer" onclick="cdPathClear()">נקה</button><button style="padding:5px 10px;border-radius:8px;border:none;cursor:pointer;background:#0f6e56;color:#fff;font-weight:700" onclick="cdPathEnd()">✓ סיום</button>`;
   document.body.appendChild(bar); }
 window.cdPathStart = cdPathStart; window.cdPathEnd = cdPathEnd; window.cdPathClear = cdPathClear;
@@ -8064,6 +8076,7 @@ window.cdPathStart = cdPathStart; window.cdPathEnd = cdPathEnd; window.cdPathCle
 document.addEventListener('pointerdown', e => { if (!cdPathMode || e.button) return; if (!e.target.closest || !e.target.closest('#canvasWrap') || e.target.closest('#cdPathBar')) return;
   const cd = cdById(cdPathMode.id); if (!cd) return; e.stopPropagation(); e.preventDefault(); cd.path = cd.path || [];
   const hp = e.target.closest('[data-cdpt]'), hs = e.target.closest('[data-cdseg]'), pt = canvasPt(e); let i;
+  cdPathSnap(cd);   /* לחיצה בלי שינוי (טאפ על נקודה) — הצילום מוסר ב-pointerup */
   if (hp) { i = +hp.dataset.cdpt; if (cdPathTap.i === i && Date.now() - cdPathTap.t < 400) { cd.path.splice(i, 1); cdPathTap = { i: -1, t: 0 }; cdPathBar(); renderWires(); return; } cdPathTap = { i, t: Date.now() }; }
   else if (hs) { i = +hs.dataset.cdseg + 1; cd.path.splice(i, 0, { x: pt.x, y: pt.y }); }
   else { /* נקודה חדשה בקצה הקרוב יותר */ const f = cd.path[0], l = cd.path[cd.path.length - 1]; if (cd.path.length > 1 && Math.hypot(pt.x - f.x, pt.y - f.y) < Math.hypot(pt.x - l.x, pt.y - l.y)) { cd.path.unshift({ x: pt.x, y: pt.y }); i = 0; } else { cd.path.push({ x: pt.x, y: pt.y }); i = cd.path.length - 1; } }
@@ -8073,8 +8086,9 @@ function cdPathMove(e) { const cd = cdPathMode && cdById(cdPathMode.id); if (!cd
   for (const nb of [cd.path[cdPathDrag.i - 1], cd.path[cdPathDrag.i + 1]]) { if (!nb) continue; const dx = Math.abs(nb.x - x), dy = Math.abs(nb.y - y); if (e.shiftKey) { if (dx < dy) x = nb.x; else y = nb.y; break; } if (dx < TH) x = nb.x; if (dy < TH) y = nb.y; }
   q.x = x; q.y = y; renderWires(); }
 document.addEventListener('pointermove', e => { if (cdPathMode && cdPathDrag) { e.stopPropagation(); cdPathMove(e); } }, true);
-document.addEventListener('pointerup', e => { if (cdPathMode && cdPathDrag) { e.stopPropagation(); cdPathDrag = null; cdPathBar(); renderWires(); } }, true);
-document.addEventListener('keydown', e => { if (cdPathMode && (e.key === 'Escape' || e.key === 'Enter')) { e.preventDefault(); cdPathEnd(); } });
+document.addEventListener('pointerup', e => { if (cdPathMode && cdPathDrag) { e.stopPropagation(); cdPathDrag = null; const cd = cdById(cdPathMode.id), H = cdPathHist.past; if (cd && H.length && H[H.length - 1] === JSON.stringify(cd.path || [])) H.pop(); cdPathBar(); renderWires(); } }, true);
+document.addEventListener('keydown', e => { if (!cdPathMode) return; if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); cdPathEnd(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) { e.preventDefault(); e.stopImmediatePropagation(); cdPathUndo(e.shiftKey || e.key === 'y'); } }, true);
 function conduitPickStart(id) {
   const cd = (P.conduits || []).find(x => x.id === id); if (!cd) return;
   conduitMode = { id }; const ov = document.querySelector('#routeOv'); if (ov) ov.closest('.uiDlgOv').remove();
