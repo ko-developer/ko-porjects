@@ -4027,10 +4027,11 @@ function renderWires() {
     out += `<line x1="${px}" y1="${py}" x2="${qx}" y2="${qy}" stroke="#6b6558" stroke-width="1" stroke-dasharray="4 3" style="pointer-events:none"/><circle cx="${px}" cy="${py}" r="3.2" fill="#fff" stroke="#6b6558" stroke-width="1.4" style="pointer-events:none"/><circle cx="${px}" cy="${py}" r="1.2" fill="#6b6558" style="pointer-events:none"/>`; }
   /* תגי הצינורות: לכל צרור עמודה/שורה מסודרת של תגים לצד המקטע הארוך שלו, בסדר הצינורות, עם קו מוביל קצר אל הרצועה של כל צינור */
   if (!P.hideConduits) for (const g of cdEff.__groups || []) { const base = g.base; let si = 1, sl = 0; for (let i = 1; i < base.length; i++) { const L = Math.hypot(base[i].x - base[i - 1].x, base[i].y - base[i - 1].y); if (L > sl) { sl = L; si = i; } }
-    const A = base[si - 1], B = base[si], vert = Math.abs(B.y - A.y) >= Math.abs(B.x - A.x), M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 }, n = g.ids.length, sf = Math.min(1, 1.25 / ZW), BW = 66 * sf, BH = 15 * sf, PAD = 3 * sf;   /* התגים בגודל קבוע על המסך — לא מתנפחים בזום */
+    const A = base[si - 1], B = base[si], vert = Math.abs(B.y - A.y) >= Math.abs(B.x - A.x), M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 }, n = g.ids.length, sf = Math.min(1, 1.25 / ZW), BW = 108 * sf, BH = 15 * sf, PAD = 3 * sf;   /* התגים בגודל קבוע על המסך — לא מתנפחים בזום */
     /* כיוון הנורמל של polyOffset במקטע הזה — כדי לדעת היכן יושבת הרצועה של כל צינור */
     const L0 = Math.hypot(B.x - A.x, B.y - A.y) || 1, nx = -(B.y - A.y) / L0, ny = (B.x - A.x) / L0;
     g.ids.map(id => cdById(id)).forEach((cd, i) => { const ef = cdEff[cd.id], col = conduitColor(cd), cnt = (P.cables || []).filter(c => c.conduit === cd.id).length, f = conduitFill(cd);
+      const lenM = +cd.len > 0 ? +cd.len : (cd.path && cd.path.length > 1 && P.scale ? +(polyLen(cd.path) * P.scale).toFixed(1) : 0);
       const bandPt = { x: M.x + nx * ef.off, y: M.y + ny * ef.off }; let bx, by, lx, ly;
       if (vert) { by = M.y + (i - (n - 1) / 2) * (BH + PAD); bx = M.x + g.tot / 2 + 16 * sf + BW / 2; lx = bx - BW / 2; ly = by; bandPt.y = by; }
       else { bx = M.x + (i - (n - 1) / 2) * (BW + PAD); by = M.y - g.tot / 2 - 12 * sf - BH / 2; lx = bx; ly = by + BH / 2; bandPt.x = bx; }
@@ -4038,7 +4039,7 @@ function renderWires() {
         <g style="pointer-events:all;cursor:pointer" onclick="routeManager()"><title>${esc(cd.name)} · ${cd.kind === 'tray' ? 'תעלה ' + cd.size : 'צינור Ø' + cd.size + ' מ״מ'} · ${cnt} כבלים · מילוי ${Math.round(f.pct * 100)}%${cd.len ? ' · ' + cd.len + ' מ׳' : ''} — לחיצה פותחת את מסך הצנרת</title>
         <rect x="${bx - BW / 2}" y="${by - BH / 2}" width="${BW}" height="${BH}" rx="${4 * sf}" fill="#fff" stroke="${col}" stroke-width="${1.4 * sf}"/><rect x="${bx + BW / 2 - 21 * sf}" y="${by - BH / 2}" width="${21 * sf}" height="${BH}" rx="${4 * sf}" fill="${col}"/>
         <text x="${bx + BW / 2 - 10.5 * sf}" y="${by + 3.2 * sf}" text-anchor="middle" font-size="${9 * sf}" font-weight="800" fill="#fff" style="user-select:none">${cd.kind === 'tray' ? 'ת' : 'צ'}${conduitNum(cd)}</text>
-        <text x="${bx - 10 * sf}" y="${by + 3.2 * sf}" text-anchor="middle" font-size="${8.5 * sf}" font-weight="700" fill="${f.ok ? '#333' : '#c1121f'}" direction="ltr" style="user-select:none;unicode-bidi:isolate">${cd.kind === 'tray' ? esc(String(cd.size)) : 'Ø' + cd.size} · ${cnt}</text></g>`; }); }
+        <text x="${bx - 10 * sf}" y="${by + 3.2 * sf}" text-anchor="middle" font-size="${8.5 * sf}" font-weight="700" fill="${f.ok ? '#333' : '#c1121f'}" direction="ltr" style="user-select:none;unicode-bidi:isolate">${cd.kind === 'tray' ? esc(String(cd.size)) : 'Ø' + cd.size} · ${cnt}${lenM ? ' · ' + lenM + 'm' : ''}</text></g>`; }); }
   /* עריכת תוואי: הקו המקורי ששורטט, ידיות לנקודות ומקטעים לחיצים */
   if (cdPathMode) { const cd = cdById(cdPathMode.id), pp = (cd && cd.path) || [], col = cd ? conduitColor(cd) : '#555';
     if (pp.length > 1) out += `<polyline points="${pp.map(q => q.x + ',' + q.y).join(' ')}" fill="none" stroke="${col}" stroke-width="2.2" stroke-dasharray="6 4" style="pointer-events:none"/>`;
