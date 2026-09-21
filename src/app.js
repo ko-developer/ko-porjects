@@ -11036,8 +11036,9 @@ function zoneSystemBuilder(z) {
       ${typeof erpQuotesDialog === 'function' && !(window.__AUTH && window.__AUTH.user && window.__AUTH.user.role !== 'owner') ? `<button style="width:100%;margin:2px 0 6px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="selZone='${zid}';erpQuotesDialog()" title="הפריטים של הצעת מחיר קיימת ב-ERP נכנסים להצעה ומוצבים באזור הזה — כמו בחירת קיט">🧾 או מהצעת מחיר קיימת ב-ERP → הצב באזור</button>` : ''}`;
     })()}
     ${res.length ? `<div style="max-height:120px;overflow-y:auto;margin-bottom:6px">${res.map(r => { const isSub = /סאב|sub|NOMOS|TILL\s?18|SB-?18|וופר/i.test(r.name); return `<button style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;margin-bottom:3px;font-size:11px" onclick="pickZoneSpk('${zid}','${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}',${isSub})"><span style="flex:1;text-align:right">${isSub ? '🔈 סאב' : '🔊 רמקול'}: ${esc(r.name.slice(0, 36))}</span>${stockTag(r.key)}</button>`; }).join('')}</div>` : ''}
-    <div class="fld"><label>רמקול נבחר</label><div style="font-size:12px">${z._spk ? '🔊 ' + esc(z._spk) : '— (בחר מהחיפוש) —'}</div></div>
-    <div class="fld"><label>סאב נבחר</label><div style="font-size:12px">${z._sub ? '🔈 ' + esc(z._sub) + ' <button style="padding:0 6px" onclick="setZoneField(\'' + zid + '\',\'_sub\',\'\')">✕</button>' : '— (אופציונלי) —'}</div></div>
+    <div class="fld"><label>רמקול נבחר</label><div style="font-size:12px">${z._spk ? zoneSpkPinBtn(z, false) + '🔊 ' + esc(z._spk) : '— (בחר מהחיפוש) —'}</div></div>
+    <div class="fld"><label>סאב נבחר</label><div style="font-size:12px">${z._sub ? zoneSpkPinBtn(z, true) + '🔈 ' + esc(z._sub) + ' <button style="padding:0 6px" onclick="setZoneField(\'' + zid + '\',\'_sub\',\'\')">✕</button>' : '— (אופציונלי) —'}</div></div>
+    ${z._spk || z._sub ? `<div style="font-size:10.5px;color:#8a5a00;margin:-4px 0 6px">📌 לחץ על הנעץ ואז על התכנית — כל נקירה מציבה רמקול אחד ומוסיפה אותו להצעה (Esc לסיום)</div>` : ''}
 
     ${(() => {
       const isSubN = nm => /סאב|\bsub\b/i.test(nm);
@@ -12282,6 +12283,25 @@ function delZone(id) {
   if (selZone === id) selZone = null;
   render();
 }
+/* 📌 נעיצת הרמקול/הסאב הנבחר של האזור: שורת הצעה אחת לדגם (לפי מק״ט/שם), כל נקירה = +1 בהצעה */
+function zoneSpkItem(z, isSub, mk) {
+  const name = isSub ? z._sub : z._spk, key = (isSub ? z._subKey : z._spkKey) || '';
+  if (!name) return null;
+  let it = impItems.find(x => x.dest === 'point' && (key ? x.key === key : !x.key && x.name === name));
+  if (!it && mk) { it = { on: true, qty: 0, placed: 0, name, key: key || undefined, src: 'אזור · ' + z.name, dest: 'point', cat: 'other', u: 1, iid: uid('i'), zpin: true }; autoPrice(it); impItems.push(it); }
+  return it;
+}
+function zoneSpkPinBtn(z, isSub) {
+  const it = zoneSpkItem(z, isSub, false), on = !!(it && pinMode && pinMode.iid === it.iid);
+  return `<button onclick="zoneSpkPin('${z.id}',${isSub})" title="נעץ על התכנית — כל לחיצה על התכנית מוסיפה ${isSub ? 'סאב' : 'רמקול'} אחד להצעה" style="padding:0 6px;margin-left:4px;font-size:13px;${on ? 'background:#ff8a50;color:#fff' : ''}">📌${it && it.placed ? ' ' + it.placed : ''}</button>`;
+}
+function zoneSpkPin(zid, isSub) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  const it = zoneSpkItem(z, isSub, true); if (!it) return;
+  const was = pinMode && pinMode.iid === it.iid;
+  togglePin(it.iid);
+  if (!was) uiToast('📌 לחץ על התכנית להצבת ' + (isSub ? 'סאב' : 'רמקול') + ' — כל נקירה מוסיפה אחד להצעה · Esc לסיום');
+}
 function togglePin(iid) {
   pinMode = (pinMode && pinMode.iid === iid) ? null : { iid };
   wireMode = null; wireStock = null; connPin = null; /* מצב אחד בלבד בכל רגע */
@@ -12351,7 +12371,7 @@ function dropImported(it, pt, nel, clientY) {
   /* סמן ממוזער — ממורכז בדיוק על נקודת הנקירה */
   const mx = Math.max(0, 2200 - pt.x - 20), my = Math.max(0, pt.y - 36);
   const from = 'מתוך: ' + (it.src || '');
-  const num = it.qty > 1 ? ` (${(it.placed || 0) + 1})` : '';
+  const num = (it.qty > 1 || it.zpin) ? ` (${(it.placed || 0) + 1})` : '';   /* zpin = נעיצה מהאזור, הכמות גדלה בכל נקירה — ממספרים מהראשון */
   switch (it.dest) {
     case 'point':
       P.nodes.push({ id: uid('n'), kind: 'point', name: it.name + num, sub: from, x: mx, y: my, srcIid: it.iid });
