@@ -9981,6 +9981,19 @@ function autoPrice(it) {
   if ((it.price == null || it.price === '') && it.key) { const inf = erpInfo(it.key); if (inf && inf.price) it.price = inf.price; }
 }
 /* חיפוש מאוחד: קיטים + פריטי ERP — הוספה ונעיצה בקליק */
+/* סיווג תוצאת חיפוש: קודם המוצר עצמו (רמקול/מגבר/ציוד), אחר כך מתקנים ואביזרים, כבלים, ובסוף חלקי חילוף */
+const SRCH_CATS = [['spk', '🔊 רמקולים'], ['amp', '🎚 מגברים'], ['gear', '🎛 ציוד'], ['mount', '🔩 מתקנים ואביזרים'], ['cable', '🧵 כבלים'], ['spare', '🛠 חלקי חילוף']];
+function srchCat(name) {
+  const n = String(name || '');
+  if (/ת\.ח|חלקי?\s?חילוף|recone|diaphragm|דיאפרגמ|\bgrill\b|גריל|אלמנט ל|driver for|לתיקון|פגום/i.test(n)) return 'spare';
+  if (/^\s*(כבל|גליל|מחבר|קונקטור)|\bcable\b/i.test(n)) return 'cable';
+  if (/מתקן|תושבת|ברקט|bracket|yoke|יוק|flybar|פלייבר|כיסוי|cover|קייס|\bcase\b|מתאם|adapter|כננת|סטנד|חצובה|מעמד/i.test(n) || (typeof isAccessory === 'function' && isAccessory(n))) return 'mount';
+  if (/כבל|גליל/.test(n)) return 'cable';
+  if (/מגבר|amplif|\bamp\b/i.test(n)) return 'amp';
+  if (typeof isSpeakerItem === 'function' && isSpeakerItem(n)) return 'spk';
+  return 'gear';
+}
+let dockCat = '';
 function dockSearchResults(q) {
   /* חיפוש לא תלוי-רישיות ומפוצל למילים — "funktion f81" מוצא "רמקול FUNKTION ONE F81".
      בלי זה, שם מוצר באנגלית גדולה לא נמצא בהקלדה קטנה, וזה נראה כאילו הפריט לא קיים. */
@@ -9988,7 +10001,7 @@ function dockSearchResults(q) {
   if (!toks.length) return [];
   const hit = t => { const l = String(t).toLowerCase(); return toks.every(k => l.includes(k)); };
   const res = [], seen = new Set();
-  const CAP = 40;
+  const CAP = 400;   /* אוספים הרבה וחותכים אחרי המיון — אחרת חלקי חילוף "גונבים" את המקומות לפני המוצרים */
   const K = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [];
   const userK = (store.userKits || []);
   /* קיטים קודם — הם התשובה הכי "גדולה" לחיפוש */
@@ -10007,8 +10020,10 @@ function dockSearchResults(q) {
     for (const [k, n] of ERP_ITEMS) addItem(n, k);
   /* קיטים נשארים בראש; המוצרים ממוינים לפי מלאי ואז לפי מכירה אחרונה */
   const kits2 = res.filter(r => r.type === 'kit');
-  const items2 = res.filter(r => r.type !== 'kit').sort((a, b) => byStockThenSold(a.key, b.key));
-  return [...kits2, ...items2];
+  const RK = Object.fromEntries(SRCH_CATS.map(([c], i) => [c, i]));
+  const items2 = res.filter(r => r.type !== 'kit').map(r => (r.cat = srchCat(r.name), r))
+    .sort((a, b) => (RK[a.cat] - RK[b.cat]) || ((/השכר/.test(a.name) ? 1 : 0) - (/השכר/.test(b.name) ? 1 : 0)) || byStockThenSold(a.key, b.key));
+  return [...kits2.slice(0, 10), ...items2.slice(0, 80)];
 }
 function pickSearchItem(name, key) {
   /* מצב החלפה — התוצאה מחליפה את הפריט המסומן במקום להוסיף חדש */
@@ -10493,7 +10508,12 @@ function renderImp() {
       <button style="width:100%;margin-top:8px;background:#0f6e56;color:#fff;font-weight:800;padding:10px" onclick="sendOffer()">📤 שלח הצעה ל-ERP</button>`
     : '<p class="muted">חפש למעלה מוצר או קיט, לחץ עליו — ונקר אותו על התכנית. כל נעיצה נרשמת כאן עם האזור והמחיר.</p>';
   const q = dockQ.trim();
-  const results = q ? dockSearchResults(q) : [];
+  const allRes = q ? dockSearchResults(q) : [];
+  const catN = {}; allRes.forEach(r => { if (r.cat) catN[r.cat] = (catN[r.cat] || 0) + 1; });
+  const results = dockCat ? allRes.filter(r => r.cat === dockCat) : allRes;
+  let lastCat = null;
+  const catBar = q && allRes.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin:-2px 0 6px"><button onclick="dockCat='';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat ? '' : 'background:#1a1e28;color:#fff'}">הכל ${allRes.length}</button>${SRCH_CATS.filter(([c]) => catN[c]).map(([c, l]) => `<button onclick="dockCat='${c}';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat === c ? 'background:#1a1e28;color:#fff' : ''}">${l} ${catN[c]}</button>`).join('')}</div>` : '';
+  const catHdr = r => { if (dockCat || !r.cat || r.cat === lastCat) return ''; lastCat = r.cat; return `<div style="font-size:11px;font-weight:800;color:#666;margin:6px 2px 2px">${(SRCH_CATS.find(x => x[0] === r.cat) || [])[1] || ''}</div>`; };
   dk.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:6px">
       <h3 style="font-size:14px;flex:1;margin:0">🧾 הצעת מחיר · פריטים (${impItems.length})</h3>
       ${pinMode ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 נקר על התכנית (Esc לסיום)</span>' : ''}
@@ -10504,10 +10524,10 @@ function renderImp() {
       <button onclick="dockWide=!dockWide;renderImp()" title="${dockWide ? 'חזרה מהמסך המלא' : 'הרחב על כל המסך'}" style="${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '⤡' : '⤢'}</button>
       <button onclick="dockMin=true;renderImp()" title="צמצם הצידה">◀</button>
     </div>
-    <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` +
+    <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` + catBar +
     (results.length ? results.map(r => r.type === 'kit'
       ? `<div class="crow" onclick="pickKitInline(${r.i})"><span class="badge" style="background:#534ab7">${r.n}</span><span class="txt"><b>🧰 ${esc(r.name)}</b> · קיט מלא</span></div>`
-      : `<div class="crow" onclick="pickSearchItem('${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span>${imgCell(r.key, 28)}<span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`
+      : catHdr(r) + `<div class="crow" onclick="pickSearchItem('${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span>${imgCell(r.key, 28)}<span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`
     ).join('') + '<div style="border-bottom:1px solid #eee;margin:8px 0"></div>' : '') +
     body;
 }
