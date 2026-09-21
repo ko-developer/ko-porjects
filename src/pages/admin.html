@@ -49,7 +49,7 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
         var own = u.role === 'owner';
         uh += '<tr><td><b>' + esc(u.name) + '</b></td><td>' + esc(u.email) + '</td><td>' + (own ? '<span class="b own">בעלים</span>' : '<span class="b v">מוזמן</span>') + '</td>' +
           '<td>' + (own ? '<span class="muted">הכל</span>' : (u.projects.length ? u.projects.map(function (p) {
-            return '<div>' + esc(p.name) + ' <select data-grant="' + esc(u.id) + '|' + esc(p.id) + '"><option value="edit"' + (p.perm === 'edit' ? ' selected' : '') + '>עריכה</option><option value="view"' + (p.perm === 'view' ? ' selected' : '') + '>צפייה</option><option value="none">הסר</option></select></div>';
+            return '<div style="margin-bottom:3px"><a href="/?open=' + encodeURIComponent(p.id) + '" style="color:#185fa5;font-weight:700;text-decoration:none" title="פתח את הפרויקט באפליקציה">📂 ' + esc(p.name) + '</a>' + (p.created ? ' <span class="b own">נוצר על ידו</span>' : ' <span class="b v">שותף איתו</span>') + ' <span class="muted">' + (p.nodes || 0) + ' מוקדים' + (p.upd > 1e12 ? ' · עודכן ' + fmt(p.upd) : '') + '</span> <select data-grant="' + esc(u.id) + '|' + esc(p.id) + '"><option value="edit"' + (p.perm === 'edit' ? ' selected' : '') + '>עריכה</option><option value="view"' + (p.perm === 'view' ? ' selected' : '') + '>צפייה</option><option value="none">הסר</option></select></div>';
           }).join('') : '<span class="muted">אין</span>')) + '</td>' +
           '<td>' + fmt(u.createdAt) + '</td><td>' + fmt(u.lastLogin) + '</td>' +
           '<td>' + (u.blocked ? '<span class="b no">חסום</span>' : '<span class="b">פעיל</span>') + '</td>' +

@@ -239,9 +239,12 @@ export async function handleAuth(req, res, path, store) {
     }
     if (path === '/api/admin/users' && method === 'GET') {
       if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
-      const pn = Object.fromEntries((store.projects || []).map(p => [p.id, p.name]));
+      const pn = Object.fromEntries((store.projects || []).map(p => [p.id, p.name])), pById = new Map((store.projects || []).map(p => [p.id, p]));
+      /* לכל משתמש: פרויקטים ששותפו איתו + פרויקטים שהוא יצר (by), עם זמן עריכה אחרון — כדי לפתוח אותם מהאפליקציה */
+      const projOf = u => { const g = { ...(u.grants || {}) }; for (const p of store.projects || []) if (p.by === u.id && !g[p.id]) g[p.id] = 'edit';
+        return Object.entries(g).filter(([id]) => pById.has(id)).map(([id, perm]) => { const p = pById.get(id); return { id, name: pn[id] || id, perm, created: p.by === u.id, upd: +p.upd || null, nodes: (p.nodes || []).length }; }).sort((a, b) => (b.upd || 0) - (a.upd || 0)); };
       return json(res, 200, {
-        users: db.users.map(u => ({ ...publicUser(u), createdAt: u.createdAt, lastLogin: u.lastLogin || null, projects: Object.entries(u.grants || {}).map(([id, perm]) => ({ id, name: pn[id] || id, perm })) })),
+        users: db.users.map(u => ({ ...publicUser(u), createdAt: u.createdAt, lastLogin: u.lastLogin || null, projects: projOf(u) })),
         invites: db.invites.map(i => ({ token: i.token, url: origin(req) + '/join/' + i.token, uses: (i.uses || []).length, valid: inviteValid(i), projects: i.projects.map(id => pn[id] || id), perm: i.perm, email: i.email, label: i.label, createdAt: i.createdAt, exp: i.exp, usedBy: i.usedBy ? (db.users.find(u => u.id === i.usedBy) || {}).email : null, revoked: !!i.revoked })),
       }), true;
     }

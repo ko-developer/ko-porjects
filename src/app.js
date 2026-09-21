@@ -176,6 +176,9 @@ let SRV = false, srvT = null;
       if (typeof impItems !== 'undefined') impItems = P.impSaved || [];
       try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
       render(); if (typeof viewToContent === 'function') viewToContent();
+      /* ?open=<id> — פתיחת פרויקט ישירות (מדף המשתמשים / מנהל הפרויקטים) */
+      const op = new URLSearchParams(location.search).get('open');
+      if (op && store.projects.some(p => p.id === op)) { switchProj(op); store.cur = op; history.replaceState(null, '', location.pathname); }
     } else {
       pushSrv(); // DB ריק — זרע אותו ממה שיש בדפדפן
     }
@@ -487,15 +490,36 @@ function projManager() {
       <button style="flex:1" onclick="pmToggleAll()">☑ סמן/נקה את המסוננים</button>
       <button style="flex:1;background:#f3d9d2;color:#8c2f16" onclick="pmDeleteSel()">🗑 מחק את המסומנים</button>
     </div>
+    <div id="pmUsers"></div>
     <div id="pmList"></div></div>`;
   document.body.appendChild(ov);
   window.__pmSel = new Set();
   pmRender('');
+  pmLoadUsers();
   setTimeout(() => { const q = document.getElementById('pmQ'); if (q) q.focus(); }, 50);
+}
+/* 👥 משתמשים חיצוניים (בעלים בלבד): מי עובד על איזה פרויקט — מ-/api/admin/users */
+let PM_USERS = null, pmUser = '';
+async function pmLoadUsers() {
+  try { const r = await fetch('/api/admin/users', { cache: 'no-store' }); if (!r.ok) return; PM_USERS = (await r.json()).users.filter(u => u.role !== 'owner'); }
+  catch (e) { return; }
+  pmRender(window.__pmQ || '');
+}
+function pmUsersOf(pid) { return (PM_USERS || []).map(u => ({ u, p: (u.projects || []).find(x => x.id === pid) })).filter(x => x.p); }
+function pmUsersBar() {
+  if (!PM_USERS || !PM_USERS.length) return '';
+  const ext = new Set(); PM_USERS.forEach(u => (u.projects || []).forEach(p => ext.add(p.id)));
+  const chip = (v, lbl, n) => `<button onclick="pmUser='${v}';pmRender(window.__pmQ||'')" style="padding:3px 9px;font-size:11.5px;${pmUser === v ? 'background:#534ab7;color:#fff' : ''}">${lbl} <b>${n}</b></button>`;
+  return `<div style="background:#f4f2fb;border-radius:9px;padding:7px 8px;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><b style="font-size:12px;flex:1">👥 משתמשים חיצוניים</b><a href="/admin" target="_blank" style="font-size:11px;color:#534ab7">ניהול הרשאות ←</a></div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">${chip('', 'כל הפרויקטים', store.projects.length)}${chip('*ext', 'של משתמשים חיצוניים', ext.size)}${PM_USERS.map(u => chip(u.id, (u.blocked ? '🚫 ' : '👤 ') + esc(u.name || u.email), (u.projects || []).length)).join('')}</div></div>`;
 }
 function pmFiltered(q) {
   const toks = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const byU = pmUser === '*ext' ? new Set((PM_USERS || []).flatMap(u => (u.projects || []).map(p => p.id)))
+    : pmUser ? new Set((((PM_USERS || []).find(u => u.id === pmUser) || {}).projects || []).map(p => p.id)) : null;
   return store.projects.filter(p => {
+    if (byU && !byU.has(p.id)) return false;
     const s = (p.name + ' ' + (p.accountName || '') + ' ' + (p.accountKey || '') + ' ' + (p.customer || '')).toLowerCase();
     return toks.every(t => s.includes(t));
   });
@@ -503,14 +527,18 @@ function pmFiltered(q) {
 function pmRender(q) {
   const el = document.getElementById('pmList'); if (!el) return;
   window.__pmQ = q;
-  el.innerHTML = pmFiltered(q).map(p => `<div style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;${p.id === P.id ? 'background:#f2faf4' : ''}">
+  const ub = document.getElementById('pmUsers'); if (ub) ub.innerHTML = pmUsersBar();
+  const fmtT = t => t > 1e12 ? new Date(t).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '';
+  const list = pmFiltered(q);
+  if (pmUser) list.sort((a, b) => (+b.upd || 0) - (+a.upd || 0));   /* בסינון לפי משתמש — האחרונים שנערכו קודם */
+  el.innerHTML = list.map(p => `<div style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;${p.id === P.id ? 'background:#f2faf4' : ''}">
       <input type="checkbox" style="width:auto" ${window.__pmSel.has(p.id) ? 'checked' : ''} onchange="this.checked?window.__pmSel.add('${p.id}'):window.__pmSel.delete('${p.id}')">
       ${pmThumbHTML(p)}
       <b style="flex:1;font-size:12.5px;cursor:pointer" title="עבור לפרויקט" onclick="switchProj('${p.id}');document.getElementById('pmOv').remove()">${esc(p.name)}${p.id === P.id ? ' ←' : ''}</b>
       <span class="muted" style="font-size:11px;white-space:nowrap">👤 ${esc(p.accountName || p.customer || '—')}${p.accountKey ? ' · ' + esc(p.accountKey) : ''}</span>
       <span class="muted" style="font-size:10px;white-space:nowrap">${(p.nodes || []).length} מוקדים</span>
       ${p.offerSent ? '<span title="נשלחה הצעה ל-ERP" style="font-size:12px">📤</span>' : ''}
-    </div>`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
+    </div>${(() => { const us = pmUsersOf(p.id); return us.length ? `<div style="margin:-3px 0 5px;padding:0 34px 0 8px;font-size:10.5px;display:flex;gap:4px;flex-wrap:wrap">${us.map(({ u, p: g }) => `<span style="background:${g.created ? '#efecfd' : '#f4f2ec'};color:${g.created ? '#4b3fb8' : '#556'};border-radius:999px;padding:1px 8px" title="${esc(u.email)}">${g.created ? '✏️ נוצר ע״י' : '🔗 משותף עם'} ${esc(u.name || u.email)} · ${g.perm === 'view' ? 'צפייה' : 'עריכה'}</span>`).join('')}${+p.upd > 1e12 ? `<span class="muted">עודכן ${fmtT(+p.upd)}</span>` : ''}</div>` : ''; })()}`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
   pmThumbsWatch(el);
 }
 /* תמונה ממוזערת של התכנית בשורת הפרויקט — כדי לזהות במבט על מה מדובר. נוצרת פעם אחת בדפדפן (160px, JPEG) ונשמרת בפרויקט (p.thumb);
