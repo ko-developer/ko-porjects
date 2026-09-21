@@ -7745,7 +7745,7 @@ function renderLegend() {
 }
 function vdCell(c) {
   const r = vdCalc(c.mm, c.len, c.imp);
-  if (!r) return '—';
+  if (!r) return +c.len > 0 ? `<b>${c.len} מ׳</b>` : '—';   /* כבל בלי חישוב ירידת מתח (מולטי/רשת/וידאו) — לפחות האורך */
   const col = r.st === 'ok' ? '#085041' : r.st === 'warn' ? '#8a5a00' : '#a32222';
   const lbl = r.st === 'ok' ? '✔ תקין' : r.st === 'warn' ? '⚠ גבולי' : '✖ לא תקין';
   return `<span style="color:${col};font-weight:600">${c.len} מ׳ · ${c.mm} ממ״ר · ${r.loss.toFixed(2)}dB · ${lbl}</span>`;
@@ -12573,6 +12573,33 @@ function addImported() {
 }
 
 /* ---- דוח PDF ---- */
+/* 🔗 חיבורים בין קופסאות — לכל זוג פאנלים/קופסאות שמחוברים בכבלים: קו לכל כבל, מהחורים בקופסה אחת לחורים בשנייה,
+   עם מספר הכבל, סוג, מחבר בכל צד ואורך. כך רואים בדיוק מה עובר בין הקופסאות */
+function boxLinksHTML() {
+  const isBox = n => n && n.kind === 'panel' && n.panel;
+  const pairs = new Map();
+  (P.cables || []).forEach(c => { const a = byId(c.from), b = byId(c.to); if (!isBox(a) || !isBox(b) || a === b) return; const k = [a.id, b.id].sort().join('|'); if (!pairs.has(k)) pairs.set(k, { a, b, cabs: [] }); pairs.get(k).cabs.push(c); });
+  if (!pairs.size) return '';
+  const LBL = cableLabels();
+  const rng = arr => { const v = [...new Set(arr)].sort((x, y) => x - y), out = []; for (let i = 0; i < v.length; i++) { let j = i; while (j + 1 < v.length && v[j + 1] === v[j] + 1) j++; out.push(j > i ? v[i] + '–' + v[j] : '' + v[i]); i = j; } return out.join(', '); };
+  const holesAt = (c, n) => c.from === n.id ? (c.fromHole ? [c.fromHole] : (c.chans || []).map(x => x.a)) : (c.toHole ? [c.toHole] : (c.chans || []).map(x => x.b));
+  const connAt = (n, hs) => { const t = {}; hs.forEach(h2 => { const hh = n.panel.holes[h2 - 1]; const nm = hh && CONNS[hh.conn] ? CONNS[hh.conn].n : '?'; t[nm] = (t[nm] || 0) + 1; }); return Object.entries(t).map(([k, v]) => (Object.keys(t).length > 1 ? v + '× ' : '') + k).join(' + '); };
+  return `<div class="rp-sec"><h3>🔗 חיבורים בין קופסאות — מה עובר מחור לחור</h3>
+    <p style="font-size:12px;color:#555;margin:0 0 8px">קו לכל כבל: מספרי החורים בכל קופסה, סוג המחבר בכל צד, מספר הכבל והאורך. המספרים = מספרי החורים בשרטוט הפאנל.</p>` +
+    [...pairs.values()].map(({ a, b, cabs }) => {
+      const rows = cabs.map(c => { const ha = holesAt(c, a), hb = holesAt(c, b); return { c, ha, hb, ta: ha.length ? 'חור ' + rng(ha) : '—', tb: hb.length ? 'חור ' + rng(hb) : '—', ca: ha.length ? connAt(a, ha) : '', cb: hb.length ? connAt(b, hb) : '' }; })
+        .sort((x, y) => (Math.min(...x.ha, 999)) - (Math.min(...y.ha, 999)));
+      const RH = 46, W = 900, BX = 250, H = rows.length * RH + 16;
+      const box = (x, n) => `<rect x="${x}" y="2" width="${BX}" height="${H - 4}" rx="10" fill="#f7f7f4" stroke="#bbb"/><text x="${x + BX / 2}" y="${H + 16}" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1e28">${esc(n.name.slice(0, 34))}</text>`;
+      const body = rows.map((r, i) => { const y = 10 + i * RH + RH / 2, col = cableColor(r.c), len = +r.c.len > 0 ? r.c.len + ' מ׳' : '';
+        return `<text x="${W - 14}" y="${y - 3}" text-anchor="start" direction="rtl" font-size="13" font-weight="700" fill="#1a1e28">${esc(r.ta)}</text><text x="${W - 14}" y="${y + 13}" text-anchor="start" direction="rtl" font-size="11" fill="#666">${esc(r.ca)}</text>
+          <text x="${BX - 14}" y="${y - 3}" text-anchor="start" direction="rtl" font-size="13" font-weight="700" fill="#1a1e28">${esc(r.tb)}</text><text x="${BX - 14}" y="${y + 13}" text-anchor="start" direction="rtl" font-size="11" fill="#666">${esc(r.cb)}</text>
+          <circle cx="${W - BX}" cy="${y}" r="5" fill="${col}"/><circle cx="${BX}" cy="${y}" r="5" fill="${col}"/><line x1="${W - BX}" y1="${y}" x2="${BX}" y2="${y}" stroke="${col}" stroke-width="${r.ha.length > 1 ? 5 : 2.5}"/>
+          <rect x="${W / 2 - 150}" y="${y - 13}" width="300" height="26" rx="13" fill="#fff" stroke="${col}" stroke-width="1.5"/><circle cx="${W / 2 + 134}" cy="${y}" r="10" fill="${col}"/><text x="${W / 2 + 134}" y="${y + 4}" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${LBL[r.c.id]}</text>
+          <text x="${W / 2 + 118}" y="${y + 4}" text-anchor="start" direction="rtl" font-size="11.5" fill="#1a1e28">${esc((CTYPES[r.c.type] || {}).n || '')}${r.ha.length > 1 ? ' · ' + r.ha.length + ' ערוצים' : ''}${len ? ' · ' + len : ''}</text>`; }).join('');
+      return `<div style="margin-bottom:18px;page-break-inside:avoid"><svg viewBox="0 0 ${W} ${H + 24}" style="width:100%;max-width:${W}px;display:block;margin:0 auto" font-family="Assistant,Arial,sans-serif">${box(W - BX, a)}${box(0, b)}${body}</svg></div>`;
+    }).join('') + '</div>';
+}
 function cableTableHTML() {
   return `<table class="cablelist"><tr><th>#</th><th>מ־</th><th>אל</th><th>סוג</th><th>כמות</th><th>עובי / מפרט</th><th>מרחק · ירידת מתח</th><th>סטטוס</th><th>הערה</th></tr>` +
     P.cables.map((c, i) => `<tr>
@@ -12608,6 +12635,7 @@ function rackSection(n) {
   </div>`;
 }
 function exportPDF() {
+  recalcCableLengths();   /* אורכים עדכניים לפי המיקומים והתוואים — גם לכבלים שלא נגעו בהם מאז */
   const racks = P.nodes.filter(n => n.kind === 'rack');
   const points = P.nodes.filter(n => n.kind === 'point');
   let h = `<div class="rp-cover"><div class="rp-logo">KO</div><div>
@@ -12636,10 +12664,13 @@ function exportPDF() {
   };
   /* ⚡ הכנות חשמל — כל פאנל עם שקעים/סיקונים: סיכום לפי סוג ופאזה, וטבלה לכל שקע (מס׳, סוג, פאזה, שם, אזור) */
   const pwPanels = P.nodes.filter(n => n.kind === 'panel' && n.panel && (n.ptype === 'power' || n.panel.holes.some(hh => (CONNS[hh.conn] || {}).pw)));
-  if (pwPanels.length) {
+  /* ⚡ נקודות חשמל שסומנו ליד מוקדים ("דרוש נקודת חשמל 16A-N6") */
+  const pwNodes = P.nodes.filter(n => needsPower(n) && !pwPanels.includes(n));
+  if (pwPanels.length || pwNodes.length) {
     const PHN = { 1: 'L1', 2: 'L2', 3: 'L3' };
     h += `<div class="rp-sec"><h3>⚡ הכנות חשמל — שקעים, סיקונים ופאזות</h3>
-      <p style="font-size:12px;color:#555;margin:0 0 8px">מה שהחשמלאי צריך להכין לפני ההתקנה: לכל נקודה סוג השקע, הזרם, הפאזה המוזנת והשם/ייעוד. סיקון תלת-פאזי = 3 פאזות + N + PE. ההזנות לארון המגברים מסומנות בנפרד בדוח.</p>` + pwPanels.map(n => {
+      <p style="font-size:12px;color:#555;margin:0 0 8px">מה שהחשמלאי צריך להכין לפני ההתקנה: לכל נקודה סוג השקע, הזרם, הפאזה המוזנת והשם/ייעוד. סיקון תלת-פאזי = 3 פאזות + N + PE. ההזנות לארון המגברים מסומנות בנפרד בדוח.</p>` + (pwNodes.length ? `<div style="margin-bottom:14px;page-break-inside:avoid"><b style="font-size:13px">🔌 נקודות חשמל ליד מוקדים (${pwNodes.length})</b>
+        <table class="cablelist" style="margin-top:6px"><tr><th>#</th><th>ליד המוקד</th><th>אזור</th><th>מותקן על</th><th>דרישה</th></tr>${pwNodes.map((n, i) => { const zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }); return `<tr><td>${i + 1}</td><td><b>${esc(n.name)}</b>${n.sub ? `<div style="font-size:11px;color:#777">${esc(n.sub)}</div>` : ''}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${esc(n.mount || '—')}</td><td>שקע 16A · N6 — משדה סאונד בלבד</td></tr>`; }).join('')}</table></div>` : '') + pwPanels.map(n => {
       const p = n.panel, zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 });
       const cnt = {}; p.holes.forEach(hh => { const t = CONNS[hh.conn]; if (!t || !t.pw) return; const k = t.n + (hh.ph ? ' · ' + PHN[hh.ph] : ''); cnt[k] = (cnt[k] || 0) + 1; });
       const sum = Object.entries(cnt).map(([k, v]) => `${v}× ${esc(k)}`).join(' · ');
@@ -12656,6 +12687,7 @@ function exportPDF() {
         </div></div>`;
     }).join('') + '</div>';
   }
+  h += boxLinksHTML();
   if (panels.length) {
     h += `<div class="rp-sec"><h3>פאנלים וקופסאות מולטי</h3>` + panels.map(({ t, p, rack }) => {
       const counts = {};
