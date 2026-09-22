@@ -934,13 +934,14 @@ function rfFlood(R, barrier, sx, sy, gap) {
     for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && !reg[j] && !barrier[j]) { reg[j] = 1; q[qt++] = j; } }
   return { reg, n, edge, gap };
 }
-async function zoneFillAt(pt) {
-  if (!P.bg) { uiToast('אין תכנית רקע'); return; }
-  if (!P.scale) { uiToast('📏 כייל קודם את התכנית — לפי הכיול יודעים מה עובי קיר'); return; }
+/* הגאומטריה בלבד — בלי לשנות את הפרויקט: {poly, rect, left, top, zw, zh, m2, edge} או {err} */
+async function zoneFillCore(pt) {
+  if (!P.bg) { return { err: 'אין תכנית רקע' }; }
+  if (!P.scale) { return { err: '📏 כייל קודם את התכנית — לפי הכיול יודעים מה עובי קיר' }; }
   const R = await rfWalls(), { w, h, walls } = R;
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
   const sx = Math.round((pt.x - L) / W * w), sy = Math.round((pt.y - T) / H * h);
-  if (sx < 0 || sy < 0 || sx >= w || sy >= h) { uiToast('לחץ בתוך התכנית'); return; }
+  if (sx < 0 || sy < 0 || sx >= w || sy >= h) { return { err: 'לחץ בתוך התכנית' }; }
   /* סגירת פתחים מסתגלת: מתחילים מפתח צר ומרחיבים; כל עוד הרחבה נוספת מקטינה את השטח בחדות — המילוי ברח דרך פתח, ונסגר.
      עוצרים כשהשטח יציב. P.fillGap (אם נקבע ידנית) = נקודת ההתחלה */
   const GAPS = [0.4, 0.55, 0.75, 1.0, 1.3].filter(g => g >= (P.fillGap ? P.fillGap - 0.01 : 0));
@@ -951,7 +952,7 @@ async function zoneFillAt(pt) {
     if (!best) { best = f; continue; }
     if (f.n < 0.75 * best.n || (best.edge && !f.edge)) best = f; else break;
   }
-  if (!best) { uiToast('הלחיצה על קיר — לחץ באמצע החדר'); return; }
+  if (!best) { return { err: 'הלחיצה על קיר — לחץ באמצע החדר' }; }
   const { reg, n, edge, gap } = best;
   /* חזרה עד הקירות: הרחבה ברדיוס הפתח, רק על פיקסלים שאינם קיר */
   const grown = rfBox(reg, w, h, gap, true); for (let i = 0; i < w * h; i++) if (walls[i]) grown[i] = 0;
@@ -962,21 +963,25 @@ async function zoneFillAt(pt) {
   const fill = cnt / ((x1 - x0 + 1) * (y1 - y0 + 1));
   let poly;
   if (fill >= 0.78) { const a = toC(x0, y0), b = toC(x1 + 1, y1 + 1); poly = [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }]; }
-  else { const tr = ptTrace(grown, w, h); const sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, R.pxPerM * 0.2)) : []; if (sp.length < 3) { uiToast('לא הצלחתי לקבוע גבול — צייר ידנית'); return; } poly = sp.map(([x, y]) => toC(x, y)); }
+  else { const tr = ptTrace(grown, w, h); const sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, R.pxPerM * 0.2)) : []; if (sp.length < 3) { return { err: 'לא הצלחתי לקבוע גבול — צייר ידנית' }; } poly = sp.map(([x, y]) => toC(x, y)); }
+  const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys), zw = Math.max(...xs) - left, zh = Math.max(...ys) - top;
+  return { poly, rect: fill >= 0.78, left, top, zw, zh, m2: Math.round(cnt / (R.pxPerM * R.pxPerM)), edge };
+}
+async function zoneFillAt(pt) {
+  const G = await zoneFillCore(pt); if (!G) return; if (G.err) { uiToast(G.err, 6000); return; }
+  const { poly, rect, left, top, zw, zh, m2, edge } = G;
   /* אזור מוצע/אוטומטי שהלחיצה בתוכו — מוחלף */
   const hit = (P.zones || []).filter(z => (z.prop || z.auto || z.fromText || z.fill) && inZone(z, pt));
-  const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys), zw = Math.max(...xs) - left, zh = Math.max(...ys) - top;
-  const rect = fill >= 0.78;
   const z = { id: uid('z'), name: '', x: Math.max(0, 2200 - left - zw), y: top, w: zw, h: zh, fill: true };
   if (!rect) z.poly = poly;
   const lab = ((P.planText || {}).items || []).find(it => it.cat === 'audience' && inZone(z, ptPos(it)));
   const old = hit.find(o => o.name && !/^חלל \d+$/.test(o.name));
   z.name = (lab && lab.t) || (old && old.name) || ('אזור ' + ((P.zones || []).length + 1));
   if (old && old.usage) z.usage = old.usage; else if (lab && typeof ptUsageOf === 'function') z.usage = ptUsageOf(lab.t);
+  if (hit.some(o => o.prop)) zoneLearnLog('fill', { replaced: hit.filter(o => o.prop).length });
   P.zones = (P.zones || []).filter(o => !hit.includes(o)); P.zones.push(z);
   selZone = z.id; if (typeof WIZ !== 'undefined' && WIZ) WIZ.zid = z.id;
   render(); save(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender();
-  const m2 = Math.round(cnt / (R.pxPerM * R.pxPerM));
   uiToast(`🪄 ${esc(z.name)} · ~${m2} מ״ר${hit.length ? ' · החליף ' + hit.length + ' אזור מוצע' : ''}${edge ? ' · ⚠ נוגע בשולי התכנית' : ''} — לחץ בחדר הבא, Esc לסיום`, 5000);
 }
 function roomFillMode(on) {
@@ -1003,3 +1008,70 @@ function vwSvg() {
 }
 function vwUndo() { (P.virtWalls || []).pop(); save(); renderZones(); if (typeof wizRender === 'function') wizRender(); }
 document.addEventListener('keydown', e => { if (window.__roomFill && e.key === 'Escape') roomFillMode(false); });
+/* ===== 🔗 מיזוג אזורים (אשף + ידני) ===== */
+var ZMSEL = [];   /* בחירה למיזוג בפאנל הידני */
+function zonesMergeIds(ids) {
+  const zs = ids.map(id => (P.zones || []).find(z => z.id === id)).filter(Boolean); if (zs.length < 2) return null;
+  const area = z => { const b = zoneBounds(z); return b.W * b.H; };
+  const keep = zs.find(z => !/^(חלל|אזור) \d+$/.test(z.name)) || zs.slice().sort((a, b) => area(b) - area(a))[0];
+  const wasProp = zs.some(z => z.prop);
+  zoneLearnLog('merge', { n: zs.length, prop: wasProp, m2: zs.map(z => zoneM2(z)) });
+  zs.filter(z => z !== keep).forEach(z => ptMergeZones(keep.id, z.id));
+  if (wasProp) keep.prop = true;
+  selZone = keep.id; return keep;
+}
+function zoneMSel(id, on) { ZMSEL = ZMSEL.filter(x => x !== id); if (on) ZMSEL.push(id); render(); }
+function zoneMergeSel() { const k = zonesMergeIds(ZMSEL); ZMSEL = []; if (k) { save(); render(); uiToast('🔗 אוחדו לאזור אחד: ' + k.name); } }
+function zoneM2(z) { const b = zoneBounds(z); return P.scale ? Math.round(b.W * b.H * P.scale * P.scale) : 0; }
+/* ===== 📚 לומד מהתיקונים של המשתמש באזורים המוצעים =====
+   כל פעולה על הצעה נרשמת (store.zoneLearn — משותף לכל הפרויקטים): אישור/דחייה עם השטח והאם היה כיתוב, מיזוג, החלפה במילוי 🪄.
+   בהצעה הבאה מוחלים הכללים שנלמדו:
+   1. סינון — אזור בלי כיתוב קטן מסף שהמשתמש דוחה שוב ושוב לא מוצע.
+   2. מיזוג אוטומטי — אחרי 2 מיזוגים: הצעות צמודות שאין ביניהן קיר עבה מתאחדות מראש.
+   3. מילוי — אחרי 2 החלפות במילוי 🪄: כל הצעה מחושבת מחדש במילוי עד הקירות העבים (אם התוצאה סבירה). */
+function zoneLearn() { store.zoneLearn = store.zoneLearn || { ev: [] }; return store.zoneLearn; }
+function zoneLearnLog(kind, data) { const L = zoneLearn(); L.ev.push({ k: kind, t: Date.now(), p: P.id, ...data }); if (L.ev.length > 400) L.ev = L.ev.slice(-400); }
+function zoneLearnRules() {
+  const ev = zoneLearn().ev;
+  const rej = ev.filter(e => e.k === 'reject' && !e.lab), ok = ev.filter(e => e.k === 'approve' && !e.lab);
+  let minM2 = 0;
+  for (const r of rej.map(e => e.m2).filter(v => v > 0).sort((a, b) => a - b)) { const nr = rej.filter(e => e.m2 <= r).length, na = ok.filter(e => e.m2 <= r).length; if (nr >= 2 && nr >= 2 * na) minM2 = r; }
+  const merges = ev.filter(e => e.k === 'merge' && e.prop).length, fills = ev.filter(e => e.k === 'fill').reduce((s, e) => s + (e.replaced || 1), 0);
+  return { minM2, autoMerge: merges >= 2, refill: fills >= 2, n: ev.length, merges, fills, rej: rej.length };
+}
+function zoneLearnLine() {
+  const R = zoneLearnRules(); if (!R.n) return '';
+  const on = [R.minM2 ? `לא מציע חללים בלי כיתוב עד ${R.minM2} מ״ר` : '', R.autoMerge ? 'ממזג מראש חללים צמודים בלי קיר עבה' : '', R.refill ? 'מחשב כל הצעה במילוי עד הקירות 🪄' : ''].filter(Boolean);
+  return `<p class="hint" style="margin:6px 0 0;color:#4b3fb8">📚 למדתי מ-${R.n} תיקונים שלך${on.length ? ': ' + on.join(' · ') : ' (עוד לא מספיק כדי לשנות את ההצעות)'} · <a href="#" onclick="if(confirm('לאפס את מה שנלמד מהתיקונים?')){store.zoneLearn={ev:[]};save();render();if(typeof wizRender==='function')wizRender()}return false">איפוס</a></p>`;
+}
+/* האם יש קיר עבה בין שני אזורים צמודים: לאורך הגבול המשותף, איזה חלק ממנו חסום בקיר (עמודה/שורה ברצועה של ±25 ס״מ שיש בה פיקסל קיר).
+   קיר אמיתי חוסם את רוב הגבול (למעט דלת); ריהוט/עמוד/דלפק — חלק קטן. מחזיר חלק 0..1, או null כשהאזורים לא צמודים */
+async function zoneWallBetween(a, b) {
+  const A = zoneBounds(a), B = zoneBounds(b), tol = P.scale ? 0.6 / P.scale : 25;
+  const ox0 = Math.max(A.L, B.L), ox1 = Math.min(A.L + A.W, B.L + B.W), oy0 = Math.max(A.T, B.T), oy1 = Math.min(A.T + A.H, B.T + B.H);
+  let horiz;   /* גבול אופקי (אחד מעל השני) או אנכי */
+  if (ox1 - ox0 > 0 && Math.abs(oy1 - oy0) <= tol + Math.min(A.H, B.H) * 0.1 && (oy1 - oy0) < Math.min(A.H, B.H) * 0.3) horiz = true;
+  else if (oy1 - oy0 > 0 && (ox1 - ox0) < Math.min(A.W, B.W) * 0.3 && ox1 - ox0 > -tol) horiz = false;
+  else return null;
+  const R = await rfWalls(), L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(), band = P.scale ? 0.25 / P.scale : 10;
+  const toPx = (x, y) => [Math.round((x - L) / W * R.w), Math.round((y - T) / H * R.h)];
+  const mid = horiz ? (oy0 + oy1) / 2 : (ox0 + ox1) / 2, s0 = horiz ? ox0 : oy0, s1 = horiz ? ox1 : oy1, N = 60;
+  let blocked = 0, tot = 0;
+  for (let k = 0; k <= N; k++) { const t = s0 + (s1 - s0) * k / N; let hit = false;
+    for (let d = -band; d <= band && !hit; d += band / 6) { const [px, py] = horiz ? toPx(t, mid + d) : toPx(mid + d, t); if (px >= 0 && py >= 0 && px < R.w && py < R.h && R.walls[py * R.w + px]) hit = true; }
+    tot++; if (hit) blocked++; }
+  return tot ? blocked / tot : null;
+}
+async function zoneLearnApply(fresh) {
+  const R = zoneLearnRules(), notes = [];
+  if (!R.n || !fresh.length) return fresh;
+  let list = fresh;
+  if (R.minM2) { const drop = list.filter(z => /^חלל \d+$/.test(z.name) && zoneM2(z) <= R.minM2); if (drop.length) { P.zones = P.zones.filter(z => !drop.includes(z)); list = list.filter(z => !drop.includes(z)); notes.push(drop.length + ' קטנים סוננו'); } }
+  if (R.refill && P.scale) { let n = 0; for (const z of list) { const b = zoneBounds(z), G = await zoneFillCore({ x: b.L + b.W / 2, y: b.T + b.H / 2 }); if (!G || G.err) continue; const r = G.m2 / Math.max(1, zoneM2(z)); if (r < 0.5 || r > 1.6) continue;
+    z.x = Math.max(0, 2200 - G.left - G.zw); z.y = G.top; z.w = G.zw; z.h = G.zh; if (G.rect) delete z.poly; else z.poly = G.poly; z.fill = true; n++; } if (n) notes.push(n + ' חושבו במילוי'); }
+  if (R.autoMerge) { let merged = 0, again = true; while (again) { again = false;
+    for (let i = 0; i < list.length && !again; i++) for (let j = i + 1; j < list.length && !again; j++) { const f = await zoneWallBetween(list[i], list[j]); if (f != null && f < 0.5) { const k = zonesMergeIds([list[i].id, list[j].id]); zoneLearn().ev.pop(); /* מיזוג אוטומטי — לא נספר כתיקון של המשתמש */ list = list.filter(z => P.zones.includes(z)); if (k && !list.includes(k)) list.push(k); merged++; again = true; } } }
+    if (merged) notes.push(merged + ' מוזגו'); }
+  if (notes.length) uiToast('📚 לפי מה שלמדתי מהתיקונים שלך: ' + notes.join(' · '), 7000);
+  return list;
+}

@@ -421,6 +421,7 @@ async function wizOcrZones() {
     let fresh = (P.zones || []).filter(z => !before.has(z.id));
     if (!fresh.length && aud && typeof ptMakeZones === 'function') { await ptMakeZones(); fresh = (P.zones || []).filter(z => !before.has(z.id)); }
     fresh.forEach(z => { z.prop = true; });
+    if (typeof zoneLearnApply === 'function') fresh = await zoneLearnApply(fresh);
     if (fresh.length) { WIZ.zid = fresh[0].id; selZone = fresh[0].id; uiToast('💡 נמצאו ' + fresh.length + ' אזורים מוצעים — בדוק על התכנית ואשר או דחה כל אחד', 7000); }
     else uiToast('לא נמצאו אזורים בכיתובים — צייר אזור בניקור נקודות', 6000);
   } finally { WIZ.ocrBusy = false; render(); save(); wizRender(); }
@@ -437,25 +438,24 @@ function wizPropHTML() {
       <button class="sec" style="width:auto;margin:0;padding:3px 9px;background:#fdeee8;border-color:#f3c9bd;color:#8c2f16" onclick="wizPropOk('${z.id}',false)">✕</button></div>`).join('')}
     ${(() => { const n = (WIZ.msel || []).filter(id => pr.some(z => z.id === id)).length; return `<button class="sec" style="margin:7px 0 0;${n >= 2 ? 'background:#534ab7;color:#fff;font-weight:700' : 'opacity:.55'}" ${n >= 2 ? '' : 'disabled'} onclick="wizMerge()" title="סמן ☐ שניים או יותר — הם יתאחדו לאזור אחד">🔗 מזג את המסומנים לאזור אחד${n ? ' (' + n + ')' : ' — סמן ☐ שניים או יותר'}</button>`; })()}
     <div style="display:flex;gap:6px;margin-top:7px"><button class="sec" style="margin:0;background:#0f6e56;color:#fff;font-weight:700" onclick="wizPropAll(true)">✓ אשר את כולם</button><button class="sec" style="margin:0" onclick="wizPropAll(false)">✕ דחה את כולם</button></div>
-    <p class="hint" style="margin:5px 0 0">אפשר לגרור פינות של אזור מוצע לפני האישור.</p></div>`;
+    <p class="hint" style="margin:5px 0 0">אפשר לגרור פינות של אזור מוצע לפני האישור.</p>${typeof zoneLearnLine === 'function' ? zoneLearnLine() : ''}</div>`;
 }
 function wizMergeSel(id, on) { WIZ.msel = (WIZ.msel || []).filter(x => x !== id); if (on) WIZ.msel.push(id); wizRender(); }
 /* מיזוג אזורים מוצעים שחולקו בטעות: אזור אחד בגבולות של כולם, השם הכי משמעותי (לא "חלל N") */
 function wizMerge() {
   const ids = (WIZ.msel || []).filter(id => (P.zones || []).some(z => z.id === id && z.prop)); if (ids.length < 2) return;
-  const zs = ids.map(id => P.zones.find(z => z.id === id));
-  const keep = zs.find(z => !/^חלל \d+$/.test(z.name)) || zs.slice().sort((a, b) => { const A = zoneBounds(a), B = zoneBounds(b); return B.W * B.H - A.W * A.H; })[0];
-  zs.filter(z => z !== keep).forEach(z => ptMergeZones(keep.id, z.id));
-  keep.prop = true; WIZ.msel = []; WIZ.zid = keep.id; selZone = keep.id;
+  const keep = zonesMergeIds(ids); WIZ.msel = []; if (keep) WIZ.zid = keep.id;
   render(); save(); wizRender();
 }
 function wizPropOk(id, ok) {
   const z = (P.zones || []).find(x => x.id === id); if (!z) return;
+  zoneLearnLog(ok ? 'approve' : 'reject', { m2: zoneM2(z), lab: !/^חלל \d+$/.test(z.name) });
   if (ok) delete z.prop; else { P.zones = P.zones.filter(x => x.id !== id); if (selZone === id) selZone = null; }
   const nx = (P.zones || []).find(x => x.prop); if (nx) { WIZ.zid = nx.id; selZone = nx.id; } else if (ok) { WIZ.zid = id; selZone = id; }
   render(); save(); wizRender();
 }
 function wizPropAll(ok) {
+  (P.zones || []).filter(z => z.prop).forEach(z => zoneLearnLog(ok ? 'approve' : 'reject', { m2: zoneM2(z), lab: !/^חלל \d+$/.test(z.name), all: true }));
   if (ok) (P.zones || []).forEach(z => delete z.prop); else P.zones = (P.zones || []).filter(z => !z.prop);
   const z0 = (P.zones || [])[0]; WIZ.zid = z0 && z0.id; selZone = z0 ? z0.id : null;
   render(); save(); wizRender();
