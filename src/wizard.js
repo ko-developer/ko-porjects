@@ -432,11 +432,22 @@ function wizPropHTML() {
   const m2 = z => { const b = zoneBounds(z); return P.scale ? Math.round(b.W * b.H * P.scale * P.scale) + ' מ״ר' : ''; };
   return `<div style="background:#fff4e5;border:2px solid #ff8a00;border-radius:10px;padding:8px;margin:6px 0">
     <b style="font-size:12.5px">💡 ${pr.length} אזורים מוצעים — מסומנים בכתום על התכנית</b>
-    ${pr.map(z => `<div style="display:flex;gap:6px;align-items:center;margin-top:5px;font-size:12px"><span style="flex:1;cursor:pointer;${selZone === z.id ? 'font-weight:800' : ''}" onclick="selZone='${z.id}';WIZ.zid='${z.id}';render();wizRender()" title="הצג על התכנית">📍 ${esc(z.name)} <span style="color:#777">${m2(z)}</span></span>
+    ${pr.map(z => `<div style="display:flex;gap:6px;align-items:center;margin-top:5px;font-size:12px"><input type="checkbox" title="סמן למיזוג" style="width:auto;margin:0" ${(WIZ.msel || []).includes(z.id) ? 'checked' : ''} onchange="wizMergeSel('${z.id}',this.checked)"><span style="flex:1;cursor:pointer;${selZone === z.id ? 'font-weight:800' : ''}" onclick="selZone='${z.id}';WIZ.zid='${z.id}';render();wizRender()" title="הצג על התכנית">📍 ${esc(z.name)} <span style="color:#777">${m2(z)}</span></span>
       <button class="sec" style="width:auto;margin:0;padding:3px 9px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="wizPropOk('${z.id}',true)">✓ אשר</button>
       <button class="sec" style="width:auto;margin:0;padding:3px 9px;background:#fdeee8;border-color:#f3c9bd;color:#8c2f16" onclick="wizPropOk('${z.id}',false)">✕</button></div>`).join('')}
+    ${(() => { const n = (WIZ.msel || []).filter(id => pr.some(z => z.id === id)).length; return `<button class="sec" style="margin:7px 0 0;${n >= 2 ? 'background:#534ab7;color:#fff;font-weight:700' : 'opacity:.55'}" ${n >= 2 ? '' : 'disabled'} onclick="wizMerge()" title="סמן ☐ שניים או יותר — הם יתאחדו לאזור אחד">🔗 מזג את המסומנים לאזור אחד${n ? ' (' + n + ')' : ' — סמן ☐ שניים או יותר'}</button>`; })()}
     <div style="display:flex;gap:6px;margin-top:7px"><button class="sec" style="margin:0;background:#0f6e56;color:#fff;font-weight:700" onclick="wizPropAll(true)">✓ אשר את כולם</button><button class="sec" style="margin:0" onclick="wizPropAll(false)">✕ דחה את כולם</button></div>
     <p class="hint" style="margin:5px 0 0">אפשר לגרור פינות של אזור מוצע לפני האישור.</p></div>`;
+}
+function wizMergeSel(id, on) { WIZ.msel = (WIZ.msel || []).filter(x => x !== id); if (on) WIZ.msel.push(id); wizRender(); }
+/* מיזוג אזורים מוצעים שחולקו בטעות: אזור אחד בגבולות של כולם, השם הכי משמעותי (לא "חלל N") */
+function wizMerge() {
+  const ids = (WIZ.msel || []).filter(id => (P.zones || []).some(z => z.id === id && z.prop)); if (ids.length < 2) return;
+  const zs = ids.map(id => P.zones.find(z => z.id === id));
+  const keep = zs.find(z => !/^חלל \d+$/.test(z.name)) || zs.slice().sort((a, b) => { const A = zoneBounds(a), B = zoneBounds(b); return B.W * B.H - A.W * A.H; })[0];
+  zs.filter(z => z !== keep).forEach(z => ptMergeZones(keep.id, z.id));
+  keep.prop = true; WIZ.msel = []; WIZ.zid = keep.id; selZone = keep.id;
+  render(); save(); wizRender();
 }
 function wizPropOk(id, ok) {
   const z = (P.zones || []).find(x => x.id === id); if (!z) return;
