@@ -365,7 +365,7 @@ function asMarksSVG() {
   const r = P.autoScale;
   if (!r || !r.marks || !r.marks.length || r.show === false || !P.bg || !P.scale || calMode) return '';
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(), k = 1 / P.scale;
-  const fz = Math.max(10, 13 / getZ()), sw = Math.max(1.6, 2.4 / getZ());
+  const sw = Math.max(0.6, 1.2 / getZ());   /* קו דק — כדי לראות מתחתיו את קווי המידה של השרטוט */
   const seen = new Set();
   let out = '';
   const one = (u, v, w, h, txt, val, vert) => {
@@ -373,17 +373,18 @@ function asMarksSVG() {
     const key = Math.round(u * 1000) + '|' + Math.round(v * 1000); if (seen.has(key)) return; seen.add(key);
     const x = L + u * W, y = T + v * H, len = val * k, half = len / 2;
     const lw = Math.max(w * W, 12), lh = Math.max(h * H, 7);
-    const tick = fz * 0.6;
+    /* הכיתוב קטן מהמספר שבשרטוט (70% מגובהו) ויושב מתחת לקו — לא מכסה את המספר המקורי, כך שאפשר להשוות */
+    const fz = Math.max(7 / getZ(), Math.min(lh * 0.7, 11 / getZ())), tick = Math.max(lh * 0.35, 2);
     if (!vert) {
       const ly = y + lh * 0.9;
       out += `<line x1="${x - half}" y1="${ly}" x2="${x + half}" y2="${ly}" stroke="#e02020" stroke-width="${sw}"/>`;
       out += `<line x1="${x - half}" y1="${ly - tick}" x2="${x - half}" y2="${ly + tick}" stroke="#e02020" stroke-width="${sw}"/><line x1="${x + half}" y1="${ly - tick}" x2="${x + half}" y2="${ly + tick}" stroke="#e02020" stroke-width="${sw}"/>`;
-      out += `<text x="${x + lw / 2 + fz * 0.4}" y="${y + fz * 0.35}" font-size="${fz}" font-weight="700" fill="#e02020" direction="ltr" unicode-bidi="embed">${txt} = ${val.toFixed(2)}m</text>`;
+      out += `<text x="${x}" y="${ly + tick + fz * 1.05}" text-anchor="middle" font-size="${fz}" font-weight="700" fill="#e02020" direction="ltr" unicode-bidi="embed" opacity="0.9">= ${val.toFixed(2)}m</text>`;
     } else {
       const lx = x - lh * 0.9;
       out += `<line x1="${lx}" y1="${y - half}" x2="${lx}" y2="${y + half}" stroke="#e02020" stroke-width="${sw}"/>`;
       out += `<line x1="${lx - tick}" y1="${y - half}" x2="${lx + tick}" y2="${y - half}" stroke="#e02020" stroke-width="${sw}"/><line x1="${lx - tick}" y1="${y + half}" x2="${lx + tick}" y2="${y + half}" stroke="#e02020" stroke-width="${sw}"/>`;
-      out += `<text x="${x + lh * 0.9 + fz * 0.3}" y="${y + fz * 0.35}" font-size="${fz}" font-weight="700" fill="#e02020" direction="ltr" unicode-bidi="embed">${txt} = ${val.toFixed(2)}m</text>`;
+      out += `<text x="${lx - tick - fz * 0.3}" y="${y + fz * 0.35}" text-anchor="end" font-size="${fz}" font-weight="700" fill="#e02020" direction="ltr" unicode-bidi="embed" opacity="0.9">= ${val.toFixed(2)}m</text>`;
     }
   };
   /* ברירת מחדל: סימון אחד בלבד — המידה הארוכה ביותר (הכי קל לוודא בעין); "הצג את כולם" מציג הכל */
