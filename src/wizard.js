@@ -72,7 +72,7 @@ function wizDone(i) {
   const zs = P.zones || [];
   const allBuilt = zs.length > 0 && zs.every(z => z._built);
   const allWired = zs.length > 0 && zs.every(z => { const w = wizWireStat(z); return !w.tot || w.fed >= w.tot; }) && zs.some(z => wizWireStat(z).tot);
-  return [!!P.bg, !!P.scale, !!zs.length, allBuilt, allWired, !!P._instKit, !!P._gapOk, impItems.length > 0, false][i];
+  return [!!P.bg, !!P.scale, zs.some(z => !z.prop), allBuilt, allWired, !!P._instKit, !!P._gapOk, impItems.length > 0, false][i];
 }
 function wizRefreshBadges() {
   document.querySelectorAll('#wiz .wzstep').forEach((el, i) => el.classList.toggle('done', wizDone(i) && i !== WIZ.step));
@@ -84,7 +84,7 @@ function wizRender() {
   const w = document.createElement('div');
   w.id = 'wiz';
   const steps = WIZ_STEPS.map(([k, l], i) =>
-    `<div class="wzstep ${i === WIZ.step ? 'on' : ''} ${wizDone(i) && i !== WIZ.step ? 'done' : ''}" onclick="WIZ.step=${i};wizRender()">${wizDone(i) && i !== WIZ.step ? '✓ ' : ''}${l}</div>`).join('');
+    `<div class="wzstep ${i === WIZ.step ? 'on' : ''} ${wizDone(i) && i !== WIZ.step ? 'done' : ''}" onclick="wizGo(${i})">${wizDone(i) && i !== WIZ.step ? '✓ ' : ''}${l}</div>`).join('');
   w.innerHTML = `
     <div class="wzhead" style="cursor:move" title="גרור להזזת החלון"><span style="opacity:.55">⠿</span><b>⚡ KO V2 — אשף מהיר</b>
       <span style="font-size:11px;opacity:.75">${esc(P.name.slice(0, 18))}</span>
@@ -93,7 +93,7 @@ function wizRender() {
     <div class="wzbody" id="wizBody">${wizStepHTML(WIZ.step)}</div>
     <div class="wzfoot">
       <button onclick="WIZ.step=Math.max(0,WIZ.step-1);wizRender()" ${WIZ.step === 0 ? 'disabled' : ''}>▶ הקודם</button>
-      <button class="nx" onclick="wizNext()" ${WIZ.step === WIZ_STEPS.length - 1 ? 'disabled' : ''}>הבא ◀</button>
+      <button class="nx" onclick="wizNext()" ${WIZ.step === WIZ_STEPS.length - 1 ? 'disabled' : ''} ${WIZ.step === 2 && (!(P.zones || []).some(z => !z.prop) || (P.zones || []).some(z => z.prop)) ? 'style="opacity:.45" title="קודם סמן אזור (או אשר אזור מוצע)"' : ''}>הבא ◀</button>
     </div>`;
   document.body.appendChild(w);
   /* חלון צף — נגרר מהכותרת והמיקום נשמר */
@@ -166,7 +166,8 @@ function wizStepHTML(s) {
     ${(() => { const nd = sourceNeeds(z); return nd.length ? `<p class="hint" style="margin:-2px 0 8px;color:#0f6e56">נדרש בארון: ${esc(nd.join(' · '))}</p>` : ''; })()}` : ''}
     <button class="big" onclick="wizDrawZone()">➕ ${(P.zones || []).length ? 'צייר אזור נוסף' : 'צייר אזור'} — ניקור נקודות על התכנית</button>
     <button class="sec" onclick="autoZones()">🤖 זיהוי אזורים אוטומטי (AI)</button>
-    <button class="sec" onclick="planTextScan()" title="קורא את המילים שעל השרטוט (OCR מקומי, בלי AI) ומסווג: אזורי קהל, מטבח/תפעול, שירותים, ריהוט — בסיס לחלוקה לאזורים">🔤 קרא את הכיתובים בתכנית (OCR)</button>
+    <button class="sec" onclick="wizOcrZones()" title="קורא את המילים שעל השרטוט (OCR מקומי, בלי AI), מסמן אזורים מוצעים לפי הקירות והכיתובים — ואתה מאשר כל אחד">🔤 קרא את הכיתובים ומצא אזורים (OCR)</button>
+    ${wizPropHTML()}
     <button class="sec" onclick="ptPartition()" title="חלוקה אוטומטית של החלל לאזורים לפי הקירות והכיתובים (אחרי קריאת הכיתובים)">🧩 חלק את כל החלל לאזורים</button>`;
   }
   if (s === 3) {
@@ -404,10 +405,56 @@ function cropStart() {
     img.src = P.bg;
   });
 }
+/* 🔤 OCR → אזורים מוצעים: קריאת הכיתובים, חלוקה לפי הקירות (או סביב כיתובי הקהל), וכל אזור חדש מסומן "מוצע" עד אישור */
+async function wizOcrZones() {
+  if (!P.bg) { uiToast('קודם העלה תכנית'); return; }
+  const before = new Set((P.zones || []).map(z => z.id));
+  WIZ.ocrBusy = true; wizRender();
+  try {
+    await planTextScan();
+    const aud = ((P.planText || {}).items || []).filter(i => i.cat === 'audience').length;
+    if (typeof ptPartition === 'function') await ptPartition();
+    let fresh = (P.zones || []).filter(z => !before.has(z.id));
+    if (!fresh.length && aud && typeof ptMakeZones === 'function') { await ptMakeZones(); fresh = (P.zones || []).filter(z => !before.has(z.id)); }
+    fresh.forEach(z => { z.prop = true; });
+    if (fresh.length) { WIZ.zid = fresh[0].id; selZone = fresh[0].id; uiToast('💡 נמצאו ' + fresh.length + ' אזורים מוצעים — בדוק על התכנית ואשר או דחה כל אחד', 7000); }
+    else uiToast('לא נמצאו אזורים בכיתובים — צייר אזור בניקור נקודות', 6000);
+  } finally { WIZ.ocrBusy = false; render(); save(); wizRender(); }
+}
+function wizPropHTML() {
+  const pr = (P.zones || []).filter(z => z.prop);
+  if (WIZ.ocrBusy) return '<p class="hint" style="color:#8a5a00">🔎 קורא את הכיתובים ומחפש אזורים… (עד דקה)</p>';
+  if (!pr.length) return '';
+  const m2 = z => { const b = zoneBounds(z); return P.scale ? Math.round(b.W * b.H * P.scale * P.scale) + ' מ״ר' : ''; };
+  return `<div style="background:#fff4e5;border:2px solid #ff8a00;border-radius:10px;padding:8px;margin:6px 0">
+    <b style="font-size:12.5px">💡 ${pr.length} אזורים מוצעים — מסומנים בכתום על התכנית</b>
+    ${pr.map(z => `<div style="display:flex;gap:6px;align-items:center;margin-top:5px;font-size:12px"><span style="flex:1;cursor:pointer;${selZone === z.id ? 'font-weight:800' : ''}" onclick="selZone='${z.id}';WIZ.zid='${z.id}';render();wizRender()" title="הצג על התכנית">📍 ${esc(z.name)} <span style="color:#777">${m2(z)}</span></span>
+      <button class="sec" style="width:auto;margin:0;padding:3px 9px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="wizPropOk('${z.id}',true)">✓ אשר</button>
+      <button class="sec" style="width:auto;margin:0;padding:3px 9px;background:#fdeee8;border-color:#f3c9bd;color:#8c2f16" onclick="wizPropOk('${z.id}',false)">✕</button></div>`).join('')}
+    <div style="display:flex;gap:6px;margin-top:7px"><button class="sec" style="margin:0;background:#0f6e56;color:#fff;font-weight:700" onclick="wizPropAll(true)">✓ אשר את כולם</button><button class="sec" style="margin:0" onclick="wizPropAll(false)">✕ דחה את כולם</button></div>
+    <p class="hint" style="margin:5px 0 0">אפשר לגרור פינות של אזור מוצע לפני האישור.</p></div>`;
+}
+function wizPropOk(id, ok) {
+  const z = (P.zones || []).find(x => x.id === id); if (!z) return;
+  if (ok) delete z.prop; else { P.zones = P.zones.filter(x => x.id !== id); if (selZone === id) selZone = null; }
+  const nx = (P.zones || []).find(x => x.prop); if (nx) { WIZ.zid = nx.id; selZone = nx.id; } else if (ok) { WIZ.zid = id; selZone = id; }
+  render(); save(); wizRender();
+}
+function wizPropAll(ok) {
+  if (ok) (P.zones || []).forEach(z => delete z.prop); else P.zones = (P.zones || []).filter(z => !z.prop);
+  const z0 = (P.zones || [])[0]; WIZ.zid = z0 && z0.id; selZone = z0 ? z0.id : null;
+  render(); save(); wizRender();
+}
+function wizGo(i) {
+  if (i > 2 && !(P.zones || []).some(z => !z.prop)) { uiToast('🗺 קודם סמן אזור (או אשר אזור מוצע) — בלי אזור אין מערכת'); WIZ.step = 2; wizRender(); return; }
+  WIZ.step = i; wizRender();
+}
 function wizNext() {
   if (WIZ.step === 1 && P.scale && !P.calOk) { uiToast('📏 אשר את הכיול לפני שממשיכים — השווה מול שולחן או דלת'); return; }
   /* שאלת חובה: אי אפשר להתקדם מהאזור בלי תכלית — היא קובעת את המערכת */
   if (WIZ.step === 2) {
+    if ((P.zones || []).some(z => z.prop)) { uiToast('💡 יש אזורים מוצעים — אשר או דחה אותם לפני שממשיכים'); return; }
+    if (!(P.zones || []).length) { uiToast('🗺 אין עדיין אזור — צייר אזור או קרא את הכיתובים ואשר אזור מוצע'); return; }
     const z = wizZone();
     if (z && !z.usage) {
       uiToast('🎯 חובה לבחור מה עושים באזור — זה קובע את העוצמה ואת ההצעות');

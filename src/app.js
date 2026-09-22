@@ -10717,6 +10717,10 @@ function renderZones() {
       for (const [s] of WALL_SIDES) { const w = z.walls[s]; if (w) svgp += wallLine(...seg[s], w, null); }
     }
   });
+  /* אזורים מוצעים (מקריאת הכיתובים / חלוקה אוטומטית) — ממתינים לאישור באשף: מסגרת כתומה בולטת ותווית */
+  zs.forEach(z => { if (!z.prop) return; const b = zoneBounds(z), cx = b.L + b.W / 2, cy = b.T + b.H / 2;
+    svgp += z.poly ? `<polygon points="${z.poly.map(p => p.x + ',' + p.y).join(' ')}" fill="#ff8a0026" stroke="#ff8a00" stroke-width="4" stroke-dasharray="10 6"/>` : `<rect x="${b.L}" y="${b.T}" width="${b.W}" height="${b.H}" fill="#ff8a0026" stroke="#ff8a00" stroke-width="4" stroke-dasharray="10 6"/>`;
+    svgp += `<rect x="${cx - 70}" y="${cy - 14}" width="140" height="28" rx="14" fill="#ff8a00"/><text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">💡 מוצע: ${esc(String(z.name).slice(0, 14))}</text>`; });
   if (svgp) host.innerHTML = `<svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">${svgp}</svg>`;
   zs.forEach(z => {
     const c = zColor(z);
