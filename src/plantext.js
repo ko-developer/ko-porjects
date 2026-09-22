@@ -894,3 +894,112 @@ function ptZoneLineHTML(z) {
 
 /* הרינדור הראשון של app.js קדם להגדרות כאן — מרנדרים שוב כדי שהכיתובים השמורים יופיעו */
 if (typeof P !== 'undefined' && P && P.planText && typeof render === 'function') { try { render(); } catch (e) { console.warn('plantext rerender', e); } }
+/* ===== 🪄 אזור בלחיצה אחת בתוך החדר =====
+   קיר = רק מה שעבה (≥ ~12 ס״מ לפי הכיול) — פתיחה מורפולוגית מוחקת קווים דקים: מידות, ריהוט, טקסט, צנרת משורטטת.
+   פתחים/דלתות עד ~1.2 מ׳ נסגרים זמנית (הרחבת הקירות) כדי שהמילוי לא יברח, ואחרי המילוי האזור מורחב חזרה עד הקירות.
+   אזור כמעט-מלבני → מלבן נקי; אחרת מתאר מפושט. לחיצה בתוך אזור מוצע מחליפה אותו. */
+var ROOMFILL = null;   /* מטמון מסכת הקירות לתמונה הנוכחית */
+function rfBox(src, w, h, r, isMax) {   /* מינימום/מקסימום בחלון ריבועי (2r+1) — ניתן להפרדה: שורות ואז עמודות */
+  const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) { const o = y * w; let cnt = 0; for (let x = -r; x < w + r; x++) { const a = x + r, b = x - r - 1; if (a < w && a >= 0 && src[o + a]) cnt++; if (b >= 0 && b < w && src[o + b]) cnt--; if (x >= 0 && x < w) { const win = Math.min(w - 1, x + r) - Math.max(0, x - r) + 1; tmp[o + x] = isMax ? (cnt > 0 ? 1 : 0) : (cnt === win ? 1 : 0); } } }
+  for (let x = 0; x < w; x++) { let cnt = 0; for (let y = -r; y < h + r; y++) { const a = y + r, b = y - r - 1; if (a < h && a >= 0 && tmp[a * w + x]) cnt++; if (b >= 0 && b < h && tmp[b * w + x]) cnt--; if (y >= 0 && y < h) { const win = Math.min(h - 1, y + r) - Math.max(0, y - r) + 1; out[y * w + x] = isMax ? (cnt > 0 ? 1 : 0) : (cnt === win ? 1 : 0); } } }
+  return out;
+}
+async function rfWalls() {
+  const key = (P.bg || '').length + '|' + P.scale + '|' + (P.bgW || 0) + '|' + JSON.stringify(P.virtWalls || []);
+  if (ROOMFILL && ROOMFILL.key === key) return ROOMFILL;
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h).data, dark = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) { const l = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2]; dark[i] = l < 185 ? 1 : 0; }
+  const W = P.bgW || 1400, pxPerM = (w / W) / (P.scale || 0.01);
+  const rThin = Math.max(1, Math.round(0.06 * pxPerM));   /* חצי עובי קיר מינימלי */
+  const walls = rfBox(rfBox(dark, w, h, rThin, false), w, h, rThin, true);
+  /* קירות וירטואליים שהמשתמש שרטט (Shift+גרירה) — סוגרים מעבר פתוח שבו האזור צריך להיגמר */
+  { const L = bgLeft(), T = bgTop(), H = bgHeightPx(), t = Math.max(1, rThin);
+    for (const vw of P.virtWalls || []) { const ax = (vw.a.x - L) / W * w, ay = (vw.a.y - T) / H * h, bx = (vw.b.x - L) / W * w, by = (vw.b.y - T) / H * h, steps = Math.ceil(Math.hypot(bx - ax, by - ay)) + 1;
+      for (let k = 0; k <= steps; k++) { const cx = Math.round(ax + (bx - ax) * k / steps), cy = Math.round(ay + (by - ay) * k / steps); for (let dy = -t; dy <= t; dy++) for (let dx = -t; dx <= t; dx++) { const x = cx + dx, y = cy + dy; if (x >= 0 && y >= 0 && x < w && y < h) walls[y * w + x] = 1; } } } }
+  ROOMFILL = { key, w, h, walls, pxPerM, bars: {} };
+  return ROOMFILL;
+}
+function rfBarrier(R, gapM) { const g = Math.max(1, Math.round(gapM * R.pxPerM)); if (!R.bars[g]) R.bars[g] = rfBox(R.walls, R.w, R.h, g, true); return { gap: g, barrier: R.bars[g] }; }
+/* מילוי מנקודה בתוך מחסום נתון → {reg, n, edge} או null כשהנקודה חסומה */
+function rfFlood(R, barrier, sx, sy, gap) {
+  const { w, h } = R;
+  if (barrier[sy * w + sx]) { let best = null; for (let r = 1; r <= gap * 2 && !best; r++) for (let dy = -r; dy <= r && !best; dy++) for (let dx = -r; dx <= r; dx++) { const x = sx + dx, y = sy + dy; if (x >= 0 && y >= 0 && x < w && y < h && !barrier[y * w + x]) { best = [x, y]; break; } } if (!best) return null; [sx, sy] = best; }
+  const reg = new Uint8Array(w * h), q = new Int32Array(w * h); let qh = 0, qt = 0, n = 0, edge = false;
+  reg[sy * w + sx] = 1; q[qt++] = sy * w + sx;
+  while (qh < qt) { const i = q[qh++]; n++; const x = i % w, y = (i - x) / w; if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true;
+    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && !reg[j] && !barrier[j]) { reg[j] = 1; q[qt++] = j; } }
+  return { reg, n, edge, gap };
+}
+async function zoneFillAt(pt) {
+  if (!P.bg) { uiToast('אין תכנית רקע'); return; }
+  if (!P.scale) { uiToast('📏 כייל קודם את התכנית — לפי הכיול יודעים מה עובי קיר'); return; }
+  const R = await rfWalls(), { w, h, walls } = R;
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
+  const sx = Math.round((pt.x - L) / W * w), sy = Math.round((pt.y - T) / H * h);
+  if (sx < 0 || sy < 0 || sx >= w || sy >= h) { uiToast('לחץ בתוך התכנית'); return; }
+  /* סגירת פתחים מסתגלת: מתחילים מפתח צר ומרחיבים; כל עוד הרחבה נוספת מקטינה את השטח בחדות — המילוי ברח דרך פתח, ונסגר.
+     עוצרים כשהשטח יציב. P.fillGap (אם נקבע ידנית) = נקודת ההתחלה */
+  const GAPS = [0.4, 0.55, 0.75, 1.0, 1.3].filter(g => g >= (P.fillGap ? P.fillGap - 0.01 : 0));
+  let best = null;
+  for (let gi = 0; gi < GAPS.length; gi++) {
+    const b = rfBarrier(R, GAPS[gi]), f = rfFlood(R, b.barrier, sx, sy, b.gap);
+    if (!f) continue;
+    if (!best) { best = f; continue; }
+    if (f.n < 0.75 * best.n || (best.edge && !f.edge)) best = f; else break;
+  }
+  if (!best) { uiToast('הלחיצה על קיר — לחץ באמצע החדר'); return; }
+  const { reg, n, edge, gap } = best;
+  /* חזרה עד הקירות: הרחבה ברדיוס הפתח, רק על פיקסלים שאינם קיר */
+  const grown = rfBox(reg, w, h, gap, true); for (let i = 0; i < w * h; i++) if (walls[i]) grown[i] = 0;
+  /* הרכיב המחובר לנקודה בלבד (ההרחבה יכולה לדלוף דרך פתח לחדר השכן) — מוגבל לתחום המקורי + gap */
+  let x0 = w, y0 = h, x1 = 0, y1 = 0, cnt = 0;
+  for (let i = 0; i < w * h; i++) if (grown[i]) { const x = i % w, y = (i - x) / w; cnt++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  const toC = (x, y) => ({ x: Math.round(L + x / w * W), y: Math.round(T + y / h * H) });
+  const fill = cnt / ((x1 - x0 + 1) * (y1 - y0 + 1));
+  let poly;
+  if (fill >= 0.78) { const a = toC(x0, y0), b = toC(x1 + 1, y1 + 1); poly = [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }]; }
+  else { const tr = ptTrace(grown, w, h); const sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, R.pxPerM * 0.2)) : []; if (sp.length < 3) { uiToast('לא הצלחתי לקבוע גבול — צייר ידנית'); return; } poly = sp.map(([x, y]) => toC(x, y)); }
+  /* אזור מוצע/אוטומטי שהלחיצה בתוכו — מוחלף */
+  const hit = (P.zones || []).filter(z => (z.prop || z.auto || z.fromText || z.fill) && inZone(z, pt));
+  const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys), zw = Math.max(...xs) - left, zh = Math.max(...ys) - top;
+  const rect = fill >= 0.78;
+  const z = { id: uid('z'), name: '', x: Math.max(0, 2200 - left - zw), y: top, w: zw, h: zh, fill: true };
+  if (!rect) z.poly = poly;
+  const lab = ((P.planText || {}).items || []).find(it => it.cat === 'audience' && inZone(z, ptPos(it)));
+  const old = hit.find(o => o.name && !/^חלל \d+$/.test(o.name));
+  z.name = (lab && lab.t) || (old && old.name) || ('אזור ' + ((P.zones || []).length + 1));
+  if (old && old.usage) z.usage = old.usage; else if (lab && typeof ptUsageOf === 'function') z.usage = ptUsageOf(lab.t);
+  P.zones = (P.zones || []).filter(o => !hit.includes(o)); P.zones.push(z);
+  selZone = z.id; if (typeof WIZ !== 'undefined' && WIZ) WIZ.zid = z.id;
+  render(); save(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender();
+  const m2 = Math.round(cnt / (R.pxPerM * R.pxPerM));
+  uiToast(`🪄 ${esc(z.name)} · ~${m2} מ״ר${hit.length ? ' · החליף ' + hit.length + ' אזור מוצע' : ''}${edge ? ' · ⚠ נוגע בשולי התכנית' : ''} — לחץ בחדר הבא, Esc לסיום`, 5000);
+}
+function roomFillMode(on) {
+  window.__roomFill = on === undefined ? !window.__roomFill : !!on;
+  document.body.style.cursor = window.__roomFill ? 'crosshair' : '';
+  if (window.__roomFill) uiToast('🪄 לחץ בתוך חדר — האזור יתמלא עד הקירות. Esc לסיום', 5000);
+  render(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender();
+}
+document.addEventListener('pointerdown', e => {
+  if (!window.__roomFill || e.button || !e.target.closest || !e.target.closest('#canvasWrap')) return;
+  e.stopPropagation(); e.preventDefault();
+  if (e.shiftKey || window.__vwMode) { window.__vwDraw = { a: canvasPt(e), b: canvasPt(e) }; return; }   /* ✏ קיר וירטואלי */
+  zoneFillAt(canvasPt(e));
+}, true);
+document.addEventListener('pointermove', e => { if (!window.__vwDraw) return; const p2 = canvasPt(e), a = window.__vwDraw.a;
+  /* יישור לאופקי/אנכי כשכמעט ישר */ if (Math.abs(p2.x - a.x) < Math.abs(p2.y - a.y) * 0.15) p2.x = a.x; else if (Math.abs(p2.y - a.y) < Math.abs(p2.x - a.x) * 0.15) p2.y = a.y;
+  window.__vwDraw.b = p2; renderZones(); }, true);
+document.addEventListener('pointerup', e => { const d = window.__vwDraw; if (!d) return; window.__vwDraw = null; e.stopPropagation();
+  if (Math.hypot(d.b.x - d.a.x, d.b.y - d.a.y) > 8) { P.virtWalls = [...(P.virtWalls || []), { a: d.a, b: d.b }]; window.__vwMode = false; save(); uiToast('✏ קיר וירטואלי נוסף — עכשיו לחץ שוב בתוך החדר', 4000); }
+  renderZones(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender(); }, true);
+function vwSvg() {
+  const vs = [...(P.virtWalls || []), ...(window.__vwDraw ? [window.__vwDraw] : [])]; if (!vs.length || (!window.__roomFill && !window.__vwShow)) return '';
+  return vs.map((v, i) => `<line x1="${v.a.x}" y1="${v.a.y}" x2="${v.b.x}" y2="${v.b.y}" stroke="#7b2cbf" stroke-width="5" stroke-dasharray="10 5" stroke-linecap="round"/>`).join('');
+}
+function vwUndo() { (P.virtWalls || []).pop(); save(); renderZones(); if (typeof wizRender === 'function') wizRender(); }
+document.addEventListener('keydown', e => { if (window.__roomFill && e.key === 'Escape') roomFillMode(false); });
