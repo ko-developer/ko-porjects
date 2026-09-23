@@ -637,7 +637,7 @@ const spkNorm = s => String(s || '').toUpperCase().replace(BRAND_ANY, ' ').repla
 function spkMetaFor(name) {
   const meta = store.spkMeta || {}, k1 = rearKey(name);
   if (meta[k1]) return meta[k1];
-  const d = (typeof SPEAKER_DATA !== 'undefined') && SPEAKER_DATA.find(x => x.re.test(name || ''));
+  const d = (typeof SPEAKER_DATA !== 'undefined') && SPEAKER_DATA.find(x => x.re.test(spkNameNorm(name)));
   if (d) { const k2 = rearKey(prettyRe(d.re)); if (meta[k2]) return meta[k2]; }
   const nm = spkNorm(shortModel(name)); if (nm.length < 3) return null;
   for (const k of Object.keys(meta)) { const nk = spkNorm(k); if (nk && (nk === nm || nk === spkNorm(name))) return meta[k]; }
@@ -673,9 +673,9 @@ function ampModeRule(name) { const raw = (name || '').trim(); for (const nm of [
 function spkAmpMode(name) {
   const m = spkMetaFor(name); if (m && m.amp) return m.amp;
   const rl = ampModeRule(name); if (rl) return rl;
-  { const d0 = typeof SPEAKER_DATA !== 'undefined' && SPEAKER_DATA.find(x => x.amp && x.re && x.re.test(name || '')); if (d0) return d0.amp; }
+  { const d0 = typeof SPEAKER_DATA !== 'undefined' && SPEAKER_DATA.find(x => x.amp && x.re && x.re.test(spkNameNorm(name))); if (d0) return d0.amp; }
   /* טבלת המפרט של היצרן: שורה לכל דרייבר מוגבר בנפרד — 3 שורות = tri-amp, 2 = bi-amp */
-  { const d1 = typeof SPEAKER_DATA !== 'undefined' && SPEAKER_DATA.find(x => x.bd && x.re && x.re.test(name || '')); if (d1) { const ks = Object.keys(d1.bd); if (ks.length === 1) return ks[0]; if (ks.length > 1) return 'tri'; } }   /* מוגבר לפי דף הנתונים (VIDA) */
+  { const d1 = typeof SPEAKER_DATA !== 'undefined' && SPEAKER_DATA.find(x => x.bd && x.re && x.re.test(spkNameNorm(name))); if (d1) { const ks = Object.keys(d1.bd); if (ks.length === 1) return ks[0]; if (ks.length > 1) return 'tri'; } }   /* מוגבר לפי דף הנתונים (VIDA) */
   const mu = matrixMulti(name);
   if (mu) { const bands = new Set((mu.bands || []).map(([l]) => MX_BAND[String(l).toUpperCase()]).filter(Boolean)); if (bands.size >= 3) return 'tri'; if (bands.size === 2) return 'bi'; }
   if (/EVO(LUTION)?\s?X\b/i.test(name || '')) return 'tri';
@@ -1648,6 +1648,8 @@ const REAR_KB = [
   { re: /\bK7\b/i, items: [{ t: 'power', label: 'AC' }, { t: 'jack', label: 'MIC A1', port: 'IN 1' }, { t: 'jack', label: 'MIC A2', port: 'IN 2' }, { t: 'jack', label: 'MIC B1', port: 'IN 3' }, { t: 'rca', label: 'BGM L', port: 'IN 4' }, { t: 'rca', label: 'BGM R', port: 'IN 5' }, { t: 'rca', label: 'IN1 L', port: 'IN 6' }, { t: 'rca', label: 'IN1 R', port: 'IN 7' }, { t: 'rca', label: 'IN2 L', port: 'IN 8' }, { t: 'rca', label: 'IN2 R', port: 'IN 9' }, { t: 'rca', label: 'REC L', port: 'OUT 7' }, { t: 'rca', label: 'REC R', port: 'OUT 8' }, { t: 'rca', label: 'AUX', port: 'IN 10' }, { t: 'rca', label: 'COAX', port: 'IN 11' }, { t: 'rca', label: 'V OUT' }, { t: 'rca', label: 'V BGV' }, { t: 'rca', label: 'V IN2' }, { t: 'rca', label: 'V IN1' }, { t: 'fiber', label: 'OPT' }, { t: 'xlrm', label: 'MAIN R', port: 'OUT 1' }, { t: 'xlrm', label: 'MAIN L', port: 'OUT 2' }, { t: 'xlrm', label: 'CENTER', port: 'OUT 3' }, { t: 'xlrm', label: 'SUB', port: 'OUT 4' }, { t: 'xlrm', label: 'SURR R', port: 'OUT 5' }, { t: 'xlrm', label: 'SURR L', port: 'OUT 6' }, { t: 'jack', label: 'MIC', port: 'IN 8' }, { t: 'usb', label: 'USB' }] },
   { re: /DS\s?418|418E|DIGITAL LOUDSPEAKER|processor|פרוססור|DSP/i, items: [{ t: 'power', label: 'AC' }, { t: 'xlrf', label: 'IN1', port: 'IN 1' }, { t: 'xlrf', label: 'IN2', port: 'IN 2' }, { t: 'xlrm', label: 'OUT1', port: 'OUT 1' }, { t: 'xlrm', label: 'OUT2', port: 'OUT 2' }, { t: 'xlrm', label: 'OUT3', port: 'OUT 3' }, { t: 'xlrm', label: 'OUT4', port: 'OUT 4' }, { t: 'rj45', label: 'NET' }] },
 ];
+/* שם מוצר לצורך התאמה לטבלאות: "Resolution 2SH" = "RES 2SH", "Evolution 7T" = "EVO 7T" — היצרן כותב את שתי הצורות */
+function spkNameNorm(name) { return String(name || '').replace(/RESOLUTION/ig, 'RES').replace(/EVOLUTION/ig, 'EVO'); }
 function rearKey(name) { return (name || '').replace(/\s*\(\d+\)\s*$/, '').trim(); }
 /* שם קריא מ-regex של דגם: /DPA\s?\d/ → "DPA", /IPX\s?(5|10|20)\s?:?\s?4/ → "IPX 5/10/20:4", /DSK\s?3\.?1/ → "DSK 3.1" */
 function rearPretty(re) {
@@ -2282,7 +2284,8 @@ function attachArrange() {
       if (!a || a.hidden || n.hidden || !isIconNode(a) || !isIconNode(n)) { if (!a) delete n.att; continue; }
       const el = document.getElementById('nd_' + n.id), ea = document.getElementById('nd_' + a.id); if (!el || !ea) continue;
       const mN = bx(el.querySelector('.mic') || el), nN = bx(el), mA = bx(ea.querySelector('.mic') || ea), nA = bx(ea), t = n.att;
-      const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1), tcy = t.sy === 0 ? mA.cy : (nA.cy + t.sy * ((nA.H + nN.H) / 2 + 1)) + (mN.cy - nN.cy);
+      /* הצמדה אייקון-לאייקון (ולא לפי תיבת המוקד עם הכיתוב): תחתית הטופ נוגעת בראש הסאב, רווח 2px */
+      const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1), tcy = t.sy === 0 ? mA.cy : mA.cy + t.sy * ((mA.H + mN.H) / 2 + 2);
       const dX = tcx - mN.cx, dY = tcy - mN.cy; if (Math.abs(dX) < 0.3 && Math.abs(dY) < 0.3) continue;
       const nr = parseFloat(el.style.right) - dX, nt = parseFloat(el.style.top) + dY; el.style.right = nr + 'px'; el.style.top = nt + 'px';
       n._fanX = nr - n.x + (n._chW || 0); n._fanY = nt - n.y; changed = true; }
@@ -2641,8 +2644,10 @@ function renderNodes() {
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="16" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="12" r="1.6" fill="${mc}"/></svg>`;
       else
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="15" r="4" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="7" r="1.8" fill="${mc}"/></svg>`;
+      /* אייקון בערימה (טופ על סאב): המספר עובר לצד האייקון — אחרת האייקון שמעליו מכסה אותו */
+      const stk = !!(n.att && n.att.sy) || P.nodes.some(o => o.att && o.att.id === n.id && o.att.sy);
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}" style="cursor:grab;position:relative">
-        <div class="mnum" style="background:${mc}">${mm ? mm[1] : '•'}</div>
+        <div class="mnum" style="background:${mc}${stk ? ';position:absolute;left:-2px;top:50%;transform:translateY(-50%);z-index:3' : ''}">${mm ? mm[1] : '•'}</div>
         <div class="mic" style="border-color:${mc}">${icon}</div>
 </div>`; /* לחיצה על האייקון פותחת — אין צורך בכפתור צף */
       /* לחיצה על האייקון עצמו פותחת את המוקד — כמו בארון ובפאנל; גרירה נשארת גרירה */
@@ -4590,7 +4595,7 @@ function modelOf(name) {
   const k = rearKey(name);
   if (store.ampLib && store.ampLib[k]) return k;
   if (store.spkLib && store.spkLib[k]) return k;
-  const d = (typeof AMP_DATA !== 'undefined' && AMP_DATA.find(x => x.re.test(name || ''))) || (typeof SPEAKER_DATA !== 'undefined' && SPEAKER_DATA.find(x => x.re.test(name || '')));
+  const d = (typeof AMP_DATA !== 'undefined' && AMP_DATA.find(x => x.re.test(spkNameNorm(name)))) || (typeof SPEAKER_DATA !== 'undefined' && SPEAKER_DATA.find(x => x.re.test(spkNameNorm(name))));
   if (!d) return shortModel(name);
   /* מהחלופות בביטוי (למשל DPA|DC1048) — זו שבאמת תואמת לשם */
   const alts = String(d.re.source).split('|'), hit = alts.find(al => { try { return new RegExp(al, 'i').test(name || ''); } catch { return false; } });
@@ -6351,7 +6356,7 @@ async function autoChainFrom(nid, forceAmp) {
 /* ===== חוק אום — עומס מקבילי על קו רמקולים ===== */
 /* נתוני פס (HI/MID/LOW) לרמקול bi/tri-amp — מטבלת הנתונים (spkMeta[דגם].bands) */
 /* נתוני פס מטבלת המפרט של היצרן (bd ב-SPEAKER_DATA — שורה לכל דרייבר באתר Funktion-One), לפי אופן ההגברה של הדגם */
-function dataBand(name, band) { if (typeof SPEAKER_DATA === 'undefined' || !name) return null; const d = SPEAKER_DATA.find(x => x.bd && x.re && x.re.test(name)); if (!d) return null; const md = spkAmpMode(name), set = d.bd[md] || null; return (set && set[band]) || null; }
+function dataBand(name, band) { if (typeof SPEAKER_DATA === 'undefined' || !name) return null; const d = SPEAKER_DATA.find(x => x.bd && x.re && x.re.test(spkNameNorm(name))); if (!d) return null; const md = spkAmpMode(name), set = d.bd[md] || null; return (set && set[band]) || null; }
 /* בסיס הנתונים לפס: טבלת המפרט של היצרן גוברת; מטריצת ההתאמות משלימה רק שדות שאין באתר */
 function bandBase(name, band) { const db = dataBand(name, band), mx = matrixBand(name, band); if (!db && !mx) return null; const m2 = mx ? { row: mx.row, w: mx.w, o: mx.o, sens: mx.sens, max: mx.spl, f: mx.freq, spl: mx.spl, freq: mx.freq, note: mx.note } : {}; if (db) return { ...db, src: 'אתר היצרן' };   /* יש טבלת יצרן לפס — המטריצה לא מתערבבת בה (שורות המטריצה מופו לא נכון לחלק מהפסים) */
   return { ...Object.fromEntries(Object.entries(m2).filter(([, v]) => v != null && v !== '')), src: 'מטריצת ההתאמות' }; }
@@ -6609,7 +6614,7 @@ function spkData(name) {
   const lib = (store && store.spkLib) || {};
   const key = rearKey(name);
   if (lib[key]) return lib[key];
-  return SPEAKER_DATA.find(d => d.re.test(name || '')) || null;
+  return SPEAKER_DATA.find(d => d.re.test(spkNameNorm(name))) || null;
 }
 function guessVdisp(name) { const d = spkData(name); return (d && d.v) ? d.v : 50; }
 /* ייבוא נתוני רמקולים מ-EASE/GLL Viewer (CSV: model,H,V,sens,max · או JSON) לספריית store.spkLib */
@@ -7073,7 +7078,7 @@ window.spkTableGoto = spkTableGoto;
 function specSheet(tab, name) {
   const key = rearKey(name);
   let d = null;
-  if (tab === 'spk') d = (store.spkLib || {})[key] || SPEAKER_DATA.find(x => x.re && x.re.test(name));
+  if (tab === 'spk') d = (store.spkLib || {})[key] || SPEAKER_DATA.find(x => x.re && x.re.test(spkNameNorm(name)));
   else d = (store.ampLib || {})[key] || AMP_DATA.find(x => x.re && x.re.test(name));
   if (!d) { alert('לא נמצאו נתונים לדגם.'); return; }
   const old = document.getElementById('specOv'); if (old) old.remove();
