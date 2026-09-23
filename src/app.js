@@ -4478,9 +4478,14 @@ function cableForm(c) {
 function measuredHTML(c) {
   const a = byId(c.from), b = byId(c.to);
   if (!a || !b || a === b) return '';
-  const d = Math.hypot(a.x - b.x, a.y - b.y) * P.scale;
-  return `<p class="muted" style="margin:-2px 0 8px">📏 מרחק מדוד בתכנית: <b>${d.toFixed(1)} מ׳</b> (קו אווירי)
-    <button style="padding:1px 8px" onclick="cById('${c.id}').len=${+d.toFixed(1)};render()">השתמש</button></p>`;
+  const cd = c.conduit && cdById(c.conduit), rp = cd && cd.path && cd.path.length > 1 ? cd.path : null;
+  const ra = endRise(a, c.fromUnit), rb = endRise(b, c.toUnit);
+  const hor = rp ? (() => { const A = { x: 2200 - a.x - 20, y: a.y + 24 }, B = { x: 2200 - b.x - 20, y: b.y + 24 }, f = rp[0], l = rp[rp.length - 1], d2 = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y); return (Math.min(d2(A, f) + d2(B, l), d2(A, l) + d2(B, f)) + polyLen(rp)) * P.scale; })() : Math.hypot(a.x - b.x, a.y - b.y) * P.scale;
+  const tot = hor + ra.v + rb.v + ra.res + rb.res;
+  const side = (n, r) => `${esc(shortModel(n.name) || n.name).slice(0, 16)}: ${r.kind === 'rack' ? 'ארון על הרצפה — עלייה ' + r.v.toFixed(1) : 'גובה ' + (r.h || 0) + ' מ׳ — ירידה ' + r.v.toFixed(1)} + ${r.res} רזרבה`;
+  return `<p class="muted" style="margin:-2px 0 8px;line-height:1.7">📏 <b>${tot.toFixed(1)} מ׳</b> = ${hor.toFixed(1)} ${rp ? 'לאורך ' + esc(conduitTag(cd)) : 'אופקי (קו אווירי)'} + ${(ra.v + rb.v).toFixed(1)} עלייה/ירידה + ${ra.res + rb.res} רזרבה
+    <button style="padding:1px 8px" onclick="cById('${c.id}').len=${+tot.toFixed(1)};delete cById('${c.id}').lenManual;render()">השתמש</button>
+    <br><span style="font-size:10.5px">${side(a, ra)} · ${side(b, rb)}${ra.noCeil || rb.noCeil ? ' · ⚠ אין גובה תקרה — העלייה לא חושבה' : ''}</span></p>`;
 }
 /* מינימום עומס לערוץ מגבר — מטבלת המגברים, לפי שם היחידה. ברירת מחדל 4Ω */
 function ampMinOhm(uname) {
@@ -9073,6 +9078,23 @@ function ptInZone(z, x, y) {
   return x >= b.L && x <= b.L + b.W && y >= b.T && y <= b.T + b.H;
 }
 /* מחשב מחדש אורכי כבלים לפי מיקומי המוקדים הנוכחיים (אחרי הזזה) + מעדכן ניצול גלילים */
+/* ===== אורך כבל אמיתי (כלל אורי, 09/2026) =====
+   ארון עומד על הרצפה: הכבל יורד לרצפה + 2 מ׳ רזרבה, עולה לתקרה, רץ במסלול (תוואי הצינור או קו אווירי),
+   ויורד לגובה הרמקול/המוקד + 1 מ׳ רזרבה. גובה התקרה: מהאזור שבו המוקד, אחרת גובה החלל הכללי.
+   בלי גובה תקרה מחושב רק המסלול האופקי + הרזרבות, והכבל מסומן (c.lenParts.noCeil). */
+const LEN_RES_RACK = 2, LEN_RES_END = 1;
+function ceilAt(n) {
+  const z = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 });
+  const v = (z && z.ceil) || (P.room && P.room.ceil);
+  return +v > 0 ? +v : null;
+}
+/* טיפוס/ירידה + רזרבה בקצה אחד */
+function endRise(n, unitId) {
+  const ch = ceilAt(n), isRack = n.kind === 'rack' || !!unitId;
+  if (isRack) return { v: ch != null ? ch : 0, res: LEN_RES_RACK, kind: 'rack', noCeil: ch == null };   /* מהרצפה עד התקרה */
+  const h = +n.hgt > 0 ? +n.hgt : 0;
+  return { v: ch != null ? Math.max(0, ch - h) : 0, res: LEN_RES_END, kind: 'end', noCeil: ch == null, h };
+}
 function recalcCableLengths() {
   if (!P.scale) return;
   (P.cables || []).forEach(c => {
@@ -9080,10 +9102,14 @@ function recalcCableLengths() {
     const a = byId(c.from), b = byId(c.to);
     if (!a || !b || a === b) return;
     const cd = c.conduit && cdById(c.conduit), rp = cd && cd.path && cd.path.length > 1 ? cd.path : null;
+    let hor;
     if (rp) { /* אורך לפי התוואי: מהמוקד אל פתח הצינור, לאורך הצינור, ומהפתח השני אל המוקד */
       const A = { x: 2200 - a.x - 20, y: a.y + 24 }, B = { x: 2200 - b.x - 20, y: b.y + 24 }, f = rp[0], l = rp[rp.length - 1], d = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
-      c.len = +((Math.min(d(A, f) + d(B, l), d(A, l) + d(B, f)) + polyLen(rp)) * P.scale).toFixed(1); return; }
-    c.len = +(Math.hypot(a.x - b.x, a.y - b.y) * P.scale).toFixed(1);
+      hor = (Math.min(d(A, f) + d(B, l), d(A, l) + d(B, f)) + polyLen(rp)) * P.scale;
+    } else hor = Math.hypot(a.x - b.x, a.y - b.y) * P.scale;
+    const ra = endRise(a, c.fromUnit), rb = endRise(b, c.toUnit);
+    c.lenParts = { h: +hor.toFixed(1), up: +(ra.v + rb.v).toFixed(1), res: ra.res + rb.res, a: ra, b: rb, noCeil: ra.noCeil || rb.noCeil };
+    c.len = +(hor + ra.v + rb.v + ra.res + rb.res).toFixed(1);
   });
   /* ניצול גלילים מחדש מאפס לפי אורכי הכבלים המעודכנים */
   if (P.stock && P.stock.reels) {
