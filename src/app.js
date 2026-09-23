@@ -10007,6 +10007,43 @@ function rackFocusMount() {
   wrap.style.marginLeft = wrap.style.marginRight = Math.round(w0 * (k - 1) / 2) + 'px';
 }
 /* פריסת כבל מפריט ברשימה — מפעיל חיבור בלחיצה עם כל פרטי הכבל */
+/* ===== 🔗 שיוך אוטומטי: הכבלים שכבר בהצעה ↔ הקווים בתכנית =====
+   לכל קו בתכנית בלי מוצר כבל: קודם כבל מוכן מההצעה באורך מספיק שעוד לא נוצל, אחרת גליל מההצעה שנשאר בו מספיק.
+   מה שאין לו כיסוי נרשם כחוסר (מטרים + 15% רזרבה) — עם כפתור להשלמה. הניצול והמחיר מתעדכנים מיד. */
+function linkCablesToOffer(opts = {}) {
+  ensureStock(P); recalcCableLengths();
+  const rows = impItems.filter(it => (it.dest === 'reel' || it.dest === 'cable') && it.on !== false);
+  const open = (P.cables || []).filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0).sort((a, b) => (+b.len) - (+a.len));
+  const typeOf = it => it.type || cableTypeFromName(it.name);
+  const byProd = {}, missing = {};
+  let linked = 0;
+  for (const c of open) {
+    const cands = rows.filter(it => typeOf(it) === c.type);
+    let pick = null;
+    for (const it of cands.filter(x => x.dest === 'cable')) { const st = ensureStockItem(it); if ((+st.len || 0) >= +c.len && (st.used || 0) < (+st.qty || 0)) { pick = { it, st, kind: 'cable' }; break; } }
+    if (!pick) for (const it of cands.filter(x => x.dest === 'reel')) { const st = ensureStockItem(it); if ((+st.total || 0) - (st.used || 0) >= +c.len) { pick = { it, st, kind: 'reel' }; break; } }
+    if (!pick) { missing[c.type] = (missing[c.type] || 0) + Math.ceil(+c.len * 1.15); continue; }
+    applyStockRef(pick.kind + '|' + pick.st.id, null, c);
+    const k = pick.it.name;
+    byProd[k] = byProd[k] || { n: 0, m: 0, kind: pick.kind };
+    byProd[k].n++; byProd[k].m += +c.len; linked++;
+  }
+  save(); render();
+  if (opts.silent) return { linked, byProd, missing };
+  const miss = Object.entries(missing);
+  const KWN = { nl4: 'רמקול (NL4)', multi: 'מולטי', xlr: 'XLR', cat: 'רשת', dmx: 'DMX', fiber: 'אופטי', sdi: 'BNC/SDI', pwr: 'חשמל' };
+  const ov = uiModal(`<div style="max-height:70vh;overflow:auto">
+    <b style="font-size:15px">🔗 שיוך כבלים מההצעה לקווים בתכנית</b>
+    <p style="font-size:12.5px;margin:6px 0 8px;line-height:1.6">${linked ? `שויכו <b>${linked}</b> קווים:` : 'לא נמצא כבל מתאים בהצעה לאף קו.'}</p>
+    ${Object.entries(byProd).map(([nm, v]) => `<div style="font-size:12px;border:1px solid #eee;border-radius:8px;padding:5px 8px;margin-bottom:4px">${v.kind === 'reel' ? '🧵' : '🔌'} ${esc(nm.slice(0, 52))} — <b>${v.n}</b> קווים · ${Math.round(v.m)} מ׳</div>`).join('')}
+    ${miss.length ? `<p style="font-size:12.5px;margin:10px 0 4px;color:#8c2f16"><b>חסר בהצעה</b> (כולל 15% רזרבה):</p>${miss.map(([t, m]) => `<div style="font-size:12px">• ${esc(KWN[t] || t)} — ${m} מ׳</div>`).join('')}
+      <button class="primary" data-fill style="width:100%;margin-top:8px">➕ הוסף להצעה את מה שחסר (גלילים לפי סוג)</button>` : '<p style="font-size:12.5px;color:#0f6e56;margin-top:8px">✓ לכל הקווים יש כבל בהצעה</p>'}
+    <button data-x style="width:100%;margin-top:8px">סגור</button></div>`);
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  const fb = ov.querySelector('[data-fill]');
+  if (fb) fb.onclick = () => { ov.remove(); if (typeof wizFillCables === 'function') wizFillCables(); };
+  return { linked, byProd, missing };
+}
 function wireFromItem(iid) {
   const it = impItems.find(x => x.iid === iid);
   if (!it) return;
@@ -10649,6 +10686,7 @@ function renderImp() {
       ${pinMode ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 נקר על התכנית (Esc לסיום)</span>' : ''}
       ${connPin ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 לחץ ליד קצה כבל (Esc לסיום)</span>' : ''}
       ${replFor ? '<span style="background:#7aa2ff;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">🔄 חפש ובחר מוצר להחלפה (Esc לביטול)</span>' : ''}
+      <button onclick="linkCablesToOffer()" title="משייך את הכבלים והגלילים שכבר בהצעה לקווים בתכנית — לפי סוג ואורך, כולל ניצול הגליל; מה שחסר מוצג להשלמה" style="white-space:nowrap">🔗 שייך כבלים</button>
       <button onclick="showKits()" title="קיטים מוכנים (ERP)" style="white-space:nowrap">🧰 קיטים</button>
       <button onclick="showErp()" title="משיכה מפרויקטים מאושרים והצעות קיימות (ERP)" style="white-space:nowrap">🗂 פרויקטים</button>
       <button onclick="dockWide=!dockWide;renderImp()" title="${dockWide ? 'חזרה מהמסך המלא' : 'הרחב על כל המסך'}" style="${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '⤡' : '⤢'}</button>

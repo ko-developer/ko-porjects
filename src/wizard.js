@@ -663,6 +663,8 @@ function wizBuildAll(force) {
 }
 /* השלמת כבלים: כל קו בלי מוצר מקבל שורת "גליל" מהקטלוג לפי סוג, עם המטרים */
 function wizFillCables() {
+  /* קודם משייכים למה שכבר בהצעה — רק מה שנשאר בלי כיסוי נקנה מחדש */
+  if (typeof linkCablesToOffer === 'function') linkCablesToOffer({ silent: true });
   /* קווים בלי מוצר כבל — לפי סוג. פאצ'ים פנימיים בארון הם כבלים מוכנים ולא נחתכים מגליל */
   const open = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0);
   const need = {};
