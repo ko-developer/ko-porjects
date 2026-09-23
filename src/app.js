@@ -31,6 +31,21 @@ function cableColor(c) {
 /* מה הליבות של מולטי: XLR, Cat6 (מולטי רשת) או סיבים (מולטי אופטי) */
 function coreTxt(c) { return c.type === 'cat' ? 'Cat6' : c.type === 'fiber' ? 'סיבים' : 'XLR'; }
 function cableKindLabel(c) { const t = CTYPES[c.type] ? CTYPES[c.type].n : c.type; const mm = c.type === 'nl4' ? cableMm(c) : null; return mm ? t + ' · ' + mm + ' ממ״ר' : t; }
+/* דגם הכבל בקצרה: גידים × חתך — "2×2.5", "4×4"; למולטי/רשת/אופטי: מספר הליבות ("36× XLR") */
+function cableSpecShort(c) {
+  if (!c) return '';
+  const cores = +c.cores || (c.chans ? c.chans.length : 0);
+  let mm = cableMm(c);
+  if (!mm) {   /* אין חתך על הקו — לוקחים מהשם של הכבל/הגליל שממנו הוא נפרס ("כבל רמקול 4×2.5") */
+    const st = c.stockRef && P.stock ? [...(P.stock.cables || []), ...(P.stock.reels || [])].find(x => c.stockRef.endsWith('|' + x.id)) : null;
+    const txt = [st && st.name, c.spec, c.note, c.prod].filter(Boolean).join(' ');
+    const m = /(\d)\s*[x×]\s*(\d+(?:[.,]\d+)?)/i.exec(txt);
+    if (m) return m[1] + '×' + m[2].replace(',', '.');
+  }
+  if (c.type === 'nl4') { const n = cores >= 2 ? cores : 2; return mm ? n + '×' + mm : n + ' גידים'; }
+  if (c.type === 'multi' || c.type === 'cat' || c.type === 'fiber') return cores ? cores + '× ' + coreTxt(c) : '';
+  return mm ? (cores || 2) + '×' + mm : '';
+}
 const UPX = 15;
 const LSKEY = 'installPlanner_v1';
 /*__DATA:ERP_ITEMS__*/
@@ -8236,7 +8251,7 @@ function routeManager() {
   const propose = arr => { const area = arr.reduce((a2, c) => a2 + Math.PI * (cableOD(c) / 2) ** 2, 0); const lim = arr.length <= 1 ? 0.53 : arr.length === 2 ? 0.31 : 0.4; let need = null; for (const d of CONDUIT_DIAS) if (Math.PI * (d * 0.86 / 2) ** 2 * lim >= area) { need = d; break; } return { need, pct: need ? Math.round(area / (Math.PI * (need * 0.86 / 2) ** 2 * lim) * 100) : 100 }; };
   const KN = Object.fromEntries(ROUTE_KINDS), nodeNm = id => endShort(id);
   /* שבב קו אחיד — מספר, סוג, קוטר, מאיפה לאן; נגרר לכל כרטיס צינור */
-  const chip = (c, onclick, dim) => `<span draggable="true" ondragstart="rtDragStart(event,'${c.id}')" ${onclick ? `onclick="${onclick}"` : ''} title="${esc(cableKindLabel(c))} · ${esc(endNameTxt(c.from, c.fromUnit))} ← ${esc(endNameTxt(c.to, c.toUnit))}${c.len ? ' · ' + c.len + ' מ׳' : ''} · גרירה אל כרטיס צינור משייכת${onclick ? ' · לחיצה מוציאה/מחזירה מהקבוצה' : ''}" style="display:inline-flex;gap:5px;align-items:center;border:1.5px solid ${cableColor(c)};border-radius:8px;padding:2px 7px;margin:2px;cursor:grab;font-size:11px;background:${dim ? '#f3f1ec' : '#fff'};opacity:${dim ? .45 : 1}"><b style="color:${cableColor(c)}">${LBL[c.id]}</b> ${esc(cableKindLabel(c).slice(0, 22))} <small style="color:#777">Ø${cableOD(c).toFixed(0)}</small><small style="color:#999">· ${esc(endShort(c.from, c.fromUnit).slice(0, 18))} ← ${esc(endShort(c.to, c.toUnit).slice(0, 18))}</small>${c.route && c.route !== 'conduit' && c.route !== 'tray' ? `<small style="color:#8a6d00">${esc(KN[c.route])}</small>` : ''}</span>`;
+  const chip = (c, onclick, dim) => `<span draggable="true" ondragstart="rtDragStart(event,'${c.id}')" ${onclick ? `onclick="${onclick}"` : ''} title="${esc(cableKindLabel(c))} · ${esc(endNameTxt(c.from, c.fromUnit))} ← ${esc(endNameTxt(c.to, c.toUnit))}${c.len ? ' · ' + c.len + ' מ׳' : ''} · גרירה אל כרטיס צינור משייכת${onclick ? ' · לחיצה מוציאה/מחזירה מהקבוצה' : ''}" style="display:inline-flex;gap:5px;align-items:center;border:1.5px solid ${cableColor(c)};border-radius:8px;padding:2px 7px;margin:2px;cursor:grab;font-size:11px;background:${dim ? '#f3f1ec' : '#fff'};opacity:${dim ? .45 : 1}"><b style="color:${cableColor(c)}">${LBL[c.id]}</b> ${esc(cableKindLabel(c).slice(0, 22))}${cableSpecShort(c) ? ` <b style="color:#1a1e28" dir="ltr">${esc(cableSpecShort(c))}</b>` : ''} <small style="color:#777">Ø${cableOD(c).toFixed(0)}</small><small style="color:#999">· ${esc(endShort(c.from, c.fromUnit).slice(0, 18))} ← ${esc(endShort(c.to, c.toUnit).slice(0, 18))}</small>${c.route && c.route !== 'conduit' && c.route !== 'tray' ? `<small style="color:#8a6d00">${esc(KN[c.route])}</small>` : ''}</span>`;
   /* כרטיסי הצינורות: הגדרות בשורה אחת, ומתחת כל הקווים שבפנים כשבבים מלאים (יעד גרירה) */
   const cdCards = P.conduits.map(cd => { const f = conduitFill(cd), col = conduitColor(cd);
     const sz = cd.kind === 'tray' ? `<select onchange="conduitSet('${cd.id}','size',this.value)">${traySizeOpts(cd.size)}</select> מ״מ` : `Ø<select onchange="conduitSet('${cd.id}','size',this.value)">${CONDUIT_DIAS.map(d => `<option value="${d}" ${+cd.size === d ? 'selected' : ''}>${d}</option>`).join('')}</select> מ״מ`;
@@ -8295,7 +8310,7 @@ function routeReportHTML() {
   window.__rpConduitLegend = `<table class="cablelist" style="margin-top:6px"><tr><th>צינור</th><th>מ־ ↔ אל</th><th>אורך</th><th>קווים</th><th>מילוי</th></tr>${legend}</table>`;
   return `<div class="rp-sec"><h3>🛤 תשתית העברה — תעלות, צינורות ומסלולי הקווים</h3>
     ${cds.length ? `<table class="cablelist"><tr><th>שם</th><th>סוג</th><th>מידה</th><th>אורך</th><th>קווים בפנים</th><th>מילוי</th></tr>${cds.map(cd => { const f = conduitFill(cd); return `<tr><td><b>${esc(cd.name)}</b></td><td>${cd.kind === 'tray' ? 'תעלה' : 'צינור'}</td><td>${cd.kind === 'tray' ? cd.size + ' מ״מ' : 'Ø' + cd.size + ' מ״מ'}</td><td>${cd.len ? cd.len + ' מ׳' : '—'}</td><td>${f.cabs.map(c => LBL[c.id] + ' (' + esc(cableKindLabel(c)) + ')').join(' · ') || '—'}</td><td style="color:${f.ok ? '#0f6e56' : '#c1121f'};font-weight:700">${Math.round(f.pct * 100)}%${f.ok ? '' : ' ⚠'}</td></tr>`; }).join('')}</table>` : ''}
-    <table class="cablelist" style="margin-top:8px"><tr><th>#</th><th>מ־ ← אל</th><th>סוג</th><th>מעבר</th><th>צינור/תעלה</th></tr>${(P.cables || []).filter(c => c.from !== c.to && !c.internal).map(c => { const cd = cds.find(x => x.id === c.conduit); return `<tr><td>${LBL[c.id]}</td><td>${esc(endShort(c.from, c.fromUnit).slice(0, 30))} ← ${esc(endShort(c.to, c.toUnit).slice(0, 30))}</td><td>${esc(cableKindLabel(c))}</td><td>${esc(KN[c.route || ''] || '—')}</td><td>${cd ? esc(cd.name) : '—'}</td></tr>`; }).join('')}</table></div>`;
+    <table class="cablelist" style="margin-top:8px"><tr><th>#</th><th>מ־ ← אל</th><th>סוג</th><th>מעבר</th><th>צינור/תעלה</th></tr>${(P.cables || []).filter(c => c.from !== c.to && !c.internal).map(c => { const cd = cds.find(x => x.id === c.conduit); return `<tr><td>${LBL[c.id]}</td><td>${esc(endShort(c.from, c.fromUnit).slice(0, 30))} ← ${esc(endShort(c.to, c.toUnit).slice(0, 30))}</td><td>${esc(cableKindLabel(c))}${cableSpecShort(c) ? ' · ' + esc(cableSpecShort(c)) : ''}</td><td>${esc(KN[c.route || ''] || '—')}</td><td>${cd ? esc(cd.name) : '—'}</td></tr>`; }).join('')}</table></div>`;
 }
 function uiModal(inner) { /* בסיס משותף: מחזיר {ov, box} */
   const ov = document.createElement('div');
