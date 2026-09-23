@@ -4270,6 +4270,14 @@ function ioPanelHTML(name, nid, unitId) {
     + (io.x ? `<p class="muted" style="font-size:10px;margin-top:3px">${esc(io.x)}</p>` : '')
     + (nid ? '<p class="muted" style="font-size:10px;margin-top:3px">💡 לחץ על יציאה ואז על מוצר בתכנית — הכבל ישויך ליציאה</p>' : '');
 }
+/* שם קצר לקצה קו — דגם המוצר בלבד ("סאב פאסיבי … מדגם BR12" → "BR12"); ארונות/פאנלים בשמם המלא */
+function endShort(nid, unitId) {
+  const n = byId(nid); if (!n) return '?';
+  const u = unitId && (n.units || []).find(x => x.id === unitId);
+  if (u) return shortModel(u.name) || u.name;
+  if (n.kind === 'point') { const sm = shortModel(n.name); return sm && sm.length >= 2 ? sm : n.name; }
+  return n.name;
+}
 function endNameTxt(nid, unitId) {
   const n = byId(nid);
   if (!n) return '?';
@@ -8226,9 +8234,9 @@ function routeManager() {
   const groups = {}; free.forEach(c => { const k = gkey(c); (groups[k] = groups[k] || []).push(c); });
   window.__rtGroups = groups;
   const propose = arr => { const area = arr.reduce((a2, c) => a2 + Math.PI * (cableOD(c) / 2) ** 2, 0); const lim = arr.length <= 1 ? 0.53 : arr.length === 2 ? 0.31 : 0.4; let need = null; for (const d of CONDUIT_DIAS) if (Math.PI * (d * 0.86 / 2) ** 2 * lim >= area) { need = d; break; } return { need, pct: need ? Math.round(area / (Math.PI * (need * 0.86 / 2) ** 2 * lim) * 100) : 100 }; };
-  const KN = Object.fromEntries(ROUTE_KINDS), nodeNm = id => (byId(id) || {}).name || '?';
+  const KN = Object.fromEntries(ROUTE_KINDS), nodeNm = id => endShort(id);
   /* שבב קו אחיד — מספר, סוג, קוטר, מאיפה לאן; נגרר לכל כרטיס צינור */
-  const chip = (c, onclick, dim) => `<span draggable="true" ondragstart="rtDragStart(event,'${c.id}')" ${onclick ? `onclick="${onclick}"` : ''} title="${esc(cableKindLabel(c))} · ${esc(endNameTxt(c.from, c.fromUnit))} ← ${esc(endNameTxt(c.to, c.toUnit))}${c.len ? ' · ' + c.len + ' מ׳' : ''} · גרירה אל כרטיס צינור משייכת${onclick ? ' · לחיצה מוציאה/מחזירה מהקבוצה' : ''}" style="display:inline-flex;gap:5px;align-items:center;border:1.5px solid ${cableColor(c)};border-radius:8px;padding:2px 7px;margin:2px;cursor:grab;font-size:11px;background:${dim ? '#f3f1ec' : '#fff'};opacity:${dim ? .45 : 1}"><b style="color:${cableColor(c)}">${LBL[c.id]}</b> ${esc(cableKindLabel(c).slice(0, 22))} <small style="color:#777">Ø${cableOD(c).toFixed(0)}</small><small style="color:#999">· ${esc(nodeNm(c.from).slice(0, 14))} ← ${esc(nodeNm(c.to).slice(0, 14))}</small>${c.route && c.route !== 'conduit' && c.route !== 'tray' ? `<small style="color:#8a6d00">${esc(KN[c.route])}</small>` : ''}</span>`;
+  const chip = (c, onclick, dim) => `<span draggable="true" ondragstart="rtDragStart(event,'${c.id}')" ${onclick ? `onclick="${onclick}"` : ''} title="${esc(cableKindLabel(c))} · ${esc(endNameTxt(c.from, c.fromUnit))} ← ${esc(endNameTxt(c.to, c.toUnit))}${c.len ? ' · ' + c.len + ' מ׳' : ''} · גרירה אל כרטיס צינור משייכת${onclick ? ' · לחיצה מוציאה/מחזירה מהקבוצה' : ''}" style="display:inline-flex;gap:5px;align-items:center;border:1.5px solid ${cableColor(c)};border-radius:8px;padding:2px 7px;margin:2px;cursor:grab;font-size:11px;background:${dim ? '#f3f1ec' : '#fff'};opacity:${dim ? .45 : 1}"><b style="color:${cableColor(c)}">${LBL[c.id]}</b> ${esc(cableKindLabel(c).slice(0, 22))} <small style="color:#777">Ø${cableOD(c).toFixed(0)}</small><small style="color:#999">· ${esc(endShort(c.from, c.fromUnit).slice(0, 18))} ← ${esc(endShort(c.to, c.toUnit).slice(0, 18))}</small>${c.route && c.route !== 'conduit' && c.route !== 'tray' ? `<small style="color:#8a6d00">${esc(KN[c.route])}</small>` : ''}</span>`;
   /* כרטיסי הצינורות: הגדרות בשורה אחת, ומתחת כל הקווים שבפנים כשבבים מלאים (יעד גרירה) */
   const cdCards = P.conduits.map(cd => { const f = conduitFill(cd), col = conduitColor(cd);
     const sz = cd.kind === 'tray' ? `<select onchange="conduitSet('${cd.id}','size',this.value)">${traySizeOpts(cd.size)}</select> מ״מ` : `Ø<select onchange="conduitSet('${cd.id}','size',this.value)">${CONDUIT_DIAS.map(d => `<option value="${d}" ${+cd.size === d ? 'selected' : ''}>${d}</option>`).join('')}</select> מ״מ`;
@@ -8283,11 +8291,11 @@ function routeReportHTML() {
   if (!cds.length && !routed.length) return '';
   const KN = Object.fromEntries(ROUTE_KINDS);
   /* שרטוט הצנרת: כל צינור בצבעו, קווים עבים, תג צ1 Ø50, וטבלת מקרא — מהיכן לאן וכמה קווים בפנים */
-  const legend = cds.map(cd => { const f = conduitFill(cd); const ends = [...new Set(f.cabs.flatMap(c => [endNameTxt(c.from, c.fromUnit), endNameTxt(c.to, c.toUnit)]))]; return `<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${conduitColor(cd)};vertical-align:middle"></span> <b style="color:${conduitColor(cd)}">${esc(conduitTag(cd))}</b> ${esc(cd.name)}</td><td>${esc(ends.slice(0, 4).join(' ↔ ').slice(0, 60))}</td><td>${cd.len ? cd.len + ' מ׳' : '—'}</td><td>${f.cabs.length}</td><td style="color:${f.ok ? '#0f6e56' : '#c1121f'};font-weight:700">${Math.round(f.pct * 100)}%${f.ok ? '' : ' ⚠ צריך Ø' + (f.need || '>110')}</td></tr>`; }).join('');
+  const legend = cds.map(cd => { const f = conduitFill(cd); const ends = [...new Set(f.cabs.flatMap(c => [endShort(c.from, c.fromUnit), endShort(c.to, c.toUnit)]))]; return `<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${conduitColor(cd)};vertical-align:middle"></span> <b style="color:${conduitColor(cd)}">${esc(conduitTag(cd))}</b> ${esc(cd.name)}</td><td>${esc(ends.slice(0, 4).join(' ↔ ').slice(0, 60))}</td><td>${cd.len ? cd.len + ' מ׳' : '—'}</td><td>${f.cabs.length}</td><td style="color:${f.ok ? '#0f6e56' : '#c1121f'};font-weight:700">${Math.round(f.pct * 100)}%${f.ok ? '' : ' ⚠ צריך Ø' + (f.need || '>110')}</td></tr>`; }).join('');
   window.__rpConduitLegend = `<table class="cablelist" style="margin-top:6px"><tr><th>צינור</th><th>מ־ ↔ אל</th><th>אורך</th><th>קווים</th><th>מילוי</th></tr>${legend}</table>`;
   return `<div class="rp-sec"><h3>🛤 תשתית העברה — תעלות, צינורות ומסלולי הקווים</h3>
     ${cds.length ? `<table class="cablelist"><tr><th>שם</th><th>סוג</th><th>מידה</th><th>אורך</th><th>קווים בפנים</th><th>מילוי</th></tr>${cds.map(cd => { const f = conduitFill(cd); return `<tr><td><b>${esc(cd.name)}</b></td><td>${cd.kind === 'tray' ? 'תעלה' : 'צינור'}</td><td>${cd.kind === 'tray' ? cd.size + ' מ״מ' : 'Ø' + cd.size + ' מ״מ'}</td><td>${cd.len ? cd.len + ' מ׳' : '—'}</td><td>${f.cabs.map(c => LBL[c.id] + ' (' + esc(cableKindLabel(c)) + ')').join(' · ') || '—'}</td><td style="color:${f.ok ? '#0f6e56' : '#c1121f'};font-weight:700">${Math.round(f.pct * 100)}%${f.ok ? '' : ' ⚠'}</td></tr>`; }).join('')}</table>` : ''}
-    <table class="cablelist" style="margin-top:8px"><tr><th>#</th><th>מ־ ← אל</th><th>סוג</th><th>מעבר</th><th>צינור/תעלה</th></tr>${(P.cables || []).filter(c => c.from !== c.to && !c.internal).map(c => { const cd = cds.find(x => x.id === c.conduit); return `<tr><td>${LBL[c.id]}</td><td>${esc(endNameTxt(c.from, c.fromUnit).slice(0, 30))} ← ${esc(endNameTxt(c.to, c.toUnit).slice(0, 30))}</td><td>${esc(cableKindLabel(c))}</td><td>${esc(KN[c.route || ''] || '—')}</td><td>${cd ? esc(cd.name) : '—'}</td></tr>`; }).join('')}</table></div>`;
+    <table class="cablelist" style="margin-top:8px"><tr><th>#</th><th>מ־ ← אל</th><th>סוג</th><th>מעבר</th><th>צינור/תעלה</th></tr>${(P.cables || []).filter(c => c.from !== c.to && !c.internal).map(c => { const cd = cds.find(x => x.id === c.conduit); return `<tr><td>${LBL[c.id]}</td><td>${esc(endShort(c.from, c.fromUnit).slice(0, 30))} ← ${esc(endShort(c.to, c.toUnit).slice(0, 30))}</td><td>${esc(cableKindLabel(c))}</td><td>${esc(KN[c.route || ''] || '—')}</td><td>${cd ? esc(cd.name) : '—'}</td></tr>`; }).join('')}</table></div>`;
 }
 function uiModal(inner) { /* בסיס משותף: מחזיר {ov, box} */
   const ov = document.createElement('div');
