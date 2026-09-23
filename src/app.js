@@ -3999,6 +3999,8 @@ function renderWires() {
     out += `<path d="${dpath}" fill="none" stroke="${col}" stroke-width="${it.cdRouted ? Math.min(selw, (c.id === selCable ? 1.6 : 0.55) * cdK()) : selw}"${instDash ? ` stroke-dasharray="${instDash}"` : ''}${mStart}${mEnd} opacity="0.9" style="pointer-events:none"/>`;
     /* קצה הכבל = עיגול אחד עם מספר הכבל בתוכו — גם מזהה וגם ידית גרירה.
        קצה שמחובר למכשיר בתוך ארון — נקודה קטנה בלבד, בלי מספר (המספר כבר בגב). */
+    /* מספר הכבל יושב לצד האייקון ולא עליו: הזזה החוצה לאורך כיוון היציאה של הקו + הזזה לצד (ניצב) */
+    const sideVec = sd => sd === 'T' ? [0, -1] : sd === 'B' ? [0, 1] : sd === 'L' ? [-1, 0] : sd === 'R' ? [1, 0] : null;
     const handle = (x, y, end) => {
       const lbl = LBL[c.id], big = String(lbl).length > 2;
       const toUnit = !!unitOf(c[end], c[end + 'Unit']) || !!(end === 'from' ? c.fromHole : c.toHole);
@@ -4010,9 +4012,17 @@ function renderWires() {
         return `<circle cx="${x}" cy="${y}" r="${Math.max(7, 10 * shrink)}" fill="transparent" style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title></circle>`;
       const r = Math.max(3.2, (big ? 5.5 : 4.5) * shrink);
       const fs = Math.max(3.2, (big ? 4.2 : 5.2) * shrink);
+      /* כיוון היציאה מהמוקד: צד ההתחברות אם ידוע, אחרת לכיוון הקצה השני */
+      const o = end === 'from' ? pb : pa;
+      let v = sideVec(end === 'from' ? it.as : it.bs);
+      if (!v) { const dx0 = o.x - x, dy0 = o.y - y, L0 = Math.hypot(dx0, dy0) || 1; v = [dx0 / L0, dy0 / L0]; }
+      const nd = byId(c[end]), icon = nd && (nd.kind !== 'point' || !nd.mini) ? 0 : 1;   /* אייקון ממוזער = ריבוע 30px */
+      const out0 = (icon ? 15 : 8) * shrink + r, side = (icon ? 13 : 7) * shrink + r;
+      const bx3 = x + v[0] * out0 - v[1] * side, by3 = y + v[1] * out0 + v[0] * side;
       return `<g style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>${tip}</title>
-        <circle cx="${x}" cy="${y}" r="${r.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3 : 2) * shrink}"/>
-        <text x="${x}" y="${y + fs * 0.36}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="800" fill="${col}" style="user-select:none">${lbl}</text></g>`;
+        <line x1="${x}" y1="${y}" x2="${bx3.toFixed(1)}" y2="${by3.toFixed(1)}" stroke="${col}" stroke-width="${0.8 * shrink}" opacity="0.5"/>
+        <circle cx="${bx3.toFixed(1)}" cy="${by3.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3 : 2) * shrink}"/>
+        <text x="${bx3.toFixed(1)}" y="${(by3 + fs * 0.36).toFixed(1)}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="800" fill="${col}" style="user-select:none">${lbl}</text></g>`;
     };
     out += handle(pa.x, pa.y, 'from') + handle(pb.x, pb.y, 'to');
     /* מלבן פינה עם מספר הכבל בתוכו — במקום עיגול נפרד על הקו; לחיצה בוחרת את הכבל, גרירה מזיזה את הפינה */
