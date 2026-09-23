@@ -62,8 +62,8 @@ function liteStore(st, curId) {
     if (thumb) rest.hasThumb = true;   /* תמונה ממוזערת של התכנית (לרשימת הפרויקטים) — מוגשת מ-/api/project/<id>/thumb */
     if (bg) { if (p.id === curId) rest.bg = bg; else rest.hasBg = true; }
     if (bgPdf) rest.hasPdf = true;
-    if (bgs) { if (p.id === curId) rest.bgs = bgs; else rest.hasBgs = true; }        /* תכניות רקע של כל גיליונות הפרויקט */
-    if (bgPdfs) { if (p.id === curId) rest.bgPdfs = bgPdfs; else rest.hasPdfs = true; }
+    if (bgs && Object.keys(bgs).length) { if (p.id === curId) rest.bgs = bgs; else rest.hasBgs = true; }        /* תכניות רקע של כל גיליונות הפרויקט */
+    if (bgPdfs && Object.keys(bgPdfs).length) { if (p.id === curId) rest.bgPdfs = bgPdfs; else rest.hasPdfs = true; }
     if (vers && vers.length) rest.versN = vers.length;
     rest._lite = true; return rest; }) };
 }
@@ -75,6 +75,18 @@ function hydrateStore(full, posted) {
     const { _lite, hasBg, hasPdf, hasBgs, hasPdfs, hasThumb, hasSnd, versN, ...q } = p, old = byId.get(p.id) || {};
     if (!('bgs' in q) && hasBgs && old.bgs) q.bgs = old.bgs;
     if (!('bgPdfs' in q) && hasPdfs && old.bgPdfs) q.bgPdfs = old.bgPdfs;
+    /* מעבר לפרויקט מרובה-תכניות: התמונות עברו ממפתח p.bg למפה p.bgs לפי גיליון.
+       גיליון שמסומן hasBg אבל התמונה שלו לא נשלחה — משלימים מהעותק השמור (bgs לפי מזהה, או p.bg הישן של הגיליון הראשון).
+       בלי זה שמירה ראשונה אחרי המעבר מוחקת את תכנית הרקע. */
+    if (Array.isArray(q.sheets) && q.sheets.length) {
+      q.bgs = { ...(old.bgs || {}), ...(q.bgs || {}) };
+      q.bgPdfs = { ...(old.bgPdfs || {}), ...(q.bgPdfs || {}) };
+      const first = q.sheets[0];
+      if (first && first.hasBg && !q.bgs[first.id] && old.bg) q.bgs[first.id] = old.bg;
+      if (first && first.hasPdf && !q.bgPdfs[first.id] && old.bgPdf) q.bgPdfs[first.id] = old.bgPdf;
+      for (const sh of q.sheets) { if (!q.bgs[sh.id] && old.bgs && old.bgs[sh.id]) q.bgs[sh.id] = old.bgs[sh.id]; }
+      if (Object.keys(q.bgs).length) { delete q.bg; delete q.bgPdf; } else { if (old.bg) q.bg = old.bg; if (old.bgPdf) q.bgPdf = old.bgPdf; }
+    }
     if (!('sndImg' in q) && hasSnd && old.sndImg) q.sndImg = old.sndImg;
     if (!('thumb' in q) && hasThumb && old.thumb) q.thumb = old.thumb;
     if (!('bg' in q) && hasBg && old.bg) q.bg = old.bg;              /* לא נשלחה תמונה אבל הייתה — נשארת; בלי hasBg = המשתמש מחק */

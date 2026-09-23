@@ -270,6 +270,8 @@ body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer
       <button onclick="addNode('power')">⚡ הכנת חשמל — שקעים / סיקונים</button>
       <button onclick="sketchStart()">🪑 סימון בתכנית — שולחן / ריהוט / קירות</button>
       <button onclick="ui.tab='cable';selCable=null;wireMode={from:null};render()">🔗 כבל — חיבור בין שני מוצרים</button>
+      <button onclick="this.closest('.dd').classList.remove('open');xlinkDlg()" title="קו תשתית בין תכניות — ארון לארון או ארון לפאנל בקומה/מבנה אחר">🔗 קו בין תכניות (קומות)</button>
+      <button onclick="this.closest('.dd').classList.remove('open');sheetsView3D()" title="תצוגת מבנה — כל התכניות זו מעל זו לפי המפלס והיישור">🏗 תצוגת מבנה (3D)</button>
       <button onclick="this.closest('.dd').classList.remove('open');routeManager()">🛤 צנרת — צינורות, תעלות ומסלולי הכבלים</button>
     </div>
   </div>

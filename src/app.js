@@ -383,8 +383,8 @@ function sheetsInit(pr) {
     pr.bgs = {}; pr.bgPdfs = {};
     if (pr.bg) { pr.bgs[id] = pr.bg; delete pr.bg; }
     if (pr.bgPdf) { pr.bgPdfs[id] = pr.bgPdf; delete pr.bgPdf; }
-    if (pr.hasBg) { sh.hasBg = true; delete pr.hasBg; }
-    if (pr.hasPdf) { sh.hasPdf = true; delete pr.hasPdf; }
+    if (pr.hasBg || pr.bgs[id]) { sh.hasBg = true; delete pr.hasBg; }
+    if (pr.hasPdf || pr.bgPdfs[id]) { sh.hasPdf = true; delete pr.hasPdf; }
     pr.sheets = [sh]; pr.curSheet = id;
   }
   pr.bgs = pr.bgs || {}; pr.bgPdfs = pr.bgPdfs || {};
@@ -517,6 +517,166 @@ function sheetAlignManual(otherId) {
     if (lv !== '') other.level = +lv;
     ov.remove(); save(); render(); uiToast('📐 נשמר: ' + other.alignBy, 5000); sheetAlignDlg();
   };
+}
+/* ===== 🔗 תשתית בין תכניות (קומות/מבנים) =====
+   קו שמחבר מוקד בתכנית אחת למוקד בתכנית אחרת (ארון לארון, ארון לפאנל בקומה אחרת).
+   נשמר ברמת הפרויקט (P.xlinks) ומוצג בשתי התכניות כסמן "מעבר" עם יעד ואורך.
+   האורך: מרחק אופקי בין התכניות (לפי היישור) + הפרש המפלסים + הרזרבות של כלל האורכים. */
+function anyNode(id) { for (const sh of P.sheets || []) { const n = (sh.nodes || []).find(x => x.id === id); if (n) return { n, sh }; } return null; }
+function xlinks() { return P.xlinks = P.xlinks || []; }
+function xlinkLen(l) {
+  const A = anyNode(l.a), B = anyNode(l.b); if (!A || !B) return null;
+  const d = sheetDist(A.sh, { x: 2200 - A.n.x - 20, y: A.n.y + 24 }, B.sh, { x: 2200 - B.n.x - 20, y: B.n.y + 24 });
+  if (!d) return null;
+  const ra = endRise(A.n), rb = endRise(B.n);
+  const hor = +l.horM > 0 ? +l.horM : d.hor;
+  return { hor, dz: d.dz, res: ra.res + rb.res, rise: ra.v + rb.v, tot: +(hor + d.dz + ra.v + rb.v + ra.res + rb.res).toFixed(1), aligned: !!(A.sh.org || B.sh.org || A.sh === B.sh) };
+}
+function xlinkDlg(editId) {
+  const shs = P.sheets || [];
+  const nodesOf = sh => (sh.nodes || []).filter(n => !n.hidden && (n.kind === 'rack' || n.kind === 'panel' || n.kind === 'point'));
+  const ex = editId ? xlinks().find(x => x.id === editId) : null;
+  const cur = curSheet(P);
+  const opt = (sh, selId) => nodesOf(sh).map(n => `<option value="${n.id}" ${selId === n.id ? 'selected' : ''}>${esc((n.kind === 'rack' ? '🗄 ' : n.kind === 'panel' ? '🔲 ' : '🔊 ') + n.name.slice(0, 34))}</option>`).join('');
+  const shOpt = (selId, skip) => shs.filter(sh => sh.id !== skip).map(sh => `<option value="${sh.id}" ${selId === sh.id ? 'selected' : ''}>${esc(sh.name)}${sh.level != null ? ' · מפלס ' + sh.level : ''}</option>`).join('');
+  const other = shs.find(sh => sh.id !== cur.id) || cur;
+  const ov = uiModal(`<div style="max-height:74vh;overflow:auto">
+    <b style="font-size:15px">🔗 ${ex ? 'עריכת' : 'הוספת'} קו תשתית בין תכניות</b>
+    <p style="font-size:12px;color:#555;margin:6px 0 8px;line-height:1.55">הקו שעובר בין הקומות/המבנים — בין ארון לארון או מארון לפאנל בתכנית אחרת. האורך מחושב מהיישור בין התכניות ומהמפלסים.</p>
+    <div class="fld"><label>מ־ · תכנית</label><select data-sa>${shOpt(ex ? anyNode(ex.a)?.sh.id : cur.id)}</select></div>
+    <div class="fld"><label>מ־ · מוקד</label><select data-na>${opt(ex ? anyNode(ex.a)?.sh || cur : cur, ex && ex.a)}</select></div>
+    <div class="fld"><label>אל · תכנית</label><select data-sb>${shOpt(ex ? anyNode(ex.b)?.sh.id : other.id)}</select></div>
+    <div class="fld"><label>אל · מוקד</label><select data-nb>${opt(ex ? anyNode(ex.b)?.sh || other : other, ex && ex.b)}</select></div>
+    <div class="row2"><div class="fld"><label>סוג</label><select data-t>${Object.entries(CTYPES).map(([k, v]) => `<option value="${k}" ${(ex ? ex.type : 'multi') === k ? 'selected' : ''}>${esc(v.n)}</option>`).join('')}</select></div>
+      <div class="fld"><label>כמות קווים</label><input data-q type="number" min="1" value="${ex ? ex.qty || 1 : 1}"></div></div>
+    <div class="fld"><label>מרחק אופקי ידני (מ׳) — ריק = לפי היישור בין התכניות</label><input data-h type="number" step="1" min="0" value="${ex && ex.horM ? ex.horM : ''}"></div>
+    <div class="fld"><label>הערה</label><input data-note value="${ex ? esc(ex.note || '') : ''}" placeholder="למשל: דרך פיר תקשורת"></div>
+    <div style="display:flex;gap:6px"><button class="primary" data-ok style="flex:1">${ex ? 'שמור' : 'הוסף'}</button>${ex ? '<button data-del style="flex:1;background:#f3d9d2;color:#8c2f16">מחק</button>' : ''}<button data-c style="flex:1">ביטול</button></div></div>`);
+  const q = k => ov.querySelector(k);
+  q('[data-sa]').onchange = () => { const sh = shs.find(x => x.id === q('[data-sa]').value); q('[data-na]').innerHTML = opt(sh); };
+  q('[data-sb]').onchange = () => { const sh = shs.find(x => x.id === q('[data-sb]').value); q('[data-nb]').innerHTML = opt(sh); };
+  q('[data-c]').onclick = () => ov.remove();
+  if (ex) q('[data-del]').onclick = () => { P.xlinks = xlinks().filter(x => x.id !== ex.id); ov.remove(); save(); render(); uiToast('הקו נמחק'); };
+  q('[data-ok]').onclick = () => {
+    const a = q('[data-na]').value, b = q('[data-nb]').value;
+    if (!a || !b || a === b) { uiToast('בחר שני מוקדים שונים'); return; }
+    const rec = ex || { id: uid('xl') };
+    Object.assign(rec, { a, b, type: q('[data-t]').value, qty: +q('[data-q]').value || 1, horM: +q('[data-h]').value || undefined, note: q('[data-note]').value || undefined });
+    if (!ex) xlinks().push(rec);
+    ov.remove(); save(); render();
+    const L = xlinkLen(rec);
+    uiToast('🔗 קו תשתית נוסף' + (L ? ' · ' + L.tot + ' מ׳' + (L.aligned ? '' : ' ⚠ התכניות לא מיושרות') : ''), 6000);
+  };
+}
+/* סמני המעבר בתכנית הנוכחית — לכל קו תשתית שנוגע בה */
+function xlinkMarksSVG() {
+  const cur = curSheet(P); if (!cur) return '';
+  let out = '';
+  for (const l of xlinks()) {
+    for (const side of ['a', 'b']) {
+      const me = anyNode(l[side]); if (!me || me.sh !== cur) continue;
+      const far = anyNode(l[side === 'a' ? 'b' : 'a']); if (!far) continue;
+      const x = 2200 - me.n.x - 20, y = me.n.y + 24, L = xlinkLen(l);
+      /* כיוון הסמן: לפי מיקום התכנית השנייה בעולם (אם יושרה), אחרת ימינה */
+      const wA = sheetWorld(cur, { x, y }), wB = sheetWorld(far.sh, { x: 2200 - far.n.x - 20, y: far.n.y + 24 });
+      let vx = wB.x - wA.x, vy = wB.y - wA.y; const m = Math.hypot(vx, vy) || 1; vx /= m; vy /= m;
+      if (!(far.sh.org || cur.org) && far.sh !== cur) { vx = 1; vy = 0; }
+      const d = 78, bx = x + vx * d, by = y + vy * d, up = (far.sh.level || 0) > (cur.level || 0), same = far.sh === cur;
+      const txt = `${same ? '' : (up ? '↑ ' : '↓ ')}${far.sh.name} · ${far.n.name.slice(0, 18)}${L ? ' · ' + L.tot + ' מ׳' : ''}`;
+      const w = Math.max(90, txt.length * 5.6 + 16);
+      out += `<g style="pointer-events:all;cursor:pointer" onclick="xlinkDlg('${l.id}')"><title>${esc(txt)} · ${esc((CTYPES[l.type] || {}).n || '')}${l.qty > 1 ? ' ×' + l.qty : ''}${l.note ? ' · ' + esc(l.note) : ''} — לחיצה לעריכה</title>
+        <line x1="${x}" y1="${y}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#4b3fb8" stroke-width="2.5" stroke-dasharray="7 4"/>
+        <circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="7" fill="#4b3fb8"/><text x="${bx.toFixed(1)}" y="${(by + 3.5).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">${same ? '↔' : up ? '↑' : '↓'}</text>
+        <rect x="${(bx - w / 2).toFixed(1)}" y="${(by + 10).toFixed(1)}" width="${w}" height="17" rx="8" fill="#fff" stroke="#4b3fb8" stroke-width="1.4"/>
+        <text x="${bx.toFixed(1)}" y="${(by + 22).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#4b3fb8">${esc(txt)}</text></g>`;
+    }
+  }
+  return out;
+}
+/* פרק בדוח: כל קווי התשתית בין התכניות */
+function xlinkReportHTML() {
+  const ls = xlinks(); if (!ls.length) return '';
+  return `<div class="rp-sec"><h3>🔗 תשתית בין תכניות — קומות ומבנים</h3>
+    <table class="cablelist"><tr><th>מ־</th><th>תכנית</th><th>אל</th><th>תכנית</th><th>סוג</th><th>כמות</th><th>אורך</th><th>הערה</th></tr>
+    ${ls.map(l => { const A = anyNode(l.a), B = anyNode(l.b), L = xlinkLen(l); if (!A || !B) return '';
+      return `<tr><td><b>${esc(A.n.name)}</b></td><td>${esc(A.sh.name)}${A.sh.level != null ? ' (' + A.sh.level + ' מ׳)' : ''}</td><td><b>${esc(B.n.name)}</b></td><td>${esc(B.sh.name)}${B.sh.level != null ? ' (' + B.sh.level + ' מ׳)' : ''}</td>
+        <td>${esc((CTYPES[l.type] || {}).n || l.type)}</td><td>${l.qty || 1}</td><td dir="ltr" style="text-align:right">${L ? L.tot + ' מ׳' : '—'}${L && !L.aligned ? ' ⚠' : ''}</td><td>${esc(l.note || '')}</td></tr>`; }).join('')}</table>
+    <p style="font-size:11.5px;color:#666;margin:6px 0 0">האורך = מרחק אופקי לפי היישור בין התכניות + הפרש המפלסים + עלייה/ירידה ורזרבות (2 מ׳ בארון, 1 מ׳ בקצה). ⚠ = התכניות עדיין לא יושרו.</p></div>`;
+}
+/* ===== 🏗 תצוגת מבנה — כל התכניות זו מעל זו =====
+   הקרנה איזומטרית: כל תכנית היא מלבן במקומה בעולם (לפי היישור) ובגובה המפלס שלה,
+   עם תמונת הרקע, המוקדים, האזורים וקווי התשתית שעוברים ביניהן. */
+function sheetsView3D() {
+  const shs = (P.sheets || []).filter(sh => sh.scale || (sh.nodes || []).length);
+  if (!shs.length) { uiToast('אין תכניות להצגה'); return; }
+  document.getElementById('v3dOv')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'v3dOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(18,20,26,.92);z-index:150;display:flex;flex-direction:column;align-items:center;padding:12px;gap:8px;direction:rtl';
+  ov.innerHTML = `<div style="display:flex;gap:8px;align-items:center;color:#fff;font-size:13px;flex-wrap:wrap">
+      <b style="font-size:15px">🏗 מבנה הפרויקט — ${esc(P.name)}</b>
+      <label style="display:flex;gap:4px;align-items:center">זווית <input id="v3dA" type="range" min="10" max="60" value="30" style="width:110px"></label>
+      <label style="display:flex;gap:4px;align-items:center">מרווח מפלסים <input id="v3dZ" type="range" min="4" max="60" value="16" style="width:110px"></label>
+      <label style="display:flex;gap:4px;align-items:center"><input id="v3dImg" type="checkbox" checked style="width:auto"> תכניות רקע</label>
+      <button id="v3dX" style="padding:5px 12px;border-radius:8px;border:none;cursor:pointer">✕ סגור</button></div>
+    <div id="v3dBox" style="flex:1;width:min(1300px,98vw);background:#fff;border-radius:12px;overflow:hidden"></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#v3dX').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  const paint = () => {
+    const ang = +ov.querySelector('#v3dA').value, zGap = +ov.querySelector('#v3dZ').value, withImg = ov.querySelector('#v3dImg').checked;
+    const rad = ang * Math.PI / 180, cosA = Math.cos(rad), sinA = Math.sin(rad);
+    /* מטרים → פיקסלים: כל התכניות באותו קנה מידה */
+    const aspOf = sh => sh.bgAsp || 0.64;   /* יחס גובה/רוחב של תכנית הרקע */
+    const spans = shs.map(sh => ({ sh, w: (sh.bgW || 1400) * (sh.scale || 0.01), h: (sh.bgW || 1400) * aspOf(sh) * (sh.scale || 0.01) }));
+    const wMax = Math.max(...spans.map(s => s.w)), k = 620 / Math.max(6, wMax);
+    const iso = (x, y, z) => ({ X: (x - y) * cosA * k, Y: ((x + y) * sinA * k) - z * zGap });
+    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9, body = '';
+    const pts = [];
+    const cornersOf = (sh, w, h) => { const o = shOrg(sh), z = sh.level || 0; return [[o.x, o.y], [o.x + w, o.y], [o.x + w, o.y + h], [o.x, o.y + h]].map(([x, y]) => iso(x, y, z)); };
+    const order = spans.slice().sort((a, b) => (a.sh.level || 0) - (b.sh.level || 0));
+    for (const { sh, w, h } of order) {
+      const c = cornersOf(sh, w, h); c.forEach(q => pts.push(q));
+      const poly = c.map(q => q.X.toFixed(1) + ',' + q.Y.toFixed(1)).join(' ');
+      const img = withImg && P.bgs && P.bgs[sh.id];
+      if (img) {
+        /* התמונה מונחת על המישור בעזרת מטריצה: הציר X של התכנית → קצה 0→1, ציר Y → קצה 0→3 */
+        const ax = (c[1].X - c[0].X) / (sh.bgW || 1400), ay = (c[1].Y - c[0].Y) / (sh.bgW || 1400);
+        const bx = (c[3].X - c[0].X) / ((sh.bgW || 1400) * aspOf(sh)), by = (c[3].Y - c[0].Y) / ((sh.bgW || 1400) * aspOf(sh));
+        body += `<g transform="matrix(${ax.toFixed(4)} ${ay.toFixed(4)} ${bx.toFixed(4)} ${by.toFixed(4)} ${c[0].X.toFixed(1)} ${c[0].Y.toFixed(1)})"><image href="${img}" x="0" y="0" width="${sh.bgW || 1400}" height="${(sh.bgW || 1400) * aspOf(sh)}" opacity="0.62" preserveAspectRatio="none"/></g>`;
+      }
+      body += `<polygon points="${poly}" fill="${img ? 'none' : 'rgba(120,130,160,.10)'}" stroke="#4b3fb8" stroke-width="1.6"/>`;
+      /* אזורים ומוקדים */
+      for (const z2 of sh.zones || []) { const b = zoneBounds(z2), o = shOrg(sh), lv = sh.level || 0, sc = sh.scale || 0.01;
+        const q = [[b.L, b.T], [b.L + b.W, b.T], [b.L + b.W, b.T + b.H], [b.L, b.T + b.H]].map(([x, y]) => iso(o.x + x * sc, o.y + y * sc, lv));
+        body += `<polygon points="${q.map(w2 => w2.X.toFixed(1) + ',' + w2.Y.toFixed(1)).join(' ')}" fill="${zColor(z2)}22" stroke="${zColor(z2)}" stroke-width="1.2"/>`;
+        const cz = iso(o.x + (b.L + b.W / 2) * sc, o.y + (b.T + b.H / 2) * sc, lv);
+        body += `<text x="${cz.X.toFixed(1)}" y="${cz.Y.toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#1a1e28">${esc(z2.name.slice(0, 18))}</text>`; }
+      for (const n of sh.nodes || []) { if (n.hidden) continue; const o = shOrg(sh), sc = sh.scale || 0.01;
+        const q = iso(o.x + (2200 - n.x - 20) * sc, o.y + (n.y + 24) * sc, sh.level || 0);
+        const col = n.kind === 'rack' ? '#2d3444' : n.kind === 'panel' ? '#c9502e' : '#0f6e56';
+        body += `<circle cx="${q.X.toFixed(1)}" cy="${q.Y.toFixed(1)}" r="${n.kind === 'rack' ? 5 : 3.4}" fill="${col}" stroke="#fff" stroke-width="1"><title>${esc(n.name)} · ${esc(sh.name)}</title></circle>`; }
+      /* תווית התכנית */
+      const lbl = iso(shOrg(sh).x, shOrg(sh).y + h, sh.level || 0);
+      body += `<rect x="${(lbl.X - 60).toFixed(1)}" y="${(lbl.Y + 6).toFixed(1)}" width="120" height="19" rx="9" fill="#1a1e28"/><text x="${lbl.X.toFixed(1)}" y="${(lbl.Y + 19).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${esc(sh.name)}${sh.level != null ? ' · ' + sh.level + ' מ׳' : ''}</text>`;
+    }
+    /* קווי התשתית בין התכניות */
+    for (const l of xlinks()) {
+      const A = anyNode(l.a), B = anyNode(l.b); if (!A || !B) continue;
+      const pa = iso(shOrg(A.sh).x + (2200 - A.n.x - 20) * (A.sh.scale || 0.01), shOrg(A.sh).y + (A.n.y + 24) * (A.sh.scale || 0.01), A.sh.level || 0);
+      const pb = iso(shOrg(B.sh).x + (2200 - B.n.x - 20) * (B.sh.scale || 0.01), shOrg(B.sh).y + (B.n.y + 24) * (B.sh.scale || 0.01), B.sh.level || 0);
+      const L = xlinkLen(l), mid = { X: (pa.X + pb.X) / 2, Y: (pa.Y + pb.Y) / 2 };
+      body += `<line x1="${pa.X.toFixed(1)}" y1="${pa.Y.toFixed(1)}" x2="${pb.X.toFixed(1)}" y2="${pb.Y.toFixed(1)}" stroke="#4b3fb8" stroke-width="2.6"/>
+        <circle cx="${pa.X.toFixed(1)}" cy="${pa.Y.toFixed(1)}" r="4" fill="#4b3fb8"/><circle cx="${pb.X.toFixed(1)}" cy="${pb.Y.toFixed(1)}" r="4" fill="#4b3fb8"/>
+        <rect x="${(mid.X - 46).toFixed(1)}" y="${(mid.Y - 9).toFixed(1)}" width="92" height="18" rx="9" fill="#fff" stroke="#4b3fb8"/><text x="${mid.X.toFixed(1)}" y="${(mid.Y + 4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#4b3fb8">${esc((CTYPES[l.type] || {}).n || '')}${L ? ' · ' + L.tot + ' מ׳' : ''}</text>`;
+      pts.push(pa, pb);
+    }
+    pts.forEach(q => { minX = Math.min(minX, q.X); maxX = Math.max(maxX, q.X); minY = Math.min(minY, q.Y); maxY = Math.max(maxY, q.Y); });
+    const pad = 70, vb = `${(minX - pad).toFixed(0)} ${(minY - pad).toFixed(0)} ${(maxX - minX + pad * 2).toFixed(0)} ${(maxY - minY + pad * 2).toFixed(0)}`;
+    ov.querySelector('#v3dBox').innerHTML = `<svg viewBox="${vb}" style="width:100%;height:100%" font-family="Assistant,Arial,sans-serif">${body}</svg>`;
+  };
+  ['#v3dA', '#v3dZ', '#v3dImg'].forEach(k => ov.querySelector(k).oninput = paint);
+  paint();
 }
 /* שורת הלשוניות של התכניות — מעל הקנבס */
 function sheetTabsHTML() {
@@ -1329,9 +1489,25 @@ function centerPlan() {
   uiToast('⌖ התכנית מורכזת בקנבס — הכול זז יחד איתה');
 }
 window.centerPlan = centerPlan;
+/* תמונת הרקע של הגיליון — נטענת מהשרת לפי דרישה (store קל / פרויקט שלא נפתח) */
+function sheetFetchBg(pr, sh) {
+  if (!SRV || !sh || sh._bgFetch || (pr.bgs && pr.bgs[sh.id])) return;
+  if (!sh.hasBg && !pr.hasBgs && !pr.hasPdfs) return;
+  sh._bgFetch = 1;
+  fetch('/api/project/' + encodeURIComponent(pr.id) + '?f=bgs,bgPdfs,bg,bgPdf').then(r => r.json()).then(o => {
+    pr.bgs = pr.bgs || {}; pr.bgPdfs = pr.bgPdfs || {};
+    if (o.bgs) Object.assign(pr.bgs, o.bgs);
+    if (o.bgPdfs) Object.assign(pr.bgPdfs, o.bgPdfs);
+    if (o.bg && !pr.bgs[sh.id]) pr.bgs[sh.id] = o.bg;              /* שרת ישן — תמונה אחת לפרויקט */
+    if (o.bgPdf && !pr.bgPdfs[sh.id]) pr.bgPdfs[sh.id] = o.bgPdf;
+    if (P === pr) { render(); if (typeof viewToContent === 'function') viewToContent(); }
+  }).catch(() => { sh._bgFetch = 0; });
+}
 function renderBg() {
   const im = $('#bgimg');
+  if (!P.bg) sheetFetchBg(P, curSheet(P));
   if (P.bg) {
+    im.onload = () => { const sh = curSheet(P); if (sh && im.naturalWidth) { const asp = +(im.naturalHeight / im.naturalWidth).toFixed(4); if (sh.bgAsp !== asp) { sh.bgAsp = asp; } } };
     im.src = P.bg;
     im.style.right = ''; im.style.left = bgLeft() + 'px'; im.style.top = bgTop() + 'px';
     im.style.width = (P.bgW || 1400) + 'px';
@@ -4312,6 +4488,7 @@ function renderWires() {
       }
     }
   }
+  if (typeof xlinkMarksSVG === 'function') out += xlinkMarksSVG();
   svg.innerHTML = out;
 }
 function tidy() {
@@ -12959,6 +13136,7 @@ function exportPDF() {
       }).join('') + '</table></div>';
   }
   if (typeof sndRepReportHTML === 'function') h += sndRepReportHTML();
+  if (typeof xlinkReportHTML === 'function') h += xlinkReportHTML();
   h += routeReportHTML();
   h += mountReportHTML();
   h += `<div class="rp-sec"><h3>מפתח כבלים מלא</h3>${cableTableHTML()}</div>`;
