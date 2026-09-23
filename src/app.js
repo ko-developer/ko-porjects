@@ -2626,7 +2626,7 @@ function attachArrange() {
       const el = document.getElementById('nd_' + n.id), ea = document.getElementById('nd_' + a.id); if (!el || !ea) continue;
       const mN = bx(el.querySelector('.mic') || el), nN = bx(el), mA = bx(ea.querySelector('.mic') || ea), nA = bx(ea), t = n.att;
       /* הצמדה אייקון-לאייקון (ולא לפי תיבת המוקד עם הכיתוב): תחתית הטופ נוגעת בראש הסאב, רווח 2px */
-      const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1), tcy = t.sy === 0 ? mA.cy : mA.cy + t.sy * ((mA.H + mN.H) / 2 + 2);
+      const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1), tcy = t.sy === 0 ? mA.cy : mA.cy + t.sy * ((mA.H + mN.H) / 2);   /* 0 רווח — האייקונים נוגעים */
       const dX = tcx - mN.cx, dY = tcy - mN.cy; if (Math.abs(dX) < 0.3 && Math.abs(dY) < 0.3) continue;
       const nr = parseFloat(el.style.right) - dX, nt = parseFloat(el.style.top) + dY; el.style.right = nr + 'px'; el.style.top = nt + 'px';
       n._fanX = nr - n.x + (n._chW || 0); n._fanY = nt - n.y; changed = true; }
@@ -2988,7 +2988,7 @@ function renderNodes() {
       /* אייקון בערימה (טופ על סאב): המספר עובר לצד האייקון — אחרת האייקון שמעליו מכסה אותו */
       const stk = !!(n.att && n.att.sy) || P.nodes.some(o => o.att && o.att.id === n.id && o.att.sy);
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}" style="cursor:grab;position:relative">
-        <div class="mnum" style="background:${mc}${stk ? ';position:absolute;left:-2px;top:50%;transform:translateY(-50%);z-index:3' : ''}">${mm ? mm[1] : '•'}</div>
+        <div class="mnum" style="background:${mc}${stk ? ';position:absolute;left:-27px;top:50%;transform:translateY(-50%);z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.4)' : ''}">${mm ? mm[1] : '•'}</div>
         <div class="mic" style="border-color:${mc}">${icon}</div>
 </div>`; /* לחיצה על האייקון פותחת — אין צורך בכפתור צף */
       /* לחיצה על האייקון עצמו פותחת את המוקד — כמו בארון ובפאנל; גרירה נשארת גרירה */
@@ -8554,7 +8554,7 @@ function mountProductFor(n, kind) {
   if (kind === 'adj') {
     if (brand === 'Unicorn' || brand === 'Celto' || brand === 'Yamaha' || brand === 'אחר') { const h = find(/GU\s?40/i); return h ? { key: h[0], name: h[1], qty: 1, why: 'מתקן מתכוונן GU40 — ' + brand } : null; }
     const h = tokRx && items.filter(([k, s]) => s && /מתקן|bracket|mount/i.test(s) && /מתכוונן|WALL MOUNT|לקיר|סיבובי|Adjustable|bracket/i.test(s) && !/מתקן ח|YOKE|U-mount|קרקע|Ground|GSB|dolly/i.test(s) && tokRx.test(s)).sort((a, b) => byStockThenSold(a[0], b[0]))[0];
-    return h ? { key: h[0], name: h[1], qty: 1, why: 'מתקן מתכוונן של ' + brand + ' לדגם' } : { key: '', name: 'מתקן מתכוונן ' + brand + ' ל' + (tok || nm.slice(0, 20)) + ' — אין בקטלוג', qty: 1, why: 'מתקן מתכוונן — לא נמצא בקטלוג לדגם', missing: true };
+    return h ? { key: h[0], name: h[1], qty: 1, why: 'מתקן מתכוונן של ' + brand + ' לדגם' } : { key: '', name: 'מתקן מתכוונן ' + brand + ' ל' + ((tok || '').replace(/\\s\?/g, ' ').trim() || shortModel(nm) || nm.slice(0, 20)) + ' — אין בקטלוג', qty: 1, why: 'מתקן מתכוונן — לא נמצא בקטלוג לדגם', missing: true };
   }
   return null;
 }
@@ -8594,9 +8594,33 @@ function mountManager() {
   ov.querySelector('[data-x]').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
 window.mountManager = mountManager; window.mountSet = mountSet; window.mountAddAll = mountAddAll;
+/* תמונת המוצר לדוח: לפי מק"ט ההצעה, אחרת לפי שם הדגם */
+function prodImgCell(n, size) {
+  const it = n.srcIid && typeof impItems !== 'undefined' && impItems.find(x => x.iid === n.srcIid);
+  const key = (it && it.key) || '';
+  const url = (key && typeof erpImg === 'function' && erpImg(key)) || (typeof erpImgByModel === 'function' && erpImgByModel(nodeFullName(n))) || '';
+  return url ? `<img src="${esc(url)}" style="width:${size || 46}px;height:${size || 46}px;object-fit:contain;border:1px solid #eee;border-radius:6px;background:#fff">` : '';
+}
+/* מידות המוצר — מטבלת הנתונים, אחרת מתוך שם הפריט */
+function prodDims(n) {
+  const d = spkData(nodeFullName(n));
+  if (d && d.dims) return d.dims;
+  const m = /(\d{2,4})\s*[x\u00d7]\s*(\d{2,4})\s*[x\u00d7]\s*(\d{2,4})/i.exec(nodeFullName(n));
+  return m ? m[1] + ' \u00d7 ' + m[2] + ' \u00d7 ' + m[3] + ' \u05de\u05f4\u05de' : '';
+}
+/* קישורים לדף המוצר / מפרט / מדריך — רק מה שקיים בטבלאות */
+function prodLinks(n) {
+  const nm = nodeFullName(n), d = spkData(nm) || (typeof ampRec === 'function' ? ampRec(nm) : null);
+  if (!d) return '';
+  const a = [];
+  if (d.url) a.push(`<a href="${esc(d.url)}" target="_blank" rel="noopener">דף המוצר</a>`);
+  if (d.pdf) a.push(`<a href="${esc(d.pdf)}" target="_blank" rel="noopener">מפרט</a>`);
+  if (d.man) a.push(`<a href="${esc(d.man)}" target="_blank" rel="noopener">מדריך</a>`);
+  return a.join(' · ');
+}
 function mountReportHTML() {
   const rows = mountRows().filter(r => r.kind !== 'none'); if (!rows.length) return '';
-  return `<div class="rp-sec"><h3>🪝 אביזרי תלייה — לפי הרמקולים</h3><table class="cablelist"><tr><th>רמקול</th><th>מותקן על</th><th>אופן התלייה</th><th>אביזר</th><th>כמות</th></tr>${rows.map(r => `<tr><td>${esc(nodeFullName(r.n).slice(0, 40))}</td><td>${esc(r.n.mount || '—')}</td><td>${esc(HANG_HE[r.kind])}</td><td>${r.pr ? esc(r.pr.name.slice(0, 50)) : '—'}</td><td>${r.pr ? r.pr.qty : ''}</td></tr>`).join('')}</table></div>`;
+  return `<div class="rp-sec"><h3>🪝 אביזרי תלייה — לפי הרמקולים</h3><table class="cablelist"><tr><th></th><th>רמקול</th><th>מותקן על</th><th>אופן התלייה</th><th>אביזר</th><th>כמות</th><th>מידות</th><th>דף היצרן</th></tr>${rows.map(r => `<tr><td>${prodImgCell(r.n, 42)}</td><td>${esc(nodeFullName(r.n).slice(0, 40))}</td><td>${esc(r.n.mount || '—')}</td><td>${esc(HANG_HE[r.kind])}</td><td>${r.pr ? esc(r.pr.name.slice(0, 50)) : '—'}</td><td>${r.pr ? r.pr.qty : ''}</td><td dir="ltr" style="text-align:right;font-size:11px">${esc(prodDims(r.n) || '—')}</td><td style="font-size:11px">${prodLinks(r.n) || '—'}</td></tr>`).join('')}</table></div>`;
 }
 function routeManager() {
   const old = document.getElementById('routeOv'); if (old) (old.closest('.uiDlgOv') || old).remove();   /* ה-id על התוכן — מסירים את השכבה כולה, לא רק אותו (אחרת נשארת קופסה ריקה) */
@@ -13128,11 +13152,11 @@ function exportPDF() {
   }
   if (points.length) {
     const LBLp = cableLabels();
-    h += `<div class="rp-sec"><h3>מוקדי קצה — רמקולים, מקרנים ותאורה</h3><table class="cablelist"><tr><th>מוקד</th><th>תיאור</th><th>אזור</th><th>גובה (מ׳)</th><th>התקנה על</th><th>כבלים (#)</th></tr>` +
+    h += `<div class="rp-sec"><h3>מוקדי קצה — רמקולים, מקרנים ותאורה</h3><table class="cablelist"><tr><th></th><th>מוקד</th><th>תיאור</th><th>אזור</th><th>גובה (מ׳)</th><th>התקנה על</th><th>מידות</th><th>דף היצרן</th><th>כבלים (#)</th></tr>` +
       points.map(n => {
         const cbs = P.cables.filter(c => c.from === n.id || c.to === n.id).map(c => LBLp[c.id]).join(', ');
         const zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 });
-        return `<tr><td><b>${esc(n.name)}</b></td><td>${esc(n.sub || '')}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${n.hgt ?? '—'}</td><td>${esc(n.mount || '—')}</td><td>${cbs || '—'}</td></tr>`;
+        return `<tr><td>${prodImgCell(n)}</td><td><b>${esc(n.name)}</b></td><td>${esc(n.sub || '')}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${n.hgt ?? '—'}</td><td>${esc(n.mount || '—')}</td><td dir="ltr" style="text-align:right;font-size:11px">${esc(prodDims(n) || '—')}</td><td style="font-size:11px">${prodLinks(n) || '—'}</td><td>${cbs || '—'}</td></tr>`;
       }).join('') + '</table></div>';
   }
   if (typeof sndRepReportHTML === 'function') h += sndRepReportHTML();
