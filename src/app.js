@@ -169,6 +169,7 @@ function seedBH() {
 }
 
 let store = load();
+sheetsBindAll(store);
 let P = store.projects.find(p => p.id === store.cur) || store.projects[0];
 let sel = null, selCable = null, ui = { tab: 'node' }, drag = null, cnt = 1000;
 let marq = null; const selMulti = new Set();
@@ -185,7 +186,7 @@ let SRV = false, srvT = null;
     const s = await r.json();
     SRV = true;
     if (s && Array.isArray(s.projects) && s.projects.length) {
-      store = s; liteWire(store);
+      store = s; liteWire(store); sheetsBindAll(store);
       P = store.projects.find(p => p.id === store.cur) || store.projects[0];
       sel = null; selCable = null; selMulti.clear(); normalizeAll();
       if (typeof impItems !== 'undefined') impItems = P.impSaved || [];
@@ -205,7 +206,7 @@ let SRV = false, srvT = null;
 function liteWire(st) {
   for (const p of st.projects || []) {
     if (!p._lite) continue;
-    for (const [f, flag] of [['bg', 'hasBg'], ['bgPdf', 'hasPdf'], ['sndImg', 'hasSnd']]) {
+    for (const [f, flag] of [['bgs', 'hasBgs'], ['bgPdfs', 'hasPdfs'], ['sndImg', 'hasSnd']]) {
       if (!p[flag] || Object.prototype.hasOwnProperty.call(p, f)) continue;
       let pending = null;
       const settle = v => Object.defineProperty(p, f, { value: v, writable: true, configurable: true, enumerable: true });
@@ -362,6 +363,169 @@ async function verRestore(idx) {
   render(); save();
   uiToast('↩ שוחזרה הגרסה מ' + verTime(v.t) + ' — המצב הקודם נשמר בהיסטוריה');
 }
+/* ===================================================================================
+   📑 כמה תכניות (גיליונות) בפרויקט אחד — קומות, מבנים או שרטוטים נפרדים.
+   כל גיליון מחזיק את הרקע, הכיול, המוקדים, הכבלים, האזורים והצנרת שלו. כדי לא לשכפל קוד,
+   P.nodes / P.cables / P.zones / P.conduits / P.bg / P.scale וכו' הם *מצביעים* לגיליון הפעיל
+   (מאפיינים לא-נספרים — לא נכנסים ל-JSON, כך שהנתונים נשמרים פעם אחת בתוך p.sheets).
+   התמונות יושבות במפה אחת ברמת הפרויקט (p.bgs / p.bgPdfs) כדי שהשרת ישלח אותן לפי דרישה.
+   =================================================================================== */
+const SHEET_FIELDS = ['bgW', 'bgOff', 'bgRot', 'bgOp', 'scale', 'calOk', 'autoScale', 'planText', 'hideConduits', 'virtWalls', 'route'];
+const SHEET_ARRAYS = ['nodes', 'cables', 'zones', 'conduits'];
+function curSheet(pr) { const ps = pr.sheets || []; return ps.find(sh => sh.id === pr.curSheet) || ps[0]; }
+function sheetsInit(pr) {
+  if (!pr || pr._lite === undefined && !pr.id) return pr;
+  if (!pr.sheets) {   /* מעבר מפרויקט ישן: כל מה שהיה = "תכנית 1" */
+    const id = 'sh1';
+    const sh = { id, name: 'תכנית 1', level: 0 };
+    SHEET_FIELDS.forEach(f => { if (pr[f] !== undefined) { sh[f] = pr[f]; delete pr[f]; } });
+    SHEET_ARRAYS.forEach(f => { sh[f] = pr[f] || []; delete pr[f]; });
+    pr.bgs = {}; pr.bgPdfs = {};
+    if (pr.bg) { pr.bgs[id] = pr.bg; delete pr.bg; }
+    if (pr.bgPdf) { pr.bgPdfs[id] = pr.bgPdf; delete pr.bgPdf; }
+    if (pr.hasBg) { sh.hasBg = true; delete pr.hasBg; }
+    if (pr.hasPdf) { sh.hasPdf = true; delete pr.hasPdf; }
+    pr.sheets = [sh]; pr.curSheet = id;
+  }
+  pr.bgs = pr.bgs || {}; pr.bgPdfs = pr.bgPdfs || {};
+  if (!curSheet(pr)) pr.curSheet = pr.sheets[0] && pr.sheets[0].id;
+  for (const sh of pr.sheets) SHEET_ARRAYS.forEach(f => { sh[f] = sh[f] || []; });
+  sheetsBind(pr);
+  return pr;
+}
+function sheetsBind(pr) {
+  const def = (obj, name, get, set) => Object.defineProperty(obj, name, { configurable: true, enumerable: false, get, set });
+  for (const f of [...SHEET_FIELDS, ...SHEET_ARRAYS, 'hasBg', 'hasPdf']) {
+    if (Object.prototype.hasOwnProperty.call(pr, f)) delete pr[f];
+    def(pr, f, () => { const sh = curSheet(pr); return sh ? sh[f] : undefined; },
+      v => { const sh = curSheet(pr); if (!sh) return; if (v === undefined) delete sh[f]; else sh[f] = v; });
+  }
+  for (const [f, map] of [['bg', 'bgs'], ['bgPdf', 'bgPdfs']]) {
+    if (Object.prototype.hasOwnProperty.call(pr, f)) { const v0 = pr[f]; delete pr[f]; if (v0) (pr[map] = pr[map] || {})[curSheet(pr).id] = v0; }
+    def(pr, f, () => { const sh = curSheet(pr); return sh && pr[map] ? pr[map][sh.id] : undefined; },
+      v => { const sh = curSheet(pr); if (!sh) return; pr[map] = pr[map] || {}; if (v == null) delete pr[map][sh.id]; else pr[map][sh.id] = v; });
+  }
+}
+function sheetsBindAll(st) { (st.projects || []).forEach(pr => { try { sheetsInit(pr); } catch (e) { console.warn('sheetsInit', e); } }); }
+/* מעבר בין תכניות בפרויקט */
+function sheetGo(id) {
+  if (!P.sheets.some(sh => sh.id === id)) return;
+  P.curSheet = id; sel = null; selCable = null; selZone = null; selMulti.clear();
+  render(); if (typeof viewToContent === 'function') viewToContent();
+  if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender();
+}
+function sheetAdd(name) {
+  const id = uid('sh');
+  const nm = name || ('תכנית ' + (P.sheets.length + 1));
+  P.sheets.push({ id, name: nm, level: null, nodes: [], cables: [], zones: [], conduits: [], route: 'ortho' });
+  P.curSheet = id; sel = selCable = selZone = null;
+  render(); save();
+  uiToast('📑 נוספה "' + nm + '" — העלה תכנית רקע וכייל אותה');
+  const inp = document.getElementById('bgIn'); if (inp) inp.click();
+  return id;
+}
+function sheetRename(id) {
+  const sh = P.sheets.find(x => x.id === id); if (!sh) return;
+  const v = prompt('שם התכנית:', sh.name); if (v == null) return;
+  sh.name = v.trim() || sh.name; render(); save();
+}
+function sheetSetLevel(id, v) { const sh = P.sheets.find(x => x.id === id); if (!sh) return; sh.level = v === '' ? null : +v; save(); render(); }
+async function sheetDelete(id) {
+  const sh = P.sheets.find(x => x.id === id); if (!sh || P.sheets.length < 2) { uiToast('אי אפשר למחוק את התכנית היחידה'); return; }
+  const n = (sh.nodes || []).length, c = (sh.cables || []).length;
+  if (!(await uiConfirm(`למחוק את "${sh.name}"?${n || c ? `\n${n} מוקדים · ${c} כבלים יימחקו איתה` : ''}`, { okText: '🗑 מחק' }))) return;
+  delete P.bgs[id]; delete P.bgPdfs[id];
+  P.sheets = P.sheets.filter(x => x.id !== id);
+  if (P.curSheet === id) P.curSheet = P.sheets[0].id;
+  sel = selCable = selZone = null; render(); save();
+}
+/* ===== 📐 יישור בין תכניות =====
+   לכל תכנית יש מפלס (גובה במטרים) ומקור (sh.org) בקואורדינטות עולם במטרים. שתי דרכים לקבוע אותו:
+   1. אובייקט משותף — לוחצים על אותו אלמנט (פיר מעלית, גרם מדרגות, עמוד, קיר חופף) בשתי התכניות.
+   2. מרחק וכיוון ידניים בין התכניות — כשאין אלמנט משותף או שזה מבנה אחר.
+   מכאן ידועים המרחק האופקי והפרש הגובה בין כל שתי נקודות בתכניות שונות. */
+const shOrg = sh => (sh && sh.org) || { x: 0, y: 0 };
+/* נקודה בקנבס של גיליון → קואורדינטות עולם במטרים */
+function sheetWorld(sh, pt) { const k = sh && sh.scale ? sh.scale : 0; const o = shOrg(sh); return { x: o.x + pt.x * k, y: o.y + pt.y * k }; }
+function sheetOf(nodeOrId) { const id = typeof nodeOrId === 'string' ? nodeOrId : nodeOrId && nodeOrId.id; for (const sh of P.sheets || []) if ((sh.nodes || []).some(n => n.id === id)) return sh; return curSheet(P); }
+/* מרחק במטרים בין שתי נקודות בתכניות שונות (אופקי + הפרש מפלסים) */
+function sheetDist(shA, ptA, shB, ptB) {
+  if (!shA || !shB || !shA.scale || !shB.scale) return null;
+  const a = sheetWorld(shA, ptA), b = sheetWorld(shB, ptB);
+  const hor = Math.hypot(a.x - b.x, a.y - b.y), dz = Math.abs((shA.level || 0) - (shB.level || 0));
+  return { hor, dz, tot: hor + dz, aligned: !!(shA.org || shB.org) || shA === shB };
+}
+function sheetAlignDlg() {
+  const cur = curSheet(P);
+  const others = P.sheets.filter(sh => sh !== cur);
+  const rowTxt = sh => { const d = sheetDist(cur, { x: 1100, y: 700 }, sh, { x: 1100, y: 700 }); return sh.org || cur.org ? (d ? `מרכז מול מרכז ~${d.hor.toFixed(1)} מ׳` : '') : '<span style="color:#8c2f16">לא מיושרת</span>'; };
+  const ov = uiModal(`<div style="max-height:74vh;overflow:auto">
+    <b style="font-size:15px">📐 יישור בין התכניות</b>
+    <p style="font-size:12px;color:#555;margin:6px 0 8px;line-height:1.6">המפלס קובע את הפרש הגובה בין קומות, והיישור האופקי קובע את המרחק בין אזורים בתכניות שונות — משם מחושבת התשתית ביניהן.</p>
+    ${P.sheets.map(sh => `<div style="border:1px solid ${sh === cur ? '#1a1e28' : '#eee'};border-radius:9px;padding:7px 9px;margin-bottom:6px">
+      <div style="display:flex;gap:6px;align-items:center"><b style="flex:1;font-size:13px">${esc(sh.name)}${sh === cur ? ' <small>(הנוכחית)</small>' : ''}</b>
+        <label style="font-size:11.5px">מפלס (מ׳) <input type="number" step="0.1" value="${sh.level ?? ''}" style="width:64px" onchange="sheetSetLevel('${sh.id}',this.value)"></label></div>
+      <div style="font-size:11.5px;color:#666;margin-top:3px">${(sh.nodes || []).length} מוקדים · ${sh.scale ? 'מכוילת' : '<span style="color:#8c2f16">לא מכוילת</span>'} · ${sh === cur ? 'נקודת ייחוס לשאר' : rowTxt(sh)}${sh.alignBy ? ' · ' + esc(sh.alignBy) : ''}</div>
+      ${sh !== cur ? `<div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">
+        <button style="padding:3px 9px;font-size:11.5px" onclick="sheetAlignPoint('${sh.id}')">🎯 אובייקט משותף — לחיצה בשתי התכניות</button>
+        <button style="padding:3px 9px;font-size:11.5px" onclick="sheetAlignManual('${sh.id}')">↔ מרחק וכיוון ידניים</button>
+        ${sh.org ? `<button style="padding:3px 9px;font-size:11.5px" onclick="delete P.sheets.find(x=>x.id==='${sh.id}').org;delete P.sheets.find(x=>x.id==='${sh.id}').alignBy;save();sheetAlignDlg()">✕ בטל יישור</button>` : ''}
+      </div>` : ''}</div>`).join('')}
+    <button data-x style="width:100%;margin-top:6px">סגור</button></div>`);
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  window.__alignOv = ov;
+}
+/* יישור לפי אובייקט משותף: לוחצים עליו בתכנית הנוכחית, ואז באחרת */
+function sheetAlignPoint(otherId) {
+  const base = curSheet(P), other = P.sheets.find(x => x.id === otherId);
+  if (!base.scale || !other.scale) { uiToast('שתי התכניות צריכות כיול לפני היישור'); return; }
+  if (window.__alignOv) window.__alignOv.remove();
+  window.__shAlign = { step: 1, baseId: base.id, otherId };
+  document.body.style.cursor = 'crosshair';
+  uiToast('🎯 לחץ על האובייקט המשותף ב"' + base.name + '" (פיר, מדרגות, עמוד, פינת קיר)', 7000);
+}
+document.addEventListener('pointerdown', e => {
+  const A = window.__shAlign; if (!A || e.button || !e.target.closest || !e.target.closest('#canvasWrap')) return;
+  e.stopPropagation(); e.preventDefault();
+  const pt = canvasPt(e);
+  if (A.step === 1) { A.a = pt; A.step = 2; sheetGo(A.otherId);
+    uiToast('🎯 עכשיו לחץ על אותו אובייקט ב"' + (P.sheets.find(x => x.id === A.otherId) || {}).name + '"', 7000); return; }
+  const base = P.sheets.find(x => x.id === A.baseId), other = P.sheets.find(x => x.id === A.otherId);
+  const w = sheetWorld(base, A.a);                       /* מיקום האובייקט בעולם, לפי תכנית הבסיס */
+  other.org = { x: +(w.x - pt.x * other.scale).toFixed(3), y: +(w.y - pt.y * other.scale).toFixed(3) };
+  other.alignBy = 'יושרה לפי אובייקט משותף';
+  window.__shAlign = null; document.body.style.cursor = '';
+  save(); render(); uiToast('📐 "' + other.name + '" יושרה מול "' + base.name + '"', 5000); sheetAlignDlg();
+}, true);
+document.addEventListener('keydown', e => { if (window.__shAlign && e.key === 'Escape') { window.__shAlign = null; document.body.style.cursor = ''; uiToast('היישור בוטל'); } });
+/* יישור ידני: מרחק אווירי וכיוון מהתכנית הנוכחית */
+function sheetAlignManual(otherId) {
+  const base = curSheet(P), other = P.sheets.find(x => x.id === otherId);
+  if (window.__alignOv) window.__alignOv.remove();
+  const ov = uiModal(`<b style="font-size:14px">↔ מרחק בין "${esc(base.name)}" ל"${esc(other.name)}"</b>
+    <p style="font-size:12px;color:#555;margin:6px 0 8px">המרחק האווירי בין מרכזי התכניות, והכיוון שבו "${esc(other.name)}" נמצאת ביחס לנוכחית.</p>
+    <div class="fld"><label>מרחק (מ׳)</label><input data-d type="number" step="0.5" min="0" value="${other.org ? Math.round(Math.hypot(other.org.x - shOrg(base).x, other.org.y - shOrg(base).y)) : ''}" placeholder="למשל 25"></div>
+    <div class="fld"><label>כיוון</label><select data-dir>${[['e', 'ימינה (מזרח)'], ['w', 'שמאלה (מערב)'], ['n', 'למעלה (צפון)'], ['s', 'למטה (דרום)']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
+    <div class="fld"><label>מפלס התכנית (מ׳)</label><input data-l type="number" step="0.1" value="${other.level ?? ''}" placeholder="0 = אותה קומה"></div>
+    <div style="display:flex;gap:6px"><button class="primary" data-ok style="flex:1">שמור</button><button data-c style="flex:1">ביטול</button></div>`);
+  ov.querySelector('[data-c]').onclick = () => ov.remove();
+  ov.querySelector('[data-ok]').onclick = () => {
+    const d = +ov.querySelector('[data-d]').value || 0, dir = ov.querySelector('[data-dir]').value, lv = ov.querySelector('[data-l]').value;
+    const b = shOrg(base), v = { e: [1, 0], w: [-1, 0], n: [0, -1], s: [0, 1] }[dir];
+    other.org = { x: +(b.x + v[0] * d).toFixed(3), y: +(b.y + v[1] * d).toFixed(3) };
+    other.alignBy = `מרחק ידני ${d} מ׳ ${({ e: 'ימינה', w: 'שמאלה', n: 'למעלה', s: 'למטה' })[dir]} מ"${base.name}"`;
+    if (lv !== '') other.level = +lv;
+    ov.remove(); save(); render(); uiToast('📐 נשמר: ' + other.alignBy, 5000); sheetAlignDlg();
+  };
+}
+/* שורת הלשוניות של התכניות — מעל הקנבס */
+function sheetTabsHTML() {
+  if (!P.sheets || P.sheets.length < 2 && !P.showSheets) return '';
+  const lvl = sh => sh.level != null ? ` <small style="opacity:.75">${sh.level > 0 ? '+' : ''}${sh.level} מ׳</small>` : '';
+  return `<div id="shTabs">${P.sheets.map(sh => `<button class="shTab${sh.id === P.curSheet ? ' on' : ''}" onclick="sheetGo('${sh.id}')" ondblclick="sheetRename('${sh.id}')" title="לחיצה כפולה = שינוי שם · ${(sh.nodes || []).length} מוקדים">${esc(sh.name)}${lvl(sh)}</button>`).join('')}
+    <button class="shTab add" onclick="sheetAdd()" title="הוסף תכנית לפרויקט (קומה / מבנה / שרטוט נוסף)">➕ תכנית</button>
+    ${P.sheets.length > 1 ? `<button class="shTab" onclick="sheetAlignDlg()" title="יישור בין התכניות — אובייקט משותף או מרחק ידני">📐 יישור</button><button class="shTab" onclick="sheetDelete('${P.curSheet}')" title="מחק את התכנית הנוכחית">🗑</button>` : ''}</div>`;
+}
 function normalizeAll() {
   for (const pr of store.projects) { ensureStock(pr); pr.route = pr.route || 'ortho'; }
   /* זוויות פיזור / Max SPL ש"צולמו" למוקד בזמן היצירה מהערכה היוריסטית (לא הוזנו ידנית): כשהדגם קיים בטבלת הנתונים — הערך נמחק מהמוקד והטבלה קובעת */
@@ -481,7 +645,7 @@ function importStudioProject(d) {
   if (typeof fitView === 'function') fitView();
   uiToast('🎧 יובא מ-KO Studio: תכנית, ' + p.zones.length + ' אזורים, ' + p.nodes.length + ' נקודות ורשימת ציוד מלאה');
 }
-function newProj() { const p = { id: uid('p'), name: 'פרויקט חדש', nodes: [], cables: [], route: 'ortho' }; ensureStock(p); store.projects.push(p); P = p; sel = selCable = null; impItems = []; render(); }
+function newProj() { const p = { id: uid('p'), name: 'פרויקט חדש', nodes: [], cables: [], route: 'ortho' }; ensureStock(p); sheetsInit(p); store.projects.push(p); P = p; sel = selCable = null; impItems = []; render(); }
 function dupProj() { const p = JSON.parse(JSON.stringify(P)); p.id = uid('p'); p.name = P.name + ' (עותק)'; store.projects.push(p); P = p; sel = selCable = null; render(); }
 async function delProj() {
   if (store.projects.length === 1) { alert('חייב להישאר לפחות פרויקט אחד'); return; }
@@ -490,7 +654,7 @@ async function delProj() {
   store.projects = store.projects.filter(p => p.id !== P.id);
   P = store.projects[0]; sel = selCable = null; impItems = P.impSaved || []; render();
 }
-function switchProj(id) { P = store.projects.find(p => p.id === id) || P; sel = selCable = null; impItems = P.impSaved || []; render(); viewToContent(); }
+function switchProj(id) { P = store.projects.find(p => p.id === id) || P; sheetsInit(P); sel = selCable = null; impItems = P.impSaved || []; render(); viewToContent(); }
 /* ===== מנהל פרויקטים — חיפוש, לקוח, בחירה מרובה ומחיקה ===== */
 function projManager() {
   const old = document.getElementById('pmOv'); if (old) old.remove();
@@ -1250,6 +1414,7 @@ document.addEventListener('wheel', e => {
   zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, e);   /* זום סביב הסמן */
 }, { passive: false });
 function render() {
+  { const sh = document.getElementById('shTabsHost'); if (sh) sh.innerHTML = sheetTabsHTML(); }
   renderHeader(); renderBg(); applyZoom(); renderZones(); renderCoverage(); renderNodes(); renderWires(); renderPanel(); renderLegend(); renderCableKey();
   if (dockOpen) renderImp();
   $('#tabNode').classList.toggle('active', ui.tab === 'node');

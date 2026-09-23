@@ -131,6 +131,11 @@
   .node.mini .mnum { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 10px; background: #c9502e; color: #fff; font-size: 12px; font-weight: 800; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
   .node.mini .mic { width: 30px; height: 30px; margin: 1px auto 0; border-radius: 8px; background: #fff; border: 2px solid #c9502e; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.25); cursor: grab; }
   .node.mini.sel .mic { outline: 3px solid #ff8a50; }
+  /* לשוניות התכניות בפרויקט (קומות / מבנים) */
+  #shTabs { position: fixed; top: 96px; right: 12px; z-index: 46; display: flex; gap: 4px; flex-wrap: wrap; background: rgba(255,255,255,.92); border: 1px solid rgba(150,150,150,.3); border-radius: 10px; padding: 4px 6px; box-shadow: 0 2px 10px rgba(0,0,0,.12); direction: rtl; }
+  .shTab { padding: 3px 10px; font-size: 12px; border: 1px solid #ddd; border-radius: 8px; background: #f4f2ec; cursor: pointer; white-space: nowrap; }
+  .shTab.on { background: #1a1e28; color: #fff; font-weight: 700; border-color: #1a1e28; }
+  .shTab.add { background: #efecfd; border-color: #c9c0f5; color: #4b3fb8; font-weight: 700; }
   #sideMinBtn { align-self: flex-start; margin: 6px 6px 0; padding: 2px 9px; font-size: 13px; border: 1px solid #ccc; border-radius: 6px; background: #f4f2ec; cursor: pointer; }
   body.smin #side { width: 34px; min-width: 34px; overflow: hidden; }
   body.smin #side #tabs, body.smin #side #panel { display: none; }
@@ -315,6 +320,7 @@ body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer
   <button onclick="window.print()">הדפסה</button>
 </header>
 <main>
+  <div id="shTabsHost"></div>
   <div id="canvasWrap">
     <div id="zoomer">
     <div id="canvas">
