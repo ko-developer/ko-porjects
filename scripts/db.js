@@ -109,14 +109,14 @@ async function readJsonStore(h) {
     if (!h.refreshing) h.refreshing = readJsonStoreFresh(h).finally(() => { h.refreshing = null; });
     const cold = await Promise.race([h.refreshing.catch(() => null), new Promise(res => setTimeout(() => res(null), 3000))]);
     if (cold) return cold;
-    const d = storeFromDisk(h); if (d) { console.warn('store: bucket slow on cold start — serving the local disk copy, refresh continues in background'); return d; }
+    const d = storeFromDisk(h); if (d) { h.partial = true; console.warn('store: bucket slow on cold start — serving the local disk copy, refresh continues in background'); return d; }
     return h.refreshing || readJsonStoreFresh(h);
   }
   if (!h.refreshing) h.refreshing = readJsonStoreFresh(h).then(v => { h.lastGood = v; return v; }).finally(() => { h.refreshing = null; });
   const slow = new Promise(res => setTimeout(() => res(null), 2500));
   const v = await Promise.race([h.refreshing.catch(() => null), slow]);
   if (v) return v;
-  if (h.lastGood) { console.warn('store: bucket slow — serving the in-memory copy, refresh continues in background'); return h.lastGood; }
+  if (h.lastGood) { h.partial = true; console.warn('store: bucket slow — serving the in-memory copy, refresh continues in background'); return h.lastGood; }
   return h.refreshing;
 }
 async function readJsonStoreFresh(h) {
@@ -160,12 +160,17 @@ async function writeJsonStore(h, store) {
   };
   const seen = new Set(); let changed = 0;
   for (const p of projects) { const name = h.prefix + 'p_' + safeId(p.id) + '.json'; seen.add(name); if (await put(name, JSON.stringify(p))) changed++; }
-  /* מחיקת קובץ של פרויקט שאינו ברשימה — רק כשהקריאה האחרונה מהדלי הייתה שלמה.
-     אחרי קריאה חלקית מוחקים רק מה שנמחק במפורש (store._del), כדי שתקלת רשת לא תמחק פרויקטים. */
-  for (const it of await h.st.list(h.prefix)) {
-    if (!/(^|\/)p_[^/]*\.json$/.test(it.name) || seen.has(it.name)) continue;
-    const id = (it.name.match(/p_([^/]*)\.json$/) || [])[1];
-    if (h.partial && !delIds.has(String(id))) { console.warn('store: קריאה חלקית — לא מוחק את ' + it.name); continue; }
+  /* מחיקת קובץ של פרויקט שאינו ברשימה — רק כשאין ספק:
+     (א) הקריאה האחרונה מהדלי הייתה שלמה, ו-(ב) הרשימה שנשלחה מכסה את כל הקבצים שבדלי (חוץ ממה שנמחק במפורש).
+     כך תקלת רשת או לקוח עם רשימה חלקית לא מוחקים פרויקטים. */
+  const files = (await h.st.list(h.prefix)).filter(it => /(^|\/)p_[^/]*\.json$/.test(it.name));
+  const orphans = files.filter(it => !seen.has(it.name));
+  const idOf = n => (n.match(/p_([^/]*)\.json$/) || [])[1];
+  const unexplained = orphans.filter(it => !delIds.has(String(idOf(it.name))));
+  const safeDelete = !h.partial && unexplained.length === 0;
+  for (const it of orphans) {
+    const id = idOf(it.name);
+    if (!safeDelete && !delIds.has(String(id))) { console.warn('store: לא מוחק ' + it.name + ' (' + (h.partial ? 'קריאה חלקית' : 'לא נמחק במפורש') + ')'); continue; }
     await h.st.delete(it.name); h.cache.delete(it.name); diskDel(it.name); changed++;
   }
   await put(h.prefix + 'meta.json', JSON.stringify({ cur: cur || '', extra, order: projects.map(p => p.id), updated: new Date().toISOString() }));
