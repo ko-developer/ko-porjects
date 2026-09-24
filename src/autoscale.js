@@ -93,7 +93,7 @@ function asLines(tokens, frame) {
 }
 
 /* --- שרשרות מידות → אומדן "יחידות-שרטוט לכל מטר" לכל היפותזת יחידות --- */
-function asChainEstimate(lines, unit) {
+function asChainEstimate(lines, unit, refK) {
   const ks = [], samples = [];
   for (const ln of lines) {
     const along = ln.items.length && (ln.items[0].frame === 'v' || ln.items[0].frame === 'w') ? 'y' : 'x';
@@ -110,8 +110,9 @@ function asChainEstimate(lines, unit) {
     }
   }
   if (!ks.length) return null;
-  const med = asMedian(ks);
-  const inl = samples.filter(s => Math.abs(s.k - med) / med <= 0.06);
+  /* כשיש כיתוב 1:N: זוגות שמסכימים איתו (עד 8%) הם האימות — לא החציון של כל הזוגות, כי OCR מדלג על מספרים באמצע שרשרת */
+  const med = refK || asMedian(ks);
+  const inl = samples.filter(s => Math.abs(s.k - med) / med <= (refK ? 0.08 : 0.06));
   if (!inl.length) return null;
   const k2 = asMedian(inl.map(s => s.k));
   const mad = asMedian(inl.map(s => Math.abs(s.k - k2))) / k2;
@@ -124,13 +125,10 @@ function asChainEstimate(lines, unit) {
 function asDecide(tokens, ratio, unitPerM_ratio) {
   const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')];
   const ests = ['mm', 'cm', 'm'].map(u => asChainEstimate(lines, u)).filter(Boolean);
-  /* הפרשנות הנכונה: הכי הרבה זוגות עקביים; אם יש "1:N" — זו שמסכימה איתו */
+  /* הפרשנות הנכונה: הכי הרבה זוגות עקביים; אם יש "1:N" — זוגות שמסכימים איתו */
   let chain = null;
-  if (ests.length) {
-    const agree = unitPerM_ratio ? ests.filter(e => Math.abs(e.k - unitPerM_ratio) / unitPerM_ratio <= 0.05) : [];
-    const pool = agree.length ? agree : ests;
-    chain = pool.sort((a, b) => b.n - a.n || a.mad - b.mad)[0];
-  }
+  if (unitPerM_ratio) { const agree = ['mm', 'cm', 'm'].map(u => asChainEstimate(lines, u, unitPerM_ratio)).filter(Boolean).sort((a, b) => b.n - a.n || a.mad - b.mad); if (agree.length) chain = agree[0]; }
+  if (!chain && ests.length) chain = ests.sort((a, b) => b.n - a.n || a.mad - b.mad)[0];
   const r = { ratio: ratio ? ratio.n : null, ratioVotes: ratio ? ratio.votes : 0, unitPerM_ratio: unitPerM_ratio || null,
     chain: chain ? { unit: chain.unit, n: chain.n, total: chain.total, mad: chain.mad, k: chain.k, samples: chain.samples.map(x => ({ a: x.a, b: x.b, real: x.real, k: x.k })), marks: chain.marks } : null,
     unitPerM: null, conf: 'none', method: '', note: '', dev: null };
@@ -315,7 +313,7 @@ async function asOcrZoomPdf(pg, opt = {}) {
   }
   order.sort((a, b) => a.ring - b.ring || a.r - b.r || a.c - b.c);
   const worker = await Tesseract.createWorker('eng');
-  await worker.setParameters({ tessedit_char_whitelist: '0123456789.,', preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
+  await worker.setParameters({ tessedit_char_whitelist: '0123456789.,:/', preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
   const tokens = [], seen = new Set();
   const maxTiles = opt.maxTiles || 70, tStop = Date.now() + (opt.maxMs || 240000);
   let done = 0, scanned = 0;
@@ -342,7 +340,7 @@ async function asOcrZoomPdf(pg, opt = {}) {
       const res = await worker.recognize(c2);
       for (const wd of (res.data.words || [])) {
         const txt = (wd.text || '').trim();
-        if (!txt || wd.confidence < 55 || !/^\d+([.,]\d+)?$/.test(txt)) continue;
+        if (!txt || wd.confidence < 55 || !/^\d+([.,]\d+)?$|1\s*[:\/]\s*\d{2,4}/.test(txt)) continue;
         const bb = wd.bbox, p = map((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2);
         const X = x0 + p.x / SC, Y = y0 + p.y / SC;   /* בחזרה לנקודות PDF (y מלמעלה) */
         const key = frame + '|' + txt + '|' + Math.round(X / 3) + '|' + Math.round(Y / 3);
