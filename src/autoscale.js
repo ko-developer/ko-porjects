@@ -227,17 +227,9 @@ async function autoScalePdf(pg, bgW) {
     }
     /* שכבת טקסט ריקה (הכיתובים הומרו לקווים) — מרנדרים את הדף ברזולוציה גבוהה וקוראים OCR באריחים */
     if (tokens.length < 12) {
-      uiToast('🔍 ב-PDF אין שכבת טקסט — קורא את המידות מהשרטוט (OCR, כמה עשרות שניות)…', 8000);
-      const SC = Math.min(8, 7200 / Math.max(vp.width, vp.height));   /* מידות בשרטוט אדריכלי קטנות — כ-6× של הדף */
-      const vp2 = pg.getViewport({ scale: SC }), cv = document.createElement('canvas'); cv.width = Math.round(vp2.width); cv.height = Math.round(vp2.height);
-      const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
-      await pg.render({ canvasContext: g, viewport: vp2 }).promise;
-      const id = g.getImageData(0, 0, cv.width, cv.height), px = id.data;
-      for (let i = 0; i < px.length; i += 4) { const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; const v = l < 200 ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; }
-      g.putImageData(id, 0, 0);
-      const toks = await asOcrTiles(cv);
-      /* חזרה לנקודות PDF (ציר y הפוך: תמונה מלמעלה, PDF מלמטה) */
-      toks.forEach(tk => tokens.push({ t: tk.t, x: tk.x / SC, y: vp.height - tk.y / SC, w: tk.w / SC, h: tk.h / SC, frame: tk.frame }));
+      uiToast('🔍 ב-PDF אין שכבת טקסט — סורק את השרטוט בזום כדי לקרוא את המידות…', 8000);
+      const toks = await asOcrZoomPdf(pg, { sc: 6, onTile: (n, tot, found) => { if (n % 4 === 0) uiToast('🔍 סורק בזום ' + n + '/' + tot + ' · ' + found + ' מספרים', 2500); } });
+      toks.forEach(tk => tokens.push(tk));   /* כבר בנקודות PDF, y מלמטה */
       window.__asTokens = toks;
     }
     const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')].map(l => l.text);
@@ -307,6 +299,68 @@ async function asOcrTiles(cv) {
   }
   await worker.terminate();
   return out;
+}
+/* ===== סריקת זום: אריחים מרונדרים ישירות מה-PDF ברזולוציה גבוהה =====
+   הקנבס הענק (7200px) נתן ~16px לספרה — קטן מדי ל-OCR. כאן כל אריח מרונדר בנפרד בהגדלה (ברירת מחדל ×6),
+   כך שספרת מידה יוצאת ~30-40px. סדר הסריקה: טבעת האריחים החיצונית קודם (שם רצות שרשרות המידות),
+   ואחרי כל אריח נבדק אם כבר יש שרשרת מידות עקבית — ואז עוצרים. */
+async function asOcrZoomPdf(pg, opt = {}) {
+  if (!window.Tesseract) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
+  const vp1 = pg.getViewport({ scale: 1 }), SC = opt.sc || 6, TILE = opt.tile || 1700, OV = 0.08;
+  const stepPt = (TILE / SC) * (1 - OV), cols = Math.max(1, Math.ceil(vp1.width / stepPt)), rows = Math.max(1, Math.ceil(vp1.height / stepPt));
+  const order = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const ring = Math.min(r, c, rows - 1 - r, cols - 1 - c);   /* 0 = טבעת חיצונית */
+    order.push({ r, c, ring });
+  }
+  order.sort((a, b) => a.ring - b.ring || a.r - b.r || a.c - b.c);
+  const worker = await Tesseract.createWorker('eng');
+  await worker.setParameters({ tessedit_char_whitelist: '0123456789.,', preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
+  const tokens = [], seen = new Set();
+  const maxTiles = opt.maxTiles || 70, tStop = Date.now() + (opt.maxMs || 240000);
+  let done = 0, scanned = 0;
+  const rot = (src, ang) => { const rc = document.createElement('canvas'); rc.width = src.height; rc.height = src.width; const g = rc.getContext('2d'); g.translate(rc.width / 2, rc.height / 2); g.rotate(ang); g.drawImage(src, -src.width / 2, -src.height / 2); return rc; };
+  for (const t of order) {
+    if (done >= maxTiles || Date.now() > tStop) break;
+    const x0 = t.c * stepPt, y0 = t.r * stepPt, wPt = Math.min(TILE / SC, vp1.width - x0), hPt = Math.min(TILE / SC, vp1.height - y0);
+    if (wPt < 8 || hPt < 8) continue;
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(wPt * SC); cv.height = Math.round(hPt * SC);
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+    await pg.render({ canvasContext: g, viewport: pg.getViewport({ scale: SC, offsetX: -x0 * SC, offsetY: -y0 * SC }) }).promise;
+    /* אריח כמעט ריק — דילוג בלי OCR */
+    const id = g.getImageData(0, 0, cv.width, cv.height), px = id.data;
+    let dark = 0; for (let i = 0; i < px.length; i += 256) if (px[i] < 140) dark++;
+    scanned++;
+    if (dark < 12) continue;
+    /* חידוד לשחור-לבן — קווי השרטוט אפורים והספרות דקות */
+    for (let i = 0; i < px.length; i += 4) { const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2], v = l < 190 ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; }
+    g.putImageData(id, 0, 0);
+    done++;
+    const passes = [[cv, 'h', (x, y) => ({ x, y })], [rot(cv, Math.PI / 2), 'v', (x, y) => ({ x: y, y: cv.height - x })], [rot(cv, -Math.PI / 2), 'w', (x, y) => ({ x: cv.width - y, y: x })]];
+    for (const [c2, frame, map] of passes) {
+      const res = await worker.recognize(c2);
+      for (const wd of (res.data.words || [])) {
+        const txt = (wd.text || '').trim();
+        if (!txt || wd.confidence < 55 || !/^\d+([.,]\d+)?$/.test(txt)) continue;
+        const bb = wd.bbox, p = map((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2);
+        const X = x0 + p.x / SC, Y = y0 + p.y / SC;   /* בחזרה לנקודות PDF (y מלמעלה) */
+        const key = frame + '|' + txt + '|' + Math.round(X / 3) + '|' + Math.round(Y / 3);
+        if (seen.has(key)) continue; seen.add(key);
+        tokens.push({ t: txt, x: X, y: vp1.height - Y, w: (bb.x1 - bb.x0) / SC, h: (bb.y1 - bb.y0) / SC, frame, c: wd.confidence });
+      }
+    }
+    if (opt.onTile) opt.onTile(done, Math.min(order.length, maxTiles), tokens.length);
+    /* יש כבר שרשרת מידות עקבית? אפשר לעצור */
+    if (done % 3 === 0 && tokens.length >= 6) {
+      const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')];
+      const best = ['mm', 'cm', 'm'].map(u => asChainEstimate(lines, u)).filter(Boolean).sort((a, b) => b.n - a.n || a.mad - b.mad)[0];
+      if (best && best.n >= (opt.enough || 8) && best.mad <= 0.02) break;
+    }
+  }
+  await worker.terminate();
+  tokens.__tiles = done; tokens.__scanned = scanned;
+  return tokens;
 }
 async function autoScaleImage(img, bgW) {
   try {

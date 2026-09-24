@@ -8618,10 +8618,21 @@ function prodDims(n) {
   return m ? m[1] + ' \u00d7 ' + m[2] + ' \u00d7 ' + m[3] + ' \u05de\u05f4\u05de' : '';
 }
 /* קישורים לדף המוצר / מפרט / מדריך — רק מה שקיים בטבלאות */
+/* מק"ט ה-ERP של המוקד — מפריט ההצעה שממנו נוצר */
+function prodKey(n) { const it = n.srcIid && typeof impItems !== 'undefined' && impItems.find(x => x.iid === n.srcIid); return (it && it.key) || ''; }
+/* קישור למוצר בחנות KO: דף המוצר אם ידוע מהתמונה שנקצרה, אחרת חיפוש בחנות לפי המק"ט */
+function storeLink(key) {
+  if (!key) return '';
+  const img = typeof erpImg === 'function' && erpImg(key);
+  const slug = img && (/\/uploads\/[^/]+\/[^/]+\/([A-Za-z0-9_-]+?)(?:-\d+x\d+)?\.\w+$/.exec(img) || [])[1];
+  return 'https://store.kot.co.il/?s=' + encodeURIComponent(key) + '&post_type=product';
+}
 function prodLinks(n) {
   const nm = nodeFullName(n), d = spkData(nm) || (typeof ampRec === 'function' ? ampRec(nm) : null);
-  if (!d) return '';
   const a = [];
+  const key = prodKey(n);
+  if (key) a.push(`<a href="${esc(storeLink(key))}" target="_blank" rel="noopener">חנות KO</a>`);
+  if (!d) return a.join(' · ');
   if (d.url) a.push(`<a href="${esc(d.url)}" target="_blank" rel="noopener">דף המוצר</a>`);
   if (d.pdf) a.push(`<a href="${esc(d.pdf)}" target="_blank" rel="noopener">מפרט</a>`);
   if (d.man) a.push(`<a href="${esc(d.man)}" target="_blank" rel="noopener">מדריך</a>`);
@@ -13161,11 +13172,11 @@ function exportPDF() {
   }
   if (points.length) {
     const LBLp = cableLabels();
-    h += `<div class="rp-sec"><h3>מוקדי קצה — רמקולים, מקרנים ותאורה</h3><table class="cablelist"><tr><th></th><th>מוקד</th><th>תיאור</th><th>אזור</th><th>גובה (מ׳)</th><th>התקנה על</th><th>מידות</th><th>דף היצרן</th><th>כבלים (#)</th></tr>` +
+    h += `<div class="rp-sec"><h3>מוקדי קצה — רמקולים, מקרנים ותאורה</h3><table class="cablelist"><tr><th></th><th>מוקד</th><th>מק״ט</th><th>תיאור</th><th>אזור</th><th>גובה (מ׳)</th><th>התקנה על</th><th>מידות</th><th>קישורים</th><th>כבלים (#)</th></tr>` +
       points.map(n => {
         const cbs = P.cables.filter(c => c.from === n.id || c.to === n.id).map(c => LBLp[c.id]).join(', ');
         const zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 });
-        return `<tr><td>${prodImgCell(n)}</td><td><b>${esc(n.name)}</b></td><td>${esc(n.sub || '')}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${n.hgt ?? '—'}</td><td>${esc(n.mount || '—')}</td><td dir="ltr" style="text-align:right;font-size:11px">${esc(prodDims(n) || '—')}</td><td style="font-size:11px">${prodLinks(n) || '—'}</td><td>${cbs || '—'}</td></tr>`;
+        return `<tr><td>${prodImgCell(n)}</td><td><b>${esc(n.name)}</b></td><td dir="ltr" style="text-align:right;font-size:11px">${prodKey(n) ? `<a href="${esc(storeLink(prodKey(n)))}" target="_blank" rel="noopener">${esc(prodKey(n))}</a>` : '—'}</td><td>${esc(n.sub || '')}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${n.hgt ?? '—'}</td><td>${esc(n.mount || '—')}</td><td dir="ltr" style="text-align:right;font-size:11px">${esc(prodDims(n) || '—')}</td><td style="font-size:11px">${prodLinks(n) || '—'}</td><td>${cbs || '—'}</td></tr>`;
       }).join('') + '</table></div>';
   }
   if (typeof sndRepReportHTML === 'function') h += sndRepReportHTML();
