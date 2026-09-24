@@ -201,7 +201,7 @@ createServer(async (req, res) => {
           { const srv = new Map((fullSt.projects || []).map(p => [p.id, p])), del = new Set(raw._del || []), seen = new Set();
             posted.projects = (posted.projects || []).map(p => { seen.add(p.id); const o = srv.get(p.id); return o && (+o.upd || 0) > (+p.upd || 0) ? o : p; });
             if (me.role === 'owner') for (const o of fullSt.projects || []) if (!seen.has(o.id) && !del.has(o.id)) posted.projects.push(o);
-            delete posted._del; }
+            posted._del = [...del]; }   /* מועבר ל-writeStore: מחיקה מפורשת בלבד */
           /* מוזמן: רק הפרויקטים שלו בהרשאת עריכה נכתבים; השאר של הבעלים לא נגעו */
           const merged = me.role !== 'owner' ? mergeStore(fullSt, posted, me) : posted;
           const n = await writeStore(db, merged);

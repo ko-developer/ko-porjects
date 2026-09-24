@@ -120,16 +120,28 @@ async function readJsonStoreFresh(h) {
   for (const k of [...h.cache.keys()]) if (!items.some(it => it.name === k)) { h.cache.delete(k); diskDel(k); }   /* נמחק בצד השני */
   const projects = [];
   let meta = {};
+  /* קובץ שלא ירד (דלי איטי / שגיאה) — לוקחים את העותק הטוב האחרון שלו, ומסמנים שהקריאה חלקית.
+     בלי זה הפרויקט נעלם מה-store, והשמירה הבאה הייתה מוחקת את הקובץ שלו מהדלי. */
+  const lastById = new Map(((h.lastGood && h.lastGood.projects) || []).map(p2 => [String(p2.id), p2]));
+  h.partial = false;
   for (const it of items) {
-    const c = h.cache.get(it.name); if (!c) continue;
-    try { if (it.name.endsWith('meta.json')) meta = JSON.parse(c.str); else projects.push(JSON.parse(c.str)); } catch {}
+    const c = h.cache.get(it.name);
+    if (!c) {
+      const id = (it.name.match(/p_([^/]*)\.json$/) || [])[1];
+      const prev = id && lastById.get(id);
+      if (prev) { projects.push(prev); h.partial = true; console.warn('store: לא ירד ' + it.name + ' — מוגש העותק הקודם'); }
+      else if (!it.name.endsWith('meta.json')) { h.partial = true; console.warn('store: לא ירד ' + it.name + ' ואין עותק קודם'); }
+      continue;
+    }
+    try { if (it.name.endsWith('meta.json')) meta = JSON.parse(c.str); else projects.push(JSON.parse(c.str)); } catch { h.partial = true; }
   }
   if (meta.order) { const rank = Object.fromEntries(meta.order.map((id, i) => [id, i])); projects.sort((a, b) => (rank[a.id] ?? 1e9) - (rank[b.id] ?? 1e9)); }
   const out = { ...(meta.extra || {}), cur: meta.cur || (projects[0] && projects[0].id) || 'p1', projects };
   h.lastGood = out; return out;
 }
 async function writeJsonStore(h, store) {
-  const { projects = [], cur, ...extra } = store;
+  const { projects = [], cur, _del, ...extra } = store;
+  const delIds = new Set((_del || []).map(String));
   const put = async (name, str) => {
     const c = h.cache.get(name); if (c && c.str === str) return false;
     await h.st.write(name, str, 'application/json; charset=utf-8');
@@ -137,8 +149,13 @@ async function writeJsonStore(h, store) {
   };
   const seen = new Set(); let changed = 0;
   for (const p of projects) { const name = h.prefix + 'p_' + safeId(p.id) + '.json'; seen.add(name); if (await put(name, JSON.stringify(p))) changed++; }
+  /* מחיקת קובץ של פרויקט שאינו ברשימה — רק כשהקריאה האחרונה מהדלי הייתה שלמה.
+     אחרי קריאה חלקית מוחקים רק מה שנמחק במפורש (store._del), כדי שתקלת רשת לא תמחק פרויקטים. */
   for (const it of await h.st.list(h.prefix)) {
-    if (/(^|\/)p_[^/]*\.json$/.test(it.name) && !seen.has(it.name)) { await h.st.delete(it.name); h.cache.delete(it.name); diskDel(it.name); changed++; }
+    if (!/(^|\/)p_[^/]*\.json$/.test(it.name) || seen.has(it.name)) continue;
+    const id = (it.name.match(/p_([^/]*)\.json$/) || [])[1];
+    if (h.partial && !delIds.has(String(id))) { console.warn('store: קריאה חלקית — לא מוחק את ' + it.name); continue; }
+    await h.st.delete(it.name); h.cache.delete(it.name); diskDel(it.name); changed++;
   }
   await put(h.prefix + 'meta.json', JSON.stringify({ cur: cur || '', extra, order: projects.map(p => p.id), updated: new Date().toISOString() }));
   /* אחרי כתיבה ה-cache מסומן "local-" — הקריאה הבאה תיקח את הגרסה מהאחסון (updated/generation) ותשווה תוכן */
