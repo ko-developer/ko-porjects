@@ -395,10 +395,16 @@ function sheetsInit(pr) {
 }
 function sheetsBind(pr) {
   const def = (obj, name, get, set) => Object.defineProperty(obj, name, { configurable: true, enumerable: false, get, set });
-  for (const f of [...SHEET_FIELDS, ...SHEET_ARRAYS, 'hasBg', 'hasPdf']) {
+  for (const f of [...SHEET_FIELDS, ...SHEET_ARRAYS]) {
     if (Object.prototype.hasOwnProperty.call(pr, f)) delete pr[f];
     def(pr, f, () => { const sh = curSheet(pr); return sh ? sh[f] : undefined; },
       v => { const sh = curSheet(pr); if (!sh) return; if (v === undefined) delete sh[f]; else sh[f] = v; });
+  }
+  /* hasBg / hasPdf: "יש תמונה/PDF לגיליון" — בזיכרון, או בשרת (דגל הגיליון או דגל הפרויקט מה-store הקל) */
+  for (const [f, map, flagAll] of [['hasBg', 'bgs', 'hasBgs'], ['hasPdf', 'bgPdfs', 'hasPdfs']]) {
+    if (Object.prototype.hasOwnProperty.call(pr, f)) { const v0 = pr[f]; delete pr[f]; if (v0 && curSheet(pr)) curSheet(pr)[f] = true; }
+    def(pr, f, () => { const sh = curSheet(pr); if (!sh) return undefined; return !!(sh[f] || (pr[map] && pr[map][sh.id]) || pr[flagAll]); },
+      v => { const sh = curSheet(pr); if (!sh) return; if (!v) { delete sh[f]; if (pr[map]) delete pr[map][sh.id]; } else sh[f] = true; });
   }
   for (const [f, map] of [['bg', 'bgs'], ['bgPdf', 'bgPdfs']]) {
     if (Object.prototype.hasOwnProperty.call(pr, f)) { const v0 = pr[f]; delete pr[f]; if (v0) (pr[map] = pr[map] || {})[curSheet(pr).id] = v0; }
@@ -1490,18 +1496,21 @@ function centerPlan() {
 }
 window.centerPlan = centerPlan;
 /* תמונת הרקע של הגיליון — נטענת מהשרת לפי דרישה (store קל / פרויקט שלא נפתח) */
-function sheetFetchBg(pr, sh) {
-  if (!SRV || !sh || sh._bgFetch || (pr.bgs && pr.bgs[sh.id])) return;
-  if (!sh.hasBg && !pr.hasBgs && !pr.hasPdfs) return;
-  sh._bgFetch = 1;
-  fetch('/api/project/' + encodeURIComponent(pr.id) + '?f=bgs,bgPdfs,bg,bgPdf').then(r => r.json()).then(o => {
+function sheetFetchBg(pr, sh, wantPdf) {
+  if (!SRV || !sh) return Promise.resolve();
+  const haveBg = pr.bgs && pr.bgs[sh.id], havePdf = pr.bgPdfs && pr.bgPdfs[sh.id];
+  if (wantPdf ? (havePdf || !(sh.hasPdf || pr.hasPdfs)) : haveBg) return sh._bgFetchP || Promise.resolve();
+  if (!wantPdf && !sh.hasBg && !pr.hasBgs && !pr.hasPdfs) return Promise.resolve();
+  if (sh._bgFetchP) return sh._bgFetchP;
+  sh._bgFetchP = fetch('/api/project/' + encodeURIComponent(pr.id) + '?f=bgs,bgPdfs,bg,bgPdf').then(r => r.json()).then(o => {
     pr.bgs = pr.bgs || {}; pr.bgPdfs = pr.bgPdfs || {};
     if (o.bgs) Object.assign(pr.bgs, o.bgs);
     if (o.bgPdfs) Object.assign(pr.bgPdfs, o.bgPdfs);
     if (o.bg && !pr.bgs[sh.id]) pr.bgs[sh.id] = o.bg;              /* שרת ישן — תמונה אחת לפרויקט */
     if (o.bgPdf && !pr.bgPdfs[sh.id]) pr.bgPdfs[sh.id] = o.bgPdf;
     if (P === pr) { render(); if (typeof viewToContent === 'function') viewToContent(); }
-  }).catch(() => { sh._bgFetch = 0; });
+  }).catch(() => {}).finally(() => { sh._bgFetchP = null; });
+  return sh._bgFetchP;
 }
 function renderBg() {
   const im = $('#bgimg');

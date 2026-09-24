@@ -336,6 +336,8 @@ async function autoScaleImage(img, bgW) {
 /* הרצה חוזרת על תכנית קיימת (תמונת הרקע השמורה) */
 async function autoScaleFromBg() {
   if (!P.bg) { uiToast('אין תכנית'); return; }
+  /* ה-PDF המקורי נטען מהשרת לפי דרישה — בלי לחכות לו הזיהוי היה נופל לתמונת התצוגה הקטנה ונכשל */
+  if (!P.bgPdf && P.hasPdf && typeof sheetFetchBg === 'function') { uiToast('⏳ מביא את ה-PDF המקורי מהשרת…', 4000); await sheetFetchBg(P, curSheet(P), true); }
   if (P.bgPdf) {   /* יש PDF — קוראים ממנו (שכבת טקסט, או רינדור ברזולוציה גבוהה + OCR) — הרבה יותר מדויק מתמונת התצוגה */
     try {
       if (!window.pdfjsLib) { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
