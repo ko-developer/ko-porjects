@@ -70,13 +70,24 @@ async function fetchChanged(h, items) {
     if (d != null) { h.cache.set(it.name, { key, str: d }); continue; }
     need.push(it);
   }
-  let i = 0;
-  await Promise.all(Array.from({ length: Math.min(24, need.length) }, async () => {
+  /* 8 במקביל + שלושה ניסיונות לכל קובץ: על חיבור איטי או קבצים גדולים קריאה בודדת נופלת,
+     וקובץ שלא ירד היה נעלם מה-store (ובעבר גם נמחק בשמירה הבאה) */
+  const readRetry = async name => {
+    for (let k = 1; k <= 3; k++) {
+      try { const b = await h.st.read(name); if (b) return b; } catch (e) { /* ניסיון נוסף */ }
+      await new Promise(r => setTimeout(r, 400 * k));
+    }
+    return null;
+  };
+  let i = 0, failed = 0;
+  await Promise.all(Array.from({ length: Math.min(8, need.length) }, async () => {
     while (i < need.length) {
-      const it = need[i++], key = it.gen || it.updated, b = await h.st.read(it.name);
+      const it = need[i++], key = it.gen || it.updated, b = await readRetry(it.name);
       if (b) { const str = b.toString('utf8'); h.cache.set(it.name, { key, str }); if (h.st.kind === 'gcs') diskPut(it.name, key, str); }
+      else failed++;
     }
   }));
+  if (failed) console.warn('store: ' + failed + ' קבצים לא ירדו בסבב הזה — יימשכו בקריאה הבאה');
 }
 /* קריאת המאגר לא מחכה לדלי איטי: כשיש עותק בזיכרון והדלי לא ענה תוך 2.5 שניות — מגישים את העותק, והרענון ממשיך ברקע (הקריאה הבאה כבר מעודכנת) */
 /* הפעלה קרה (שרת שזה עתה עלה) מול דלי איטי: בונים את המאגר מהעותקים שבמטמון הדיסק, והקריאה מהדלי ממשיכה ברקע */
