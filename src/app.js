@@ -692,6 +692,36 @@ function sheetTabsHTML() {
     <button class="shTab add" onclick="sheetAdd()" title="הוסף תכנית לפרויקט (קומה / מבנה / שרטוט נוסף)">➕ תכנית</button>
     ${P.sheets.length > 1 ? `<button class="shTab" onclick="sheetAlignDlg()" title="יישור בין התכניות — אובייקט משותף או מרחק ידני">📐 יישור</button><button class="shTab" onclick="sheetDelete('${P.curSheet}')" title="מחק את התכנית הנוכחית">🗑</button>` : ''}</div>`;
 }
+/* סעיף "תכניות בפרויקט" במסך הגדרות התכנית — הוספת קומה/מבנה, מפלס, יישור, קווי תשתית בין התכניות ותצוגת המבנה */
+function sheetsPanelHTML() {
+  const shs = P.sheets || []; if (!shs.length) return '';
+  const many = shs.length > 1;
+  const st = sh => {
+    const bits = [];
+    bits.push(sh.hasBg || (P.bgs && P.bgs[sh.id]) ? '🗺' : '<span style="color:#8c2f16">בלי רקע</span>');
+    bits.push(sh.scale ? '📏' : '<span style="color:#8c2f16">לא מכוילת</span>');
+    if (many) bits.push(sh.org ? '📐' : '<span style="color:#b56a00">לא מיושרת</span>');
+    bits.push((sh.nodes || []).length + ' מוקדים');
+    return bits.join(' · ');
+  };
+  const rows = shs.map(sh => `<div class="crow" style="align-items:center;gap:6px;${sh.id === P.curSheet ? 'background:#eef3ff;border-radius:8px' : ''}" title="לחיצה = מעבר לתכנית">
+      <span class="txt" style="cursor:pointer;flex:1;min-width:0" onclick="sheetGo('${sh.id}')"><b>${sh.id === P.curSheet ? '▸ ' : ''}${esc(sh.name)}</b><br><small class="muted">${st(sh)}</small></span>
+      <label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap" title="מפלס הקומה במטרים — 0 = קרקע, 3.2 = קומה מעל, -3 = מרתף" onclick="event.stopPropagation()">מפלס <input type="number" step="0.1" value="${sh.level ?? ''}" placeholder="מ׳" style="width:54px;padding:2px 4px" onchange="sheetSetLevel('${sh.id}',this.value)"></label>
+      <button style="padding:2px 6px;font-size:11px" title="שינוי שם" onclick="event.stopPropagation();sheetRename('${sh.id}')">✎</button>
+      ${many ? `<button style="padding:2px 6px;font-size:11px;background:#f3d9d2;color:#8c2f16" title="מחק תכנית" onclick="event.stopPropagation();sheetDelete('${sh.id}')">🗑</button>` : ''}
+    </div>`).join('');
+  const xl = typeof xlinks === 'function' ? xlinks() : [];
+  const xlRows = xl.map(l => { const A = anyNode(l.a), B = anyNode(l.b), L = xlinkLen(l); const nm = x => x ? esc(x.n.name.slice(0, 22)) + ' <small class="muted">(' + esc(x.sh.name) + ')</small>' : '?';
+    return `<div class="crow" style="cursor:pointer" onclick="xlinkDlg('${l.id}')" title="עריכה"><span class="txt">🔗 ${nm(A)} ⇄ ${nm(B)}<br><small class="muted">${esc((CTYPES[l.type] || {}).n || l.type)} ×${l.qty || 1}${L ? ' · ~' + L.tot + ' מ׳' + (L.aligned ? '' : ' (בלי יישור — הערכה)') : ''}</small></span></div>`; }).join('');
+  return `<h3 class="sec">📑 תכניות בפרויקט — קומות / מבנים</h3>
+    <p class="muted" style="margin:0 0 6px;font-size:12px;line-height:1.5">כל קומה או מבנה = תכנית משלה עם רקע, כיול ומוקדים. אחרי ההעלאה: קבע מפלס לכל תכנית, יישר אותן לפי אובייקט משותף (פיר, מדרגות, עמוד) או מרחק ידני, וחבר ארונות/פאנלים בין התכניות בקו תשתית.</p>
+    ${rows}
+    <button style="width:100%;margin:4px 0 6px" onclick="sheetAdd()" title="מוסיף תכנית חדשה לפרויקט ופותח העלאת רקע">➕ הוסף תכנית — קומה / מבנה / שרטוט נוסף</button>
+    ${many ? `<div style="display:flex;gap:6px;margin-bottom:6px">
+      <button style="flex:1" onclick="sheetAlignDlg()" title="יישור בין התכניות — אובייקט משותף או מרחק ידני">📐 יישור</button>
+      <button style="flex:1" onclick="xlinkDlg()" title="קו תשתית בין תכניות — ארון לארון או ארון לפאנל בקומה/מבנה אחר">🔗 קו בין תכניות</button>
+      <button style="flex:1" onclick="sheetsView3D()" title="כל התכניות זו מעל זו לפי המפלס והיישור">🏗 מבנה 3D</button></div>${xlRows}` : ''}`;
+}
 function normalizeAll() {
   for (const pr of store.projects) { ensureStock(pr); pr.route = pr.route || 'ortho'; }
   /* זוויות פיזור / Max SPL ש"צולמו" למוקד בזמן היצירה מהערכה היוריסטית (לא הוזנו ידנית): כשהדגם קיים בטבלת הנתונים — הערך נמחק מהמוקד והטבלה קובעת */
@@ -7990,7 +8020,7 @@ function renderPanel() {
         S.conns.map((s, i) => row(`⭕ ${esc(s.name.slice(0, 34))} · ${s.used || 0}/${s.qty}`, `P.stock.conns.splice(${i},1)`)).join('') +
         `<p class="muted">המלאי זמין בטופס "כבל חדש" — בחר מקור כבל מהמלאי במקום להגדיר ידנית.</p>`;
     }
-    p.innerHTML = bgTop + roomSec + bgc + stc + '<p class="muted" style="margin-top:8px">בחר מוקד בקנבס, או צור חדש מהכפתורים למעלה. גרירת מוקד — מהכותרת שלו.</p>';
+    p.innerHTML = bgTop + (typeof sheetsPanelHTML === 'function' ? sheetsPanelHTML() : '') + roomSec + bgc + stc + '<p class="muted" style="margin-top:8px">בחר מוקד בקנבס, או צור חדש מהכפתורים למעלה. גרירת מוקד — מהכותרת שלו.</p>';
     return;
   }
   const linkedIt = n.srcIid ? impItems.find(x => x.iid === n.srcIid) : null;
