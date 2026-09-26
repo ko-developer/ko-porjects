@@ -168,6 +168,9 @@ function seedBH() {
   };
 }
 
+/* שדות הגיליון — var ולא const: sheetsBindAll רץ כאן, לפני הגדרת בלוק הגיליונות למטה */
+var SHEET_FIELDS = ['bgW', 'bgOff', 'bgRot', 'bgOp', 'scale', 'calOk', 'autoScale', 'planText', 'hideConduits', 'virtWalls', 'route'];
+var SHEET_ARRAYS = ['nodes', 'cables', 'zones', 'conduits'];
 let store = load();
 sheetsBindAll(store);
 let P = store.projects.find(p => p.id === store.cur) || store.projects[0];
@@ -370,8 +373,6 @@ async function verRestore(idx) {
    (מאפיינים לא-נספרים — לא נכנסים ל-JSON, כך שהנתונים נשמרים פעם אחת בתוך p.sheets).
    התמונות יושבות במפה אחת ברמת הפרויקט (p.bgs / p.bgPdfs) כדי שהשרת ישלח אותן לפי דרישה.
    =================================================================================== */
-const SHEET_FIELDS = ['bgW', 'bgOff', 'bgRot', 'bgOp', 'scale', 'calOk', 'autoScale', 'planText', 'hideConduits', 'virtWalls', 'route'];
-const SHEET_ARRAYS = ['nodes', 'cables', 'zones', 'conduits'];
 function curSheet(pr) { const ps = pr.sheets || []; return ps.find(sh => sh.id === pr.curSheet) || ps[0]; }
 function sheetsInit(pr) {
   if (!pr || pr._lite === undefined && !pr.id) return pr;
