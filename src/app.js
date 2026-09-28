@@ -546,6 +546,7 @@ function alignDragRender() {
     bar.innerHTML = '<b>🧭 יישור גרפי: גרור את "' + esc(other.name) + '" למקומה</b>' +
       '<label style="display:flex;gap:5px;align-items:center">סיבוב <input data-rot type="range" min="-180" max="180" step="0.5" style="width:150px"> <input data-rotn type="number" step="0.5" style="width:62px;padding:2px 4px;color:#111">°</label>' +
       '<button data-r90 style="padding:3px 8px;font-size:12px">↻ 90°</button>' +
+      '<label style="display:flex;gap:5px;align-items:center" title="גובה הקומה במטרים ביחס לקרקע — קובע את הפרש הגובה בתשתית בין התכניות">גובה הקומה <input data-lv type="number" step="0.1" placeholder="מ׳" style="width:62px;padding:2px 4px;color:#111"> מ׳ <small style="color:#aab">(' + esc((P.sheets.find(x => x.id === D.baseId) || {}).name || '') + ': ' + (((P.sheets.find(x => x.id === D.baseId) || {}).level) ?? 0) + ' מ׳)</small></label>' +
       '<label style="display:flex;gap:5px;align-items:center">שקיפות <input data-op type="range" min="0.15" max="1" step="0.05" style="width:90px"></label>' +
       '<span style="color:#aab;font-size:11px">Shift+גלגלת = סיבוב עדין</span>' +
       '<button data-ok style="padding:5px 12px;background:#0f6e56;color:#fff;border:none;border-radius:8px;font-weight:700">✓ אשר יישור</button>' +
@@ -556,6 +557,8 @@ function alignDragRender() {
     q('[data-rotn]').onchange = e => { D.th = +e.target.value || 0; alignDragRender(); };
     q('[data-r90]').onclick = () => { D.th = ((D.th + 90 + 180) % 360) - 180; alignDragRender(); };
     q('[data-op]').oninput = e => { D.op = +e.target.value; alignDragRender(); };
+    q('[data-lv]').value = other.level ?? '';
+    q('[data-lv]').onchange = e => { D.level = e.target.value === '' ? null : +e.target.value; };
     q('[data-x]').onclick = () => { window.__alignDrag = null; render(); uiToast('היישור בוטל'); };
     q('[data-ok]').onclick = alignDragConfirm;
   }
@@ -572,6 +575,8 @@ function alignDragConfirm() {
   other.org = { x: +(w0.x - (sx * c - sy * sn)).toFixed(3), y: +(w0.y - (sx * sn + sy * c)).toFixed(3) };
   if (Math.abs(rot) > 0.01) other.rot = +rot.toFixed(2); else delete other.rot;
   other.alignBy = 'יושרה גרפית על "' + base.name + '"' + (other.rot ? ' · סיבוב ' + other.rot + '°' : '');
+  if (D.level !== undefined) other.level = D.level;
+  if (other.level == null) { const lv = prompt('גובה הקומה "' + other.name + '" במטרים (ביחס לקרקע; למשל 3.2 לקומה מעל, -3 למרתף):', ''); if (lv !== null && lv.trim() !== '') other.level = +lv; }
   window.__alignDrag = null;
   save(); render(); uiToast('📐 "' + other.name + '" יושרה מול "' + base.name + '"', 5000);
 }
