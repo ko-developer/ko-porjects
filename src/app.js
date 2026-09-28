@@ -192,7 +192,7 @@ let SRV = false, srvT = null;
       store = s; liteWire(store); sheetsBindAll(store);
       P = store.projects.find(p => p.id === store.cur) || store.projects[0];
       sel = null; selCable = null; selMulti.clear(); normalizeAll();
-      if (typeof impItems !== 'undefined') impItems = P.impSaved || [];
+      if (typeof impItems !== 'undefined') impItems = impLoad();
       try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
       render(); if (typeof viewToContent === 'function') viewToContent();
       /* ?open=<id> — פתיחת פרויקט ישירות (מדף המשתמשים / מנהל הפרויקטים) */
@@ -299,7 +299,7 @@ function save() {
   store.cur = P.id;
   P.upd = Date.now();   /* חותמת עריכה — השרת לא ידרוס עותק חדש יותר (של משתמש אחר) בעותק ישן מלשונית פתוחה */
   thumbSync();
-  if (typeof impItems !== 'undefined') P.impSaved = impItems;
+  impStore();
   verSnapshot();
   /* ה-PDF המקורי (bgPdf) גדול — נשמר בשרת בלבד, לא במראה של localStorage */
   try { localStorage.setItem(LSKEY, JSON.stringify(store, (k, v) => k === 'bgPdf' ? undefined : v)); } catch (e) {}
@@ -417,7 +417,9 @@ function sheetsBindAll(st) { (st.projects || []).forEach(pr => { try { sheetsIni
 /* מעבר בין תכניות בפרויקט */
 function sheetGo(id) {
   if (!P.sheets.some(sh => sh.id === id)) return;
+  if (typeof impStore === 'function') impStore();
   P.curSheet = id; sel = null; selCable = null; selZone = null; selMulti.clear(); window.__alignDrag = null;
+  if (typeof impLoad === 'function') impItems = impLoad();
   render(); if (typeof viewToContent === 'function') viewToContent();
   if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender();
 }
@@ -943,9 +945,9 @@ async function delProj() {
   if (!(await uiConfirm('למחוק את הפרויקט "' + P.name + '"?'))) return;
   store._del = [...(store._del || []), P.id];   /* מחיקה מפורשת — השרת לא ישמור פרויקט רק כי הוא חסר ברשימה */
   store.projects = store.projects.filter(p => p.id !== P.id);
-  P = store.projects[0]; sel = selCable = null; impItems = P.impSaved || []; render();
+  P = store.projects[0]; sel = selCable = null; impItems = impLoad(); render();
 }
-function switchProj(id) { P = store.projects.find(p => p.id === id) || P; sheetsInit(P); sel = selCable = null; impItems = P.impSaved || []; render(); viewToContent(); }
+function switchProj(id) { P = store.projects.find(p => p.id === id) || P; sheetsInit(P); sel = selCable = null; impItems = impLoad(); render(); viewToContent(); }
 /* ===== מנהל פרויקטים — חיפוש, לקוח, בחירה מרובה ומחיקה ===== */
 function projManager() {
   const old = document.getElementById('pmOv'); if (old) old.remove();
@@ -1063,7 +1065,7 @@ async function pmDeleteSel() {
   if (!(await uiConfirm(`למחוק ${ids.length} פרויקטים לצמיתות?${withOffer ? '\n⚠ ' + withOffer + ' מהם עם הצעה שכבר נשלחה ל-ERP!' : ''}`, { okText: '🗑 מחק ' + ids.length }))) return;
   store._del = [...(store._del || []), ...ids];
   store.projects = store.projects.filter(p => !ids.includes(p.id));
-  if (!store.projects.find(p => p.id === P.id)) { P = store.projects[0]; impItems = P.impSaved || []; sel = null; selCable = null; }
+  if (!store.projects.find(p => p.id === P.id)) { P = store.projects[0]; impItems = impLoad(); sel = null; selCable = null; }
   window.__pmSel.clear();
   render(); save();
   const t = document.querySelector('#pmOv b'); if (t) t.textContent = '🗂 ניהול פרויקטים (' + store.projects.length + ')';
@@ -9663,7 +9665,7 @@ function importJSON() {
         const p = JSON.parse(r.result);
         p.id = uid('p');
         store.projects.push(p);
-        P = p; sel = selCable = null; normalizeAll(); impItems = P.impSaved || []; render();
+        P = p; sel = selCable = null; normalizeAll(); impItems = impLoad(); render();
       } catch { alert('קובץ לא תקין'); }
     };
     r.readAsText(f.files[0]);
@@ -9696,7 +9698,7 @@ function importBackup() {
           if (s.spkLib && !store.spkLib) store.spkLib = s.spkLib;
         }
         P = store.projects.find(p => p.id === store.cur) || store.projects[0];
-        sel = null; selCable = null; selMulti.clear(); normalizeAll(); impItems = P.impSaved || [];
+        sel = null; selCable = null; selMulti.clear(); normalizeAll(); impItems = impLoad();
         render(); save();
         alert('✓ שוחזרו ' + s.projects.length + ' פרויקטים');
       } catch { alert('קובץ לא תקין'); }
@@ -11103,6 +11105,57 @@ function addRackToOffer(name, key, u) {
   const ov = document.getElementById('rackSugOv'); if (ov) ov.remove();
   dockOpen = true; dockMin = false; render();
 }
+/* ===== 🧾 הצעת מחיר בפרויקט עם כמה תכניות =====
+   כל שורה בהצעה מסומנת בתכנית שבה נוספה (it.sh). P.impSaved = כל השורות של הפרויקט תמיד;
+   impItems = מה שרואים ועובדים עליו: במצב "מאוחד" (P.offerMode='one') הכול, במצב "לפי תכנית" ('split') רק שורות התכנית הנוכחית.
+   השאלה נשאלת פעם אחת — כשמתחילים להוסיף פריטים לתכנית אחרת אחרי שבראשונה כבר יש הצעה. */
+function impSheetTag() {
+  if (typeof impItems === 'undefined' || !P || !P.sheets) return;
+  const cur = P.curSheet, first = P.sheets[0] && P.sheets[0].id;
+  let fresh = 0;
+  for (const it of impItems) { if (!it.sh) { it.sh = cur; fresh++; } }
+  for (const it of P.impSaved || []) { if (!it.sh) it.sh = first; }   /* שורות ותיקות (לפני התכניות) — שייכות לתכנית הראשונה */
+  if (fresh && P.sheets.length > 1 && !P.offerMode && !window.__offerAsk) {
+    const others = (P.impSaved || []).concat(impItems).some(it => it.sh && it.sh !== cur);   /* כבר יש שורות של תכנית אחרת */
+    if (others) offerModeAsk();
+  }
+}
+function impLoad() {
+  const all = P.impSaved || [];
+  if (P.offerMode === 'split' && (P.sheets || []).length > 1) { const first = P.sheets[0].id; return all.filter(it => (it.sh || first) === P.curSheet); }
+  return all;
+}
+function impStore() {
+  if (typeof impItems === 'undefined') return;
+  impSheetTag();
+  if (P.offerMode === 'split' && (P.sheets || []).length > 1) {
+    const cur = P.curSheet, first = P.sheets[0].id;
+    P.impSaved = (P.impSaved || []).filter(it => (it.sh || first) !== cur && !impItems.includes(it)).concat(impItems);
+  } else P.impSaved = impItems;
+}
+function offerModeSet(mode) {
+  impStore(); P.offerMode = mode; impItems = impLoad(); save(); render();
+  uiToast(mode === 'split' ? '🧾 הצעה נפרדת לכל תכנית — כל תכנית מציגה ומייצאת את הפריטים שלה' : '🧾 הצעה אחת מאוחדת לכל הפרויקט', 5000);
+}
+function offerModeAsk() {
+  window.__offerAsk = true;
+  const cur = curSheet(P), other = P.sheets.find(sh => sh.id !== cur.id) || {};
+  const ov = uiModal(`<b style="font-size:15px">🧾 הצעת מחיר לפרויקט עם כמה תכניות</b>
+    <p style="font-size:12.5px;color:#555;margin:8px 0 10px;line-height:1.6">התחלת להוסיף פריטים ל"${esc(cur.name)}" אחרי ש"${esc(other.name || 'התכנית הראשונה')}" כבר בנויה. איך לנהל את ההצעה? אפשר לשנות אחר כך בכותרת הצעת המחיר.</p>
+    <button class="primary" data-one style="width:100%;margin-bottom:6px;text-align:right">🧾 הצעה אחת גדולה לכל הפרויקט<br><small style="font-weight:400;opacity:.85">כל התכניות באותה הצעה ובאותו דוח</small></button>
+    <button data-split style="width:100%;text-align:right">📑 הצעה ותכנית נפרדות לכל חלל<br><small style="font-weight:400;opacity:.85">כל תכנית עם ההצעה, הדוח והייצוא שלה</small></button>`);
+  ov.querySelector('[data-one]').onclick = () => { ov.remove(); window.__offerAsk = false; offerModeSet('one'); };
+  ov.querySelector('[data-split]').onclick = () => { ov.remove(); window.__offerAsk = false; offerModeSet('split'); };
+}
+/* מתג המצב בכותרת הצעת המחיר (מוצג רק כשיש יותר מתכנית אחת) */
+function impModeHTML() {
+  if (!P.sheets || P.sheets.length < 2) return '';
+  const split = P.offerMode === 'split', cur = curSheet(P);
+  return `<span style="display:inline-flex;border:1px solid #cfd3dc;border-radius:7px;overflow:hidden;font-size:11px;white-space:nowrap" title="הצעה אחת לכל הפרויקט, או הצעה נפרדת לכל תכנית">
+    <button onclick="offerModeSet('one')" style="border:none;border-radius:0;padding:2px 8px;${split ? '' : 'background:#1a1e28;color:#fff'}">מאוחדת</button>
+    <button onclick="offerModeSet('split')" style="border:none;border-radius:0;padding:2px 8px;${split ? 'background:#1a1e28;color:#fff' : ''}">לפי תכנית${split ? ' · ' + esc(cur.name) : ''}</button></span>`;
+}
+window.offerModeSet = offerModeSet; window.impModeHTML = impModeHTML;
 function renderImp() {
   dockOpen = true;
   const dk = $('#dock');
@@ -11201,6 +11254,7 @@ function renderImp() {
   const catHdr = r => { if (dockCat || !r.cat || r.cat === lastCat) return ''; lastCat = r.cat; return `<div style="font-size:11px;font-weight:800;color:#666;margin:6px 2px 2px">${(SRCH_CATS.find(x => x[0] === r.cat) || [])[1] || ''}</div>`; };
   dk.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:6px">
       <h3 style="font-size:14px;flex:1;margin:0">🧾 הצעת מחיר · פריטים (${impItems.length})</h3>
+      ${impModeHTML()}
       ${pinMode ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 נקר על התכנית (Esc לסיום)</span>' : ''}
       ${connPin ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 לחץ ליד קצה כבל (Esc לסיום)</span>' : ''}
       ${replFor ? '<span style="background:#7aa2ff;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">🔄 חפש ובחר מוצר להחלפה (Esc לביטול)</span>' : ''}
@@ -13657,7 +13711,7 @@ function reportPreview() {
 }
 window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
 
-impItems = P.impSaved || [];
+impItems = impLoad();
 render(); viewToContent();
 /* מצב פתיחה נכנס להיסטוריה מיד, אחרת אין לאן לחזור בביטול הראשון */
 HIST.past.push(snapProject());
