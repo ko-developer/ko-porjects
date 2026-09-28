@@ -417,7 +417,7 @@ function sheetsBindAll(st) { (st.projects || []).forEach(pr => { try { sheetsIni
 /* מעבר בין תכניות בפרויקט */
 function sheetGo(id) {
   if (!P.sheets.some(sh => sh.id === id)) return;
-  P.curSheet = id; sel = null; selCable = null; selZone = null; selMulti.clear();
+  P.curSheet = id; sel = null; selCable = null; selZone = null; selMulti.clear(); window.__alignDrag = null;
   render(); if (typeof viewToContent === 'function') viewToContent();
   if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender();
 }
@@ -453,7 +453,18 @@ async function sheetDelete(id) {
    מכאן ידועים המרחק האופקי והפרש הגובה בין כל שתי נקודות בתכניות שונות. */
 const shOrg = sh => (sh && sh.org) || { x: 0, y: 0 };
 /* נקודה בקנבס של גיליון → קואורדינטות עולם במטרים */
-function sheetWorld(sh, pt) { const k = sh && sh.scale ? sh.scale : 0; const o = shOrg(sh); return { x: o.x + pt.x * k, y: o.y + pt.y * k }; }
+function sheetWorld(sh, pt) {
+  const k = sh && sh.scale ? sh.scale : 0, o = shOrg(sh), a = ((sh && sh.rot) || 0) * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
+  const x = pt.x * k, y = pt.y * k;
+  return { x: o.x + x * c - y * sn, y: o.y + x * sn + y * c };
+}
+/* ההפך: נקודת עולם (מ׳) → נקודה בקנבס של הגיליון */
+function sheetFromWorld(sh, w) {
+  const k = sh && sh.scale ? sh.scale : 1, o = shOrg(sh), a = ((sh && sh.rot) || 0) * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
+  const dx = w.x - o.x, dy = w.y - o.y;
+  return { x: (dx * c + dy * sn) / k, y: (-dx * sn + dy * c) / k };
+}
+const shBgL = sh => sh.bgOff ? sh.bgOff.x : 2200 - (sh.bgW || 1400), shBgT = sh => sh.bgOff ? sh.bgOff.y : 0;
 function sheetOf(nodeOrId) { const id = typeof nodeOrId === 'string' ? nodeOrId : nodeOrId && nodeOrId.id; for (const sh of P.sheets || []) if ((sh.nodes || []).some(n => n.id === id)) return sh; return curSheet(P); }
 /* מרחק במטרים בין שתי נקודות בתכניות שונות (אופקי + הפרש מפלסים) */
 function sheetDist(shA, ptA, shB, ptB) {
@@ -474,14 +485,96 @@ function sheetAlignDlg() {
         <label style="font-size:11.5px">מפלס (מ׳) <input type="number" step="0.1" value="${sh.level ?? ''}" style="width:64px" onchange="sheetSetLevel('${sh.id}',this.value)"></label></div>
       <div style="font-size:11.5px;color:#666;margin-top:3px">${(sh.nodes || []).length} מוקדים · ${sh.scale ? 'מכוילת' : '<span style="color:#8c2f16">לא מכוילת</span>'} · ${sh === cur ? 'נקודת ייחוס לשאר' : rowTxt(sh)}${sh.alignBy ? ' · ' + esc(sh.alignBy) : ''}</div>
       ${sh !== cur ? `<div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">
+        <button class="primary" style="padding:3px 9px;font-size:11.5px" onclick="sheetAlignDrag('${sh.id}')" title="התכנית מוצגת שקופה מעל הנוכחית — גוררים אותה למקום הנכון ומסובבים">🧭 גרור למקומה על התכנית (גרפי)</button>
         <button style="padding:3px 9px;font-size:11.5px" onclick="sheetAlignPoint('${sh.id}')">🎯 אובייקט משותף — לחיצה בשתי התכניות</button>
         <button style="padding:3px 9px;font-size:11.5px" onclick="sheetAlignManual('${sh.id}')">↔ מרחק וכיוון ידניים</button>
-        ${sh.org ? `<button style="padding:3px 9px;font-size:11.5px" onclick="delete P.sheets.find(x=>x.id==='${sh.id}').org;delete P.sheets.find(x=>x.id==='${sh.id}').alignBy;save();sheetAlignDlg()">✕ בטל יישור</button>` : ''}
+        ${sh.org ? `<button style="padding:3px 9px;font-size:11.5px" onclick="const s2=P.sheets.find(x=>x.id==='${sh.id}');delete s2.org;delete s2.rot;delete s2.alignBy;save();sheetAlignDlg()">✕ בטל יישור</button>` : ''}
       </div>` : ''}</div>`).join('')}
     <button data-x style="width:100%;margin-top:6px">סגור</button></div>`);
   ov.querySelector('[data-x]').onclick = () => ov.remove();
   window.__alignOv = ov;
 }
+/* ===== 🧭 יישור גרפי — גוררים את התכנית האחרת (שקופה) על הנוכחית ומסובבים =====
+   שתי התכניות מוצגות באותו קנה מידה (px/m שווה); כשהמשתמש מאשר, מיקום התמונה + הסיבוב הופכים ל-org/rot של הגיליון */
+async function sheetAlignDrag(otherId) {
+  const base = curSheet(P), other = P.sheets.find(x => x.id === otherId);
+  if (!other || other === base) return;
+  if (!base.scale || !other.scale) { uiToast('שתי התכניות צריכות כיול לפני היישור'); return; }
+  if (window.__alignOv) window.__alignOv.remove();
+  if (!(P.bgs && P.bgs[other.id])) { uiToast('⏳ מביא את תכנית "' + other.name + '"…', 3000); await sheetFetchBg(P, other, false); }
+  const img = P.bgs && P.bgs[other.id]; if (!img) { uiToast('לתכנית "' + other.name + '" אין תכנית רקע'); return; }
+  const k = other.scale / base.scale;   /* פיקסל של האחרת → פיקסלים בקנבס הנוכחי (אותו קנה מידה) */
+  const Wo = (other.bgW || 1400), Ho = Wo * (other.bgAsp || 0.64), Lo = shBgL(other), To = shBgT(other);
+  const D = { baseId: base.id, otherId, k, Wo, Ho, Lo, To, img, op: 0.55, th: 0, ox: 0, oy: 0 };
+  if (other.org) {   /* כבר מיושרת — מתחילים מהמיקום הנוכחי */
+    D.th = (other.rot || 0) - (base.rot || 0);
+    const cc = sheetFromWorld(base, sheetWorld(other, { x: Lo + Wo / 2, y: To + Ho / 2 }));   /* מרכז התמונה האחרת בקנבס הנוכחי */
+    D.ox = cc.x - k * Wo / 2; D.oy = cc.y - k * Ho / 2;
+  } else { D.ox = bgLeft() + ((P.bgW || 1400) - k * Wo) / 2; D.oy = bgTop() + (bgHeightPx() - k * Ho) / 2; }
+  window.__alignDrag = D;
+  render();
+  uiToast('🧭 גרור את "' + other.name + '" למקומה על "' + base.name + '" · סיבוב ושקיפות בסרגל למעלה · Esc לביטול', 7000);
+}
+function alignDragRender() {
+  const D = window.__alignDrag;
+  let el = document.getElementById('alignOv'), bar = document.getElementById('alignBar');
+  if (!D || D.baseId !== P.curSheet) { if (el) el.remove(); if (bar) bar.remove(); if (D) window.__alignDrag = null; return; }
+  const cv = document.getElementById('canvas');
+  if (!el) {
+    el = document.createElement('img'); el.id = 'alignOv'; el.src = D.img; el.draggable = false;
+    el.style.cssText = 'position:absolute;z-index:6;cursor:move;outline:2px dashed #534ab7;user-select:none;-webkit-user-drag:none';
+    el.onload = () => { if (el.naturalWidth) { const asp = el.naturalHeight / el.naturalWidth; if (Math.abs(asp - D.Ho / D.Wo) > 0.01) { D.Ho = D.Wo * asp; alignDragRender(); } } };
+    el.addEventListener('pointerdown', e => {
+      if (e.button) return; e.preventDefault(); e.stopPropagation();
+      const Z = getZ() || 1, x0 = D.ox, y0 = D.oy, sx = e.clientX, sy = e.clientY;
+      el.setPointerCapture(e.pointerId);
+      const mv = ev => { D.ox = x0 + (ev.clientX - sx) / Z; D.oy = y0 + (ev.clientY - sy) / Z; el.style.left = D.ox + 'px'; el.style.top = D.oy + 'px'; };
+      const up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+      el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    });
+    el.addEventListener('wheel', e => { if (!e.shiftKey) return; e.preventDefault(); e.stopPropagation(); D.th = +(D.th + (e.deltaY > 0 ? 0.5 : -0.5)).toFixed(1); alignDragRender(); }, { passive: false });
+    cv.appendChild(el);
+  }
+  el.style.left = D.ox + 'px'; el.style.top = D.oy + 'px'; el.style.width = (D.k * D.Wo) + 'px'; el.style.height = (D.k * D.Ho) + 'px';
+  el.style.opacity = D.op; el.style.transformOrigin = '50% 50%'; el.style.transform = 'rotate(' + D.th + 'deg)';
+  const other = P.sheets.find(x => x.id === D.otherId) || {};
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'alignBar';
+    bar.style.cssText = 'position:fixed;top:96px;left:50%;transform:translateX(-50%);z-index:60;background:#1a1e28;color:#fff;border-radius:12px;padding:8px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;box-shadow:0 4px 18px rgba(0,0,0,.35);direction:rtl;max-width:96vw';
+    bar.innerHTML = '<b>🧭 יישור גרפי: גרור את "' + esc(other.name) + '" למקומה</b>' +
+      '<label style="display:flex;gap:5px;align-items:center">סיבוב <input data-rot type="range" min="-180" max="180" step="0.5" style="width:150px"> <input data-rotn type="number" step="0.5" style="width:62px;padding:2px 4px;color:#111">°</label>' +
+      '<button data-r90 style="padding:3px 8px;font-size:12px">↻ 90°</button>' +
+      '<label style="display:flex;gap:5px;align-items:center">שקיפות <input data-op type="range" min="0.15" max="1" step="0.05" style="width:90px"></label>' +
+      '<span style="color:#aab;font-size:11px">Shift+גלגלת = סיבוב עדין</span>' +
+      '<button data-ok style="padding:5px 12px;background:#0f6e56;color:#fff;border:none;border-radius:8px;font-weight:700">✓ אשר יישור</button>' +
+      '<button data-x style="padding:5px 10px;background:#3a4052;color:#fff;border:none;border-radius:8px">✕ ביטול</button>';
+    document.body.appendChild(bar);
+    const q = k => bar.querySelector(k);
+    q('[data-rot]').oninput = e => { D.th = +e.target.value; q('[data-rotn]').value = D.th; alignDragRender(); };
+    q('[data-rotn]').onchange = e => { D.th = +e.target.value || 0; alignDragRender(); };
+    q('[data-r90]').onclick = () => { D.th = ((D.th + 90 + 180) % 360) - 180; alignDragRender(); };
+    q('[data-op]').oninput = e => { D.op = +e.target.value; alignDragRender(); };
+    q('[data-x]').onclick = () => { window.__alignDrag = null; render(); uiToast('היישור בוטל'); };
+    q('[data-ok]').onclick = alignDragConfirm;
+  }
+  bar.querySelector('[data-rot]').value = D.th; bar.querySelector('[data-rotn]').value = D.th; bar.querySelector('[data-op]').value = D.op;
+}
+function alignDragConfirm() {
+  const D = window.__alignDrag; if (!D) return;
+  const base = P.sheets.find(x => x.id === D.baseId), other = P.sheets.find(x => x.id === D.otherId); if (!base || !other) return;
+  /* מרכז התמונה האחרת: בקנבס שלה (p0) ובקנבס הנוכחי (c0); הסיבוב סביבו. מכאן: rot_o = rot_base + θ ; org_o = W(c0) − R(rot_o)·s_o·p0 */
+  const p0 = { x: D.Lo + D.Wo / 2, y: D.To + D.Ho / 2 }, c0 = { x: D.ox + D.k * D.Wo / 2, y: D.oy + D.k * D.Ho / 2 };
+  const w0 = sheetWorld(base, c0);
+  const rot = ((((base.rot || 0) + D.th) % 360) + 540) % 360 - 180;
+  const a = rot * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a), sx = p0.x * other.scale, sy = p0.y * other.scale;
+  other.org = { x: +(w0.x - (sx * c - sy * sn)).toFixed(3), y: +(w0.y - (sx * sn + sy * c)).toFixed(3) };
+  if (Math.abs(rot) > 0.01) other.rot = +rot.toFixed(2); else delete other.rot;
+  other.alignBy = 'יושרה גרפית על "' + base.name + '"' + (other.rot ? ' · סיבוב ' + other.rot + '°' : '');
+  window.__alignDrag = null;
+  save(); render(); uiToast('📐 "' + other.name + '" יושרה מול "' + base.name + '"', 5000);
+}
+document.addEventListener('keydown', e => { if (window.__alignDrag && e.key === 'Escape') { window.__alignDrag = null; render(); uiToast('היישור בוטל'); } });
+window.sheetAlignDrag = sheetAlignDrag; window.alignDragRender = alignDragRender;
 /* יישור לפי אובייקט משותף: לוחצים עליו בתכנית הנוכחית, ואז באחרת */
 function sheetAlignPoint(otherId) {
   const base = curSheet(P), other = P.sheets.find(x => x.id === otherId);
@@ -640,10 +733,11 @@ function sheetsView3D() {
     const iso = (x, y, z) => ({ X: (x - y) * cosA * k, Y: ((x + y) * sinA * k) - z * zGap });
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9, body = '';
     const pts = [];
-    const cornersOf = (sh, w, h) => { const o = shOrg(sh), z = sh.level || 0; return [[o.x, o.y], [o.x + w, o.y], [o.x + w, o.y + h], [o.x, o.y + h]].map(([x, y]) => iso(x, y, z)); };
+    const isoW = (sh, x, y) => { const w = sheetWorld(sh, { x, y }); return iso(w.x, w.y, sh.level || 0); };
+    const cornersOf = sh => { const L = shBgL(sh), T = shBgT(sh), W = sh.bgW || 1400, H = W * aspOf(sh); return [[L, T], [L + W, T], [L + W, T + H], [L, T + H]].map(([x, y]) => isoW(sh, x, y)); };
     const order = spans.slice().sort((a, b) => (a.sh.level || 0) - (b.sh.level || 0));
     for (const { sh, w, h } of order) {
-      const c = cornersOf(sh, w, h); c.forEach(q => pts.push(q));
+      const c = cornersOf(sh); c.forEach(q => pts.push(q));
       const poly = c.map(q => q.X.toFixed(1) + ',' + q.Y.toFixed(1)).join(' ');
       const img = withImg && P.bgs && P.bgs[sh.id];
       if (img) {
@@ -655,12 +749,12 @@ function sheetsView3D() {
       body += `<polygon points="${poly}" fill="${img ? 'none' : 'rgba(120,130,160,.10)'}" stroke="#4b3fb8" stroke-width="1.6"/>`;
       /* אזורים ומוקדים */
       for (const z2 of sh.zones || []) { const b = zoneBounds(z2), o = shOrg(sh), lv = sh.level || 0, sc = sh.scale || 0.01;
-        const q = [[b.L, b.T], [b.L + b.W, b.T], [b.L + b.W, b.T + b.H], [b.L, b.T + b.H]].map(([x, y]) => iso(o.x + x * sc, o.y + y * sc, lv));
+        const q = [[b.L, b.T], [b.L + b.W, b.T], [b.L + b.W, b.T + b.H], [b.L, b.T + b.H]].map(([x, y]) => isoW(sh, x, y));
         body += `<polygon points="${q.map(w2 => w2.X.toFixed(1) + ',' + w2.Y.toFixed(1)).join(' ')}" fill="${zColor(z2)}22" stroke="${zColor(z2)}" stroke-width="1.2"/>`;
-        const cz = iso(o.x + (b.L + b.W / 2) * sc, o.y + (b.T + b.H / 2) * sc, lv);
+        const cz = isoW(sh, b.L + b.W / 2, b.T + b.H / 2);
         body += `<text x="${cz.X.toFixed(1)}" y="${cz.Y.toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#1a1e28">${esc(z2.name.slice(0, 18))}</text>`; }
       for (const n of sh.nodes || []) { if (n.hidden) continue; const o = shOrg(sh), sc = sh.scale || 0.01;
-        const q = iso(o.x + (2200 - n.x - 20) * sc, o.y + (n.y + 24) * sc, sh.level || 0);
+        const q = isoW(sh, 2200 - n.x - 20, n.y + 24);
         const col = n.kind === 'rack' ? '#2d3444' : n.kind === 'panel' ? '#c9502e' : '#0f6e56';
         body += `<circle cx="${q.X.toFixed(1)}" cy="${q.Y.toFixed(1)}" r="${n.kind === 'rack' ? 5 : 3.4}" fill="${col}" stroke="#fff" stroke-width="1"><title>${esc(n.name)} · ${esc(sh.name)}</title></circle>`; }
       /* תווית התכנית */
@@ -670,8 +764,8 @@ function sheetsView3D() {
     /* קווי התשתית בין התכניות */
     for (const l of xlinks()) {
       const A = anyNode(l.a), B = anyNode(l.b); if (!A || !B) continue;
-      const pa = iso(shOrg(A.sh).x + (2200 - A.n.x - 20) * (A.sh.scale || 0.01), shOrg(A.sh).y + (A.n.y + 24) * (A.sh.scale || 0.01), A.sh.level || 0);
-      const pb = iso(shOrg(B.sh).x + (2200 - B.n.x - 20) * (B.sh.scale || 0.01), shOrg(B.sh).y + (B.n.y + 24) * (B.sh.scale || 0.01), B.sh.level || 0);
+      const pa = isoW(A.sh, 2200 - A.n.x - 20, A.n.y + 24);
+      const pb = isoW(B.sh, 2200 - B.n.x - 20, B.n.y + 24);
       const L = xlinkLen(l), mid = { X: (pa.X + pb.X) / 2, Y: (pa.Y + pb.Y) / 2 };
       body += `<line x1="${pa.X.toFixed(1)}" y1="${pa.Y.toFixed(1)}" x2="${pb.X.toFixed(1)}" y2="${pb.Y.toFixed(1)}" stroke="#4b3fb8" stroke-width="2.6"/>
         <circle cx="${pa.X.toFixed(1)}" cy="${pa.Y.toFixed(1)}" r="4" fill="#4b3fb8"/><circle cx="${pb.X.toFixed(1)}" cy="${pb.Y.toFixed(1)}" r="4" fill="#4b3fb8"/>
@@ -1631,6 +1725,7 @@ document.addEventListener('wheel', e => {
 }, { passive: false });
 function render() {
   { const sh = document.getElementById('shTabsHost'); if (sh) sh.innerHTML = sheetTabsHTML(); }
+  if (typeof alignDragRender === 'function') alignDragRender();
   renderHeader(); renderBg(); applyZoom(); renderZones(); renderCoverage(); renderNodes(); renderWires(); renderPanel(); renderLegend(); renderCableKey();
   if (dockOpen) renderImp();
   $('#tabNode').classList.toggle('active', ui.tab === 'node');
