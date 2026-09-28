@@ -1842,7 +1842,7 @@ function renderHeader() {
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>
     <button onclick="rearLibManager()">🛠 ספריית גבי מוצרים</button>
     <button onclick="spkDataManager()">🔊 טבלת נתוני רמקולים/מגברים</button>`;
-  document.body.classList.toggle('wiring', !!wireMode || !!pinMode || !!calMode || !!zoneMode || !!connPin || !!window.__rackPlace || !!window.__djPlace || !!window.__micPlace);
+  document.body.classList.toggle('wiring', !!wireMode || !!pinMode || !!calMode || !!zoneMode || !!connPin || !!window.__asPick || !!window.__rackPlace || !!window.__djPlace || !!window.__micPlace);
 }
 
 function viewMenuHTML() {
@@ -3690,7 +3690,7 @@ document.addEventListener('keydown', e => {
   if (selHole || brushOn) { selHole = null; brushOn = false; render(); return; }
   if (sketchMode) { if (sketchMode.cur && sketchMode.cur.length) { sketchMode.cur = []; renderWires(); } else sketchEnd(); return; }
   if (conduitMode) { conduitPickEnd(); return; }
-  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; render(); }
+  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd || window.__asPick) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; window.__asPick = null; render(); }
 });
 function connGlyph(conn) {
   const ct = CONNS[conn] || CONNS.empty, C = ct.c;
@@ -7956,7 +7956,7 @@ function renderPanel() {
           <p class="muted" style="margin:0 0 8px">${P.scale ? `1 מ׳ = ${(1 / P.scale).toFixed(1)}px · מרחקי כבלים נמדדים אוטומטית מהתכנית` : 'בלי כיול מרחקי הכבלים לא יחושבו נכון. כייל פעם אחת לפי מידה ידועה בתכנית.'}</p>
           ${typeof asSummaryHTML === 'function' ? asSummaryHTML() : ''}
           <button class="primary" style="width:100%;${calMode ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : 'בצע כיול ידני'}</button>
-          ${P.bg && !P.autoScale && typeof autoScaleFromBg === 'function' ? `<button style="width:100%;margin-top:6px" onclick="autoScaleFromBg()">🔍 זהה קנה מידה אוטומטית (OCR מקומי, בלי AI)</button>` : ''}
+          ${!P.autoScale && typeof asStepButtonsHTML === 'function' ? asStepButtonsHTML() : ''}
         </div>
         ${typeof ptPanelHTML === 'function' ? ptPanelHTML() : ''}
         <button style="width:100%;margin-bottom:6px" title="הוספת קירות ואובייקטים משורטטים מעל תכנית הרקע" onclick="sketchStart()">🖊 ${P.sketch && ((P.sketch.walls || []).length || (P.sketch.objs || []).length) ? 'ערוך את השרטוט' : 'שרטט מעל התכנית — קירות ואובייקטים'}</button>
@@ -8905,6 +8905,12 @@ document.addEventListener('pointerdown', e => {
     }
     e.preventDefault();
     return;
+  }
+  /* שלב 2 של זיהוי קנה המידה — לחיצה ליד מידה כתובה */
+  if (window.__asPick && e.target.closest('#canvasWrap')) {
+    const p = canvasPt(e); window.__asPick = null; render();
+    if (typeof asVerifyAt === 'function') asVerifyAt(p);
+    e.preventDefault(); return;
   }
   /* כיול קנה מידה — שתי לחיצות על נקודות שהמרחק ביניהן ידוע */
   if (calMode && e.target.closest('#canvasWrap')) {

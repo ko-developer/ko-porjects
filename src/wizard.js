@@ -132,7 +132,7 @@ function wizStepHTML(s) {
     <h4>כיול קנה מידה</h4>
     <button class="sec" onclick="cropStart()">✂️ חתוך את התכנית — סמן את החלק הרלוונטי</button>
     ${typeof asSummaryHTML === 'function' ? asSummaryHTML() : ''}
-    ${P.bg && !P.autoScale && typeof autoScaleFromBg === 'function' ? `<button class="sec" onclick="autoScaleFromBg()">🔍 זהה קנה מידה אוטומטית — מהכיתוב והמידות שבשרטוט (בלי AI)</button>` : ''}
+    ${!P.autoScale && typeof asStepButtonsHTML === 'function' ? asStepButtonsHTML() : ''}
     ${P.scale ? `<div class="kpi" style="margin-bottom:7px"><div style="background:${P.calOk ? '#eef7f1' : '#fdf3e6'};outline:2px solid ${P.calOk ? '#0f6e56' : '#c96a13'}">
         <b style="color:${P.calOk ? '#0f6e56' : '#c96a13'}">${P.calOk ? '✓ מכויל ומאושר' : '⏳ כיול לא מאושר'}</b><small>1 מ׳ = ${(1 / P.scale).toFixed(1)}px · רוחב התכנית ${curW.toFixed(1)} מ׳${P.calLine ? ' · 📏 קו ייחוס על התכנית' : ''}</small></div></div>
       ${odd ? `<p class="hint" style="color:#c1121f;font-weight:700">⚠ רוחב תכנית של ${curW.toFixed(1)} מ׳ אינו סביר — כייל מחדש לפני שממשיכים.</p>` : ''}

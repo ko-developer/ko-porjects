@@ -122,7 +122,8 @@ function asChainEstimate(lines, unit, refK) {
 /* --- החלטה: הצלבה של "1:N" עם שרשרות המידות ---
    tokens בקואורדינטות של מסגרת המקור (נקודות PDF או פיקסלים של תמונת ה-OCR);
    unitPerM_ratio = כמה יחידות-מקור למטר לפי הכיתוב (null אם אין גודל דף) */
-function asDecide(tokens, ratio, unitPerM_ratio) {
+function asDecide(tokens, ratio, unitPerM_ratio, tol) {
+  tol = tol || 0.03;   /* סובלנות ההצלבה; באימות ליד נקודה (זוג אחד שהמשתמש הצביע עליו) 5% */
   const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')];
   const ests = ['mm', 'cm', 'm'].map(u => asChainEstimate(lines, u)).filter(Boolean);
   /* הפרשנות הנכונה: הכי הרבה זוגות עקביים; אם יש "1:N" — זוגות שמסכימים איתו */
@@ -135,14 +136,17 @@ function asDecide(tokens, ratio, unitPerM_ratio) {
   const strongChain = chain && chain.n >= 6 && chain.mad <= 0.02;
   if (chain && unitPerM_ratio) {
     r.dev = Math.abs(chain.k - unitPerM_ratio) / unitPerM_ratio;
-    if (r.dev <= 0.03) { r.unitPerM = chain.k; r.conf = 'high'; r.method = 'ratio+dims'; r.note = 'הכיתוב 1:' + ratio.n + ' והמידות בשרטוט מסכימים'; }
+    /* מסכימים: הכיתוב מדויק יותר מזוג-שניים שנמדדו ב-OCR; רק שרשרת ארוכה גוברת עליו */
+    if (r.dev <= tol) { r.unitPerM = chain.n >= 3 ? chain.k : unitPerM_ratio; r.conf = 'high'; r.method = 'ratio+dims'; r.note = 'הכיתוב 1:' + ratio.n + ' והמידות בשרטוט מסכימים'; }
     else if (chain.n >= 4) { r.unitPerM = chain.k; r.conf = strongChain ? 'high' : 'medium'; r.method = 'dims'; r.note = 'הכיתוב אומר 1:' + ratio.n + ' אבל המידות בשרטוט לא מסכימות (' + Math.round(r.dev * 100) + '%) — כנראה הודפס בהתאמה לדף. נלקחו המידות'; }
-    else { r.unitPerM = unitPerM_ratio; r.conf = 'medium'; r.method = 'ratio'; r.note = 'לפי הכיתוב 1:' + ratio.n + ' וגודל הדף; מעט מידות בשרטוט לאימות (' + Math.round(r.dev * 100) + '% סטייה)'; }
+    else { r.unitPerM = unitPerM_ratio; r.conf = 'medium'; r.method = 'ratio';
+      if ((chain.n >= 2 || tol > 0.03) && r.dev <= 0.5) r.note = 'לפי הכיתוב 1:' + ratio.n + ' וגודל הדף; ' + (chain.n === 1 ? 'זוג המידות שנמצא לא מסכים' : chain.n + ' זוגות מידות שנמצאו לא מסכימים') + ' (' + Math.round(r.dev * 100) + '% סטייה) — השווה את הסימון האדום למידה בעין, או לחץ ליד מידה אחרת';
+      else { r.chain = null; r.dev = null; r.note = 'לפי הכיתוב 1:' + ratio.n + ' וגודל הדף — לא נמצאו מידות תואמות לאימות. אם ההדפסה הותאמה לדף, כייל ידנית'; } }
   } else if (chain && chain.n >= 1) {
     r.unitPerM = chain.k; r.conf = strongChain ? 'high' : (chain.n >= 4 ? 'medium' : 'low'); r.method = 'dims';
     r.note = (ratio ? 'הכיתוב 1:' + ratio.n + ' נמצא אבל אין גודל דף להצלבה; ' : 'לא נמצא כיתוב 1:N; ') + 'לפי ' + chain.n + (chain.n === 1 ? ' זוג מידות אחד בשרטוט — בדוק בעין' : ' זוגות מידות בשרטוט');
   } else if (unitPerM_ratio) {
-    r.unitPerM = unitPerM_ratio; r.conf = 'medium'; r.method = 'ratio'; r.note = 'לפי הכיתוב 1:' + ratio.n + ' וגודל הדף בלבד — לא נמצאו מידות לאימות. אם ההדפסה הותאמה לדף, כייל ידנית';
+    r.unitPerM = unitPerM_ratio; r.conf = 'medium'; r.method = 'ratio'; r.note = 'לפי הכיתוב 1:' + ratio.n + ' וגודל הדף — לא נמצאו מידות בשרטוט לאימות. אם ההדפסה הותאמה לדף, כייל ידנית';
   } else {
     r.note = ratio ? 'נמצא 1:' + ratio.n + ' אבל בלי גודל דף ובלי מידות — כייל ידנית' : 'לא נמצאו כיתוב קנה מידה או מידות קריאות — כייל ידנית';
   }
@@ -178,6 +182,7 @@ function asSummaryHTML() {
   const r = P.autoScale; if (!r) return '';
   const col = r.conf === 'high' ? '#0f6e56' : r.conf === 'medium' ? '#b7791f' : '#c9502e';
   const over = P.scale && (P.calSrc === 'manual' || P.calSrc === undefined);
+  const pend = r.step === 1 && r.unitPerM && r.conf !== 'high' ? '<div style="font-size:11.5px;color:#b7791f;margin:2px 0 4px">🟡 שלב 1 הושלם — הכיתוב הוחל. שלב 2: לחץ "אמת ליד מידה" ואז על מספר מידה בתכנית</div>' : '';
   /* שדה קנה המידה: מה שנמצא בכיתוב (ניתן לעריכה) ואימות מול המידות שנמדדו */
   let ratioRow = '';
   if (P.scale) {
@@ -192,7 +197,7 @@ function asSummaryHTML() {
     ratioRow = `<div style="display:flex;align-items:center;gap:6px;margin:4px 0"><span>קנה מידה בשרטוט:</span>
       <span style="direction:ltr;display:inline-flex;align-items:center;gap:3px;font-weight:700">1 : <input type="number" min="1" max="5000" value="${r.ratio || ''}" placeholder="50" style="width:64px;padding:3px 5px;margin:0;font-size:12px" onchange="asSetRatio(this.value)"></span></div><div>${verify}</div>`;
   }
-  return `<div style="border:1.5px solid ${col};border-radius:9px;padding:7px 9px;margin:0 0 8px;background:#fff;font-size:11.5px;line-height:1.5">
+  return pend + `<div style="border:1.5px solid ${col};border-radius:9px;padding:7px 9px;margin:0 0 8px;background:#fff;font-size:11.5px;line-height:1.5">
     <b style="color:${col}">🔍 זיהוי אוטומטי${over ? ' (נדרס בכיול ידני)' : ''}:</b> ${esc(asLabel(r))}<br>${ratioRow}
     <span class="muted">${esc(r.note || '')}${r.pxPerM ? ' · 1 מ׳ = ' + r.pxPerM.toFixed(1) + 'px' : ''}</span>
     ${r.marks && r.marks.length ? `<div style="display:flex;gap:4px;margin-top:6px"><button style="flex:1;${r.show === false ? '' : 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56'}" onclick="P.autoScale.show=!(P.autoScale.show!==false);save();render()">👁 ${r.show === false ? 'הצג סימון אימות' : 'סימון אימות מוצג'}</button><button style="flex:1;${r.showAll ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56' : ''}" onclick="P.autoScale.showAll=!P.autoScale.showAll;save();render()">${r.showAll ? 'רק אחד' : 'הצג את כל ' + r.marks.length}</button></div>` : ''}
@@ -200,48 +205,58 @@ function asSummaryHTML() {
       <div class="muted" style="font-size:10.5px">${r.chain.samples.map(s => esc(s.a) + ' ↔ ' + esc(s.b) + ' → ' + s.real.toFixed(2) + ' מ׳').join('<br>')}</div></details>` : ''}
     ${r.pxPerM && over ? `<button style="width:100%;margin-top:6px" onclick="P.calSrc='';asApply(P.autoScale,P.autoScale.pxPerM,P.autoScale.src,true);uiToast('✓ הוחל קנה המידה שזוהה — במקום הכיול הידני')">↺ השתמש בזיהוי (1 מ׳ = ${r.pxPerM.toFixed(1)}px) במקום הכיול הידני (${(1 / P.scale).toFixed(1)}px)</button>` : ''}
     ${!r.pxPerM || over ? '' : (P.calOk ? '' : `<button class="primary" style="width:100%;margin-top:6px;background:#0f6e56" onclick="P.calOk=1;save();render();if(typeof WIZ!=='undefined'&&WIZ)wizRender();uiToast('✓ קנה המידה האוטומטי אושר')">✓ הזיהוי נכון — אשר</button>`)}
-    ${P.bg && r.src !== 'pdf' ? `<button style="width:100%;margin-top:6px" onclick="autoScaleFromBg()">🔍 זהה שוב (OCR על התמונה)</button>` : ''}
+    ${typeof asStepButtonsHTML === 'function' ? asStepButtonsHTML() : ''}
   </div>`;
 }
 
 /* ================= PDF: שכבת הטקסט ================= */
+/* טוקנים משכבת הטקסט של ה-PDF (נקודות PDF, y מלמטה) */
+function asPdfTextTokens(tc) {
+  const tokens = [];
+  for (const it of tc.items) {
+    const t = (it.str || '').trim(); if (!t) continue;
+    const [a, b, c, d, e, f] = it.transform;
+    const rot = Math.atan2(b, a);
+    const h = Math.hypot(c, d) || 8, w = it.width || h * 0.6 * t.length;
+    const vert = Math.abs(Math.abs(rot) - Math.PI / 2) < 0.3;
+    const horiz = Math.abs(rot) < 0.3 || Math.abs(Math.abs(rot) - Math.PI) < 0.3;
+    if (!vert && !horiz) continue;
+    const cx = e + Math.cos(rot) * w / 2 - Math.sin(rot) * h / 2;
+    const cy = f + Math.sin(rot) * w / 2 + Math.cos(rot) * h / 2;
+    tokens.push({ t, x: cx, y: cy, w, h, frame: vert ? 'v' : 'h' });
+  }
+  return tokens;
+}
+function asFinishPdf(r, tokens, pg, bgW) {
+  const vp = pg.getViewport({ scale: 1 }), pageW = vp.width;
+  const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')].map(l => l.text);
+  r.textSample = lines.filter(t => /[:\/]/.test(t)).slice(0, 25);
+  const pxPerM = r.unitPerM ? r.unitPerM * (bgW / pageW) : null;
+  asNormMarks(r, pageW, vp.height, true);
+  r.tokens = tokens.length; r.pageMm = [Math.round(pageW / AS_PT_PER_MM), Math.round(vp.height / AS_PT_PER_MM)];
+  asApply(r, pxPerM, 'pdf');
+  return pxPerM;
+}
+/* ===== שלב 1 — זיהוי קנה המידה: הכיתוב "1:N" בחותמת השרטוט =====
+   שכבת הטקסט של ה-PDF, ואם אין — OCR של פינת החותמת בלבד (שניות בודדות). התוצאה מוחלת מיד (🟡);
+   האימות מול מידות בשרטוט הוא שלב 2 (asVerifyAt) — לחיצה ליד מידה כתובה. */
 async function autoScalePdf(pg, bgW) {
   try {
     const tc = await pg.getTextContent();
-    const vp = pg.getViewport({ scale: 1 });
-    const pageW = vp.width; /* נקודות */
-    const tokens = [];
-    for (const it of tc.items) {
-      const t = (it.str || '').trim(); if (!t) continue;
-      const [a, b, c, d, e, f] = it.transform;
-      const rot = Math.atan2(b, a);
-      const h = Math.hypot(c, d) || 8, w = it.width || h * 0.6 * t.length;
-      const vert = Math.abs(Math.abs(rot) - Math.PI / 2) < 0.3;
-      const horiz = Math.abs(rot) < 0.3 || Math.abs(Math.abs(rot) - Math.PI) < 0.3;
-      if (!vert && !horiz) continue;
-      const cx = e + Math.cos(rot) * w / 2 - Math.sin(rot) * h / 2;
-      const cy = f + Math.sin(rot) * w / 2 + Math.cos(rot) * h / 2;
-      tokens.push({ t, x: cx, y: cy, w, h, frame: vert ? 'v' : 'h' });
+    const tokens = asPdfTextTokens(tc);
+    window.__asTextToks = tokens;
+    let ratio = asFindRatio([...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')].map(l => l.text));
+    if (!ratio) {
+      uiToast('🔍 קורא את חותמת השרטוט…', 4000);
+      const toks = await asOcrZoomPdf(pg, { sc: 6, stampOnly: true });
+      toks.forEach(tk => tokens.push(tk));
+      ratio = toks.__ratio || null;
     }
-    /* שכבת טקסט ריקה (הכיתובים הומרו לקווים) — מרנדרים את הדף ברזולוציה גבוהה וקוראים OCR באריחים */
-    if (tokens.length < 12) {
-      uiToast('🔍 ב-PDF אין שכבת טקסט — סורק את השרטוט בזום כדי לקרוא את המידות…', 8000);
-      const toks = await asOcrZoomPdf(pg, { sc: 6, onTile: (n, tot, found) => { if (n % 4 === 0) uiToast('🔍 סורק בזום ' + n + '/' + tot + ' · ' + found + ' מספרים', 2500); } });
-      toks.forEach(tk => tokens.push(tk));   /* כבר בנקודות PDF, y מלמטה */
-      window.__asTokens = toks;
-    }
-    const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')].map(l => l.text);
-    const ratio = asFindRatio(lines);
-    /* דגימת טקסט — לבדוק מה נמצא בשכבת הטקסט (למשל למה לא זוהה 1:N) */
-    const textSample = lines.filter(t => /[:\/]/.test(t) || /1\s*[:\/]\s*\d/.test(t)).slice(0, 25);
-    /* נקודות למטר לפי הכיתוב: דף בנקודות ↔ אמיתי = דף × N */
     const ptPerM_ratio = ratio ? (1000 * AS_PT_PER_MM) / ratio.n : null;
     const r = asDecide(tokens, ratio, ptPerM_ratio);
-    const pxPerM = r.unitPerM ? r.unitPerM * (bgW / pageW) : null;
-    asNormMarks(r, pageW, vp.height, true);
-    r.tokens = tokens.length; r.pageMm = [Math.round(pageW / AS_PT_PER_MM), Math.round(vp.height / AS_PT_PER_MM)]; r.textSample = textSample;
-    asApply(r, pxPerM, 'pdf');
-    uiToast(pxPerM ? '🔍 קנה מידה זוהה אוטומטית: ' + asLabel(r) : '🔍 לא זוהה קנה מידה אוטומטית — ' + r.note, 6000);
+    r.step = 1;
+    const pxPerM = asFinishPdf(r, tokens, pg, bgW);
+    uiToast(pxPerM ? '🔍 שלב 1: נקרא קנה מידה 1:' + ratio.n + ' והוחל · שלב 2: לחץ ליד מידה בתכנית לאימות' : '🔍 לא נמצא כיתוב 1:N בחותמת — הקלד את קנה המידה, או לחץ ליד מידה כתובה בתכנית (שלב 2)', 7000);
     return r;
   } catch (e) { console.warn('autoScalePdf', e); return null; }
 }
@@ -302,63 +317,158 @@ async function asOcrTiles(cv) {
    הקנבס הענק (7200px) נתן ~16px לספרה — קטן מדי ל-OCR. כאן כל אריח מרונדר בנפרד בהגדלה (ברירת מחדל ×6),
    כך שספרת מידה יוצאת ~30-40px. סדר הסריקה: טבעת האריחים החיצונית קודם (שם רצות שרשרות המידות),
    ואחרי כל אריח נבדק אם כבר יש שרשרת מידות עקבית — ואז עוצרים. */
-async function asOcrZoomPdf(pg, opt = {}) {
-  if (!window.Tesseract) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
-  const vp1 = pg.getViewport({ scale: 1 }), SC = opt.sc || 6, TILE = opt.tile || 1700, OV = 0.08;
-  const stepPt = (TILE / SC) * (1 - OV), cols = Math.max(1, Math.ceil(vp1.width / stepPt)), rows = Math.max(1, Math.ceil(vp1.height / stepPt));
-  const order = [];
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const ring = Math.min(r, c, rows - 1 - r, cols - 1 - c);   /* 0 = טבעת חיצונית */
-    order.push({ r, c, ring });
+/* ניקוי אריח לפני OCR: משאירים רק רכיבים מחוברים קטנים (ספרות ואותיות) ומוחקים קירות, קווי מידה ארוכים,
+   מסגרות טבלה והצללות — הם אלה שמאטים את Tesseract פי 10 באריחים צפופים, ובלעדיהם הספרות נקראות נקי יותר.
+   px = RGBA בינארי (0 / 255). מחזיר כמה פיקסלים כהים נשארו */
+function asKeepSmall(px, W, H, maxSide) {
+  const N = W * H, lab = new Int32Array(N), st = new Int32Array(N);
+  let kept = 0, comp = 0;
+  for (let i = 0; i < N; i++) {
+    if (px[i * 4] !== 0 || lab[i]) continue;
+    comp++;
+    let sp = 0, minx = W, maxx = 0, miny = H, maxy = 0, cnt = 0; st[sp++] = i; lab[i] = comp;
+    const pix = [];
+    while (sp) {
+      const p = st[--sp]; pix.push(p); cnt++;
+      const y = (p / W) | 0, x = p - y * W;
+      if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+      if (x > 0 && px[(p - 1) * 4] === 0 && !lab[p - 1]) { lab[p - 1] = comp; st[sp++] = p - 1; }
+      if (x < W - 1 && px[(p + 1) * 4] === 0 && !lab[p + 1]) { lab[p + 1] = comp; st[sp++] = p + 1; }
+      if (y > 0 && px[(p - W) * 4] === 0 && !lab[p - W]) { lab[p - W] = comp; st[sp++] = p - W; }
+      if (y < H - 1 && px[(p + W) * 4] === 0 && !lab[p + W]) { lab[p + W] = comp; st[sp++] = p + W; }
+    }
+    const w = maxx - minx + 1, h = maxy - miny + 1;
+    /* גדול מדי לספרה, או דק וארוך (קו), או נקודת רעש */
+    if (w > maxSide || h > maxSide || cnt < 6) { for (const p of pix) { px[p * 4] = px[p * 4 + 1] = px[p * 4 + 2] = 255; } }
+    else kept += cnt;
   }
-  order.sort((a, b) => a.ring - b.ring || a.r - b.r || a.c - b.c);
+  return kept;
+}
+/* OCR של קנבס בינארי אחד (אחרי חידוד וניקוי): 1 או 3 סיבובים. מחזיר טוקנים ביחידות המקור (x0,y0 + פיקסל/SC), y מלמעלה */
+async function asOcrBin(worker, cv, SC, x0, y0, hOnly) {
+  const rot = (src, ang) => { const rc = document.createElement('canvas'); rc.width = src.height; rc.height = src.width; const g = rc.getContext('2d'); g.translate(rc.width / 2, rc.height / 2); g.rotate(ang); g.drawImage(src, -src.width / 2, -src.height / 2); return rc; };
+  const passes = [[cv, 'h', (x, y) => ({ x, y })]];
+  if (!hOnly) passes.push([rot(cv, Math.PI / 2), 'v', (x, y) => ({ x: y, y: cv.height - x })], [rot(cv, -Math.PI / 2), 'w', (x, y) => ({ x: cv.width - y, y: x })]);
+  const out = [];
+  for (const [c2, frame, map] of passes) {
+    const res = await worker.recognize(c2);
+    for (const wd of (res.data.words || [])) {
+      const txt = (wd.text || '').trim();
+      if (!txt || wd.confidence < 55 || !/^\d+([.,]\d+)?$|1\s*[:\/]\s*\d{2,4}/.test(txt)) continue;
+      const bb = wd.bbox, p = map((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2);
+      out.push({ t: txt, x: x0 + p.x / SC, y: y0 + p.y / SC, w: (bb.x1 - bb.x0) / SC, h: (bb.y1 - bb.y0) / SC, frame, c: wd.confidence });
+    }
+  }
+  return out;
+}
+/* חידוד לשחור-לבן + ניקוי רכיבים גדולים. מחזיר כמה פיקסלי-גליף נשארו (0 = אין מה לקרוא) */
+function asPrepBin(g, W, H, SC) {
+  const id = g.getImageData(0, 0, W, H), px = id.data;
+  let dark = 0; for (let i = 0; i < px.length; i += 256) if (px[i] < 140) dark++;
+  if (dark < 12) return 0;
+  for (let i = 0; i < px.length; i += 4) { const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2], v = l < 190 ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; }
+  const kept = asKeepSmall(px, W, H, Math.round(16 * SC));   /* ספרה עד ~16 נק׳ (5.6 מ״מ) */
+  if (kept < 40) return 0;
+  g.putImageData(id, 0, 0);
+  return kept;
+}
+async function asWorker() {
+  if (!window.Tesseract) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
   const worker = await Tesseract.createWorker('eng');
   await worker.setParameters({ tessedit_char_whitelist: '0123456789.,:/', preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
+  return worker;
+}
+/* סריקת PDF בזום באריחים. מצבים:
+   stampOnly — רק פינת החותמת (טקסט אופקי) עד שנקרא "1:N"      → שלב 1
+   at:{x,y}  — אריח אחד סביב נקודה (נקודות PDF, y מלמעלה)        → שלב 2, אימות ליד מידה
+   אחרת      — סריקה מלאה: חותמת ואז המידות (טבעת חיצונית קודם) */
+async function asOcrZoomPdf(pg, opt = {}) {
+  const vp1 = pg.getViewport({ scale: 1 }), SC = opt.sc || 6, TILE = opt.tile || 1700, OV = 0.08;
+  const tw = TILE / SC, stepPt = tw * (1 - OV), cols = Math.max(1, Math.ceil(vp1.width / stepPt)), rows = Math.max(1, Math.ceil(vp1.height / stepPt));
+  const worker = await asWorker();
   const tokens = [], seen = new Set();
   const maxTiles = opt.maxTiles || 70, tStop = Date.now() + (opt.maxMs || 240000);
+  let ratio = opt.ratio || null, ratioAt = -1;
+  const ptPerM = n => (1000 * AS_PT_PER_MM) / n;
   let done = 0, scanned = 0;
-  const rot = (src, ang) => { const rc = document.createElement('canvas'); rc.width = src.height; rc.height = src.width; const g = rc.getContext('2d'); g.translate(rc.width / 2, rc.height / 2); g.rotate(ang); g.drawImage(src, -src.width / 2, -src.height / 2); return rc; };
-  for (const t of order) {
-    if (done >= maxTiles || Date.now() > tStop) break;
-    const x0 = t.c * stepPt, y0 = t.r * stepPt, wPt = Math.min(TILE / SC, vp1.width - x0), hPt = Math.min(TILE / SC, vp1.height - y0);
-    if (wPt < 8 || hPt < 8) continue;
+  const lines = () => [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')];
+  const log = []; window.__asLog = log;
+  const scanTile = async (x0, y0, hOnly) => {
+    const T0 = Date.now(), n0 = tokens.length;
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    const wPt = Math.min(tw, vp1.width - x0), hPt = Math.min(tw, vp1.height - y0);
+    if (wPt < 40 || hPt < 40) return false;
     const cv = document.createElement('canvas');
     cv.width = Math.round(wPt * SC); cv.height = Math.round(hPt * SC);
     const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
     await pg.render({ canvasContext: g, viewport: pg.getViewport({ scale: SC, offsetX: -x0 * SC, offsetY: -y0 * SC }) }).promise;
-    /* אריח כמעט ריק — דילוג בלי OCR */
-    const id = g.getImageData(0, 0, cv.width, cv.height), px = id.data;
-    let dark = 0; for (let i = 0; i < px.length; i += 256) if (px[i] < 140) dark++;
     scanned++;
-    if (dark < 12) continue;
-    /* חידוד לשחור-לבן — קווי השרטוט אפורים והספרות דקות */
-    for (let i = 0; i < px.length; i += 4) { const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2], v = l < 190 ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; }
-    g.putImageData(id, 0, 0);
+    const kept = asPrepBin(g, cv.width, cv.height, SC);
+    if (!kept) { log.push({ x: Math.round(x0), y: Math.round(y0), skip: 'no glyphs', ms: Date.now() - T0 }); return false; }
     done++;
-    const passes = [[cv, 'h', (x, y) => ({ x, y })], [rot(cv, Math.PI / 2), 'v', (x, y) => ({ x: y, y: cv.height - x })], [rot(cv, -Math.PI / 2), 'w', (x, y) => ({ x: cv.width - y, y: x })]];
-    for (const [c2, frame, map] of passes) {
-      const res = await worker.recognize(c2);
-      for (const wd of (res.data.words || [])) {
-        const txt = (wd.text || '').trim();
-        if (!txt || wd.confidence < 55 || !/^\d+([.,]\d+)?$|1\s*[:\/]\s*\d{2,4}/.test(txt)) continue;
-        const bb = wd.bbox, p = map((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2);
-        const X = x0 + p.x / SC, Y = y0 + p.y / SC;   /* בחזרה לנקודות PDF (y מלמעלה) */
-        const key = frame + '|' + txt + '|' + Math.round(X / 3) + '|' + Math.round(Y / 3);
-        if (seen.has(key)) continue; seen.add(key);
-        tokens.push({ t: txt, x: X, y: vp1.height - Y, w: (bb.x1 - bb.x0) / SC, h: (bb.y1 - bb.y0) / SC, frame, c: wd.confidence });
-      }
+    for (const tk of await asOcrBin(worker, cv, SC, x0, y0, hOnly)) {
+      const key = tk.frame + '|' + tk.t + '|' + Math.round(tk.x / 3) + '|' + Math.round(tk.y / 3);
+      if (seen.has(key)) continue; seen.add(key);
+      tk.y = vp1.height - tk.y;   /* נקודות PDF — y מלמטה */
+      tokens.push(tk);
     }
-    if (opt.onTile) opt.onTile(done, Math.min(order.length, maxTiles), tokens.length);
-    /* יש כבר שרשרת מידות עקבית? אפשר לעצור */
+    if (!ratio) { ratio = asFindRatio(lines().map(l => l.text)); if (ratio) { ratioAt = done; if (opt.onRatio) opt.onRatio(ratio); } }
+    if (opt.onTile) opt.onTile(done, Math.min(rows * cols, maxTiles), tokens.length, ratio);
+    log.push({ x: Math.round(x0), y: Math.round(y0), hOnly: !!hOnly, ms: Date.now() - T0, kept, toks: tokens.length - n0, ratio: ratio && ratio.n });
+    return true;
+  };
+  const fin = () => { tokens.__tiles = done; tokens.__scanned = scanned; tokens.__ratioAt = ratioAt; tokens.__ratio = ratio; return tokens; };
+  /* אימות ליד נקודה: אריח אחד סביבה, כל הסיבובים */
+  if (opt.at) {
+    await scanTile(opt.at.x - tw / 2, opt.at.y - tw / 2, false);
+    await worker.terminate(); return fin();
+  }
+  /* שלב א — החותמת: אריחים מעוגנים לפינה הימנית-תחתונה (ואם אין שם — לשמאלית-תחתונה), טקסט אופקי בלבד. שם כתוב "קנה מידה 1:N" */
+  if (!ratio) {
+    const W = vp1.width, H = vp1.height, s2 = tw * 0.92;
+    const stamp = [[W - tw, H - tw], [W - tw - s2, H - tw], [W - tw, H - tw - s2], [W - tw - s2, H - tw - s2], [0, H - tw], [s2, H - tw]];
+    for (const [x, y] of stamp) { if (ratio || Date.now() > tStop) break; await scanTile(x, y, true); }
+  }
+  if (opt.stampOnly) { await worker.terminate(); return fin(); }
+  /* שלב ב — מפת צפיפות זולה (רינדור אחד ברזולוציה נמוכה) ואז רשת אריחים: טבעת חיצונית קודם, בתוכה דלילים לפני צפופים, ריקים בסוף */
+  let LC = null;
+  try {
+    const k = 1200 / vp1.width, lc = document.createElement('canvas'); lc.width = Math.round(vp1.width * k); lc.height = Math.round(vp1.height * k);
+    const lg = lc.getContext('2d'); lg.fillStyle = '#fff'; lg.fillRect(0, 0, lc.width, lc.height);
+    await pg.render({ canvasContext: lg, viewport: pg.getViewport({ scale: k }) }).promise;
+    LC = { k, w: lc.width, h: lc.height, d: lg.getImageData(0, 0, lc.width, lc.height).data };
+  } catch (e) { console.warn('density map', e); }
+  const D = (x0, y0, w, h) => {
+    if (!LC) return 0.5;
+    const X0 = Math.round(x0 * LC.k), Y0 = Math.round(y0 * LC.k), X1 = Math.min(LC.w, Math.round((x0 + w) * LC.k)), Y1 = Math.min(LC.h, Math.round((y0 + h) * LC.k));
+    let dark = 0, n = 0; for (let y = Y0; y < Y1; y++) for (let x = X0; x < X1; x++) { n++; if (LC.d[(y * LC.w + x) * 4] < 200) dark++; }
+    return n ? dark / n : 0;
+  };
+  const order = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const x0 = c * stepPt, y0 = r * stepPt; if (vp1.width - x0 < 40 || vp1.height - y0 < 40) continue;
+    order.push({ x0, y0, ring: Math.min(r, c, rows - 1 - r, cols - 1 - c), d: D(x0, y0, tw, tw) });
+  }
+  order.sort((a, b) => (a.d < 0.0004) - (b.d < 0.0004) || a.ring - b.ring || a.d - b.d);
+  let tConf = ratio ? Date.now() + (opt.confirmMs || 15000) : 0;
+  for (const t of order) {
+    if (done >= maxTiles || Date.now() > tStop) break;
+    if (ratio && Date.now() > tConf) break;
+    if (!(await scanTile(t.x0, t.y0, false))) continue;
+    const ln = lines();
+    if (ratio) {
+      if (!tConf) tConf = Date.now() + (opt.confirmMs || 15000);
+      const agree = ['mm', 'cm', 'm'].map(u => asChainEstimate(ln, u, ptPerM(ratio.n))).filter(Boolean).sort((a, b) => b.n - a.n)[0];
+      if (agree && agree.n >= 2) break;
+      continue;
+    }
     if (done % 3 === 0 && tokens.length >= 6) {
-      const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')];
-      const best = ['mm', 'cm', 'm'].map(u => asChainEstimate(lines, u)).filter(Boolean).sort((a, b) => b.n - a.n || a.mad - b.mad)[0];
+      const best = ['mm', 'cm', 'm'].map(u => asChainEstimate(ln, u)).filter(Boolean).sort((a, b) => b.n - a.n || a.mad - b.mad)[0];
       if (best && best.n >= (opt.enough || 8) && best.mad <= 0.02) break;
     }
   }
   await worker.terminate();
-  tokens.__tiles = done; tokens.__scanned = scanned;
-  return tokens;
+  return fin();
 }
 async function autoScaleImage(img, bgW) {
   try {
@@ -386,22 +496,87 @@ async function autoScaleImage(img, bgW) {
   } catch (e) { console.warn('autoScaleImage', e); uiToast('⚠ זיהוי אוטומטי נכשל: ' + (e.message || e)); return null; }
 }
 /* הרצה חוזרת על תכנית קיימת (תמונת הרקע השמורה) */
+/* עמוד ה-PDF של הגיליון הנוכחי (נטען מהשרת לפי דרישה; נשמר בזיכרון לשלב 2) */
+async function asPdfPage() {
+  if (!P.bgPdf && P.hasPdf && typeof sheetFetchBg === 'function') { uiToast('⏳ מביא את ה-PDF המקורי מהשרת…', 4000); await sheetFetchBg(P, curSheet(P), true); }
+  if (!P.bgPdf) return null;
+  const key = P.id + '|' + (P.curSheet || '') + '|' + (P.bgPdfPage || 1) + '|' + P.bgPdf.length;
+  if (window.__asPg && window.__asPg.key === key) return window.__asPg.pg;
+  if (!window.pdfjsLib) { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+  const bytes = typeof bgPdfBytes === 'function' ? bgPdfBytes() : Uint8Array.from(atob(P.bgPdf.replace(/^data:[^,]*,/, '')), ch => ch.charCodeAt(0));
+  const doc = await pdfjsLib.getDocument({ data: bytes }).promise, pg = await doc.getPage(P.bgPdfPage || 1);
+  window.__asPg = { key, pg };
+  return pg;
+}
+/* שלב 1 — זיהוי קנה המידה מהכיתוב */
 async function autoScaleFromBg() {
   if (!P.bg) { uiToast('אין תכנית'); return; }
-  /* ה-PDF המקורי נטען מהשרת לפי דרישה — בלי לחכות לו הזיהוי היה נופל לתמונת התצוגה הקטנה ונכשל */
-  if (!P.bgPdf && P.hasPdf && typeof sheetFetchBg === 'function') { uiToast('⏳ מביא את ה-PDF המקורי מהשרת…', 4000); await sheetFetchBg(P, curSheet(P), true); }
-  if (P.bgPdf) {   /* יש PDF — קוראים ממנו (שכבת טקסט, או רינדור ברזולוציה גבוהה + OCR) — הרבה יותר מדויק מתמונת התצוגה */
-    try {
-      if (!window.pdfjsLib) { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
-      const bytes = typeof bgPdfBytes === 'function' ? bgPdfBytes() : Uint8Array.from(atob(P.bgPdf.replace(/^data:[^,]*,/, '')), ch => ch.charCodeAt(0));
-      const doc = await pdfjsLib.getDocument({ data: bytes }).promise, pg = await doc.getPage(P.bgPdfPage || 1);
-      return autoScalePdf(pg, P.bgW || 1400);
-    } catch (e) { console.warn('autoScaleFromBg pdf', e); }
-  }
+  try {
+    const pg = await asPdfPage();
+    if (pg) return autoScalePdf(pg, P.bgW || 1400);
+  } catch (e) { console.warn('autoScaleFromBg pdf', e); }
   const img = new Image();
   img.onload = () => autoScaleImage(img, P.bgW || 1400);
   img.src = P.bg;
 }
+/* ===== שלב 2 — אימות ליד נקודה מסומנת =====
+   המשתמש לוחץ על התכנית ליד מספר מידה; קוראים בזום רק את האזור הזה, מחפשים זוג מידות סמוכות
+   שמסכים עם הכיתוב (או קובע קנה מידה כשאין כיתוב), ומסמנים אותו באדום על התכנית. כל לחיצה נוספת מוסיפה זוגות. */
+function asVerifyMode() {
+  if (!P.bg) { uiToast('אין תכנית'); return; }
+  window.__asPick = window.__asPick ? null : { at: Date.now() };
+  render();
+  if (window.__asPick) uiToast('📐 לחץ על התכנית ליד מספר מידה (שרשרת מידות) — Esc לביטול', 6000);
+}
+async function asVerifyAt(pt) {
+  try {
+    if (P.bgRot) { uiToast('לאימות ליד נקודה סובב את התכנית חזרה ל-0°'); return; }
+    const W = P.bgW || 1400, H = bgHeightPx();
+    const u = (pt.x - bgLeft()) / W, v = (pt.y - bgTop()) / H;
+    if (u < 0 || u > 1 || v < 0 || v > 1) { uiToast('לחץ בתוך התכנית'); return; }
+    uiToast('🔍 קורא את המידות ליד הנקודה…', 5000);
+    const pg = await asPdfPage();
+    const prev = P.autoScale || {};
+    const ratio = prev.ratio ? { n: prev.ratio, votes: 1 } : null;
+    const key = P.id + '|' + (P.curSheet || '');
+    if (!window.__asVer || window.__asVer.key !== key) window.__asVer = { key, toks: [] };
+    let r, pxPerM;
+    if (pg) {
+      const vp = pg.getViewport({ scale: 1 });
+      /* אריח אחד בזום גבוה (×9, ספרות של 1.5 מ״מ יוצאות ~40px) — 35 ס״מ נייר סביב הנקודה */
+      const toks = await asOcrZoomPdf(pg, { sc: 9, tile: 3200, at: { x: u * vp.width, y: v * vp.height } });
+      if (!toks.length) { uiToast('לא נקראו מספרים ליד הנקודה — לחץ קרוב יותר למספר מידה, או נסה נקודה אחרת', 6000); return; }
+      window.__asVer.toks.push(...toks);
+      const tokens = [...(window.__asTextToks || []), ...window.__asVer.toks];
+      r = asDecide(tokens, ratio, ratio ? (1000 * AS_PT_PER_MM) / ratio.n : null, 0.05);
+      r.step = 2; r.verified = (prev.verified || 0) + 1; r.showAll = true;
+      pxPerM = asFinishPdf(r, tokens, pg, W);
+    } else {
+      /* תמונה: חיתוך סביב הנקודה, הגדלה, ניקוי ו-OCR */
+      const img = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = P.bg; });
+      const side = Math.round(Math.max(img.width, img.height) * 0.14), SC = Math.max(1, Math.min(6, 1700 / side));
+      const x0 = Math.max(0, Math.round(u * img.width - side / 2)), y0 = Math.max(0, Math.round(v * img.height - side / 2));
+      const cv = document.createElement('canvas'); cv.width = cv.height = Math.round(side * SC);
+      const g = cv.getContext('2d'); g.imageSmoothingQuality = 'high'; g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+      g.drawImage(img, x0, y0, side, side, 0, 0, cv.width, cv.height);
+      if (!asPrepBin(g, cv.width, cv.height, SC)) { uiToast('לא נקראו מספרים ליד הנקודה — נסה נקודה אחרת', 6000); return; }
+      const worker = await asWorker();
+      const toks = await asOcrBin(worker, cv, SC, x0, y0, false);
+      await worker.terminate();
+      if (!toks.length) { uiToast('לא נקראו מספרים ליד הנקודה — לחץ קרוב יותר למספר מידה, או נסה נקודה אחרת', 6000); return; }
+      window.__asVer.toks.push(...toks);
+      const tokens = window.__asVer.toks;
+      r = asDecide(tokens, ratio, null, 0.05);
+      r.step = 2; r.verified = (prev.verified || 0) + 1; r.tokens = tokens.length; r.pageMm = prev.pageMm;
+      pxPerM = r.unitPerM ? r.unitPerM * (W / img.width) : null;
+      asNormMarks(r, img.width, img.height, false);
+      asApply(r, pxPerM, 'image');
+    }
+    if (!r.chain) uiToast('נקראו ' + window.__asVer.toks.length + ' מספרים אבל לא זוג מידות סמוכות — לחץ ליד שרשרת מידות (שני מספרים על אותו קו)', 7000);
+    else uiToast((r.conf === 'high' ? '✓ אומת: ' : '📐 ') + asLabel(r), 6000);
+  } catch (e) { console.warn('asVerifyAt', e); uiToast('האימות נכשל: ' + (e.message || e)); }
+}
+window.asVerifyMode = asVerifyMode; window.asVerifyAt = asVerifyAt;
 window.autoScaleFromBg = autoScaleFromBg;
 
 /* --- סימון על התכנית: איזה זוגות מידות שימשו — כדי שאפשר יהיה לוודא בעין --- */
@@ -465,3 +640,13 @@ function asSetRatio(v) {
   save(); render(); if (typeof WIZ !== 'undefined' && WIZ) wizRender();
 }
 window.asSetRatio = asSetRatio;
+
+/* שני כפתורי הזיהוי — שלב 1 (כיתוב) ושלב 2 (אימות ליד נקודה) */
+function asStepButtonsHTML() {
+  if (!P.bg) return '';
+  const pick = !!window.__asPick, r = P.autoScale;
+  return '<div style="display:flex;gap:4px;margin-top:6px">' +
+    '<button style="flex:1" onclick="autoScaleFromBg()" title="קורא את הכיתוב 1:N בחותמת השרטוט (שכבת טקסט או OCR) ומחיל אותו">🔍 ' + (r ? 'שלב 1 — זהה שוב' : 'שלב 1 — זהה קנה מידה') + '</button>' +
+    '<button style="flex:1;' + (pick ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : '') + '" onclick="asVerifyMode()" title="לחיצה ליד מספר מידה בתכנית: קורא את המידות שם ומאמת (או קובע) את קנה המידה, עם סימון אדום להשוואה בעין">📐 ' + (pick ? 'לחץ ליד מידה… (Esc)' : 'שלב 2 — אמת ליד מידה') + '</button></div>';
+}
+window.asStepButtonsHTML = asStepButtonsHTML;
