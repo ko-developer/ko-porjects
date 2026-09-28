@@ -11156,9 +11156,14 @@ function offerModeAsk() {
 function impModeHTML() {
   if (!P.sheets || P.sheets.length < 2) return '';
   const split = P.offerMode === 'split', cur = curSheet(P);
-  return `<span style="display:inline-flex;border:1px solid #cfd3dc;border-radius:7px;overflow:hidden;font-size:11px;white-space:nowrap" title="הצעה אחת לכל הפרויקט, או הצעה נפרדת לכל תכנית">
-    <button onclick="offerModeSet('one')" style="border:none;border-radius:0;padding:2px 8px;${split ? '' : 'background:#1a1e28;color:#fff'}">מאוחדת</button>
-    <button onclick="offerModeSet('split')" style="border:none;border-radius:0;padding:2px 8px;${split ? 'background:#1a1e28;color:#fff' : ''}">לפי תכנית${split ? ' · ' + esc(cur.name) : ''}</button></span>`;
+  const n = sh => (P.impSaved || []).filter(it => (it.sh || P.sheets[0].id) === sh.id).length;
+  return `<div style="display:flex;align-items:center;gap:6px;margin:-4px 0 8px;padding:6px 8px;border-radius:8px;background:${split ? '#eef3ff' : '#f4f4f6'};font-size:12px">
+    <span style="font-weight:700;white-space:nowrap">🧾 מצב ההצעה:</span>
+    <select onchange="offerModeSet(this.value)" style="flex:1;padding:3px 6px;font-size:12px" title="הצעה אחת לכל הפרויקט, או הצעה נפרדת לכל תכנית">
+      <option value="one" ${split ? '' : 'selected'}>מאוחדת — כל התכניות בהצעה אחת (${(P.impSaved || []).length} פריטים)</option>
+      <option value="split" ${split ? 'selected' : ''}>נפרדת לכל תכנית — כאן: "${esc(cur.name)}" (${n(cur)} פריטים)</option>
+    </select>
+    ${split ? '<span class="muted" style="font-size:11px;white-space:nowrap">' + P.sheets.filter(sh => sh !== cur).map(sh => esc(sh.name) + ': ' + n(sh)).join(' · ') + '</span>' : ''}</div>`;
 }
 window.offerModeSet = offerModeSet; window.impModeHTML = impModeHTML;
 function renderImp() {
@@ -11259,7 +11264,6 @@ function renderImp() {
   const catHdr = r => { if (dockCat || !r.cat || r.cat === lastCat) return ''; lastCat = r.cat; return `<div style="font-size:11px;font-weight:800;color:#666;margin:6px 2px 2px">${(SRCH_CATS.find(x => x[0] === r.cat) || [])[1] || ''}</div>`; };
   dk.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:6px">
       <h3 style="font-size:14px;flex:1;margin:0">🧾 הצעת מחיר · פריטים (${impItems.length})</h3>
-      ${impModeHTML()}
       ${pinMode ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 נקר על התכנית (Esc לסיום)</span>' : ''}
       ${connPin ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 לחץ ליד קצה כבל (Esc לסיום)</span>' : ''}
       ${replFor ? '<span style="background:#7aa2ff;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">🔄 חפש ובחר מוצר להחלפה (Esc לביטול)</span>' : ''}
@@ -11268,7 +11272,7 @@ function renderImp() {
       <button onclick="showErp()" title="משיכה מפרויקטים מאושרים והצעות קיימות (ERP)" style="white-space:nowrap">🗂 פרויקטים</button>
       <button onclick="dockWide=!dockWide;renderImp()" title="${dockWide ? 'חזרה מהמסך המלא' : 'הרחב על כל המסך'}" style="${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '⤡' : '⤢'}</button>
       <button onclick="dockMin=true;renderImp()" title="צמצם הצידה">◀</button>
-    </div>
+    </div>${impModeHTML()}
     <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` + catBar +
     (results.length ? results.map(r => r.type === 'kit'
       ? `<div class="crow" onclick="pickKitInline(${r.i})"><span class="badge" style="background:#534ab7">${r.n}</span><span class="txt"><b>🧰 ${esc(r.name)}</b> · קיט מלא</span></div>`
