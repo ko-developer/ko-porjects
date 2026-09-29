@@ -213,10 +213,10 @@ function liteWire(st) {
     for (const [f, flag] of [['bgs', 'hasBgs'], ['bgPdfs', 'hasPdfs'], ['sndImg', 'hasSnd']]) {
       if (!p[flag] || Object.prototype.hasOwnProperty.call(p, f)) continue;
       let pending = null;
-      const settle = v => Object.defineProperty(p, f, { value: v, writable: true, configurable: true, enumerable: true });
+      const settle = (v, fromFetch) => { const d = Object.getOwnPropertyDescriptor(p, f); if (fromFetch && d && 'value' in d) { if (d.value && typeof d.value === 'object' && v && typeof v === 'object') Object.assign(v, d.value); else return; } Object.defineProperty(p, f, { value: v, writable: true, configurable: true, enumerable: true }); };
       Object.defineProperty(p, f, { configurable: true, enumerable: false,
         get() {
-          if (!pending) pending = fetch('/api/project/' + encodeURIComponent(p.id) + '?f=' + f).then(r => r.json()).then(o => { settle(o[f]); if (o[f] == null) delete p[flag]; if (P === p) { render(); if (f === 'bg' && typeof viewToContent === 'function') viewToContent(); } }).catch(() => { pending = null; });
+          if (!pending) pending = fetch('/api/project/' + encodeURIComponent(p.id) + '?f=' + f).then(r => r.json()).then(o => { settle(o[f], true); if (o[f] == null && !bgMapVal(p, f)) delete p[flag]; if (P === p) { render(); if (f === 'bg' && typeof viewToContent === 'function') viewToContent(); } }).catch(() => { pending = null; });
           return undefined;
         },
         set(v) { settle(v); } });
@@ -377,6 +377,8 @@ async function verRestore(idx) {
    (מאפיינים לא-נספרים — לא נכנסים ל-JSON, כך שהנתונים נשמרים פעם אחת בתוך p.sheets).
    התמונות יושבות במפה אחת ברמת הפרויקט (p.bgs / p.bgPdfs) כדי שהשרת ישלח אותן לפי דרישה.
    =================================================================================== */
+/* ערך מפה שכבר נטען (לא מפעיל את הטעינה העצלה); null = עדיין בשרת */
+function bgMapVal(pr, m) { const d = Object.getOwnPropertyDescriptor(pr, m); return d && 'value' in d ? d.value : null; }
 function curSheet(pr) { const ps = pr.sheets || []; return ps.find(sh => sh.id === pr.curSheet) || ps[0]; }
 function sheetsInit(pr) {
   if (!pr || pr._lite === undefined && !pr.id) return pr;
@@ -392,7 +394,8 @@ function sheetsInit(pr) {
     if (pr.hasPdf || pr.bgPdfs[id]) { sh.hasPdf = true; delete pr.hasPdf; }
     pr.sheets = [sh]; pr.curSheet = id;
   }
-  pr.bgs = pr.bgs || {}; pr.bgPdfs = pr.bgPdfs || {};
+  /* מפות התמונות נטענות מהשרת לפי דרישה (getter עצל ב-liteWire) — קריאה כאן הייתה מביאה את התמונות של כל 150 הפרויקטים בטעינה */
+  for (const m of ['bgs', 'bgPdfs']) { const d = Object.getOwnPropertyDescriptor(pr, m); if (!d) pr[m] = {}; else if ('value' in d && !d.value) pr[m] = {}; }
   if (!curSheet(pr)) pr.curSheet = pr.sheets[0] && pr.sheets[0].id;
   for (const sh of pr.sheets) SHEET_ARRAYS.forEach(f => { sh[f] = sh[f] || []; });
   sheetsBind(pr);
@@ -409,14 +412,14 @@ function sheetsBind(pr) {
   /* hasBg / hasPdf: "יש תמונה/PDF לגיליון" — בזיכרון, או בשרת (דגל הגיליון או דגל הפרויקט מה-store הקל) */
   for (const [f, map, flagAll] of [['hasBg', 'bgs', 'hasBgs'], ['hasPdf', 'bgPdfs', 'hasPdfs']]) {
     if (Object.prototype.hasOwnProperty.call(pr, f)) { const v0 = pr[f]; delete pr[f]; if (v0 && curSheet(pr)) curSheet(pr)[f] = true; }
-    def(pr, f, () => { const sh = curSheet(pr); if (!sh) return undefined; return !!(sh[f] || (pr[map] && pr[map][sh.id]) || pr[flagAll]); },
+    def(pr, f, () => { const sh = curSheet(pr); if (!sh) return undefined; const mv = bgMapVal(pr, map); return !!(sh[f] || (mv && mv[sh.id]) || pr[flagAll]); },
       v => { const sh = curSheet(pr); if (!sh) return; if (!v) { delete sh[f]; if (pr[map]) delete pr[map][sh.id]; } else sh[f] = true; });
   }
   for (const [f, map] of [['bg', 'bgs'], ['bgPdf', 'bgPdfs']]) {
     if (Object.prototype.hasOwnProperty.call(pr, f)) { const v0 = pr[f]; delete pr[f]; if (v0) (pr[map] = pr[map] || {})[curSheet(pr).id] = v0; }
     /* ערך "@<id>" = אותה תמונה/PDF כמו של גיליון אחר (PDF רב-דפי נשמר פעם אחת) */
     def(pr, f, () => { const sh = curSheet(pr); if (!sh || !pr[map]) return undefined; let v = pr[map][sh.id]; if (typeof v === 'string' && v[0] === '@') v = pr[map][v.slice(1)]; return v; },
-      v => { const sh = curSheet(pr); if (!sh) return; pr[map] = pr[map] || {}; if (v == null) delete pr[map][sh.id]; else pr[map][sh.id] = v; });
+      v => { const sh = curSheet(pr); if (!sh) return; let mv = bgMapVal(pr, map); if (!mv) { mv = {}; Object.defineProperty(pr, map, { value: mv, writable: true, configurable: true, enumerable: true }); } if (v == null) delete mv[sh.id]; else mv[sh.id] = v; });
   }
 }
 function sheetsBindAll(st) { (st.projects || []).forEach(pr => { try { sheetsInit(pr); } catch (e) { console.warn('sheetsInit', e); } }); }
@@ -442,8 +445,13 @@ function sheetAdd(name, opts) {
 }
 function sheetRename(id) {
   const sh = P.sheets.find(x => x.id === id); if (!sh) return;
-  const v = prompt('שם התכנית:', sh.name); if (v == null) return;
-  sh.name = v.trim() || sh.name; render(); save();
+  /* דיאלוג בתוך הדף — prompt() חסום בדפדפנים משובצים */
+  const ov = uiModal(`<b style="font-size:14px">✎ שם התכנית</b><div class="fld" style="margin-top:8px"><input data-n value="${esc(sh.name)}" placeholder="למשל: קומה 1 / מרתף / מבנה ב׳"></div>
+    <div style="display:flex;gap:6px"><button class="primary" data-ok style="flex:1">שמור</button><button data-c style="flex:1">ביטול</button></div>`);
+  const inp = ov.querySelector('[data-n]'); setTimeout(() => { inp.focus(); inp.select(); }, 30);
+  const ok = () => { const v = inp.value.trim(); ov.remove(); if (v) { sh.name = v; render(); save(); } };
+  ov.querySelector('[data-ok]').onclick = ok; inp.onkeydown = e => { if (e.key === 'Enter') ok(); if (e.key === 'Escape') ov.remove(); };
+  ov.querySelector('[data-c]').onclick = () => ov.remove();
 }
 function sheetSetLevel(id, v) { const sh = P.sheets.find(x => x.id === id); if (!sh) return; sh.level = v === '' ? null : +v; save(); render(); }
 async function sheetDelete(id) {
@@ -1623,6 +1631,16 @@ function fitBgW(w, h) {
 function uploadBg(inp, onDone) {
   const file = inp.files[0]; inp.value = '';
   if (!file) return;
+  /* יש כבר פריסה על הרקע הישן? הרקע החדש נכנס באותו גודל ומיקום, והכיול נשמר — הרמקולים והקווים נשארים במקומם */
+  const nN = (P.nodes || []).length, nZ = (P.zones || []).length;
+  if (P.bg && (nN || nZ) && !inp.__keepAsked) {
+    inp.__keepAsked = true;
+    uiConfirm('יש בתכנית ' + nN + ' מוקדים ו-' + nZ + ' אזורים על הרקע הנוכחי.\nלשמור את הפריסה והכיול? הרקע החדש ייכנס באותו גודל ומיקום — אחר כך אפשר להתאים את גודל הרקע ולהזיז אותו כדי שיתלבש על הפריסה.', { okText: '✓ שמור פריסה וכיול', cancelText: 'רקע חדש — התאם מחדש' })
+      .then(keep => { const dt = new DataTransfer(); dt.items.add(file); inp.files = dt.files; inp.__keepLayout = keep; uploadBg(inp, onDone); })
+      .finally(() => { inp.__keepAsked = false; });
+    return;
+  }
+  const keepLayout = !!inp.__keepLayout; inp.__keepLayout = false;
   const ext = file.name.split('.').pop().toLowerCase();
   if (ext === 'dwg' || ext === 'dxf') {
     alert('קבצי AutoCAD: הדפס מאוטוקאד ל-PDF (Plot → PDF) והעלה את ה-PDF — הוא ייטען כרקע באיכות מלאה.');
@@ -1658,17 +1676,16 @@ function uploadBg(inp, onDone) {
         P.bg = cv2.toDataURL('image/jpeg', 0.8);
         /* ה-PDF עצמו נשמר (עד 8MB) — האזור הנראה מעובד מחדש בכל זום, בלי טשטוש (bgsharp.js) */
         if (pdfB64) { P.bgPdf = pi > 0 ? '@' + firstSheet : pdfB64; P.bgPdfPage = pageNo; }   /* הקובץ נשמר פעם אחת; שאר הדפים מפנים אליו */
-        else { delete P.bgPdf; delete P.hasPdf; delete P.bgPdfPage; }
+        else { P.bgPdf = undefined; P.hasPdf = false; P.bgPdfPage = undefined; }
         if (typeof bgSharpReset === 'function') bgSharpReset();
-        P.bgW = fitBgW(cv2.width, cv2.height);
-        P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv2.height / cv2.width));
+        if (!keepLayout) { P.bgW = fitBgW(cv2.width, cv2.height); P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv2.height / cv2.width)); }
         P.bgOp = P.bgOp ?? 0.5;
-        delete P.calOk; P.calSrc = ''; delete P.autoScale;
+        if (!keepLayout) { P.calOk = undefined; P.calSrc = ''; P.autoScale = undefined; }
         sel = null; ui.tab = 'node';
         render();
         setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
         /* קנה מידה מהטקסט של ה-PDF — בלי AI; רץ לפני ההמשך כדי שהאשף יראה את התוצאה */
-        if (typeof autoScalePdf === 'function') await autoScalePdf(pg, P.bgW);
+        if (!keepLayout && typeof autoScalePdf === 'function') await autoScalePdf(pg, P.bgW);
         }
         if (pages.length > 1) { sheetGo(firstSheet); uiToast('📑 נטענו ' + pages.length + ' דפים — כל דף כתכנית משלו (לשוניות מעל התכנית)', 7000); }
         if (onDone) onDone();
@@ -1684,17 +1701,16 @@ function uploadBg(inp, onDone) {
     cv.height = Math.round(img.height * scale);
     cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
     P.bg = cv.toDataURL('image/jpeg', 0.82);
-    delete P.bgPdf; delete P.hasPdf; if (typeof bgSharpReset === 'function') bgSharpReset();
-    P.bgW = fitBgW(cv.width, cv.height);
-    P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv.height / cv.width));
+    P.bgPdf = undefined; P.hasPdf = false; if (typeof bgSharpReset === 'function') bgSharpReset();
+    if (!keepLayout) { P.bgW = fitBgW(cv.width, cv.height); P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv.height / cv.width)); }
     P.bgOp = P.bgOp ?? 0.5;
-    delete P.calOk; P.calSrc = ''; delete P.autoScale;
+    if (!keepLayout) { P.calOk = undefined; P.calSrc = ''; P.autoScale = undefined; }
     sel = null; ui.tab = 'node';
     render();
     setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
     if (onDone) onDone();
     /* OCR מקומי ברקע — התוצאה נכנסת כשמוכנה */
-    if (typeof autoScaleImage === 'function') autoScaleImage(img, P.bgW);
+    if (!keepLayout && typeof autoScaleImage === 'function') autoScaleImage(img, P.bgW);
   };
   img.src = URL.createObjectURL(file);
 }
@@ -1705,7 +1721,7 @@ function resetView100() {
   scrollToBox(contentBox(), 40);   /* 100% — והתכנית מול העיניים, לא פינה ריקה של הקנבס */
 }
 async function removeBg() {
-  delete P.bg; delete P.bgPdf; delete P.hasBg; delete P.hasPdf;   /* בלי הדגלים השרת לא משחזר את התמונה מהעותק השמור */
+  P.bg = undefined; P.bgPdf = undefined; P.hasBg = false; P.hasPdf = false;   /* בלי הדגלים השרת לא משחזר את התמונה מהעותק השמור */
   if (typeof bgSharpReset === 'function') bgSharpReset();
   delete P.calLine;
   if ((P.zones || []).length && await uiConfirm('להסיר גם את ' + P.zones.length + ' האזורים המסומנים על הרקע?')) P.zones = [];
@@ -1757,11 +1773,10 @@ function sheetFetchBg(pr, sh, wantPdf) {
   if (!wantPdf && !sh.hasBg && !pr.hasBgs && !pr.hasPdfs) return Promise.resolve();
   if (sh._bgFetchP) return sh._bgFetchP;
   sh._bgFetchP = fetch('/api/project/' + encodeURIComponent(pr.id) + '?f=bgs,bgPdfs,bg,bgPdf').then(r => r.json()).then(o => {
-    pr.bgs = pr.bgs || {}; pr.bgPdfs = pr.bgPdfs || {};
-    if (o.bgs) Object.assign(pr.bgs, o.bgs);
-    if (o.bgPdfs) Object.assign(pr.bgPdfs, o.bgPdfs);
-    if (o.bg && !pr.bgs[sh.id]) pr.bgs[sh.id] = o.bg;              /* שרת ישן — תמונה אחת לפרויקט */
-    if (o.bgPdf && !pr.bgPdfs[sh.id]) pr.bgPdfs[sh.id] = o.bgPdf;
+    const put = (m, add) => { const cur = bgMapVal(pr, m) || {}; Object.defineProperty(pr, m, { value: Object.assign({}, add || {}, cur), writable: true, configurable: true, enumerable: true }); return pr[m]; };   /* מה שכבר בזיכרון (חדש יותר) גובר על מה שהגיע מהשרת */
+    const bgs = put('bgs', o.bgs), pdfs = put('bgPdfs', o.bgPdfs);
+    if (o.bg && !bgs[sh.id]) bgs[sh.id] = o.bg;              /* שרת ישן — תמונה אחת לפרויקט */
+    if (o.bgPdf && !pdfs[sh.id]) pdfs[sh.id] = o.bgPdf;
     if (P === pr) { render(); if (typeof viewToContent === 'function') viewToContent(); }
   }).catch(() => {}).finally(() => { sh._bgFetchP = null; });
   return sh._bgFetchP;
@@ -1790,10 +1805,13 @@ function applyZoom() {
   if (document.activeElement !== zl) zl.value = Math.round(Z * 100);
   if (typeof bgSharpSchedule === 'function') bgSharpSchedule();
 }
+let saveViewT = null;
+/* שינוי תצוגה בלבד (זום) — שמירה מאוחדת אחרי שהגלגלת נרגעת, לא סריאליזציה של כל ה-store בכל תזוזה */
+function saveView() { clearTimeout(saveViewT); saveViewT = setTimeout(() => { saveViewT = null; save(); }, 1500); }
 function setZoomPct(v) {
   const p = parseFloat(String(v).replace('%', ''));
   if (!isNaN(p) && p > 0) P.zoom = Math.min(5, Math.max(0.15, p / 100));
-  applyZoom(); save();
+  applyZoom(); saveView();
 }
 /* זום סביב נקודת עוגן: הנקודה בתכנית שמתחת לסמן (או מרכז המסך, מכפתורי +/−) נשארת במקומה על המסך */
 function zoomBy(f, anchor) {
@@ -1810,7 +1828,7 @@ function zoomBy(f, anchor) {
     wrap.scrollLeft += (r2.left + px * Z2) - ax;   /* עובד גם ב-RTL (scrollLeft שלילי) — ההזזה יחסית */
     wrap.scrollTop += (r2.top + py * Z2) - ay;
   }
-  save();
+  saveView();
 }
 /* תיבת התוכן בקואורדינטות הקנבס (2200×1400, x משמאל): התכנית + כל המוקדים והאזורים.
    מאז שהתכנית יושבת במרכז הקנבס, "התאם לתצוגה" חייב להתאים לתוכן — לא לקנבס כולו */
@@ -8211,8 +8229,8 @@ function renderPanel() {
     let bgTop = '';
     if (P.bg) {
       bgTop = `<h3 class="sec">🗺 תכנית רקע</h3>
-        <div class="fld"><label>גודל רקע (רוחב: ${P.bgW || 1400}px)</label>
-          <input type="range" min="400" max="2200" step="20" value="${P.bgW || 1400}" oninput="P.bgW=+this.value;renderBg();renderWires()" onchange="save()"></div>
+        <div class="fld"><label>גודל רקע (רוחב בפיקסלים) — להתאמת רקע חדש לפריסה קיימת אפשר להרחיב עד 6000</label>
+          <div style="display:flex;gap:6px;align-items:center"><input type="range" min="400" max="6000" step="10" value="${P.bgW || 1400}" style="flex:1" oninput="P.bgW=+this.value;this.nextElementSibling.value=this.value;renderBg();renderWires()" onchange="save()"><input type="number" min="200" max="12000" step="10" value="${P.bgW || 1400}" style="width:78px;padding:3px 5px" onchange="P.bgW=Math.max(200,+this.value||1400);renderBg();renderWires();save();render()"></div></div>
         <div class="fld"><label>שקיפות</label>
           <input type="range" min="0.1" max="1" step="0.05" value="${P.bgOp ?? 0.5}" oninput="P.bgOp=+this.value;renderBg()" onchange="save()"></div>
         <button style="width:100%;margin-bottom:8px" onclick="rotateBg()">↻ סובב תכנית 90° · כרגע: ${P.bgRot || 0}°</button>

@@ -8,7 +8,7 @@
    =================================================================================== */
 /* var (לא const): הרינדור הראשון של app.js רץ לפני שהקובץ הזה מאותחל */
 var BGS = { doc: null, page: null, docFor: '', task: null, t: null, key: '' };
-function bgSharpSchedule(ms) { if (!BGS) return; clearTimeout(BGS.t); BGS.t = setTimeout(bgSharpRender, ms == null ? 160 : ms); }
+function bgSharpSchedule(ms) { if (!BGS) return; clearTimeout(BGS.t); BGS.t = setTimeout(bgSharpRender, ms == null ? 260 : ms); }
 function bgSharpReset() { if (!BGS) return; BGS.doc = null; BGS.page = null; BGS.docFor = ''; BGS.key = ''; const t = document.getElementById('bgtile'); if (t) t.style.display = 'none'; }
 function bgPdfBytes() {
   const b64 = P.bgPdf.replace(/^data:[^,]*,/, '');
@@ -31,6 +31,9 @@ async function bgSharpRender() {
       BGS.docFor = docKey; BGS.key = '';
     }
     const pg = BGS.page, Z = getZ(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    /* ה-PDF לא תואם לתמונת התצוגה (יחס גובה/רוחב שונה — רקע שהוחלף בתמונה אחרת)? לא מציירים שרטוט אחר מעל התכנית */
+    { const im0 = document.getElementById('bgimg'); const v0 = pg.getViewport({ scale: 1, rotation: P.bgRot || 0 });
+      if (im0 && im0.naturalWidth && Math.abs((im0.naturalHeight / im0.naturalWidth) / (v0.height / v0.width) - 1) > 0.03) { tile.style.display = 'none'; BGS.key = ''; if (!BGS.warned) { BGS.warned = true; console.warn('bgSharp: ה-PDF השמור לא תואם לתמונת הרקע — האריח החד כבוי'); } return; } }
     const wrap = document.getElementById('canvasWrap');
     const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
     /* תמונת התצוגה המקדימה מספיקה? (פיקסלים אמיתיים לכל פיקסל-קנבס) */
@@ -44,7 +47,10 @@ async function bgSharpRender() {
     const x0 = Math.max(L, left - mx), x1 = Math.min(L + W, right + mx), y0 = Math.max(T, top - my), y1 = Math.min(T + H, bottom + my);
     if (x1 - x0 < 2 || y1 - y0 < 2) { tile.style.display = 'none'; return; }
     let S = Z * dpr;                                     /* פיקסלים אמיתיים לכל פיקסל-קנבס */
-    S = Math.min(S, 4096 / (x1 - x0), 4096 / (y1 - y0));
+    S = Math.min(S, 2600 / (x1 - x0), 2600 / (y1 - y0));   /* אריח עד ~2600px — רינדור PDF כבד רץ על ה-thread הראשי */
+    /* גלילה קטנה בתוך האריח שכבר צויר (אותו זום) — לא מציירים מחדש */
+    const R = BGS.rect;
+    if (R && tile.style.display !== 'none' && Math.abs(R.S - S) < 1e-6 && R.rot === (P.bgRot || 0) && R.op === (P.bgOp ?? 0.5) && Math.max(L, left) >= R.x0 && Math.min(L + W, right) <= R.x1 && Math.max(T, top) >= R.y0 && Math.min(T + H, bottom) <= R.y1) return;
     const key = [x0, y0, x1, y1, S, P.bgRot || 0, P.bgOp ?? 0.5].map(v => Math.round(v * 100)).join('|');
     if (key === BGS.key && tile.style.display !== 'none') return;
     const vp0 = pg.getViewport({ scale: 1, rotation: P.bgRot || 0 });
@@ -63,7 +69,7 @@ async function bgSharpRender() {
     tile.style.left = x0 + 'px'; tile.style.top = y0 + 'px';
     tile.style.width = (x1 - x0) + 'px'; tile.style.height = (y1 - y0) + 'px';
     tile.style.opacity = P.bgOp ?? 0.5; tile.style.display = 'block';
-    BGS.key = key;
+    BGS.key = key; BGS.rect = { x0, y0, x1, y1, S, rot: P.bgRot || 0, op: P.bgOp ?? 0.5 };
   } catch (e) {
     if (!/cancel/i.test(String((e && e.name) || e))) console.warn('bgSharp', e);
   }
