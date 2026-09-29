@@ -575,6 +575,21 @@ function bgFitEnd(ok) {
     if (sheetOverflow()) setTimeout(() => sheetFitCanvas(), 250);   /* הרקע חורג מהקנבס — הכול מכווץ יחד כדי שלא ייחתך */
   } else { P.bgW = F.w0; P.bgOff = F.off0; P.bgOp = F.op0; render(); uiToast('ההתאמה בוטלה'); }
 }
+/* סרגל צף: מתחיל למטה במרכז (לא מכסה את התכנית), נגרר מהכותרת, והמיקום נזכר */
+function floatBarInit(bar, key) {
+  bar.style.transform = 'none'; bar.style.top = 'auto'; bar.style.left = 'auto'; bar.style.bottom = '26px'; bar.style.right = '50%'; bar.style.transform = 'translateX(50%)';
+  try { const p = JSON.parse(localStorage.getItem('koBar_' + key) || 'null'); if (p && p.x >= 0 && p.y >= 0 && p.x < innerWidth - 80 && p.y < innerHeight - 40) { bar.style.transform = 'none'; bar.style.right = 'auto'; bar.style.bottom = 'auto'; bar.style.left = p.x + 'px'; bar.style.top = p.y + 'px'; } } catch (e) {}
+  bar.style.cursor = 'grab'; bar.title = 'גרור את הסרגל למקום נוח';
+  bar.addEventListener('pointerdown', e => {
+    if (e.button || e.target.closest('input,button,select,label')) return;
+    const r = bar.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+    bar.style.transform = 'none'; bar.style.right = 'auto'; bar.style.bottom = 'auto'; bar.style.left = r.left + 'px'; bar.style.top = r.top + 'px';
+    bar.setPointerCapture(e.pointerId); e.preventDefault();
+    const mv = ev => { const x = Math.max(0, Math.min(innerWidth - 80, ev.clientX - sx)), y = Math.max(0, Math.min(innerHeight - 30, ev.clientY - sy)); bar.style.left = x + 'px'; bar.style.top = y + 'px'; };
+    const up = () => { bar.removeEventListener('pointermove', mv); bar.removeEventListener('pointerup', up); try { localStorage.setItem('koBar_' + key, JSON.stringify({ x: parseFloat(bar.style.left), y: parseFloat(bar.style.top) })); } catch (e2) {} };
+    bar.addEventListener('pointermove', mv); bar.addEventListener('pointerup', up);
+  });
+}
 function bgFitRender() {
   const F = window.__bgFit;
   let el = document.getElementById('bgFitOv'), bar = document.getElementById('bgFitBar');
@@ -617,7 +632,7 @@ function bgFitRender() {
       '<span style="color:#aab;font-size:11px">חצים = הזזה (Shift ×10) · Shift+גלגלת = גודל</span>' +
       '<button data-ok style="padding:5px 12px;background:#0f6e56;color:#fff;border:none;border-radius:8px;font-weight:700">✓ אשר</button>' +
       '<button data-x style="padding:5px 10px;background:#3a4052;color:#fff;border:none;border-radius:8px">✕ ביטול</button>';
-    document.body.appendChild(bar);
+    document.body.appendChild(bar); floatBarInit(bar, 'bgfit');
     const q = k => bar.querySelector(k);
     const setW = w => { const w0 = P.bgW || 1400, cx = bgLeft() + w0 / 2, cy = bgTop() + bgHeightPx() / 2, hh = bgHeightPx() * w / w0; P.bgW = w; P.bgOff = { x: Math.round(cx - w / 2), y: Math.round(cy - hh / 2) }; renderBg(); renderWires(); bgFitRender(); };
     q('[data-w]').oninput = e => setW(Math.max(200, +e.target.value));
@@ -691,7 +706,7 @@ function alignDragRender() {
       '<span style="color:#aab;font-size:11px">Shift+גלגלת = סיבוב עדין</span>' +
       '<button data-ok style="padding:5px 12px;background:#0f6e56;color:#fff;border:none;border-radius:8px;font-weight:700">✓ אשר יישור</button>' +
       '<button data-x style="padding:5px 10px;background:#3a4052;color:#fff;border:none;border-radius:8px">✕ ביטול</button>';
-    document.body.appendChild(bar);
+    document.body.appendChild(bar); floatBarInit(bar, 'align');
     const q = k => bar.querySelector(k);
     q('[data-rot]').oninput = e => { D.th = +e.target.value; q('[data-rotn]').value = D.th; alignDragRender(); };
     q('[data-rotn]').onchange = e => { D.th = +e.target.value || 0; alignDragRender(); };
@@ -2969,8 +2984,8 @@ function rearLibManager() {
     ${rows.map(r => { const grp = r.brand + ' · ' + r.type; const hdr = grp !== lastGrp ? `<div class="rlgrp" data-grp="${esc(grp)}" style="font-size:11px;font-weight:700;color:#534ab7;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #e9e6f8">${esc(r.brand)} <span style="color:#8a8377;font-weight:400">· ${esc(r.type)}</span></div>` : ''; lastGrp = grp; return hdr + `<div class="rlrow" data-grp="${esc(grp)}" data-brand="${esc(r.brand)}" data-type="${esc(r.type)}" data-img="${(rearImage(r.name) || {}).url ? 1 : 0}" data-q="${esc((r.name + ' ' + r.brand + ' ' + r.type).toLowerCase())}" style="padding:5px 8px;border:1px solid #eee;border-radius:7px;margin-bottom:4px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
       <b style="flex:1;font-size:12px">${esc(r.name)}</b>
       <span class="muted" style="font-size:10px">${r.outs} יציאות · ${r.n} מחברים · ${r.src}</span>
-      <button style="padding:1px 8px" onclick="document.getElementById('rearLibOv').remove();rearEditorByName('${esc(r.name).replace(/'/g, '&#39;')}')">✎</button>
-      ${r.custom ? `<button style="padding:1px 8px;background:#e3f0ff" title="העבר את הפריסה המותאמת לספריית השרת — תקף לכל הפרויקטים" onclick="rearLibPush('${esc(r.name).replace(/'/g, '&#39;')}')">⬆ לשרת</button><button style="padding:1px 8px;background:#f3d9d2" onclick="uiConfirm('למחוק את הדגם המותאם?').then(ok=>{if(ok){delete store.rearLib['${esc(r.name).replace(/'/g, '&#39;')}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}})">✕</button>` : r.srv ? `<button style="padding:1px 8px;background:#f3d9d2" title="מחיקה מספריית השרת" onclick="rearSrvDelete('${esc(r.name).replace(/'/g, '&#39;')}')">✕</button>` : ''}
+      <button style="padding:1px 8px" onclick="document.getElementById('rearLibOv').remove();rearEditorByName('${jsq(r.name)}')">✎</button>
+      ${r.custom ? `<button style="padding:1px 8px;background:#e3f0ff" title="העבר את הפריסה המותאמת לספריית השרת — תקף לכל הפרויקטים" onclick="rearLibPush('${jsq(r.name)}')">⬆ לשרת</button><button style="padding:1px 8px;background:#f3d9d2" onclick="uiConfirm('למחוק את הדגם המותאם?').then(ok=>{if(ok){delete store.rearLib['${jsq(r.name)}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}})">✕</button>` : r.srv ? `<button style="padding:1px 8px;background:#f3d9d2" title="מחיקה מספריית השרת" onclick="rearSrvDelete('${jsq(r.name)}')">✕</button>` : ''}
     </div>${(rearImage(r.name) || {}).url ? '' : strip(r.items)}${rearImageHTML(r.name, r.items, { style: 'margin-bottom:4px' })}</div>`; }).join('')}</div>`;
   document.body.appendChild(ov);
   rearLibFilter();
@@ -3978,7 +3993,7 @@ function ocpSearch(q, cid) {
       if (toks.every(t => l.includes(t))) hits.push([k, n, isReel(n)]);
     }
   hits.sort((a, b) => byStockThenSold(a[0], b[0]));
-  el.innerHTML = hits.map(([k, n, rl]) => `<button style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;margin-bottom:4px;font-size:12px" onclick="ocpPick('${k}','${esc(n).replace(/'/g, '&#39;')}','${cid}',${rl ? 1 : 0})"><span style="flex:1;text-align:right">${rl ? '🧵' : '🔌'} ${esc(n.slice(0, 46))}</span>${stockTag(k)}</button>`).join('')
+  el.innerHTML = hits.map(([k, n, rl]) => `<button style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;margin-bottom:4px;font-size:12px" onclick="ocpPick('${k}','${jsq(n)}','${cid}',${rl ? 1 : 0})"><span style="flex:1;text-align:right">${rl ? '🧵' : '🔌'} ${esc(n.slice(0, 46))}</span>${stockTag(k)}</button>`).join('')
     || '<p class="muted" style="font-size:12px">אין תוצאות — נסה מילה אחרת</p>';
 }
 function ocpPick(key, name, cid, isReel) {
@@ -5161,7 +5176,7 @@ function startPortWire(nid, unitId, portStr, isOut) {
     const box = document.getElementById('portSearchRes');
     if (!box) return;
     const res = q ? dockSearchResults(q).filter(r => r.type === 'item') : [];
-    box.innerHTML = res.map(r => `<button style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px" onclick="__portSearchGo('${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}')">🧾 ${esc(r.name.slice(0, 46))}</button>`).join('') || (q ? '<p class="muted" style="font-size:11px">לא נמצא</p>' : '');
+    box.innerHTML = res.map(r => `<button style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px" onclick="__portSearchGo('${jsq(r.name)}','${r.key || ''}')">🧾 ${esc(r.name.slice(0, 46))}</button>`).join('') || (q ? '<p class="muted" style="font-size:11px">לא נמצא</p>' : '');
   };
   window.__portSearchGo = (name, key) => {
     let it = impItems.find(x => x.name === name && (x.dest === 'cable' || x.dest === 'reel'));
@@ -6994,7 +7009,7 @@ function patchOfferKits(zid) {
     <b style="font-size:14px">🧰 קיט התקנה וחיווט לפרויקט?</b>
     <p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">החיווט הושלם — אפשר להוסיף קיט אביזרים/התקנה מוכן (כמויות ניתנות לעריכה לפני ההוספה):</p>
     <div style="max-height:44vh;overflow-y:auto">
-      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${esc(zname).replace(/'/g, '&#39;')}',${x.i})">🧰 ${esc(x.k.name.slice(0, 46))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
+      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${jsq(zname)}',${x.i})">🧰 ${esc(x.k.name.slice(0, 46))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
     </div>
     <button data-skip style="width:100%;margin-top:8px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">דלג — בלי קיט</button>`);
   ov.querySelector('[data-skip]').onclick = () => ov.remove();
@@ -7657,11 +7672,11 @@ function spkDataManager(tab) {
       ${rows.map((r, ri) => {
     const c = r.ok ? '#0f8a5f' : '#c1121f';
     const bg = r.ok ? '#eef7f1' : '#fdeeee';
-    const arg = r.lk ? `'${esc(r.lk).replace(/'/g, '&#39;')}'` : `null,${r.bi}`;
+    const arg = r.lk ? `'${jsq(r.lk)}'` : `null,${r.bi}`;
     const colspan = tab === 'spk' ? 13 : tab === 'amp' ? 12 : 8;
     const brandHdr = (ri === 0 || rows[ri - 1].brand !== r.brand) ? `<tr style="background:#e9e4db"><td colspan="${colspan}" style="padding:4px 6px;font-weight:800;font-size:12px">🏷 ${esc(r.brand)}</td></tr>` : '';
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
-    const nmA = esc(r.name).replace(/'/g, '&#39;');
+    const nmA = jsq(r.name);
     const meta = metaOf(r.name);
     const imgTd = `<td style="text-align:center"><span style="cursor:pointer;display:inline-block" title="לחץ להגדרת תמונה (כתובת URL של תמונת המוצר)" onclick="dbImgSet('${tab}','${nmA}')">${(() => { const im = dbRowImg(r.name, meta); return im ? `<img src="${esc(im.u)}" loading="lazy" title="${esc(im.src)} · לחץ להחלפה" style="width:${im.wide ? 92 : 40}px;height:38px;object-fit:contain;border-radius:5px;background:${im.wide ? '#1a1e28' : '#fff'}" onerror="this.replaceWith('🖼')">` : imgCell('', 38, r.name); })()}</span></td>`;
     const cells = imgTd + (tab === 'spk' ?
@@ -7697,10 +7712,10 @@ function spkDataManager(tab) {
       return `<tr style="background:#f4faf6;border-bottom:1px solid #eee"><td colspan="${colspan}" style="padding:4px 8px 6px"><div style="font-size:11px"><b style="color:#0f6e56;display:block;margin-bottom:3px">${ampMode === 'tri' ? 'Tri-amp' : 'Bi-amp'} — נתונים לכל פס${dataBand(r.name, 'low') || dataBand(r.name, 'hi') ? ' · מטבלת המפרט באתר היצרן' : ''}${mu ? ' · ממטריצת ההתאמות (' + esc(mu.name) + ')' : ''}:</b>
         <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">${bands.map(b => `<span style="display:inline-flex;gap:4px;align-items:center;border:1px solid #d8e9df;border-radius:7px;padding:2px 6px;background:#fff"><b style="width:34px">${BL[b]}</b> ${inp(b, 'o', 34, 'Ω')}Ω ${inp(b, 'w', 44, 'W')}W ${inp(b, 'sens', 40, 'dB')}dB ${inp(b, 'max', 40, 'SPL')}max ${inp(b, 'f', 82, 'תדרים Hz')} <span title="${cn.known ? 'המחבר לפי אתר היצרן' : 'המחבר לא מפורסם — הנחה'}" style="${cn.known ? '' : 'color:#c1121f'}">${esc(cn.lbl)}</span> ${cn.k ? pinSel(b) : ''}</span>`).join('')}</div></div></td></tr>`; })() : '';
     return `${brandHdr}<tr style="border-bottom:1px solid #eee">
-        <td style="padding:4px 5px;font-weight:600"><a href="#" onclick="event.preventDefault();specSheet('${tab}','${esc(r.name).replace(/'/g, '&#39;')}')" style="color:#c9502e;text-decoration:none;border-bottom:1px dotted #c9502e">${esc(r.name)}</a>${r.d && r.d.vf ? ` <span title="אומת 100% — כל שדה שפורסם הושווה אוטומטית מול אתר היצרן (${esc(r.d.vf)})" style="display:inline-block;background:#0f6e56;color:#fff;border-radius:9px;font-size:9px;font-weight:800;padding:0 5px;vertical-align:middle">✔ 100%</span>` : ''}<div class="muted" style="font-size:9px">${r.src}${r.variants ? ' · גרסאות צבע: ' + esc(r.variants.join(', ')) : ''}</div></td>
+        <td style="padding:4px 5px;font-weight:600"><a href="#" onclick="event.preventDefault();specSheet('${tab}','${jsq(r.name)}')" style="color:#c9502e;text-decoration:none;border-bottom:1px dotted #c9502e">${esc(r.name)}</a>${r.d && r.d.vf ? ` <span title="אומת 100% — כל שדה שפורסם הושווה אוטומטית מול אתר היצרן (${esc(r.d.vf)})" style="display:inline-block;background:#0f6e56;color:#fff;border-radius:9px;font-size:9px;font-weight:800;padding:0 5px;vertical-align:middle">✔ 100%</span>` : ''}<div class="muted" style="font-size:9px">${r.src}${r.variants ? ' · גרסאות צבע: ' + esc(r.variants.join(', ')) : ''}</div></td>
         ${cells}
         <td style="text-align:center;color:${c};font-weight:700;cursor:pointer" title="לחץ לשינוי" onclick="${fn}(${arg},'ok',${r.ok ? 'false' : 'true'})">${r.ok ? '✓' : '⚠'}</td>
-        <td style="text-align:center">${r.lk ? `<button style="padding:0 6px" onclick="delete store.${tab === 'spk' ? 'spkLib' : 'ampLib'}['${esc(r.lk).replace(/'/g, '&#39;')}'];save();spkDataManager()">✕</button>` : ''}</td>
+        <td style="text-align:center">${r.lk ? `<button style="padding:0 6px" onclick="delete store.${tab === 'spk' ? 'spkLib' : 'ampLib'}['${jsq(r.lk)}'];save();spkDataManager()">✕</button>` : ''}</td>
       </tr>${bandRow}`;
   }).join('')}
       </tbody></table>
@@ -7839,9 +7854,9 @@ function gearAudit(sel) {
   const fx = (f, k) => {
     if (f.t === 'dilemma') {
       const a = (st.ans || {})[f.k];
-      return `<div style="background:#fff7ec;border:1.5px solid #e9a03b;border-radius:9px;padding:8px 10px;margin:6px 0"><b>❓ דילמה:</b> ${esc(f.q)}<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${(f.o || []).map(o => `<button onclick="gaAns('${esc(cur.key).replace(/'/g, '&#39;')}','${f.k}','${esc(o).replace(/'/g, '&#39;')}')" style="font-size:11.5px;padding:3px 9px;border-radius:14px;${a === o ? 'background:#0f6e56;color:#fff;border-color:#0f6e56' : ''}">${esc(o)}</button>`).join('')}</div></div>`;
+      return `<div style="background:#fff7ec;border:1.5px solid #e9a03b;border-radius:9px;padding:8px 10px;margin:6px 0"><b>❓ דילמה:</b> ${esc(f.q)}<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${(f.o || []).map(o => `<button onclick="gaAns('${jsq(cur.key)}','${f.k}','${jsq(o)}')" style="font-size:11.5px;padding:3px 9px;border-radius:14px;${a === o ? 'background:#0f6e56;color:#fff;border-color:#0f6e56' : ''}">${esc(o)}</button>`).join('')}</div></div>`;
     }
-    const link = f.fix === 'rear' ? `<button class="mini" style="margin-right:6px" onclick="rearEditorByName('${esc(cur.name).replace(/'/g, '&#39;')}')">✎ גב</button>` : f.fix === 'spec' && cur.src !== 'גב בלבד' ? `<button class="mini" style="margin-right:6px" onclick="specSheet('${cur.kind}','${esc(cur.name).replace(/'/g, '&#39;')}')">📋 מפרט</button>` : '';
+    const link = f.fix === 'rear' ? `<button class="mini" style="margin-right:6px" onclick="rearEditorByName('${jsq(cur.name)}')">✎ גב</button>` : f.fix === 'spec' && cur.src !== 'גב בלבד' ? `<button class="mini" style="margin-right:6px" onclick="specSheet('${cur.kind}','${jsq(cur.name)}')">📋 מפרט</button>` : '';
     return `<div style="padding:5px 8px;border-radius:7px;margin:4px 0;background:${f.t === 'gap' ? '#fdecea' : '#eef4fb'};font-size:12px">${f.t === 'gap' ? '⚠' : 'ℹ'} ${esc(f.q)} ${link}</div>`;
   };
   const im = cur.im;
@@ -7853,15 +7868,15 @@ function gearAudit(sel) {
       <div style="flex:1;overflow-y:auto;border:1px solid #e5e2dc;border-radius:9px;padding:10px 14px">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:16px">${esc(cur.name)}</b><span class="muted" style="font-size:11px">${esc(cur.brand)} · ${cur.kind === 'amp' ? 'מגבר' : 'פרוססור'} · מקור: ${cur.src}</span>
           <span style="flex:1"></span>
-          ${cur.src !== 'גב בלבד' ? `<button class="mini" onclick="specSheet('${cur.kind}','${esc(cur.name).replace(/'/g, '&#39;')}')">📋 דף מפרט</button>` : ''}
-          <button class="mini" onclick="rearEditorByName('${esc(cur.name).replace(/'/g, '&#39;')}')">✎ עריכת גב</button>
+          ${cur.src !== 'גב בלבד' ? `<button class="mini" onclick="specSheet('${cur.kind}','${jsq(cur.name)}')">📋 דף מפרט</button>` : ''}
+          <button class="mini" onclick="rearEditorByName('${jsq(cur.name)}')">✎ עריכת גב</button>
           ${cur.d.url ? `<a class="mini" href="${esc(cur.d.url)}" target="_blank" rel="noopener" style="text-decoration:none">🔗 יצרן</a>` : ''}${cur.d.pdf ? `<a class="mini" href="${esc(cur.d.pdf)}" target="_blank" rel="noopener" style="text-decoration:none">📄 מפרט</a>` : ''}${cur.d.man ? `<a class="mini" href="${esc(cur.d.man)}" target="_blank" rel="noopener" style="text-decoration:none">📘 מדריך</a>` : ''}</div>
         <div class="muted" style="font-size:11.5px;margin:4px 0 8px">${cur.kind === 'amp' ? `ערוצים: <b>${cur.d.ch || '?'}</b> · מינ׳ Ω: <b>${cur.d.mo || '?'}</b> · ${esc(cur.d.w || '')}` : `כניסות×יציאות: <b>${esc(cur.d.io || '?')}</b> · ${esc(cur.d.w || '')}`}${cur.lay ? ` · פריסת גב: ${cur.lay.items.length} מחברים (${cur.lay.items.filter(i => /^OUT/i.test(i.port || '')).length} יציאות / ${cur.lay.items.filter(i => /^IN/i.test(i.port || '')).length} כניסות)` : ''}</div>
         ${im ? `<div style="border-radius:8px;overflow:hidden;background:#0b0d12;margin-bottom:8px">${rearImageHTML(cur.name, cur.lay ? cur.lay.items : [], { caption: false })}</div>` : ''}
         ${cur.f.length ? cur.f.map(fx).join('') : '<div style="padding:8px;border-radius:7px;background:#eef7f1;font-size:12px">🟢 לא נמצאו פערים אוטומטיים</div>'}
-        <div class="fld" style="margin-top:10px"><label>הערה שלך (נשמרת)</label><textarea rows="2" style="width:100%" onchange="store.gearAudit['${esc(cur.key).replace(/'/g, '&#39;')}'].note=this.value;save()">${esc(st.note || '')}</textarea></div>
+        <div class="fld" style="margin-top:10px"><label>הערה שלך (נשמרת)</label><textarea rows="2" style="width:100%" onchange="store.gearAudit['${jsq(cur.key)}'].note=this.value;save()">${esc(st.note || '')}</textarea></div>
         <div style="display:flex;gap:6px;margin-top:10px">
-          <button style="flex:1;${st.done ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56' : 'background:#c9502e;color:#fff'}" onclick="gaDone('${esc(cur.key).replace(/'/g, '&#39;')}',${st.done ? 'false' : 'true'})">${st.done ? '↩ פתח מחדש' : '✔ נבדק — הבא'}</button>
+          <button style="flex:1;${st.done ? 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56' : 'background:#c9502e;color:#fff'}" onclick="gaDone('${jsq(cur.key)}',${st.done ? 'false' : 'true'})">${st.done ? '↩ פתח מחדש' : '✔ נבדק — הבא'}</button>
           <button onclick="gearAudit(${(window.__gaSel + 1) % rows.length})">הבא ⟵</button><button onclick="gearAudit(${(window.__gaSel - 1 + rows.length) % rows.length})">⟶ הקודם</button>
         </div>
       </div>
@@ -7931,7 +7946,7 @@ function specSheet(tab, name) {
       ${d.pdf ? `<a href="${esc(d.pdf)}" target="_blank" style="flex:1;text-align:center;padding:8px;background:#c9502e;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">📄 מפרט PDF</a>` : ''}
       ${d.man ? `<a href="${esc(d.man)}" target="_blank" style="flex:1;text-align:center;padding:8px;background:#534ab7;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">📘 מדריך משתמש</a>` : ''}
       ${d.pdf ? `<a href="${esc(d.pdf)}" target="_blank" style="flex:1;text-align:center;padding:8px;background:#534ab7;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">📄 מדריך / Spec Sheet</a>` : ''}
-      <button style="flex:1" onclick="document.getElementById('specOv').remove();${tab === 'spk' ? 'editSpkLink' : 'editAmpLink'}('${esc(key).replace(/'/g, '&#39;')}')">✎ ערוך קישורים</button>
+      <button style="flex:1" onclick="document.getElementById('specOv').remove();${tab === 'spk' ? 'editSpkLink' : 'editAmpLink'}('${jsq(key)}')">✎ ערוך קישורים</button>
     </div>
     ${!d.url && !d.pdf ? '<p class="muted" style="font-size:11px;margin-top:8px">אין עדיין קישורים לדגם — לחץ ✎ להוספת דף מוצר ומדריך.</p>' : ''}
   </div>`;
@@ -10026,6 +10041,8 @@ function importBackup() {
   f.click();
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m])); }
+/* מחרוזת בתוך onclick="fn('…')": גרש (אינצ') חייב להיות \' — &#39; מפוענח ל-' לפני שה-JS נקרא ושובר את הקריאה */
+function jsq(s) { return esc(String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ')); }
 
 /* ---- ייבוא מפרט / הצעת מחיר ---- */
 let impItems = [];
@@ -10332,7 +10349,7 @@ function renderKitNew() {
     <div class="fld"><label>שם הקיט</label><input id="nkName" value="${esc(d.name)}" oninput="nkDraft.name=this.value"></div>
     <div class="fld"><label>חיפוש פריט בקטלוג</label><input id="nkQ" value="${esc(d.q)}" oninput="nkDraft.q=this.value;renderKitNew();const e2=document.getElementById('nkQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
     ${hits.map(it => { const [k, n2] = it; const stq = Math.round(+it[3] || 0), pr = +it[2] || 0;
-      return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11px;margin-bottom:3px" onclick="nkDraft.items.push({name:'${esc(n2).replace(/'/g, '&#39;')}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()">
+      return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11px;margin-bottom:3px" onclick="nkDraft.items.push({name:'${jsq(n2)}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()">
         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">➕ ${esc(n2.slice(0, 52))}</span>
         <b style="color:${stq > 9 ? '#0a7a4b' : stq > 0 ? '#b8860b' : '#a32222'};white-space:nowrap">מלאי ${stq}</b>
         <span class="muted" style="white-space:nowrap">₪${pr.toLocaleString()}</span></button>`; }).join('')}
@@ -11189,7 +11206,7 @@ function sendOffer() {
   const ofAccPaint = (list, q) => {
     const el = document.getElementById('ofAccList'); if (!el) return;
     if (!list.length) { el.style.display = 'none'; return; }
-    el.innerHTML = list.slice(0, 40).map(a => `<div onclick="__ofAccPick('${esc(a.key).replace(/'/g, '&#39;')}','${esc(a.name).replace(/'/g, '&#39;')}')" style="display:flex;gap:8px;align-items:center;padding:6px 9px;cursor:pointer;border-bottom:1px solid #f2efe9;font-size:12.5px" onmouseover="this.style.background='#f7f5f0'" onmouseout="this.style.background=''">
+    el.innerHTML = list.slice(0, 40).map(a => `<div onclick="__ofAccPick('${jsq(a.key)}','${jsq(a.name)}')" style="display:flex;gap:8px;align-items:center;padding:6px 9px;cursor:pointer;border-bottom:1px solid #f2efe9;font-size:12.5px" onmouseover="this.style.background='#f7f5f0'" onmouseout="this.style.background=''">
       <span style="flex:1">${esc(a.name)}</span>
       <span style="background:#f0ede8;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:700;white-space:nowrap">${esc(a.key)}</span></div>`).join('');
     el.style.display = '';
@@ -11262,7 +11279,7 @@ function sendOffer() {
     const C = window.__ofPrjCache;
     const paint = list => {
       if (!list.length) { el.style.display = 'none'; st.textContent = 'לא נמצא פרויקט — סמן "הצעה ללקוח בלבד"'; return; }
-      el.innerHTML = list.slice(0, 40).map(pr => `<div onclick="__ofPrjPick('${esc(pr.id)}','${esc(pr.name).replace(/'/g, '&#39;')}','${esc(pr.accountKey || '')}','${esc(pr.account || '').replace(/'/g, '&#39;')}')" style="padding:6px 9px;cursor:pointer;border-bottom:1px solid #f2efe9;font-size:12.5px" onmouseover="this.style.background='#f7f5f0'" onmouseout="this.style.background=''">
+      el.innerHTML = list.slice(0, 40).map(pr => `<div onclick="__ofPrjPick('${esc(pr.id)}','${jsq(pr.name)}','${esc(pr.accountKey || '')}','${jsq(pr.account || '')}')" style="padding:6px 9px;cursor:pointer;border-bottom:1px solid #f2efe9;font-size:12.5px" onmouseover="this.style.background='#f7f5f0'" onmouseout="this.style.background=''">
         <b>${esc(pr.name)}</b>${pr.account ? ' <span class="muted" style="font-size:11px">· ' + esc(pr.account) + '</span>' : ''}${pr.address ? '<br><span class="muted" style="font-size:10.5px">📍 ' + esc(pr.address) + '</span>' : ''}</div>`).join('');
       el.style.display = ''; st.textContent = list.length + ' פרויקטים — בחר מהרשימה';
     };
@@ -11404,7 +11421,7 @@ function suggestRack() {
   ov.id = 'rackSugOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:99;display:flex;align-items:center;justify-content:center';
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
-  const opt = c => `<button style="display:block;width:100%;text-align:right;margin-bottom:5px" onclick="addRackToOffer('${esc(c.name).replace(/'/g, '&#39;')}','${c.key || ''}',${c.u})">🗄 ${esc(c.name.slice(0, 46))} · ${c.u}U</button>`;
+  const opt = c => `<button style="display:block;width:100%;text-align:right;margin-bottom:5px" onclick="addRackToOffer('${jsq(c.name)}','${c.key || ''}',${c.u})">🗄 ${esc(c.name.slice(0, 46))} · ${c.u}U</button>`;
   ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:480px;width:94%;max-height:80vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)">
     <b style="display:block;margin-bottom:2px">🗄 הצעת ארון מסד</b>
     <p class="muted" style="margin:0 0 10px">המוצרים דורשים <b>${needU}U</b> בשימוש. מומלץ ארון של לפחות <b>${recU}U</b> (עם מרווח).</p>
@@ -11515,7 +11532,7 @@ function renderImp() {
           if (!inf) return '';
           return `<div style="font-size:9px;line-height:1.5;margin-top:2px;white-space:nowrap">
             <span title="כמות במלאי (ERP)" style="color:${inf.qty > 0 ? '#0a7a4b' : '#a32222'};font-weight:700">מלאי ${inf.qty}</span><br>
-            <span title="כמות עתידית — פירוט הזמנות פתוחות ותאריכים" onclick="futureQty('${it.key}','${esc(it.name.slice(0, 40)).replace(/'/g, '&#39;')}')" style="color:#185fa5;cursor:pointer;text-decoration:underline">עתידי</span></div>`;
+            <span title="כמות עתידית — פירוט הזמנות פתוחות ותאריכים" onclick="futureQty('${it.key}','${jsq(it.name.slice(0, 40))}')" style="color:#185fa5;cursor:pointer;text-decoration:underline">עתידי</span></div>`;
         })()}</td>
         <td style="text-align:center;font-weight:700;color:${(it.placed || 0) >= it.qty ? '#0f6e56' : '#c96f4a'}">${cnt != null ? cnt : ['unit', 'panelUnit', 'point', 'panelNode', 'rack', 'conn'].includes(it.dest) ? (it.placed || 0) : (it.dest === 'cable' || it.dest === 'reel') ? planMeters(it) : '—'}</td>
         <td style="font-size:10px;max-width:95px">${zoneCell}</td>
@@ -11588,7 +11605,7 @@ function renderImp() {
     <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` + catBar +
     (results.length ? results.map(r => r.type === 'kit'
       ? `<div class="crow" onclick="pickKitInline(${r.i})"><span class="badge" style="background:#534ab7">${r.n}</span><span class="txt"><b>🧰 ${esc(r.name)}</b> · קיט מלא</span></div>`
-      : catHdr(r) + `<div class="crow" onclick="pickSearchItem('${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span>${imgCell(r.key, 28)}<span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`
+      : catHdr(r) + `<div class="crow" onclick="pickSearchItem('${jsq(r.name)}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span>${imgCell(r.key, 28)}<span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`
     ).join('') + '<div style="border-bottom:1px solid #eee;margin:8px 0"></div>' : '') +
     body;
 }
@@ -12114,14 +12131,14 @@ function zoneSystemBuilder(z) {
       return `<div class="fld"><label>3️⃣ חיפוש מוצר או קיט (ERP)</label>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px">${chips}</div>
         <input id="zsq" value="${esc(z._sq || '')}" placeholder="למשל UNICORN / F81 / קיט בר" oninput="setZoneField('${zid}','_sq',this.value)"></div>
-      ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${esc(z.name).replace(/'/g, '&#39;')}',${x.i})">🧰 קיט: ${esc(x.k.name.slice(0, 42))}</button>`).join('')}</div>` : ''}
-      ${!kq ? `<div class="fld"><label style="font-size:10px">כל הקיטים (${kits.length})</label><select onchange="if(this.value!==''){zoneKitConfirm('${esc(z.name).replace(/'/g, '&#39;')}',+this.value);this.value='';}">
+      ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 קיט: ${esc(x.k.name.slice(0, 42))}</button>`).join('')}</div>` : ''}
+      ${!kq ? `<div class="fld"><label style="font-size:10px">כל הקיטים (${kits.length})</label><select onchange="if(this.value!==''){zoneKitConfirm('${jsq(z.name)}',+this.value);this.value='';}">
         <option value="">— או בחר קיט מהרשימה (${kits.length}) —</option>
         ${kits.map(x => `<option value="${x.i}">${x.rec ? '⭐ ' : ''}${esc(x.k.name.slice(0, 44))}</option>`).join('')}
       </select></div>` : ''}
       ${typeof erpQuotesDialog === 'function' && !(window.__AUTH && window.__AUTH.user && window.__AUTH.user.role !== 'owner') ? `<button style="width:100%;margin:2px 0 6px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="selZone='${zid}';erpQuotesDialog()" title="הפריטים של הצעת מחיר קיימת ב-ERP נכנסים להצעה ומוצבים באזור הזה — כמו בחירת קיט">🧾 או מהצעת מחיר קיימת ב-ERP → הצב באזור</button>` : ''}`;
     })()}
-    ${res.length ? `<div style="max-height:120px;overflow-y:auto;margin-bottom:6px">${res.map(r => { const isSub = /סאב|sub|NOMOS|TILL\s?18|SB-?18|וופר/i.test(r.name); return `<button style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;margin-bottom:3px;font-size:11px" onclick="pickZoneSpk('${zid}','${esc(r.name).replace(/'/g, '&#39;')}','${r.key || ''}',${isSub})"><span style="flex:1;text-align:right">${isSub ? '🔈 סאב' : '🔊 רמקול'}: ${esc(r.name.slice(0, 36))}</span>${stockTag(r.key)}</button>`; }).join('')}</div>` : ''}
+    ${res.length ? `<div style="max-height:120px;overflow-y:auto;margin-bottom:6px">${res.map(r => { const isSub = /סאב|sub|NOMOS|TILL\s?18|SB-?18|וופר/i.test(r.name); return `<button style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;margin-bottom:3px;font-size:11px" onclick="pickZoneSpk('${zid}','${jsq(r.name)}','${r.key || ''}',${isSub})"><span style="flex:1;text-align:right">${isSub ? '🔈 סאב' : '🔊 רמקול'}: ${esc(r.name.slice(0, 36))}</span>${stockTag(r.key)}</button>`; }).join('')}</div>` : ''}
     <div class="fld"><label>רמקול נבחר</label><div style="font-size:12px">${z._spk ? zoneSpkPinBtn(z, false) + '🔊 ' + esc(z._spk) : '— (בחר מהחיפוש) —'}</div></div>
     <div class="fld"><label>סאב נבחר</label><div style="font-size:12px">${z._sub ? zoneSpkPinBtn(z, true) + '🔈 ' + esc(z._sub) + ' <button style="padding:0 6px" onclick="setZoneField(\'' + zid + '\',\'_sub\',\'\')">✕</button>' : '— (אופציונלי) —'}</div></div>
     ${z._spk || z._sub ? `<div style="font-size:10.5px;color:#8a5a00;margin:-4px 0 6px">📌 לחץ על הנעץ ואז על התכנית — כל נקירה מציבה רמקול אחד ומוסיפה אותו להצעה (Esc לסיום)</div>` : ''}
