@@ -169,7 +169,7 @@ function seedBH() {
 }
 
 /* שדות הגיליון — var ולא const: sheetsBindAll רץ כאן, לפני הגדרת בלוק הגיליונות למטה */
-var SHEET_FIELDS = ['bgW', 'bgOff', 'bgRot', 'bgOp', 'scale', 'calOk', 'autoScale', 'planText', 'hideConduits', 'virtWalls', 'route'];
+var SHEET_FIELDS = ['bgW', 'bgOff', 'bgRot', 'bgOp', 'bgPdfPage', 'scale', 'calOk', 'autoScale', 'planText', 'hideConduits', 'virtWalls', 'route'];
 var SHEET_ARRAYS = ['nodes', 'cables', 'zones', 'conduits'];
 let store = load();
 sheetsBindAll(store);
@@ -401,7 +401,7 @@ function sheetsInit(pr) {
 function sheetsBind(pr) {
   const def = (obj, name, get, set) => Object.defineProperty(obj, name, { configurable: true, enumerable: false, get, set });
   for (const f of [...SHEET_FIELDS, ...SHEET_ARRAYS]) {
-    if (Object.prototype.hasOwnProperty.call(pr, f)) delete pr[f];
+    if (Object.prototype.hasOwnProperty.call(pr, f)) { const v0 = pr[f]; delete pr[f]; const sh0 = curSheet(pr); if (sh0 && v0 !== undefined && sh0[f] === undefined) sh0[f] = v0; }   /* שדה שנוסף לגיליון אחרי המעבר — הערך עובר לגיליון */
     def(pr, f, () => { const sh = curSheet(pr); return sh ? sh[f] : undefined; },
       v => { const sh = curSheet(pr); if (!sh) return; if (v === undefined) delete sh[f]; else sh[f] = v; });
   }
@@ -413,7 +413,8 @@ function sheetsBind(pr) {
   }
   for (const [f, map] of [['bg', 'bgs'], ['bgPdf', 'bgPdfs']]) {
     if (Object.prototype.hasOwnProperty.call(pr, f)) { const v0 = pr[f]; delete pr[f]; if (v0) (pr[map] = pr[map] || {})[curSheet(pr).id] = v0; }
-    def(pr, f, () => { const sh = curSheet(pr); return sh && pr[map] ? pr[map][sh.id] : undefined; },
+    /* ערך "@<id>" = אותה תמונה/PDF כמו של גיליון אחר (PDF רב-דפי נשמר פעם אחת) */
+    def(pr, f, () => { const sh = curSheet(pr); if (!sh || !pr[map]) return undefined; let v = pr[map][sh.id]; if (typeof v === 'string' && v[0] === '@') v = pr[map][v.slice(1)]; return v; },
       v => { const sh = curSheet(pr); if (!sh) return; pr[map] = pr[map] || {}; if (v == null) delete pr[map][sh.id]; else pr[map][sh.id] = v; });
   }
 }
@@ -427,12 +428,13 @@ function sheetGo(id) {
   render(); if (typeof viewToContent === 'function') viewToContent();
   if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender();
 }
-function sheetAdd(name) {
+function sheetAdd(name, opts) {
   const id = uid('sh');
   const nm = name || ('תכנית ' + (P.sheets.length + 1));
   P.sheets.push({ id, name: nm, level: null, nodes: [], cables: [], zones: [], conduits: [], route: 'ortho' });
   P.curSheet = id; sel = selCable = selZone = null;
   render(); save();
+  if (opts && opts.quiet) return id;
   uiToast('📑 נוספה "' + nm + '" — העלה תכנית רקע וכייל אותה');
   const inp = document.getElementById('bgIn'); if (inp) inp.click();
   return id;
@@ -447,7 +449,8 @@ async function sheetDelete(id) {
   const sh = P.sheets.find(x => x.id === id); if (!sh || P.sheets.length < 2) { uiToast('אי אפשר למחוק את התכנית היחידה'); return; }
   const n = (sh.nodes || []).length, c = (sh.cables || []).length;
   if (!(await uiConfirm(`למחוק את "${sh.name}"?${n || c ? `\n${n} מוקדים · ${c} כבלים יימחקו איתה` : ''}`, { okText: '🗑 מחק' }))) return;
-  delete P.bgs[id]; delete P.bgPdfs[id];
+  /* גיליונות אחרים שמפנים לתמונה/PDF של הגיליון הנמחק מקבלים עותק משלהם */
+  for (const map of [P.bgs, P.bgPdfs]) { if (!map) continue; const refs = Object.keys(map).filter(k => map[k] === '@' + id); if (refs.length && map[id]) { map[refs[0]] = map[id]; refs.slice(1).forEach(k => { map[k] = '@' + refs[0]; }); } delete map[id]; }
   P.sheets = P.sheets.filter(x => x.id !== id);
   if (P.curSheet === id) P.curSheet = P.sheets[0].id;
   sel = selCable = selZone = null; render(); save();
@@ -828,6 +831,41 @@ function sheetsPanelHTML() {
       <button style="flex:1" onclick="xlinkDlg()" title="קו תשתית בין תכניות — ארון לארון או ארון לפאנל בקומה/מבנה אחר">🔗 קו בין תכניות</button>
       <button style="flex:1" onclick="sheetsView3D()" title="כל התכניות זו מעל זו לפי המפלס והיישור">🏗 מבנה 3D</button></div>${xlRows}` : ''}`;
 }
+/* PDF עם כמה דפים: בוחרים את הדף לפי תמונה (לא לפי שם) — או "כל הדפים", שכל דף הופך לתכנית משלו בפרויקט */
+async function bgPdfPickPage(doc, fname) {
+  const n = doc.numPages;
+  return new Promise(async resolve => {
+    const ov = uiModal(`<b style="font-size:15px">📄 ${esc(fname)} — ${n} דפים. איזה דף הוא התכנית?</b>
+      <p class="muted" style="font-size:12px;margin:6px 0 8px">לחיצה על דף טוענת אותו כרקע לתכנית הנוכחית. אפשר גם לטעון את כל הדפים — כל דף לתכנית (קומה) משלו.</p>
+      <div data-grid style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;max-height:60vh;overflow:auto;padding:2px"></div>
+      <div style="display:flex;gap:6px;margin-top:10px"><button data-all style="flex:1;background:#efecfd;color:#4b3fb8;font-weight:700">📑 כל הדפים — תכנית לכל דף (${n})</button><button data-c style="flex:1">ביטול</button></div>`);
+    let done = false; const fin = v => { if (done) return; done = true; ov.remove(); resolve(v); };
+    ov.querySelector('[data-c]').onclick = () => fin(null);
+    ov.querySelector('[data-all]').onclick = () => fin('all');
+    const grid = ov.querySelector('[data-grid]');
+    for (let i = 1; i <= n; i++) {
+      const card = document.createElement('div');
+      card.style.cssText = 'border:1.5px solid #dde;border-radius:9px;padding:6px;cursor:pointer;text-align:center;background:#fff';
+      card.innerHTML = `<div style="height:150px;display:flex;align-items:center;justify-content:center;background:#f6f6f8;border-radius:6px"><span class="muted" style="font-size:11px">מעבד…</span></div><div style="font-size:12px;font-weight:700;margin-top:5px">דף ${i}</div>`;
+      card.onmouseenter = () => { card.style.borderColor = '#534ab7'; card.style.boxShadow = '0 2px 10px rgba(83,74,183,.25)'; };
+      card.onmouseleave = () => { card.style.borderColor = '#dde'; card.style.boxShadow = ''; };
+      card.onclick = () => fin(i);
+      grid.appendChild(card);
+    }
+    /* תמונות ממוזערות — דף אחרי דף, כדי שהחלון ייפתח מיד */
+    for (let i = 1; i <= n && !done; i++) {
+      try {
+        const pg = await doc.getPage(i), v1 = pg.getViewport({ scale: 1 }), k = 300 / Math.max(v1.width, v1.height);
+        const vp = pg.getViewport({ scale: k }), cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+        await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+        const box = grid.children[i - 1] && grid.children[i - 1].firstElementChild; if (!box) break;
+        cv.style.cssText = 'max-width:100%;max-height:150px;object-fit:contain'; box.innerHTML = ''; box.appendChild(cv);
+        if (pg.cleanup) pg.cleanup();
+      } catch (e) {}
+    }
+  });
+}
+window.bgPdfPickPage = bgPdfPickPage;
 function normalizeAll() {
   for (const pr of store.projects) { ensureStock(pr); pr.route = pr.route || 'ortho'; }
   /* זוויות פיזור / Max SPL ש"צולמו" למוקד בזמן היצירה מהערכה היוריסטית (לא הוזנו ידנית): כשהדגם קיים בטבלת הנתונים — הערך נמחק מהמוקד והטבלה קובעת */
@@ -1530,7 +1568,17 @@ function uploadBg(inp, onDone) {
           pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         }
         const doc = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-        const pg = await doc.getPage(1);
+        /* כמה דפים — בחירה לפי תמונה, או כל דף לתכנית משלו */
+        let pages = [1];
+        if (doc.numPages > 1) { const pick = await bgPdfPickPage(doc, file.name); if (pick == null) return; pages = pick === 'all' ? Array.from({ length: doc.numPages }, (_, i) => i + 1) : [pick]; }
+        const pdfB64 = file.size <= 8 * 1024 * 1024 ? await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).replace(/^data:[^,]*,/, '')); fr.readAsDataURL(file); }) : null;
+        const base = file.name.replace(/\.pdf$/i, '');
+        const firstSheet = P.curSheet;
+        for (let pi = 0; pi < pages.length; pi++) {
+        const pageNo = pages[pi];
+        if (pi > 0) sheetAdd(base + ' · דף ' + pageNo, { quiet: true });
+        else if (pages.length > 1 && /^תכנית \d+$/.test(curSheet(P).name)) curSheet(P).name = base + ' · דף ' + pageNo;
+        const pg = await doc.getPage(pageNo);
         const vp = pg.getViewport({ scale: 2 });
         const cv = document.createElement('canvas');
         cv.width = vp.width; cv.height = vp.height;
@@ -1541,8 +1589,8 @@ function uploadBg(inp, onDone) {
         cv2.getContext('2d').drawImage(cv, 0, 0, cv2.width, cv2.height);
         P.bg = cv2.toDataURL('image/jpeg', 0.8);
         /* ה-PDF עצמו נשמר (עד 8MB) — האזור הנראה מעובד מחדש בכל זום, בלי טשטוש (bgsharp.js) */
-        if (file.size <= 8 * 1024 * 1024) { P.bgPdf = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).replace(/^data:[^,]*,/, '')); fr.readAsDataURL(file); }); P.bgPdfPage = 1; }
-        else { delete P.bgPdf; delete P.hasPdf; }
+        if (pdfB64) { P.bgPdf = pi > 0 ? '@' + firstSheet : pdfB64; P.bgPdfPage = pageNo; }   /* הקובץ נשמר פעם אחת; שאר הדפים מפנים אליו */
+        else { delete P.bgPdf; delete P.hasPdf; delete P.bgPdfPage; }
         if (typeof bgSharpReset === 'function') bgSharpReset();
         P.bgW = fitBgW(cv2.width, cv2.height);
         P.bgOff = bgCenteredOff(P.bgW, Math.round(P.bgW * cv2.height / cv2.width));
@@ -1553,6 +1601,8 @@ function uploadBg(inp, onDone) {
         setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
         /* קנה מידה מהטקסט של ה-PDF — בלי AI; רץ לפני ההמשך כדי שהאשף יראה את התוצאה */
         if (typeof autoScalePdf === 'function') await autoScalePdf(pg, P.bgW);
+        }
+        if (pages.length > 1) { sheetGo(firstSheet); uiToast('📑 נטענו ' + pages.length + ' דפים — כל דף כתכנית משלו (לשוניות מעל התכנית)', 7000); }
         if (onDone) onDone();
       } catch (err) { alert('קריאת ה-PDF נכשלה (נדרש אינטרנט לטעינת הספרייה): ' + err.message); }
     })();
