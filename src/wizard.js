@@ -14,7 +14,7 @@ const WIZ_STEPS = [
 function wizWireStat(z) {
   const fed = new Set(); P.cables.forEach(c => { if (c.to) fed.add(c.to); });
   const spks = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')
-    && (n.sub || '').includes(z.name) && !/עמדת נגינה|מגבר|פרוססור|מיקרופון/i.test(n.name));
+    && nodeInZone(n, z) && !/עמדת נגינה|מגבר|פרוססור|מיקרופון/i.test(n.name));
   return { tot: spks.length, fed: spks.filter(n => fed.has(n.id)).length };
 }
 
@@ -522,7 +522,7 @@ function wizKitSearch(q) {
 /* 🎙 מיקרופון מדידה במרכז האזור — נקודת הייחוס לדיליי; נוצר אוטומטית לפני כל פתיחת חיווט */
 function wizEnsureMic(zid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
-  if (P.nodes.some(n => n.ptype === 'mic' && (n.sub || '').includes(z.name))) return;
+  if (P.nodes.some(n => n.ptype === 'mic' && nodeInZone(n, z))) return;
   const bm = zoneBounds(z);
   P.nodes.push({ id: uid('n'), kind: 'point', ptype: 'mic', name: 'מיקרופון מדידה', sub: 'נק׳ מדידה · ' + z.name, x: 2200 - (bm.L + bm.W / 2) - 20, y: (bm.T + bm.H / 2) - 24, mini: true, noCov: true });
   render(); save();

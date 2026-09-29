@@ -5558,7 +5558,7 @@ function patchHi(id, on) { const el = document.getElementById('nd_' + id); if (e
 function patchHiClear() { document.querySelectorAll('.node.pchHi').forEach(e => e.classList.remove('pchHi')); }
 /* נקודת הייחוס לדיליי — עמדת הנגינה/DJ של האזור (מקור הסאונד), אחרת ריכוז המגברים */
 function zoneDelayRef(z) {
-  const inZ = n => z && (n.sub || '').includes(z.name);
+  const inZ = n => z && nodeInZone(n, z);
   return P.nodes.find(n => n.kind === 'point' && /עמדת נגינה|\bDJ\b|במה|stage/i.test(n.name) && inZ(n))
     || P.nodes.find(n => n.kind === 'point' && /עמדת נגינה|\bDJ\b|במה|stage/i.test(n.name))
     || (z && z._rackNodeId && byId(z._rackNodeId)) || null;
@@ -5618,7 +5618,7 @@ function zoneRack(z, mk) {
   return rk;
 }
 function zoneSourceRef(z) {
-  const inZ = n => z && (n.sub || '').includes(z.name);
+  const inZ = n => z && nodeInZone(n, z);
   /* מיקרופון מדידה שהוצב ידנית גובר על הכול — זו הנקודה שממנה המתכנן רוצה לחשב */
   return P.nodes.find(n => n.ptype === 'mic' && n.dlyRef !== false)
     || P.nodes.find(n => n.kind === 'point' && /עמדת נגינה|\bDJ\b|במה|stage/i.test(n.name) && inZ(n))
@@ -6699,7 +6699,7 @@ function projGapCheck() {
   /* 1. רמקולים לא מחווטים */
   const fed = new Set(); P.cables.forEach(c => { if (c.to) fed.add(c.to); });
   (P.zones || []).forEach(z => {
-    const un = spkN.filter(n => (n.sub || '').includes(z.name) && !fed.has(n.id)).length;
+    const un = spkN.filter(n => nodeInZone(n, z) && !fed.has(n.id)).length;
     if (un) finds.push({ i: '🔌', k: 'wire|' + z.id, t: un + ' רמקולים לא מחווטים באזור "' + esc(z.name) + '"', b: 'חווט עכשיו', fn: `smartWire('${z.id}')` });
   });
   /* 1א. מיקרופון נדרש — יש מיקרופון בהצעה? והאם הפרוססור יודע לנהל אותו? */
@@ -7017,7 +7017,7 @@ function patchOfferKits(zid) {
 }
 async function smartWire(zid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
-  const inZone = n => (n.sub || '').includes(z.name);
+  const inZone = n => nodeInZone(n, z);
   const fed = new Set(); P.cables.forEach(c => { if (c.type === 'nl4' && c.to) fed.add(c.to); });
   const spks = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && inZone(n) && !fed.has(n.id) && !/עמדת נגינה/.test(n.name));
   const noNew = !spks.length; /* הכול מחווט? עדיין נפתח לעריכת הניתוב הקיים */
@@ -12161,7 +12161,7 @@ function zoneSystemBuilder(z) {
     <button style="width:100%;margin-top:6px;${z._built ? 'background:#eef7f1;color:#0f6e56' : 'background:#534ab7;color:#fff;font-weight:700'}" onclick="autoLayoutAI('${zid}')">🤖 ${z._built ? '✓ ' : ''}פריסה חכמה מהתכנית (AI) — מתחשבת בריהוט ובקירות</button>
     ${(() => {
       const fed2 = new Set(P.cables.map(c => c.to));
-      const zs = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && (n.sub || '').includes(z.name) && !/עמדת נגינה|מגבר|פרוססור/i.test(n.name));
+      const zs = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && nodeInZone(n, z) && !/עמדת נגינה|מגבר|פרוססור/i.test(n.name));
       const wd = zs.length > 0 && zs.every(n => fed2.has(n.id));
       return `<button style="width:100%;margin-top:6px;${wd ? 'background:#eef7f1;color:#0f6e56' : 'background:#0f6e56;color:#fff;font-weight:700'}" onclick="smartWire('${zid}')">5️⃣ 🔌 ${wd ? '✓ מחווט — לחץ לעריכת הניתוב' : 'חיווט חכם למגבר — פרימיום/סאב קו בודד · רקע בשרשור'}</button>`;
     })()}
@@ -12236,6 +12236,13 @@ function zoneCornerPts(z, inM) {
   const pts = out.map(q => [q.x, q.y]);
   if (!pts.length) return [[b.L + inM, b.T + inM], [b.L + b.W - inM, b.T + inM], [b.L + b.W - inM, b.T + b.H - inM], [b.L + inM, b.T + b.H - inM]].filter(([x, y]) => inZone(z, { x, y }));
   return pts;
+}
+/* מוקד שייך לאזור אם הוא נמצא בתוכו גיאומטרית — או אם נוצר עבורו (שם האזור בתיאור).
+   קודם רק השם נבדק, ולכן רמקולים שננעצו מהחיפוש או לפני שסומן האזור "לא היו באזור" */
+function nodeInZone(n, z) {
+  if (!n || !z) return false;
+  if ((n.sub || '').includes(z.name)) return true;
+  return inZone(z, { x: 2200 - n.x - 20, y: n.y + 24 });
 }
 function inZone(z, pt) {
   if (z.poly) { let inside = false, p = z.poly; for (let i = 0, j = p.length - 1; i < p.length; j = i++) if ((p[i].y > pt.y) !== (p[j].y > pt.y) && pt.x < (p[j].x - p[i].x) * (pt.y - p[i].y) / (p[j].y - p[i].y) + p[i].x) inside = !inside; return inside; }
@@ -12522,7 +12529,7 @@ function zoneSplMode(zid, mode) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   let n2 = 0;
   P.nodes.forEach(n => {
-    if (n.kind !== 'point' || !(n.sub || '').includes(z.name)) return;
+    if (n.kind !== 'point' || !nodeInZone(n, z)) return;
     if (n.ptype && n.ptype !== 'speaker' && n.ptype !== 'sub') return;
     const mx = guessSpl(n.name) || 120;
     n.spl = mode === 'max' ? undefined : mx - 20;
