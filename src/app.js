@@ -195,6 +195,7 @@ let SRV = false, srvT = null;
       if (typeof impItems !== 'undefined') impItems = impLoad();
       try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
       render(); if (typeof viewToContent === 'function') viewToContent();
+      if (typeof sharedWatch === 'function') sharedWatch();
       /* ?open=<id> — פתיחת פרויקט ישירות (מדף המשתמשים / מנהל הפרויקטים) */
       const op = new URLSearchParams(location.search).get('open');
       if (op && store.projects.some(p => p.id === op)) { switchProj(op); store.cur = op; history.replaceState(null, '', location.pathname); }
@@ -13764,3 +13765,29 @@ render(); viewToContent();
 HIST.past.push(snapProject());
 renderHistBtns();
 checkStudioHandoff();
+
+/* ===== משתמש משותף: פרויקטים חדשים ששותפו איתו =====
+   בטעינה — הודעה על פרויקטים שלא נראו קודם; ובזמן שהדף פתוח — בדיקה כל דקה מול השרת, עם כפתור לפתיחה (בלי להחליף את מה שנערך עכשיו) */
+function sharedWatch() {
+  if (!store || !store._shared) return;
+  const K = 'koSharedSeen';
+  let seen = []; try { seen = JSON.parse(localStorage.getItem(K) || '[]'); } catch (e) {}
+  const ids = store.projects.map(p => p.id);
+  const fresh = seen.length ? store.projects.filter(p => !seen.includes(p.id)) : [];
+  try { localStorage.setItem(K, JSON.stringify(ids)); } catch (e) {}
+  if (fresh.length) uiToast('📬 שותפו איתך: ' + fresh.map(p => p.name).join(', ') + (fresh.some(p => p.id === P.id) ? '' : ' — בחר בתפריט הפרויקטים'), 9000);
+  if (window.__sharedPoll) return;
+  window.__sharedPoll = setInterval(async () => {
+    try {
+      const r = await fetch('/api/store', { cache: 'no-store' }); if (!r.ok) return;
+      const s = await r.json(); if (!s || !s.projects) return;
+      const nw = s.projects.filter(p => !store.projects.some(q => q.id === p.id));
+      if (!nw.length) return;
+      const p = nw[0];
+      const ov = uiModal('<b style="font-size:14px">📬 שותף איתך פרויקט חדש: ' + esc(p.name) + '</b><p class="muted" style="font-size:12px;margin:8px 0">לפתיחה הדף ייטען מחדש (מה שערכת נשמר).</p><div style="display:flex;gap:6px"><button class="primary" data-o style="flex:1">פתח עכשיו</button><button data-l style="flex:1">אחר כך</button></div>');
+      ov.querySelector('[data-o]').onclick = () => { try { save(); } catch (e) {} location.href = location.pathname + '?open=' + encodeURIComponent(p.id); };
+      ov.querySelector('[data-l]').onclick = () => ov.remove();   /* יופיע בתפריט הפרויקטים בטעינה הבאה */
+      clearInterval(window.__sharedPoll); window.__sharedPoll = null;
+    } catch (e) {}
+  }, 60000);
+}

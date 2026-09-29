@@ -257,7 +257,7 @@ export async function handleAuth(req, res, path, store) {
       if (b.action === 'block') { u.blocked = true; dropSessions(); }
       else if (b.action === 'unblock') u.blocked = false;
       else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); dropSessions(); }
-      else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') delete u.grants[b.project]; else u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; }
+      else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') { delete u.grants[b.project]; if (u.cur === b.project) delete u.cur; } else { u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; u.cur = b.project; /* ייפתח אצלו בכניסה הבאה */ } }
       else return json(res, 400, { error: 'unknown action' }), true;
       await persist();
       return json(res, 200, { ok: true }), true;
