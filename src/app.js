@@ -5521,6 +5521,7 @@ function patchOpen(z, amps, lines, leftover) {
   ov.innerHTML = `<div id="patchBox">
       <div class="ph" id="patchDrag"><span style="opacity:.6">⠿</span><b id="patchTitle">🔌 חיווט — ניתוב רמקולים למגברים</b>
         <small style="opacity:.8;font-size:11px">גרור צ׳יפ ליציאה · הקש עליו כדי לראות אותו על התכנית</small>
+        <button id="patchAllBtn" onclick="PATCH.showAll=PATCH.showAll===false;patchRender()" style="display:none;font-size:11px;padding:2px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;cursor:pointer"></button>
         <button onclick="patchClose()" style="background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button></div>
       <div class="pb" id="patchBody"></div>
       <div style="display:flex;gap:6px;align-items:center;padding:6px 12px;border-top:1px solid #eee;font-size:12px;background:#faf8f4">
@@ -5673,6 +5674,7 @@ function delayPlan(chans, src, mode) {
   Object.entries(avg).forEach(([k, v]) => { const ms = (v - base) * SND_MS_M; out[k] = ms < 0.5 ? 0 : ms + haas; });
   return out;
 }
+function patchZNodes(ns) { const inv = ns.reduce((s, n) => s + 1 / spkOhm(n), 0); return inv ? 1 / inv : 0; }
 function patchZ(ids) { const inv = ids.map(byId).filter(Boolean).reduce((s, n) => s + 1 / spkOhm(n), 0); return inv ? 1 / inv : 0; }
 /* סוג כבל הרמקול לערוץ: אוטומטי לפי מרחק והספק (≤20 מ׳ → 2.5 ממ״ר · ≤40 → 4 · מעבר → 6; מעל 1000W מדרגה אחת למעלה; סאב מוגבר → XLR), וניתן לשינוי לכל ערוץ */
 function patchAutoCab(key) {
@@ -5858,8 +5860,8 @@ function patchBundleOf(key, ids) {
   if (parts.length < 2) return null;
   return { base, parts, r };
 }
-function patchChip(id, ro) {
-  const n = byId(id); if (!n) return '';
+function patchChip(id, ro, nObj) {
+  const n = nObj || byId(id); if (!n) return '';
   const full = nodeFullName(n);
   return `<span class="pchip ${patchKind(n)} ${PATCH.sel === id ? 'sel' : ''}" ${ro ? `data-chipro="${id}" style="opacity:.85"` : `draggable="true" data-chip="${id}"`}
      title="${esc(full)} · ${spkOhm(n)}Ω · ${esc(n.sub || '')}${n.band ? ' · פס ' + BAND_LBL[n.band] : ''}"><b>${patchNum(n)}</b>${esc(shortModel(full))}${n.band ? ` <b style="font-size:9.5px;background:rgba(0,0,0,.12);border-radius:4px;padding:0 4px">${BAND_LBL[n.band]}</b>` : ''} <small style="opacity:.7">${spkOhm(n)}Ω</small></span>`;
@@ -5942,6 +5944,7 @@ function patchRender() {
   const body = document.getElementById('patchBody'); if (!body || !PATCH) return;
   let totAmpW = 0, totSpkW = 0;
   /* דיליי — לפי המקור העיקרי (במה/DJ) ובמצב שנבחר; ערוץ אחד לפחות תמיד 0 */
+  { const b = document.getElementById('patchAllBtn'); if (b) { const anyFo = PATCH.amps.some(a => a.foreign && Object.keys(a.foreign).length); b.style.display = anyFo ? '' : 'none'; b.textContent = PATCH.showAll === false ? '👁 הצג חיווט מכל התכניות' : '👁 מוצג חיווט מכל התכניות — הסתר, רק האזור הזה'; b.title = 'ארון משותף: הערוצים שמחווטים לרמקולים בתכניות אחרות'; } }
   const zD = (P.zones || []).find(x => x.id === PATCH.zid);
   const dSrcReal = zoneSourceRef(zD), dSrc = dlyRefOf(zD), dMode = dlyMode(zD);
   const dPlan = delayPlan(Object.entries(PATCH.slots).map(([k2, ids2]) => ({ key: k2, nodes: ids2.map(byId).filter(Boolean) })), dSrc, dMode);
@@ -5954,17 +5957,19 @@ function patchRender() {
           <div class="pchChips"><small style="color:#6c5ce7;font-size:10.5px">🌉 מגושר עם OUT ${ch - 1}</small></div><span class="pchZ emp">—</span></div>`);
         continue;
       }
-      const key = ai + '|' + ch, ids = PATCH.slots[key] || [], fo = a.foreign && a.foreign[ch], locked = !!fo;
-      const zz = patchZ(ids), w = ids.length ? (a.bridge ? bridgeChW(a.u.name, zz) : ampChW(a.u.name, zz)) : null;
+      const key = ai + '|' + ch, fo = a.foreign && a.foreign[ch], locked = !!fo, showFo = locked && PATCH.showAll !== false;
+      const ids = fo ? (showFo ? fo.nodes.map(n => n.id) : []) : (PATCH.slots[key] || []);
+      const nodeOf = id2 => fo ? fo.nodes.find(n => n.id === id2) : byId(id2);
+      const zz = fo ? patchZNodes(fo.nodes) : patchZ(ids), w = ids.length ? (a.bridge ? bridgeChW(a.u.name, zz) : ampChW(a.u.name, zz)) : null;
       /* צריכת הרמקולים בערוץ — RMS מנתוני הדגם (150W ברירת מחדל כשלא ידוע) */
-      const sw = ids.reduce((s3, id2) => { const n3 = byId(id2); const pw = n3 ? spkWatt(n3) : null; return s3 + (pw == null ? 150 : +pw); }, 0);
+      const sw = ids.reduce((s3, id2) => { const n3 = nodeOf(id2); const pw = n3 ? spkWatt(n3) : null; return s3 + (pw == null ? 150 : +pw); }, 0);
       if (w) totAmpW += w; totSpkW += sw;
       const minEff = a.bridge ? a.minOhm * 2 : a.minOhm;
       const bad = ids.length && zz < minEff - 0.05;
       /* בדיוק על המינימום — חוקי, אבל בלי מרווח: כל רמקול נוסף יפיל את המגבר */
       const tight = ids.length && !bad && zz <= minEff * 1.02;
       /* דיליי מומלץ לערוץ + פער בתוך הערוץ (ערוץ = דיליי אחד לכולם) */
-      const dts = ids.map(id2 => { const n2 = byId(id2); return n2 ? delayDistM(n2, dSrc) : 0; });
+      const dts = fo ? [] : ids.map(id2 => { const n2 = byId(id2); return n2 ? delayDistM(n2, dSrc) : 0; });
       const dMs = dPlan[key] != null ? dPlan[key] : null;
       const dSpread = dSrc && dMode !== 'off' && dts.length > 1 ? (Math.max(...dts) - Math.min(...dts)) * SND_MS_M : 0;
       if (dSpread > 5) anySpread = true;
@@ -5977,10 +5982,10 @@ function patchRender() {
       const zTxt = ids.length ? (bad ? '⚠ ' : tight ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
         <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${a.bridge ? ch + '+' + (ch + 1) + ' 🌉' : ch}
-          ${ids.length > 1 ? `<button onclick="patchTopoToggle('${key}')" title="${patchTopo(key) === 'direct' ? 'כל רמקול בכבל נפרד ישירות מהריכוז — לחץ לשרשור כולם · אפשר גם לשרשר זוגות עם ה-🔗 שבין הרמקולים' : 'לחץ להחזרת כולם לקווים ישירים'}" style="border:1px solid ${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};background:${patchTopo(key) === 'direct' ? '#eef7f1' : '#fdf3e6'};color:${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};border-radius:6px;cursor:pointer;font-size:9.5px;padding:1px 6px;font-weight:800">${patchTopo(key) === 'direct' ? '⫘ ישיר' : patchTopo(key) === 'chain' ? '🔗 שרשור' : '⛓ מעורב'}</button>` : ''}
-          ${ids.length ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
-        <div class="pchChips">${ids.map((id2, i2) => patchChip(id2) + (i2 < ids.length - 1 ? chLinkBtn(key, ids[i2], ids[i2 + 1]) : '')).join('') || (locked ? `<small style="color:#8c6a1a;font-size:10.5px" title="מחווט מהתכנית האחרת — לעריכה עבור לשם">🔒 ב"${esc(fo.sheet)}": ${esc(fo.names.join(', ').slice(0, 60))}</small>` : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
-        ${ids.length ? patchCabSel(key) : ''}
+          ${ids.length > 1 && !fo ? `<button onclick="patchTopoToggle('${key}')" title="${patchTopo(key) === 'direct' ? 'כל רמקול בכבל נפרד ישירות מהריכוז — לחץ לשרשור כולם · אפשר גם לשרשר זוגות עם ה-🔗 שבין הרמקולים' : 'לחץ להחזרת כולם לקווים ישירים'}" style="border:1px solid ${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};background:${patchTopo(key) === 'direct' ? '#eef7f1' : '#fdf3e6'};color:${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};border-radius:6px;cursor:pointer;font-size:9.5px;padding:1px 6px;font-weight:800">${patchTopo(key) === 'direct' ? '⫘ ישיר' : patchTopo(key) === 'chain' ? '🔗 שרשור' : '⛓ מעורב'}</button>` : ''}
+          ${ids.length && !fo ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
+        <div class="pchChips">${fo ? `<small style="color:#8c6a1a;font-size:10px;margin-inline-end:4px" title="מחווט מתכנית אחרת — לעריכה עבור לשם">🔒 ${esc(fo.sheet)}</small>` : ''}${ids.map((id2, i2) => patchChip(id2, !!fo, fo ? nodeOf(id2) : null) + (!fo && i2 < ids.length - 1 ? chLinkBtn(key, ids[i2], ids[i2 + 1]) : '')).join('') || (locked ? `<small style="color:#8c6a1a;font-size:10.5px">תפוס — ${fo.names.length} רמקולים ב"${esc(fo.sheet)}"</small>` : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
+        ${ids.length && !fo ? patchCabSel(key) : ''}
         <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" ${tight ? 'style="color:#c96a13"' : ''} title="${tight ? `⚠ ${zz.toFixed(1)}Ω = בדיוק המינימום של המגבר (${minEff}Ω) — חוקי אבל בלי מרווח: ${ids.length}× ${spkOhm(byId(ids[0])) || 8}Ω במקביל. רמקול נוסף על הערוץ יוריד מתחת למינימום.\n` : ''}עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
     }
     return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(a.u.name)}">🎚 ${esc(modelOf(a.u.name))}
@@ -7045,7 +7050,7 @@ async function smartWire(zid) {
   amps.forEach(a => { a.foreign = {}; const ids = rackIdSet(a.rk);
     for (const sh of P.sheets || []) { if (sh === curSh) continue;
       for (const c of sh.cables || []) { if (!ids.has(c.from) || c.fromUnit !== a.u.id || !c.pOut) continue; const m = c.pOut.match(/OUT (\d+)/); if (!m) continue; const ch = +m[1];
-        const to = (sh.nodes || []).find(n => n.id === c.to); a.used.add(ch); (a.foreign[ch] = a.foreign[ch] || { sheet: sh.name, names: [] }).names.push(to ? to.name : '?'); } } });
+        const to = (sh.nodes || []).find(n => n.id === c.to); a.used.add(ch); const F = (a.foreign[ch] = a.foreign[ch] || { sheet: sh.name, names: [], nodes: [] }); F.names.push(to ? to.name : '?'); if (to && !F.nodes.includes(to)) F.nodes.push(to); } } });
   /* רמקולים בתכנית שאינם באזור (ננעצו מחוץ לו) — מצטרפים למאגר, לא מוקצים אוטומטית */
   const others = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && !inZone(n) && !fed.has(n.id) && !/עמדת נגינה|מיקרופון/.test(n.name) && !(P.zones || []).some(z2 => z2 !== z && nodeInZone(n, z2)));
   if (noNew && !others.length && !amps.some(a => a.used.size)) { alert('אין רמקולים באזור.'); return; }
