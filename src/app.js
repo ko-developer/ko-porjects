@@ -427,7 +427,7 @@ function sheetsBindAll(st) { (st.projects || []).forEach(pr => { try { sheetsIni
 function sheetGo(id) {
   if (!P.sheets.some(sh => sh.id === id)) return;
   if (typeof impStore === 'function') impStore();
-  P.curSheet = id; sel = null; selCable = null; selZone = null; selMulti.clear(); window.__alignDrag = null;
+  P.curSheet = id; sel = null; selCable = null; selZone = null; selMulti.clear(); window.__alignDrag = null; window.__bgFit = null;
   if (typeof impLoad === 'function') impItems = impLoad();
   render(); if (typeof viewToContent === 'function') viewToContent();
   if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender();
@@ -512,6 +512,88 @@ function sheetAlignDlg() {
   ov.querySelector('[data-x]').onclick = () => ov.remove();
   window.__alignOv = ov;
 }
+/* ===== 🧭 התאמת הרקע לפריסה — גוררים ומשנים את גודל תכנית הרקע מתחת למוקדים והקווים (הם לא זזים) =====
+   הרקע עצמו הופך לשכבה נגררת עם ידית גודל בפינה; הכיול מתעדכן יחסית לשינוי הגודל כדי שהמטרים של התכנית יישארו נכונים */
+function bgFitMode() {
+  if (!P.bg) { uiToast('אין תכנית רקע'); return; }
+  if (window.__bgFit) { bgFitEnd(false); return; }
+  window.__bgFit = { w0: P.bgW || 1400, off0: { x: bgLeft(), y: bgTop() }, op0: P.bgOp ?? 0.5 };
+  if ((P.bgOp ?? 0.5) < 0.6) P.bgOp = 0.7;
+  render();
+  uiToast('🧭 גרור את התכנית למקומה מתחת לפריסה · פינה = שינוי גודל · Shift+גלגלת = גודל עדין · חצים = הזזה · Enter לאישור, Esc לביטול', 8000);
+}
+function bgFitEnd(ok) {
+  const F = window.__bgFit; if (!F) return;
+  window.__bgFit = null;
+  if (ok) {
+    /* הגודל השתנה — הכיול (מ׳ לפיקסל) מתעדכן באותו יחס, כך שהמרחקים על הרקע נשארים אמיתיים */
+    const k = (P.bgW || 1400) / F.w0;
+    if (P.scale && Math.abs(k - 1) > 1e-6) { P.scale = P.scale / k; if (P.autoScale && P.autoScale.pxPerM) P.autoScale.pxPerM *= k; }
+    P.bgOp = F.op0;
+    if (typeof recalcCableLengths === 'function') recalcCableLengths();
+    save(); render(); uiToast('✓ הרקע הותאם לפריסה' + (Math.abs(k - 1) > 1e-6 ? ' · הכיול עודכן ×' + k.toFixed(3) : ''), 5000);
+  } else { P.bgW = F.w0; P.bgOff = F.off0; P.bgOp = F.op0; render(); uiToast('ההתאמה בוטלה'); }
+}
+function bgFitRender() {
+  const F = window.__bgFit;
+  let el = document.getElementById('bgFitOv'), bar = document.getElementById('bgFitBar');
+  if (!F) { if (el) el.remove(); if (bar) bar.remove(); return; }
+  const cv = document.getElementById('canvas');
+  const W = P.bgW || 1400, H = bgHeightPx(), L = bgLeft(), T = bgTop();
+  if (!el) {
+    el = document.createElement('div'); el.id = 'bgFitOv';
+    el.style.cssText = 'position:absolute;z-index:7;cursor:move;outline:2px dashed #0f6e56;background:rgba(15,110,86,.04);box-sizing:border-box';
+    el.innerHTML = '<div data-h style="position:absolute;left:-9px;bottom:-9px;width:18px;height:18px;border-radius:4px;background:#0f6e56;border:2px solid #fff;cursor:nesw-resize;box-shadow:0 1px 4px rgba(0,0,0,.4)" title="גרור לשינוי גודל (יחסי)"></div>' +
+      '<div style="position:absolute;top:6px;right:8px;background:#0f6e56;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;pointer-events:none">🧭 רקע — גרור / שנה גודל</div>';
+    const live = () => { renderBg(); renderWires(); bgFitRender(); if (typeof zoneRenderAll === 'function') zoneRenderAll(); };
+    el.addEventListener('pointerdown', e => {
+      if (e.button || e.target.dataset.h !== undefined) return; e.preventDefault(); e.stopPropagation();
+      const Z = getZ() || 1, x0 = bgLeft(), y0 = bgTop(), sx = e.clientX, sy = e.clientY;
+      el.setPointerCapture(e.pointerId);
+      const mv = ev => { P.bgOff = { x: Math.round(x0 + (ev.clientX - sx) / Z), y: Math.round(y0 + (ev.clientY - sy) / Z) }; live(); };
+      const up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+      el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    });
+    el.querySelector('[data-h]').addEventListener('pointerdown', e => {
+      if (e.button) return; e.preventDefault(); e.stopPropagation();
+      const Z = getZ() || 1, w0 = P.bgW || 1400, sx = e.clientX, right = bgLeft() + w0, top = bgTop();   /* הפינה הימנית-עליונה נשארת במקומה */
+      const h = e.target; h.setPointerCapture(e.pointerId);
+      const mv = ev => { const w = Math.max(200, Math.round(w0 - (ev.clientX - sx) / Z)); P.bgW = w; P.bgOff = { x: right - w, y: top }; live(); };
+      const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); };
+      h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+    });
+    el.addEventListener('wheel', e => { if (!e.shiftKey) return; e.preventDefault(); e.stopPropagation(); const w0 = P.bgW || 1400, cx = bgLeft() + w0 / 2, cy = bgTop() + bgHeightPx() / 2, w = Math.max(200, Math.round(w0 * (e.deltaY > 0 ? 0.99 : 1.01))); const hh = bgHeightPx() * w / w0; P.bgW = w; P.bgOff = { x: Math.round(cx - w / 2), y: Math.round(cy - hh / 2) }; live(); }, { passive: false });
+    cv.appendChild(el);
+  }
+  el.style.left = L + 'px'; el.style.top = T + 'px'; el.style.width = W + 'px'; el.style.height = H + 'px';
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'bgFitBar';
+    bar.style.cssText = 'position:fixed;top:96px;left:50%;transform:translateX(-50%);z-index:60;background:#1a1e28;color:#fff;border-radius:12px;padding:8px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;box-shadow:0 4px 18px rgba(0,0,0,.35);direction:rtl;max-width:96vw';
+    bar.innerHTML = '<b>🧭 התאמת הרקע לפריסה</b>' +
+      '<label style="display:flex;gap:5px;align-items:center">רוחב <input data-w type="range" min="300" max="6000" step="5" style="width:170px"> <input data-wn type="number" min="200" max="12000" step="5" style="width:70px;padding:2px 4px;color:#111">px</label>' +
+      '<label style="display:flex;gap:5px;align-items:center">שקיפות <input data-op type="range" min="0.15" max="1" step="0.05" style="width:80px"></label>' +
+      '<span style="color:#aab;font-size:11px">חצים = הזזה (Shift ×10) · Shift+גלגלת = גודל</span>' +
+      '<button data-ok style="padding:5px 12px;background:#0f6e56;color:#fff;border:none;border-radius:8px;font-weight:700">✓ אשר</button>' +
+      '<button data-x style="padding:5px 10px;background:#3a4052;color:#fff;border:none;border-radius:8px">✕ ביטול</button>';
+    document.body.appendChild(bar);
+    const q = k => bar.querySelector(k);
+    const setW = w => { const w0 = P.bgW || 1400, cx = bgLeft() + w0 / 2, cy = bgTop() + bgHeightPx() / 2, hh = bgHeightPx() * w / w0; P.bgW = w; P.bgOff = { x: Math.round(cx - w / 2), y: Math.round(cy - hh / 2) }; renderBg(); renderWires(); bgFitRender(); };
+    q('[data-w]').oninput = e => setW(Math.max(200, +e.target.value));
+    q('[data-wn]').onchange = e => setW(Math.max(200, +e.target.value || 1400));
+    q('[data-op]').oninput = e => { P.bgOp = +e.target.value; renderBg(); };
+    q('[data-ok]').onclick = () => bgFitEnd(true);
+    q('[data-x]').onclick = () => bgFitEnd(false);
+  }
+  bar.querySelector('[data-w]').value = W; bar.querySelector('[data-wn]').value = W; bar.querySelector('[data-op]').value = P.bgOp ?? 0.5;
+}
+document.addEventListener('keydown', e => {
+  if (!window.__bgFit || (e.target && e.target.matches && e.target.matches('input,textarea,select'))) return;
+  if (e.key === 'Escape') { bgFitEnd(false); return; }
+  if (e.key === 'Enter') { bgFitEnd(true); return; }
+  const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!d) return;
+  e.preventDefault(); const k = e.shiftKey ? 10 : 1; P.bgOff = { x: bgLeft() + d[0] * k, y: bgTop() + d[1] * k }; renderBg(); renderWires(); bgFitRender();
+});
+window.bgFitMode = bgFitMode; window.bgFitRender = bgFitRender;
 /* ===== 🧭 יישור גרפי — גוררים את התכנית האחרת (שקופה) על הנוכחית ומסובבים =====
    שתי התכניות מוצגות באותו קנה מידה (px/m שווה); כשהמשתמש מאשר, מיקום התמונה + הסיבוב הופכים ל-org/rot של הגיליון */
 async function sheetAlignDrag(otherId) {
@@ -1636,7 +1718,7 @@ function uploadBg(inp, onDone) {
   if (P.bg && (nN || nZ) && !inp.__keepAsked) {
     inp.__keepAsked = true;
     uiConfirm('יש בתכנית ' + nN + ' מוקדים ו-' + nZ + ' אזורים על הרקע הנוכחי.\nלשמור את הפריסה והכיול? הרקע החדש ייכנס באותו גודל ומיקום — אחר כך אפשר להתאים את גודל הרקע ולהזיז אותו כדי שיתלבש על הפריסה.', { okText: '✓ שמור פריסה וכיול', cancelText: 'רקע חדש — התאם מחדש' })
-      .then(keep => { const dt = new DataTransfer(); dt.items.add(file); inp.files = dt.files; inp.__keepLayout = keep; uploadBg(inp, onDone); })
+      .then(keep => { const dt = new DataTransfer(); dt.items.add(file); inp.files = dt.files; inp.__keepLayout = keep; uploadBg(inp, keep ? () => { if (onDone) onDone(); setTimeout(() => { if (P.bg && !window.__bgFit) bgFitMode(); }, 400); } : onDone); })
       .finally(() => { inp.__keepAsked = false; });
     return;
   }
@@ -1873,6 +1955,7 @@ document.addEventListener('wheel', e => {
 function render() {
   { const sh = document.getElementById('shTabsHost'); if (sh) sh.innerHTML = sheetTabsHTML(); }
   if (typeof alignDragRender === 'function') alignDragRender();
+  if (typeof bgFitRender === 'function') bgFitRender();
   renderHeader(); renderBg(); applyZoom(); renderZones(); renderCoverage(); renderNodes(); renderWires(); renderPanel(); renderLegend(); renderCableKey();
   if (dockOpen) renderImp();
   $('#tabNode').classList.toggle('active', ui.tab === 'node');
@@ -8231,6 +8314,7 @@ function renderPanel() {
       bgTop = `<h3 class="sec">🗺 תכנית רקע</h3>
         <div class="fld"><label>גודל רקע (רוחב בפיקסלים) — להתאמת רקע חדש לפריסה קיימת אפשר להרחיב עד 6000</label>
           <div style="display:flex;gap:6px;align-items:center"><input type="range" min="400" max="6000" step="10" value="${P.bgW || 1400}" style="flex:1" oninput="P.bgW=+this.value;this.nextElementSibling.value=this.value;renderBg();renderWires()" onchange="save()"><input type="number" min="200" max="12000" step="10" value="${P.bgW || 1400}" style="width:78px;padding:3px 5px" onchange="P.bgW=Math.max(200,+this.value||1400);renderBg();renderWires();save();render()"></div></div>
+        <button style="width:100%;margin:-2px 0 8px;${window.__bgFit ? 'background:#0f6e56;color:#fff;font-weight:700' : 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56'}" onclick="bgFitMode()" title="הרקע הופך לשכבה נגררת עם ידית גודל — המוקדים והקווים נשארים במקומם, והכיול מתעדכן לפי שינוי הגודל">🧭 ${window.__bgFit ? 'במצב התאמה — Enter לאישור' : 'התאם את הרקע לפריסה — גרור ושנה גודל'}</button>
         <div class="fld"><label>שקיפות</label>
           <input type="range" min="0.1" max="1" step="0.05" value="${P.bgOp ?? 0.5}" oninput="P.bgOp=+this.value;renderBg()" onchange="save()"></div>
         <button style="width:100%;margin-bottom:8px" onclick="rotateBg()">↻ סובב תכנית 90° · כרגע: ${P.bgRot || 0}°</button>
