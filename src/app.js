@@ -948,6 +948,13 @@ function sheetsView3D() {
    קומה בלי ארון משלה מתחברת לארון בתכנית אחרת דרך "ארון מייצג" (proxy) בתכנית שלה: היחידות שלו הן של הארון האמיתי
    (מאפיין לא-נספר — לא נשמר פעמיים), כך שחיווט, בניית מערכת ודוח עובדים כרגיל; אורך הכבל מקבל את המסלול דרך הפיר:
    עד הפיר בקומה הזו, הפרש המפלסים, ומהפיר עד הארון בקומה השנייה. */
+/* כל המזהים (בכל התכניות) שמייצגים את אותו ארון פיזי: הארון האמיתי + הארונות המייצגים שלו */
+function rackIdSet(rk) {
+  const R = rk && rk.proxy ? proxyReal(rk) : null; const realId = R ? R.n.id : (rk && rk.id);
+  const ids = new Set([rk && rk.id, realId].filter(Boolean));
+  for (const sh of P.sheets || []) for (const n of sh.nodes || []) if (n.proxy && n.proxy.nid === realId) ids.add(n.id);
+  return ids;
+}
 function proxyReal(n) { if (!n || !n.proxy) return null; const sh = (P.sheets || []).find(x => x.id === n.proxy.sh); const r = sh && (sh.nodes || []).find(x => x.id === n.proxy.nid); return r ? { n: r, sh } : null; }
 function proxyBind(pr) {
   for (const sh of pr.sheets || []) for (const n of sh.nodes || []) {
@@ -5444,7 +5451,7 @@ function patchOpen(z, amps, lines, leftover) {
   purgeServiceUnits();
   PATCH = {
     zid: z.id, sel: null, mode: 'spk',
-    amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set(), bridge: !!a.u.bridged })),
+    amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set(), bridge: !!a.u.bridged, foreign: a.foreign || {} })),
     slots: {}, cab: {}, pool: leftover.flatMap(n => bandIds(n))   /* רמקול bi/tri-amp מופיע פעם לכל פס (HI/MID/LOW) — קו הגברה נפרד לכל פס */
   };
   lines.forEach(l => { PATCH.slots[amps.indexOf(l.amp) + '|' + l.ch] = [l.head.id, ...l.seg.map(s => s.to.id)]; });
@@ -5947,7 +5954,7 @@ function patchRender() {
           <div class="pchChips"><small style="color:#6c5ce7;font-size:10.5px">🌉 מגושר עם OUT ${ch - 1}</small></div><span class="pchZ emp">—</span></div>`);
         continue;
       }
-      const key = ai + '|' + ch, ids = PATCH.slots[key] || [], locked = false;
+      const key = ai + '|' + ch, ids = PATCH.slots[key] || [], fo = a.foreign && a.foreign[ch], locked = !!fo;
       const zz = patchZ(ids), w = ids.length ? (a.bridge ? bridgeChW(a.u.name, zz) : ampChW(a.u.name, zz)) : null;
       /* צריכת הרמקולים בערוץ — RMS מנתוני הדגם (150W ברירת מחדל כשלא ידוע) */
       const sw = ids.reduce((s3, id2) => { const n3 = byId(id2); const pw = n3 ? spkWatt(n3) : null; return s3 + (pw == null ? 150 : +pw); }, 0);
@@ -5972,7 +5979,7 @@ function patchRender() {
         <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${a.bridge ? ch + '+' + (ch + 1) + ' 🌉' : ch}
           ${ids.length > 1 ? `<button onclick="patchTopoToggle('${key}')" title="${patchTopo(key) === 'direct' ? 'כל רמקול בכבל נפרד ישירות מהריכוז — לחץ לשרשור כולם · אפשר גם לשרשר זוגות עם ה-🔗 שבין הרמקולים' : 'לחץ להחזרת כולם לקווים ישירים'}" style="border:1px solid ${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};background:${patchTopo(key) === 'direct' ? '#eef7f1' : '#fdf3e6'};color:${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};border-radius:6px;cursor:pointer;font-size:9.5px;padding:1px 6px;font-weight:800">${patchTopo(key) === 'direct' ? '⫘ ישיר' : patchTopo(key) === 'chain' ? '🔗 שרשור' : '⛓ מעורב'}</button>` : ''}
           ${ids.length ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
-        <div class="pchChips">${ids.map((id2, i2) => patchChip(id2) + (i2 < ids.length - 1 ? chLinkBtn(key, ids[i2], ids[i2 + 1]) : '')).join('') || (locked ? '<small style="color:#a9a396;font-size:10.5px">מחובר כבר</small>' : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
+        <div class="pchChips">${ids.map((id2, i2) => patchChip(id2) + (i2 < ids.length - 1 ? chLinkBtn(key, ids[i2], ids[i2 + 1]) : '')).join('') || (locked ? `<small style="color:#8c6a1a;font-size:10.5px" title="מחווט מהתכנית האחרת — לעריכה עבור לשם">🔒 ב"${esc(fo.sheet)}": ${esc(fo.names.join(', ').slice(0, 60))}</small>` : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
         ${ids.length ? patchCabSel(key) : ''}
         <span class="pchZ ${!ids.length ? 'emp' : bad ? 'bad' : 'ok'}" ${tight ? 'style="color:#c96a13"' : ''} title="${tight ? `⚠ ${zz.toFixed(1)}Ω = בדיוק המינימום של המגבר (${minEff}Ω) — חוקי אבל בלי מרווח: ${ids.length}× ${spkOhm(byId(ids[0])) || 8}Ω במקביל. רמקול נוסף על הערוץ יוריד מתחת למינימום.\n` : ''}עומס: ${ids.length ? zz.toFixed(1) : '—'}Ω · 🎚 הספק המגבר בעומס זה: ${w || '—'}W לערוץ · 🔊 צריכת הרמקולים יחד: ${sw}W RMS${dMs != null ? ` · ⏱ דיליי מומלץ לערוץ: ${dMs.toFixed(1)}ms (יחסית לרמקול הקרוב לעמדת ההשמעה)${dSpread > 5 ? ' · ⚠ פער ' + dSpread.toFixed(1) + 'ms בין רמקולי הערוץ — ערוץ אחד = דיליי אחד, שקול לפצל' : ''}` : ''}">${zTxt}</span></div>`);
     }
@@ -6060,8 +6067,8 @@ function patchRender() {
   body.querySelectorAll('[data-slot]').forEach(el => {
     el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drop'); });
     el.addEventListener('dragleave', () => el.classList.remove('drop'));
-    el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('drop'); patchMove(e.dataTransfer.getData('text/plain'), el.dataset.slot); });
-    el.addEventListener('click', () => { if (PATCH.sel) patchMove(PATCH.sel, el.dataset.slot); });
+    el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('drop'); if (el.classList.contains('lock')) { uiToast('הערוץ תפוס — מחווט לרמקולים בתכנית אחרת'); return; } patchMove(e.dataTransfer.getData('text/plain'), el.dataset.slot); });
+    el.addEventListener('click', () => { if (PATCH.sel && !el.classList.contains('lock')) patchMove(PATCH.sel, el.dataset.slot); });
   });
 }
 /* בידוד קו: מציג על התכנית רק את הכבלים והרמקולים של הערוץ הזה */
@@ -7033,7 +7040,15 @@ async function smartWire(zid) {
   if (!amps.length) { alert('אין מגבר בתכנית — הוסף מגבר לריכוז המגברים קודם.'); return; }
   amps.forEach(a => P.cables.forEach(c => { if (c.from === a.rk.id && c.fromUnit === a.u.id && c.pOut) { const m = c.pOut.match(/OUT (\d+)/); if (m) a.used.add(+m[1]); } }));
   amps.forEach(a => { a.pre = new Set(a.used); }); /* ערוצים שכבר מחוברים — נעולים בעורך */
-  if (noNew && !amps.some(a => a.used.size)) { alert('אין רמקולים באזור.'); return; }
+  /* ארון משותף בין תכניות: ערוצים שמחווטים לרמקולים בתכנית אחרת תפוסים כאן (מוצגים נעולים, לא ניתנים לעריכה מכאן) */
+  const curSh = curSheet(P);
+  amps.forEach(a => { a.foreign = {}; const ids = rackIdSet(a.rk);
+    for (const sh of P.sheets || []) { if (sh === curSh) continue;
+      for (const c of sh.cables || []) { if (!ids.has(c.from) || c.fromUnit !== a.u.id || !c.pOut) continue; const m = c.pOut.match(/OUT (\d+)/); if (!m) continue; const ch = +m[1];
+        const to = (sh.nodes || []).find(n => n.id === c.to); a.used.add(ch); (a.foreign[ch] = a.foreign[ch] || { sheet: sh.name, names: [] }).names.push(to ? to.name : '?'); } } });
+  /* רמקולים בתכנית שאינם באזור (ננעצו מחוץ לו) — מצטרפים למאגר, לא מוקצים אוטומטית */
+  const others = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && !inZone(n) && !fed.has(n.id) && !/עמדת נגינה|מיקרופון/.test(n.name) && !(P.zones || []).some(z2 => z2 !== z && nodeInZone(n, z2)));
+  if (noNew && !others.length && !amps.some(a => a.used.size)) { alert('אין רמקולים באזור.'); return; }
   if (noNew && window.__autoFlow) return;
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const isSub = n => /סאב|\bsub\b|NOMOS|MB2|BR\s?1|F118|F221|TILL\s?1[58]P?\s?SUB/i.test(n.name);
@@ -7041,6 +7056,7 @@ async function smartWire(zid) {
   const freeSlots = [];
   amps.forEach(a => { for (let ch = 1; ch <= a.chTotal; ch++) if (!a.used.has(ch)) freeSlots.push({ a, ch }); });
   const { assigned, leftover } = allocBalanced(freeSlots, spks, zoneDelayRef(z));
+  others.forEach(n => { if (!leftover.includes(n.id)) leftover.push(n.id); });
   const lines = assigned.map(x => {
     const nodes = x.ids.map(byId).filter(Boolean);
     const invZ = nodes.reduce((s2, n) => s2 + 1 / spkOhm(n), 0);
