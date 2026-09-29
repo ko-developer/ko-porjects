@@ -396,6 +396,7 @@ function sheetsInit(pr) {
   if (!curSheet(pr)) pr.curSheet = pr.sheets[0] && pr.sheets[0].id;
   for (const sh of pr.sheets) SHEET_ARRAYS.forEach(f => { sh[f] = sh[f] || []; });
   sheetsBind(pr);
+  proxyBind(pr);
   return pr;
 }
 function sheetsBind(pr) {
@@ -643,8 +644,10 @@ function xlinkLen(l) {
   const d = sheetDist(A.sh, { x: 2200 - A.n.x - 20, y: A.n.y + 24 }, B.sh, { x: 2200 - B.n.x - 20, y: B.n.y + 24 });
   if (!d) return null;
   const ra = endRise(A.n), rb = endRise(B.n);
-  const hor = +l.horM > 0 ? +l.horM : d.hor;
-  return { hor, dz: d.dz, res: ra.res + rb.res, rise: ra.v + rb.v, tot: +(hor + d.dz + ra.v + rb.v + ra.res + rb.res).toFixed(1), aligned: !!(A.sh.org || B.sh.org || A.sh === B.sh) };
+  let hor = +l.horM > 0 ? +l.horM : d.hor, viaRiser = false;
+  /* שתי התכניות עם פיר מסומן: המסלול הוא עד הפיר כאן ומהפיר שם — לא קו אווירי */
+  if (!(+l.horM > 0) && A.sh !== B.sh && A.sh.riser && B.sh.riser && A.sh.scale && B.sh.scale) { const pa = { x: 2200 - A.n.x - 20, y: A.n.y + 24 }, pb = { x: 2200 - B.n.x - 20, y: B.n.y + 24 }; hor = Math.hypot(pa.x - A.sh.riser.x, pa.y - A.sh.riser.y) * A.sh.scale + Math.hypot(pb.x - B.sh.riser.x, pb.y - B.sh.riser.y) * B.sh.scale; viaRiser = true; }
+  return { hor, viaRiser, dz: d.dz, res: ra.res + rb.res, rise: ra.v + rb.v, tot: +(hor + d.dz + ra.v + rb.v + ra.res + rb.res).toFixed(1), aligned: !!(A.sh.org || B.sh.org || A.sh === B.sh) };
 }
 function xlinkDlg(editId) {
   const shs = P.sheets || [];
@@ -794,6 +797,71 @@ function sheetsView3D() {
   paint();
 }
 /* שורת הלשוניות של התכניות — מעל הקנבס */
+/* ===== 🗄 ארון משותף בין תכניות + ⇡ פיר עלייה =====
+   קומה בלי ארון משלה מתחברת לארון בתכנית אחרת דרך "ארון מייצג" (proxy) בתכנית שלה: היחידות שלו הן של הארון האמיתי
+   (מאפיין לא-נספר — לא נשמר פעמיים), כך שחיווט, בניית מערכת ודוח עובדים כרגיל; אורך הכבל מקבל את המסלול דרך הפיר:
+   עד הפיר בקומה הזו, הפרש המפלסים, ומהפיר עד הארון בקומה השנייה. */
+function proxyReal(n) { if (!n || !n.proxy) return null; const sh = (P.sheets || []).find(x => x.id === n.proxy.sh); const r = sh && (sh.nodes || []).find(x => x.id === n.proxy.nid); return r ? { n: r, sh } : null; }
+function proxyBind(pr) {
+  for (const sh of pr.sheets || []) for (const n of sh.nodes || []) {
+    if (!n.proxy) continue;
+    const real = () => { const s2 = (pr.sheets || []).find(x => x.id === n.proxy.sh); return s2 && (s2.nodes || []).find(x => x.id === n.proxy.nid && !x.proxy); };
+    const own = Object.prototype.hasOwnProperty.call(n, 'units') && Array.isArray(n.units) ? n.units : (n._own || []);
+    Object.defineProperty(n, '_own', { value: own, writable: true, configurable: true, enumerable: false });
+    Object.defineProperty(n, 'units', { configurable: true, enumerable: false, get() { const r = real(); return r ? (r.units = r.units || []) : n._own; }, set(v) { const r = real(); if (r) r.units = v; else n._own = v; } });
+  }
+}
+/* תוספת אורך לכבל שמגיע לארון מייצג: הפרש המפלסים + מהפיר בקומה השנייה עד הארון האמיתי */
+function proxyExtra(n) {
+  const R = proxyReal(n); if (!R) return null;
+  const here = sheetOf(n), there = R.sh;
+  const dz = Math.abs((here.level || 0) - (there.level || 0));
+  let far = 0; const noRiser = !there.riser;
+  if (there.riser && there.scale) { const rp = { x: 2200 - R.n.x - 20, y: R.n.y + 24 }; far = Math.hypot(rp.x - there.riser.x, rp.y - there.riser.y) * there.scale; }
+  return { dz: +dz.toFixed(1), far: +far.toFixed(1), sheet: there.name, rack: R.n.name, noRiser, noLevel: here.level == null || there.level == null };
+}
+function sheetRackDlg(shId) {
+  const sh = P.sheets.find(x => x.id === shId); if (!sh) return;
+  const racks = []; for (const s2 of P.sheets) { if (s2 === sh) continue; for (const n of s2.nodes || []) if (n.kind === 'rack' && !n.proxy) racks.push({ sh: s2, n }); }
+  const cur = (sh.nodes || []).find(n => n.proxy);
+  const ov = uiModal(`<b style="font-size:15px">🗄 הארון של "${esc(sh.name)}"</b>
+    <p class="muted" style="font-size:12px;margin:6px 0 8px;line-height:1.55">קומה בלי ארון משלה מתחברת לארון בתכנית אחרת: בתכנית הזו מופיע ארון מייצג (⇡) שהיחידות שלו הן של הארון האמיתי, והכבלים מחושבים דרך הפיר — עד הפיר כאן, הפרש המפלסים, ומהפיר עד הארון בקומה השנייה.</p>
+    <div class="fld"><label>הארון שמשרת את התכנית הזו</label><select data-r><option value="">ארון משלה (בתכנית הזו)</option>${racks.map(r => `<option value="${r.sh.id}|${r.n.id}" ${cur && cur.proxy.sh === r.sh.id && cur.proxy.nid === r.n.id ? 'selected' : ''}>${esc(r.n.name)} — ב"${esc(r.sh.name)}"${r.sh.level != null ? ' (מפלס ' + r.sh.level + ')' : ''}</option>`).join('')}</select></div>
+    ${racks.length ? '' : '<p style="color:#8c2f16;font-size:12px">אין עדיין ארון בתכניות האחרות — הצב ארון בתכנית של הקומה הראשית וחזור לכאן.</p>'}
+    <p class="muted" style="font-size:11.5px">${sh.riser ? '⇡ הפיר מסומן בתכנית הזו — הארון המייצג יוצב עליו' : '⚠ אין עדיין נקודת פיר בתכנית הזו — הארון המייצג יוצב במרכז; סמן פיר כדי שהאורכים יחושבו נכון'}</p>
+    <div style="display:flex;gap:6px"><button class="primary" data-ok style="flex:1">שמור</button><button data-c style="flex:1">ביטול</button></div>`);
+  ov.querySelector('[data-c]').onclick = () => ov.remove();
+  ov.querySelector('[data-ok]').onclick = () => {
+    const v = ov.querySelector('[data-r]').value; ov.remove();
+    if (!v) {
+      if (cur) { sh.nodes = sh.nodes.filter(n => n !== cur); sh.cables = (sh.cables || []).filter(c => c.from !== cur.id && c.to !== cur.id); }
+      delete sh.rackFrom; save(); render(); uiToast('🗄 "' + sh.name + '" עם ארון משלה'); return;
+    }
+    const [s2id, nid] = v.split('|'); const s2 = P.sheets.find(x => x.id === s2id), real = s2 && (s2.nodes || []).find(n => n.id === nid); if (!real) return;
+    const pt = sh.riser || { x: 1100, y: 700 };
+    if (cur) { cur.proxy = { sh: s2id, nid }; cur.name = '⇡ ' + real.name; cur.sub = 'ארון משותף — ב"' + s2.name + '"'; cur.ru = real.ru || cur.ru; if (sh.riser) { cur.x = 2200 - pt.x - 20; cur.y = pt.y - 24; } }
+    else sh.nodes.push({ id: uid('n'), kind: 'rack', proxy: { sh: s2id, nid }, name: '⇡ ' + real.name, sub: 'ארון משותף — ב"' + s2.name + '"', x: 2200 - pt.x - 20, y: pt.y - 24, ru: real.ru || 12, min: true });
+    sh.rackFrom = s2id; proxyBind(P); if (typeof recalcCableLengths === 'function') recalcCableLengths(); save(); render();
+    uiToast('🗄 "' + sh.name + '" מחווטת לארון "' + real.name + '" שב"' + s2.name + '" — הכבלים יחושבו דרך הפיר', 6000);
+  };
+}
+/* ⇡ פיר: הנקודה בתכנית שבה הצנרת עולה/יורדת לקומה אחרת */
+function riserPick(shId) { const id = shId || P.curSheet; if (id !== P.curSheet) sheetGo(id); window.__riserPick = { sh: id }; render(); uiToast('⇡ לחץ על התכנית במקום הפיר / מעבר הצנרת בין הקומות — Esc לביטול', 6000); }
+function riserSet(pt) {
+  const A = window.__riserPick; if (!A) return; const sh = P.sheets.find(x => x.id === A.sh); window.__riserPick = null; if (!sh) return;
+  sh.riser = { x: +pt.x.toFixed(1), y: +pt.y.toFixed(1) };
+  const px = (sh.nodes || []).find(n => n.proxy); if (px) { px.x = 2200 - sh.riser.x - 20; px.y = sh.riser.y - 24; }   /* הארון המייצג יושב על הפיר */
+  if (typeof recalcCableLengths === 'function') recalcCableLengths();
+  save(); render(); uiToast('⇡ נקודת הפיר סומנה ב"' + sh.name + '"');
+}
+function riserClear(shId) { const sh = P.sheets.find(x => x.id === shId); if (sh) delete sh.riser; if (typeof recalcCableLengths === 'function') recalcCableLengths(); save(); render(); }
+function riserMarkSVG() {
+  const sh = curSheet(P); if (!sh || !sh.riser) return '';
+  const { x, y } = sh.riser, z = getZ() || 1, r = 13 / z, fz = 11 / z, sw = 2 / z;
+  const links = P.sheets.filter(s => s !== sh && (s.rackFrom === sh.id || sh.rackFrom === s.id)).map(s => s.name);
+  return `<g pointer-events="none"><circle cx="${x}" cy="${y}" r="${r}" fill="#fff3e0" stroke="#e08a00" stroke-width="${sw}" stroke-dasharray="${4 / z} ${3 / z}"/><text x="${x}" y="${y + fz * 0.4}" text-anchor="middle" font-size="${fz * 1.2}" fill="#b35c00" font-weight="800">⇡</text><text x="${x}" y="${y - r - 4 / z}" text-anchor="middle" font-size="${fz}" fill="#b35c00" font-weight="700">פיר צנרת${links.length ? ' ⇄ ' + esc(links.join(', ')) : ''}</text></g>`;
+}
+window.sheetRackDlg = sheetRackDlg; window.riserPick = riserPick; window.riserClear = riserClear;
 function sheetTabsHTML() {
   if (!P.sheets || P.sheets.length < 2 && !P.showSheets) return '';
   const lvl = sh => sh.level != null ? ` <small style="opacity:.75">${sh.level > 0 ? '+' : ''}${sh.level} מ׳</small>` : '';
@@ -818,7 +886,7 @@ function sheetsPanelHTML() {
       <label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap" title="מפלס הקומה במטרים — 0 = קרקע, 3.2 = קומה מעל, -3 = מרתף" onclick="event.stopPropagation()">מפלס <input type="number" step="0.1" value="${sh.level ?? ''}" placeholder="מ׳" style="width:54px;padding:2px 4px" onchange="sheetSetLevel('${sh.id}',this.value)"></label>
       <button style="padding:2px 6px;font-size:11px" title="שינוי שם" onclick="event.stopPropagation();sheetRename('${sh.id}')">✎</button>
       ${many ? `<button style="padding:2px 6px;font-size:11px;background:#f3d9d2;color:#8c2f16" title="מחק תכנית" onclick="event.stopPropagation();sheetDelete('${sh.id}')">🗑</button>` : ''}
-    </div>`).join('');
+    </div>    ${many ? `<div style="display:flex;gap:4px;margin:-3px 0 7px;flex-wrap:wrap">      <button style="padding:2px 8px;font-size:11px;${sh.rackFrom ? 'background:#eef3ff;border-color:#534ab7' : ''}" onclick="sheetRackDlg('${sh.id}')" title="האם התכנית הזו מחווטת לארון בתכנית אחרת (קומה בלי ארון משלה)">🗄 ${sh.rackFrom ? 'ארון משותף מ"' + esc((shs.find(x => x.id === sh.rackFrom) || {}).name || '?') + '"' : 'ארון: משלה'}</button>      <button style="padding:2px 8px;font-size:11px;${sh.riser ? 'background:#fff3e0;border-color:#e08a00' : ''}" onclick="riserPick('${sh.id}')" title="הנקודה שבה הצנרת עולה/יורדת לקומה אחרת — אורכי הכבלים בין הקומות מחושבים דרכה">⇡ ${sh.riser ? 'פיר מסומן — הזז' : 'סמן פיר עלייה'}</button>      ${sh.riser ? `<button style="padding:2px 6px;font-size:11px" onclick="riserClear('${sh.id}')" title="בטל את סימון הפיר">✕</button>` : ''}</div>` : ''}`).join('');
   const xl = typeof xlinks === 'function' ? xlinks() : [];
   const xlRows = xl.map(l => { const A = anyNode(l.a), B = anyNode(l.b), L = xlinkLen(l); const nm = x => x ? esc(x.n.name.slice(0, 22)) + ' <small class="muted">(' + esc(x.sh.name) + ')</small>' : '?';
     return `<div class="crow" style="cursor:pointer" onclick="xlinkDlg('${l.id}')" title="עריכה"><span class="txt">🔗 ${nm(A)} ⇄ ${nm(B)}<br><small class="muted">${esc((CTYPES[l.type] || {}).n || l.type)} ×${l.qty || 1}${L ? ' · ~' + L.tot + ' מ׳' + (L.aligned ? '' : ' (בלי יישור — הערכה)') : ''}</small></span></div>`; }).join('');
@@ -2036,7 +2104,7 @@ function renderHeader() {
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>
     <button onclick="rearLibManager()">🛠 ספריית גבי מוצרים</button>
     <button onclick="spkDataManager()">🔊 טבלת נתוני רמקולים/מגברים</button>`;
-  document.body.classList.toggle('wiring', !!wireMode || !!pinMode || !!calMode || !!zoneMode || !!connPin || !!window.__asPick || !!window.__rackPlace || !!window.__djPlace || !!window.__micPlace);
+  document.body.classList.toggle('wiring', !!wireMode || !!pinMode || !!calMode || !!zoneMode || !!connPin || !!window.__asPick || !!window.__riserPick || !!window.__rackPlace || !!window.__djPlace || !!window.__micPlace);
 }
 
 function viewMenuHTML() {
@@ -3884,7 +3952,7 @@ document.addEventListener('keydown', e => {
   if (selHole || brushOn) { selHole = null; brushOn = false; render(); return; }
   if (sketchMode) { if (sketchMode.cur && sketchMode.cur.length) { sketchMode.cur = []; renderWires(); } else sketchEnd(); return; }
   if (conduitMode) { conduitPickEnd(); return; }
-  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd || window.__asPick) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; window.__asPick = null; render(); }
+  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd || window.__asPick || window.__riserPick) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; window.__asPick = null; window.__riserPick = null; render(); }
 });
 function connGlyph(conn) {
   const ct = CONNS[conn] || CONNS.empty, C = ct.c;
@@ -4723,6 +4791,7 @@ function renderWires() {
     }
   }
   if (typeof xlinkMarksSVG === 'function') out += xlinkMarksSVG();
+  if (typeof riserMarkSVG === 'function') out += riserMarkSVG();
   svg.innerHTML = out;
 }
 function tidy() {
@@ -5057,10 +5126,12 @@ function measuredHTML(c) {
   const cd = c.conduit && cdById(c.conduit), rp = cd && cd.path && cd.path.length > 1 ? cd.path : null;
   const ra = endRise(a, c.fromUnit), rb = endRise(b, c.toUnit);
   const hor = rp ? (() => { const A = { x: 2200 - a.x - 20, y: a.y + 24 }, B = { x: 2200 - b.x - 20, y: b.y + 24 }, f = rp[0], l = rp[rp.length - 1], d2 = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y); return (Math.min(d2(A, f) + d2(B, l), d2(A, l) + d2(B, f)) + polyLen(rp)) * P.scale; })() : Math.hypot(a.x - b.x, a.y - b.y) * P.scale;
-  const tot = hor + ra.v + rb.v + ra.res + rb.res;
+  const px = (a.proxy && proxyExtra(a)) || (b.proxy && proxyExtra(b));
+  const tot = hor + ra.v + rb.v + ra.res + rb.res + (px ? px.dz + px.far : 0);
   const side = (n, r) => `${esc(shortModel(n.name) || n.name).slice(0, 16)}: ${r.kind === 'rack' ? 'ארון על הרצפה — עלייה ' + r.v.toFixed(1) : 'גובה ' + (r.h || 0) + ' מ׳ — ירידה ' + r.v.toFixed(1)} + ${r.res} רזרבה`;
-  return `<p class="muted" style="margin:-2px 0 8px;line-height:1.7">📏 <b>${tot.toFixed(1)} מ׳</b> = ${hor.toFixed(1)} ${rp ? 'לאורך ' + esc(conduitTag(cd)) : 'אופקי (קו אווירי)'} + ${(ra.v + rb.v).toFixed(1)} עלייה/ירידה + ${ra.res + rb.res} רזרבה
+  return `<p class="muted" style="margin:-2px 0 8px;line-height:1.7">📏 <b>${tot.toFixed(1)} מ׳</b> = ${hor.toFixed(1)} ${rp ? 'לאורך ' + esc(conduitTag(cd)) : 'אופקי (קו אווירי)'} + ${(ra.v + rb.v).toFixed(1)} עלייה/ירידה + ${ra.res + rb.res} רזרבה${px ? ' + ' + (px.dz + px.far).toFixed(1) + ' דרך הפיר' : ''}
     <button style="padding:1px 8px" onclick="cById('${c.id}').len=${+tot.toFixed(1)};delete cById('${c.id}').lenManual;render()">השתמש</button>
+    ${px ? `<br><span style="font-size:10.5px;color:#b35c00">⇡ דרך הפיר: הפרש מפלס ${px.dz} מ׳ + ${px.far} מ׳ מהפיר עד "${esc(px.rack)}" ב"${esc(px.sheet)}"${px.noRiser ? ' · ⚠ סמן פיר בתכנית של הארון' : ''}${px.noLevel ? ' · ⚠ קבע מפלס לשתי התכניות' : ''}</span>` : ''}
     <br><span style="font-size:10.5px">${side(a, ra)} · ${side(b, rb)}${ra.noCeil || rb.noCeil ? ' · ⚠ אין גובה תקרה — העלייה לא חושבה' : ''}</span></p>`;
 }
 /* מינימום עומס לערוץ מגבר — מטבלת המגברים, לפי שם היחידה. ברירת מחדל 4Ω */
@@ -8215,7 +8286,7 @@ function renderPanel() {
         S.conns.map((s, i) => row(`⭕ ${esc(s.name.slice(0, 34))} · ${s.used || 0}/${s.qty}`, `P.stock.conns.splice(${i},1)`)).join('') +
         `<p class="muted">המלאי זמין בטופס "כבל חדש" — בחר מקור כבל מהמלאי במקום להגדיר ידנית.</p>`;
     }
-    p.innerHTML = bgTop + (typeof sheetsPanelHTML === 'function' ? sheetsPanelHTML() : '') + roomSec + bgc + stc + '<p class="muted" style="margin-top:8px">בחר מוקד בקנבס, או צור חדש מהכפתורים למעלה. גרירת מוקד — מהכותרת שלו.</p>';
+    p.innerHTML = (typeof sheetsPanelHTML === 'function' ? sheetsPanelHTML() : '') + bgTop + roomSec + bgc + stc + '<p class="muted" style="margin-top:8px">בחר מוקד בקנבס, או צור חדש מהכפתורים למעלה. גרירת מוקד — מהכותרת שלו.</p>';
     return;
   }
   const linkedIt = n.srcIid ? impItems.find(x => x.iid === n.srcIid) : null;
@@ -9100,6 +9171,8 @@ document.addEventListener('pointerdown', e => {
     e.preventDefault();
     return;
   }
+  /* ⇡ סימון פיר עלייה */
+  if (window.__riserPick && e.target.closest('#canvasWrap')) { riserSet(canvasPt(e)); e.preventDefault(); return; }
   /* שלב 2 של זיהוי קנה המידה — לחיצה ליד מידה כתובה */
   if (window.__asPick && e.target.closest('#canvasWrap')) {
     const p = canvasPt(e); window.__asPick = null; render();
@@ -9727,6 +9800,8 @@ function recalcCableLengths() {
     const ra = endRise(a, c.fromUnit), rb = endRise(b, c.toUnit);
     c.lenParts = { h: +hor.toFixed(1), up: +(ra.v + rb.v).toFixed(1), res: ra.res + rb.res, a: ra, b: rb, noCeil: ra.noCeil || rb.noCeil };
     c.len = +(hor + ra.v + rb.v + ra.res + rb.res).toFixed(1);
+    /* ארון מייצג: דרך הפיר — הפרש מפלסים + מהפיר עד הארון האמיתי בקומה השנייה */
+    const px = (a.proxy && proxyExtra(a)) || (b.proxy && proxyExtra(b)); if (px) { c.lenParts.x = px; c.len = +(c.len + px.dz + px.far).toFixed(1); }
   });
   /* ניצול גלילים מחדש מאפס לפי אורכי הכבלים המעודכנים */
   if (P.stock && P.stock.reels) {
