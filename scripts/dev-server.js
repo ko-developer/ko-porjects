@@ -55,6 +55,12 @@ function sendText(req, res, code, headers, body) {
    רק הפרויקט הפתוח מקבל את תמונת הרקע שלו; השאר מסומנים hasBg/hasPdf/versN ונטענים לפי דרישה מ-/api/project/<id>.
    בשמירה (POST) הדפדפן מחזיר את הפרויקטים בלי הכבדים — hydrateStore משלים אותם מהעותק השמור */
 const HEAVY = ['bg', 'bgPdf', 'bgs', 'bgPdfs', 'vers', 'thumb', 'sndImg'];
+/* גרסה = תוכן בלבד: תמונות שנכנסו לצילום גרסה (דפדפן ישן) נמחקות — 30 גרסאות × 5MB תמונות הפילו את השרת בענן */
+function slimVers(p) {
+  if (!p || !Array.isArray(p.vers)) return p;
+  for (const v of p.vers) { const x = v && v.d; if (!x || typeof x !== 'object') continue; for (const k of ['bg', 'bgPdf', 'bgs', 'bgPdfs', 'thumb', 'sndImg', 'vers']) if (k in x) delete x[k]; }
+  return p;
+}
 function liteStore(st, curId) {
   return { ...st, projects: (st.projects || []).map(p => {
     const { bg, bgPdf, bgs, bgPdfs, vers, thumb, sndImg, ...rest } = p;
@@ -94,6 +100,7 @@ function hydrateStore(full, posted) {
     if (old.vers && old.vers.length) {                                /* גרסאות: הישנות מהשרת + החדשות מהדפדפן, בלי כפילויות, עד 30 */
       const seen = new Set((q.vers || []).map(v => v.t)); q.vers = [...old.vers.filter(v => !seen.has(v.t)), ...(q.vers || [])].sort((a, b) => a.t - b.t).slice(-30);
     }
+    slimVers(q);
     /* סדר המפתחות כמו בעותק השמור — פרויקט שלא השתנה נותן JSON זהה ולא נכתב שוב לדלי */
     const ordered = {}; for (const k of Object.keys(old)) if (k in q) ordered[k] = q[k]; for (const k of Object.keys(q)) if (!(k in ordered)) ordered[k] = q[k];
     return ordered; }).filter(Boolean) };

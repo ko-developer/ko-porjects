@@ -321,7 +321,8 @@ function verSnapshot(force) {
     const sameShape = last && last.stat.n === stat.n && last.stat.c === stat.c && last.stat.i === stat.i && last.stat.z === stat.z;
     if (!force && last && (sameShape || now - last.t < VER_MIN_GAP)) return;
     /* התמונה עצמה (base64) לא משוכפלת — גרסה שומרת רק את התוכן שמשתנה */
-    const { vers, bg, impSaved, ...rest } = P;
+    /* גם מפות התמונות של הגיליונות (bgs/bgPdfs), הצילום המוקטן ותמונת דוח הסאונד — גרסה עם 5MB תמונות × 30 גרסאות הפילה את השרת בענן */
+    const { vers, bg, bgPdf, bgs, bgPdfs, thumb, sndImg, impSaved, ...rest } = P;
     const snap = JSON.parse(JSON.stringify({ ...rest, impSaved: (typeof impItems !== 'undefined' ? impItems : []) }));
     P.vers.push({ t: now, stat, d: snap });
     while (P.vers.length > VER_MAX) P.vers.shift();
@@ -358,10 +359,12 @@ async function verRestore(idx) {
   const v = (P.vers || [])[idx]; if (!v) return;
   if (!(await uiConfirm('לשחזר את הגרסה מ' + verTime(v.t) + '?\n' + v.stat.n + ' מוקדים · ' + v.stat.c + ' כבלים · ' + v.stat.i + ' פריטים\n\nהמצב הנוכחי יישמר כגרסה, כך שאפשר לחזור אליו.'))) return;
   verSnapshot(true);
-  const keep = { id: P.id, name: P.name, bg: P.bg, bgW: P.bgW, bgOp: P.bgOp, vers: P.vers };
+  /* התמונות לא נשמרות בגרסאות — נשארות מהמצב הנוכחי */
+  const keep = { id: P.id, name: P.name, bgs: P.bgs, bgPdfs: P.bgPdfs, thumb: P.thumb, sndImg: P.sndImg, vers: P.vers };
   const d = JSON.parse(JSON.stringify(v.d));
   Object.keys(P).forEach(k => { if (!(k in keep)) delete P[k]; });
   Object.assign(P, d, keep);
+  if (typeof sheetsInit === 'function') sheetsInit(P);
   if (typeof impItems !== 'undefined') { impItems.length = 0; impItems.push(...(d.impSaved || [])); }
   document.querySelectorAll('.uiDlgOv').forEach(x => x.remove());
   render(); save();

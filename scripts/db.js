@@ -96,7 +96,7 @@ function storeFromDisk(h) {
   try {
     const pre = (h.prefix + 'p_').replace(/[^A-Za-z0-9._-]/g, '_'), metaF = (h.prefix + 'meta.json').replace(/[^A-Za-z0-9._-]/g, '_');
     const projects = []; let meta = {};
-    for (const f of readdirSync(DISK)) { if (!f.startsWith(pre) && f !== metaF) continue; try { const j = JSON.parse(readFileSync(DISK + '/' + f, 'utf8')); if (f === metaF) meta = JSON.parse(j.str); else projects.push(JSON.parse(j.str)); } catch {} }
+    for (const f of readdirSync(DISK)) { if (!f.startsWith(pre) && f !== metaF) continue; try { const j = JSON.parse(readFileSync(DISK + '/' + f, 'utf8')); if (f === metaF) meta = JSON.parse(j.str); else projects.push(slimVers(JSON.parse(j.str))); } catch {} }
     if (!projects.length) return null;
     /* רק פרויקטים שהמטא מכיר — קובץ מטמון של פרויקט שנמחק לא חוזר לחיים */
     const known = meta.order ? projects.filter(p2 => meta.order.includes(p2.id)) : projects;
@@ -118,6 +118,11 @@ async function readJsonStore(h) {
   if (v) return v;
   if (h.lastGood) { h.partial = true; console.warn('store: bucket slow — serving the in-memory copy, refresh continues in background'); return h.lastGood; }
   return h.refreshing;
+}
+/* גרסאות בלי תמונות: צילומי גרסה ישנים שנשמרו עם תמונות הרקע (5MB × 30) — נחתכים כבר בקריאה, כדי שהזיכרון בענן לא יתפוצץ */
+function slimVers(p) {
+  if (p && Array.isArray(p.vers)) for (const v of p.vers) { const x = v && v.d; if (x && typeof x === 'object') for (const k of ['bg', 'bgPdf', 'bgs', 'bgPdfs', 'thumb', 'sndImg', 'vers']) if (k in x) delete x[k]; }
+  return p;
 }
 async function readJsonStoreFresh(h) {
   let items;
@@ -144,7 +149,7 @@ async function readJsonStoreFresh(h) {
       else if (!it.name.endsWith('meta.json')) { h.partial = true; console.warn('store: לא ירד ' + it.name + ' ואין עותק קודם'); }
       continue;
     }
-    try { if (it.name.endsWith('meta.json')) meta = JSON.parse(c.str); else projects.push(JSON.parse(c.str)); } catch { h.partial = true; }
+    try { if (it.name.endsWith('meta.json')) meta = JSON.parse(c.str); else projects.push(slimVers(JSON.parse(c.str))); } catch { h.partial = true; }
   }
   if (meta.order) { const rank = Object.fromEntries(meta.order.map((id, i) => [id, i])); projects.sort((a, b) => (rank[a.id] ?? 1e9) - (rank[b.id] ?? 1e9)); }
   const out = { ...(meta.extra || {}), cur: meta.cur || (projects[0] && projects[0].id) || 'p1', projects };
