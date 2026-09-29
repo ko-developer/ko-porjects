@@ -1766,14 +1766,52 @@ function shareDialog() {
   const ov = uiModal(`<b style="font-size:15px">🔗 שיתוף פרויקטים</b>
     <p class="muted" style="font-size:12px;margin:6px 0 8px;line-height:1.5">המוזמן מקבל קישור חד-פעמי (תקף 14 יום), נרשם עם מייל וסיסמה ורואה רק את הפרויקטים שסימנת. אפשר לחסום אותו בכל רגע ב-👥.</p>
     <div style="max-height:180px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:6px 8px;margin-bottom:8px">${rows}</div>
+    <div class="fld"><label>עם מי לשתף</label><select id="shUser"><option value="">➕ משתמש חדש — יצירת קישור הזמנה</option></select></div>
     <div class="row2"><div class="fld"><label>הרשאה</label><select id="shPerm"><option value="edit">עריכה</option><option value="view">צפייה בלבד</option></select></div>
-      <div class="fld"><label>למי (שם / הערה)</label><input id="shLabel" placeholder="למשל: יוסי — חשמלאי"></div></div>
-    <div class="fld"><label>מייל המוזמן (לא חובה — אם מוזן, הקישור יעבוד רק לכתובת הזו)</label><input id="shEmail" type="email" placeholder="name@example.com"></div>
+      <div class="fld" id="shLabelF"><label>למי (שם / הערה)</label><input id="shLabel" placeholder="למשל: יוסי — חשמלאי"></div></div>
+    <div class="fld" id="shEmailF"><label>מייל המוזמן (לא חובה — אם מוזן, הקישור יעבוד רק לכתובת הזו)</label><input id="shEmail" type="email" placeholder="name@example.com"></div>
     <div id="shOut"></div>
     <div style="display:flex;gap:6px;margin-top:8px"><button class="primary" id="shGo" style="flex:1">צור קישור</button><button id="shX" style="flex:1">סגור</button></div>`);
   ov.querySelector('#shX').onclick = () => ov.remove();
+  /* משתמשים קיימים (פנימיים וחיצוניים) — שיתוף ישיר בלי קישור: הפרויקטים מופיעים אצלם מיד */
+  let SH_USERS = [], SH_URL = '';
+  (async () => {
+    try {
+      const r = await fetch('/api/admin/users', { cache: 'no-store' }); if (!r.ok) return;
+      SH_USERS = ((await r.json()).users || []).filter(u => u.role !== 'owner');
+      const sel = ov.querySelector('#shUser'); if (!sel) return;
+      SH_USERS.forEach(u => { const o = document.createElement('option'); o.value = u.id; o.textContent = (u.blocked ? '🚫 ' : '👤 ') + (u.name || '') + ' (' + u.email + ') · ' + (u.projects || []).length + ' פרויקטים'; sel.appendChild(o); });
+      const c = await fetch('/api/admin/config', { cache: 'no-store' }); if (c.ok) SH_URL = ((await c.json()).effective || '').replace(/\/$/, '');
+    } catch (e) {}
+  })();
+  const shUserSel = ov.querySelector('#shUser');
+  const shSync = () => {
+    const u = SH_USERS.find(x => x.id === shUserSel.value);
+    ov.querySelector('#shLabelF').style.display = u ? 'none' : ''; ov.querySelector('#shEmailF').style.display = u ? 'none' : '';
+    ov.querySelector('#shGo').textContent = u ? '👤 שתף עם ' + (u.name || u.email) : 'צור קישור';
+    /* פרויקטים שכבר משותפים איתו — מסומנים */
+    if (u) ov.querySelectorAll('.shP').forEach(c => { const g = (u.projects || []).find(p => p.id === c.value); if (g && !g.created) c.checked = true; });
+  };
+  shUserSel.onchange = shSync;
   ov.querySelector('#shGo').onclick = async () => {
     const projects = [...ov.querySelectorAll('.shP:checked')].map(c => c.value);
+    const shU = SH_USERS.find(x => x.id === shUserSel.value);
+    if (shU) {
+      const out = ov.querySelector('#shOut'), perm = ov.querySelector('#shPerm').value;
+      if (!projects.length) { out.innerHTML = '<p style="color:#c1121f;font-size:12.5px">בחר לפחות פרויקט אחד</p>'; return; }
+      try {
+        for (const pid of projects) { const r = await fetch('/api/admin/user', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: shU.id, action: 'grant', project: pid, perm }) }); const j = await r.json(); if (j.error) throw new Error(j.error); }
+        const names = store.projects.filter(p => projects.includes(p.id)).map(p => p.name).join(', ');
+        const link = SH_URL || location.origin;
+        const msg = 'שלום ' + (shU.name || '') + ',\nשיתפתי איתך ב-KO Projects את: ' + names + ' (' + (perm === 'view' ? 'צפייה' : 'עריכה') + ').\nהיכנס עם המשתמש שלך:\n' + link;
+        out.innerHTML = '<div style="background:#eef7f1;border:1px solid #bfe0cd;border-radius:8px;padding:8px;margin-top:6px;font-size:12.5px;line-height:1.5">✓ ' + esc(names) + ' שותפו עם <b>' + esc(shU.name || shU.email) + '</b> (' + (perm === 'view' ? 'צפייה בלבד' : 'עריכה') + ') — יופיעו אצלו בכניסה הבאה, בלי קישור.' +
+          '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" id="shMail2">✉️ הודע במייל</button><button type="button" id="shWa2">💬 הודע בוואטסאפ</button></div></div>';
+        out.querySelector('#shMail2').onclick = () => { window.open('mailto:' + encodeURIComponent(shU.email) + '?subject=' + encodeURIComponent('שיתוף פרויקט — KO Projects') + '&body=' + encodeURIComponent(msg), '_self'); };
+        out.querySelector('#shWa2').onclick = () => { window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank'); };
+        if (typeof pmLoadUsers === 'function') pmLoadUsers();
+      } catch (e) { out.innerHTML = '<p style="color:#c1121f;font-size:12.5px">' + esc(e.message || String(e)) + '</p>'; }
+      return;
+    }
     const perm = ov.querySelector('#shPerm').value, label = ov.querySelector('#shLabel').value, email = ov.querySelector('#shEmail').value.trim();
     const out = ov.querySelector('#shOut');
     try {
