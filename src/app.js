@@ -512,6 +512,46 @@ function sheetAlignDlg() {
   ov.querySelector('[data-x]').onclick = () => ov.remove();
   window.__alignOv = ov;
 }
+/* ===== 📐 התאמת התכנית לקנבס — כיווץ/הזזה של הכול יחד (רקע, מוקדים, אזורים, שרטוט, צנרת) =====
+   הקנבס הוא 2200×1400 ומה שמחוץ לו נחתך. רקע שהוגדל כדי להתאים לפריסה יכול לחרוג — במקום לגדול את הקנבס
+   (קואורדינטות המוקדים נמדדות מימין ותלויות ב-2200) מכווצים הכול באותו יחס: היחסים והמטרים נשמרים, הכיול מתעדכן. */
+function sheetScaleAll(f, ax, ay, dx, dy) {
+  const T = pt => ({ x: ax + (pt.x - ax) * f + dx, y: ay + (pt.y - ay) * f + dy });
+  const L = bgLeft(), Tp = bgTop(); const o = T({ x: L, y: Tp });
+  P.bgOff = { x: Math.round(o.x), y: Math.round(o.y) }; P.bgW = Math.round((P.bgW || 1400) * f);
+  for (const n of P.nodes || []) { const p = T({ x: 2200 - n.x - 20, y: n.y + 24 }); n.x = 2200 - p.x - 20; n.y = p.y - 24; }
+  for (const z of P.zones || []) {
+    if (z.poly) z.poly.forEach(pt => Object.assign(pt, T(pt)));
+    else { const b = zoneBounds(z), p = T({ x: b.L, y: b.T }); z.w = b.W * f; z.h = b.H * f; z.x = 2200 - p.x - z.w; z.y = p.y; }
+  }
+  if (P.sketch) { (P.sketch.walls || []).forEach(w => w.forEach(pt => Object.assign(pt, T(pt)))); (P.sketch.objs || []).forEach(ob => { Object.assign(ob, T(ob)); ob.w *= f; ob.h *= f; }); }
+  if (P.calLine) [P.calLine.p1, P.calLine.p2].forEach(pt => { if (pt) Object.assign(pt, T(pt)); });
+  const sh = curSheet(P); if (sh && sh.riser) Object.assign(sh.riser, T(sh.riser));
+  (P.conduits || []).forEach(cd => (cd.path || []).forEach(pt => Object.assign(pt, T(pt))));
+  (P.virtWalls || []).forEach(v => { Object.assign(v.a, T(v.a)); Object.assign(v.b, T(v.b)); });
+  if (P.scale) P.scale = P.scale / f;
+  if (P.autoScale && P.autoScale.pxPerM) P.autoScale.pxPerM *= f;
+  if (typeof recalcCableLengths === 'function') recalcCableLengths();
+}
+/* גבולות התכנית (רקע + מוקדים + אזורים) חורגים מהקנבס? */
+function sheetOverflow() {
+  if (!P.bg) return null;
+  const b = contentBox(), pad = 24;
+  const over = b.L < 0 || b.T < 0 || b.R > 2200 || b.B > 1400;
+  return over ? { ...b, f: Math.min(1, (2200 - 2 * pad) / (b.R - b.L), (1400 - 2 * pad) / (b.B - b.T)) } : null;
+}
+function sheetFitCanvas(quiet) {
+  const ov = sheetOverflow(); if (!ov) { if (!quiet) uiToast('התכנית כולה בתוך הקנבס'); return false; }
+  const f = ov.f, pad = 24;
+  /* כיווץ סביב הפינה השמאלית-עליונה של התוכן, ואז מרכוז */
+  const W2 = (ov.R - ov.L) * f, H2 = (ov.B - ov.T) * f;
+  const dx = Math.max(pad, (2200 - W2) / 2) - ov.L, dy = Math.max(pad, (1400 - H2) / 2) - ov.T;
+  sheetScaleAll(f, ov.L, ov.T, dx, dy);
+  save(); render(); setTimeout(fitView, 80);
+  if (!quiet) uiToast(f < 0.999 ? '📐 הכול כווץ ×' + f.toFixed(2) + ' ומורכז — המרחקים והמטרים נשמרו (הכיול עודכן)' : '📐 התכנית הוזזה לתוך הקנבס', 6000);
+  return true;
+}
+window.sheetFitCanvas = sheetFitCanvas;
 /* ===== 🧭 התאמת הרקע לפריסה — גוררים ומשנים את גודל תכנית הרקע מתחת למוקדים והקווים (הם לא זזים) =====
    הרקע עצמו הופך לשכבה נגררת עם ידית גודל בפינה; הכיול מתעדכן יחסית לשינוי הגודל כדי שהמטרים של התכנית יישארו נכונים */
 function bgFitMode() {
@@ -532,11 +572,13 @@ function bgFitEnd(ok) {
     P.bgOp = F.op0;
     if (typeof recalcCableLengths === 'function') recalcCableLengths();
     save(); render(); uiToast('✓ הרקע הותאם לפריסה' + (Math.abs(k - 1) > 1e-6 ? ' · הכיול עודכן ×' + k.toFixed(3) : ''), 5000);
+    if (sheetOverflow()) setTimeout(() => sheetFitCanvas(), 250);   /* הרקע חורג מהקנבס — הכול מכווץ יחד כדי שלא ייחתך */
   } else { P.bgW = F.w0; P.bgOff = F.off0; P.bgOp = F.op0; render(); uiToast('ההתאמה בוטלה'); }
 }
 function bgFitRender() {
   const F = window.__bgFit;
   let el = document.getElementById('bgFitOv'), bar = document.getElementById('bgFitBar');
+  document.body.classList.toggle('bgfit', !!F);
   if (!F) { if (el) el.remove(); if (bar) bar.remove(); return; }
   const cv = document.getElementById('canvas');
   const W = P.bgW || 1400, H = bgHeightPx(), L = bgLeft(), T = bgTop();
@@ -8314,6 +8356,7 @@ function renderPanel() {
       bgTop = `<h3 class="sec">🗺 תכנית רקע</h3>
         <div class="fld"><label>גודל רקע (רוחב בפיקסלים) — להתאמת רקע חדש לפריסה קיימת אפשר להרחיב עד 6000</label>
           <div style="display:flex;gap:6px;align-items:center"><input type="range" min="400" max="6000" step="10" value="${P.bgW || 1400}" style="flex:1" oninput="P.bgW=+this.value;this.nextElementSibling.value=this.value;renderBg();renderWires()" onchange="save()"><input type="number" min="200" max="12000" step="10" value="${P.bgW || 1400}" style="width:78px;padding:3px 5px" onchange="P.bgW=Math.max(200,+this.value||1400);renderBg();renderWires();save();render()"></div></div>
+        ${sheetOverflow() ? `<div style="background:#fdeee8;border:1px solid #f3c9bd;border-radius:8px;padding:7px 9px;margin:0 0 8px;font-size:12px;line-height:1.5;color:#8c2f16">⚠ התכנית חורגת מגבולות הקנבס ונחתכת.<button style="width:100%;margin-top:6px;background:#c9502e;color:#fff;font-weight:700" onclick="sheetFitCanvas()">📐 כווץ ומרכז הכול שייכנס בקנבס (המטרים נשמרים)</button></div>` : ''}
         <button style="width:100%;margin:-2px 0 8px;${window.__bgFit ? 'background:#0f6e56;color:#fff;font-weight:700' : 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56'}" onclick="bgFitMode()" title="הרקע הופך לשכבה נגררת עם ידית גודל — המוקדים והקווים נשארים במקומם, והכיול מתעדכן לפי שינוי הגודל">🧭 ${window.__bgFit ? 'במצב התאמה — Enter לאישור' : 'התאם את הרקע לפריסה — גרור ושנה גודל'}</button>
         <div class="fld"><label>שקיפות</label>
           <input type="range" min="0.1" max="1" step="0.05" value="${P.bgOp ?? 0.5}" oninput="P.bgOp=+this.value;renderBg()" onchange="save()"></div>
