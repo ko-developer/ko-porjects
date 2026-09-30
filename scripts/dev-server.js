@@ -8,6 +8,7 @@ import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
 import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh } from './auth.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
+import { handleErp } from './erp-routes.js';
 import { handleBugs, initBugs } from './bugs.js';
 
 /* .env (לא בגיט): DATA_BUCKET, PUBLIC_URL, מפתחות — כמו בענן, רק מקומית */
@@ -144,6 +145,8 @@ createServer(async (req, res) => {
   /* --- מעקב באגים: דיווח לכל משתמש מחובר, ניהול לבעלים (scripts/bugs.js) --- */
   if (await handleBugs(req, res, path0, me)) return;
   if (path0 === '/bugs') { if (!isOwner) { res.writeHead(302, { location: '/' }); res.end(); return; } sendPage(res, AUTH_PAGES['/bugs']); return; }
+  /* --- שאר ראוטי ה-ERP: סטטוס, לקוחות, פרויקטים, אפשרויות, כמויות עתידיות, יצירת הצעה (scripts/erp-routes.js) --- */
+  if (await handleErp(req, res, path0, isOwner)) return;
   /* --- הצעות מחיר מה-ERP (חי, דרך MCP) — בעלים בלבד --- */
   if (path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') {
     if (!isOwner) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"owner only"}'); return; }
