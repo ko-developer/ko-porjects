@@ -949,6 +949,30 @@ function sheetsView3D() {
    (מאפיין לא-נספר — לא נשמר פעמיים), כך שחיווט, בניית מערכת ודוח עובדים כרגיל; אורך הכבל מקבל את המסלול דרך הפיר:
    עד הפיר בקומה הזו, הפרש המפלסים, ומהפיר עד הארון בקומה השנייה. */
 /* כל המזהים (בכל התכניות) שמייצגים את אותו ארון פיזי: הארון האמיתי + הארונות המייצגים שלו */
+/* כבל רמקול שהארון הוא הצד "אל" שלו (חובר ידנית מהרמקול), או בלי יציאה: הופך לארון→רמקול עם OUT פנוי — בכל התכניות של אותו ארון */
+function normalizeAmpCables(amps) {
+  let changed = 0;
+  for (const a of amps) {
+    const ids = rackIdSet(a.rk), tot = ampChCount(a.u.name) || 2;
+    const sheets = P.sheets || [];
+    const cabs = [];
+    for (const sh of sheets) for (const c of sh.cables || []) {
+      if (c.type !== 'nl4') continue;
+      if (ids.has(c.to) && c.toUnit === a.u.id && !ids.has(c.from)) {   /* הפוך: רמקול → ארון */
+        const spk = (sh.nodes || []).find(n => n.id === c.from); if (!spk || spk.kind !== 'point') continue;
+        const rackId = c.to; c.to = c.from; c.from = rackId; c.fromUnit = c.toUnit; delete c.toUnit;
+        const cn = c.conn; c.conn = c.conn2; c.conn2 = cn; if (c.pIn && !c.pOut) { c.pOut = c.pIn; delete c.pIn; }
+        changed++;
+      }
+      if (ids.has(c.from) && c.fromUnit === a.u.id) cabs.push(c);
+    }
+    const used = new Set(cabs.map(c => { const m = /OUT (\d+)/.exec(c.pOut || ''); return m ? +m[1] : 0; }).filter(Boolean));
+    let next = 1;
+    for (const c of cabs) { if (c.pOut) continue; while (used.has(next) && next <= tot) next++; if (next > tot) break; c.pOut = 'OUT ' + next; used.add(next); changed++; }
+  }
+  if (changed) { save(); }
+  return changed;
+}
 function rackIdSet(rk) {
   const R = rk && rk.proxy ? proxyReal(rk) : null; const realId = R ? R.n.id : (rk && rk.id);
   const ids = new Set([rk && rk.id, realId].filter(Boolean));
@@ -1005,16 +1029,65 @@ function riserSet(pt) {
   const A = window.__riserPick; if (!A) return; const sh = P.sheets.find(x => x.id === A.sh); window.__riserPick = null; if (!sh) return;
   sh.riser = { x: +pt.x.toFixed(1), y: +pt.y.toFixed(1) };
   const px = (sh.nodes || []).find(n => n.proxy); if (px) { px.x = 2200 - sh.riser.x - 20; px.y = sh.riser.y - 24; }   /* הארון המייצג יושב על הפיר */
+  riserMirror(sh);   /* גם בתכניות הקשורות, לפי היישור */
   if (typeof recalcCableLengths === 'function') recalcCableLengths();
-  save(); render(); uiToast('⇡ נקודת הפיר סומנה ב"' + sh.name + '"');
+  save(); render(); uiToast('⇡ נקודת הפיר סומנה ב"' + sh.name + '"' + (riserLinked(sh).some(s => s.riser) ? ' — ומוצגת גם בתכנית הקשורה' : ''));
 }
 function riserClear(shId) { const sh = P.sheets.find(x => x.id === shId); if (sh) delete sh.riser; if (typeof recalcCableLengths === 'function') recalcCableLengths(); save(); render(); }
-function riserMarkSVG() {
-  const sh = curSheet(P); if (!sh || !sh.riser) return '';
-  const { x, y } = sh.riser, z = getZ() || 1, r = 13 / z, fz = 11 / z, sw = 2 / z;
-  const links = P.sheets.filter(s => s !== sh && (s.rackFrom === sh.id || sh.rackFrom === s.id)).map(s => s.name);
-  return `<g pointer-events="none"><circle cx="${x}" cy="${y}" r="${r}" fill="#fff3e0" stroke="#e08a00" stroke-width="${sw}" stroke-dasharray="${4 / z} ${3 / z}"/><text x="${x}" y="${y + fz * 0.4}" text-anchor="middle" font-size="${fz * 1.2}" fill="#b35c00" font-weight="800">⇡</text><text x="${x}" y="${y - r - 4 / z}" text-anchor="middle" font-size="${fz}" fill="#b35c00" font-weight="700">פיר צנרת${links.length ? ' ⇄ ' + esc(links.join(', ')) : ''}</text></g>`;
+/* תכניות שקשורות לתכנית הזו דרך ארון משותף */
+function riserLinked(sh) { return (P.sheets || []).filter(s => s !== sh && (s.rackFrom === sh.id || sh.rackFrom === s.id || (s.rackFrom && s.rackFrom === sh.rackFrom))); }
+const shAligned = (a, b) => a === b || !!(a.org || b.org);
+/* הפיר שסומן כאן מועתק (לפי היישור) לתכניות הקשורות שעדיין בלי פיר — העלייה נראית בשתי הקומות */
+function riserMirror(sh) {
+  if (!sh || !sh.riser) return;
+  for (const s of riserLinked(sh)) {
+    if (s.riser || !shAligned(sh, s) || !s.scale || !sh.scale) continue;
+    const pt = sheetFromWorld(s, sheetWorld(sh, sh.riser)); s.riser = { x: +pt.x.toFixed(1), y: +pt.y.toFixed(1) };
+    const px = (s.nodes || []).find(n => n.proxy); if (px) { px.x = 2200 - s.riser.x - 20; px.y = s.riser.y - 24; }
+  }
 }
+function riserMarkSVG() {
+  const sh = curSheet(P); if (!sh) return '';
+  const z = getZ() || 1, r = 13 / z, fz = 11 / z, sw = 2 / z;
+  let out = '';
+  /* פיר של תכנית קשורה — מוקרן לכאן לפי היישור (רפאים); לחיצה מאמצת אותו כפיר של התכנית הזו */
+  for (const s of riserLinked(sh)) {
+    if (!s.riser || !shAligned(sh, s) || !s.scale || !sh.scale) continue;
+    const pt = sheetFromWorld(sh, sheetWorld(s, s.riser));
+    if (sh.riser && Math.hypot(pt.x - sh.riser.x, pt.y - sh.riser.y) < 2) continue;
+    out += `<g data-riser="ghost" data-sh="${s.id}" style="pointer-events:auto;cursor:pointer"><title>הפיר כפי שסומן ב"${esc(s.name)}" — לחץ כדי לאמץ אותו כאן</title><circle cx="${pt.x}" cy="${pt.y}" r="${r}" fill="rgba(224,138,0,.12)" stroke="#e08a00" stroke-width="${sw * 0.7}" stroke-dasharray="${2 / z} ${3 / z}"/><text x="${pt.x}" y="${pt.y + fz * 0.4}" text-anchor="middle" font-size="${fz * 1.1}" fill="#c98a3a" font-weight="800" pointer-events="none">⇡</text><text x="${pt.x}" y="${pt.y + r + fz + 2 / z}" text-anchor="middle" font-size="${fz * 0.9}" fill="#c98a3a" pointer-events="none">פיר של ${esc(s.name)}</text></g>`;
+  }
+  if (!sh.riser) return out ? `<g>${out}</g>` : '';
+  const { x, y } = sh.riser;
+  const links = riserLinked(sh).map(s => s.name);
+  out += `<g data-riser="own" style="pointer-events:auto;cursor:move"><title>פיר צנרת — גרור להזזה</title><circle cx="${x}" cy="${y}" r="${r}" fill="#fff3e0" stroke="#e08a00" stroke-width="${sw}" stroke-dasharray="${4 / z} ${3 / z}"/><text x="${x}" y="${y + fz * 0.4}" text-anchor="middle" font-size="${fz * 1.2}" fill="#b35c00" font-weight="800" pointer-events="none">⇡</text><text x="${x}" y="${y - r - 4 / z}" text-anchor="middle" font-size="${fz}" fill="#b35c00" font-weight="700" pointer-events="none">פיר צנרת${links.length ? ' ⇄ ' + esc(links.join(', ')) : ''}</text></g>`;
+  return `<g>${out}</g>`;
+}
+/* גרירת הפיר על התכנית + אימוץ פיר-רפאים */
+document.addEventListener('pointerdown', e => {
+  const g = e.target.closest && e.target.closest('[data-riser]'); if (!g || e.button) return;
+  e.stopPropagation(); e.preventDefault();
+  const sh = curSheet(P); if (!sh) return;
+  if (g.dataset.riser === 'ghost') {
+    const s = (P.sheets || []).find(x => x.id === g.dataset.sh); if (!s || !s.riser) return;
+    const pt = sheetFromWorld(sh, sheetWorld(s, s.riser)); sh.riser = { x: +pt.x.toFixed(1), y: +pt.y.toFixed(1) };
+    const px = (sh.nodes || []).find(n => n.proxy); if (px) { px.x = 2200 - sh.riser.x - 20; px.y = sh.riser.y - 24; }
+    if (typeof recalcCableLengths === 'function') recalcCableLengths(); save(); render(); uiToast('⇡ הפיר אומץ מ"' + s.name + '"'); return;
+  }
+  if (!sh.riser) return;
+  window.__riserDrag = { sh, sx: e.clientX, sy: e.clientY, ox: sh.riser.x, oy: sh.riser.y, moved: false };
+}, true);
+document.addEventListener('pointermove', e => {
+  const D = window.__riserDrag; if (!D) return; e.stopPropagation();
+  const Z = getZ() || 1; D.moved = true;
+  D.sh.riser = { x: +(D.ox + (e.clientX - D.sx) / Z).toFixed(1), y: +(D.oy + (e.clientY - D.sy) / Z).toFixed(1) };
+  const px = (D.sh.nodes || []).find(n => n.proxy); if (px) { px.x = 2200 - D.sh.riser.x - 20; px.y = D.sh.riser.y - 24; }
+  renderWires(); if (px) renderNodes();
+}, true);
+document.addEventListener('pointerup', e => {
+  const D = window.__riserDrag; if (!D) return; window.__riserDrag = null; e.stopPropagation();
+  if (D.moved) { if (typeof recalcCableLengths === 'function') recalcCableLengths(); save(); render(); }
+}, true);
 window.sheetRackDlg = sheetRackDlg; window.riserPick = riserPick; window.riserClear = riserClear;
 function sheetTabsHTML() {
   if (!P.sheets || P.sheets.length < 2 && !P.showSheets) return '';
@@ -7044,6 +7117,8 @@ async function smartWire(zid) {
   if (rkPref) pushAmps(rkPref);
   P.nodes.filter(n => n.kind === 'rack' && n !== rkPref).forEach(pushAmps);
   if (!amps.length) { alert('אין מגבר בתכנית — הוסף מגבר לריכוז המגברים קודם.'); return; }
+  /* כבלים שחוברו ידנית (רמקול → ארון) בלי ציון יציאה: מיושרים לכיוון ארון → רמקול ומקבלים את היציאה הפנויה הבאה במגבר — אחרת העורך לא רואה אותם */
+  if (typeof normalizeAmpCables === 'function') normalizeAmpCables(amps);
   amps.forEach(a => P.cables.forEach(c => { if (c.from === a.rk.id && c.fromUnit === a.u.id && c.pOut) { const m = c.pOut.match(/OUT (\d+)/); if (m) a.used.add(+m[1]); } }));
   amps.forEach(a => { a.pre = new Set(a.used); }); /* ערוצים שכבר מחוברים — נעולים בעורך */
   /* ארון משותף בין תכניות: ערוצים שמחווטים לרמקולים בתכנית אחרת תפוסים כאן (מוצגים נעולים, לא ניתנים לעריכה מכאן) */
