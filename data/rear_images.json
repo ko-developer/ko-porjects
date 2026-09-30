@@ -1209,6 +1209,50 @@
   "fh": 277
  },
  {
+  "re": "DYNAMIQ\\s?750",
+  "file": "kt-dynamiq-750.jpg",
+  "model": "KT Unicorn Dynamiq 750 (פריים 18 מסיבוב 360°)",
+  "src": "https://www.kt-audio.com/cdn/shop/files/SSDK2KO_18.png",
+  "page": "https://www.kt-audio.com/products/unicorn-dynamiq-750",
+  "pos": {
+   "AC": [
+    8,
+    50
+   ],
+   "B": [
+    39.7,
+    50
+   ],
+   "A": [
+    48.4,
+    50
+   ],
+   "IN B": [
+    80,
+    50
+   ],
+   "LNK B": [
+    85,
+    50
+   ],
+   "IN A": [
+    90.6,
+    50
+   ],
+   "LNK A": [
+    96,
+    50
+   ]
+  },
+  "w": 1090,
+  "h": 125,
+  "v": 1,
+  "front": "kt-dynamiq-750-front.jpg",
+  "fw": 1230,
+  "fh": 130,
+  "fsrc": "https://www.kt-audio.com/cdn/shop/files/SSDK2KO_0.png"
+ },
+ {
   "re": "IPD[\\s-]?(1200|2400)",
   "file": "lab-ipd.jpg",
   "model": "Lab.gruppen IPD 2400 (אותו גב ל-IPD 1200) — צילום מסקירת SoundLightUp; באתר Lab.gruppen יש רק צילום חזית ושרטוט DWG של הגב",
