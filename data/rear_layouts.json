@@ -2900,6 +2900,63 @@
   "updated": "2026-09-13"
  },
  {
+  "name": "DYNAMIQ 750",
+  "re": "DYNAMIQ\\s?750",
+  "items": [
+   {
+    "t": "power",
+    "label": "AC",
+    "x": 8,
+    "y": 50
+   },
+   {
+    "t": "speakon",
+    "label": "B",
+    "port": "OUT 2",
+    "x": 39.7,
+    "y": 50
+   },
+   {
+    "t": "speakon",
+    "label": "A",
+    "port": "OUT 1",
+    "x": 48.4,
+    "y": 50
+   },
+   {
+    "t": "xlrf",
+    "label": "IN B",
+    "port": "IN 2",
+    "x": 80,
+    "y": 50
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK B",
+    "port": "LNK 2",
+    "x": 85,
+    "y": 50
+   },
+   {
+    "t": "xlrf",
+    "label": "IN A",
+    "port": "IN 1",
+    "x": 90.6,
+    "y": 50
+   },
+   {
+    "t": "xlrm",
+    "label": "LNK A",
+    "port": "LNK 1",
+    "x": 96,
+    "y": 50
+   }
+  ],
+  "img": "DYNAMIQ\\s?750",
+  "src": "migrated",
+  "updated": "2026-09-30"
+ },
+ {
   "name": "DS 458",
   "re": "DS\\s?458",
   "items": [
@@ -3540,7 +3597,7 @@
  },
  {
   "name": "DS 418",
-  "re": "DS\\s?418|418E|DIGITAL LOUDSPEAKER|processor|פרוססור|DSP",
+  "re": "DS\\s?418|418E|DIGITAL LOUDSPEAKER",
   "items": [
    {
     "label": "AC",

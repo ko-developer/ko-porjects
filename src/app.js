@@ -8676,7 +8676,12 @@ function renderPanel() {
 }
 
 function renderLegend() {
-  $('#legend').innerHTML = `<h3>KO Projects · מפתח כבלים — ${esc(P.name)}</h3>
+  /* כיווץ הטבלה התחתונה — הבחירה נשמרת בדפדפן */
+  let minL = false; try { minL = localStorage.getItem('koLegendMin') === '1'; } catch (e) {}
+  const L = $('#legend'); L.classList.toggle('min', minL);
+  const btn = `<button onclick="try{localStorage.setItem('koLegendMin','${minL ? '0' : '1'}')}catch(e){};renderLegend()" title="${minL ? 'הרחב את מפתח הכבלים' : 'כווץ את מפתח הכבלים — נשארת רק הכותרת'}" style="padding:1px 9px;font-size:12px;flex:none">${minL ? '▴ הרחב' : '▾ כווץ'}</button>`;
+  if (minL) { L.innerHTML = `<h3 style="display:flex;align-items:center;gap:8px;margin:0">${btn}<span>KO Projects · מפתח כבלים — ${esc(P.name)} <small style="font-weight:400;color:#777">(${(P.cables || []).length} כבלים)</small></span></h3>`; return; }
+  $('#legend').innerHTML = `<h3 style="display:flex;align-items:center;gap:8px">${btn}<span>KO Projects · מפתח כבלים — ${esc(P.name)}</span></h3>
     <table class="cablelist"><tr><th>#</th><th>מ־</th><th>אל</th><th>סוג</th><th>כמות</th><th>עובי / מפרט</th><th>מרחק · ירידת מתח</th><th>סטטוס</th><th>הערה</th></tr>` +
     P.cables.map((c, i) => `<tr>
       <td><span class="badge" style="background:${cableColor(c)}">${cableLabels()[c.id]}</span></td>
