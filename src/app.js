@@ -5484,11 +5484,15 @@ function nodeFullName(n) {
 /* שם קצר וקריא לדגם — "…מדגם F81 100W…" → "F81" */
 function shortModel(name) {
   const s = String(name || '').replace(/\(\d+\)\s*$/, '').trim();
-  const m = /מדגם\s+(.{2,22}?)(?:\s+(?:בעוצמה|וואט|\d+W\b|גודל|בצבע|עם|\d+X)|$)/i.exec(s);
-  if (m) return m[1].trim();
-  const s2 = s.replace(BRAND_ANY, ' ').replace(/\s+/g, ' ');   /* "FUNKTION ONE SB 121" → "SB 121" */
+  /* הדגם = הרצף הלועזי שאחרי "מדגם" (עד 4 מילים, נעצר במילה העברית הראשונה) — "תוצרת UNICORN מדגם PAGAZ 115S מוגן מים…" → "PAGAZ 115S", לא המותג */
+  const m = /מדגם\s+([A-Za-z0-9][A-Za-z0-9.\-+\/&]*(?:\s+[A-Za-z0-9][A-Za-z0-9.\-+\/&]*){0,3})/.exec(s);
+  if (m) { const tk = m[1].trim().split(/\s+/); const cut = tk.findIndex((t, i) => i > 0 && /^[a-z]+$/.test(t)); /* מילת תיאור באותיות קטנות (bass reflex…) — סוף הדגם */
+    const v = (cut > 0 ? tk.slice(0, cut) : tk).join(' ').replace(/\s+(IP\d+|\d+\s?W|\d+X\S*)$/i, '').trim(); if (v.length >= 2) return v.slice(0, 24); }
+  const s2 = s.replace(/תוצרת\s+[A-Za-z][A-Za-z0-9&.\-]*(\s+[A-Z][A-Za-z0-9&.\-]*)?/, ' ').replace(BRAND_ANY, ' ').replace(/\b(KT|UNICORN)\b(?=\s+[A-Z0-9])/g, ' ').replace(/\b\d+X\d+W\b|\b\d+\s?W\b|\b\d+\s?Ohm\b|\d+\s?Ω/gi, ' ').replace(/\s+-\s+/g, ' ').replace(/\s+/g, ' ');   /* בלי "תוצרת <מותג>", מותגים מוכרים והספק/אום: "FUNKTION ONE SB 121" → "SB 121" · "3700W XTA - DNA 100" → "DNA 100" */
   const en = s2.match(/[A-Z][A-Z0-9\- ]{1,22}/);
   if (en && en[0].trim().length >= 2) return en[0].trim();
+  const mx = s2.match(/[A-Za-z][A-Za-z0-9\-]*(?:\s+[A-Za-z0-9][A-Za-z0-9\-"]*){0,3}/);   /* שם באותיות קטנות: "Line Array Speaker 12" */
+  if (mx && mx[0].trim().length >= 3) return mx[0].trim().slice(0, 24);
   return s.replace(/^(רמקול|סאב|מגבר)\s+(פאסיבי|אקטיבי|מוגבר)?\s*(תוצרת)?\s*/i, '').slice(0, 18).trim();
 }
 /* שם הדגם של יחידה בארון לפי טבלאות הנתונים (מגברים/פרוססורים/רמקולים) — אחרת שם קצר מהשם המלא */
