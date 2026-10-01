@@ -5482,15 +5482,22 @@ function nodeFullName(n) {
   return (n && n.name) || '';
 }
 /* שם קצר וקריא לדגם — "…מדגם F81 100W…" → "F81" */
+/* ניקוי סופי של דגם: בלי מספר בודד מיותר בסוף ("PAGAZ 641 6" → "PAGAZ 641"), בלי מקף/הספק/IP בסוף */
+function shortTrim(v) {
+  let t = String(v || '').trim().replace(/\s+(IP\d+|\d+\s?W|\d+X\S*)$/i, '').replace(/[\s\-]+$/, '').trim();
+  const tk = t.split(/\s+/);
+  while (tk.length > 1 && /^\d{1,2}$/.test(tk[tk.length - 1]) && /\d/.test(tk[tk.length - 2])) tk.pop();
+  return tk.join(' ').replace(/[\s\-]+$/, '').trim();
+}
 function shortModel(name) {
   const s = String(name || '').replace(/\(\d+\)\s*$/, '').trim();
   /* הדגם = הרצף הלועזי שאחרי "מדגם" (עד 4 מילים, נעצר במילה העברית הראשונה) — "תוצרת UNICORN מדגם PAGAZ 115S מוגן מים…" → "PAGAZ 115S", לא המותג */
-  const m = /מדגם\s+([A-Za-z0-9][A-Za-z0-9.\-+\/&]*(?:\s+[A-Za-z0-9][A-Za-z0-9.\-+\/&]*){0,3})/.exec(s);
-  if (m) { const tk = m[1].trim().split(/\s+/); const cut = tk.findIndex((t, i) => i > 0 && /^[a-z]+$/.test(t)); /* מילת תיאור באותיות קטנות (bass reflex…) — סוף הדגם */
-    const v = (cut > 0 ? tk.slice(0, cut) : tk).join(' ').replace(/\s+(IP\d+|\d+\s?W|\d+X\S*)$/i, '').trim(); if (v.length >= 2) return v.slice(0, 24); }
-  const s2 = s.replace(/תוצרת\s+[A-Za-z][A-Za-z0-9&.\-]*(\s+[A-Z][A-Za-z0-9&.\-]*)?/, ' ').replace(BRAND_ANY, ' ').replace(/\b(KT|UNICORN)\b(?=\s+[A-Z0-9])/g, ' ').replace(/\b\d+X\d+W\b|\b\d+\s?W\b|\b\d+\s?Ohm\b|\d+\s?Ω/gi, ' ').replace(/\s+-\s+/g, ' ').replace(/\s+/g, ' ');   /* בלי "תוצרת <מותג>", מותגים מוכרים והספק/אום: "FUNKTION ONE SB 121" → "SB 121" · "3700W XTA - DNA 100" → "DNA 100" */
+  const m = /מדגם\s+([A-Za-z0-9][A-Za-z0-9.\-+\/&]*(?:\s+(?:-\s+)?[A-Za-z0-9][A-Za-z0-9.\-+\/&]*){0,4})/.exec(s);
+  if (m) { const tk = m[1].trim().replace(BRAND_ANY, ' ').replace(/\b(KT|UNICORN|DIGISYNTHETIC|NEUTRIK|WIRES)\b/gi, ' ').replace(/^[\s\-]+/, '').trim().split(/\s+/).filter(Boolean);   /* "מדגם FUNKTION-ONE - D80Q" → D80Q */ const cut = tk.findIndex((t, i) => i > 0 && /^[a-z]+$/.test(t)); /* מילת תיאור באותיות קטנות (bass reflex…) — סוף הדגם */
+    const v = shortTrim((cut > 0 ? tk.slice(0, cut) : tk).join(' ')); if (v.length >= 2) return v.slice(0, 24); }
+  const s2 = s.replace(/\b(XTA|KT|K&F)-(?=[A-Z0-9])/g, '').replace(/תוצרת\s+[A-Za-z][A-Za-z&.\-]*(\s+[A-Z][A-Za-z&.\-]+(?=\s|$))?/, ' ').replace(BRAND_ANY, ' ').replace(/\b(KT|UNICORN|DIGISYNTHET\w*|NEUTRIK|WIRES|CANADA|LAB(?=\s+[A-Z]))\b/gi, ' ').replace(/\bDSP\b/g, ' ').replace(/\b\d+X\d+W\b|\b\d+\s?W\b|\b\d+\s?Ohm\b|\d+\s?Ω/gi, ' ').replace(/\s+-\s+/g, ' ').replace(/\s+/g, ' ');   /* בלי "תוצרת <מותג>", מותגים מוכרים והספק/אום: "FUNKTION ONE SB 121" → "SB 121" · "3700W XTA - DNA 100" → "DNA 100" */
   const en = s2.match(/[A-Z][A-Z0-9\- ]{1,22}/);
-  if (en && en[0].trim().length >= 2) return en[0].trim();
+  if (en && shortTrim(en[0]).length >= 2) return shortTrim(en[0]);
   const mx = s2.match(/[A-Za-z][A-Za-z0-9\-]*(?:\s+[A-Za-z0-9][A-Za-z0-9\-"]*){0,3}/);   /* שם באותיות קטנות: "Line Array Speaker 12" */
   if (mx && mx[0].trim().length >= 3) return mx[0].trim().slice(0, 24);
   return s.replace(/^(רמקול|סאב|מגבר)\s+(פאסיבי|אקטיבי|מוגבר)?\s*(תוצרת)?\s*/i, '').slice(0, 18).trim();
@@ -7099,7 +7106,7 @@ function patchOfferKits(zid) {
     <b style="font-size:14px">🧰 קיט התקנה וחיווט לפרויקט?</b>
     <p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">החיווט הושלם — אפשר להוסיף קיט אביזרים/התקנה מוכן (כמויות ניתנות לעריכה לפני ההוספה):</p>
     <div style="max-height:44vh;overflow-y:auto">
-      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${jsq(zname)}',${x.i})">🧰 ${esc(x.k.name.slice(0, 46))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
+      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${jsq(zname)}',${x.i})">🧰 ${esc(kitStdName(x.k).slice(0, 46))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
     </div>
     <button data-skip style="width:100%;margin-top:8px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">דלג — בלי קיט</button>`);
   ov.querySelector('[data-skip]').onclick = () => ov.remove();
@@ -10398,7 +10405,7 @@ function kitPrev(gi) {
   }).join('');
   $('#impList').innerHTML = `
     <button onclick="renderKits()">← חזרה לרשימת הקיטים</button>
-    <h3 style="margin:10px 0 4px">🧰 ${esc(k.name)} <span class="muted" style="font-size:11px">${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''} · ${esc(kitCatOf(k))}${(() => { const s2 = kitStock(k); return s2.dead ? ' · <b style="color:#a32222">' + s2.dead + ' פריטי ליבה אזלו</b>' : ''; })()}</span></h3>
+    <h3 style="margin:10px 0 4px">🧰 ${esc(kitStdName(k))} <span class="muted" style="font-size:11px">${kitStdName(k) !== k.name ? esc(k.name.slice(0, 50)) + ' · ' : ''}${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''} · ${esc(kitCatOf(k))}${(() => { const s2 = kitStock(k); return s2.dead ? ' · <b style="color:#a32222">' + s2.dead + ' פריטי ליבה אזלו</b>' : ''; })()}</span></h3>
     ${(() => { const d2 = kitDsp(k); if (d2.kind !== 'none') return '<p style="font-size:11px;margin:0 0 6px;color:' + (d2.cls === 'good' ? '#0a7a4b' : '#b8860b') + ';font-weight:700">' + d2.label + '</p>';
       const c2 = dspCompletion(k), inf2 = erpInfo(c2.key);
       return '<p style="font-size:11px;margin:0 0 6px;color:#c1121f;font-weight:700">⚠ חסר DSP — בהוספה יתווסף אוטומטית: ' + (inf2 ? '₪' + inf2.price.toLocaleString() + ' · ' : '') + esc(c2.why) + '</p>'; })()}
@@ -10497,6 +10504,27 @@ window.openMatrix = openMatrix;
 /* סינון קיטים לפי כמות רמקולים ומותג — כדי למצוא קיט מתאים בלי לגלול 47 שורות */
 var kitBrand = '', kitSpk = '';
 const KIT_BRANDS = [['FUNKTION ONE', /FUNKTION[\s-]?ONE|\bF1\b|\bF\d{2,3}\b|EVO\s?X|EVO\s?\d|RES\s?\d|SB\s?\d|BR\s?1|F218|F124/i], ['K&F', /K\s?&\s?F|KLING|SONA|\bLINE\s?212|NOMOS|SCALA|VIDA|\bGRAVIS|\bCA\s?\d/i], ['KT / Unicorn', /\bKT\b|UNICORN|PAGAZ|EUPHORIA|DYNAMIQ|\bWR\s?\d|\b1000S\b/i], ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d/i], ['NST', /\bNST\b/i], ['XTA', /\bXTA\b|\bDNA\s?\d|\bDPA\s?\d/i], ['SAE', /\bSAE\b|PQM/i], ['JBL', /\bJBL\b/i], ['RCF', /\bRCF\b/i], ['QSC', /\bQSC\b/i], ['Bose', /\bBOSE\b/i], ['Martin Audio', /MARTIN\s?AUDIO/i], ['Nexo', /\bNEXO\b/i], ['d&b', /\bD&B\b/i], ['L-Acoustics', /L-?ACOUSTICS/i], ['Yamaha', /YAMAHA/i], ['dB Technologies', /\bDB\s?TECH/i], ['Turbosound', /TURBOSOUND/i], ['Pioneer', /PIONEER/i], ['EV', /ELECTRO[\s-]?VOICE|\bEV\b/i]];
+/* שם קיט אחיד, מהתוכן: דגמי הרמקולים · דגמי הסאבים · המגברים · הפרוססור — "4× PAGAZ 641 + 2× PAGAZ 115S · DYNAMIQ 750 · VMX88L".
+   שם ה-ERP המקורי נשמר לזיהוי (מטא-דאטה, הסתרה, חיפוש) ומוצג בקטן מתחת */
+const KIT_SUB_RX = /סאב|\bsub\b|NOMOS|MB2|BR\s?1|\bSB\s?\d|F118|F121|F124|F218|F221|TILL\s?1[58]P?\s?SUB|\b1[1258]S\b|SUB\s?\d/i;
+function kitStdName(k) {
+  const g = { spk: {}, sub: {}, amp: {}, proc: {} };
+  for (const x of k.items || []) {
+    const nm = x.name || '', q = +x.qty || 1; let grp = null;
+    if (/פאנל|panel|מתקן|rigging|bracket|תושבת|מתלה|yoke|כבל|מחבר|קייס|\bcase\b|ארון|כרטיס|\bcard\b|התקנה|תכנות|פריט כללי/i.test(nm)) continue;   /* אביזרים, ארונות, כבלים — לא חלק מהשם */
+    if (isSpeakerItem(nm)) grp = KIT_SUB_RX.test(nm) ? 'sub' : 'spk';
+    else if (/פרוססור|processor|\bDSP\b|מטריצ|matrix|crossover|קרוסאובר|\bVMX|\bDS\s?4|\bD48/i.test(nm) && !/כבל|מחבר|תוכנ/i.test(nm)) grp = 'proc';
+    else if (/מגבר|\bamp(lifier)?\b/i.test(nm) && !/כרטיס|\bcard\b|מתקן|תושבת|כבל|מחבר|ערכת|מדף|מאוורר|חלופי/i.test(nm)) grp = 'amp';
+    if (!grp) continue;
+    const m = shortModel(nm) || '';
+    if (!/[A-Za-z]/.test(m) || /^(DSP|IP\s?\d+|XLR.*|SPEAKON.*)$/i.test(m)) continue;   /* בלי דגם לועזי בשם — לא נכנס לשם הקיט */
+    g[grp][m] = (g[grp][m] || 0) + q;
+  }
+  const fmt = (o, qty) => Object.entries(o).map(([m, q]) => (qty && q > 1 ? q + '× ' : '') + m).join(' + ');
+  const parts = [fmt(g.spk, true), fmt(g.sub, true), fmt(g.amp, true), fmt(g.proc, false)].filter(Boolean);
+  return parts.length ? parts.join(' · ') : (k.name || '');
+}
+function kitLabel(k) { return kitStdName(k); }
 function kitSpkItems(k) { return (k.items || []).filter(x => isSpeakerItem(x.name)); }
 function kitSpkCount(k) { return kitSpkItems(k).reduce((s2, x) => s2 + (+x.qty || 1), 0); }
 function kitBrands(k) { const out = new Set(); for (const x of kitSpkItems(k)) { const b = KIT_BRANDS.find(([, re]) => re.test(x.name || '')); if (b) out.add(b[0]); } if (!out.size) { const b = KIT_BRANDS.find(([, re]) => re.test(k.name || '')); if (b) out.add(b[0]); } return [...out]; }
@@ -10506,7 +10534,7 @@ function renderKits() {
   const q = kitQ.trim();
   const CATS_K = [['', 'הכל'], ['audio', '🔊 סאונד'], ['lighting', '💡 תאורה'], ['video', '📺 וידאו'], ['hidden', '✕ מוסתרים']];
   const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const hay = k => (k.name + ' ' + kitCatOf(k) + ' ' + (k.sys || '') + ' ' + (k.items || []).map(x => x.name).join(' ')).toLowerCase();
+  const hay = k => (k.name + ' ' + kitStdName(k) + ' ' + kitCatOf(k) + ' ' + (k.sys || '') + ' ' + (k.items || []).map(x => x.name).join(' ')).toLowerCase();
   const hiddenCount = allKits().filter(k => kitHidden(k.name)).length;
   const list = allKits()
     .filter(k => kitCat === 'hidden' ? kitHidden(k.name) : !kitHidden(k.name))
@@ -10545,7 +10573,7 @@ function renderKits() {
       return `<div class="crow" onclick="kitPrev(${gi})" style="${hid ? 'opacity:.55' : ''}">
         <span class="badge" style="background:${isUser ? '#0f6e56' : '#534ab7'}">${k.items.length}</span>
         <b style="font-size:11px;white-space:nowrap;color:#333">₪${Math.round(kPrice).toLocaleString()}</b>
-        <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
+        <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(kitStdName(k))}</b>${kitStdName(k) !== k.name ? ` <span style="font-size:9.5px;color:#999" title="השם המקורי ב-ERP">${esc(k.name.slice(0, 40))}</span>` : ''}${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
           ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}<br>
           <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·
             <span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · 🔊 ${kitSpkCount(k)} רמקולים${kitBrands(k).length ? ' · ' + esc(kitBrands(k).join(' + ')) : ''} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
@@ -12255,10 +12283,10 @@ function zoneSystemBuilder(z) {
       return `<div class="fld"><label>3️⃣ חיפוש מוצר או קיט (ERP)</label>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px">${chips}</div>
         <input id="zsq" value="${esc(z._sq || '')}" placeholder="למשל UNICORN / F81 / קיט בר" oninput="setZoneField('${zid}','_sq',this.value)"></div>
-      ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 קיט: ${esc(x.k.name.slice(0, 42))}</button>`).join('')}</div>` : ''}
+      ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 קיט: ${esc(kitStdName(x.k).slice(0, 42))}</button>`).join('')}</div>` : ''}
       ${!kq ? `<div class="fld"><label style="font-size:10px">כל הקיטים (${kits.length})</label><select onchange="if(this.value!==''){zoneKitConfirm('${jsq(z.name)}',+this.value);this.value='';}">
         <option value="">— או בחר קיט מהרשימה (${kits.length}) —</option>
-        ${kits.map(x => `<option value="${x.i}">${x.rec ? '⭐ ' : ''}${esc(x.k.name.slice(0, 44))}</option>`).join('')}
+        ${kits.map(x => `<option value="${x.i}">${x.rec ? '⭐ ' : ''}${esc(kitStdName(x.k).slice(0, 44))}</option>`).join('')}
       </select></div>` : ''}
       ${typeof erpQuotesDialog === 'function' && !(window.__AUTH && window.__AUTH.user && window.__AUTH.user.role !== 'owner') ? `<button style="width:100%;margin:2px 0 6px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="selZone='${zid}';erpQuotesDialog()" title="הפריטים של הצעת מחיר קיימת ב-ERP נכנסים להצעה ומוצבים באזור הזה — כמו בחירת קיט">🧾 או מהצעת מחיר קיימת ב-ERP → הצב באזור</button>` : ''}`;
     })()}
@@ -13153,7 +13181,7 @@ function zoneSpkPicker(zid, tab) {
   const kitCard = (x, extra) => `
     <div style="border:1.5px solid ${extra || '#e3ded6'};border-radius:12px;padding:10px;margin-bottom:8px">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-        <b style="flex:1;font-size:13px">${esc(x.k.name.slice(0, 54))}</b>
+        <b style="flex:1;font-size:13px">${esc(kitStdName(x.k).slice(0, 54))}</b>
         ${x._spl ? `<span class="muted" style="font-size:10.5px;white-space:nowrap">יכולת ~${x._spl}dB</span>` : ''}
         <b style="white-space:nowrap">₪${Math.round(kitPriceOf(x.k)).toLocaleString()}</b></div>
       <div style="display:flex;gap:5px;align-items:center;margin-bottom:6px">${kitThumbs(x.k, 4)}
