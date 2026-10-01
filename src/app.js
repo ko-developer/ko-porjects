@@ -10494,6 +10494,14 @@ function openMatrix() { openPage(MATRIX_URL, 'מטריצת ההתאמות'); }
 window.openLogic = openLogic;
 window.openMatrix = openMatrix;
 
+/* סינון קיטים לפי כמות רמקולים ומותג — כדי למצוא קיט מתאים בלי לגלול 47 שורות */
+var kitBrand = '', kitSpk = '';
+const KIT_BRANDS = [['FUNKTION ONE', /FUNKTION[\s-]?ONE|\bF1\b|\bF\d{2,3}\b|EVO\s?X|EVO\s?\d|RES\s?\d|SB\s?\d|BR\s?1|F218|F124/i], ['K&F', /K\s?&\s?F|KLING|SONA|\bLINE\s?212|NOMOS|SCALA|VIDA|\bGRAVIS|\bCA\s?\d/i], ['KT / Unicorn', /\bKT\b|UNICORN|PAGAZ|EUPHORIA|DYNAMIQ|\bWR\s?\d|\b1000S\b/i], ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d/i], ['NST', /\bNST\b/i], ['XTA', /\bXTA\b|\bDNA\s?\d|\bDPA\s?\d/i], ['SAE', /\bSAE\b|PQM/i], ['JBL', /\bJBL\b/i], ['RCF', /\bRCF\b/i], ['QSC', /\bQSC\b/i], ['Bose', /\bBOSE\b/i], ['Martin Audio', /MARTIN\s?AUDIO/i], ['Nexo', /\bNEXO\b/i], ['d&b', /\bD&B\b/i], ['L-Acoustics', /L-?ACOUSTICS/i], ['Yamaha', /YAMAHA/i], ['dB Technologies', /\bDB\s?TECH/i], ['Turbosound', /TURBOSOUND/i], ['Pioneer', /PIONEER/i], ['EV', /ELECTRO[\s-]?VOICE|\bEV\b/i]];
+function kitSpkItems(k) { return (k.items || []).filter(x => isSpeakerItem(x.name)); }
+function kitSpkCount(k) { return kitSpkItems(k).reduce((s2, x) => s2 + (+x.qty || 1), 0); }
+function kitBrands(k) { const out = new Set(); for (const x of kitSpkItems(k)) { const b = KIT_BRANDS.find(([, re]) => re.test(x.name || '')); if (b) out.add(b[0]); } if (!out.size) { const b = KIT_BRANDS.find(([, re]) => re.test(k.name || '')); if (b) out.add(b[0]); } return [...out]; }
+const KIT_SPK_RANGES = [['', 'כל כמות'], ['1-2', '1–2'], ['3-4', '3–4'], ['5-8', '5–8'], ['9-16', '9–16'], ['17+', '17+']];
+function kitSpkIn(n, r) { if (!r) return true; if (r === '17+') return n >= 17; const [a, b] = r.split('-').map(Number); return n >= a && n <= b; }
 function renderKits() {
   const q = kitQ.trim();
   const CATS_K = [['', 'הכל'], ['audio', '🔊 סאונד'], ['lighting', '💡 תאורה'], ['video', '📺 וידאו'], ['hidden', '✕ מוסתרים']];
@@ -10504,10 +10512,20 @@ function renderKits() {
     .filter(k => kitCat === 'hidden' ? kitHidden(k.name) : !kitHidden(k.name))
     .filter(k => !kitCat || kitCat === 'hidden' || kitCatOf(k) === kitCat)
     .filter(k => !toks.length || toks.every(t => hay(k).includes(t)));
+  /* צ׳יפים של מותג וכמות — נספרים על הרשימה אחרי סינון הקטגוריה והחיפוש, כך שרואים כמה קיטים יש בכל בחירה */
+  const base = list;
+  const brandCounts = {}; base.forEach(k => kitBrands(k).forEach(b => { brandCounts[b] = (brandCounts[b] || 0) + 1; }));
+  const spkCounts = {}; KIT_SPK_RANGES.forEach(([v]) => { spkCounts[v] = base.filter(k => kitBrand ? kitBrands(k).includes(kitBrand) : true).filter(k => kitSpkIn(kitSpkCount(k), v)).length; });
+  const list2 = base.filter(k => !kitBrand || kitBrands(k).includes(kitBrand)).filter(k => kitSpkIn(kitSpkCount(k), kitSpk));
+  const chip = (on, lbl, onclick, col) => `<button onclick="${onclick}" style="padding:2px 10px;border-radius:14px;font-size:11.5px;border:1px solid ${on ? col : '#ccc'};background:${on ? col : '#fff'};color:${on ? '#fff' : '#333'}">${lbl}</button>`;
+  const brandChips = chip(!kitBrand, 'כל המותגים', "kitBrand='';kitShow=60;renderKits()", '#534ab7') + Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).map(([b, n]) => chip(kitBrand === b, esc(b) + ' <b>' + n + '</b>', "kitBrand='" + b.replace(/'/g, "\\'") + "';kitShow=60;renderKits()", '#534ab7')).join('');
+  const spkChips = KIT_SPK_RANGES.map(([v, l]) => chip(kitSpk === v, (v ? '🔊 ' : '') + l + (v ? ' <b>' + spkCounts[v] + '</b>' : ''), "kitSpk='" + v + "';kitShow=60;renderKits()", '#0f6e56')).join('');
   const chips = CATS_K.map(([v, l]) => `<button onclick="kitCat='${v}';kitShow=60;renderKits()" style="padding:3px 12px;border-radius:16px;font-size:12px;border:1px solid ${kitCat === v ? '#c9502e' : '#ccc'};background:${kitCat === v ? '#c9502e' : '#fff'};color:${kitCat === v ? '#fff' : '#333'}">${l}</button>`).join(' ');
   $('#impList').innerHTML = `
     <div class="fld"><input id="kitQIn" placeholder="חיפוש קיט… (F1, EVO, לד, נאון)" value="${esc(kitQ)}" oninput="kitQ=this.value;kitShow=60;renderKits();const e2=document.getElementById('kitQIn');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)" style="width:100%"></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${chips}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${chips}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px;align-items:center"><span class="muted" style="font-size:11px;margin-inline-end:2px">מותג רמקולים:</span>${brandChips}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;align-items:center"><span class="muted" style="font-size:11px;margin-inline-end:2px">כמות רמקולים בקיט:</span>${spkChips}</div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button style="flex:1" onclick="kitNew()">➕ צור קיט חדש</button>
       <button style="flex:1" onclick="kitFromOffer()">🧰 צור קיט מהצעת המחיר (✓)</button>
@@ -10515,8 +10533,8 @@ function renderKits() {
         href="/matrix"
         title="מי הולך עם מי — אישור ואיסור שילובים, נשמר ונקרא ע&quot;י המתכנן">🧩 מטריצת התאמות</a>
     </div>
-    <p class="muted" style="margin-bottom:8px">${list.length} קיטים · מוצגים ${Math.min(list.length, kitShow)} · לחיצה פותחת תצוגה מקדימה${hiddenCount ? ` · ${hiddenCount} מוסתרים` : ''}:</p>` +
-    list.slice(0, kitShow).map(k => {
+    <p class="muted" style="margin-bottom:8px">${list2.length} קיטים · מוצגים ${Math.min(list2.length, kitShow)} · לחיצה פותחת תצוגה מקדימה${hiddenCount ? ` · ${hiddenCount} מוסתרים` : ''}:</p>` +
+    list2.slice(0, kitShow).map(k => {
       const gi = allKits().indexOf(k);
       const isUser = (store.userKits || []).includes(k);
       const isOver = isUser && (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim());
@@ -10530,12 +10548,12 @@ function renderKits() {
         <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
           ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}<br>
           <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·
-            <span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
+            <span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · 🔊 ${kitSpkCount(k)} רמקולים${kitBrands(k).length ? ' · ' + esc(kitBrands(k).join(' + ')) : ''} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
         <button onclick="event.stopPropagation();kitToggleHide(${gi})" title="${hid ? 'החזר לרשימה' : 'הסתר — לא רלוונטי'}"
           style="border:1px solid #ddd;background:#fff;border-radius:7px;padding:2px 7px;font-size:11px;color:#777">${hid ? '↺' : '✕'}</button>
       </div>`;
     }).join('') +
-    (list.length > kitShow ? `<button style="width:100%;margin-top:8px" onclick="kitShow+=60;renderKits()">▼ הצג עוד ${Math.min(60, list.length - kitShow)} מתוך ${list.length - kitShow} שנותרו</button>` : '') +
+    (list2.length > kitShow ? `<button style="width:100%;margin-top:8px" onclick="kitShow+=60;renderKits()">▼ הצג עוד ${Math.min(60, list2.length - kitShow)} מתוך ${list2.length - kitShow} שנותרו</button>` : '') +
     (kitShow > 60 ? `<button style="width:100%;margin-top:5px" onclick="kitShow=60;renderKits()">▲ צמצם</button>` : '');
 }
 function pickKit(i) {
