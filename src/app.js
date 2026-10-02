@@ -10628,7 +10628,7 @@ function kitCableNeeds(k) {
   const has = { spk: false, xlr: false, pwr: false };
   (k.items || []).forEach(x => {
     const n = x.name || '', q = +x.qty || 1, c = kitFuncClass(n);
-    for (const h in KIT_CAB_HAS) if (KIT_CAB_HAS[h].test(n) && !/מחבר|פנל|פאנל|שאסי/.test(n)) has[h] = true;
+    for (const h in KIT_CAB_HAS) if (KIT_CAB_HAS[h].test(n) && !/^\s*(מחבר|פנל|פאנל)|שאסי/.test(n)) has[h] = true;
     if (kitIsAmpCls(c)) { amps += q; const m = /(\d)\s*ערוצים/.exec(n); ampCh += q * (m ? +m[1] : 2); }
     else if (c === 'proc' || c === 'procK') procs += q;
     else if (c === 'spk' || c === 'sub') pas += q;
@@ -10773,7 +10773,7 @@ function kitPrev(gi) {
 function saveKitDraft() {
   if (!nkDraft.name.trim()) { alert('תן שם לקיט'); return; }
   store.userKits = store.userKits || [];
-  const rec = { name: nkDraft.name.trim(), cat: nkDraft.cat || 'audio', sys: nkDraft.sys || 'קיט שלי', items: nkDraft.items };
+  const rec = { name: nkDraft.name.trim(), cat: nkDraft.cat || 'audio', sys: nkDraft.sys || 'קיט שלי', items: nkDraft.items, cabOk: true };   /* נשמר מהעורך = נבדק; מה שחסר הוצג שם ולא יוצע שוב במסך הכבלים */
   if (nkDraft.editIdx != null && store.userKits[nkDraft.editIdx]) store.userKits[nkDraft.editIdx] = rec;
   else store.userKits.push(rec);
   const wasErp = nkDraft.fromErp, backCab = nkDraft.backCab;
@@ -10889,6 +10889,41 @@ function kitAltFor(x) {
   }
   kitAltCache.set(ck, out); return out;
 }
+/* מה חסר בקיט שבעריכה — כבלים, DSP, כמות גלילים חשודה. מוסיפים מכאן ושומרים: כל הבדיקה במסך אחד */
+function nkMissing() {
+  const d = nkDraft; if (!d || !d.items.length) return [];
+  const k = { name: d.name, cat: d.cat, sys: d.sys, items: d.items };
+  const out = kitCableNeeds(k).map(c => ({ key: c.key, name: c.name, qty: c.qty, price: c.price, t: c.t, why: c.why }));
+  if (kitIsAudio(k) && kitDsp(k).kind === 'none') {
+    const c = dspCompletion(k), it = typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS.find(x => x[0] === c.key) : null;
+    if (it) out.unshift({ key: c.key, name: it[1], qty: 1, price: +it[2] || 0, t: 'פרוססור (DSP)', why: c.why });
+  }
+  return out;
+}
+function nkMissingHTML() {
+  const d = nkDraft, miss = nkMissing();
+  /* גליל של 100 מ׳ בכמות דו-ספרתית = כנראה הוקלדו מטרים */
+  const reels = d.items.map((x, i) => ({ x, i })).filter(o => KIT_REEL_KEYS[String(o.x.key || '').toUpperCase()] && (+o.x.qty || 0) >= 10);
+  if (!miss.length && !reels.length) return d.items.length && kitIsAudio({ name: d.name, cat: d.cat, items: d.items }) ? '<p style="margin:8px 6px 0;font-size:12px;font-weight:700;color:#0a7a4b">✓ הקיט שלם — יש DSP, כבל רמקול, XLR וכבלי חשמל</p>' : '';
+  return `<div style="border:1.5px solid #e9b4b4;border-radius:9px;margin:8px 0 4px;overflow:hidden">
+    <div style="background:#fdf0f0;padding:6px 8px;font-weight:700;color:#c1121f;font-size:12.5px;display:flex;align-items:center;gap:8px"><span style="flex:1">⚠ חסר בקיט (${miss.length + reels.length})</span>${miss.length > 1 ? '<button style="padding:2px 10px;background:#eef7f1;color:#0f6e56;font-weight:700" onclick="nkAddMissing(-1)">➕ הוסף את כל ' + miss.length + ' השורות</button>' : ''}</div>
+    ${reels.map(o => `<div style="display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px dashed #f0c9c9;font-size:12px">
+      <span style="flex:1"><b>כמות חשודה</b> — ${esc(o.x.name.slice(0, 50))}: ${o.x.qty} גלילים של 100 מ׳ (₪${(((erpInfo(o.x.key) || {}).price || 0) * o.x.qty).toLocaleString()}). כנראה הוקלדו מטרים.</span>
+      <button style="padding:2px 10px;white-space:nowrap" onclick="nkDraft.items[${o.i}].qty=1;renderKitNew()">תקן לגליל 1</button></div>`).join('')}
+    ${miss.map((c, i) => `<div style="display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px dashed #f0c9c9;font-size:12px">
+      <b style="width:34px;text-align:center;flex:none">${c.qty}×</b>
+      <code style="font-size:10px;color:#666;background:#f3f1ec;border-radius:4px;padding:1px 5px;white-space:nowrap">${esc(c.key)}</code>
+      <span style="flex:1;min-width:0"><b>${c.t}</b> — ${esc(c.name.slice(0, 70))}<br><span class="muted" style="font-size:10.5px">${esc(c.why)}</span></span>
+      <span class="muted" style="white-space:nowrap">₪${(c.price * c.qty).toLocaleString()}</span>
+      <button style="padding:2px 10px;white-space:nowrap;background:#eef7f1;color:#0f6e56;font-weight:700" onclick="nkAddMissing(${i})">➕ הוסף</button></div>`).join('')}
+  </div>`;
+}
+function nkAddMissing(i) {
+  const miss = nkMissing(), pick = i < 0 ? miss : [miss[i]].filter(Boolean);
+  pick.forEach(c => nkDraft.items.push({ key: c.key, name: c.name, qty: c.qty }));
+  renderKitNew(); if (pick.length) uiToast('➕ נוספו ' + pick.length + ' שורות לקיט — לא לשכוח לשמור');
+}
+window.nkAddMissing = nkAddMissing;
 function nkReplace(i, key, name) { const it = nkDraft.items[i]; if (!it) return; it.key = key; it.name = name; nkDraft.replIdx = null; nkDraft.q = ''; renderKitNew(); uiToast('🔄 הפריט הוחלף'); }
 function nkReplStart(i) { const it = nkDraft.items[i]; if (!it) return; nkDraft.replIdx = i; nkDraft.q = kitFuncClass(it.name) ? '' : (shortModel(it.name) || '').split(' ')[0] || ''; renderKitNew(); const e2 = document.getElementById('nkQ'); if (e2) { e2.focus(); e2.select(); } }
 window.nkReplace = nkReplace; window.nkReplStart = nkReplStart;
@@ -10941,6 +10976,7 @@ function renderKitNew() {
       <button style="padding:0 6px" title="החלפת הפריט — חיפוש בקטלוג" onclick="nkReplStart(${i})">🔄</button>
       <button style="padding:0 6px" onclick="nkDraft.items.splice(${i},1);renderKitNew()">✕</button></div>
       ${alts.length ? `<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:3px 50px 2px 0;font-size:10.5px"><span class="muted">מוצר מחליף:</span>${alts.map(a => `<button style="padding:1px 7px;font-size:10.5px;border:1px solid ${a.why === 'דגם חדש יותר' ? '#0f6e56' : '#cfd3dc'};background:${a.why === 'דגם חדש יותר' ? '#eef7f1' : '#fff'};border-radius:6px" title="${esc(a.name)} · ${a.why} — לחיצה מחליפה" onclick="nkReplace(${i},'${a.key}','${jsq(a.name)}')">${a.why === 'דגם חדש יותר' ? '🆕 ' : a.why.startsWith('אותו') ? '= ' : '↔ '}${esc(shortModel(a.name) || a.name.slice(0, 22))} · ₪${a.price.toLocaleString()} · <span style="color:${a.stock > 9 ? '#0a7a4b' : a.stock > 0 ? '#b8860b' : '#a32222'}">מלאי ${Math.round(a.stock)}</span></button>`).join('')}</div>` : ''}</div>`; }).join('')}
+    ${nkMissingHTML()}
     ${d.items.length ? `<p style="text-align:left;font-weight:800;margin:8px 6px 0">סה"כ הקיט: ₪${d.items.reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * (x.qty || 1); }, 0).toLocaleString()}</p>
     <button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>` : ''}`;
 }
