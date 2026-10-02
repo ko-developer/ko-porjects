@@ -4773,6 +4773,7 @@ function renderWires() {
       const fs = Math.max(9, Math.min(o.w * 0.28, 22));
       out += `<g data-skobj="${oi}" transform="rotate(${o.r || 0} ${o.x} ${o.y})" style="cursor:${sketchMode ? 'move' : 'pointer'};pointer-events:all">` +
         (d.round ? `<ellipse cx="${o.x}" cy="${o.y}" rx="${o.w / 2}" ry="${o.h / 2}" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`
+          : d.deco ? `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="transparent" stroke="${d.c}" stroke-width="${selO ? 2.5 : 0}" stroke-dasharray="6 5"/>` + skObjDeco(o, d)
           : `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`) +
         `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${d.n}</text>` +
         (P.scale ? `<text x="${o.x}" y="${o.y + o.h / 2 + fs * 0.95}" text-anchor="middle" font-size="${(fs * 0.72).toFixed(1)}" fill="${d.c}" opacity="0.85" style="user-select:none">${(o.w * P.scale).toFixed(2)}×${(o.h * P.scale).toFixed(2)} מ׳</text>` : '') +
@@ -8737,8 +8738,35 @@ const SK_OBJS = {
   stage: { n: 'במה', w: 4, h: 3, c: '#c9502e' },
   dance: { n: 'רחבה', w: 4, h: 4, c: '#b7761f', dash: 1 },
   door: { n: 'דלת', w: 0.9, h: 0.18, c: '#666' },
-  plant: { n: 'צמח', w: 0.6, h: 0.6, c: '#2e7d32', round: 1 }
+  plant: { n: 'צמח', w: 0.6, h: 0.6, c: '#2e7d32', round: 1 },
+  pool: { n: 'בריכה', w: 8, h: 4, c: '#1e88c9', deco: 'pool' },
+  lounge: { n: 'פינת ישיבה', w: 3, h: 3, c: '#7a4ab7', deco: 'lounge' },
+  kitchen: { n: 'מטבח', w: 4, h: 3, c: '#5d6b7a', deco: 'kitchen' }
 };
+/* ציור פנימי לאובייקטים מורכבים — בתוך המלבן של האובייקט (x,y = מרכז; w,h = גודל בפיקסלי קנבס) */
+function skObjDeco(o, d) {
+  const L = o.x - o.w / 2, T = o.y - o.h / 2, W = o.w, H = o.h, c = d.c, sw = Math.max(1, Math.min(W, H) * 0.012);
+  if (d.deco === 'pool') {   /* מים + שלושה גלים + מדרגות בפינה */
+    const wv = k => { const y = T + H * k, a = H * 0.035; let p = 'M' + (L + W * 0.12) + ' ' + y; for (let i = 0; i < 6; i++) p += ' q' + (W * 0.0633) + ' ' + (i % 2 ? a : -a) + ' ' + (W * 0.1267) + ' 0'; return '<path d="' + p + '" fill="none" stroke="' + c + '" stroke-width="' + sw + '" opacity="0.55"/>'; };
+    return '<rect x="' + (L + W * 0.04) + '" y="' + (T + H * 0.07) + '" width="' + W * 0.92 + '" height="' + H * 0.86 + '" rx="' + Math.min(W, H) * 0.12 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw + '"/>' + wv(0.3) + wv(0.5) + wv(0.7) +
+      [0, 1, 2].map(i => '<line x1="' + (L + W * (0.07 + i * 0.03)) + '" y1="' + (T + H * 0.12) + '" x2="' + (L + W * (0.07 + i * 0.03)) + '" y2="' + (T + H * 0.3) + '" stroke="' + c + '" stroke-width="' + sw + '" opacity="0.7"/>').join('');
+  }
+  if (d.deco === 'lounge') {   /* ספה בצורת ר + שולחן במרכז */
+    const t = Math.min(W, H) * 0.26;
+    return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + t + '" rx="' + t * 0.25 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw + '"/>' +
+      '<rect x="' + L + '" y="' + (T + t) + '" width="' + t + '" height="' + (H - t) + '" rx="' + t * 0.25 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw + '"/>' +
+      '<rect x="' + (L + t + (W - t) * 0.2) + '" y="' + (T + t + (H - t) * 0.25) + '" width="' + (W - t) * 0.55 + '" height="' + (H - t) * 0.45 + '" rx="4" fill="#fff" stroke="#4a6ab7" stroke-width="' + sw + '"/>';
+  }
+  if (d.deco === 'kitchen') {   /* משטח עבודה בצורת ר + כיריים + כיור + אי */
+    const t = Math.min(W, H) * 0.22, r = t * 0.16;
+    const burners = [0, 1, 2, 3].map(i => '<circle cx="' + (L + W * 0.2 + (i % 2) * t * 0.45) + '" cy="' + (T + t * 0.3 + (i > 1 ? t * 0.42 : 0)) + '" r="' + r + '" fill="none" stroke="' + c + '" stroke-width="' + sw + '"/>').join('');
+    return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + t + '" fill="' + c + '2a" stroke="' + c + '" stroke-width="' + sw + '"/>' +
+      '<rect x="' + (L + W - t) + '" y="' + (T + t) + '" width="' + t + '" height="' + (H - t) + '" fill="' + c + '2a" stroke="' + c + '" stroke-width="' + sw + '"/>' + burners +
+      '<rect x="' + (L + W * 0.55) + '" y="' + (T + t * 0.2) + '" width="' + t * 0.75 + '" height="' + t * 0.6 + '" rx="' + t * 0.1 + '" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/>' +
+      '<rect x="' + (L + W * 0.12) + '" y="' + (T + t + (H - t) * 0.42) + '" width="' + (W - t) * 0.6 + '" height="' + (H - t) * 0.3 + '" rx="3" fill="' + c + '1c" stroke="' + c + '" stroke-width="' + sw + '"/>';
+  }
+  return '';
+}
 /* ===== חדר/קיר משורטט: בחירה, עריכה במספרים, גרירת פינות, הזזה ומחיקה ===== */
 let sketchWallSel = null;
 /* שרטוט שחרג מהקנבס (חדר גדול מהשטח שהוגדר) — הכול מכווץ יחד כדי שלא ייחתך; המטרים נשמרים */
