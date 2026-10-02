@@ -10692,6 +10692,9 @@ function renderKitNew() {
     <button onclick="nkDraft=null;renderKits()">← ביטול וחזרה</button>
     <h3 style="margin:10px 0 4px">➕ קיט חדש</h3>
     <div class="fld"><label>שם הקיט</label><input id="nkName" value="${esc(d.name)}" oninput="nkDraft.name=this.value"></div>
+    ${(() => { const std = kitStdName({ name: '', items: d.items }); return `<div class="fld"><label>שם לפי התוכן — רמקולים · סאבים · מגברים · פרוססור (מתעדכן לבד)</label>
+      <div style="display:flex;gap:6px;align-items:center"><input id="nkStd" readonly value="${esc(std)}" placeholder="יופיע כשיהיו בקיט רמקולים / מגבר / פרוססור" style="flex:1;background:#f6f5f1;color:#333;direction:ltr;text-align:right">
+      ${std ? `<button style="white-space:nowrap" title="מעתיק את השם לפי התוכן לשדה שם הקיט" onclick="nkDraft.name=document.getElementById('nkStd').value;renderKitNew()">⬆ קבע כשם הקיט</button>` : ''}</div></div>`; })()}
     ${d.replIdx != null && d.items[d.replIdx] ? `<div style="background:#fff3e0;border:1px solid #e9a03b;border-radius:8px;padding:6px 9px;margin-bottom:6px;font-size:12px;display:flex;gap:8px;align-items:center"><span style="flex:1">🔄 מחליף את: <b>${esc(d.items[d.replIdx].name.slice(0, 50))}</b> — חפש ובחר את הפריט החדש</span><button style="padding:2px 9px" onclick="nkDraft.replIdx=null;nkDraft.q='';renderKitNew()">ביטול</button></div>` : ''}
     <div class="fld"><label>${d.replIdx != null ? 'חיפוש הפריט המחליף' : 'חיפוש פריט בקטלוג'}</label><input id="nkQ" value="${esc(d.q)}" oninput="nkDraft.q=this.value;renderKitNew();const e2=document.getElementById('nkQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
     ${hits.map(it => { const [k, n2] = it; const stq = Math.round(+it[3] || 0), pr = +it[2] || 0;
