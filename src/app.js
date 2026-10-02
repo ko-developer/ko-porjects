@@ -5034,6 +5034,7 @@ function renderWires() {
   }
   if (typeof xlinkMarksSVG === 'function') out += xlinkMarksSVG();
   if (typeof riserMarkSVG === 'function') out += riserMarkSVG();
+  if (typeof vtxGuideSVG === 'function') out += vtxGuideSVG();
   svg.innerHTML = out;
 }
 function tidy() {
@@ -8739,7 +8740,8 @@ const SK_OBJS = {
   pool: { n: 'בריכה', w: 8, h: 4, c: '#1e88c9', deco: 'pool' },
   lounge: { n: 'פינת ישיבה', w: 3, h: 3, c: '#7a4ab7', deco: 'lounge' },
   kitchen: { n: 'מטבח', w: 4, h: 3, c: '#5d6b7a', deco: 'kitchen' },
-  barStools: { n: 'בר + כסאות', w: 3, h: 1.4, c: '#8b5a2b', deco: 'barStools' }
+  barStools: { n: 'בר + כסאות', w: 3, h: 1.4, c: '#8b5a2b', deco: 'barStools' },
+  outKitchen: { n: 'מטבח חוץ', w: 3, h: 0.7, c: '#5d6b7a', deco: 'outKitchen' }
 };
 /* ציור פנימי לאובייקטים מורכבים — בתוך המלבן של האובייקט (x,y = מרכז; w,h = גודל בפיקסלי קנבס) */
 function skObjDeco(o, d) {
@@ -8754,6 +8756,13 @@ function skObjDeco(o, d) {
     return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + t + '" rx="' + t * 0.25 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw + '"/>' +
       '<rect x="' + L + '" y="' + (T + t) + '" width="' + t + '" height="' + (H - t) + '" rx="' + t * 0.25 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw + '"/>' +
       '<rect x="' + (L + t + (W - t) * 0.2) + '" y="' + (T + t + (H - t) * 0.25) + '" width="' + (W - t) * 0.55 + '" height="' + (H - t) * 0.45 + '" rx="4" fill="#fff" stroke="#4a6ab7" stroke-width="' + sw + '"/>';
+  }
+  if (d.deco === 'outKitchen') {   /* פס אחד: משטח עבודה עם גריל, כיור ומשטח */
+    const gW = Math.min(W * 0.3, H * 1.4), pad = H * 0.16;
+    let gr = ''; for (let i = 1; i <= 4; i++) gr += '<line x1="' + (L + pad + gW * i / 5) + '" y1="' + (T + pad * 1.4) + '" x2="' + (L + pad + gW * i / 5) + '" y2="' + (T + H - pad * 1.4) + '" stroke="' + c + '" stroke-width="' + sw + '"/>';
+    return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + H + '" rx="' + H * 0.1 + '" fill="' + c + '2a" stroke="' + c + '" stroke-width="' + sw * 1.3 + '"/>' +
+      '<rect x="' + (L + pad) + '" y="' + (T + pad) + '" width="' + gW + '" height="' + (H - 2 * pad) + '" rx="3" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/>' + gr +
+      '<rect x="' + (L + W - pad - H * 0.75) + '" y="' + (T + pad) + '" width="' + H * 0.75 + '" height="' + (H - 2 * pad) + '" rx="' + H * 0.14 + '" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/><circle cx="' + (L + W - pad - H * 0.375) + '" cy="' + (T + H / 2) + '" r="' + H * 0.07 + '" fill="' + c + '"/>';
   }
   if (d.deco === 'barStools') {   /* דלפק בר + שורת כסאות בר לאורכו (כסא כל ~60 ס"מ) */
     const bh = H * 0.5, n = Math.max(2, Math.round((P.scale ? W * P.scale : 3) / 0.6)), r = Math.min(H * 0.17, W / n * 0.36), cy = T + bh + (H - bh) * 0.55;
@@ -8801,6 +8810,17 @@ function polyLiveSVG(pts, cur, guides, straight) {
   return `<g pointer-events="none">${o}</g>`;
 }
 /* מידות על המקטעים שכבר סומנו */
+/* גרירת נקודה של אזור: שני המקטעים שנוגעים בה — ירוק כשישר, אדום באלכסון, עם אורך */
+function vtxGuideSVG() {
+  const v = window.__vtxZ; if (!v || !v.moved || !v.z || !v.z.poly) return '';
+  const pl = v.z.poly, n = pl.length, p = pl[v.i], z = getZ() || 1, fz = Math.max(10, 13 / z); let o = '';
+  for (const q of [pl[(v.i - 1 + n) % n], pl[(v.i + 1) % n]]) {
+    const straight = q.x === p.x || q.y === p.y, col = straight ? '#16a34a' : '#dc2626';
+    o += `<line x1="${q.x}" y1="${q.y}" x2="${p.x}" y2="${p.y}" stroke="${col}" stroke-width="${3 / z}"/>`;
+    if (P.scale) o += `<text x="${(q.x + p.x) / 2}" y="${(q.y + p.y) / 2 - 8 / z}" text-anchor="middle" font-size="${fz}" fill="${col}" font-weight="800" paint-order="stroke" stroke="#fff" stroke-width="${4 / z}">${(Math.hypot(p.x - q.x, p.y - q.y) * P.scale).toFixed(2)} מ׳${straight ? ' ✓' : ' · אלכסון'}</text>`;
+  }
+  return `<g pointer-events="none">${o}</g>`;
+}
 function polyDimsSVG(pts) {
   if (!P.scale || !pts || pts.length < 2) return '';
   const z = getZ() || 1, fz = Math.max(9, 11.5 / z); let o = '';
@@ -9868,7 +9888,10 @@ document.addEventListener('pointermove', e => {
     const v = window.__vtxZ;
     if (!v.moved && !v.sticky && Math.hypot(e.clientX - v.sx, e.clientY - v.sy) < 3) return;
     v.moved = true;
-    const pt = canvasPt(e); v.z.poly[v.i] = { x: Math.round(pt.x), y: Math.round(pt.y) }; zoneSyncBox(v.z); renderZones(); return;
+    const pt = canvasPt(e), pl = v.z.poly, n = pl.length, prev = pl[(v.i - 1 + n) % n], next = pl[(v.i + 1) % n], TH = 9 / (getZ() || 1);
+    let nx = Math.round(pt.x), ny = Math.round(pt.y);
+    for (const q of [prev, next]) { if (Math.abs(nx - q.x) < TH) nx = q.x; if (Math.abs(ny - q.y) < TH) ny = q.y; }   /* הצמדה לקו ישר מול הנקודות השכנות */
+    pl[v.i] = { x: nx, y: ny }; zoneSyncBox(v.z); renderZones(); renderWires(); return;
   }
   if (sizeZ) {
     sizeZ.z.w = Math.max(80, sizeZ.ow - (e.clientX - sizeZ.sx) / Z);
@@ -10602,6 +10625,58 @@ async function kitDelete(gi) {
   uiToast(isOverride ? '↩ העריכה בוטלה — קיט ה-ERP המקורי חזר' : '🗑 הקיט נמחק');
 }
 /* בניית קיט חדש מאפס — שם, חיפוש בקטלוג, כמויות */
+/* ===== מוצר מחליף לפריט בקיט =====
+   1. דגם חדש יותר של אותו מוצר (V2 / MK2 / II) · 2. הדגם הכי דומה באותה פונקציה לפי מחיר, מותג וגודל — רק ממה שבמלאי.
+   מבוסס על שמות ומחירי ה-ERP בלבד; זו הצעה לבדיקה, לא קביעה שהמוצרים שקולים טכנית. */
+const KIT_ALT_NO = /השכר|חלקי חילוף|חלק חילוף|לתיקון|ת\.ח|דוגמא|פגום|תצוגה בלבד|יד שנ|משומש/;
+function kitFuncClass(nm) {
+  const n = nm || '';
+  if (/כבל|גליל|מחבר|מתאם|מתקן|תושבת|קייס|ארון|פאנל|התקנה|תכנות|עבודת|כרטיס|מדף|סטנד|חצובה/i.test(n)) return null;
+  if (/סאב|\bsub\b|subwoofer/i.test(n)) return /מוגבר|אקטיבי|active|powered/i.test(n) ? 'subA' : 'sub';
+  if (/רמקול|speaker|loudspeaker|קולונה|מוניטור/i.test(n)) return /מוגבר|אקטיבי|active|powered/i.test(n) ? 'spkA' : 'spk';
+  if (/פרוססור|processor|מטריצ|matrix|crossover|קרוסאובר/i.test(n) && !/מגבר/.test(n)) return 'proc';
+  if (/מגבר|amplifier|רסיבר|receiver/i.test(n)) return 'amp';
+  if (/מיקסר|mixer/i.test(n)) return 'mixer';
+  if (/מיקרופון|microphone/i.test(n)) return 'mic';
+  return null;
+}
+const kitAltCache = new Map();
+function kitVer(nm) { const m = /\b(?:V|MK|MARK)\s?-?(\d)\b|\b(II|III|IV)\b/i.exec(nm || ''); if (!m) return 1; return m[1] ? +m[1] : ({ II: 2, III: 3, IV: 4 })[m[2].toUpperCase()] || 1; }
+function kitStem(nm) { return shortModel(nm || '').toUpperCase().replace(/\b(?:V|MK|MARK)\s?-?\d\b|\b(II|III|IV)\b/g, '').replace(/[\s\-]+/g, '').trim(); }
+function kitInch(nm) { const m = /(\d{1,2}(?:\.\d)?)\s*(?:אינ[ץצ]|"|''|inch)/i.exec(nm || ''); return m ? +m[1] : null; }
+function kitBrandOf(nm) { const b = (typeof KIT_BRANDS !== 'undefined' ? KIT_BRANDS : []).find(([, re]) => re.test(nm || '')); return b ? b[0] : ''; }
+function kitAltFor(x) {
+  if (!x || !x.name || typeof ERP_ITEMS === 'undefined') return [];
+  const ck = (x.key || '') + '|' + x.name; if (kitAltCache.has(ck)) return kitAltCache.get(ck);
+  const cls = kitFuncClass(x.name), out = [];
+  if (cls) {
+    const inf = x.key ? erpInfo(x.key) : null, price = inf ? +inf.price || 0 : 0;
+    const stem = kitStem(x.name), ver = kitVer(x.name), inch = kitInch(x.name), brand = kitBrandOf(x.name);
+    let newer = null; const sim = [];
+    for (const it of ERP_ITEMS) {
+      const k = it[0], nm = it[1] || '', pr = +it[2] || 0, st = +it[3] || 0;
+      if (k === x.key || !pr || KIT_ALT_NO.test(nm) || kitFuncClass(nm) !== cls) continue;
+      /* דגם חדש יותר: אותו שורש דגם, מספר גרסה גבוה יותר */
+      if (stem.length >= 3 && kitStem(nm) === stem && kitVer(nm) > ver) { if (!newer || kitVer(nm) > kitVer(newer.name) || (kitVer(nm) === kitVer(newer.name) && st > newer.stock)) newer = { key: k, name: nm, price: pr, stock: st, why: 'דגם חדש יותר' }; continue; }
+      if (!price || st <= 0) continue;
+      const ratio = pr / price; if (ratio < 0.6 || ratio > 1.6) continue;
+      const i2 = kitInch(nm); if (inch && i2 && Math.abs(i2 - inch) > 2) continue;
+      let score = Math.abs(Math.log(ratio));
+      if (brand && kitBrandOf(nm) === brand) score -= 0.35;
+      if (inch && i2 === inch) score -= 0.3;
+      const same = stem.length >= 3 && kitStem(nm) === stem;   /* אותו דגם במק"ט אחר (צבע / אריזה) — הכי קרוב שיש */
+      if (same) score -= 2;
+      sim.push({ key: k, name: nm, price: pr, stock: st, score, why: same ? 'אותו דגם — מק"ט אחר' : 'דומה במחיר ובפונקציה' });
+    }
+    if (newer) out.push(newer);
+    sim.sort((a, b) => a.score - b.score);
+    for (const s2 of sim) { if (out.length >= 3) break; if (!out.some(o => o.key === s2.key)) out.push(s2); }
+  }
+  kitAltCache.set(ck, out); return out;
+}
+function nkReplace(i, key, name) { const it = nkDraft.items[i]; if (!it) return; it.key = key; it.name = name; nkDraft.replIdx = null; nkDraft.q = ''; renderKitNew(); uiToast('🔄 הפריט הוחלף'); }
+function nkReplStart(i) { const it = nkDraft.items[i]; if (!it) return; nkDraft.replIdx = i; nkDraft.q = (shortModel(it.name) || '').split(' ')[0] || ''; renderKitNew(); const e2 = document.getElementById('nkQ'); if (e2) { e2.focus(); e2.select(); } }
+window.nkReplace = nkReplace; window.nkReplStart = nkReplStart;
 let nkDraft = null;
 function kitNew() { nkDraft = { name: '', items: [], q: '' }; renderKitNew(); }
 function renderKitNew() {
@@ -10617,22 +10692,26 @@ function renderKitNew() {
     <button onclick="nkDraft=null;renderKits()">← ביטול וחזרה</button>
     <h3 style="margin:10px 0 4px">➕ קיט חדש</h3>
     <div class="fld"><label>שם הקיט</label><input id="nkName" value="${esc(d.name)}" oninput="nkDraft.name=this.value"></div>
-    <div class="fld"><label>חיפוש פריט בקטלוג</label><input id="nkQ" value="${esc(d.q)}" oninput="nkDraft.q=this.value;renderKitNew();const e2=document.getElementById('nkQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
+    ${d.replIdx != null && d.items[d.replIdx] ? `<div style="background:#fff3e0;border:1px solid #e9a03b;border-radius:8px;padding:6px 9px;margin-bottom:6px;font-size:12px;display:flex;gap:8px;align-items:center"><span style="flex:1">🔄 מחליף את: <b>${esc(d.items[d.replIdx].name.slice(0, 50))}</b> — חפש ובחר את הפריט החדש</span><button style="padding:2px 9px" onclick="nkDraft.replIdx=null;nkDraft.q='';renderKitNew()">ביטול</button></div>` : ''}
+    <div class="fld"><label>${d.replIdx != null ? 'חיפוש הפריט המחליף' : 'חיפוש פריט בקטלוג'}</label><input id="nkQ" value="${esc(d.q)}" oninput="nkDraft.q=this.value;renderKitNew();const e2=document.getElementById('nkQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
     ${hits.map(it => { const [k, n2] = it; const stq = Math.round(+it[3] || 0), pr = +it[2] || 0;
-      return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11px;margin-bottom:3px" onclick="nkDraft.items.push({name:'${jsq(n2)}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()">
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">➕ ${esc(n2.slice(0, 52))}</span>
+      return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11px;margin-bottom:3px" onclick="${d.replIdx != null ? `nkReplace(${d.replIdx},'${k}','${jsq(n2)}')` : `nkDraft.items.push({name:'${jsq(n2)}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()`}">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.replIdx != null ? '🔄' : '➕'} ${esc(n2.slice(0, 52))}</span>
         <b style="color:${stq > 9 ? '#0a7a4b' : stq > 0 ? '#b8860b' : '#a32222'};white-space:nowrap">מלאי ${stq}</b>
         <span class="muted" style="white-space:nowrap">₪${pr.toLocaleString()}</span></button>`; }).join('')}
     ${toks.length && !hits.length ? '<p class="muted" style="font-size:11px">לא נמצא — נסה מילה אחת מהשם (השכרות וחלקי חילוף מוסתרים)</p>' : ''}
     ${d.items.length ? '<h3 class="sec">פריטים בקיט (' + d.items.length + ')</h3>' : ''}
     ${d.items.map((x, i) => { const inf = x.key ? erpInfo(x.key) : null; const pr = inf ? inf.price : 0;
-      return `<div style="display:flex;gap:6px;align-items:center;font-size:12px;padding:3px 6px;border:1px solid #eee;border-radius:6px;margin-bottom:3px">
+      const alts = kitAltFor(x);
+      return `<div style="border:1px solid ${d.replIdx === i ? '#e9a03b' : '#eee'};border-radius:6px;margin-bottom:3px;padding:3px 6px"><div style="display:flex;gap:6px;align-items:center;font-size:12px">
       <input type="number" min="1" value="${x.qty}" style="width:44px" onchange="nkDraft.items[${i}].qty=+this.value||1;renderKitNew()">
       <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.name.slice(0, 44))}</span>
       <code style="font-size:10px;color:#666;background:#f3f1ec;border-radius:4px;padding:1px 5px;white-space:nowrap">${esc(x.key || '—')}</code>
       <span class="muted" style="white-space:nowrap;font-size:11px">${stockBadge(x.key) || (pr ? '₪' + pr.toLocaleString() : '')}</span>
       <b style="white-space:nowrap">${pr ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</b>
-      <button style="padding:0 6px" onclick="nkDraft.items.splice(${i},1);renderKitNew()">✕</button></div>`; }).join('')}
+      <button style="padding:0 6px" title="החלפת הפריט — חיפוש בקטלוג" onclick="nkReplStart(${i})">🔄</button>
+      <button style="padding:0 6px" onclick="nkDraft.items.splice(${i},1);renderKitNew()">✕</button></div>
+      ${alts.length ? `<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:3px 50px 2px 0;font-size:10.5px"><span class="muted">מוצר מחליף:</span>${alts.map(a => `<button style="padding:1px 7px;font-size:10.5px;border:1px solid ${a.why === 'דגם חדש יותר' ? '#0f6e56' : '#cfd3dc'};background:${a.why === 'דגם חדש יותר' ? '#eef7f1' : '#fff'};border-radius:6px" title="${esc(a.name)} · ${a.why} — לחיצה מחליפה" onclick="nkReplace(${i},'${a.key}','${jsq(a.name)}')">${a.why === 'דגם חדש יותר' ? '🆕 ' : a.why.startsWith('אותו') ? '= ' : '↔ '}${esc(shortModel(a.name) || a.name.slice(0, 22))} · ₪${a.price.toLocaleString()} · <span style="color:${a.stock > 9 ? '#0a7a4b' : a.stock > 0 ? '#b8860b' : '#a32222'}">מלאי ${Math.round(a.stock)}</span></button>`).join('')}</div>` : ''}</div>`; }).join('')}
     ${d.items.length ? `<p style="text-align:left;font-weight:800;margin:8px 6px 0">סה"כ הקיט: ₪${d.items.reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * (x.qty || 1); }, 0).toLocaleString()}</p>
     <button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>` : ''}`;
 }
