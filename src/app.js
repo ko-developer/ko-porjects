@@ -10997,7 +10997,7 @@ function renderKitNew() {
       const alts = kitAltFor(x);
       return `<div style="border:1px solid ${d.replIdx === i ? '#e9a03b' : '#eee'};border-radius:6px;margin-bottom:3px;padding:3px 6px"><div style="display:flex;gap:6px;align-items:center;font-size:12px">
       <input type="number" min="1" value="${x.qty}" style="width:44px" onchange="nkDraft.items[${i}].qty=+this.value||1;renderKitNew()">
-      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.name.slice(0, 44))}</span>
+      <span style="flex:1;min-width:0;line-height:1.35" title="${esc(x.name)}">${(() => { const cl = kitFuncClass(x.name), mdl = cl && !/^cab/.test(cl) ? shortModel(x.name) : ''; return mdl && /[A-Za-z]/.test(mdl) ? '<b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;font-size:12.5px">' + esc(mdl) + '</b> · ' : ''; })()}${esc(x.name)}</span>
       <code style="font-size:10px;color:#666;background:#f3f1ec;border-radius:4px;padding:1px 5px;white-space:nowrap">${esc(x.key || '—')}</code>
       <span class="muted" style="white-space:nowrap;font-size:11px">${stockBadge(x.key) || (pr ? '₪' + pr.toLocaleString() : '')}</span>
       <b style="white-space:nowrap">${pr ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</b>
