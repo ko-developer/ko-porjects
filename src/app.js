@@ -10550,6 +10550,15 @@ function kitToggleHide(gi) {
 const KIT_REEL_KEYS = { CA1219KO: 100 };
 function kitFixReels(list) {
   let n = 0;
+  /* שורות ריקות שמגיעות מה-ERP (בלי מק״ט ובלי שם) נזרקות; מק״ט בלי שם מקבל את שמו מהקטלוג */
+  (list || []).forEach(k => {
+    const before = (k.items || []).length;
+    k.items = (k.items || []).filter(x => {
+      if (x.key && !x.name && typeof ERP_ITEMS !== 'undefined') { const it = ERP_ITEMS.find(i => i[0] === x.key); if (it) x.name = it[1]; }
+      return !!(x.name || '').trim();
+    });
+    if (k.items.length !== before) n++;
+  });
   (list || []).forEach(k => (k.items || []).forEach(x => {
     const per = KIT_REEL_KEYS[String(x.key || '').toUpperCase()];
     if (per && (+x.qty || 0) >= per) { x.qty = Math.ceil(+x.qty / per); n++; }
@@ -10570,7 +10579,13 @@ function allKits(withHidden) {
 const DSP_STANDALONE = /פרוססור|מעבד רמקולים|DIGISYNTHETIC|NST|ICORE|מטריצ/i;
 const AMP_WITH_DSP = /DSP|IPX|DPA|DYNAMIQ|PLM|K&F D|משולב פרוססור/i;
 const HOME_AMP = /ביתי|YAMAHA.*(V4|RX)|סטרימר WIIM/i;
+/* קיט סאונד = קטגוריית audio או שיש בו רמקול/סאב/מגבר. כללי ה-DSP והכבלים חלים רק עליו */
+function kitIsAudio(k) {
+  if ((k.items || []).some(x => /^(spk|spkA|sub|subA|amp)$/.test(kitFuncClass(x.name) || ''))) return true;
+  return kitCatOf(k) === 'audio';
+}
 function kitDsp(k) {
+  if (!kitIsAudio(k)) return { kind: 'na', label: '', cls: 'good' };
   const names = (k.items || []).map(x => x.name || '');
   const amp = names.filter(n => /מגבר/.test(n) && !/מתקן|כבל/.test(n));
   if (names.some(n => DSP_STANDALONE.test(n) && !/מגבר|כבל|מחבר|פנל קיפד|תכנות/.test(n)))
@@ -10590,6 +10605,99 @@ function dspCompletion(k) {
       : 'מערכת אירופאית — מנוהלת ב-NST (כלל 6)' };
   return { key: 'SDIG5KO', why: 'כמה כניסות בעוצמה מתונה — DIGISYNTHETIC 208 (כלל 4)' };
 }
+/* ---------- כבלים חסרים בקיט סאונד — הצעה לאישור, לא נוסף לבד ----------
+   המק״טים = אלה שכבר נמצאים בשימוש בקיטים הקיימים ב-ERP. הכמויות הן ברירת מחדל שניתנת לעריכה לפני האישור. */
+const KIT_CAB = {
+  spk: { key: 'CA1219KO', t: 'כבל רמקול' },      /* גליל 100 מ׳ 2×2.5 */
+  xlr: { key: 'CA318KO', t: 'כבל XLR' },          /* XLR-XLR 1 מ׳ — חיבורים בתוך הארון */
+  xlrLong: { key: 'CA2229KO', t: 'כבל XLR' },     /* גליל 100 מ׳ כבל מיקרופון — לרמקולים מוגברים */
+  pwr: { key: 'CA4120RB', t: 'כבל חשמל' }         /* כבל מתח קומקום */
+};
+const KIT_CAB_HAS = {
+  spk: /כבל רמקול|כבל סאונד[^|]*[24]\s?[xX]\s?(1\.5|2\.5|4)|speaker cable/i,
+  xlr: /כבל[^|]*XLR|XLR[^|]*כבל/i,
+  pwr: /כבל (חשמל|הזנה|מתח)|קומקום|פאו?ו?רקון|powercon/i
+};
+function kitCableNeeds(k) {
+  if (!k || k.cabOk || !kitIsAudio(k)) return [];
+  let amps = 0, ampCh = 0, procs = 0, pas = 0, act = 0;
+  const has = { spk: false, xlr: false, pwr: false };
+  (k.items || []).forEach(x => {
+    const n = x.name || '', q = +x.qty || 1, c = kitFuncClass(n);
+    for (const h in KIT_CAB_HAS) if (KIT_CAB_HAS[h].test(n) && !/מחבר|פנל|פאנל|שאסי/.test(n)) has[h] = true;
+    if (c === 'amp') { amps += q; const m = /(\d)\s*ערוצים/.exec(n); ampCh += q * (m ? +m[1] : 2); }
+    else if (c === 'proc' || c === 'procK') procs += q;
+    else if (c === 'spk' || c === 'sub') pas += q;
+    else if (c === 'spkA' || c === 'subA') act += q;
+  });
+  const out = [], add = (id, qty, why) => {
+    const d = KIT_CAB[id], it = typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS.find(i => i[0] === d.key) : null;
+    if (it && qty > 0) out.push({ id, key: d.key, name: it[1], qty, price: +it[2] || 0, t: d.t, why });
+  };
+  if (!has.spk && pas) add('spk', 1, pas + ' רמקולים/סאבים פסיביים — גליל 100 מ׳');
+  if (!has.xlr && ampCh) add('xlr', ampCh, 'כבל לכל ערוץ כניסה של מגבר (' + amps + ' מגברים)');
+  if (!has.xlr && act) add('xlrLong', 1, act + ' רמקולים מוגברים — גליל 100 מ׳ כבל סיגנל');
+  if (!has.pwr && amps + procs + act) add('pwr', amps + procs + act, [amps ? amps + ' מגברים' : '', procs ? procs + ' פרוססורים' : '', act ? act + ' רמקולים מוגברים' : ''].filter(Boolean).join(' + '));
+  return out;
+}
+function kitCabRowsHTML(k, gi) {
+  return kitCableNeeds(k).map(c => `<label style="display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px dashed #f0c9c9;font-size:12px;cursor:pointer">
+      <input type="checkbox" checked data-cab="${gi}" data-cabid="${c.id}">
+      <input type="number" min="1" value="${c.qty}" data-cabq="${gi}:${c.id}" onclick="event.stopPropagation()" style="width:52px;text-align:center">
+      <span style="width:84px;flex:none;direction:ltr;text-align:left;font-family:monospace;font-size:11px;color:#555">${esc(c.key)}</span>
+      <span style="flex:1"><b>${c.t}</b> — ${esc(c.name)}<br><span class="muted" style="font-size:10.5px">${esc(c.why)}</span></span>
+      <span class="muted">₪${(c.price * c.qty).toLocaleString()}</span></label>`).join('');
+}
+/* אישור: השורות המסומנות נוספות לקיט ונשמרות כגרסה שלי (מחליפה את קיט ה-ERP). cabOk = הקיט נבדק, לא להציע שוב */
+function kitCabApply(gi, quiet) {
+  const k = allKits()[gi]; if (!k) return 0;
+  const n = kitCabApplyObj(k, gi);
+  if (!quiet) { save(); kitPrev(allKits().findIndex(q => (q.name || '').trim() === (k.name || '').trim())); uiToast('🔌 נוספו ' + n + ' שורות כבלים לקיט'); }
+  return n;
+}
+/* מסך אחד לכל קיטי הסאונד שחסרים בהם כבלים — אישור קיט-קיט או הכול */
+function kitCabAll() {
+  const all = allKits(), list = all.map((k, gi) => ({ k, gi })).filter(o => !kitHidden(o.k.name) && kitCableNeeds(o.k).length);
+  $('#impList').innerHTML = `<button onclick="renderKits()">← חזרה לרשימת הקיטים</button>
+    <h3 style="margin:10px 0 4px">🔌 כבלים חסרים בקיטי הסאונד <span class="muted" style="font-size:11px">${list.length} קיטים</span></h3>
+    <p class="muted" style="margin:0 0 8px;font-size:11.5px">לכל קיט מוצעות השורות החסרות: כבל רמקול, כבלי XLR וכבלי חשמל. בטל סימון או שנה כמות — ואשר. השורות נשמרות בקיט (גרסה שלך, מחליפה את קיט ה-ERP).</p>
+    ${list.length ? '<button class="primary" style="width:100%;margin-bottom:10px" onclick="kitCabApplyAll()">✓ אשר את כל המסומנים בכל ' + list.length + ' הקיטים</button>' : '<p style="color:#0a7a4b;font-weight:700">✓ בכל קיטי הסאונד יש כבלים</p>'}` +
+    list.map(o => `<div data-cabkit="${o.gi}" style="border:1px solid #e3e3e3;border-radius:9px;margin-bottom:8px;overflow:hidden">
+      <div style="display:flex;gap:8px;align-items:center;padding:6px 8px;background:#f7f7f7">
+        <b style="flex:1;cursor:pointer" onclick="kitPrev(${o.gi})">${esc(o.k.name)}</b>
+        <button onclick="kitCabApply(${o.gi},1);save();kitCabAll()" style="background:#eef7f1;color:#0f6e56;font-weight:700">✓ אשר</button>
+        <button onclick="kitCabSkip(${o.gi})" title="הקיט תקין כמו שהוא — לא להציע שוב">✕ לא צריך</button>
+      </div>${kitCabRowsHTML(o.k, o.gi)}</div>`).join('');
+}
+function kitCabApplyAll() {
+  const gis = [...document.querySelectorAll('[data-cabkit]')].map(e => +e.dataset.cabkit), ks = allKits();
+  let n = 0;
+  /* allKits משתנה כשקיט ERP הופך לגרסה שלי — לכן עובדים לפי האובייקטים ולא לפי האינדקסים */
+  gis.forEach(gi => { n += kitCabApplyObj(ks[gi], gi); });
+  save(); kitCabAll(); uiToast('🔌 נוספו ' + n + ' שורות כבלים ב-' + gis.length + ' קיטים');
+}
+function kitCabApplyObj(k, gi) {
+  const needs = kitCableNeeds(k), addIt = [];
+  needs.forEach(c => {
+    const cb = document.querySelector('[data-cab="' + gi + '"][data-cabid="' + c.id + '"]'), q = document.querySelector('[data-cabq="' + gi + ':' + c.id + '"]');
+    if (cb && !cb.checked) return;
+    addIt.push({ key: c.key, name: c.name, qty: Math.max(1, Math.round(+(q && q.value) || c.qty)) });
+  });
+  store.userKits = store.userKits || [];
+  const mine = store.userKits.includes(k);
+  const rec = mine ? k : { name: k.name, cat: k.cat, sys: k.sys, items: JSON.parse(JSON.stringify(k.items)) };
+  rec.items.push(...addIt); rec.cabOk = true;
+  if (!mine) store.userKits.push(rec);
+  return addIt.length;
+}
+function kitCabSkip(gi) {
+  const k = allKits()[gi]; if (!k) return;
+  store.userKits = store.userKits || [];
+  if (store.userKits.includes(k)) k.cabOk = true;
+  else store.userKits.push({ name: k.name, cat: k.cat, sys: k.sys, items: JSON.parse(JSON.stringify(k.items)), cabOk: true });
+  save(); kitCabAll();
+}
+window.kitCabApply = kitCabApply; window.kitCabAll = kitCabAll; window.kitCabApplyAll = kitCabApplyAll; window.kitCabSkip = kitCabSkip;
 /* מצב המלאי של קיט שלם — כמה פריטי ליבה אזלו */
 function kitStock(k) {
   let dead = 0, low = 0, core = 0;
@@ -10619,11 +10727,12 @@ function kitPrev(gi) {
   $('#impList').innerHTML = `
     <button onclick="renderKits()">← חזרה לרשימת הקיטים</button>
     <h3 style="margin:10px 0 4px">🧰 ${esc(k.name)}${kitStdName(k) !== k.name ? ' <span style="color:#999;font-weight:400">—</span> <span style="color:#4b3fb8;direction:ltr;unicode-bidi:embed">' + esc(kitStdName(k)) + '</span>' : ''} <span class="muted" style="font-size:11px">${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''} · ${esc(kitCatOf(k))}${(() => { const s2 = kitStock(k); return s2.dead ? ' · <b style="color:#a32222">' + s2.dead + ' פריטי ליבה אזלו</b>' : ''; })()}</span></h3>
-    ${(() => { const d2 = kitDsp(k); if (d2.kind !== 'none') return '<p style="font-size:11px;margin:0 0 6px;color:' + (d2.cls === 'good' ? '#0a7a4b' : '#b8860b') + ';font-weight:700">' + d2.label + '</p>';
+    ${(() => { const d2 = kitDsp(k); if (d2.kind === 'na') return ''; if (d2.kind !== 'none') return '<p style="font-size:11px;margin:0 0 6px;color:' + (d2.cls === 'good' ? '#0a7a4b' : '#b8860b') + ';font-weight:700">' + d2.label + '</p>';
       const c2 = dspCompletion(k), inf2 = erpInfo(c2.key);
       return '<p style="font-size:11px;margin:0 0 6px;color:#c1121f;font-weight:700">⚠ חסר DSP — בהוספה יתווסף אוטומטית: ' + (inf2 ? '₪' + inf2.price.toLocaleString() + ' · ' : '') + esc(c2.why) + '</p>'; })()}
     ${rows}
     <p style="text-align:left;font-weight:700;margin:6px 8px">סה"כ משוער: ₪${total.toLocaleString()}</p>
+    ${kitCableNeeds(k).length ? '<div style="border:1.5px solid #e9b4b4;border-radius:9px;margin:6px 0 10px;overflow:hidden"><div style="background:#fdf0f0;padding:6px 8px;font-weight:700;color:#c1121f;font-size:12.5px">🔌 חסרים כבלים בקיט — שורות מוצעות לאישור</div>' + kitCabRowsHTML(k, gi) + '<button style="width:100%;background:#eef7f1;color:#0f6e56;font-weight:700;border-radius:0" onclick="kitCabApply(' + gi + ')">✓ אשר והוסף את המסומנים לקיט</button></div>' : ''}
     <button class="primary" style="width:100%" onclick="pickKit(${gi})">➕ הוסף את הקיט לרשימת הפריטים</button>
     <button style="width:100%;margin-top:6px;background:#eef7f1;color:#0f6e56;font-weight:700" onclick="kitEdit(${gi})">✎ ערוך את הקיט — השינוי נשמר לתמיד${isUser ? '' : ' (מחליף את קיט ה-ERP)'}</button>
     <button style="width:100%;margin-top:6px" onclick="kitToggleHide(${gi})">${kitHidden(k.name) ? '↺ החזר את הקיט לרשימה' : '✕ הסתר — הקיט לא רלוונטי'}</button>
@@ -10849,6 +10958,7 @@ function renderKits() {
         href="/matrix"
         title="מי הולך עם מי — אישור ואיסור שילובים, נשמר ונקרא ע&quot;י המתכנן">🧩 מטריצת התאמות</a>
     </div>
+    ${(() => { const nC = allKits().filter(k => !kitHidden(k.name) && kitCableNeeds(k).length).length; return nC ? '<button style="width:100%;margin-bottom:8px;background:#fdf0f0;color:#c1121f;font-weight:700;border:1px solid #e9b4b4" onclick="kitCabAll()">🔌 ב-' + nC + ' קיטי סאונד חסרים כבלים — עבור ואשר את השורות המוצעות</button>' : ''; })()}
     <p class="muted" style="margin-bottom:8px">${list2.length} קיטים · מוצגים ${Math.min(list2.length, kitShow)} · לחיצה פותחת תצוגה מקדימה${hiddenCount ? ` · ${hiddenCount} מוסתרים` : ''}:</p>` +
     list2.slice(0, kitShow).map(k => {
       const gi = allKits().indexOf(k);
@@ -10864,7 +10974,7 @@ function renderKits() {
         <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${kitStdName(k) !== k.name ? ` <span style="color:#999">—</span> <b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;${hid ? 'text-decoration:line-through' : ''}" title="שם לפי התוכן: רמקולים · סאבים · מגברים · פרוססור">${esc(kitStdName(k))}</b>` : ''}${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
           ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}<br>
           <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·
-            <span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · 🔊 ${kitSpkCount(k)} רמקולים${kitBrands(k).length ? ' · ' + esc(kitBrands(k).join(' + ')) : ''} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
+            ${dsp.kind === 'na' ? '' : `<span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · `}${(() => { const cn = dsp.kind === 'na' ? [] : kitCableNeeds(k); return cn.length ? '<span style="color:#c1121f;font-weight:700">🔌 חסרים כבלים (' + cn.length + ')</span> · ' : ''; })()}${dsp.kind === 'na' ? '' : '🔊 ' + kitSpkCount(k) + ' רמקולים'}${kitBrands(k).length ? ' · ' + esc(kitBrands(k).join(' + ')) : ''} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
         <button onclick="event.stopPropagation();kitToggleHide(${gi})" title="${hid ? 'החזר לרשימה' : 'הסתר — לא רלוונטי'}"
           style="border:1px solid #ddd;background:#fff;border-radius:7px;padding:2px 7px;font-size:11px;color:#777">${hid ? '↺' : '✕'}</button>
       </div>`;
