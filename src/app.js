@@ -7110,7 +7110,7 @@ function patchOfferKits(zid) {
     <b style="font-size:14px">🧰 קיט התקנה וחיווט לפרויקט?</b>
     <p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">החיווט הושלם — אפשר להוסיף קיט אביזרים/התקנה מוכן (כמויות ניתנות לעריכה לפני ההוספה):</p>
     <div style="max-height:44vh;overflow-y:auto">
-      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${jsq(zname)}',${x.i})">🧰 ${esc(kitStdName(x.k).slice(0, 46))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
+      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${jsq(zname)}',${x.i})">🧰 ${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 72))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
     </div>
     <button data-skip style="width:100%;margin-top:8px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">דלג — בלי קיט</button>`);
   ov.querySelector('[data-skip]').onclick = () => ov.remove();
@@ -10585,7 +10585,7 @@ function kitPrev(gi) {
   }).join('');
   $('#impList').innerHTML = `
     <button onclick="renderKits()">← חזרה לרשימת הקיטים</button>
-    <h3 style="margin:10px 0 4px">🧰 ${esc(kitStdName(k))} <span class="muted" style="font-size:11px">${kitStdName(k) !== k.name ? esc(k.name.slice(0, 50)) + ' · ' : ''}${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''} · ${esc(kitCatOf(k))}${(() => { const s2 = kitStock(k); return s2.dead ? ' · <b style="color:#a32222">' + s2.dead + ' פריטי ליבה אזלו</b>' : ''; })()}</span></h3>
+    <h3 style="margin:10px 0 4px">🧰 ${esc(k.name)}${kitStdName(k) !== k.name ? ' <span style="color:#999;font-weight:400">—</span> <span style="color:#4b3fb8;direction:ltr;unicode-bidi:embed">' + esc(kitStdName(k)) + '</span>' : ''} <span class="muted" style="font-size:11px">${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''} · ${esc(kitCatOf(k))}${(() => { const s2 = kitStock(k); return s2.dead ? ' · <b style="color:#a32222">' + s2.dead + ' פריטי ליבה אזלו</b>' : ''; })()}</span></h3>
     ${(() => { const d2 = kitDsp(k); if (d2.kind !== 'none') return '<p style="font-size:11px;margin:0 0 6px;color:' + (d2.cls === 'good' ? '#0a7a4b' : '#b8860b') + ';font-weight:700">' + d2.label + '</p>';
       const c2 = dspCompletion(k), inf2 = erpInfo(c2.key);
       return '<p style="font-size:11px;margin:0 0 6px;color:#c1121f;font-weight:700">⚠ חסר DSP — בהוספה יתווסף אוטומטית: ' + (inf2 ? '₪' + inf2.price.toLocaleString() + ' · ' : '') + esc(c2.why) + '</p>'; })()}
@@ -10812,7 +10812,7 @@ function renderKits() {
       return `<div class="crow" onclick="kitPrev(${gi})" style="${hid ? 'opacity:.55' : ''}">
         <span class="badge" style="background:${isUser ? '#0f6e56' : '#534ab7'}">${k.items.length}</span>
         <b style="font-size:11px;white-space:nowrap;color:#333">₪${Math.round(kPrice).toLocaleString()}</b>
-        <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(kitStdName(k))}</b>${kitStdName(k) !== k.name ? ` <span style="font-size:9.5px;color:#999" title="השם המקורי ב-ERP">${esc(k.name.slice(0, 40))}</span>` : ''}${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
+        <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${kitStdName(k) !== k.name ? ` <span style="color:#999">—</span> <b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;${hid ? 'text-decoration:line-through' : ''}" title="שם לפי התוכן: רמקולים · סאבים · מגברים · פרוססור">${esc(kitStdName(k))}</b>` : ''}${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
           ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}<br>
           <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·
             <span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · 🔊 ${kitSpkCount(k)} רמקולים${kitBrands(k).length ? ' · ' + esc(kitBrands(k).join(' + ')) : ''} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
@@ -12522,10 +12522,10 @@ function zoneSystemBuilder(z) {
       return `<div class="fld"><label>3️⃣ חיפוש מוצר או קיט (ERP)</label>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px">${chips}</div>
         <input id="zsq" value="${esc(z._sq || '')}" placeholder="למשל UNICORN / F81 / קיט בר" oninput="setZoneField('${zid}','_sq',this.value)"></div>
-      ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 קיט: ${esc(kitStdName(x.k).slice(0, 42))}</button>`).join('')}</div>` : ''}
+      ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 קיט: ${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 68))}</button>`).join('')}</div>` : ''}
       ${!kq ? `<div class="fld"><label style="font-size:10px">כל הקיטים (${kits.length})</label><select onchange="if(this.value!==''){zoneKitConfirm('${jsq(z.name)}',+this.value);this.value='';}">
         <option value="">— או בחר קיט מהרשימה (${kits.length}) —</option>
-        ${kits.map(x => `<option value="${x.i}">${x.rec ? '⭐ ' : ''}${esc(kitStdName(x.k).slice(0, 44))}</option>`).join('')}
+        ${kits.map(x => `<option value="${x.i}">${x.rec ? '⭐ ' : ''}${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 70))}</option>`).join('')}
       </select></div>` : ''}
       ${typeof erpQuotesDialog === 'function' && !(window.__AUTH && window.__AUTH.user && window.__AUTH.user.role !== 'owner') ? `<button style="width:100%;margin:2px 0 6px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="selZone='${zid}';erpQuotesDialog()" title="הפריטים של הצעת מחיר קיימת ב-ERP נכנסים להצעה ומוצבים באזור הזה — כמו בחירת קיט">🧾 או מהצעת מחיר קיימת ב-ERP → הצב באזור</button>` : ''}`;
     })()}
@@ -13420,7 +13420,7 @@ function zoneSpkPicker(zid, tab) {
   const kitCard = (x, extra) => `
     <div style="border:1.5px solid ${extra || '#e3ded6'};border-radius:12px;padding:10px;margin-bottom:8px">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-        <b style="flex:1;font-size:13px">${esc(kitStdName(x.k).slice(0, 54))}</b>
+        <b style="flex:1;font-size:13px">${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 80))}</b>
         ${x._spl ? `<span class="muted" style="font-size:10.5px;white-space:nowrap">יכולת ~${x._spl}dB</span>` : ''}
         <b style="white-space:nowrap">₪${Math.round(kitPriceOf(x.k)).toLocaleString()}</b></div>
       <div style="display:flex;gap:5px;align-items:center;margin-bottom:6px">${kitThumbs(x.k, 4)}

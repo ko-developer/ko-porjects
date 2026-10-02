@@ -208,7 +208,7 @@ function wizStepHTML(s) {
     return `
     <h4>קיט התקנה לפרויקט</h4>
     <p class="hint">קיטי התשתית שסוגרים את הפרויקט — עמדה, ארון, מולטי, פנלים ומחברים. הכמויות ניתנות לעריכה לפני ההוספה.</p>
-    ${kits.map(x => `<button class="sec" onclick="P._instKit=1;save();zoneKitConfirm('${jsq((z || {}).name || '')}',${x.i});wizRender()">🧰 ${esc(kitStdName(x.k).slice(0, 44))} · ${(x.k.items || []).length} פריטים</button>`).join('') || '<p class="hint">אין קיטי התקנה בקטלוג</p>'}
+    ${kits.map(x => `<button class="sec" onclick="P._instKit=1;save();zoneKitConfirm('${jsq((z || {}).name || '')}',${x.i});wizRender()">🧰 ${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 70))} · ${(x.k.items || []).length} פריטים</button>`).join('') || '<p class="hint">אין קיטי התקנה בקטלוג</p>'}
     ${P._instKit ? '<button class="sec done">✓ נבחר קיט התקנה</button>' : `<button class="sec" onclick="P._instKit=1;save();WIZ.step=6;wizRender()">דלג — בלי קיט</button>`}
     <button class="big" onclick="installManager()">🔧 טבלת התקנה ותמחור (זמנים ומחירים)</button>`;
   }
@@ -515,7 +515,7 @@ function wizKitSearch(q) {
   const kits = allKits().map((k, i) => ({ k, i })).filter(x => toks.every(t => x.k.name.toLowerCase().includes(t))).slice(0, 6);
   const spks = dockSearchResults(q).filter(r => r.type !== 'kit' && r.key && isSpeakerItem(r.name)).slice(0, 6);
   el.innerHTML =
-    kits.map(x => `<button class="sec" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 ${esc(kitStdName(x.k).slice(0, 40))}</button>`).join('') +
+    kits.map(x => `<button class="sec" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 ${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 66))}</button>`).join('') +
     spks.map(r => `<button class="sec" onclick="pickZoneSpk('${z.id}','${jsq(r.name)}','${r.key}',${/סאב|\bsub\b/i.test(r.name)});wizRender()">🔊 ${esc(r.name.slice(0, 40))} ${erpInfo(r.key) ? '· מלאי ' + erpInfo(r.key).qty : ''}</button>`).join('') ||
     '<p class="hint">אין תוצאות</p>';
 }
