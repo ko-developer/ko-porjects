@@ -10956,6 +10956,24 @@ function nkAddMissing(i) {
   renderKitNew(); if (pick.length) uiToast('➕ נוספו ' + pick.length + ' שורות לקיט — לא לשכוח לשמור');
 }
 window.nkAddMissing = nkAddMissing;
+/* מחיקת הקיט שבעריכה מרשימת הקיטים. קיט שלי — נמחק; קיט ERP (וגם המקור של גרסה שלי) — מוסתר, כי אי אפשר למחוק מה-ERP.
+   שתי לחיצות: הראשונה מדליקה את הכפתור באדום, השנייה מוחקת */
+function nkDelete() {
+  const d = nkDraft; if (!d) return;
+  if (!d.delArm) { d.delArm = 1; renderKitNew(); return; }
+  store.kitHidden = store.kitHidden || {};
+  const E = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [], isErp = n => E.some(e => (e.name || '').trim() === n);
+  let orig = d.replaces && d.replaces.trim();
+  if (d.editIdx != null && store.userKits && store.userKits[d.editIdx]) {
+    const u = store.userKits[d.editIdx], un = (u.name || '').trim();
+    store.userKits.splice(d.editIdx, 1);
+    if (!orig && isErp(un)) orig = un;          /* גרסה שלי באותו שם של קיט ERP */
+  } else if (!orig) orig = (allKits().find(k => (k.name || '').trim() === d.name.trim()) || {}).name;
+  if (orig && isErp(orig.trim())) store.kitHidden[orig.trim()] = true;
+  const back = d.backCab; nkDraft = null; save(); back ? kitCabAll() : renderKits();
+  uiToast('🗑 הקיט הוסר מרשימת הקיטים');
+}
+window.nkDelete = nkDelete;
 function nkReplace(i, key, name) { const it = nkDraft.items[i]; if (!it) return; it.key = key; it.name = name; nkDraft.replIdx = null; nkDraft.q = ''; renderKitNew(); uiToast('🔄 הפריט הוחלף'); }
 function nkReplStart(i) { const it = nkDraft.items[i]; if (!it) return; nkDraft.replIdx = i; nkDraft.q = kitFuncClass(it.name) ? '' : (shortModel(it.name) || '').split(' ')[0] || ''; renderKitNew(); const e2 = document.getElementById('nkQ'); if (e2) { e2.focus(); e2.select(); } }
 window.nkReplace = nkReplace; window.nkReplStart = nkReplStart;
@@ -10982,7 +11000,8 @@ function renderKitNew() {
         .sort((a, b) => (+b[3] || 0) - (+a[3] || 0)).slice(0, 10) : [];
   const RCLS_HE = { spk: 'רמקולים', spkA: 'רמקולים מוגברים', sub: 'סאבים', subA: 'סאבים מוגברים', amp: 'מגברים', cabSpk: 'כבלי רמקול', cabPwr: 'כבלי חשמל', cabSig: 'כבלי סיגנל (XLR / DMX / RCA)', cabData: 'כבלי רשת / HDMI', cab: 'כבלים', rcv: 'רסיברים ביתיים', ampPA: 'מגברי כריזה', proc: 'פרוססורים', procK: 'פרוססורי קריוקי', mixer: 'מיקסרים', mic: 'מיקרופונים' };
   $('#impList').innerHTML = `
-    <button onclick="const b=nkDraft&&nkDraft.backCab;nkDraft=null;b?kitCabAll():renderKits()">← ביטול וחזרה</button>
+    <div style="display:flex;gap:8px;align-items:center"><button onclick="const b=nkDraft&&nkDraft.backCab;nkDraft=null;b?kitCabAll():renderKits()">← ביטול וחזרה</button><span style="flex:1"></span>
+    ${d.editIdx != null || d.fromErp ? `<button onclick="nkDelete()" style="background:${d.delArm ? '#c1121f' : '#f3d9d2'};color:${d.delArm ? '#fff' : '#8a1c1c'};font-weight:700" title="הקיט יוסר מרשימת הקיטים (אפשר להחזיר דרך המסנן ✕ מוסתרים)">${d.delArm ? '🗑 לחץ שוב לאישור המחיקה' : '🗑 מחק מרשימת הקיטים'}</button>` : ''}</div>
     <h3 style="margin:10px 0 4px">➕ קיט חדש</h3>
     <div class="fld"><label>שם הקיט</label><input id="nkName" value="${esc(d.name)}" oninput="nkDraft.name=this.value"></div>
     ${(() => { const std = kitStdName({ name: '', items: d.items }); return `<div class="fld"><label>שם לפי התוכן — רמקולים · סאבים · מגברים · פרוססור (מתעדכן לבד)</label>
