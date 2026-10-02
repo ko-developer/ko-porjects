@@ -10570,11 +10570,26 @@ function kitFixReels(list) {
   return n;
 }
 if (typeof ERP_KITS !== "undefined") kitFixReels(ERP_KITS);   /* בטעינה — גם האשף והחיפושים קוראים את ERP_KITS ישירות */
+/* קיטים שנערכו ונשמרו בשם חדש ("קבע כשם הקיט") לפני שהיה קישור למקור: אם שם הקיט שלי הוא השם-לפי-התוכן שלו,
+   ויש בדיוק קיט ERP אחד עם אותם רמקולים+סאבים — הגרסה שלי מחליפה אותו */
+function kitLinkRenamed() {
+  const mine = store.userKits || [], E = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [];
+  const taken = new Set(mine.map(k => (k.name || '').trim())); mine.forEach(k => k.replaces && taken.add(k.replaces));
+  const head = k => kitStdName(k).split(' · ').slice(0, 2).join(' · ');
+  let n = 0;
+  mine.forEach(u => {
+    if (u.replaces || !u.cabOk || E.some(e => (e.name || '').trim() === (u.name || '').trim()) || kitStdName(u) !== u.name || !kitSpkCount(u)) return;
+    const c = E.filter(e => !taken.has((e.name || '').trim()) && kitSpkCount(e) && head(e) === head(u));
+    if (c.length === 1) { u.replaces = c[0].name.trim(); taken.add(u.replaces); n++; }
+  });
+  return n;
+}
 let kitReelsDone = false;
 function allKits(withHidden) {
-  if (!kitReelsDone) { kitReelsDone = true; if (kitFixReels(store.userKits)) save(); }
+  if (!kitReelsDone) { kitReelsDone = true; let ch = kitFixReels(store.userKits); try { ch += kitLinkRenamed(); } catch (e) { console.warn(e); } if (ch) save(); }
   const mine = store.userKits || [];
   const over = new Set(mine.map(k => (k.name || '').trim()));
+  mine.forEach(k => { if (k.replaces) over.add(k.replaces); });
   const base = (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).filter(k => !over.has((k.name || '').trim()));
   return base.concat(mine);
 }
@@ -10773,7 +10788,9 @@ function kitPrev(gi) {
 function saveKitDraft() {
   if (!nkDraft.name.trim()) { alert('תן שם לקיט'); return; }
   store.userKits = store.userKits || [];
-  const rec = { name: nkDraft.name.trim(), cat: nkDraft.cat || 'audio', sys: nkDraft.sys || 'קיט שלי', items: nkDraft.items, cabOk: true };   /* נשמר מהעורך = נבדק; מה שחסר הוצג שם ולא יוצע שוב במסך הכבלים */
+  const rec = { name: nkDraft.name.trim(), cat: nkDraft.cat || 'audio', sys: nkDraft.sys || 'קיט שלי', items: nkDraft.items, cabOk: true };
+  /* קיט ERP שנערך ושמו שונה — הגרסה שלי עדיין מחליפה את המקורי (אחרת המקורי נשאר ברשימת "לתיקון") */
+  if (nkDraft.replaces && nkDraft.replaces.trim() !== rec.name) rec.replaces = nkDraft.replaces.trim();   /* נשמר מהעורך = נבדק; מה שחסר הוצג שם ולא יוצע שוב במסך הכבלים */
   if (nkDraft.editIdx != null && store.userKits[nkDraft.editIdx]) store.userKits[nkDraft.editIdx] = rec;
   else store.userKits.push(rec);
   const wasErp = nkDraft.fromErp, backCab = nkDraft.backCab;
@@ -10786,7 +10803,7 @@ function kitEdit(gi) {
   const mine = store.userKits || [];
   const ui2 = mine.indexOf(k);
   /* קיט ERP נערך תחת אותו שם — הגרסה הערוכה מחליפה אותו בכל האפליקציה */
-  nkDraft = { name: k.name, items: JSON.parse(JSON.stringify(k.items)), q: '', editIdx: ui2 >= 0 ? ui2 : null, cat: k.cat, sys: k.sys, fromErp: ui2 < 0 };
+  nkDraft = { name: k.name, items: JSON.parse(JSON.stringify(k.items)), q: '', editIdx: ui2 >= 0 ? ui2 : null, cat: k.cat, sys: k.sys, fromErp: ui2 < 0, replaces: ui2 >= 0 ? k.replaces : k.name };
   renderKitNew();
 }
 /* מחיקת קיט שלי — אם הוא היה עריכה של קיט ERP, המקורי חוזר לרשימה */
@@ -10805,6 +10822,14 @@ async function kitDelete(gi) {
 const KIT_ALT_NO = /השכר|חלקי חילוף|חלק חילוף|לתיקון|ת\.ח|דוגמא|פגום|תצוגה בלבד|יד שנ|משומש|חלופי|ללא אחריות|טסט/;
 function kitFuncClass(nm) {
   const n = nm || '';
+  /* כבלים — קטגוריה משלהם, כדי שכבל יוחלף רק בכבל מאותו סוג */
+  if (/^\s*(כבל|גליל)/.test(n) && !KIT_ALT_NO.test(n)) {
+    if (/רמקול|ספיקון|speakon|speaker|\b[248]\s?[xX*]\s?(1\.5|2\.5|4)\b/i.test(n) && !/חשמל|powercon|פאו?ו?רקון/i.test(n)) return 'cabSpk';
+    if (/חשמל|מתח|הזנה|קומקום|פאו?ו?רקון|powercon|פנדל/i.test(n)) return 'cabPwr';
+    if (/XLR|מיקרופון|DMX|RCA|\bPL\b|AUX|מולטי|סאונד/i.test(n)) return 'cabSig';
+    if (/רשת|CAT\s?\d|HDMI|USB|אופטי/i.test(n)) return 'cabData';
+    return 'cab';
+  }
   if (/כבל|גליל|מחבר|מתאם|מתקן|תושבת|קייס|ארון|פאנל|פנל|קיפד|התקנה|תכנות|עבודת|כרטיס|מדף|סטנד|חצובה|יחידת הרחבה|ספק כח|לוח ראשי|כיסוי|גריל|\bcover\b|עגלה|מסגרת|פריים|באמפר/i.test(n)) return null;
   /* פרוססור קודם לכול: "Digital Loudspeaker Management" הוא פרוססור ולא רמקול. מגבר עם פרוססור פנימי נשאר מגבר */
   if (/פרוססור|processor|loudspeaker management|מעבד רמקולים/i.test(n) && !/מגבר|amplifier|וידאו|video|מסך|רמקול|סאב/i.test(n)) return /קריוקי|karaoke/i.test(n) ? 'procK' : 'proc';
@@ -10880,7 +10905,8 @@ function kitAltFor(x) {
       if (inch && i2 === inch) score -= 0.3;
       const same = stem.length >= 3 && kitStem(nm) === stem;   /* אותו דגם במק"ט אחר (צבע / אריזה) — הכי קרוב שיש */
       if (same) score -= 2;
-      if (io && io2) score += io === io2 ? -0.6 : 0.6;   /* פרוססור: אותו מספר כניסות/יציאות קודם */
+      if (io && io2) score += io === io2 ? -0.6 : 0.6;
+      if (/^cab/.test(cls)) { const A = new Set(x.name.toUpperCase().match(/[A-Z0-9.]+|[\u0590-\u05ff]{3,}/g) || []); let c = 0; for (const t of new Set(nm.toUpperCase().match(/[A-Z0-9.]+|[\u0590-\u05ff]{3,}/g) || [])) if (A.has(t)) c++; score -= 3 * c / Math.max(4, A.size); }   /* פרוססור: אותו מספר כניסות/יציאות קודם */
       sim.push({ key: k, name: nm, price: pr, stock: st, score, why: same ? 'אותו דגם — מק"ט אחר' : isProc ? 'פרוססור' + (io2 ? ' ' + io2.replace('x', '×') : '') + ' במחיר דומה' : isAmp && pow && pow2 ? 'מגבר ' + pow2.ch + '×' + pow2.w + 'W — עומד בהספק של המקורי (' + pow.ch + '×' + pow.w + 'W)' : 'דומה במחיר ובפונקציה' });
     }
     if (newer) out.push(newer);
@@ -10939,14 +10965,16 @@ function renderKitNew() {
   const rIt = d.replIdx != null ? d.items[d.replIdx] : null, rCls = rIt ? kitFuncClass(rIt.name) : null;
   const rPow = rCls && kitIsAmpCls(rCls) ? kitAmpPow(rIt.name) : null;
   const rBrand = rCls ? kitBrandOf(rIt.name) : '', rPrice = rCls && rIt.key && erpInfo(rIt.key) ? +erpInfo(rIt.key).price || 0 : 0;
+  const rTok = rCls && /^cab/.test(rCls) ? new Set(rIt.name.toUpperCase().match(/[A-Z0-9.]+|[\u0590-\u05ff]{3,}/g) || []) : null;
+  const tokSim = nm => { if (!rTok) return 0; let c = 0; for (const t of new Set(nm.toUpperCase().match(/[A-Z0-9.]+|[\u0590-\u05ff]{3,}/g) || [])) if (rTok.has(t)) c++; return c / Math.max(4, rTok.size); };
   const hits = typeof ERP_ITEMS === 'undefined' ? [] : rCls
     ? ERP_ITEMS.filter(it => { const nm = it[1] || '', n2 = nm.toLowerCase(); return it[0] !== rIt.key && +it[2] > 0 && toks.every(t => n2.includes(t)) && !NOKIT.test(nm) && !KIT_ALT_NO.test(nm) && kitFuncClass(nm) === rCls; })
-        .map(it => { const sameB = rBrand && kitBrandOf(it[1]) === rBrand, st = +it[3] > 0, pd = rPrice ? Math.abs(Math.log((+it[2] || 1) / rPrice)) : 0; const pw = rPow ? kitAmpPow(it[1]) : null, fit = !rPow || kitAmpFits(rPow, pw); it.__pw = pw; it.__fit = fit; return { it, sameB, sc: (fit ? 0 : 40) + (sameB ? 0 : 10) + (st ? 0 : 3) + pd }; })
+        .map(it => { const sameB = rBrand && kitBrandOf(it[1]) === rBrand, st = +it[3] > 0, pd = rPrice ? Math.abs(Math.log((+it[2] || 1) / rPrice)) : 0; const pw = rPow ? kitAmpPow(it[1]) : null, fit = !rPow || kitAmpFits(rPow, pw); it.__pw = pw; it.__fit = fit; return { it, sameB, sc: rTok ? (st ? 0 : 3) + pd * 0.4 - tokSim(it[1]) * 6 : (fit ? 0 : 40) + (sameB ? 0 : 10) + (st ? 0 : 3) + pd }; })
         .sort((a, b) => a.sc - b.sc).slice(0, 15).map(o => (o.it.__sameB = o.sameB, o.it))
     : toks.length
     ? ERP_ITEMS.filter(it => { const n2 = (it[1] || '').toLowerCase(); return toks.every(t => n2.includes(t)) && !NOKIT.test(it[1] || ''); })
         .sort((a, b) => (+b[3] || 0) - (+a[3] || 0)).slice(0, 10) : [];
-  const RCLS_HE = { spk: 'רמקולים', spkA: 'רמקולים מוגברים', sub: 'סאבים', subA: 'סאבים מוגברים', amp: 'מגברים', rcv: 'רסיברים ביתיים', ampPA: 'מגברי כריזה', proc: 'פרוססורים', procK: 'פרוססורי קריוקי', mixer: 'מיקסרים', mic: 'מיקרופונים' };
+  const RCLS_HE = { spk: 'רמקולים', spkA: 'רמקולים מוגברים', sub: 'סאבים', subA: 'סאבים מוגברים', amp: 'מגברים', cabSpk: 'כבלי רמקול', cabPwr: 'כבלי חשמל', cabSig: 'כבלי סיגנל (XLR / DMX / RCA)', cabData: 'כבלי רשת / HDMI', cab: 'כבלים', rcv: 'רסיברים ביתיים', ampPA: 'מגברי כריזה', proc: 'פרוססורים', procK: 'פרוססורי קריוקי', mixer: 'מיקסרים', mic: 'מיקרופונים' };
   $('#impList').innerHTML = `
     <button onclick="const b=nkDraft&&nkDraft.backCab;nkDraft=null;b?kitCabAll():renderKits()">← ביטול וחזרה</button>
     <h3 style="margin:10px 0 4px">➕ קיט חדש</h3>
