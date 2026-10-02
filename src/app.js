@@ -4784,13 +4784,8 @@ function renderWires() {
       out += `<polyline points="${c.map(p => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#3f3a33" stroke-width="${wallW}" opacity="0.65"/>`;
       if (sketchMode.cur2) {
         const l2 = c[c.length - 1];
-        out += `<line x1="${l2.x}" y1="${l2.y}" x2="${sketchMode.cur2.x}" y2="${sketchMode.cur2.y}" stroke="#3f3a33" stroke-width="${wallW}" stroke-dasharray="7 6" opacity="0.5"/>`;
-        /* מידה חיה תוך כדי ציור — רואים את האורך לפני שמניחים את הנקודה */
-        if (P.scale) {
-          const lv = Math.hypot(sketchMode.cur2.x - l2.x, sketchMode.cur2.y - l2.y) * P.scale;
-          const t2 = lv.toFixed(2) + ' מ׳' + (sketchMode.tool === 'rect' ? ' · פינה ' + (c.length + 1) + '/4' : '');
-          out += dimTxt((l2.x + sketchMode.cur2.x) / 2, (l2.y + sketchMode.cur2.y) / 2 - 14, t2, 0);
-        }
+        /* המקטע החי: ירוק = ישר, אדום = אלכסון, עם אורך וקווי עזר מול נקודות קיימות */
+        out += polyDimsSVG(c) + polyLiveSVG(c, sketchMode.cur2, sketchMode.guides, sketchMode.straight);
       }
       c.forEach((p2, pi) => out += `<circle cx="${p2.x}" cy="${p2.y}" r="${pi === 0 ? 7 : 5.5}" fill="${pi === 0 ? '#fff' : '#c9502e'}" stroke="#c9502e" stroke-width="2"><title>${pi === 0 ? 'לחיצה כאן סוגרת מסלול' : 'לחיצה על נקודה קיימת מסיימת את הקיר'}</title></circle>`);
     }
@@ -4975,7 +4970,8 @@ function renderWires() {
     const pathPts = pp.map(p => p.x + ',' + p.y).join(' ');
     out += `<polyline points="${pathPts}" fill="#c96f4a1a" stroke="#c96f4a" stroke-width="2.5" stroke-dasharray="7 5"/>`;
     pp.forEach((p, i) => out += `<circle cx="${p.x}" cy="${p.y}" r="${i === 0 ? 8 : 5}" fill="${i === 0 ? '#fff' : '#c96f4a'}" stroke="#c96f4a" stroke-width="2.5"/>`);
-    if (zoneMode.cur) out += `<line x1="${pp[pp.length - 1].x}" y1="${pp[pp.length - 1].y}" x2="${zoneMode.cur.x}" y2="${zoneMode.cur.y}" stroke="#c96f4a" stroke-width="2" stroke-dasharray="4 4"/>`;
+    out += polyDimsSVG(pp);
+    if (zoneMode.cur) out += polyLiveSVG(pp, zoneMode.cur, zoneMode.guides, zoneMode.straight);
   }
   /* תצוגה מקדימה של כיול מוצע — רואים על התכנית אם הרוחב הגיוני לפני שמאשרים */
   if (window.__calPrev > 0 && P.bgW) {
@@ -8770,6 +8766,41 @@ function skObjDeco(o, d) {
 /* ===== חדר/קיר משורטט: בחירה, עריכה במספרים, גרירת פינות, הזזה ומחיקה ===== */
 let sketchWallSel = null;
 /* שרטוט שחרג מהקנבס (חדר גדול מהשטח שהוגדר) — הכול מכווץ יחד כדי שלא ייחתך; המטרים נשמרים */
+/* ===== סימון נקודות (אזור / חדר / קיר): הצמדה לקו ישר, קווי עזר מול נקודות קיימות, ומידה חיה =====
+   מחזיר את הנקודה המוצמדת, האם המקטע מהנקודה האחרונה ישר (אופקי/אנכי), ואילו נקודות קיימות נמצאות "ישר מול" הסמן */
+function polySnap(pt, pts) {
+  const TH = 9 / (getZ() || 1), q = { x: pt.x, y: pt.y }, guides = [];
+  if (!pts || !pts.length) return { pt: q, straight: false, guides };
+  const last = pts[pts.length - 1];
+  /* קודם יישור מול נקודות קודמות (בעיקר הראשונה — שם נסגר הצורה), ואז מול האחרונה */
+  let sx = null, sy = null;
+  for (const p of pts.slice(0, -1)) { if (sx == null && Math.abs(q.x - p.x) < TH) sx = p; if (sy == null && Math.abs(q.y - p.y) < TH) sy = p; }
+  if (Math.abs(q.x - last.x) < TH) q.x = last.x; else if (sx) { q.x = sx.x; guides.push({ p: sx, axis: 'v' }); }
+  if (Math.abs(q.y - last.y) < TH) q.y = last.y; else if (sy) { q.y = sy.y; guides.push({ p: sy, axis: 'h' }); }
+  return { pt: q, straight: q.x === last.x || q.y === last.y, guides };
+}
+/* המקטע החי: ירוק = ישר, אדום = אלכסון · אורך במטרים · קו עזר מקווקו אל הנקודה שמולה עומדים */
+function polyLiveSVG(pts, cur, guides, straight) {
+  if (!pts || !pts.length || !cur) return '';
+  const z = getZ() || 1, last = pts[pts.length - 1], col = straight ? '#16a34a' : '#dc2626', fz = Math.max(10, 13 / z);
+  let o = '';
+  for (const g of guides || []) {
+    o += `<line x1="${g.p.x}" y1="${g.p.y}" x2="${cur.x}" y2="${cur.y}" stroke="#16a34a" stroke-width="${1.4 / z}" stroke-dasharray="${3 / z} ${4 / z}" opacity="0.9"/><circle cx="${g.p.x}" cy="${g.p.y}" r="${9 / z}" fill="none" stroke="#16a34a" stroke-width="${2 / z}"/>`;
+    if (P.scale) { const d = Math.hypot(cur.x - g.p.x, cur.y - g.p.y) * P.scale; o += `<text x="${(g.p.x + cur.x) / 2}" y="${(g.p.y + cur.y) / 2 - 5 / z}" text-anchor="middle" font-size="${fz * 0.85}" fill="#15803d" font-weight="700" paint-order="stroke" stroke="#fff" stroke-width="${3 / z}">${d.toFixed(2)} מ׳</text>`; }
+  }
+  o += `<line x1="${last.x}" y1="${last.y}" x2="${cur.x}" y2="${cur.y}" stroke="${col}" stroke-width="${2.6 / z}" stroke-dasharray="${7 / z} ${5 / z}"/><circle cx="${cur.x}" cy="${cur.y}" r="${4 / z}" fill="${col}"/>`;
+  if (P.scale) { const len = Math.hypot(cur.x - last.x, cur.y - last.y) * P.scale, t = len.toFixed(2) + ' מ׳' + (straight ? '' : ' · אלכסון');
+    o += `<text x="${(last.x + cur.x) / 2}" y="${(last.y + cur.y) / 2 - 8 / z}" text-anchor="middle" font-size="${fz}" fill="${col}" font-weight="800" paint-order="stroke" stroke="#fff" stroke-width="${4 / z}">${t}</text>`; }
+  return `<g pointer-events="none">${o}</g>`;
+}
+/* מידות על המקטעים שכבר סומנו */
+function polyDimsSVG(pts) {
+  if (!P.scale || !pts || pts.length < 2) return '';
+  const z = getZ() || 1, fz = Math.max(9, 11.5 / z); let o = '';
+  for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], len = Math.hypot(b.x - a.x, b.y - a.y) * P.scale; if (len < 0.3) continue;
+    o += `<text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2 - 6 / z}" text-anchor="middle" font-size="${fz}" fill="#9a3412" font-weight="700" paint-order="stroke" stroke="#fff" stroke-width="${3.5 / z}">${len.toFixed(2)} מ׳</text>`; }
+  return `<g pointer-events="none">${o}</g>`;
+}
 function skFit() { if (typeof sheetOverflow === 'function' && sheetOverflow()) { sheetFitCanvas(true); if (typeof sketchBar === 'function') sketchBar(); uiToast('📐 השרטוט גדול מהקנבס — הכול כווץ כך שייראה במלואו (המידות במטרים לא השתנו)', 6000); return true; } return false; }
 function skWallBox(wl) { const xs = wl.map(p => p.x), ys = wl.map(p => p.y); const L = Math.min(...xs), T = Math.min(...ys); return { L, T, W: Math.max(...xs) - L, H: Math.max(...ys) - T }; }
 function skWallClosed(wl) { return wl.length > 3 && Math.hypot(wl[0].x - wl[wl.length - 1].x, wl[0].y - wl[wl.length - 1].y) < 1; }
@@ -9518,14 +9549,13 @@ document.addEventListener('pointerdown', e => {
         if (hit === 0 && c.length > 2) { P.sketch.walls.push(c.concat([{ x: c[0].x, y: c[0].y }])); sketchMode.cur = []; sketchMode.cur2 = null; save(); renderWires(); uiToast('✓ מסלול נסגר'); return; }
         if (hit >= 0) { if (c.length >= 2) { P.sketch.walls.push(c.slice()); save(); } sketchMode.cur = []; sketchMode.cur2 = null; renderWires(); uiToast('✓ הקיר הסתיים — אפשר להתחיל קיר חדש'); return; }
       }
-      c.push(p2); renderWires(); return;
+      c.push(polySnap(p2, c).pt); renderWires(); return;
     }
     if (sketchMode.tool === 'rect') {
       /* חדר = 4 פינות בלחיצות, כמו סימון אזור: הרביעית (או לחיצה על הראשונה) סוגרת. הצמדה לקו ישר מול הנקודה הקודמת והראשונה */
       const c = sketchMode.cur, TH = 10 / (getZ() || 1);
       if (c.length >= 3 && Math.hypot(c[0].x - p2.x, c[0].y - p2.y) < TH) { P.sketch.walls.push(c.concat([{ x: c[0].x, y: c[0].y }])); sketchWallSel = P.sketch.walls.length - 1; sketchMode.cur = []; sketchMode.cur2 = null; sketchMode.tool = 'select'; save(); sketchBar(); renderWires(); return; }
-      const q = { x: p2.x, y: p2.y };
-      if (c.length) { const l = c[c.length - 1]; if (Math.abs(q.x - l.x) < TH) q.x = l.x; if (Math.abs(q.y - l.y) < TH) q.y = l.y; if (c.length === 3) { if (Math.abs(q.x - c[0].x) < TH) q.x = c[0].x; if (Math.abs(q.y - c[0].y) < TH) q.y = c[0].y; } }
+      const q = polySnap(p2, c).pt;   /* אותה הצמדה שהקו החי הראה */
       c.push(q);
       if (c.length === 4) { P.sketch.walls.push(c.concat([{ x: c[0].x, y: c[0].y }])); sketchWallSel = P.sketch.walls.length - 1; sketchMode.cur = []; sketchMode.cur2 = null; sketchMode.tool = 'select'; save(); sketchBar(); if (!skFit()) uiToast('⬜ החדר נסגר — אפשר לגרור פינות, לשנות מידות בסרגל, או למחוק'); }
       renderWires(); return;
@@ -9546,7 +9576,8 @@ document.addEventListener('pointerdown', e => {
     if (zoneMode.poly.length > 2 && Math.hypot(pt.x - zoneMode.poly[0].x, pt.y - zoneMode.poly[0].y) < 15 / getZ()) {
       closeZonePoly();
     } else {
-      zoneMode.poly.push(pt);
+      zoneMode.poly.push(polySnap(pt, zoneMode.poly).pt);   /* הנקודה ננעצת איפה שהקו החי הראה — מוצמדת לקו ישר */
+      zoneMode.cur = null; zoneMode.guides = null;
       renderWires();
     }
     e.preventDefault();
@@ -9845,12 +9876,12 @@ document.addEventListener('pointermove', e => {
     return;
   }
   if (sketchMode && (sketchMode.tool === 'wall' || sketchMode.tool === 'rect') && sketchMode.cur.length) {
-    sketchMode.cur2 = canvasPt(e);
+    const sn = polySnap(canvasPt(e), sketchMode.cur); sketchMode.cur2 = sn.pt; sketchMode.guides = sn.guides; sketchMode.straight = sn.straight;
     renderWires();
     return;
   }
   if (zoneMode && zoneMode.poly && zoneMode.poly.length) {
-    zoneMode.cur = canvasPt(e);
+    const sn = polySnap(canvasPt(e), zoneMode.poly); zoneMode.cur = sn.pt; zoneMode.guides = sn.guides; zoneMode.straight = sn.straight;
     renderWires();
     return;
   }
