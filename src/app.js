@@ -3179,7 +3179,9 @@ function iconSlotFor(drag, wide, rawPos) {
   if (wide && !overlapping) return null;
   if (wide) {   /* טופ ששוחרר על סאב יושב מעליו (כמו בשטח); סאב ששוחרר על טופ — מתחתיו */
     const isSubN = q2 => (q2.ptype === 'sub') || (q2.kind === 'point' && !q2.ptype && /סאב|\bsub\b|וופר/i.test(q2.name || ''));
+    drag.overId = null;
     const tgt = others.filter(q => over(raw.cx, raw.cy, q)).sort((a2, b2) => Math.hypot(a2.m.cx - raw.cx, a2.m.cy - raw.cy) - Math.hypot(b2.m.cx - raw.cx, b2.m.cy - raw.cy))[0];
+    if (tgt) drag.overId = tgt.nn.id;
     if (tgt && drag.n.kind === 'point' && tgt.nn.kind === 'point' && isSubN(drag.n) !== isSubN(tgt.nn)) { const sy2 = isSubN(tgt.nn) ? -1 : 1;
       const cx = tgt.m.cx, cy = (tgt.nb.cy + sy2 * ((tgt.nb.H + o.nH) / 2 + 1)) + o.dmy;
       if (!others.some(q2 => q2 !== tgt && over(cx, cy, q2))) return { gx: 2200 - cx - o.x, gy: cy - o.y, att: { id: tgt.nn.id, sx: 0, sy: sy2 } }; } }
@@ -3189,6 +3191,64 @@ function iconSlotFor(drag, wide, rawPos) {
     if (others.some(q2 => over(cx, cy, q2))) continue;
     const d = Math.hypot(cx - raw.cx, cy - raw.cy); if (d < range && (!best || d < best.d)) best = { d, cx, cy, id: q.nn.id, sx: sx2, sy: sy2 }; }
   return best ? { gx: 2200 - best.cx - o.x, gy: best.cy - o.y, att: { id: best.id, sx: best.sx, sy: best.sy } } : null;
+}
+/* ===== צימוד רמקולים (n.att.cpl) =====
+   side  = צד לצד: מערך אופקי, כל רמקול מכסה גזרה משלו → הפיזור האופקי מוכפל במספר הרמקולים (עד 180°), העוצמה לא משתנה
+   line  = אחד מתחת לשני (ליין אראיי): אותו פיזור אופקי, סכימה קוהרנטית על הציר → +20·log10(N) dB
+   stack = טופ יושב על הסאב · fly = טופ תלוי מעל הסאב באותה נקודה (תצוגה בלבד)
+   סאבים מצומדים (צד לצד או בערימה) מסתכמים קוהרנטית בשני המצבים */
+const cplIsSub = q => !!q && (q.ptype === 'sub' || (q.kind === 'point' && !q.ptype && /סאב|\bsub\b|וופר/i.test(q.name || '')));
+const cplSpkLike = q => !!q && q.kind === 'point' && (q.ptype === 'speaker' || q.ptype === 'sub' || (!q.ptype && /רמקול|סאב|speaker|\bsub\b|קולונ|וופר/i.test(q.name || '') && !/מגבר|פרוססור/.test(q.name || '')));
+function cplFollower(n) { return !!(n.att && (n.att.cpl === 'side' || n.att.cpl === 'line') && byId(n.att.id)); }
+function cplGroup(root) {
+  let side = 1, line = 1; const seen = new Set([root.id]); let front = [root.id];
+  for (let g = 0; g < 12 && front.length; g++) { const nx = [];
+    for (const q of P.nodes) { if (seen.has(q.id) || q.hidden || !q.att || !front.includes(q.att.id)) continue;
+      if (q.att.cpl === 'side') side++; else if (q.att.cpl === 'line') line++; else continue;
+      seen.add(q.id); nx.push(q.id); }
+    front = nx; }
+  const sub = cplIsSub(root), nCoh = sub ? side + line - 1 : line;
+  return { side: sub ? 1 : side, line, n: side + line - 1, gain: nCoh > 1 ? 20 * Math.log10(nCoh) : 0 };
+}
+function cplBadgeHTML(n, mc) {
+  const c = n.att && n.att.cpl; if (!c || !byId(n.att.id)) return '';
+  const sym = { side: '↔', line: '↕', stack: '▂', fly: '⇡' }[c], ttl = { side: 'צד לצד — פיזור אופקי רחב', line: 'ליין אראיי — אחד מתחת לשני', stack: 'Stack — יושב על הסאב', fly: 'תלוי מעל הסאב' }[c];
+  /* "תלוי מעל": קו מקווקו מהטופ אל הסאב שמתחתיו (או מהסאב אל הטופ שמעליו) */
+  const link = c === 'fly' ? `<div style="position:absolute;left:50%;${n.att.sy < 0 ? 'top:100%' : 'bottom:100%'};height:11px;border-left:2px dashed ${mc};transform:translateX(-1px);pointer-events:none"></div>` : '';
+  return link + `<div title="${ttl}" style="position:absolute;right:-8px;top:-8px;min-width:15px;height:15px;border-radius:8px;background:#fff;border:1.5px solid ${mc};color:${mc};font-size:10px;font-weight:800;line-height:12px;text-align:center;z-index:4;pointer-events:none">${sym}</div>`;
+}
+function cplApply(nid, tid, mode) {
+  const n = byId(nid); let t = byId(tid); document.getElementById('cplAsk')?.remove(); if (!n || !t) return;
+  if (mode === 'none') { if (n.att) delete n.att.cpl; save(); render(); return; }
+  if (t.att && t.att.id === n.id) delete t.att;
+  let sx = 0, sy = 0;
+  if (mode === 'stack' || mode === 'fly') sy = cplIsSub(t) ? -1 : 1;          /* הטופ תמיד למעלה */
+  else if (mode === 'line') sy = 1;
+  else sx = n.x <= t.x ? 1 : -1;                                              /* x נמדד מימין: x קטן = ימינה במסך */
+  /* המשבצת תפוסה? ממשיכים בסוף השרשרת — רמקול שלישי מצטרף לשורה/לטור */
+  for (let g = 0; g < 12; g++) { const f = P.nodes.find(q => q !== n && !q.hidden && q.att && q.att.id === t.id && q.att.sx === sx && q.att.sy === sy); if (!f) break; t = f; }
+  n.att = { id: t.id, sx, sy, cpl: mode };
+  save(); render();
+  uiToast({ side: '↔ צימוד צד לצד — הפיזור האופקי של המערך התרחב', line: '↕ ליין אראיי — אותו פיזור, עוצמה גבוהה יותר על הציר', stack: '▂ Stack — הטופ יושב על הסאב', fly: '⇡ הטופ תלוי מעל הסאב' }[mode]);
+}
+function cplAsk(nid, tid) {
+  const n = byId(nid), t = byId(tid); if (!n || !t) return;
+  document.getElementById('cplAsk')?.remove();
+  const mixed = cplIsSub(n) !== cplIsSub(t), subs = cplIsSub(n) && cplIsSub(t);
+  const opts = mixed
+    ? [['stack', '▂ Stack', 'הטופ יושב על הסאב'], ['fly', '⇡ תלוי מעל הסאב', 'הטופ תלוי באותה נקודה, מעל הסאב']]
+    : subs
+    ? [['side', '↔ צד לצד', 'סאבים צמודים — העוצמה מסתכמת'], ['line', '↕ ערימה', 'סאב על סאב — העוצמה מסתכמת']]
+    : [['side', '↔ צד לצד', 'פיזור אופקי רחב יותר, אותה עוצמה'], ['line', '↕ אחד מתחת לשני', 'ליין אראיי — אותו פיזור, עוצמה גבוהה יותר']];
+  const el = document.getElementById('nd_' + n.id), r = el ? el.getBoundingClientRect() : { left: innerWidth / 2, bottom: innerHeight / 2, width: 0 };
+  const d = document.createElement('div'); d.id = 'cplAsk';
+  d.style.cssText = 'position:fixed;z-index:140;background:#fff;border:1px solid #cfd3dc;border-radius:11px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:9px;direction:rtl;font-size:12px;width:250px;left:' + Math.max(8, Math.min(innerWidth - 262, r.left + r.width / 2 - 125)) + 'px;top:' + Math.min(innerHeight - 190, r.bottom + 10) + 'px';
+  d.innerHTML = '<div style="font-weight:800;margin-bottom:6px">' + (mixed ? 'טופ על סאב — איך הם מותקנים?' : subs ? 'סאב על סאב — איך הם מצומדים?' : 'רמקול על רמקול — איך הם מצומדים?') + '</div>' +
+    opts.map(o => '<button data-m="' + o[0] + '" style="display:block;width:100%;text-align:right;margin-bottom:5px;padding:6px 9px;border:1px solid #cfd3dc;border-radius:8px;background:#f7f7fb;cursor:pointer"><b>' + o[1] + '</b><br><span style="color:#666;font-size:10.5px">' + o[2] + '</span></button>').join('') +
+    '<button data-m="none" style="display:block;width:100%;padding:4px;border:0;background:none;color:#777;cursor:pointer;font-size:11px">רק להניח ליד — בלי צימוד</button>';
+  d.addEventListener('pointerdown', ev => ev.stopPropagation());
+  d.addEventListener('click', ev => { const b = ev.target.closest('[data-m]'); if (b) cplApply(nid, tid, b.dataset.m); });
+  document.body.appendChild(d);
 }
 /* אייקון צמוד מוצג בהיסט מהמיקום השמור; בתחילת גרירה ההיסט נכנס למיקום עצמו — האייקון לא קופץ כשמתחילים לגרור */
 function bakeAtt(n) { if (n && isIconNode(n) && (n._fanX || n._fanY)) {   /* גם אייקון שנפרש מערימה באותה נקודה — הגרירה מתחילה מהמקום שבו הוא נראה */ n.x += n._fanX || 0; n.y += n._fanY || 0; n._fanX = 0; n._fanY = 0; } }
@@ -3203,7 +3263,7 @@ function attachArrange() {
       const el = document.getElementById('nd_' + n.id), ea = document.getElementById('nd_' + a.id); if (!el || !ea) continue;
       const mN = bx(el.querySelector('.mic') || el), nN = bx(el), mA = bx(ea.querySelector('.mic') || ea), nA = bx(ea), t = n.att;
       /* הצמדה אייקון-לאייקון (ולא לפי תיבת המוקד עם הכיתוב): תחתית הטופ נוגעת בראש הסאב, רווח 2px */
-      const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1), tcy = t.sy === 0 ? mA.cy : mA.cy + t.sy * ((mA.H + mN.H) / 2);   /* 0 רווח — האייקונים נוגעים */
+      const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1), tcy = t.sy === 0 ? mA.cy : mA.cy + t.sy * ((mA.H + mN.H) / 2 + (t.cpl === 'fly' ? 11 / Z : 0));   /* 0 רווח — האייקונים נוגעים; "תלוי מעל" — רווח קטן עם קו מקווקו */
       const dX = tcx - mN.cx, dY = tcy - mN.cy; if (Math.abs(dX) < 0.3 && Math.abs(dY) < 0.3) continue;
       const nr = parseFloat(el.style.right) - dX, nt = parseFloat(el.style.top) + dY; el.style.right = nr + 'px'; el.style.top = nt + 'px';
       n._fanX = nr - n.x + (n._chW || 0); n._fanY = nt - n.y; changed = true; }
@@ -3566,7 +3626,7 @@ function renderNodes() {
       const stk = !!(n.att && n.att.sy) || P.nodes.some(o => o.att && o.att.id === n.id && o.att.sy);
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}" style="cursor:grab;position:relative">
         <div class="mnum" style="background:${mc}${stk ? ';position:absolute;left:-27px;top:50%;transform:translateY(-50%);z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.4)' : ''}">${mm ? mm[1] : '•'}</div>
-        <div class="mic" style="border-color:${mc}">${icon}</div>
+        <div class="mic" style="border-color:${mc}">${icon}</div>${cplBadgeHTML(n, mc)}
 </div>`; /* לחיצה על האייקון פותחת — אין צורך בכפתור צף */
       /* לחיצה על האייקון עצמו פותחת את המוקד — כמו בארון ובפאנל; גרירה נשארת גרירה */
       d.addEventListener('pointerdown', e => {
@@ -8281,6 +8341,7 @@ function renderCoverage() {
   const level = COV_TOP; /* רמת המקור בתכנון = מקסימום התכלית */
   P.nodes.filter(n => {
     if (n.kind !== 'point' || n.hidden || n.noCov) return false;
+    if (cplFollower(n)) return false;   /* חבר במערך מצומד — המוביל מצייר את הכיסוי של כל המערך */
     /* רק רמקול/סאב מקרינים כיסוי — מסך/תאורה/מצלמה/מגבר/פרוססור לא */
     if (n.ptype && n.ptype !== 'speaker' && n.ptype !== 'sub') return false;
     if (!n.ptype && /מגבר|פרוססור|amplifier|processor|קרוסאובר|xover/i.test(n.name)) return false;
@@ -8289,9 +8350,10 @@ function renderCoverage() {
     if (!isSub && P.covSpk === false) return false;
     return true;
   }).forEach((n, i) => {
-    const disp = n.disp ?? guessDisp(n.name);
+    const cg = cplGroup(n), disp0 = n.disp ?? guessDisp(n.name);
+    const disp = disp0 >= 300 ? disp0 : Math.min(180, disp0 * cg.side);   /* צד לצד: כל רמקול מכסה גזרה משלו — הפיזור האופקי מתרחב */
     /* רמת המקור לצביעה — נחתכת לתקרת הסקאלה כדי לשמור על מדרג הצבעים המלא */
-    const spl = Math.min(effSpl(n), COV_TOP);
+    const spl = Math.min(effSpl(n) + cg.gain, COV_TOP);
     const aim = (n.aim ?? 0) * Math.PI / 180;
     /* קודקוד הקונוס בגב האייקון — כל האייקון בתוך הקונוס, הפיזור "יוצא" מהרמקול */
     const backPx = 22; /* חצי רוחב האייקון + שוליים, בקואורדינטות קנבס */
@@ -10231,6 +10293,8 @@ document.addEventListener('pointerup', e => {
       if (isIconNode(n) && moved.att) { let q = byId(moved.att.id), g = 0; while (q && q.att && g++ < 20) { if (q.att.id === n.id) { delete q.att; break; } q = byId(q.att.id); } n.att = moved.att; } else delete n.att;
       /* הכבלים של מוקד שהוזז חוזרים למסלול הישר והקצר — כיפוף ידני ישן כבר לא מתאים למיקום החדש */
       (P.cables || []).forEach(c => { if (c.from === n.id || c.to === n.id) { delete c.bend; delete c.aoff; } });
+      /* רמקול ששוחרר על רמקול / טופ על סאב — שואלים איך הם מצומדים (משפיע על הפיזור ועל התצוגה) */
+      if (moved.overId && !e.altKey) { const tq = byId(moved.overId); if (tq && cplSpkLike(n) && cplSpkLike(tq)) setTimeout(() => cplAsk(n.id, tq.id), 0); }
     }
     if (movedFar && n.kind === 'point') {
       /* שחרור מעל ארון — המוצר נכנס לארון כיחידה (drag & drop), הכבלים שלו עוברים איתו */
