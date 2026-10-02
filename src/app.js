@@ -10666,6 +10666,7 @@ function kitCabAll() {
       <div style="display:flex;gap:8px;align-items:center;padding:6px 8px;background:#f7f7f7">
         <b style="flex:1;cursor:pointer" onclick="kitPrev(${o.gi})">${esc(o.k.name)}</b>
         <button onclick="kitCabFull(${o.gi})" title="כל שורות הקיט הקיימות">${kitCabOpen.has(o.k.name) ? '▲ הסתר קיט' : '📋 הצג קיט מלא'}</button>
+        <button onclick="kitEdit(${o.gi});if(nkDraft)nkDraft.backCab=1" title="עריכת הקיט — שורות, כמויות, החלפת פריט. אחרי שמירה חוזרים למסך הזה">✎ ערוך קיט</button>
         <button onclick="kitCabApply(${o.gi},1);save();kitCabAll()" style="background:#eef7f1;color:#0f6e56;font-weight:700">✓ אשר</button>
         <button onclick="kitCabSkip(${o.gi})" title="הקיט תקין כמו שהוא — לא להציע שוב">✕ לא צריך</button>
       </div>${kitCabOpen.has(o.k.name) ? kitCabFullHTML(o.k) : ''}${kitCabRowsHTML(o.k, o.gi)}</div>`).join('');
@@ -10771,8 +10772,8 @@ function saveKitDraft() {
   const rec = { name: nkDraft.name.trim(), cat: nkDraft.cat || 'audio', sys: nkDraft.sys || 'קיט שלי', items: nkDraft.items };
   if (nkDraft.editIdx != null && store.userKits[nkDraft.editIdx]) store.userKits[nkDraft.editIdx] = rec;
   else store.userKits.push(rec);
-  const wasErp = nkDraft.fromErp;
-  save(); nkDraft = null; renderKits();
+  const wasErp = nkDraft.fromErp, backCab = nkDraft.backCab;
+  save(); nkDraft = null; backCab ? kitCabAll() : renderKits();
   uiToast(wasErp ? '✎ הקיט נערך ונשמר לתמיד — הגרסה שלך מחליפה את קיט ה-ERP בכל האפליקציה' : '✓ הקיט נשמר');
 }
 /* עריכת קיט קיים — טוען לתוך בונה הקיט (דגם מובנה → עותק מותאם) */
@@ -10874,7 +10875,7 @@ function renderKitNew() {
     ? ERP_ITEMS.filter(it => { const n2 = (it[1] || '').toLowerCase(); return toks.every(t => n2.includes(t)) && !NOKIT.test(it[1] || ''); })
         .sort((a, b) => (+b[3] || 0) - (+a[3] || 0)).slice(0, 10) : [];
   $('#impList').innerHTML = `
-    <button onclick="nkDraft=null;renderKits()">← ביטול וחזרה</button>
+    <button onclick="const b=nkDraft&&nkDraft.backCab;nkDraft=null;b?kitCabAll():renderKits()">← ביטול וחזרה</button>
     <h3 style="margin:10px 0 4px">➕ קיט חדש</h3>
     <div class="fld"><label>שם הקיט</label><input id="nkName" value="${esc(d.name)}" oninput="nkDraft.name=this.value"></div>
     ${(() => { const std = kitStdName({ name: '', items: d.items }); return `<div class="fld"><label>שם לפי התוכן — רמקולים · סאבים · מגברים · פרוססור (מתעדכן לבד)</label>
