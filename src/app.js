@@ -535,7 +535,7 @@ function sheetScaleAll(f, ax, ay, dx, dy) {
 }
 /* גבולות התכנית (רקע + מוקדים + אזורים) חורגים מהקנבס? */
 function sheetOverflow() {
-  if (!P.bg) return null;
+  if (!P.bg && !(P.sketch && (P.sketch.walls || []).length) && !(P.nodes || []).length) return null;
   const b = contentBox(), pad = 24;
   const over = b.L < 0 || b.T < 0 || b.R > 2200 || b.B > 1400;
   return over ? { ...b, f: Math.min(1, (2200 - 2 * pad) / (b.R - b.L), (1400 - 2 * pad) / (b.B - b.T)) } : null;
@@ -2061,6 +2061,7 @@ function contentBox() {
     add(2200 - n.x - w, n.y, w, h);
   }
   (P.zones || []).forEach(z => { if (z.poly) z.poly.forEach(pt => add(pt.x, pt.y, 0, 0)); else { const b = zoneBounds(z); add(b.L, b.T, b.W, b.H); } });
+  if (P.sketch) { (P.sketch.walls || []).forEach(w => w.forEach(pt => add(pt.x, pt.y, 0, 0))); (P.sketch.objs || []).forEach(o => add(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h)); }   /* שרטוט בלי תמונת רקע הוא התכנית */
   if (L === Infinity) return { L: 1200, T: 0, R: 2200, B: 700 };
   return { L, T, R, B };
 }
@@ -8502,6 +8503,7 @@ function renderPanel() {
     } else {
       bgTop = `<h3 class="sec">🗺 תכנית רקע</h3>
         <p class="muted" style="margin-bottom:8px">העלה שרטוט/תכנית (תמונה) כרקע לקנבס ומקם את המוקדים לפיה — או שרטט תכנית בעצמך.</p>
+        ${sheetOverflow() ? `<div style="background:#fdeee8;border:1px solid #f3c9bd;border-radius:8px;padding:7px 9px;margin:0 0 8px;font-size:12px;line-height:1.5;color:#8c2f16">⚠ השרטוט חורג מגבולות הקנבס ונחתך.<button style="width:100%;margin-top:6px;background:#c9502e;color:#fff;font-weight:700" onclick="sheetFitCanvas()">📐 כווץ ומרכז הכול שייכנס בקנבס (המטרים נשמרים)</button></div>` : ''}
         <button class="primary" style="width:100%" onclick="$('#bgIn').click()">🖼 העלה תכנית כרקע</button>
         <button style="width:100%;margin-top:6px" title="ציור קירות והצבת בר/ספה/שולחנות בקנה מידה — במקום העלאת תמונה" onclick="sketchStart()">🖊 ${P.sketch && (P.sketch.walls || []).length ? 'ערוך את השרטוט' : 'או: שרטט תכנית — קירות ואובייקטים בקנה מידה'}</button>`;
     }
@@ -8739,6 +8741,8 @@ const SK_OBJS = {
 };
 /* ===== חדר/קיר משורטט: בחירה, עריכה במספרים, גרירת פינות, הזזה ומחיקה ===== */
 let sketchWallSel = null;
+/* שרטוט שחרג מהקנבס (חדר גדול מהשטח שהוגדר) — הכול מכווץ יחד כדי שלא ייחתך; המטרים נשמרים */
+function skFit() { if (typeof sheetOverflow === 'function' && sheetOverflow()) { sheetFitCanvas(true); if (typeof sketchBar === 'function') sketchBar(); uiToast('📐 השרטוט גדול מהקנבס — הכול כווץ כך שייראה במלואו (המידות במטרים לא השתנו)', 6000); return true; } return false; }
 function skWallBox(wl) { const xs = wl.map(p => p.x), ys = wl.map(p => p.y); const L = Math.min(...xs), T = Math.min(...ys); return { L, T, W: Math.max(...xs) - L, H: Math.max(...ys) - T }; }
 function skWallClosed(wl) { return wl.length > 3 && Math.hypot(wl[0].x - wl[wl.length - 1].x, wl[0].y - wl[wl.length - 1].y) < 1; }
 /* חדר במידות מדויקות — במרכז התצוגה */
@@ -8752,7 +8756,7 @@ function skRoomCreate() {
   P.sketch.walls.push([{ x: x0, y: y0 }, { x: x0 + pw, y: y0 }, { x: x0 + pw, y: y0 + ph }, { x: x0, y: y0 + ph }, { x: x0, y: y0 }]);
   sketchWallSel = P.sketch.walls.length - 1; sketchSel = null; sketchMode.tool = 'select'; sketchMode.cur = [];
   save(); sketchBar(); renderWires();
-  uiToast('⬜ חדר ' + w + '×' + h + ' מ׳ נוצר — גרור את ✥ למקומו, או את הפינות לשינוי צורה');
+  if (!skFit()) uiToast('⬜ חדר ' + w + '×' + h + ' מ׳ נוצר — גרור את ✥ למקומו, או את הפינות לשינוי צורה');
 }
 /* שינוי מידות החדר המסומן במספרים — הפינה השמאלית-עליונה נשארת במקומה */
 function skWallResize(dim, m) {
@@ -8760,7 +8764,7 @@ function skWallResize(dim, m) {
   const b = skWallBox(wl), px = m / P.scale;
   if (dim === 'w' && b.W > 0.5) { const k = px / b.W; wl.forEach(p => { p.x = b.L + (p.x - b.L) * k; }); }
   if (dim === 'h' && b.H > 0.5) { const k = px / b.H; wl.forEach(p => { p.y = b.T + (p.y - b.T) * k; }); }
-  save(); sketchBar(); renderWires();
+  save(); sketchBar(); renderWires(); skFit();
 }
 function skWallDelete() { if (sketchWallSel == null) return; P.sketch.walls.splice(sketchWallSel, 1); sketchWallSel = null; save(); sketchBar(); renderWires(); uiToast('החדר/הקיר נמחק'); }
 function skWallPick(wi) {
@@ -8791,13 +8795,13 @@ document.addEventListener('pointerdown', e => {
       const TH = 7 / (getZ() || 1), n = closed ? wl.length - 1 : wl.length;
       for (const j of [(pi + 1) % n, (pi - 1 + n) % n]) { if (j === pi || (!closed && Math.abs(j - pi) !== 1)) continue; if (Math.abs(nx - wl[j].x) < TH) nx = wl[j].x; if (Math.abs(ny - wl[j].y) < TH) ny = wl[j].y; }
       wl[pi].x = nx; wl[pi].y = ny; if (closed && pi === 0) { wl[wl.length - 1].x = nx; wl[wl.length - 1].y = ny; } renderWires(); };
-    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); sketchBar(); };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); sketchBar(); skFit(); };
     document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
   } else {
     const wi = +hw.dataset.skw, wl = P.sketch.walls[wi]; if (!wl) return;
     const o = wl.map(p => ({ x: p.x, y: p.y }));
     const mv = ev => { const p2 = canvasPt(ev), dx = p2.x - st.x, dy = p2.y - st.y; wl.forEach((p, i) => { p.x = o[i].x + dx; p.y = o[i].y + dy; }); renderWires(); };
-    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); skFit(); };
     document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
   }
 }, true);
@@ -8851,7 +8855,7 @@ function sketchBar() {
 function sketchEnd() {
   sketchMode = null; sketchSel = null; sketchWallSel = null;
   const b = document.getElementById('sketchBar'); if (b) b.remove();
-  renderWires();
+  renderWires(); skFit();
   uiToast('✓ השרטוט נשמר — "🖊 ערוך שרטוט" בפאנל ההגדרות מחזיר את הכלים');
 }
 /* גרירת אובייקט שרטוט + בחירה */
@@ -9495,7 +9499,7 @@ document.addEventListener('pointerdown', e => {
       const q = { x: p2.x, y: p2.y };
       if (c.length) { const l = c[c.length - 1]; if (Math.abs(q.x - l.x) < TH) q.x = l.x; if (Math.abs(q.y - l.y) < TH) q.y = l.y; if (c.length === 3) { if (Math.abs(q.x - c[0].x) < TH) q.x = c[0].x; if (Math.abs(q.y - c[0].y) < TH) q.y = c[0].y; } }
       c.push(q);
-      if (c.length === 4) { P.sketch.walls.push(c.concat([{ x: c[0].x, y: c[0].y }])); sketchWallSel = P.sketch.walls.length - 1; sketchMode.cur = []; sketchMode.cur2 = null; sketchMode.tool = 'select'; save(); sketchBar(); uiToast('⬜ החדר נסגר — אפשר לגרור פינות, לשנות מידות בסרגל, או למחוק'); }
+      if (c.length === 4) { P.sketch.walls.push(c.concat([{ x: c[0].x, y: c[0].y }])); sketchWallSel = P.sketch.walls.length - 1; sketchMode.cur = []; sketchMode.cur2 = null; sketchMode.tool = 'select'; save(); sketchBar(); if (!skFit()) uiToast('⬜ החדר נסגר — אפשר לגרור פינות, לשנות מידות בסרגל, או למחוק'); }
       renderWires(); return;
     }
     if (SK_OBJS[sketchMode.tool]) {
