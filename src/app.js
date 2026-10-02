@@ -10785,12 +10785,14 @@ function kitPrev(gi) {
     <button style="width:100%;margin-top:6px" onclick="kitToggleHide(${gi})">${kitHidden(k.name) ? '↺ החזר את הקיט לרשימה' : '✕ הסתר — הקיט לא רלוונטי'}</button>
     ${isUser ? `<button style="width:100%;margin-top:6px;background:#f3d9d2" onclick="kitDelete(${gi})">🗑 ${(typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim()) ? 'בטל את העריכה — חזרה לקיט ה-ERP המקורי' : 'מחק קיט'}</button>` : ''}`;
 }
-async function saveKitDraft() {
-  if (!nkDraft.name.trim()) { alert('תן שם לקיט'); return; }
-  /* נשארו שורות חסרות (DSP / כבלים) — שואלים פעם אחת אם להוסיף אותן לפני השמירה */
-  const missS = nkMissing();
-  if (missS.length && await uiConfirm('בקיט חסרות ' + missS.length + ' שורות:\n' + missS.map(c => '• ' + c.qty + '× ' + c.t).join('\n') + '\n\nלהוסיף אותן לקיט ולשמור?', { okText: '➕ הוסף ושמור', cancelText: 'שמור בלי להוסיף' })) missS.forEach(c => nkDraft.items.push({ key: c.key, name: c.name, qty: c.qty }));
+/* שמירת הקיט — בלי חלון שאלה: כשיש שורות חסרות מוצגים שני כפתורי שמירה (עם / בלי ההוספה). withMissing=true מוסיף אותן קודם */
+function saveKitDraft(withMissing) {
+  try { return saveKitDraft0(withMissing); } catch (e) { console.error(e); uiToast('⚠ השמירה נכשלה: ' + e.message); }
+}
+function saveKitDraft0(withMissing) {
   if (!nkDraft) return;
+  if (!nkDraft.name.trim()) { uiToast('⚠ תן שם לקיט'); const e2 = document.getElementById('nkName'); if (e2) e2.focus(); return; }
+  if (withMissing) nkMissing().forEach(c => nkDraft.items.push({ key: c.key, name: c.name, qty: c.qty }));
   store.userKits = store.userKits || [];
   const rec = { name: nkDraft.name.trim(), cat: nkDraft.cat || 'audio', sys: nkDraft.sys || 'קיט שלי', items: nkDraft.items, cabOk: true };
   /* קיט ERP שנערך ושמו שונה — הגרסה שלי עדיין מחליפה את המקורי (אחרת המקורי נשאר ברשימת "לתיקון") */
@@ -10799,7 +10801,7 @@ async function saveKitDraft() {
   else store.userKits.push(rec);
   const wasErp = nkDraft.fromErp, backCab = nkDraft.backCab;
   save(); nkDraft = null; backCab ? kitCabAll() : renderKits();
-  uiToast(wasErp ? '✎ הקיט נערך ונשמר לתמיד — הגרסה שלך מחליפה את קיט ה-ERP בכל האפליקציה' : '✓ הקיט נשמר');
+  uiToast(wasErp ? '✎ הקיט "' + rec.name.slice(0, 40) + '" נשמר — הגרסה שלך מחליפה את קיט ה-ERP בכל האפליקציה' : '✓ הקיט "' + rec.name.slice(0, 40) + '" נשמר');
 }
 /* עריכת קיט קיים — טוען לתוך בונה הקיט (דגם מובנה → עותק מותאם) */
 function kitEdit(gi) {
@@ -11010,7 +11012,9 @@ function renderKitNew() {
       ${alts.length ? `<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:3px 50px 2px 0;font-size:10.5px"><span class="muted">מוצר מחליף:</span>${alts.map(a => `<button style="padding:1px 7px;font-size:10.5px;border:1px solid ${a.why === 'דגם חדש יותר' ? '#0f6e56' : '#cfd3dc'};background:${a.why === 'דגם חדש יותר' ? '#eef7f1' : '#fff'};border-radius:6px" title="${esc(a.name)} · ${a.why} — לחיצה מחליפה" onclick="nkReplace(${i},'${a.key}','${jsq(a.name)}')">${a.why === 'דגם חדש יותר' ? '🆕 ' : a.why.startsWith('אותו') ? '= ' : '↔ '}${esc(shortModel(a.name) || a.name.slice(0, 22))} · ₪${a.price.toLocaleString()} · <span style="color:${a.stock > 9 ? '#0a7a4b' : a.stock > 0 ? '#b8860b' : '#a32222'}">מלאי ${Math.round(a.stock)}</span></button>`).join('')}</div>` : ''}</div>`; }).join('')}
     ${nkMissingHTML()}
     ${d.items.length ? `<p style="text-align:left;font-weight:800;margin:8px 6px 0">סה"כ הקיט: ₪${d.items.reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * (x.qty || 1); }, 0).toLocaleString()}</p>
-    <button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>` : ''}`;
+    ${(() => { const nM = nkMissing().length; return nM
+      ? '<button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft(true)">💾 הוסף את ' + nM + ' השורות החסרות ושמור</button><button style="width:100%;margin-top:6px" onclick="saveKitDraft()">💾 שמור בלי להוסיף</button>'
+      : '<button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>'; })()}` : ''}`;
 }
 /* יצירת קיט חדש מהשורות המסומנות ✓ בהצעת המחיר */
 async function kitFromOffer() {
