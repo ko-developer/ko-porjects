@@ -3106,6 +3106,41 @@ function rearLibImport(inp) {
 /* מוקדים/פאנלים שהונחו על אותה נקודה: מסודרים צמודים זה לזה — בטור (ברירת מחדל) או בשורה (P.stackDir='h') —
    לפי הגודל הנראה בפועל של כל אייקון (כולל ההקטנה לקנה מידה), כך שאף אחד לא מסתיר את השני */
 /* ===== אייקונים על אובייקט משורטט (שולחן / בר / ספה): שחרור בתוך המלבן מצמיד, והאייקונים מסתדרים בשורה לרוחב האובייקט ===== */
+/* כל מקטעי הקיר בתכנית: קירות משורטטים, קירות וירטואליים, וגבולות אזורים */
+function planWallSegs() {
+  const out = [];
+  ((P.sketch && P.sketch.walls) || []).forEach(wl => { for (let i = 1; i < wl.length; i++) out.push([wl[i - 1], wl[i]]); });
+  (P.virtWalls || []).forEach(v => { if (v.a && v.b) out.push([v.a, v.b]); });
+  (P.zones || []).forEach(z => {
+    let p = z.poly && z.poly.length >= 3 ? z.poly : null;
+    if (!p) { try { const b = zoneBounds(z); p = [{ x: b.L, y: b.T }, { x: b.L + b.W, y: b.T }, { x: b.L + b.W, y: b.T + b.H }, { x: b.L, y: b.T + b.H }]; } catch { return; } }
+    for (let i = 0; i < p.length; i++) out.push([p[i], p[(i + 1) % p.length]]);
+  });
+  return out;
+}
+/* מרכז אייקון (קנבס) → מיקום צמוד לקיר הקרוב, או null. טווח המשיכה 26px מסך; בפינה נצמד לשני הקירות */
+function nodeWallSnap(cx, cy, Z) {
+  const R = 21, PULL = R + 26 / (Z || 1), segs = planWallSegs();
+  let x = cx, y = cy, first = null;
+  for (let pass = 0; pass < 2; pass++) {
+    let best = null;
+    for (const sg of segs) {
+      if (first && sg === first.sg) continue;
+      const [a, b] = sg, dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy; if (L2 < 1) continue;
+      const t = ((x - a.x) * dx + (y - a.y) * dy) / L2; if (t < -0.02 || t > 1.02) continue;
+      const px = a.x + t * dx, py = a.y + t * dy, d = Math.hypot(x - px, y - py);
+      if (first && Math.abs(dx * first.dx + dy * first.dy) / Math.sqrt(L2 * first.L2) > 0.5) continue;   /* בסיבוב השני — רק קיר ניצב בערך (פינה) */
+      if (d < PULL && (!best || d < best.d)) best = { sg, d, px, py, dx, dy, L2 };
+    }
+    if (!best) break;
+    /* צד: לפי המקום שבו האייקון נמצא עכשיו; בדיוק על הקו — לפי הנורמל */
+    let nx = x - best.px, ny = y - best.py; const nl = Math.hypot(nx, ny);
+    if (nl < 0.5) { const l = Math.sqrt(best.L2); nx = -best.dy / l; ny = best.dx / l; } else { nx /= nl; ny /= nl; }
+    x = best.px + nx * R; y = best.py + ny * R;
+    if (!first) first = best; else break;
+  }
+  return first ? { x, y, seg: first.sg } : null;
+}
 const isIconNode = nn => nn.kind === 'point' || nn.kind === 'panel' || nn.kind === 'rack';   /* פאנל הוא תמיד אייקון בתכנית — הקופסה הפתוחה שלו צפה לידו */
 function objAttachDrop(n) {
   const objs = (P.sketch && P.sketch.objs) || [];
@@ -4960,6 +4995,10 @@ function renderWires() {
     for (let i = 1; i < pp.length; i++) out += `<line data-cdseg="${i - 1}" x1="${pp[i - 1].x}" y1="${pp[i - 1].y}" x2="${pp[i].x}" y2="${pp[i].y}" stroke="${col}" stroke-opacity="0.25" stroke-width="${12 / ZW}" stroke-linecap="round" style="pointer-events:stroke;cursor:copy"/>`;
     pp.forEach((q, i) => { out += `<circle data-cdpt="${i}" cx="${q.x}" cy="${q.y}" r="${7 / ZW}" fill="#fff" stroke="${col}" stroke-width="${2.5 / ZW}" style="pointer-events:all;cursor:grab"/>`; }); }
   /* קווי יישור בזמן גרירת מוקד */
+  if (window.__wallG) {   /* הקיר שהרמקול נצמד אליו — נדלק בירוק בזמן הגרירה */
+    const [wa, wb] = window.__wallG, zz = getZ() || 1;
+    out += `<line x1="${wa.x}" y1="${wa.y}" x2="${wb.x}" y2="${wb.y}" stroke="#16a34a" stroke-width="${5 / zz}" stroke-linecap="round" opacity=".85" pointer-events="none"/>`;
+  }
   if (window.__alignG) {
     const g = window.__alignG, EX = 6000;
     if (g.x != null) out += `<line x1="${g.x}" y1="0" x2="${g.x}" y2="${EX}" stroke="#e2438a" stroke-width="1.5" stroke-dasharray="7 5" opacity="0.95" style="pointer-events:none"/>`;
@@ -10042,6 +10081,11 @@ document.addEventListener('pointermove', e => {
     if (gx != null) drag.n.x = gx;
     if (gy != null) drag.n.y = gy;
     if (gx != null || gy != null) window.__alignG = { x: gx, y: gy };
+    /* מגנט לקיר: מוקד (רמקול) שמתקרב לקיר נצמד אליו — האייקון נוגע בקיר מהצד שממנו הגיע. גובר על שאר ההצמדות בציר הניצב לקיר */
+    if (drag.n.kind === 'point' && !drag.att) {
+      const w = nodeWallSnap(2200 - drag.n.x - 20, drag.n.y + 24, Z);
+      if (w) { drag.n.x = 2200 - w.x - 20; drag.n.y = w.y - 24; window.__alignG = null; window.__wallG = w.seg; } else window.__wallG = null;
+    } else window.__wallG = null;
   }
   const el = document.getElementById('nd_' + drag.n.id);
   el.style.right = (drag.n.x - (drag.n._chW || 0)) + 'px';
@@ -10102,7 +10146,7 @@ document.addEventListener('pointerup', e => {
     dragH = null; render();
     return;
   }
-  if (window.__alignG) { window.__alignG = null; renderWires(); }
+  if (window.__alignG || window.__wallG) { window.__alignG = null; window.__wallG = null; renderWires(); }
   if (dragK) { dragK = null; render(); return; }
   if (dragE) {
     const de = dragE; dragE = null;
