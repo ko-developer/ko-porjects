@@ -10881,7 +10881,7 @@ function kitAltFor(x) {
       const same = stem.length >= 3 && kitStem(nm) === stem;   /* אותו דגם במק"ט אחר (צבע / אריזה) — הכי קרוב שיש */
       if (same) score -= 2;
       if (io && io2) score += io === io2 ? -0.6 : 0.6;   /* פרוססור: אותו מספר כניסות/יציאות קודם */
-      sim.push({ key: k, name: nm, price: pr, stock: st, score, why: same ? 'אותו דגם — מק"ט אחר' : isProc ? 'פרוססור' + (io2 ? ' ' + io2.replace('x', '×') : '') + ' במחיר דומה' : isAmp && pow2 ? 'מגבר ' + pow2.ch + '×' + pow2.w + 'W — עומד בהספק של המקורי (' + pow.ch + '×' + pow.w + 'W)' : 'דומה במחיר ובפונקציה' });
+      sim.push({ key: k, name: nm, price: pr, stock: st, score, why: same ? 'אותו דגם — מק"ט אחר' : isProc ? 'פרוססור' + (io2 ? ' ' + io2.replace('x', '×') : '') + ' במחיר דומה' : isAmp && pow && pow2 ? 'מגבר ' + pow2.ch + '×' + pow2.w + 'W — עומד בהספק של המקורי (' + pow.ch + '×' + pow.w + 'W)' : 'דומה במחיר ובפונקציה' });
     }
     if (newer) out.push(newer);
     sim.sort((a, b) => a.score - b.score);
