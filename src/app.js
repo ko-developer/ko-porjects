@@ -10665,10 +10665,37 @@ function kitCabAll() {
     list.map(o => `<div data-cabkit="${o.gi}" style="border:1px solid #e3e3e3;border-radius:9px;margin-bottom:8px;overflow:hidden">
       <div style="display:flex;gap:8px;align-items:center;padding:6px 8px;background:#f7f7f7">
         <b style="flex:1;cursor:pointer" onclick="kitPrev(${o.gi})">${esc(o.k.name)}</b>
+        <button onclick="kitCabFull(${o.gi})" title="כל שורות הקיט הקיימות">${kitCabOpen.has(o.k.name) ? '▲ הסתר קיט' : '📋 הצג קיט מלא'}</button>
         <button onclick="kitCabApply(${o.gi},1);save();kitCabAll()" style="background:#eef7f1;color:#0f6e56;font-weight:700">✓ אשר</button>
         <button onclick="kitCabSkip(${o.gi})" title="הקיט תקין כמו שהוא — לא להציע שוב">✕ לא צריך</button>
-      </div>${kitCabRowsHTML(o.k, o.gi)}</div>`).join('');
+      </div>${kitCabOpen.has(o.k.name) ? kitCabFullHTML(o.k) : ''}${kitCabRowsHTML(o.k, o.gi)}</div>`).join('');
 }
+/* הקיט המלא בתוך מסך הכבלים — מה כבר יש בו, לפני שמאשרים תוספת */
+const kitCabOpen = new Set();
+function kitCabFull(gi) {
+  const k = allKits()[gi]; if (!k) return;
+  /* שומרים את הסימונים והכמויות שהמשתמש כבר שינה במסך */
+  const st = [...document.querySelectorAll('[data-cab]')].map(e => [e.dataset.cab + ':' + e.dataset.cabid, e.checked, (document.querySelector('[data-cabq="' + e.dataset.cab + ':' + e.dataset.cabid + '"]') || {}).value]);
+  const y = ($('#impList').closest('.modal,[style*="overflow"]') || $('#impList')).scrollTop;
+  kitCabOpen.has(k.name) ? kitCabOpen.delete(k.name) : kitCabOpen.add(k.name);
+  kitCabAll();
+  st.forEach(([id, on, q]) => { const [g, c] = id.split(':'); const cb = document.querySelector('[data-cab="' + g + '"][data-cabid="' + c + '"]'), qi = document.querySelector('[data-cabq="' + id + '"]'); if (cb) cb.checked = on; if (qi && q != null) qi.value = q; });
+  const el = document.querySelector('[data-cabkit="' + gi + '"]'); if (el) el.scrollIntoView({ block: 'nearest' });
+}
+function kitCabFullHTML(k) {
+  let total = 0;
+  const rows = (k.items || []).map(x => {
+    const inf = x.key ? erpInfo(x.key) : null, pr = inf ? inf.price : null;
+    if (pr != null) total += pr * (x.qty || 1);
+    return `<div style="display:flex;gap:8px;align-items:center;padding:3px 8px 3px 8px;border-bottom:1px solid #eee;font-size:12px;background:#fafafa">
+      <b style="width:76px;text-align:center;flex:none">${x.qty || 1}×</b>
+      <span style="width:84px;flex:none;direction:ltr;text-align:left;font-family:monospace;font-size:11px;color:#555">${esc(x.key || '—')}</span>
+      <span style="flex:1">${esc(x.name)}</span>
+      <span class="muted">${pr != null ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</span></div>`;
+  }).join('');
+  return rows + `<div style="padding:3px 8px;font-size:11.5px;font-weight:700;text-align:left;background:#fafafa;border-bottom:2px solid #e9b4b4">קיים בקיט: ${(k.items || []).length} שורות · ₪${Math.round(total).toLocaleString()} — מוצע להוסיף:</div>`;
+}
+window.kitCabFull = kitCabFull;
 function kitCabApplyAll() {
   const gis = [...document.querySelectorAll('[data-cabkit]')].map(e => +e.dataset.cabkit), ks = allKits();
   let n = 0;
