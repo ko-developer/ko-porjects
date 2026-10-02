@@ -4751,8 +4751,10 @@ function renderWires() {
     const dimTxt = (x, y, t, rot) => `<g transform="translate(${x} ${y})${rot ? ' rotate(' + rot + ')' : ''}" style="pointer-events:none">
         <rect x="${-t.length * dimFz * 0.31 - 4}" y="${-dimFz * 0.78}" width="${t.length * dimFz * 0.62 + 8}" height="${dimFz * 1.25}" rx="3" fill="#fff" opacity="0.82"/>
         <text x="0" y="${dimFz * 0.34}" text-anchor="middle" font-size="${dimFz.toFixed(1)}" font-weight="700" fill="#3f3a33">${t}</text></g>`;
+    let skHandles = '';
     (P.sketch.walls || []).forEach((wl, wi) => {
-      out += `<polyline points="${wl.map(p => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#3f3a33" stroke-width="${wallW}" stroke-linecap="square" stroke-linejoin="miter"${sketchMode ? ` style="pointer-events:stroke;cursor:${sketchMode.tool === 'erase' ? 'not-allowed' : 'default'}" onclick="if(sketchMode&&sketchMode.tool==='erase'){P.sketch.walls.splice(${wi},1);save();renderWires();}"` : ''}><title>קיר${P.scale ? ' · ' + (wl.slice(1).reduce((s5, p5, i5) => s5 + Math.hypot(p5.x - wl[i5].x, p5.y - wl[i5].y), 0) * P.scale).toFixed(1) + ' מ׳' : ''}${sketchMode && sketchMode.tool === 'erase' ? ' — לחיצה מוחקת' : ''}</title></polyline>`;
+      out += `<polyline points="${wl.map(p => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#3f3a33" stroke-width="${wallW}" stroke-linecap="square" stroke-linejoin="miter" data-skwall="${wi}" style="pointer-events:stroke;cursor:${sketchMode && sketchMode.tool === 'erase' ? 'not-allowed' : 'pointer'}${sketchMode && sketchWallSel === wi ? ';stroke:#c9502e' : ''}" onclick="skWallPick(${wi})"><title>${skWallClosed(wl) ? 'חדר' : 'קיר'} — לחיצה לעריכה/מחיקה · קיר${P.scale ? ' · ' + (wl.slice(1).reduce((s5, p5, i5) => s5 + Math.hypot(p5.x - wl[i5].x, p5.y - wl[i5].y), 0) * P.scale).toFixed(1) + ' מ׳' : ''}${sketchMode && sketchMode.tool === 'erase' ? ' — לחיצה מוחקת' : ''}</title></polyline>`;
+      if (sketchMode && sketchWallSel === wi) skHandles = skWallHandlesSVG(wl, wi);
       /* מידה על כל מקטע קיר — קריאה גם כשהקו אנכי (הטקסט מסתובב עם הקיר) */
       if (P.scale) wl.slice(1).forEach((p2, i2) => {
         const p1 = wl[i2], len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
@@ -4762,6 +4764,7 @@ function renderWires() {
         out += dimTxt((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, (len * P.scale).toFixed(2) + ' מ׳', ang.toFixed(1));
       });
     });
+    out += skHandles;   /* ידיות החדר המסומן — מעל הקירות והמידות */
     (P.sketch.objs || []).forEach((o, oi) => {
       const d = SK_OBJS[o.t] || { n: o.t, c: '#666' };
       const selO = sketchMode && sketchSel === oi;
@@ -4782,7 +4785,7 @@ function renderWires() {
         /* מידה חיה תוך כדי ציור — רואים את האורך לפני שמניחים את הנקודה */
         if (P.scale) {
           const lv = Math.hypot(sketchMode.cur2.x - l2.x, sketchMode.cur2.y - l2.y) * P.scale;
-          const t2 = sketchMode.tool === 'rect' ? (Math.abs(sketchMode.cur2.x - l2.x) * P.scale).toFixed(2) + ' × ' + (Math.abs(sketchMode.cur2.y - l2.y) * P.scale).toFixed(2) + ' מ׳' : lv.toFixed(2) + ' מ׳';
+          const t2 = lv.toFixed(2) + ' מ׳' + (sketchMode.tool === 'rect' ? ' · פינה ' + (c.length + 1) + '/4' : '');
           out += dimTxt((l2.x + sketchMode.cur2.x) / 2, (l2.y + sketchMode.cur2.y) / 2 - 14, t2, 0);
         }
       }
@@ -8733,6 +8736,72 @@ const SK_OBJS = {
   door: { n: 'דלת', w: 0.9, h: 0.18, c: '#666' },
   plant: { n: 'צמח', w: 0.6, h: 0.6, c: '#2e7d32', round: 1 }
 };
+/* ===== חדר/קיר משורטט: בחירה, עריכה במספרים, גרירת פינות, הזזה ומחיקה ===== */
+let sketchWallSel = null;
+function skWallBox(wl) { const xs = wl.map(p => p.x), ys = wl.map(p => p.y); const L = Math.min(...xs), T = Math.min(...ys); return { L, T, W: Math.max(...xs) - L, H: Math.max(...ys) - T }; }
+function skWallClosed(wl) { return wl.length > 3 && Math.hypot(wl[0].x - wl[wl.length - 1].x, wl[0].y - wl[wl.length - 1].y) < 1; }
+/* חדר במידות מדויקות — במרכז התצוגה */
+function skRoomCreate() {
+  const w = parseFloat(document.getElementById('skRoomW')?.value), h = parseFloat(document.getElementById('skRoomH')?.value);
+  if (!(w > 0.2) || !(h > 0.2)) { uiToast('הזן רוחב ואורך במטרים'); return; }
+  if (!P.scale) { uiToast('אין קנה מידה — כייל את התכנית קודם'); return; }
+  const wrap = document.getElementById('canvasWrap'), wr = wrap.getBoundingClientRect();
+  const c = canvasPt({ clientX: wr.left + wr.width / 2, clientY: wr.top + wr.height / 2 });
+  const pw = w / P.scale, ph = h / P.scale, x0 = c.x - pw / 2, y0 = c.y - ph / 2;
+  P.sketch.walls.push([{ x: x0, y: y0 }, { x: x0 + pw, y: y0 }, { x: x0 + pw, y: y0 + ph }, { x: x0, y: y0 + ph }, { x: x0, y: y0 }]);
+  sketchWallSel = P.sketch.walls.length - 1; sketchSel = null; sketchMode.tool = 'select'; sketchMode.cur = [];
+  save(); sketchBar(); renderWires();
+  uiToast('⬜ חדר ' + w + '×' + h + ' מ׳ נוצר — גרור את ✥ למקומו, או את הפינות לשינוי צורה');
+}
+/* שינוי מידות החדר המסומן במספרים — הפינה השמאלית-עליונה נשארת במקומה */
+function skWallResize(dim, m) {
+  const wl = (P.sketch.walls || [])[sketchWallSel]; if (!wl || !P.scale || !(m > 0.05)) return;
+  const b = skWallBox(wl), px = m / P.scale;
+  if (dim === 'w' && b.W > 0.5) { const k = px / b.W; wl.forEach(p => { p.x = b.L + (p.x - b.L) * k; }); }
+  if (dim === 'h' && b.H > 0.5) { const k = px / b.H; wl.forEach(p => { p.y = b.T + (p.y - b.T) * k; }); }
+  save(); sketchBar(); renderWires();
+}
+function skWallDelete() { if (sketchWallSel == null) return; P.sketch.walls.splice(sketchWallSel, 1); sketchWallSel = null; save(); sketchBar(); renderWires(); uiToast('החדר/הקיר נמחק'); }
+function skWallPick(wi) {
+  if (!sketchMode) { if (wireMode || pinMode || calMode || zoneMode) return; sketchMode = { tool: 'select', cur: [] }; }
+  if (sketchMode.tool === 'erase') { P.sketch.walls.splice(wi, 1); sketchWallSel = null; save(); renderWires(); return; }
+  if (sketchMode.tool !== 'select') return;
+  sketchWallSel = wi; sketchSel = null; sketchBar(); renderWires();
+}
+/* ידיות על החדר המסומן: פינות (גרירה) + ✥ להזזת כולו */
+function skWallHandlesSVG(wl, wi) {
+  const z = getZ() || 1, r = 7 / z, closed = skWallClosed(wl), n = closed ? wl.length - 1 : wl.length;
+  let o = '';
+  for (let i = 0; i < n; i++) o += `<circle data-skv="${wi},${i}" cx="${wl[i].x}" cy="${wl[i].y}" r="${r}" fill="#fff" stroke="#c9502e" stroke-width="${2.2 / z}" style="pointer-events:all;cursor:grab"><title>גרור להזזת הפינה</title></circle>`;
+  const b = skWallBox(wl), cx = b.L + b.W / 2, cy = b.T + b.H / 2, hs = 13 / z;
+  o += `<g data-skw="${wi}" style="pointer-events:all;cursor:move"><title>גרור להזזת החדר כולו</title><circle cx="${cx}" cy="${cy}" r="${hs}" fill="#c9502e" opacity="0.92"/><text x="${cx}" y="${cy + hs * 0.38}" text-anchor="middle" font-size="${hs * 1.15}" fill="#fff" style="user-select:none">✥</text></g>`;
+  return o;
+}
+document.addEventListener('pointerdown', e => {
+  const hv = e.target.closest && e.target.closest('[data-skv]'), hw = !hv && e.target.closest && e.target.closest('[data-skw]');
+  if (!hv && !hw) return;
+  e.stopPropagation(); e.preventDefault();
+  const st = canvasPt(e);
+  if (hv) {
+    const [wi, pi] = hv.dataset.skv.split(',').map(Number), wl = P.sketch.walls[wi]; if (!wl) return;
+    const closed = skWallClosed(wl), o = { x: wl[pi].x, y: wl[pi].y };
+    const mv = ev => { const p2 = canvasPt(ev); let nx = o.x + p2.x - st.x, ny = o.y + p2.y - st.y;
+      /* הצמדה לקו ישר מול הפינות השכנות */
+      const TH = 7 / (getZ() || 1), n = closed ? wl.length - 1 : wl.length;
+      for (const j of [(pi + 1) % n, (pi - 1 + n) % n]) { if (j === pi || (!closed && Math.abs(j - pi) !== 1)) continue; if (Math.abs(nx - wl[j].x) < TH) nx = wl[j].x; if (Math.abs(ny - wl[j].y) < TH) ny = wl[j].y; }
+      wl[pi].x = nx; wl[pi].y = ny; if (closed && pi === 0) { wl[wl.length - 1].x = nx; wl[wl.length - 1].y = ny; } renderWires(); };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); sketchBar(); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  } else {
+    const wi = +hw.dataset.skw, wl = P.sketch.walls[wi]; if (!wl) return;
+    const o = wl.map(p => ({ x: p.x, y: p.y }));
+    const mv = ev => { const p2 = canvasPt(ev), dx = p2.x - st.x, dy = p2.y - st.y; wl.forEach((p, i) => { p.x = o[i].x + dx; p.y = o[i].y + dy; }); renderWires(); };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  }
+}, true);
+document.addEventListener('keydown', e => { if (sketchMode && sketchWallSel != null && (e.key === 'Delete' || e.key === 'Backspace') && !(e.target && e.target.matches && e.target.matches('input,textarea,select'))) { e.preventDefault(); skWallDelete(); } });
+window.skRoomCreate = skRoomCreate; window.skWallResize = skWallResize; window.skWallDelete = skWallDelete; window.skWallPick = skWallPick;
 async function sketchStart() {
   if (!P.scale) {
     const m = parseFloat(await uiPrompt('רוחב השטח שתשרטט במטרים (קובע את קנה המידה):', '20'));
@@ -8745,7 +8814,7 @@ async function sketchStart() {
   sketchMode = { tool: 'rect', cur: [] };
   sketchSel = null;
   sketchBar(); render(); save();
-  uiToast('🖊 מצב שרטוט · ⬜ חדר: 2 לחיצות פינות · 📏 קיר: נקודות + דאבל-קליק · אובייקטים מהסרגל בגודל אמיתי');
+  uiToast('🖊 מצב שרטוט · ⬜ חדר: רוחב×אורך במספרים, או 4 לחיצות על הפינות · 📏 קיר: נקודות + דאבל-קליק · לחיצה על חדר קיים = עריכה/מחיקה', 7000);
 }
 function sketchBar() {
   const old2 = document.getElementById('sketchBar'); if (old2) old2.remove();
@@ -8758,7 +8827,7 @@ function sketchBar() {
   const o = sketchSel != null ? (P.sketch.objs || [])[sketchSel] : null;
   bar.innerHTML = `<b style="font-size:12px;margin-left:2px">🖊</b>` +
     tb('select', '✋', 'בחירה והזזת אובייקטים') +
-    tb('rect', '⬜ חדר', 'מלבן קירות — שתי לחיצות על פינות נגדיות') +
+    tb('rect', '⬜ חדר', 'חדר — הזן רוחב×אורך וצור, או סמן 4 פינות בלחיצות על התכנית') +
     tb('wall', '📏 קיר', 'קו קירות — לחץ נקודות, דאבל-קליק מסיים, Esc מבטל') +
     tb('erase', '🧽', 'מחיקת קיר — לחיצה על קיר מוחקת אותו') +
     `<span style="opacity:.35">|</span>` +
@@ -8770,12 +8839,15 @@ function sketchBar() {
       ${P.scale ? `<label style="font-size:11px;display:flex;align-items:center;gap:3px">רוחב <input type="number" step="0.05" min="0.1" value="${(o.w * P.scale).toFixed(2)}" style="width:58px;font-size:11px;padding:3px" onchange="const o2=P.sketch.objs[sketchSel];o2.w=Math.max(0.1,+this.value)/P.scale;save();renderWires()"> מ׳</label>
       <label style="font-size:11px;display:flex;align-items:center;gap:3px">אורך <input type="number" step="0.05" min="0.1" value="${(o.h * P.scale).toFixed(2)}" style="width:58px;font-size:11px;padding:3px" onchange="const o2=P.sketch.objs[sketchSel];o2.h=Math.max(0.1,+this.value)/P.scale;save();renderWires()"> מ׳</label>` : `<span style="font-size:11px;opacity:.8">${Math.round(o.w)}×${Math.round(o.h)}px (כייל את התכנית למידות במטרים)</span>`}
       <button title="מחיקת האובייקט המסומן" style="${bs(false)}" onclick="P.sketch.objs.splice(sketchSel,1);sketchSel=null;save();sketchBar();renderWires()">🗑</button>` : '') +
+    (sketchMode.tool === 'rect' ? `<span style="opacity:.35">|</span><span style="font-size:11px;display:flex;align-items:center;gap:4px;background:#2d3444;border-radius:8px;padding:3px 7px">חדר: רוחב <input id="skRoomW" type="number" step="0.1" min="0.3" placeholder="מ׳" style="width:54px;font-size:11px;padding:3px;color:#111"> × אורך <input id="skRoomH" type="number" step="0.1" min="0.3" placeholder="מ׳" style="width:54px;font-size:11px;padding:3px;color:#111" onkeydown="if(event.key==='Enter')skRoomCreate()"> מ׳ <button style="${bs(false)};background:#0f6e56" onclick="skRoomCreate()">➕ צור חדר</button> <span style="opacity:.7">או סמן 4 פינות על התכנית</span></span>` : '') +
+    (() => { const wl = sketchWallSel != null ? (P.sketch.walls || [])[sketchWallSel] : null; if (!wl || sketchMode.tool !== 'select') return ''; const b = skWallBox(wl), sc = P.scale || 0;
+      return `<span style="opacity:.35">|</span><span style="font-size:11px;display:flex;align-items:center;gap:4px;background:#2d3444;border-radius:8px;padding:3px 7px">${skWallClosed(wl) ? 'חדר' : 'קיר'} מסומן${sc ? ` · רוחב <input type="number" step="0.05" min="0.1" value="${(b.W * sc).toFixed(2)}" style="width:58px;font-size:11px;padding:3px;color:#111" onchange="skWallResize('w',+this.value)"> × אורך <input type="number" step="0.05" min="0.1" value="${(b.H * sc).toFixed(2)}" style="width:58px;font-size:11px;padding:3px;color:#111" onchange="skWallResize('h',+this.value)"> מ׳` : ''} <button title="מחיקת החדר/הקיר המסומן (Delete)" style="${bs(false)}" onclick="skWallDelete()">🗑 מחק</button></span>`; })() +
     `<button title="סיום — השרטוט נשאר על התכנית" style="padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:12px;background:#0f6e56;color:#fff;font-weight:700" onclick="sketchEnd()">✓ סיום</button>`;
-  bar.querySelectorAll('[data-t]').forEach(b => { b.onclick = () => { sketchMode.tool = b.dataset.t; sketchMode.cur = []; sketchBar(); renderWires(); }; });
+  bar.querySelectorAll('[data-t]').forEach(b => { b.onclick = () => { sketchMode.tool = b.dataset.t; sketchMode.cur = []; if (b.dataset.t !== 'select') sketchWallSel = null; sketchBar(); renderWires(); }; });
   document.body.appendChild(bar);
 }
 function sketchEnd() {
-  sketchMode = null; sketchSel = null;
+  sketchMode = null; sketchSel = null; sketchWallSel = null;
   const b = document.getElementById('sketchBar'); if (b) b.remove();
   renderWires();
   uiToast('✓ השרטוט נשמר — "🖊 ערוך שרטוט" בפאנל ההגדרות מחזיר את הכלים');
@@ -9414,12 +9486,13 @@ document.addEventListener('pointerdown', e => {
       c.push(p2); renderWires(); return;
     }
     if (sketchMode.tool === 'rect') {
-      sketchMode.cur.push(p2);
-      if (sketchMode.cur.length === 2) {
-        const [a2, b2] = sketchMode.cur;
-        P.sketch.walls.push([{ x: a2.x, y: a2.y }, { x: b2.x, y: a2.y }, { x: b2.x, y: b2.y }, { x: a2.x, y: b2.y }, { x: a2.x, y: a2.y }]);
-        sketchMode.cur = []; sketchMode.cur2 = null; save();
-      }
+      /* חדר = 4 פינות בלחיצות, כמו סימון אזור: הרביעית (או לחיצה על הראשונה) סוגרת. הצמדה לקו ישר מול הנקודה הקודמת והראשונה */
+      const c = sketchMode.cur, TH = 10 / (getZ() || 1);
+      if (c.length >= 3 && Math.hypot(c[0].x - p2.x, c[0].y - p2.y) < TH) { P.sketch.walls.push(c.concat([{ x: c[0].x, y: c[0].y }])); sketchWallSel = P.sketch.walls.length - 1; sketchMode.cur = []; sketchMode.cur2 = null; sketchMode.tool = 'select'; save(); sketchBar(); renderWires(); return; }
+      const q = { x: p2.x, y: p2.y };
+      if (c.length) { const l = c[c.length - 1]; if (Math.abs(q.x - l.x) < TH) q.x = l.x; if (Math.abs(q.y - l.y) < TH) q.y = l.y; if (c.length === 3) { if (Math.abs(q.x - c[0].x) < TH) q.x = c[0].x; if (Math.abs(q.y - c[0].y) < TH) q.y = c[0].y; } }
+      c.push(q);
+      if (c.length === 4) { P.sketch.walls.push(c.concat([{ x: c[0].x, y: c[0].y }])); sketchWallSel = P.sketch.walls.length - 1; sketchMode.cur = []; sketchMode.cur2 = null; sketchMode.tool = 'select'; save(); sketchBar(); uiToast('⬜ החדר נסגר — אפשר לגרור פינות, לשנות מידות בסרגל, או למחוק'); }
       renderWires(); return;
     }
     if (SK_OBJS[sketchMode.tool]) {
@@ -9429,7 +9502,7 @@ document.addEventListener('pointerdown', e => {
       sketchSel = P.sketch.objs.length - 1;
       sketchMode.tool = 'select'; sketchBar(); save(); renderWires(); return;
     }
-    if (sketchMode.tool === 'select') { sketchSel = null; sketchBar(); renderWires(); }
+    if (sketchMode.tool === 'select') { sketchSel = null; if (!e.target.closest('[data-skwall]')) sketchWallSel = null; sketchBar(); renderWires(); }
     return;
   }
   if (zoneMode && e.target.closest('#canvasWrap')) {
