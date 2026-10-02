@@ -10418,7 +10418,7 @@ function isAccessory(name) { const n = String(name || ''); if (!ACCESSORY_RE.tes
 /* פריט רמקול/סאב אמיתי — לא כבל, לא מחבר, לא אביזר */
 function isSpeakerItem(name) {
   const n = name || '';
-  if (/כבל|מחבר|קונקטור|cable|מתקן|יוק|\byoke\b|סוגר|ברקט|תושבת|כננת|מתלה/i.test(n)) return false;
+  if (/כבל|מחבר|קונקטור|cable|מתקן|יוק|\byoke\b|סוגר|ברקט|תושבת|כננת|מתלה/i.test(n) && !/^\s*(רמקול|סאב|קולונ)[^|]*\+\s*מתקן/.test(n)) return false;   /* "רמקול … + מתקן תלייה" = רמקול שמגיע עם מתקן */
   if (typeof ACCESSORY_RE !== 'undefined' && ACCESSORY_RE.test(n) && !/^(רמקול|סאב|קולונ)/.test(n.trim())) return false;   /* "בורג … לרמקול" = אביזר, לא רמקול */
   /* מגבר/פרוססור אינם רמקול — גם אם בשם מוזכר "קרוס בין סאבים" וכד' */
   if (/מגבר|\bamp(lifier)?\b|פרוססור|processor|קרוסאובר|crossover|מטריצ|matrix|\bDSP\b/i.test(n)) return false;
@@ -10551,10 +10551,14 @@ const KIT_REEL_KEYS = { CA1219KO: 100 };
 function kitFixReels(list) {
   let n = 0;
   /* שורות ריקות שמגיעות מה-ERP (בלי מק״ט ובלי שם) נזרקות; מק״ט בלי שם מקבל את שמו מהקטלוג */
+  /* שמות הפריטים בקיטים מגיעים קטועים מה-ERP ("… + מתקן תלייה KT" בלי "ARRAY 650") — משלימים לשם המלא מהקטלוג */
+  if (!kitFixReels.names && typeof ERP_ITEMS !== 'undefined') kitFixReels.names = new Map(ERP_ITEMS.map(i => [i[0], i[1] || '']));
+  const full = kitFixReels.names || new Map();
   (list || []).forEach(k => {
     const before = (k.items || []).length;
     k.items = (k.items || []).filter(x => {
-      if (x.key && !x.name && typeof ERP_ITEMS !== 'undefined') { const it = ERP_ITEMS.find(i => i[0] === x.key); if (it) x.name = it[1]; }
+      const fn = x.key ? full.get(x.key) : '';
+      if (fn && (!x.name || (fn.length > x.name.length && fn.startsWith(x.name.trim())))) { x.name = fn; n++; }
       return !!(x.name || '').trim();
     });
     if (k.items.length !== before) n++;
@@ -10581,7 +10585,7 @@ const AMP_WITH_DSP = /DSP|IPX|DPA|DYNAMIQ|PLM|K&F D|משולב פרוססור/i;
 const HOME_AMP = /ביתי|YAMAHA.*(V4|RX)|סטרימר WIIM/i;
 /* קיט סאונד = קטגוריית audio או שיש בו רמקול/סאב/מגבר. כללי ה-DSP והכבלים חלים רק עליו */
 function kitIsAudio(k) {
-  if ((k.items || []).some(x => /^(spk|spkA|sub|subA|amp)$/.test(kitFuncClass(x.name) || ''))) return true;
+  if ((k.items || []).some(x => /^(spk|spkA|sub|subA|amp|rcv|ampPA)$/.test(kitFuncClass(x.name) || ''))) return true;
   return kitCatOf(k) === 'audio';
 }
 function kitDsp(k) {
@@ -10625,7 +10629,7 @@ function kitCableNeeds(k) {
   (k.items || []).forEach(x => {
     const n = x.name || '', q = +x.qty || 1, c = kitFuncClass(n);
     for (const h in KIT_CAB_HAS) if (KIT_CAB_HAS[h].test(n) && !/מחבר|פנל|פאנל|שאסי/.test(n)) has[h] = true;
-    if (c === 'amp') { amps += q; const m = /(\d)\s*ערוצים/.exec(n); ampCh += q * (m ? +m[1] : 2); }
+    if (kitIsAmpCls(c)) { amps += q; const m = /(\d)\s*ערוצים/.exec(n); ampCh += q * (m ? +m[1] : 2); }
     else if (c === 'proc' || c === 'procK') procs += q;
     else if (c === 'spk' || c === 'sub') pas += q;
     else if (c === 'spkA' || c === 'subA') act += q;
@@ -10810,10 +10814,33 @@ function kitFuncClass(nm) {
     const act = /מוגבר|אקטיבי|active|powered/i.test(n);
     return /סאב|\bsub\b|subwoofer/i.test(n) ? (act ? 'subA' : 'sub') : (act ? 'spkA' : 'spk');
   }
-  if (iAmp >= 0) return 'amp';
+  if (iAmp >= 0) {
+    if (/HDMI|וידאו|video|VGA|ללד|לדים|\bled\b|ריפיטר|אוזניות|אנטנ/i.test(n)) return null;            /* מגבר אות / לדים / אוזניות — לא מגבר הספק */
+    if (/כריזה|100V|שנאי קו/i.test(n)) return 'ampPA';
+    if (/רסיבר|receiver|ביתי|סטריאו|\bAVR|\bRX-?[AVSN]|\bVSX|\bR-?[NS]\d/i.test(n)) return 'rcv';   /* רסיבר ביתי אינו תחליף למגבר הספק מקצועי */
+    return 'amp';
+  }
   if (/מיקסר|mixer/i.test(n)) return 'mixer';
   if (/מיקרופון|microphone/i.test(n)) return 'mic';
   return null;
+}
+const kitIsAmpCls = c => c === 'amp' || c === 'rcv' || c === 'ampPA';
+/* הספק מגבר: ערוצים × וואט לערוץ — מהטבלה המאומתת (AMP_DATA) ואם אין, ממה שכתוב בשם הפריט ("4X1300W", "900WX2"). null = לא ידוע */
+function kitAmpPow(nm) {
+  const n = nm || '';
+  const d = typeof AMP_DATA !== 'undefined' ? AMP_DATA.find(x => x.kind === 'amp' && x.pw && x.re.test(n)) : null;
+  if (d) { const w = d.pw[8] || Math.min(...Object.values(d.pw)); if (w && d.ch) return { ch: d.ch, w }; }
+  let m = /(\d)\s*[xX*×]\s*(\d{2,5})\s*(?:W|וואט)/.exec(n); if (m) return { ch: +m[1], w: +m[2] };
+  m = /(\d{2,5})\s*(?:W|וואט)\s*[xX*×]\s*(\d)(?!\d)/.exec(n); if (m) return { ch: +m[2], w: +m[1] };
+  const c = /(\d)\s*ערוצים/.exec(n), w = /(\d{2,5})\s*(?:W\b|וואט)/i.exec(n);
+  if (c && w) return { ch: +c[1], w: +w[1] };
+  return null;
+}
+/* מגבר מחליף חייב לעמוד בעומס: לא פחות ערוצים, הספק לערוץ 0.75–1.6 מהמקורי. כשההספק המקורי ידוע — מגבר בלי הספק ידוע נפסל */
+function kitAmpFits(orig, cand) {
+  if (!orig) return true;
+  if (!cand) return false;
+  return cand.ch >= orig.ch && cand.w >= orig.w * 0.75 && cand.w <= orig.w * 1.6;
 }
 /* כניסות×יציאות של פרוססור — רק ממה שכתוב בשם הפריט (לדירוג דמיון בלבד, לא מפרט) */
 function kitProcIO(nm) {
@@ -10836,6 +10863,7 @@ function kitAltFor(x) {
     const inf = x.key ? erpInfo(x.key) : null, price = inf ? +inf.price || 0 : 0;
     const stem = kitStem(x.name), ver = kitVer(x.name), inch = kitInch(x.name), brand = kitBrandOf(x.name);
     const isProc = cls === 'proc', io = isProc ? kitProcIO(x.name) : '';
+    const isAmp = kitIsAmpCls(cls), pow = isAmp ? kitAmpPow(x.name) : null;
     let newer = null; const sim = [];
     for (const it of ERP_ITEMS) {
       const k = it[0], nm = it[1] || '', pr = +it[2] || 0, st = +it[3] || 0;
@@ -10843,8 +10871,9 @@ function kitAltFor(x) {
       /* דגם חדש יותר: אותו שורש דגם, מספר גרסה גבוה יותר */
       if (stem.length >= 3 && kitStem(nm) === stem && kitVer(nm) > ver) { if (!newer || kitVer(nm) > kitVer(newer.name) || (kitVer(nm) === kitVer(newer.name) && st > newer.stock)) newer = { key: k, name: nm, price: pr, stock: st, why: 'דגם חדש יותר' }; continue; }
       if (!price || st <= 0) continue;
-      const ratio = pr / price; if (ratio < 0.6 || ratio > 1.6) continue;
+      const ratio = pr / price; if ((ratio < 0.6 || ratio > 1.6) && !(isAmp && pow)) continue;   /* מגבר: קודם כול עומד בהספק — המחיר רק מדרג */
       const io2 = isProc ? kitProcIO(nm) : '';
+      const pow2 = isAmp ? kitAmpPow(nm) : null; if (isAmp && !kitAmpFits(pow, pow2)) continue;
       const i2 = kitInch(nm); if (inch && i2 && Math.abs(i2 - inch) > 2) continue;
       let score = Math.abs(Math.log(ratio));
       if (brand && kitBrandOf(nm) === brand) score -= 0.35;
@@ -10852,7 +10881,7 @@ function kitAltFor(x) {
       const same = stem.length >= 3 && kitStem(nm) === stem;   /* אותו דגם במק"ט אחר (צבע / אריזה) — הכי קרוב שיש */
       if (same) score -= 2;
       if (io && io2) score += io === io2 ? -0.6 : 0.6;   /* פרוססור: אותו מספר כניסות/יציאות קודם */
-      sim.push({ key: k, name: nm, price: pr, stock: st, score, why: same ? 'אותו דגם — מק"ט אחר' : isProc ? 'פרוססור' + (io2 ? ' ' + io2.replace('x', '×') : '') + ' במחיר דומה' : 'דומה במחיר ובפונקציה' });
+      sim.push({ key: k, name: nm, price: pr, stock: st, score, why: same ? 'אותו דגם — מק"ט אחר' : isProc ? 'פרוססור' + (io2 ? ' ' + io2.replace('x', '×') : '') + ' במחיר דומה' : isAmp && pow2 ? 'מגבר ' + pow2.ch + '×' + pow2.w + 'W — עומד בהספק של המקורי (' + pow.ch + '×' + pow.w + 'W)' : 'דומה במחיר ובפונקציה' });
     }
     if (newer) out.push(newer);
     sim.sort((a, b) => a.score - b.score);
@@ -10873,15 +10902,16 @@ function renderKitNew() {
   const toks = d.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   /* מצב החלפה: רק פריטים מאותה קטגוריה של הפריט המוחלף (מגבר ↔ מגבר), קודם מאותו מותג, אחר כך לפי קרבת מחיר. מוצג גם בלי להקליד */
   const rIt = d.replIdx != null ? d.items[d.replIdx] : null, rCls = rIt ? kitFuncClass(rIt.name) : null;
+  const rPow = rCls && kitIsAmpCls(rCls) ? kitAmpPow(rIt.name) : null;
   const rBrand = rCls ? kitBrandOf(rIt.name) : '', rPrice = rCls && rIt.key && erpInfo(rIt.key) ? +erpInfo(rIt.key).price || 0 : 0;
   const hits = typeof ERP_ITEMS === 'undefined' ? [] : rCls
     ? ERP_ITEMS.filter(it => { const nm = it[1] || '', n2 = nm.toLowerCase(); return it[0] !== rIt.key && +it[2] > 0 && toks.every(t => n2.includes(t)) && !NOKIT.test(nm) && !KIT_ALT_NO.test(nm) && kitFuncClass(nm) === rCls; })
-        .map(it => { const sameB = rBrand && kitBrandOf(it[1]) === rBrand, st = +it[3] > 0, pd = rPrice ? Math.abs(Math.log((+it[2] || 1) / rPrice)) : 0; return { it, sameB, sc: (sameB ? 0 : 10) + (st ? 0 : 3) + pd }; })
+        .map(it => { const sameB = rBrand && kitBrandOf(it[1]) === rBrand, st = +it[3] > 0, pd = rPrice ? Math.abs(Math.log((+it[2] || 1) / rPrice)) : 0; const pw = rPow ? kitAmpPow(it[1]) : null, fit = !rPow || kitAmpFits(rPow, pw); it.__pw = pw; it.__fit = fit; return { it, sameB, sc: (fit ? 0 : 40) + (sameB ? 0 : 10) + (st ? 0 : 3) + pd }; })
         .sort((a, b) => a.sc - b.sc).slice(0, 15).map(o => (o.it.__sameB = o.sameB, o.it))
     : toks.length
     ? ERP_ITEMS.filter(it => { const n2 = (it[1] || '').toLowerCase(); return toks.every(t => n2.includes(t)) && !NOKIT.test(it[1] || ''); })
         .sort((a, b) => (+b[3] || 0) - (+a[3] || 0)).slice(0, 10) : [];
-  const RCLS_HE = { spk: 'רמקולים', spkA: 'רמקולים מוגברים', sub: 'סאבים', subA: 'סאבים מוגברים', amp: 'מגברים', proc: 'פרוססורים', procK: 'פרוססורי קריוקי', mixer: 'מיקסרים', mic: 'מיקרופונים' };
+  const RCLS_HE = { spk: 'רמקולים', spkA: 'רמקולים מוגברים', sub: 'סאבים', subA: 'סאבים מוגברים', amp: 'מגברים', rcv: 'רסיברים ביתיים', ampPA: 'מגברי כריזה', proc: 'פרוססורים', procK: 'פרוססורי קריוקי', mixer: 'מיקסרים', mic: 'מיקרופונים' };
   $('#impList').innerHTML = `
     <button onclick="const b=nkDraft&&nkDraft.backCab;nkDraft=null;b?kitCabAll():renderKits()">← ביטול וחזרה</button>
     <h3 style="margin:10px 0 4px">➕ קיט חדש</h3>
@@ -10889,11 +10919,12 @@ function renderKitNew() {
     ${(() => { const std = kitStdName({ name: '', items: d.items }); return `<div class="fld"><label>שם לפי התוכן — רמקולים · סאבים · מגברים · פרוססור (מתעדכן לבד)</label>
       <div style="display:flex;gap:6px;align-items:center"><input id="nkStd" readonly value="${esc(std)}" placeholder="יופיע כשיהיו בקיט רמקולים / מגבר / פרוססור" style="flex:1;background:#f6f5f1;color:#333;direction:ltr;text-align:right">
       ${std ? `<button style="white-space:nowrap" title="מעתיק את השם לפי התוכן לשדה שם הקיט" onclick="nkDraft.name=document.getElementById('nkStd').value;renderKitNew()">⬆ קבע כשם הקיט</button>` : ''}</div></div>`; })()}
-    ${d.replIdx != null && d.items[d.replIdx] ? `<div style="background:#fff3e0;border:1px solid #e9a03b;border-radius:8px;padding:6px 9px;margin-bottom:6px;font-size:12px;display:flex;gap:8px;align-items:center"><span style="flex:1">🔄 מחליף את: <b>${esc(d.items[d.replIdx].name.slice(0, 50))}</b> — ${rCls ? 'מוצגים רק ' + RCLS_HE[rCls] + (rBrand ? ', קודם ' + esc(rBrand) : '') + ' · אפשר לסנן בחיפוש' : 'חפש ובחר את הפריט החדש'}</span><button style="padding:2px 9px" onclick="nkDraft.replIdx=null;nkDraft.q='';renderKitNew()">ביטול</button></div>` : ''}
+    ${d.replIdx != null && d.items[d.replIdx] ? `<div style="background:#fff3e0;border:1px solid #e9a03b;border-radius:8px;padding:6px 9px;margin-bottom:6px;font-size:12px;display:flex;gap:8px;align-items:center"><span style="flex:1">🔄 מחליף את: <b>${esc(d.items[d.replIdx].name.slice(0, 50))}</b> ${rPow ? '<b style="color:#0a7a4b">(' + rPow.ch + '×' + rPow.w + 'W)</b> ' : ''}— ${rCls ? 'מוצגים רק ' + RCLS_HE[rCls] + (rBrand ? ', קודם ' + esc(rBrand) : '') + ' · אפשר לסנן בחיפוש' : 'חפש ובחר את הפריט החדש'}</span><button style="padding:2px 9px" onclick="nkDraft.replIdx=null;nkDraft.q='';renderKitNew()">ביטול</button></div>` : ''}
     <div class="fld"><label>${d.replIdx != null ? 'חיפוש הפריט המחליף' : 'חיפוש פריט בקטלוג'}</label><input id="nkQ" value="${esc(d.q)}" oninput="nkDraft.q=this.value;renderKitNew();const e2=document.getElementById('nkQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
     ${hits.map(it => { const [k, n2] = it; const stq = Math.round(+it[3] || 0), pr = +it[2] || 0;
       return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11px;margin-bottom:3px" onclick="${d.replIdx != null ? `nkReplace(${d.replIdx},'${k}','${jsq(n2)}')` : `nkDraft.items.push({name:'${jsq(n2)}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()`}">
         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.replIdx != null ? '🔄' : '➕'} ${rCls && it.__sameB ? '<b style="color:#4b3fb8">' + esc(rBrand) + '</b> · ' : ''}${esc(n2.slice(0, rCls ? 80 : 52))}</span>
+        ${rPow ? '<span style="white-space:nowrap;font-weight:700;color:' + (it.__fit ? '#0a7a4b' : '#c1121f') + '" title="' + (it.__fit ? 'עומד בעומס של המגבר המוחלף' : 'לא מתאים — הספק/ערוצים שונים מהמגבר המוחלף') + '">' + (it.__pw ? it.__pw.ch + '×' + it.__pw.w + 'W' : 'הספק לא ידוע') + (it.__fit ? '' : ' ⚠') + '</span>' : ''}
         <code style="font-size:10px;color:#666;white-space:nowrap">${esc(k)}</code>
         <b style="color:${stq > 9 ? '#0a7a4b' : stq > 0 ? '#b8860b' : '#a32222'};white-space:nowrap">מלאי ${stq}</b>
         <span class="muted" style="white-space:nowrap">₪${pr.toLocaleString()}</span></button>`; }).join('')}
@@ -10945,13 +10976,15 @@ function kitStdName(k) {
   const g = { spk: {}, sub: {}, amp: {}, proc: {} };
   for (const x of k.items || []) {
     const nm = x.name || '', q = +x.qty || 1; let grp = null;
-    if (/פאנל|panel|מתקן|rigging|bracket|תושבת|מתלה|yoke|כבל|מחבר|קייס|\bcase\b|ארון|כרטיס|\bcard\b|התקנה|תכנות|פריט כללי/i.test(nm)) continue;   /* אביזרים, ארונות, כבלים — לא חלק מהשם */
+    if (/פאנל|panel|מתקן|rigging|bracket|תושבת|מתלה|yoke|כבל|מחבר|קייס|\bcase\b|ארון|כרטיס|\bcard\b|התקנה|תכנות|פריט כללי/i.test(nm) && !isSpeakerItem(nm)) continue;   /* אביזרים, ארונות, כבלים — לא חלק מהשם */
     if (isSpeakerItem(nm)) grp = KIT_SUB_RX.test(nm) ? 'sub' : 'spk';
     else if (/פרוססור|processor|\bDSP\b|מטריצ|matrix|crossover|קרוסאובר|\bVMX|\bDS\s?4|\bD48/i.test(nm) && !/כבל|מחבר|תוכנ/i.test(nm)) grp = 'proc';
     else if (/מגבר|\bamp(lifier)?\b/i.test(nm) && !/כרטיס|\bcard\b|מתקן|תושבת|כבל|מחבר|ערכת|מדף|מאוורר|חלופי/i.test(nm)) grp = 'amp';
     if (!grp) continue;
-    const m = shortModel(nm) || '';
-    if (!/[A-Za-z]/.test(m) || /^(DSP|IP\s?\d+|XLR.*|SPEAKON.*)$/i.test(m)) continue;   /* בלי דגם לועזי בשם — לא נכנס לשם הקיט */
+    let m = shortModel(nm) || '';
+    const badM = v => !/[A-Za-z]/.test(v) || /^(DSP|IP\s?\d+|XLR.*|SPEAKON.*|KT|UNICORN)$/i.test(v);
+    if (badM(m)) { const tl = /([A-Za-z][A-Za-z0-9&\-]*(?:\s+[A-Za-z0-9][A-Za-z0-9&\-]*){0,3})\s*$/.exec(nm.trim()); m = tl ? tl[1].replace(/^(KT|UNICORN)\s+(?=\S)/i, '').trim() : ''; }   /* הדגם בסוף השם: "… + מתקן תלייה KT ARRAY 650" */
+    if (badM(m)) continue;   /* בלי דגם לועזי בשם — לא נכנס לשם הקיט */
     g[grp][m] = (g[grp][m] || 0) + q;
   }
   const fmt = (o, qty) => Object.entries(o).map(([m, q]) => (qty && q > 1 ? q + '× ' : '') + m).join(' + ');
