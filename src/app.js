@@ -4777,7 +4777,8 @@ function renderWires() {
           : `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`) +
         `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${d.n}</text>` +
         (P.scale ? `<text x="${o.x}" y="${o.y + o.h / 2 + fs * 0.95}" text-anchor="middle" font-size="${(fs * 0.72).toFixed(1)}" fill="${d.c}" opacity="0.85" style="user-select:none">${(o.w * P.scale).toFixed(2)}×${(o.h * P.scale).toFixed(2)} מ׳</text>` : '') +
-        `<title>${d.n}${P.scale ? ` · ${(o.w * P.scale).toFixed(1)}×${(o.h * P.scale).toFixed(1)} מ׳` : ''} — לחיצה פותחת את כלי השרטוט: גרירה מזיזה, ובסרגל: סיבוב, הגדלה/הקטנה ומידות במטרים</title></g>`;
+        (selO ? (() => { const z = getZ() || 1, hy = o.y - o.h / 2 - 26 / z; return `<line x1="${o.x}" y1="${o.y - o.h / 2}" x2="${o.x}" y2="${hy}" stroke="#c9502e" stroke-width="${1.5 / z}"/><g data-skrot="${oi}" style="cursor:grab;pointer-events:all"><title>גרור לסיבוב (הצמדה ל-15°, Shift = חופשי)</title><circle cx="${o.x}" cy="${hy}" r="${9 / z}" fill="#c9502e" stroke="#fff" stroke-width="${1.5 / z}"/><text x="${o.x}" y="${hy + 4 / z}" text-anchor="middle" font-size="${11 / z}" fill="#fff" style="user-select:none">⟳</text></g>`; })() : '') +
+        `<title>${d.n}${P.scale ? ` · ${(o.w * P.scale).toFixed(1)}×${(o.h * P.scale).toFixed(1)} מ׳` : ''} — לחיצה פותחת את כלי השרטוט: גרירה מזיזה, ידית ⟳ מסובבת, ובסרגל: זווית, הגדלה/הקטנה ומידות במטרים</title></g>`;
     });
     if (sketchMode && sketchMode.cur && sketchMode.cur.length) {
       const c = sketchMode.cur;
@@ -8737,7 +8738,8 @@ const SK_OBJS = {
   plant: { n: 'צמח', w: 0.6, h: 0.6, c: '#2e7d32', round: 1 },
   pool: { n: 'בריכה', w: 8, h: 4, c: '#1e88c9', deco: 'pool' },
   lounge: { n: 'פינת ישיבה', w: 3, h: 3, c: '#7a4ab7', deco: 'lounge' },
-  kitchen: { n: 'מטבח', w: 4, h: 3, c: '#5d6b7a', deco: 'kitchen' }
+  kitchen: { n: 'מטבח', w: 4, h: 3, c: '#5d6b7a', deco: 'kitchen' },
+  barStools: { n: 'בר + כסאות', w: 3, h: 1.4, c: '#8b5a2b', deco: 'barStools' }
 };
 /* ציור פנימי לאובייקטים מורכבים — בתוך המלבן של האובייקט (x,y = מרכז; w,h = גודל בפיקסלי קנבס) */
 function skObjDeco(o, d) {
@@ -8752,6 +8754,11 @@ function skObjDeco(o, d) {
     return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + t + '" rx="' + t * 0.25 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw + '"/>' +
       '<rect x="' + L + '" y="' + (T + t) + '" width="' + t + '" height="' + (H - t) + '" rx="' + t * 0.25 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw + '"/>' +
       '<rect x="' + (L + t + (W - t) * 0.2) + '" y="' + (T + t + (H - t) * 0.25) + '" width="' + (W - t) * 0.55 + '" height="' + (H - t) * 0.45 + '" rx="4" fill="#fff" stroke="#4a6ab7" stroke-width="' + sw + '"/>';
+  }
+  if (d.deco === 'barStools') {   /* דלפק בר + שורת כסאות בר לאורכו (כסא כל ~60 ס"מ) */
+    const bh = H * 0.5, n = Math.max(2, Math.round((P.scale ? W * P.scale : 3) / 0.6)), r = Math.min(H * 0.17, W / n * 0.36), cy = T + bh + (H - bh) * 0.55;
+    let st = ''; for (let i = 0; i < n; i++) { const cx = L + W * (i + 0.5) / n; st += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/><circle cx="' + cx + '" cy="' + cy + '" r="' + r * 0.45 + '" fill="' + c + '55"/>'; }
+    return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + bh + '" rx="' + bh * 0.18 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw * 1.4 + '"/>' + st;
   }
   if (d.deco === 'kitchen') {   /* משטח עבודה בצורת ר + כיריים + כיור + אי */
     const t = Math.min(W, H) * 0.22, r = t * 0.16;
@@ -8897,7 +8904,8 @@ function sketchBar() {
     `<span style="opacity:.35">|</span>` +
     Object.entries(SK_OBJS).map(([k, d]) => tb(k, d.n, 'הצבת ' + d.n + ' (' + d.w + '×' + d.h + ' מ׳) — לחיצה על התכנית')).join('') +
     (o ? `<span style="opacity:.35">|</span>
-      <button title="סיבוב 45°" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.r=((o2.r||0)+45)%360;save();renderWires()">⟳</button>
+      <button title="סיבוב 45° (אפשר גם לגרור את הידית ⟳ שמעל האובייקט)" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.r=((o2.r||0)+45)%360;save();sketchBar();renderWires()">⟳ 45°</button>
+      <label style="font-size:11px;display:flex;align-items:center;gap:3px">זווית <input type="number" step="5" value="${Math.round(o.r || 0)}" style="width:52px;font-size:11px;padding:3px;color:#111" onchange="const o2=P.sketch.objs[sketchSel];o2.r=((+this.value||0)%360+360)%360;save();renderWires()">°</label>
       <button title="הגדלה 15%" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.w*=1.15;o2.h*=1.15;save();sketchBar();renderWires()">＋</button>
       <button title="הקטנה 15%" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.w/=1.15;o2.h/=1.15;save();sketchBar();renderWires()">－</button>
       ${P.scale ? `<label style="font-size:11px;display:flex;align-items:center;gap:3px">רוחב <input type="number" step="0.05" min="0.1" value="${(o.w * P.scale).toFixed(2)}" style="width:58px;font-size:11px;padding:3px" onchange="const o2=P.sketch.objs[sketchSel];o2.w=Math.max(0.1,+this.value)/P.scale;save();renderWires()"> מ׳</label>
@@ -8917,10 +8925,19 @@ function sketchEnd() {
   renderWires(); skFit();
   uiToast('✓ השרטוט נשמר — "🖊 ערוך שרטוט" בפאנל ההגדרות מחזיר את הכלים');
 }
+/* סיבוב אובייקט שרטוט בגרירת הידית ⟳ */
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest && e.target.closest('[data-skrot]'); if (!h) return;
+  e.stopPropagation(); e.preventDefault();
+  const o = (P.sketch.objs || [])[+h.dataset.skrot]; if (!o) return;
+  const mv = ev => { const p = canvasPt(ev); let a = Math.atan2(p.y - o.y, p.x - o.x) * 180 / Math.PI + 90; if (!ev.shiftKey) a = Math.round(a / 15) * 15; o.r = ((a % 360) + 360) % 360; renderWires(); };
+  const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); sketchBar(); };
+  document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+}, true);
 /* גרירת אובייקט שרטוט + בחירה */
 document.addEventListener('pointerdown', e => {
   const el = e.target.closest('[data-skobj]');
-  if (!el) return;
+  if (!el || e.target.closest('[data-skrot]')) return;
   if (!sketchMode) { if (wireMode || pinMode || calMode || zoneMode) return; sketchMode = { tool: 'select', cur: [] }; }   /* לחיצה על אובייקט מחוץ למצב שרטוט — פותחת את הכלים עם האובייקט מסומן */
   sketchSel = +el.dataset.skobj; sketchBar();
   const o = (P.sketch.objs || [])[sketchSel]; if (!o) return;
@@ -9538,7 +9555,8 @@ document.addEventListener('pointerdown', e => {
     }
   }
   /* ציור אזור סאונד — ניקור נקודות עד סגירת הצורה */
-  if (sketchMode && e.target.closest('#canvasWrap') && !e.target.closest('#sketchBar') && !e.target.closest('[data-skobj]')) {
+  if (sketchMode && e.target.closest('#canvasWrap') && !e.target.closest('#sketchBar') && !e.target.closest('[data-skobj]')
+    && !(window.__rackPlace || window.__djPlace || window.__micPlace || window.__nodePlace || pinMode || wireMode || calMode || zoneMode || connPin || window.__riserPick || window.__asPick)) {   /* מצב הצבה פעיל (ריכוז ארון, עמדה, נעיצת מוצר…) — הלחיצה שלו, לא של כלי השרטוט */
     const p2 = canvasPt(e);
     { const wEl = e.target.closest('[data-skwall]'); if (wEl && (sketchMode.tool === 'select' || sketchMode.tool === 'erase')) { skWallPick(+wEl.dataset.skwall); e.preventDefault(); return; } }
     if (sketchMode.tool === 'wall') {
