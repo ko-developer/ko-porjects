@@ -10801,7 +10801,7 @@ async function kitDelete(gi) {
 const KIT_ALT_NO = /השכר|חלקי חילוף|חלק חילוף|לתיקון|ת\.ח|דוגמא|פגום|תצוגה בלבד|יד שנ|משומש|חלופי|ללא אחריות|טסט/;
 function kitFuncClass(nm) {
   const n = nm || '';
-  if (/כבל|גליל|מחבר|מתאם|מתקן|תושבת|קייס|ארון|פאנל|פנל|קיפד|התקנה|תכנות|עבודת|כרטיס|מדף|סטנד|חצובה|יחידת הרחבה|ספק כח|לוח ראשי/i.test(n)) return null;
+  if (/כבל|גליל|מחבר|מתאם|מתקן|תושבת|קייס|ארון|פאנל|פנל|קיפד|התקנה|תכנות|עבודת|כרטיס|מדף|סטנד|חצובה|יחידת הרחבה|ספק כח|לוח ראשי|כיסוי|גריל|\\bcover\\b|עגלה|מסגרת|פריים|באמפר/i.test(n)) return null;
   /* פרוססור קודם לכול: "Digital Loudspeaker Management" הוא פרוססור ולא רמקול. מגבר עם פרוססור פנימי נשאר מגבר */
   if (/פרוססור|processor|loudspeaker management|מעבד רמקולים/i.test(n) && !/מגבר|amplifier|וידאו|video|מסך|רמקול|סאב/i.test(n)) return /קריוקי|karaoke/i.test(n) ? 'procK' : 'proc';
   /* מגבר מול רמקול: קובעת המילה שמופיעה ראשונה ("מגבר … לרמקולים של K&F" = מגבר; "סאב מוגבר עם מגבר" = סאב) */
@@ -10861,7 +10861,7 @@ function kitAltFor(x) {
   kitAltCache.set(ck, out); return out;
 }
 function nkReplace(i, key, name) { const it = nkDraft.items[i]; if (!it) return; it.key = key; it.name = name; nkDraft.replIdx = null; nkDraft.q = ''; renderKitNew(); uiToast('🔄 הפריט הוחלף'); }
-function nkReplStart(i) { const it = nkDraft.items[i]; if (!it) return; nkDraft.replIdx = i; nkDraft.q = (shortModel(it.name) || '').split(' ')[0] || ''; renderKitNew(); const e2 = document.getElementById('nkQ'); if (e2) { e2.focus(); e2.select(); } }
+function nkReplStart(i) { const it = nkDraft.items[i]; if (!it) return; nkDraft.replIdx = i; nkDraft.q = kitFuncClass(it.name) ? '' : (shortModel(it.name) || '').split(' ')[0] || ''; renderKitNew(); const e2 = document.getElementById('nkQ'); if (e2) { e2.focus(); e2.select(); } }
 window.nkReplace = nkReplace; window.nkReplStart = nkReplStart;
 let nkDraft = null;
 function kitNew() { nkDraft = { name: '', items: [], q: '' }; renderKitNew(); }
@@ -10871,9 +10871,17 @@ function renderKitNew() {
      ממוין לפי מלאי — מה שיש הרבה ממנו עולה למעלה */
   const NOKIT = /השכר|חלקי חילוף|חלק חילוף|לתיקון|ת\.ח|דוגמא|פגום|תצוגה בלבד/;
   const toks = d.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const hits = toks.length && typeof ERP_ITEMS !== 'undefined'
+  /* מצב החלפה: רק פריטים מאותה קטגוריה של הפריט המוחלף (מגבר ↔ מגבר), קודם מאותו מותג, אחר כך לפי קרבת מחיר. מוצג גם בלי להקליד */
+  const rIt = d.replIdx != null ? d.items[d.replIdx] : null, rCls = rIt ? kitFuncClass(rIt.name) : null;
+  const rBrand = rCls ? kitBrandOf(rIt.name) : '', rPrice = rCls && rIt.key && erpInfo(rIt.key) ? +erpInfo(rIt.key).price || 0 : 0;
+  const hits = typeof ERP_ITEMS === 'undefined' ? [] : rCls
+    ? ERP_ITEMS.filter(it => { const nm = it[1] || '', n2 = nm.toLowerCase(); return it[0] !== rIt.key && +it[2] > 0 && toks.every(t => n2.includes(t)) && !NOKIT.test(nm) && !KIT_ALT_NO.test(nm) && kitFuncClass(nm) === rCls; })
+        .map(it => { const sameB = rBrand && kitBrandOf(it[1]) === rBrand, st = +it[3] > 0, pd = rPrice ? Math.abs(Math.log((+it[2] || 1) / rPrice)) : 0; return { it, sameB, sc: (sameB ? 0 : 10) + (st ? 0 : 3) + pd }; })
+        .sort((a, b) => a.sc - b.sc).slice(0, 15).map(o => (o.it.__sameB = o.sameB, o.it))
+    : toks.length
     ? ERP_ITEMS.filter(it => { const n2 = (it[1] || '').toLowerCase(); return toks.every(t => n2.includes(t)) && !NOKIT.test(it[1] || ''); })
         .sort((a, b) => (+b[3] || 0) - (+a[3] || 0)).slice(0, 10) : [];
+  const RCLS_HE = { spk: 'רמקולים', spkA: 'רמקולים מוגברים', sub: 'סאבים', subA: 'סאבים מוגברים', amp: 'מגברים', proc: 'פרוססורים', procK: 'פרוססורי קריוקי', mixer: 'מיקסרים', mic: 'מיקרופונים' };
   $('#impList').innerHTML = `
     <button onclick="const b=nkDraft&&nkDraft.backCab;nkDraft=null;b?kitCabAll():renderKits()">← ביטול וחזרה</button>
     <h3 style="margin:10px 0 4px">➕ קיט חדש</h3>
@@ -10881,11 +10889,12 @@ function renderKitNew() {
     ${(() => { const std = kitStdName({ name: '', items: d.items }); return `<div class="fld"><label>שם לפי התוכן — רמקולים · סאבים · מגברים · פרוססור (מתעדכן לבד)</label>
       <div style="display:flex;gap:6px;align-items:center"><input id="nkStd" readonly value="${esc(std)}" placeholder="יופיע כשיהיו בקיט רמקולים / מגבר / פרוססור" style="flex:1;background:#f6f5f1;color:#333;direction:ltr;text-align:right">
       ${std ? `<button style="white-space:nowrap" title="מעתיק את השם לפי התוכן לשדה שם הקיט" onclick="nkDraft.name=document.getElementById('nkStd').value;renderKitNew()">⬆ קבע כשם הקיט</button>` : ''}</div></div>`; })()}
-    ${d.replIdx != null && d.items[d.replIdx] ? `<div style="background:#fff3e0;border:1px solid #e9a03b;border-radius:8px;padding:6px 9px;margin-bottom:6px;font-size:12px;display:flex;gap:8px;align-items:center"><span style="flex:1">🔄 מחליף את: <b>${esc(d.items[d.replIdx].name.slice(0, 50))}</b> — חפש ובחר את הפריט החדש</span><button style="padding:2px 9px" onclick="nkDraft.replIdx=null;nkDraft.q='';renderKitNew()">ביטול</button></div>` : ''}
+    ${d.replIdx != null && d.items[d.replIdx] ? `<div style="background:#fff3e0;border:1px solid #e9a03b;border-radius:8px;padding:6px 9px;margin-bottom:6px;font-size:12px;display:flex;gap:8px;align-items:center"><span style="flex:1">🔄 מחליף את: <b>${esc(d.items[d.replIdx].name.slice(0, 50))}</b> — ${rCls ? 'מוצגים רק ' + RCLS_HE[rCls] + (rBrand ? ', קודם ' + esc(rBrand) : '') + ' · אפשר לסנן בחיפוש' : 'חפש ובחר את הפריט החדש'}</span><button style="padding:2px 9px" onclick="nkDraft.replIdx=null;nkDraft.q='';renderKitNew()">ביטול</button></div>` : ''}
     <div class="fld"><label>${d.replIdx != null ? 'חיפוש הפריט המחליף' : 'חיפוש פריט בקטלוג'}</label><input id="nkQ" value="${esc(d.q)}" oninput="nkDraft.q=this.value;renderKitNew();const e2=document.getElementById('nkQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
     ${hits.map(it => { const [k, n2] = it; const stq = Math.round(+it[3] || 0), pr = +it[2] || 0;
       return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11px;margin-bottom:3px" onclick="${d.replIdx != null ? `nkReplace(${d.replIdx},'${k}','${jsq(n2)}')` : `nkDraft.items.push({name:'${jsq(n2)}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()`}">
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.replIdx != null ? '🔄' : '➕'} ${esc(n2.slice(0, 52))}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.replIdx != null ? '🔄' : '➕'} ${rCls && it.__sameB ? '<b style="color:#4b3fb8">' + esc(rBrand) + '</b> · ' : ''}${esc(n2.slice(0, rCls ? 80 : 52))}</span>
+        <code style="font-size:10px;color:#666;white-space:nowrap">${esc(k)}</code>
         <b style="color:${stq > 9 ? '#0a7a4b' : stq > 0 ? '#b8860b' : '#a32222'};white-space:nowrap">מלאי ${stq}</b>
         <span class="muted" style="white-space:nowrap">₪${pr.toLocaleString()}</span></button>`; }).join('')}
     ${toks.length && !hits.length ? '<p class="muted" style="font-size:11px">לא נמצא — נסה מילה אחת מהשם (השכרות וחלקי חילוף מוסתרים)</p>' : ''}
