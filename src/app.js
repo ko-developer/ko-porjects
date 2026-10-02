@@ -7110,7 +7110,7 @@ function patchOfferKits(zid) {
     <b style="font-size:14px">🧰 קיט התקנה וחיווט לפרויקט?</b>
     <p class="hint" style="font-size:11.5px;color:#8a8377;margin:6px 0">החיווט הושלם — אפשר להוסיף קיט אביזרים/התקנה מוכן (כמויות ניתנות לעריכה לפני ההוספה):</p>
     <div style="max-height:44vh;overflow-y:auto">
-      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${jsq(zname)}',${x.i})">🧰 ${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 72))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
+      ${kits.slice(0, 14).map(x => `<button class="sec" style="display:block;width:100%;text-align:right;margin-bottom:4px;font-size:12px;padding:7px;border:1px solid #ddd;border-radius:8px;background:#faf8f4;cursor:pointer" onclick="document.querySelector('.uiDlgOv')?.remove();P._instKit=1;zoneKitConfirm('${jsq(zname)}',${x.i})">🧰 ${esc((x.k.name + (kitStdDiff(x.k) ? ' — ' + kitStdName(x.k) : '')).slice(0, 72))} · ${(x.k.items || []).length} פריטים</button>`).join('')}
     </div>
     <button data-skip style="width:100%;margin-top:8px;padding:8px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">דלג — בלי קיט</button>`);
   ov.querySelector('[data-skip]').onclick = () => ov.remove();
@@ -10575,10 +10575,10 @@ if (typeof ERP_KITS !== "undefined") kitFixReels(ERP_KITS);   /* בטעינה �
 function kitLinkRenamed() {
   const mine = store.userKits || [], E = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [];
   const taken = new Set(mine.map(k => (k.name || '').trim())); mine.forEach(k => k.replaces && taken.add(k.replaces));
-  const head = k => kitStdName(k).split(' · ').slice(0, 2).join(' · ');
+  const head = k => kitStdCore(k).split(' · ').slice(0, 2).join(' · ');
   let n = 0;
   mine.forEach(u => {
-    if (u.replaces || !u.cabOk || E.some(e => (e.name || '').trim() === (u.name || '').trim()) || kitStdName(u) !== u.name || !kitSpkCount(u)) return;
+    if (u.replaces || !u.cabOk || E.some(e => (e.name || '').trim() === (u.name || '').trim()) || kitStdDiff(u) || !kitSpkCount(u)) return;
     const c = E.filter(e => !taken.has((e.name || '').trim()) && kitSpkCount(e) && head(e) === head(u));
     if (c.length === 1) { u.replaces = c[0].name.trim(); taken.add(u.replaces); n++; }
   });
@@ -10773,7 +10773,7 @@ function kitPrev(gi) {
   }).join('');
   $('#impList').innerHTML = `
     <button onclick="renderKits()">← חזרה לרשימת הקיטים</button>
-    <h3 style="margin:10px 0 4px">🧰 ${esc(k.name)}${kitStdName(k) !== k.name ? ' <span style="color:#999;font-weight:400">—</span> <span style="color:#4b3fb8;direction:ltr;unicode-bidi:embed">' + esc(kitStdName(k)) + '</span>' : ''} <span class="muted" style="font-size:11px">${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''} · ${esc(kitCatOf(k))}${(() => { const s2 = kitStock(k); return s2.dead ? ' · <b style="color:#a32222">' + s2.dead + ' פריטי ליבה אזלו</b>' : ''; })()}</span></h3>
+    <h3 style="margin:10px 0 4px">🧰 ${esc(k.name)}${kitStdDiff(k) ? ' <span style="color:#999;font-weight:400">—</span> <span style="color:#4b3fb8;direction:ltr;unicode-bidi:embed">' + esc(kitStdName(k)) + '</span>' : ''} <span class="muted" style="font-size:11px">${k.items.length} פריטים${isUser ? ' · קיט שלי' : ''} · ${esc(kitCatOf(k))}${(() => { const s2 = kitStock(k); return s2.dead ? ' · <b style="color:#a32222">' + s2.dead + ' פריטי ליבה אזלו</b>' : ''; })()}</span></h3>
     ${(() => { const d2 = kitDsp(k); if (d2.kind === 'na') return ''; if (d2.kind !== 'none') return '<p style="font-size:11px;margin:0 0 6px;color:' + (d2.cls === 'good' ? '#0a7a4b' : '#b8860b') + ';font-weight:700">' + d2.label + '</p>';
       const c2 = dspCompletion(k), inf2 = erpInfo(c2.key);
       return '<p style="font-size:11px;margin:0 0 6px;color:#c1121f;font-weight:700">⚠ חסר DSP — בהוספה יתווסף אוטומטית: ' + (inf2 ? '₪' + inf2.price.toLocaleString() + ' · ' : '') + esc(c2.why) + '</p>'; })()}
@@ -10785,8 +10785,12 @@ function kitPrev(gi) {
     <button style="width:100%;margin-top:6px" onclick="kitToggleHide(${gi})">${kitHidden(k.name) ? '↺ החזר את הקיט לרשימה' : '✕ הסתר — הקיט לא רלוונטי'}</button>
     ${isUser ? `<button style="width:100%;margin-top:6px;background:#f3d9d2" onclick="kitDelete(${gi})">🗑 ${(typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim()) ? 'בטל את העריכה — חזרה לקיט ה-ERP המקורי' : 'מחק קיט'}</button>` : ''}`;
 }
-function saveKitDraft() {
+async function saveKitDraft() {
   if (!nkDraft.name.trim()) { alert('תן שם לקיט'); return; }
+  /* נשארו שורות חסרות (DSP / כבלים) — שואלים פעם אחת אם להוסיף אותן לפני השמירה */
+  const missS = nkMissing();
+  if (missS.length && await uiConfirm('בקיט חסרות ' + missS.length + ' שורות:\n' + missS.map(c => '• ' + c.qty + '× ' + c.t).join('\n') + '\n\nלהוסיף אותן לקיט ולשמור?', { okText: '➕ הוסף ושמור', cancelText: 'שמור בלי להוסיף' })) missS.forEach(c => nkDraft.items.push({ key: c.key, name: c.name, qty: c.qty }));
+  if (!nkDraft) return;
   store.userKits = store.userKits || [];
   const rec = { name: nkDraft.name.trim(), cat: nkDraft.cat || 'audio', sys: nkDraft.sys || 'קיט שלי', items: nkDraft.items, cabOk: true };
   /* קיט ERP שנערך ושמו שונה — הגרסה שלי עדיין מחליפה את המקורי (אחרת המקורי נשאר ברשימת "לתיקון") */
@@ -10985,8 +10989,8 @@ function renderKitNew() {
     ${d.replIdx != null && d.items[d.replIdx] ? `<div style="background:#fff3e0;border:1px solid #e9a03b;border-radius:8px;padding:6px 9px;margin-bottom:6px;font-size:12px;display:flex;gap:8px;align-items:center"><span style="flex:1">🔄 מחליף את: <b>${esc(d.items[d.replIdx].name.slice(0, 50))}</b> ${rPow ? '<b style="color:#0a7a4b">(' + rPow.ch + '×' + rPow.w + 'W)</b> ' : ''}— ${rCls ? 'מוצגים רק ' + RCLS_HE[rCls] + (rBrand ? ', קודם ' + esc(rBrand) : '') + ' · אפשר לסנן בחיפוש' : 'חפש ובחר את הפריט החדש'}</span><button style="padding:2px 9px" onclick="nkDraft.replIdx=null;nkDraft.q='';renderKitNew()">ביטול</button></div>` : ''}
     <div class="fld"><label>${d.replIdx != null ? 'חיפוש הפריט המחליף' : 'חיפוש פריט בקטלוג'}</label><input id="nkQ" value="${esc(d.q)}" oninput="nkDraft.q=this.value;renderKitNew();const e2=document.getElementById('nkQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
     ${hits.map(it => { const [k, n2] = it; const stq = Math.round(+it[3] || 0), pr = +it[2] || 0;
-      return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11px;margin-bottom:3px" onclick="${d.replIdx != null ? `nkReplace(${d.replIdx},'${k}','${jsq(n2)}')` : `nkDraft.items.push({name:'${jsq(n2)}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()`}">
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.replIdx != null ? '🔄' : '➕'} ${rCls && it.__sameB ? '<b style="color:#4b3fb8">' + esc(rBrand) + '</b> · ' : ''}${esc(n2.slice(0, rCls ? 80 : 52))}</span>
+      return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11.5px;margin-bottom:3px;line-height:1.35" onclick="${d.replIdx != null ? `nkReplace(${d.replIdx},'${k}','${jsq(n2)}')` : `nkDraft.items.push({name:'${jsq(n2)}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()`}">
+        <span style="flex:1;min-width:0;white-space:normal">${d.replIdx != null ? '🔄' : '➕'} ${rCls && it.__sameB ? '<b style="color:#4b3fb8">' + esc(rBrand) + '</b> · ' : ''}${esc(n2)}</span>
         ${rPow ? '<span style="white-space:nowrap;font-weight:700;color:' + (it.__fit ? '#0a7a4b' : '#c1121f') + '" title="' + (it.__fit ? 'עומד בעומס של המגבר המוחלף' : 'לא מתאים — הספק/ערוצים שונים מהמגבר המוחלף') + '">' + (it.__pw ? it.__pw.ch + '×' + it.__pw.w + 'W' : 'הספק לא ידוע') + (it.__fit ? '' : ' ⚠') + '</span>' : ''}
         <code style="font-size:10px;color:#666;white-space:nowrap">${esc(k)}</code>
         <b style="color:${stq > 9 ? '#0a7a4b' : stq > 0 ? '#b8860b' : '#a32222'};white-space:nowrap">מלאי ${stq}</b>
@@ -11032,11 +11036,21 @@ window.openMatrix = openMatrix;
 
 /* סינון קיטים לפי כמות רמקולים ומותג — כדי למצוא קיט מתאים בלי לגלול 47 שורות */
 var kitBrand = '', kitSpk = '';
-const KIT_BRANDS = [['FUNKTION ONE', /FUNKTION[\s-]?ONE|\bF1\b|\bF\d{2,3}\b|EVO\s?X|EVO\s?\d|RES\s?\d|SB\s?\d|BR\s?1|F218|F124/i], ['K&F', /K\s?&\s?F|KLING|SONA|\bLINE\s?212|NOMOS|SCALA|VIDA|\bGRAVIS|\bCA\s?\d/i], ['KT / Unicorn', /\bKT\b|UNICORN|PAGAZ|EUPHORIA|DYNAMIQ|\bWR\s?\d|\b1000S\b/i], ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d/i], ['NST', /\bNST\b/i], ['XTA', /\bXTA\b|\bDNA\s?\d|\bDPA\s?\d/i], ['SAE', /\bSAE\b|PQM/i], ['JBL', /\bJBL\b/i], ['RCF', /\bRCF\b/i], ['QSC', /\bQSC\b/i], ['Bose', /\bBOSE\b/i], ['Martin Audio', /MARTIN\s?AUDIO/i], ['Nexo', /\bNEXO\b/i], ['d&b', /\bD&B\b/i], ['L-Acoustics', /L-?ACOUSTICS/i], ['Yamaha', /YAMAHA/i], ['dB Technologies', /\bDB\s?TECH/i], ['Turbosound', /TURBOSOUND/i], ['Pioneer', /PIONEER/i], ['EV', /ELECTRO[\s-]?VOICE|\bEV\b/i]];
+const KIT_BRANDS = [['FUNKTION ONE', /FUNKTION[\s-]?ONE|\bF1\b|\bF\d{2,3}\b|EVO\s?X|EVO\s?\d|RES\s?\d|SB\s?\d|BR\s?1|F218|F124/i], ['K&F', /K\s?&\s?F|KLING|SONA|\bLINE\s?212|NOMOS|SCALA|VIDA|\bGRAVIS|\bCA\s?\d/i], ['KT / Unicorn', /\bKT\b|UNICORN|PAGAZ|EUPHORIA|DYNAMIQ|\bWR\s?\d|\b1000S\b/i], ['CELTO', /CELTO|\bIFIX\s?\d/i], ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d/i], ['NST', /\bNST\b/i], ['XTA', /\bXTA\b|\bDNA\s?\d|\bDPA\s?\d/i], ['SAE', /\bSAE\b|PQM/i], ['JBL', /\bJBL\b/i], ['RCF', /\bRCF\b/i], ['QSC', /\bQSC\b/i], ['Bose', /\bBOSE\b/i], ['Martin Audio', /MARTIN\s?AUDIO/i], ['Nexo', /\bNEXO\b/i], ['d&b', /\bD&B\b/i], ['L-Acoustics', /L-?ACOUSTICS/i], ['Yamaha', /YAMAHA/i], ['dB Technologies', /\bDB\s?TECH/i], ['Turbosound', /TURBOSOUND/i], ['Pioneer', /PIONEER/i], ['EV', /ELECTRO[\s-]?VOICE|\bEV\b/i]];
 /* שם קיט אחיד, מהתוכן: דגמי הרמקולים · דגמי הסאבים · המגברים · הפרוססור — "4× PAGAZ 641 + 2× PAGAZ 115S · DYNAMIQ 750 · VMX88L".
    שם ה-ERP המקורי נשמר לזיהוי (מטא-דאטה, הסתרה, חיפוש) ומוצג בקטן מתחת */
 const KIT_SUB_RX = /סאב|\bsub\b|NOMOS|MB2|BR\s?1|\bSB\s?\d|F118|F121|F124|F218|F221|TILL\s?1[58]P?\s?SUB|\b1[1258]S\b|SUB\s?\d/i;
+/* שם לפי התוכן עם המותג המוביל בראש: "FUNKTION ONE · 6× F 5 · 2× SB 8 · DNA 20" */
+const KIT_BRAND_SHORT = { 'KT / Unicorn': 'KT' };
 function kitStdName(k) {
+  const core = kitStdCore(k); if (!core) return k.name || '';
+  const b = kitBrands({ name: '', items: k.items })[0]; if (!b) return core;
+  const lbl = KIT_BRAND_SHORT[b] || b;
+  return core.toUpperCase().replace(/[\s-]/g, '').includes(lbl.toUpperCase().replace(/[\s-]/g, '')) ? core : lbl + ' · ' + core;
+}
+/* האם להציג את השם-לפי-התוכן ליד שם הקיט — לא כשהקיט כבר נקרא כך (עם המותג או בלעדיו) */
+function kitStdDiff(k) { const n = (k.name || '').trim(); return n !== kitStdName(k) && n !== kitStdCore(k); }
+function kitStdCore(k) {
   const g = { spk: {}, sub: {}, amp: {}, proc: {} };
   for (const x of k.items || []) {
     const nm = x.name || '', q = +x.qty || 1; let grp = null;
@@ -11053,7 +11067,7 @@ function kitStdName(k) {
   }
   const fmt = (o, qty) => Object.entries(o).map(([m, q]) => (qty && q > 1 ? q + '× ' : '') + m).join(' + ');
   const parts = [fmt(g.spk, true), fmt(g.sub, true), fmt(g.amp, true), fmt(g.proc, false)].filter(Boolean);
-  return parts.length ? parts.join(' · ') : (k.name || '');
+  return parts.join(' · ');
 }
 function kitLabel(k) { return kitStdName(k); }
 function kitSpkItems(k) { return (k.items || []).filter(x => isSpeakerItem(x.name)); }
@@ -11105,7 +11119,7 @@ function renderKits() {
       return `<div class="crow" onclick="kitPrev(${gi})" style="${hid ? 'opacity:.55' : ''}">
         <span class="badge" style="background:${isUser ? '#0f6e56' : '#534ab7'}">${k.items.length}</span>
         <b style="font-size:11px;white-space:nowrap;color:#333">₪${Math.round(kPrice).toLocaleString()}</b>
-        <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${kitStdName(k) !== k.name ? ` <span style="color:#999">—</span> <b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;${hid ? 'text-decoration:line-through' : ''}" title="שם לפי התוכן: רמקולים · סאבים · מגברים · פרוססור">${esc(kitStdName(k))}</b>` : ''}${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
+        <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${kitStdDiff(k) ? ` <span style="color:#999">—</span> <b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;${hid ? 'text-decoration:line-through' : ''}" title="שם לפי התוכן: רמקולים · סאבים · מגברים · פרוססור">${esc(kitStdName(k))}</b>` : ''}${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
           ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}<br>
           <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·
             ${dsp.kind === 'na' ? '' : `<span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · `}${(() => { const cn = dsp.kind === 'na' ? [] : kitCableNeeds(k); return cn.length ? '<span style="color:#c1121f;font-weight:700">🔌 חסרים כבלים (' + cn.length + ')</span> · ' : ''; })()}${dsp.kind === 'na' ? '' : '🔊 ' + kitSpkCount(k) + ' רמקולים'}${kitBrands(k).length ? ' · ' + esc(kitBrands(k).join(' + ')) : ''} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
@@ -12815,10 +12829,10 @@ function zoneSystemBuilder(z) {
       return `<div class="fld"><label>3️⃣ חיפוש מוצר או קיט (ERP)</label>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px">${chips}</div>
         <input id="zsq" value="${esc(z._sq || '')}" placeholder="למשל UNICORN / F81 / קיט בר" oninput="setZoneField('${zid}','_sq',this.value)"></div>
-      ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 קיט: ${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 68))}</button>`).join('')}</div>` : ''}
+      ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 קיט: ${esc((x.k.name + (kitStdDiff(x.k) ? ' — ' + kitStdName(x.k) : '')).slice(0, 68))}</button>`).join('')}</div>` : ''}
       ${!kq ? `<div class="fld"><label style="font-size:10px">כל הקיטים (${kits.length})</label><select onchange="if(this.value!==''){zoneKitConfirm('${jsq(z.name)}',+this.value);this.value='';}">
         <option value="">— או בחר קיט מהרשימה (${kits.length}) —</option>
-        ${kits.map(x => `<option value="${x.i}">${x.rec ? '⭐ ' : ''}${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 70))}</option>`).join('')}
+        ${kits.map(x => `<option value="${x.i}">${x.rec ? '⭐ ' : ''}${esc((x.k.name + (kitStdDiff(x.k) ? ' — ' + kitStdName(x.k) : '')).slice(0, 70))}</option>`).join('')}
       </select></div>` : ''}
       ${typeof erpQuotesDialog === 'function' && !(window.__AUTH && window.__AUTH.user && window.__AUTH.user.role !== 'owner') ? `<button style="width:100%;margin:2px 0 6px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="selZone='${zid}';erpQuotesDialog()" title="הפריטים של הצעת מחיר קיימת ב-ERP נכנסים להצעה ומוצבים באזור הזה — כמו בחירת קיט">🧾 או מהצעת מחיר קיימת ב-ERP → הצב באזור</button>` : ''}`;
     })()}
@@ -13713,7 +13727,7 @@ function zoneSpkPicker(zid, tab) {
   const kitCard = (x, extra) => `
     <div style="border:1.5px solid ${extra || '#e3ded6'};border-radius:12px;padding:10px;margin-bottom:8px">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-        <b style="flex:1;font-size:13px">${esc((x.k.name + (kitStdName(x.k) !== x.k.name ? ' — ' + kitStdName(x.k) : '')).slice(0, 80))}</b>
+        <b style="flex:1;font-size:13px">${esc((x.k.name + (kitStdDiff(x.k) ? ' — ' + kitStdName(x.k) : '')).slice(0, 80))}</b>
         ${x._spl ? `<span class="muted" style="font-size:10.5px;white-space:nowrap">יכולת ~${x._spl}dB</span>` : ''}
         <b style="white-space:nowrap">₪${Math.round(kitPriceOf(x.k)).toLocaleString()}</b></div>
       <div style="display:flex;gap:5px;align-items:center;margin-bottom:6px">${kitThumbs(x.k, 4)}
