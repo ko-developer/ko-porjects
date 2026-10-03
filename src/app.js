@@ -13248,6 +13248,7 @@ function stageWallGuess(z) {
   return best ? 'e' + best.i : null;
 }
 function zoneWallSeg(z) {
+  if (!z._wall && z._walls && z._walls.length) z._wall = z._walls[0];   /* בחירה של המשתמש מהכפתורים */
   if (z.poly && z.poly.length >= 2) {
     const cxz = z.poly.reduce((s, p) => s + p.x, 0) / z.poly.length, cyz = z.poly.reduce((s, p) => s + p.y, 0) / z.poly.length;
     let best = null;
@@ -13420,7 +13421,10 @@ function buildZoneFromItems(zid) {
   const nWanted = Math.max(1, totalS);
   let pts;
   if (live) {
-    if (!z._wall && z.poly && z.poly.length >= 3) z._wall = stageWallGuess(z);
+    /* קיר הבמה: מה שהמשתמש בחר (z._walls — הראשון), אחרת ניחוש לפי במה משורטטת, אחרת הארוך */
+    const picked = (z._walls || [])[0];
+    if (picked && z.poly && z.poly.length >= 3) z._wall = picked;
+    else if (!z._wall && z.poly && z.poly.length >= 3) z._wall = stageWallGuess(z);
     const seg = zoneWallSeg(z);
     if (seg) { const inset = P.scale ? 0.8 / P.scale : 30, ux = (seg.x2 - seg.x1) / seg.len, uy = (seg.y2 - seg.y1) / seg.len, A = Math.round(seg.aim);
       pts = []; for (let k = 0; k < nWanted; k++) { const t = nWanted === 1 ? seg.len / 2 : inset + (seg.len - 2 * inset) * k / (nWanted - 1); pts.push({ cx: seg.x1 + ux * t + seg.nx * inset, cy: seg.y1 + uy * t + seg.ny * inset, aim: A, lbl: nWanted === 2 ? (k ? 'R' : 'L') : '' }); } }
@@ -14330,7 +14334,19 @@ const WALL_MATS = ['בטון', 'בלוק', 'זכוכית', 'גבס', 'עץ', 'ו
 const WALL_SIDES = [['top', 'קיר עליון'], ['right', 'קיר ימין'], ['bottom', 'קיר תחתון'], ['left', 'קיר שמאל']];
 function zoneWallList(z) {
   /* מלבן → 4 קירות · פוליגון → קיר לכל צלע, ממוספר */
-  if (z.poly && z.poly.length >= 2) return z.poly.map((p, i) => ['e' + i, 'קיר ' + (i + 1)]);
+  if (z.poly && z.poly.length >= 2) {
+    const cx = z.poly.reduce((a, p) => a + p.x, 0) / z.poly.length, cy = z.poly.reduce((a, p) => a + p.y, 0) / z.poly.length;
+    return z.poly.map((p, i) => {
+      const q = z.poly[(i + 1) % z.poly.length], dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy);
+      const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+      /* כיוון הקיר ביחס למרכז האזור — כדי שהכפתור יגיד איפה הוא, לא רק מספר */
+      let dir = '';
+      if (Math.abs(dx) >= Math.abs(dy) * 1.5) dir = my < cy ? 'עליון' : 'תחתון';
+      else if (Math.abs(dy) >= Math.abs(dx) * 1.5) dir = mx < cx ? 'שמאלי' : 'ימני';
+      else dir = 'אלכסוני';
+      return ['e' + i, 'קיר ' + (i + 1) + ' · ' + dir + (P.scale ? ' ' + (len * P.scale).toFixed(1) + ' מ׳' : '')];
+    });
+  }
   return WALL_SIDES;
 }
 function wallRows(z) {
@@ -14338,7 +14354,7 @@ function wallRows(z) {
   return zoneWallList(z).map(([s, lbl]) => {
     const w = z.walls[s] || { open: false, mat: 'בלוק' };
     return `<div style="display:flex;gap:6px;align-items:center;margin:3px 0">
-      <span style="width:56px;font-size:11px">${lbl}</span>
+      <span style="min-width:56px;font-size:11px;white-space:nowrap">${lbl}</span>
       <label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer"><input type="checkbox" style="width:auto" ${w.open ? 'checked' : ''} onchange="setWall('${z.id}','${s}','open',this.checked)"> פתוח</label>
       <select style="flex:1" ${w.open ? 'disabled' : ''} onchange="setWall('${z.id}','${s}','mat',this.value)">${WALL_MATS.map(m => `<option ${w.mat === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
     </div>`;
