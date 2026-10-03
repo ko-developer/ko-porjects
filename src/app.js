@@ -15080,8 +15080,8 @@ function bomHTML() {
   ['spk', 'el', 'cab', 'oth'].forEach(g => { const rs = [...rows.values()].filter(r => r.g === g); if (!rs.length) return;
     h += '<tr><td colspan="5" style="background:#f6f2ea;font-weight:800;font-size:12px">' + G[g] + ' (' + rs.length + ')</td></tr>' +
       rs.map((r, i) => { tot++; const img = r.key && typeof erpImg === 'function' && erpImg(r.key);
-        return '<tr><td style="text-align:center;color:#888">' + (i + 1) + '</td><td style="width:44px">' + (img ? '<img src="' + esc(img) + '" style="width:36px;height:36px;object-fit:contain;border:1px solid #eee;border-radius:6px;background:#fff">' : '') + '</td><td><b>' + esc(r.name) + '</b></td><td dir="ltr" style="text-align:right;font-size:11px">' + esc(r.key) + '</td><td style="text-align:center;font-weight:800;font-size:13px">' + (Math.round(r.qty * 100) / 100) + '</td></tr>'; }).join(''); });
-  return '<div class="rp-sec" style="page-break-before:always"><h3>📋 כתב כמויות — ' + tot + ' פריטים</h3><table><thead><tr><th>#</th><th></th><th>פריט</th><th>מק״ט</th><th>כמות</th></tr></thead><tbody>' + h + '</tbody></table></div>';
+        return '<tr><td style="text-align:center;color:#888">' + (i + 1) + '</td><td style="width:44px">' + (img ? '<img src="' + esc(img) + '" style="width:36px;height:36px;object-fit:contain;border:1px solid #eee;border-radius:6px;background:#fff">' : '') + '</td><td><b>' + esc(r.name) + '</b></td><td style="text-align:center;font-weight:800;font-size:13px">' + (Math.round(r.qty * 100) / 100) + '</td><td dir="ltr" style="text-align:right;font-size:11px">' + esc(r.key) + '</td></tr>'; }).join(''); });
+  return '<div class="rp-sec" style="page-break-before:always"><h3>📋 כתב כמויות — ' + tot + ' פריטים</h3><table><thead><tr><th>#</th><th></th><th>פריט</th><th>כמות</th><th>מק״ט</th></tr></thead><tbody>' + h + '</tbody></table></div>';
 }
 function sideViewHTML() {
   if (!P.scale) return '';
@@ -15465,7 +15465,7 @@ holder.classList.add('rp-zoomable');
   ovRestore();
   /* היטל צד — מיד אחרי התכנית הכללית (או התקריב, אם יש) */
   try { const sv = sideViewHTML(); if (sv) { const t = document.createElement('div'); t.innerHTML = sv; if (t.firstElementChild) snaps.push(t.firstElementChild); } } catch (e) { console.warn('sideView', e); }
-  try { const bq = bomHTML(); if (bq) { const t = document.createElement('div'); t.innerHTML = bq; snaps.push(t.firstElementChild); } } catch (e) { console.warn('bom', e); }
+  try { const bq = bomHTML(); if (bq) { const t = document.createElement('div'); t.innerHTML = bq; snaps.unshift(t.firstElementChild); }   /* כתב הכמויות פותח את הדוח */ } catch (e) { console.warn('bom', e); }
   /* שרטוט לכל קטגוריה שיש בה כבלים: מדליקים רק אותה, מרנדרים, מצלמים */
   const CAT_TITLES = { audio: '🔊 שרטוט חיווט סאונד', light: '💡 שרטוט חיווט תאורה', video: '📺 שרטוט חיווט וידאו', data: '🌐 שרטוט רשת ואופטי', power: '⚡ שרטוט חשמל' };
   const present = [...new Set((P.cables || []).map(c => cabGroup(c)))];
