@@ -4258,7 +4258,7 @@ function offerCablePick(c) {
   const old = document.getElementById('ocpOv'); if (old) old.remove();
   const ov = document.createElement('div');
   ov.id = 'ocpOv';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:99;display:flex;align-items:center;justify-content:center';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:' + Math.max(141, (typeof FLOAT_Z !== 'undefined' ? FLOAT_Z : 0) + 6) + ';display:flex;align-items:center;justify-content:center';
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:460px;width:94%;max-height:76vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">📏 כבל חדש (${c.len || '?'} מ׳ · ${CTYPES[c.type].n}) — אין פריט מתאים בהצעה</b><button onclick="document.getElementById('ocpOv').remove()">✕</button></div>
@@ -4700,7 +4700,7 @@ function pickRear(nodeId, unitId) {
 }
 /* לחיצה על מחבר — חיבור מכל סדר (OUT/LNK או IN, לא משנה מה קודם) */
 function portClick(nid, unitId, portStr, isOut) {
-  if (window.__rackAssign) { rackAssignPort(nid, unitId, portStr); return; }   /* כבל שמגיע לארון ממתין למחבר */
+  if (!(wireMode && wireMode.from) && !selHole && rackPendingCable(nid)) { rackAssignPort(nid, unitId, portStr); return; }   /* כבל נבחר שמגיע לארון → לחיצה על מחבר מחברת אותו */
   /* חור בפאנל נבחר ← לחיצה על מחבר בגב מכשיר = חיבור חור→מחבר */
   if (selHole) { connectHoleToPort(selHole, nid, unitId, portStr, isOut); return; }
   if (wireMode && wireMode.from) {
@@ -12150,11 +12150,45 @@ function rackCabUnwired(n, c) {
   if (c.from === n.id) return !(c.fromUnit && (c.pOut || (c.bands && c.bands.length)));
   return false;
 }
+/* הכבל שממתין לחיבור בגב הארון: זה שנלחץ עליו "חבר", או כבל נבחר שהקצה שלו בארון עוד לא חווט */
+function rackPendingCable(nid) {
+  const n = byId(nid); if (!n) return null;
+  const id = window.__rackAssign || selCable, c = id && (P.cables || []).find(x => x.id === id);
+  return c && (c.from === nid || c.to === nid) && rackCabUnwired(n, c) ? c : null;
+}
+/* בחירת כבל → לחיצה על מחבר במכשיר = חיבור; ואז חלון שמשקף מה בוצע לאישור, כולל הכבל שנכנס לרשימת הפריסה בהצעה */
 function rackAssignPort(nid, unitId, portStr) {
-  const c = (P.cables || []).find(x => x.id === window.__rackAssign); window.__rackAssign = null;
-  if (!c || (c.from !== nid && c.to !== nid)) { render(); return; }
-  if (c.to === nid && !(c.toUnit && c.pIn)) { c.toUnit = unitId; c.pIn = portStr; } else { c.fromUnit = unitId; c.pOut = portStr; }
-  selCable = c.id; save(); render(); uiToast('🔌 הכבל חובר ל-' + portStr);
+  const c = rackPendingCable(nid); window.__rackAssign = null;
+  if (!c) { render(); return; }
+  const toSide = c.to === nid && !(c.toUnit && c.pIn), prev = toSide ? [c.toUnit, c.pIn] : [c.fromUnit, c.pOut];
+  if (toSide) { c.toUnit = unitId; c.pIn = portStr; } else { c.fromUnit = unitId; c.pOut = portStr; }
+  selCable = c.id; save(); render();
+  const LBL = cableLabels(), col = cableColor(c), L = +c.len || 0, tn = (CTYPES[c.type] || {}).n || c.type;
+  const st = c.stockRef && P.stock ? [...(P.stock.cables || []), ...(P.stock.reels || [])].find(x => c.stockRef.endsWith('|' + x.id)) : null;
+  const it = !c.stockRef && c.inst !== 'exist' ? (impItems.find(x => x.dest === 'reel' && (x.type || 'nl4') === c.type) || impItems.find(x => x.dest === 'cable' && (x.type || 'multi') === c.type)) : null;
+  const offerRow = c.inst === 'exist' ? '<div style="color:#666">הכבל קיים במקום — לא נכנס להצעה.</div>'
+    : st ? '<div>🧾 הכבל כבר משויך בהצעה ל־<b>' + esc((st.name || '').slice(0, 50)) + '</b>.</div>'
+    : it ? '<div>🧾 ייכנס לרשימת הפריסה בהצעה: <b>' + esc(it.name.slice(0, 50)) + '</b>' + (L ? ' · <b>' + L + ' מ׳</b>' : '') + '</div>'
+    : '<div style="color:#9a3412">🧾 אין בהצעה כבל מתאים (' + esc(tn) + ') — צריך לבחור מוצר מהקטלוג.</div>';
+  const ov = uiModal(`
+    <div style="font-size:15px;font-weight:800;margin-bottom:8px">✓ בוצע — לאישור</div>
+    <div style="border:1.5px solid ${col};border-radius:10px;padding:9px 11px;margin-bottom:10px;line-height:1.7;font-size:13px">
+      <div><span class="badge" style="background:${col}">${LBL[c.id] || ''}</span> <b>${esc(tn)}</b>${L ? ' · ' + L + ' מ׳' : ''}</div>
+      <div><span style="color:#888">מ:</span> ${esc(endNameTxt(c.from, c.fromUnit).slice(0, 44))}${c.pOut ? ' · <b>' + esc(c.pOut) + '</b>' : ''}</div>
+      <div><span style="color:#888">אל:</span> ${esc(endNameTxt(c.to, c.toUnit).slice(0, 44))}${c.pIn ? ' · <b>' + esc(c.pIn) + '</b>' : c.toHole ? ' · חור ' + c.toHole : ''}</div>
+    </div>
+    <div style="font-size:12.5px;margin-bottom:12px;line-height:1.55">${offerRow}</div>
+    <button class="primary" data-ok style="width:100%;margin-bottom:6px">${it ? '✓ אשר והוסף לרשימת הפריסה' : (!st && c.inst !== 'exist') ? '✓ אשר ובחר כבל מהקטלוג' : '✓ אשר'}</button>
+    ${it ? '<button data-other style="width:100%;margin-bottom:6px">🔍 אשר, אבל בחר כבל אחר מהקטלוג</button>' : ''}
+    ${!st && c.inst !== 'exist' ? '<button data-skip style="width:100%;margin-bottom:6px">אשר בלי להוסיף להצעה</button>' : ''}
+    <button data-undo style="width:100%;background:#fdf0f0;color:#c1121f">↩ בטל את החיבור</button>`);
+  const done = () => ov.remove(), q = sel => ov.querySelector(sel);
+  q('[data-ok]').onclick = () => { done();
+    if (it) { const s2 = ensureStockItem(it); applyStockRef((it.dest === 'reel' ? 'reel|' : 'cable|') + s2.id, '', c); save(); render(); uiToast('🧾 נוסף לרשימת הפריסה: ' + it.name.slice(0, 40) + (L ? ' · ' + L + ' מ׳' : '')); }
+    else if (!st && c.inst !== 'exist') offerCablePick(c); };
+  if (q('[data-other]')) q('[data-other]').onclick = () => { done(); offerCablePick(c); };
+  if (q('[data-skip]')) q('[data-skip]').onclick = done;
+  q('[data-undo]').onclick = () => { done(); if (toSide) { c.toUnit = prev[0]; c.pIn = prev[1]; } else { c.fromUnit = prev[0]; c.pOut = prev[1]; } save(); render(); uiToast('↩ החיבור בוטל'); };
 }
 function rackFocusSideHTML(n, which) {
   const LBL = cableLabels(), uOf = id => (n.units || []).find(u => u.id === id), um = u => u ? (shortModel(u.name) || u.name.slice(0, 20)) + ' · U' + (u.pos + 1) : '';
@@ -12171,15 +12205,15 @@ function rackFocusSideHTML(n, which) {
   }
   let h = '';
   /* כבל ממתין לחיבור: בוחרים מחבר בגב הארון */
-  const asg = window.__rackAssign && unw.find(c => c.id === window.__rackAssign);
-  if (window.__rackAssign && !asg) window.__rackAssign = null;
+  if (window.__rackAssign && !unw.some(c => c.id === window.__rackAssign)) window.__rackAssign = null;
+  const asg = unw.find(c => c.id === (window.__rackAssign || selCable));
   if (asg) {
     const want = asg.type === 'cat' ? 'rj45' : asg.type === 'nl4' ? 'speakon' : (asg.type === 'xlr' || asg.type === 'multi' || asg.type === 'aes') ? 'sig' : asg.type === 'pwr' ? 'pwr' : '';
     const occ = new Set(); (P.cables || []).forEach(c => { if (c.from === n.id && c.fromUnit && c.pOut) occ.add(c.fromUnit + '|' + c.pOut); if (c.to === n.id && c.toUnit) cablePIns(c).forEach(p => occ.add(c.toUnit + '|' + p)); });
     const other = byId(asg.from === n.id ? asg.to : asg.from); let rows = '';
     [...(n.units || [])].sort((a, b) => a.pos - b.pos).forEach(u2 => { const cand = rearPortsAuto(rearLayout(u2.name)).filter(x => x.port && (!want || fam(x) === want) && !occ.has(u2.id + '|' + x.port)); if (!cand.length) return;
       rows += '<div style="font-size:11px;color:#666;font-weight:700;margin:6px 2px 3px">' + esc(um(u2)) + '</div><div style="display:flex;flex-wrap:wrap;gap:4px">' + cand.map(x => '<button onclick="portClick(\'' + n.id + '\',\'' + u2.id + '\',\'' + jsq(x.port) + '\',' + /^(OUT|LNK)/.test(x.port) + ')" style="padding:2px 8px;font-size:11.5px;background:#fff;border:1px solid #cfd3dc;border-radius:7px">' + esc(x.port) + '</button>').join('') + '</div>'; });
-    return '<div style="background:#fff3c4;border:1.5px solid #e9b949;border-radius:9px;padding:8px 9px;margin-bottom:8px"><div style="font-size:11px;color:#8a6d00;font-weight:700">🟡 מחברים כבל <span class="badge" style="background:' + cableColor(asg) + '">' + (LBL[asg.id] || '') + '</span></div><div style="margin:3px 0">' + esc((CTYPES[asg.type] || {}).n || asg.type) + (other ? ' · ' + esc((other.name || '').slice(0, 30)) : '') + '</div><button style="padding:2px 10px;font-size:11.5px" onclick="window.__rackAssign=null;render()">ביטול</button></div>' +
+    return '<div style="background:#fff3c4;border:1.5px solid #e9b949;border-radius:9px;padding:8px 9px;margin-bottom:8px"><div style="font-size:11px;color:#8a6d00;font-weight:700">🟡 מחברים כבל <span class="badge" style="background:' + cableColor(asg) + '">' + (LBL[asg.id] || '') + '</span></div><div style="margin:3px 0">' + esc((CTYPES[asg.type] || {}).n || asg.type) + (other ? ' · ' + esc((other.name || '').slice(0, 30)) : '') + '</div><button style="padding:2px 10px;font-size:11.5px" onclick="window.__rackAssign=null;selCable=null;render()">ביטול</button></div>' +
       '<div style="font-weight:800;margin-bottom:2px">לאיזה מחבר בארון?</div><div style="color:#777;font-size:11px;margin-bottom:4px">לחץ על מחבר בגב הארון, או בחר כאן מחבר פנוי מתאים:</div>' + (rows || '<div style="color:#999">אין מחבר פנוי מתאים — אפשר ללחוץ על כל מחבר בגב</div>');
   }
   const wm = wireMode && wireMode.from && wireMode.from.nid === n.id && wireMode.srcPort ? wireMode : null;
@@ -12207,8 +12241,8 @@ function rackFocusSideHTML(n, which) {
       '<div style="display:flex;gap:6px;margin-top:7px"><button style="flex:1;padding:3px;background:#fdf0f0;color:#c1121f;font-weight:700" onclick="delCable(\'' + sc.id + '\')">✂ נתק / מחק</button><button style="flex:1;padding:3px" onclick="selCable=null;render()">סגור</button></div></div>';
   } else h += '<div style="background:#eef4fd;border:1px solid #b9d0f0;border-radius:9px;padding:7px 9px;margin-bottom:8px;color:#185fa5">לחץ על מחבר בגב הארון — כאן יוצג מה נבחר ולאן הוא הולך.</div>';
   /* צד ימין: כבלים שמגיעים לארון ועדיין לא חוברו למחבר של מכשיר */
-  h += '<div style="font-weight:800;font-size:13px;margin:4px 0 6px">⏳ מגיעים לארון — לא חווטו (' + unw.length + ')</div>' + (unw.map(c => { const o = byId(c.from === n.id ? c.to : c.from);
-    return '<div style="padding:6px 7px;border-radius:8px;margin-bottom:4px;background:#fff;border:1.5px dashed ' + cableColor(c) + '"><div style="display:flex;gap:6px;align-items:center"><span class="badge" style="background:' + cableColor(c) + ';flex:none">' + (LBL[c.id] || '') + '</span><b style="flex:1">' + esc((CTYPES[c.type] || {}).n || c.type) + '</b>' + (+c.len > 0 ? '<span style="color:#888">' + c.len + ' מ׳</span>' : '') + '</div><div style="margin:3px 0;color:#444">' + (c.to === n.id ? 'מגיע מ־' : 'יוצא אל ') + '<b>' + esc(((o && o.name) || '?').slice(0, 40)) + '</b></div><button class="primary" style="width:100%;padding:3px;font-size:11.5px" onclick="window.__rackAssign=\'' + c.id + '\';wireMode=null;selCable=null;render()">🔌 חבר למחבר בארון</button></div>'; }).join('') || '<div style="color:#0f6e56;background:#eef7f1;border:1px solid #bfe0cc;border-radius:8px;padding:6px 8px">✓ כל הכבלים שמגיעים לארון מחוברים</div>');
+  h += '<div style="font-weight:800;font-size:13px;margin:4px 0 6px">⏳ מגיעים לארון — לא חווטו (' + unw.length + ')</div>' + (unw.length ? '<div style="color:#777;font-size:11px;margin-bottom:5px">בחר כבל, ואז לחץ על המחבר הרצוי במכשיר.</div>' : '') + (unw.map(c => { const o = byId(c.from === n.id ? c.to : c.from);
+    return '<div onclick="window.__rackAssign=\'' + c.id + '\';wireMode=null;selCable=null;render()" title="בחר את הכבל, ואז לחץ על המחבר במכשיר" style="cursor:pointer;padding:6px 7px;border-radius:8px;margin-bottom:4px;background:#fff;border:1.5px dashed ' + cableColor(c) + '"><div style="display:flex;gap:6px;align-items:center"><span class="badge" style="background:' + cableColor(c) + ';flex:none">' + (LBL[c.id] || '') + '</span><b style="flex:1">' + esc((CTYPES[c.type] || {}).n || c.type) + '</b>' + (+c.len > 0 ? '<span style="color:#888">' + c.len + ' מ׳</span>' : '') + '</div><div style="margin:3px 0;color:#444">' + (c.to === n.id ? 'מגיע מ־' : 'יוצא אל ') + '<b>' + esc(((o && o.name) || '?').slice(0, 40)) + '</b></div><button class="primary" style="width:100%;padding:3px;font-size:11.5px" onclick="window.__rackAssign=\'' + c.id + '\';wireMode=null;selCable=null;render()">🔌 חבר למחבר בארון</button></div>'; }).join('') || '<div style="color:#0f6e56;background:#eef7f1;border:1px solid #bfe0cc;border-radius:8px;padding:6px 8px">✓ כל הכבלים שמגיעים לארון מחוברים</div>');
   return h;
 }
 /* פריסת כבל מפריט ברשימה — מפעיל חיבור בלחיצה עם כל פרטי הכבל */
