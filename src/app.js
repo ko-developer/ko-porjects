@@ -12905,8 +12905,36 @@ function zoneExampleBlocks() {
 }
 const ZONE_RULES_PROMPT = 'זו תכנית אדריכלית של חלל אירוח/מסחרי. חלק אותה לאזורי סאונד לפי הכללים הבאים:\n' + ZONE_RULES.map((r, i) => (i + 1) + '. ' + r).join('\n') +
   '\nהחזר JSON בלבד ללא טקסט נוסף: {"zones":[{"name":"שם בעברית","usage":"מוזיקת רקע|בית קפה|מסעדה|מוזיקה לבר|מסעדה + DJ|הופעות חיות|מוזיקת ריקודים|מועדון על מלא","poly":[[x,y],[x,y],...]}]} — poly = קודקודי הפוליגון בסדר היקפי, בקואורדינטות יחסיות 0-1 של התמונה (x שמאל→ימין, y למעלה→למטה), 4 עד 16 נקודות לאזור, ללא חפיפה בין אזורים. עד 15 אזורים.';
+/* בלי תכנית רקע — האזורים נבנים מהשרטוט: כל חדר סגור (קירות) = אזור; השם והתכלית לפי האובייקטים שבו (בריכה, בר, רחבה, במה, פינת ישיבה) */
+function autoZonesSketch() {
+  const walls = ((P.sketch && P.sketch.walls) || []).filter(skWallClosed);
+  if (!walls.length) { uiToast('אין חדר סגור בשרטוט — שרטט חדר (קירות סגורים) או העלה תכנית רקע', 4000); return 0; }
+  const inPoly = (pt, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > pt.y) !== (b.y > pt.y) && pt.x < (b.x - a.x) * (pt.y - a.y) / (b.y - a.y) + a.x) c = !c; } return c; };
+  const KIND = { pool: ['בריכה', 'מוזיקת רקע'], dance: ['רחבת ריקודים', 'מוזיקת ריקודים'], stage: ['במה', 'הופעות חיות'], bar: ['בר', 'מוזיקה לבר'], barStools: ['בר', 'מוזיקה לבר'], lounge: ['פינת ישיבה', 'מוזיקת רקע'], sofa: ['פינת ישיבה', 'מוזיקת רקע'], table: ['אזור ישיבה', 'מסעדה'], tableR: ['אזור ישיבה', 'מסעדה'] };
+  const PRI = ['stage', 'dance', 'pool', 'bar', 'barStools', 'lounge', 'sofa', 'table', 'tableR'];
+  P.zones = P.zones || [];
+  let n = 0, k = P.zones.length;
+  for (const wl of walls) {
+    const poly = wl.slice(0, -1).map(p => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+    if (poly.length < 3) continue;
+    /* כבר יש אזור על החדר הזה (מרכז דומה)? — לא מכפילים */
+    const cx = poly.reduce((a, p) => a + p.x, 0) / poly.length, cy = poly.reduce((a, p) => a + p.y, 0) / poly.length;
+    if (P.zones.some(z => { const q = z.poly || [{ x: 2200 - z.x - z.w, y: z.y }, { x: 2200 - z.x, y: z.y }, { x: 2200 - z.x, y: z.y + z.h }, { x: 2200 - z.x - z.w, y: z.y + z.h }]; return inPoly({ x: cx, y: cy }, q); })) continue;
+    const objs = ((P.sketch && P.sketch.objs) || []).filter(o => inPoly({ x: o.x, y: o.y }, poly));
+    if (objs.length && objs.every(o => o.t === 'kitchen' || o.t === 'outKitchen' || o.t === 'door' || o.t === 'plant')) continue;   /* מטבח = תפעולי, לא אזור קהל */
+    const main = PRI.find(t => objs.some(o => o.t === t));
+    const nm = main ? KIND[main][0] : 'חדר ' + (++k), usage = main ? KIND[main][1] : '';
+    const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys);
+    P.zones.push({ id: uid('z'), name: nm, usage, poly, x: Math.max(0, 2200 - left - (Math.max(...xs) - left)), y: Math.max(0, top), w: Math.max(...xs) - left, h: Math.max(...ys) - top, auto: 'sketch' });
+    n++;
+  }
+  if (n) { save(); render(); uiToast('✓ ' + n + ' אזורים נבנו מהשרטוט — שנה שם ותכלית בטבלה למטה או בלחיצה על אזור', 4500); }
+  else uiToast('כל החדרים בשרטוט כבר מסומנים כאזורים');
+  return n;
+}
+window.autoZonesSketch = autoZonesSketch;
 async function autoZones() {
-  if (!P.bg) { alert('העלה קודם תכנית רקע'); return; }
+  if (!P.bg) { if ((P.sketch && P.sketch.walls || []).length) { autoZonesSketch(); return; } alert('העלה קודם תכנית רקע, או שרטט חדר בעורך השרטוט'); return; }
   render();
   try {
     const j = await claudeMsg([{ role: 'user', content: [
