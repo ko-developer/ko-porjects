@@ -20,6 +20,8 @@ function wizWireStat(z) {
 
 function wizardStart() {
   WIZ = { step: wizAutoStep() };
+  /* ממשיכים מאיפה שהפרויקט נמצא — כולל האזור שעובדים עליו עכשיו (זה שבכפתור 📍 בכותרת) */
+  try { const zid = typeof wireZoneId === 'function' ? wireZoneId() : null; if (zid) WIZ.zid = zid; } catch (e) {}
   if (!document.getElementById('wizCss')) {
     const st = document.createElement('style');
     st.id = 'wizCss';
@@ -57,8 +59,11 @@ function wizardStart() {
 function wizClose() { WIZ = null; clearInterval(window.__wizT); const w = document.getElementById('wiz'); if (w) w.remove(); document.body.classList.remove('wzdock'); }
 
 /* השלב ההגיוני הבא לפי מצב הפרויקט — נכנסים ישר לאיפה שעצרת */
+/* יש תכנית לעבוד עליה: תמונת/PDF רקע, או שרטוט (קירות / אובייקטים) — שרטוט נחשב תכנית רקע לכל דבר */
+function wizHasSketch() { const sk = P.sketch || {}; return ((sk.walls || []).length + (sk.objs || []).length) > 0; }
+function wizHasPlan() { return !!(P.hasBg || P.hasPdf || P.bg || wizHasSketch()); }
 function wizAutoStep() {
-  if (!P.bg) return 0;
+  if (!wizHasPlan()) return 0;
   if (!P.scale) return 1;
   if (!(P.zones || []).length) return 2;
   if (!(P.zones || []).every(z => z._built)) return 3;
@@ -72,7 +77,7 @@ function wizDone(i) {
   const zs = P.zones || [];
   const allBuilt = zs.length > 0 && zs.every(z => z._built);
   const allWired = zs.length > 0 && zs.every(z => { const w = wizWireStat(z); return !w.tot || w.fed >= w.tot; }) && zs.some(z => wizWireStat(z).tot);
-  return [!!P.bg, !!P.scale, zs.some(z => !z.prop), allBuilt, allWired, !!P._instKit, !!P._gapOk, impItems.length > 0, false][i];
+  return [wizHasPlan(), !!P.scale, zs.some(z => !z.prop), allBuilt, allWired, !!P._instKit, !!P._gapOk, impItems.length > 0, false][i];
 }
 function wizRefreshBadges() {
   document.querySelectorAll('#wiz .wzstep').forEach((el, i) => el.classList.toggle('done', wizDone(i) && i !== WIZ.step));
@@ -122,7 +127,7 @@ function wizStepHTML(s) {
   if (s === 0) return `
     <h4>העלאת תכנית</h4>
     <p class="hint">גרור/בחר צילום או PDF-תמונה של התכנית. אפשר גם להמשיך עם התכנית הקיימת.</p>
-    ${P.bg ? `<button class="sec done">✓ יש תכנית בפרויקט — אפשר להמשיך</button>` : ''}
+    ${wizHasPlan() ? `<button class="sec done" onclick="wizNext()">✓ ${P.hasBg || P.hasPdf || P.bg ? 'יש תכנית בפרויקט' : 'יש שרטוט בפרויקט — הוא התכנית'} — אפשר להמשיך</button>` : ''}
     <input type="file" accept="image/*,application/pdf,.pdf,.dxf,.dwg" onchange="wizUploadBg(this)">
     <button class="sec" onclick="wizNewProject()">🗂 התחל פרויקט חדש נקי</button>`;
   if (s === 1) {
@@ -465,7 +470,7 @@ function wizGo(i) {
   WIZ.step = i; wizRender();
 }
 function wizNext() {
-  if (WIZ.step === 1 && P.scale && !P.calOk) { uiToast('📏 אשר את הכיול לפני שממשיכים — השווה מול שולחן או דלת'); return; }
+  if (WIZ.step === 1 && P.scale && !P.calOk && (P.hasBg || P.hasPdf || P.bg)) {   /* שרטוט בלי רקע משורטט כבר במידות — אין מה לאשר */ uiToast('📏 אשר את הכיול לפני שממשיכים — השווה מול שולחן או דלת'); return; }
   /* שאלת חובה: אי אפשר להתקדם מהאזור בלי תכלית — היא קובעת את המערכת */
   if (WIZ.step === 2) {
     if ((P.zones || []).some(z => z.prop)) { uiToast('💡 יש אזורים מוצעים — אשר או דחה אותם לפני שממשיכים'); return; }
