@@ -2464,6 +2464,7 @@ function cabGroup(c) {
 }
 const CAB_GROUP = { multi: 'audio', xlr: 'audio', aes: 'audio', nl4: 'audio', dmx: 'light', sdi: 'video', hdmi: 'video', cat: 'data', fiber: 'data', pwr: 'power' };
 function cableVisible(c) {
+  if (window.__rpOnly && !window.__rpOnly.has(c.id)) return false;   /* דוח: דף שמציג רק חלק מהכבלים */
   /* בידוד קו בעורך החיווט — מציגים רק את הכבלים של הערוץ שנבחר */
   if (typeof PATCH !== 'undefined' && PATCH && PATCH.solo) {
     const ids = new Set(PATCH.slots[PATCH.solo] || []);
@@ -15067,6 +15068,21 @@ function cableTableHTML() {
    והרמקולים בגובה ההתקנה שלהם. גובה שלא הוגדר למוקד מסומן "?" ומצויר בקו מקווקו (הנחה לתצוגה בלבד).
    גובהי הריהוט טיפוסיים — להמחשה, לא מדידה. */
 const SIDE_OBJ_H = { bar: 1.1, barStools: 1.1, counter: 1.1, outKitchen: 0.9, kitchen: 0.9, table: 0.75, tableR: 0.75, sofa: 0.8, lounge: 0.8, stage: 0.6, plant: 1.2, door: 2.1 };
+/* כתב כמויות לדוח — כל פריטי ההצעה (רמקולים, אלקטרוניקה, כבלים, אביזרים) עם כמות; שורות זהות מאוחדות */
+function bomHTML() {
+  if (typeof impItems === 'undefined' || !impItems.length) return '';
+  const G = { spk: '🔊 רמקולים וסאבים', el: '🎛 אלקטרוניקה — מגברים, פרוססורים, מיקסרים ומיקרופונים', cab: '🧵 כבלים ומחברים', oth: '🔩 אביזרים ושונות' };
+  const gOf = nm => { const c = typeof kitFuncClass === 'function' ? (kitFuncClass(nm) || '') : ''; return /^(spk|sub)/.test(c) ? 'spk' : /^(amp|proc|rcv|mixer|mic)/.test(c) ? 'el' : /^cab/.test(c) || /^(מחבר|פנל|כבל)/.test(nm) ? 'cab' : 'oth'; };
+  const rows = new Map();
+  impItems.forEach(it => { const q = +it.qty || 0; if (!it.name || q <= 0) return; const k = (it.key || '') + '|' + it.name; const r = rows.get(k) || { name: it.name, key: it.key || '', qty: 0, g: gOf(it.name) }; r.qty += q; rows.set(k, r); });
+  if (!rows.size) return '';
+  let h = '', tot = 0;
+  ['spk', 'el', 'cab', 'oth'].forEach(g => { const rs = [...rows.values()].filter(r => r.g === g); if (!rs.length) return;
+    h += '<tr><td colspan="5" style="background:#f6f2ea;font-weight:800;font-size:12px">' + G[g] + ' (' + rs.length + ')</td></tr>' +
+      rs.map((r, i) => { tot++; const img = r.key && typeof erpImg === 'function' && erpImg(r.key);
+        return '<tr><td style="text-align:center;color:#888">' + (i + 1) + '</td><td style="width:44px">' + (img ? '<img src="' + esc(img) + '" style="width:36px;height:36px;object-fit:contain;border:1px solid #eee;border-radius:6px;background:#fff">' : '') + '</td><td><b>' + esc(r.name) + '</b></td><td dir="ltr" style="text-align:right;font-size:11px">' + esc(r.key) + '</td><td style="text-align:center;font-weight:800;font-size:13px">' + (Math.round(r.qty * 100) / 100) + '</td></tr>'; }).join(''); });
+  return '<div class="rp-sec" style="page-break-before:always"><h3>📋 כתב כמויות — ' + tot + ' פריטים</h3><table><thead><tr><th>#</th><th></th><th>פריט</th><th>מק״ט</th><th>כמות</th></tr></thead><tbody>' + h + '</tbody></table></div>';
+}
 function sideViewHTML() {
   if (!P.scale) return '';
   const zones = (P.zones || []).filter(z => P.nodes.some(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z)));
@@ -15332,9 +15348,12 @@ function exportPDF() {
     clone.style.right = region ? (-(2200 - region.R) * kR) + 'px' : '0';
     holder.appendChild(clone);
     snap.appendChild(holder);
+holder.classList.add('rp-zoomable');
     snap._holder = holder;
     return snap;
   };
+  /* סוג הקו: יציאה לרמקול · מקור/כניסה (אל הפרוססור/הארון) · חיווט פנימי בארון */
+  const grpOf = c => (c.internal || c.from === c.to) ? 'int' : (c.type === 'nl4' || (c.bands && c.bands.length) || ((byId(c.to) || {}).kind === 'point' && (byId(c.from) || {}).kind === 'rack')) ? 'spk' : 'src';
   /* סולם חיווט: שורה לכל כבל (ולכל ליבה במולטי) — מאיפה, לאן, מספר הכבל, סוג ומחבר — קריא ומסודר */
   const ladderHTML = (cabs, col) => {
     const LBLl = cableLabels(), endTxt = (nid, unitId, hole, port) => { const n = byId(nid); if (!n) return '?'; const u = unitOf(nid, unitId); return esc((u ? u.name + ' (' + n.name + ')' : n.name).slice(0, 34)) + (hole ? ' · חור ' + hole : port ? ' · ' + esc(port) : ''); };
@@ -15349,7 +15368,6 @@ function exportPDF() {
     const mkT = rs => rs.map(r => { const cc = cableColor(r.c), kind = esc(cableKindLabel(r.c)) + (r.c.spec ? ' · ' + esc(r.c.spec) : '');
       return `<tr><td style="${td};text-align:center;white-space:nowrap"><span style="display:inline-block;min-width:26px;border:1.5px solid ${cc};color:${cc};border-radius:999px;padding:0 6px;font-weight:800;font-size:10.5px;background:#fff">${esc(r.lbl)}</span></td><td style="${td}">${r.a}</td><td style="${td};color:${cc};font-weight:800;text-align:center">←</td><td style="${td}">${r.b}</td><td style="${td};color:#666;font-size:10.5px">${kind}${r.sub ? '<br>' + r.sub : ''}</td><td style="${td};color:#666;font-size:10.5px;white-space:nowrap">${+r.c.len > 0 ? r.c.len + ' מ׳' : ''}</td></tr>`; }).join('');
     /* רשימות נפרדות: יציאות לרמקולים · מקורות וכניסות (אל הפרוססור/הארון) · חיווט פנימי בארון */
-    const grpOf = c => (c.internal || c.from === c.to) ? 'int' : (c.type === 'nl4' || (c.bands && c.bands.length) || ((byId(c.to) || {}).kind === 'point' && (byId(c.from) || {}).kind === 'rack')) ? 'spk' : 'src';
     const GT = { spk: '🔊 יציאות לרמקולים', src: '🎚 מקורות וכניסות', int: '🔁 חיווט פנימי בארון' };
     const th = '<thead><tr style="background:#f6f2ea;font-size:10.5px;color:#555"><th style="padding:3px 7px">מס׳</th><th style="padding:3px 7px;text-align:right">מ־</th><th></th><th style="padding:3px 7px;text-align:right">אל</th><th style="padding:3px 7px;text-align:right">סוג</th><th style="padding:3px 7px;text-align:right">אורך</th></tr></thead>';
     const tables = ['spk', 'src', 'int'].map(g => { const rs = rows.filter(r => grpOf(r.c) === g); if (!rs.length) return '';
@@ -15447,14 +15465,24 @@ function exportPDF() {
   ovRestore();
   /* היטל צד — מיד אחרי התכנית הכללית (או התקריב, אם יש) */
   try { const sv = sideViewHTML(); if (sv) { const t = document.createElement('div'); t.innerHTML = sv; if (t.firstElementChild) snaps.push(t.firstElementChild); } } catch (e) { console.warn('sideView', e); }
+  try { const bq = bomHTML(); if (bq) { const t = document.createElement('div'); t.innerHTML = bq; snaps.push(t.firstElementChild); } } catch (e) { console.warn('bom', e); }
   /* שרטוט לכל קטגוריה שיש בה כבלים: מדליקים רק אותה, מרנדרים, מצלמים */
   const CAT_TITLES = { audio: '🔊 שרטוט חיווט סאונד', light: '💡 שרטוט חיווט תאורה', video: '📺 שרטוט חיווט וידאו', data: '🌐 שרטוט רשת ואופטי', power: '⚡ שרטוט חשמל' };
   const present = [...new Set((P.cables || []).map(c => cabGroup(c)))];
-  if (present.length > 1) {
+  /* סאונד מתפצל לשני דפים: יציאות לרמקולים, וסיגנל (מקורות הנגינה → פרוססור → מגברים) */
+  const pagesL = [];
+  for (const cat of ['audio', 'light', 'video', 'data', 'power']) {
+    if (!present.includes(cat)) continue;
+    const all = (P.cables || []).filter(c => cabGroup(c) === cat);
+    const spkC = cat === 'audio' ? all.filter(c => grpOf(c) === 'spk') : [], sigC = cat === 'audio' ? all.filter(c => grpOf(c) !== 'spk') : [];
+    if (spkC.length && sigC.length) pagesL.push({ cat, cabs: spkC, title: '🔊 שרטוט חיווט רמקולים — יציאות המגברים' }, { cat, cabs: sigC, title: '🎚 שרטוט סיגנל — מקורות נגינה, פרוססור ומגברים' });
+    else pagesL.push({ cat, cabs: all, title: CAT_TITLES[cat] });
+  }
+  if (pagesL.length > 1) {
     const CAT_COL = { audio: '#c2185b', light: '#b8860b', video: '#2e7d32', data: '#6a4fc9', power: '#616161' };
-    for (const cat of ['audio', 'light', 'video', 'data', 'power']) {
-      if (!present.includes(cat)) continue;
-      const cabs = (P.cables || []).filter(c => cabGroup(c) === cat);
+    for (const pg of pagesL) {
+      const cat = pg.cat, cabs = pg.cabs;
+      window.__rpOnly = new Set(cabs.map(c => c.id));
       const inv = new Set(); cabs.forEach(c => { inv.add(c.from); inv.add(c.to); });
       P.cabVis = {}; ['audio', 'light', 'video', 'data', 'power'].forEach(k2 => P.cabVis[k2] = (k2 === cat));
       /* הקופסאות המעורבות נפתחות על התכנית עצמה (עם המחברים והמסלולים הפנימיים) לפני הצילום */
@@ -15472,7 +15500,7 @@ function exportPDF() {
         document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
         if (L < Infinity) { const pad = 40, bw = Math.max(R - L, 320), bh = Math.max(B - T, 260), cx = (L + R) / 2, cy = (T + B) / 2;
           regC = { L: Math.max(0, cx - bw / 2 - pad), T: Math.max(0, cy - bh / 2 - pad), R: Math.min(2200, cx + bw / 2 + pad), B: Math.min(1400, cy + bh / 2 + pad) }; } }
-      const sec = makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', regC, 510);
+      const sec = makeSnap(pg.title + ' (' + cabs.length + ' כבלים)', regC, 510);
       document.querySelectorAll('#nodes > .node').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; el.style.opacity = ''; });
       /* הארונות (בתצוגת גב, עם החיווט) והקופסאות המעורבים — נפתחים רגע, מועתקים כמו שהם, ונסגרים */
       const sideEls = [];
@@ -15493,12 +15521,13 @@ function exportPDF() {
       if (sideEls.length) { const SW = 420, rearD = document.createElement('div'); rearD.style.cssText = 'flex:none;width:' + SW + 'px';
         sideEls.forEach(({ cl, w0, h0, n }) => { const k2 = n.kind === 'rack' ? SW / w0 : Math.min(1.2, SW / w0), box   /* גב הארון מוקטן בתוך האלמנט — מגדילים לרוחב העמודה */ = document.createElement('div');
           box.style.cssText = 'position:relative;width:' + Math.round(w0 * k2) + 'px;height:' + Math.round(h0 * k2) + 'px;margin:0 auto 10px;page-break-inside:avoid;overflow:hidden';
-          cl.style.transform = 'scale(' + k2.toFixed(4) + ')'; box.appendChild(cl); rearD.appendChild(box); });
+          cl.style.transform = 'scale(' + k2.toFixed(4) + ')'; box.classList.add('rp-zoomable'); box.appendChild(cl); rearD.appendChild(box); });
         rowD.appendChild(rearD); } else holder.style.margin = '0 auto';
       sec.appendChild(rowD);
       const lad = document.createElement('div'); lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); sec.appendChild(lad);
       snaps.push(sec);
     }
+    window.__rpOnly = null;
     P.cabVis = JSON.parse(savedVis);
     renderNodes(); renderWires();
   }
@@ -15624,6 +15653,29 @@ async function reportDownloadPdf(page, btn) {
   } catch (e) { alert('יצירת ה-PDF נכשלה: ' + (e && e.message || e)); }
   finally { btn.disabled = false; btn.textContent = lbl; }
 }
+function rpZoomOpen(src) {
+  const old = document.getElementById('rpZoom'); if (old) old.remove();
+  const w0 = src.offsetWidth || src.getBoundingClientRect().width, h0 = src.offsetHeight || src.getBoundingClientRect().height; if (!w0 || !h0) return;
+  const ov = document.createElement('div'); ov.id = 'rpZoom';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:160;background:rgba(15,18,26,.88);display:flex;flex-direction:column;direction:rtl';
+  ov.innerHTML = '<div style="display:flex;gap:8px;align-items:center;padding:8px 12px;background:#1c2230;color:#fff"><b style="flex:1;font-size:14px">🔍 הגדלה — גלגלת / + − לזום · גרירה להזזה</b><button data-z="-1" style="font-size:18px;width:38px;height:34px;border:none;border-radius:8px;cursor:pointer">−</button><span id="rpZoomPct" style="min-width:52px;text-align:center;font-weight:800"></span><button data-z="1" style="font-size:18px;width:38px;height:34px;border:none;border-radius:8px;cursor:pointer">+</button><button data-z="0" style="height:34px;border:none;border-radius:8px;cursor:pointer;padding:0 10px">התאם</button><button data-z="x" style="height:34px;border:none;border-radius:8px;cursor:pointer;padding:0 12px;background:#e2542b;color:#fff;font-weight:800">✕ סגור</button></div><div id="rpZoomSc" style="flex:1;overflow:auto;direction:ltr;cursor:grab;padding:16px"><div id="rpZoomW" style="position:relative;background:#fff;margin:0 auto;overflow:hidden"></div></div>';
+  document.body.appendChild(ov);
+  const sc = ov.querySelector('#rpZoomSc'), wr = ov.querySelector('#rpZoomW'), cl = src.cloneNode(true);
+  cl.onclick = null; cl.style.cursor = ''; cl.style.margin = '0'; cl.style.width = w0 + 'px'; cl.style.height = h0 + 'px'; cl.style.maxWidth = 'none'; cl.style.transformOrigin = 'top left'; cl.style.position = 'absolute'; cl.style.left = '0'; cl.style.top = '0';
+  wr.appendChild(cl);
+  const fit = () => Math.min((sc.clientWidth - 32) / w0, (sc.clientHeight - 32) / h0); let k = fit();
+  const apply = (ax, ay) => { k = Math.max(0.3, Math.min(12, k)); const px = ax == null ? 0.5 : (sc.scrollLeft + ax) / Math.max(1, sc.scrollWidth), py = ay == null ? 0.5 : (sc.scrollTop + ay) / Math.max(1, sc.scrollHeight);
+    wr.style.width = Math.round(w0 * k) + 'px'; wr.style.height = Math.round(h0 * k) + 'px'; cl.style.transform = 'scale(' + k.toFixed(4) + ')';
+    ov.querySelector('#rpZoomPct').textContent = Math.round(k * 100) + '%';
+    if (ax != null) { sc.scrollLeft = px * sc.scrollWidth - ax; sc.scrollTop = py * sc.scrollHeight - ay; } };
+  apply();
+  ov.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { const z = b.dataset.z; if (z === 'x') { ov.remove(); return; } if (z === '0') k = fit(); else k *= z === '1' ? 1.4 : 1 / 1.4; apply(sc.clientWidth / 2, sc.clientHeight / 2); });
+  sc.addEventListener('wheel', e => { e.preventDefault(); const r = sc.getBoundingClientRect(); k *= e.deltaY < 0 ? 1.15 : 1 / 1.15; apply(e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  let dr = null; sc.onpointerdown = e => { dr = { x: e.clientX, y: e.clientY, l: sc.scrollLeft, t: sc.scrollTop }; sc.style.cursor = 'grabbing'; sc.setPointerCapture(e.pointerId); };
+  sc.onpointermove = e => { if (!dr) return; sc.scrollLeft = dr.l - (e.clientX - dr.x); sc.scrollTop = dr.t - (e.clientY - dr.y); };
+  sc.onpointerup = sc.onpointercancel = () => { dr = null; sc.style.cursor = 'grab'; };
+  const esc2 = e => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', esc2); } }; document.addEventListener('keydown', esc2);
+}
 function reportPreview() {
   const old = document.getElementById('rpPrev'); if (old) old.remove();
   const r = $('#report');
@@ -15634,7 +15686,7 @@ function reportPreview() {
   ov.innerHTML = `
     <div style="background:#fff;border-radius:12px;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:96vw">
       <b style="font-size:15px;flex:1;white-space:nowrap">📑 תצוגה מקדימה — ${esc(P.name.slice(0, 24))}</b>
-      <span class="muted" style="font-size:11.5px">${pages} מקטעים · גלול לראות את כל הפריסה</span>
+      <span class="muted" style="font-size:11.5px">${pages} מקטעים · גלול לראות הכול · 🔍 לחיצה על שרטוט מגדילה אותו</span>
       <button id="rpPrint" style="background:#0f6e56;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer">🖨 הדפס / שמור PDF</button>
       <button id="rpDl" style="background:#185fa5;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer" title="יוצר קובץ PDF ומוריד אותו למחשב — בלי חלון ההדפסה">⬇ הורד PDF למחשב</button>
       <button id="rpDxf" style="background:#5b4b8a;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer" title="שרטוט וקטורי ל-AutoCAD בפורמט DXF (נפתח ב-AutoCAD ונשמר משם כ-DWG): מוקדים, כבלים לפי דיסציפלינה, צנרת, אזורים — במטרים" onclick="exportDXF()">📐 AutoCAD (DXF/DWG)</button>
@@ -15647,6 +15699,8 @@ function reportPreview() {
   const clone = r.cloneNode(true);
   clone.removeAttribute('id'); clone.style.display = 'block';
   ov.querySelector('#rpPage').appendChild(clone);
+  /* 🔍 זום: לחיצה על שרטוט (תכנית / גב ארון / קופסה / היטל צד) פותחת אותו מוגדל, עם + / − / גלגלת וגרירה */
+  clone.querySelectorAll('.rp-zoomable, .rp-sec svg[viewBox]').forEach(z => { if (z.closest('.rp-zoomable') && !z.classList.contains('rp-zoomable')) return; z.style.cursor = 'zoom-in'; z.title = 'לחץ להגדלה'; z.onclick = () => rpZoomOpen(z); });
   ov.querySelector('#rpClose').onclick = () => ov.remove();
   ov.querySelector('#rpPrint').onclick = () => {
     ov.remove();
