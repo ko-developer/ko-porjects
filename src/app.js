@@ -15405,6 +15405,7 @@ holder.classList.add('rp-zoomable');
   /* בתכנית הכללית (ובתקריב) הכול סגור — אייקונים בלבד, והשם המלא כתוב מעל כל אייקון; גם קופסה שנשארה פתוחה במסך נסגרת כאן, ומוחזרת אחרי הצילום */
   const ovSaved = P.nodes.map(n => [n, n.min, n.pmin, n.mini, n.full]);
   P.nodes.forEach(n => { if (n.kind === 'rack') n.min = true; else if (n.kind === 'panel') n.pmin = true; else if (n.kind === 'point') { n.mini = true; n.full = false; } });
+  window.__rpOnly = new Set();   /* התכנית הכללית — פריסה בלבד, בלי חיווט */
   renderNodes(); renderWires();
   { const host = $('#nodes'), cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ();
     const rects = [...document.querySelectorAll('#nodes > .node')].map(el => { const r = el.getBoundingClientRect(); return { id: el.id.replace(/^ndo?_/, ''), L: (r.left - cr0.left) / Z0, R: (r.right - cr0.left) / Z0, T: (r.top - cr0.top) / Z0, B: (r.bottom - cr0.top) / Z0 }; });
@@ -15453,7 +15454,8 @@ holder.classList.add('rp-zoomable');
     document.querySelectorAll('#nodes > .node, #nodes > div.rpTmpLbl').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
     const reg0 = L < Infinity ? { L: Math.max(0, L - 10), T: Math.max(0, T - 10), R: Math.min(2200, R + 10), B: Math.min(1400, B + 10) } : null;
-    regMain = reg0; snaps.push(makeSnap('תכנית כללית — פריסה וחיווט', reg0, 950)); }
+    regMain = reg0; snaps.push(makeSnap('תכנית כללית — פריסת הציוד', reg0, 950)); }
+  window.__rpOnly = null; renderWires();
   /* אזור הפעילות: חיתוך למקום שבו המוקדים והכבלים, מוגדל — כשהתכנית גדולה והציוד מרוכז בפינה */
   { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
     const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
