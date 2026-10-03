@@ -3250,7 +3250,7 @@ function cplBadgeHTML(n, mc) {
   const c = n.att && n.att.cpl; if (!c || !byId(n.att.id)) return '';
   const sym = { side: '↔', line: '↕', stack: '▂', fly: '⇡' }[c], ttl = { side: 'צד לצד — פיזור אופקי רחב', line: 'ליין אראיי — אחד מתחת לשני', stack: 'Stack — יושב על הסאב', fly: 'תלוי מעל הסאב' }[c];
   /* "תלוי מעל": קו מקווקו מהטופ אל הסאב שמתחתיו (או מהסאב אל הטופ שמעליו) */
-  const link = c === 'fly' ? `<div style="position:absolute;left:50%;${n.att.sy < 0 ? 'top:100%' : 'bottom:100%'};height:11px;border-left:2px dashed ${mc};transform:translateX(-1px);pointer-events:none"></div>` : '';
+  const link = false ? `<div style="position:absolute;left:50%;${n.att.sy < 0 ? 'top:100%' : 'bottom:100%'};height:11px;border-left:2px dashed ${mc};transform:translateX(-1px);pointer-events:none"></div>` : '';
   return link + `<div title="${ttl}" style="position:absolute;right:-8px;top:-8px;min-width:15px;height:15px;border-radius:8px;background:#fff;border:1.5px solid ${mc};color:${mc};font-size:10px;font-weight:800;line-height:12px;text-align:center;z-index:4;pointer-events:none">${sym}</div>`;
 }
 function cplApply(nid, tid, mode) {
@@ -3304,7 +3304,7 @@ function attachArrange() {
       /* הצמדה אייקון-לאייקון (ולא לפי תיבת המוקד עם הכיתוב): תחתית הטופ נוגעת בראש הסאב, רווח 2px */
       const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1);
       const tcy = t.cpl === 'stack' ? mA.cy - mA.H * 0.42 - mN.H * 0.2                       /* יושב על הסאב — חופף את חלקו העליון */
-        : t.cpl === 'fly' ? mA.cy - mA.H / 2 - mN.H / 2 - 11 / Z                             /* תלוי מעל — רווח וקו מקווקו */
+        : t.cpl === 'fly' ? mA.cy                                                         /* תלוי מעל הסאב = אותה נקודה בתכנית: הטופ הקטן במרכז הסאב הגדול */
         : t.sy === 0 ? mA.cy : mA.cy + t.sy * ((mA.H + mN.H) / 2);   /* 0 רווח — האייקונים נוגעים; "תלוי מעל" — רווח קטן עם קו מקווקו */
       const dX = tcx - mN.cx, dY = tcy - mN.cy; if (Math.abs(dX) < 0.3 && Math.abs(dY) < 0.3) continue;
       const nr = parseFloat(el.style.right) - dX, nt = parseFloat(el.style.top) + dY; el.style.right = nr + 'px'; el.style.top = nt + 'px';
