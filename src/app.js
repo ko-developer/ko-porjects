@@ -3118,9 +3118,9 @@ function planWallSegs() {
   });
   return out;
 }
-/* מרכז אייקון (קנבס) → מיקום על הקיר הקרוב, או null. טווח המשיכה 64px מסך; בפינה נצמד לשני הקירות */
-function nodeWallSnap(cx, cy, Z) {
-  const R = 0, PULL = 64 / (Z || 1), segs = planWallSegs();   /* R=0 — מרכז האייקון יושב על קו הקיר (רמקול קיר), לא מורחק ממנו */
+/* מרכז אייקון (קנבס) → מיקום על הקיר הקרוב, או null. טווח המשיכה 10px מסך מקצה האייקון; בפינה נצמד לשני הקירות */
+function nodeWallSnap(cx, cy, Z, R) {
+  R = R || 0; const PULL = R + 10 / (Z || 1), segs = planWallSegs();   /* נצמד כשקצה האייקון עד 10px מסך מהקיר */   /* R = חצי האייקון בפועל (לפי הגודל על המסך) + עובי הקיר — האייקון נוגע בקיר מבפנים, לא יושב על הקו */
   let x = cx, y = cy, first = null;
   for (let pass = 0; pass < 2; pass++) {
     let best = null;
@@ -10156,7 +10156,8 @@ document.addEventListener('pointermove', e => {
     if (gx != null || gy != null) window.__alignG = { x: gx, y: gy };
     /* מגנט לקיר: מוקד (רמקול) שמתקרב לקיר נצמד אליו — האייקון נוגע בקיר מהצד שממנו הגיע. גובר על שאר ההצמדות בציר הניצב לקיר */
     if (drag.n.kind === 'point' && !drag.att) {
-      const w = nodeWallSnap(2200 - drag.n.x - 20, drag.n.y + 24, Z);
+      if (drag.micR == null) { const mEl = document.querySelector('#nd_' + drag.n.id + ' .mic'); drag.micR = mEl ? mEl.getBoundingClientRect().width / Z / 2 + 2.5 : 0; }
+      const w = nodeWallSnap(2200 - drag.n.x - 20, drag.n.y + 24, Z, drag.micR);
       if (w) { drag.n.x = 2200 - w.x - 20; drag.n.y = w.y - 24; window.__alignG = null; window.__wallG = w.seg; } else window.__wallG = null;
     } else window.__wallG = null;
   }
