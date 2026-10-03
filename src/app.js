@@ -1,6 +1,7 @@
 
 const CATS = {
   amp:    { n: 'מגבר',        c: '#0f6e56' },
+  proc:   { n: 'פרוססור',     c: '#4b3fb8' },
   patch:  { n: 'ניתוב/פאנל',  c: '#534ab7' },
   net:    { n: 'רשת',         c: '#185fa5' },
   video:  { n: 'וידאו',       c: '#993c1d' },
@@ -3530,7 +3531,7 @@ function renderNodes() {
           rows += `<div class="runit${picked}" data-runit="${u.id}" style="top:${top}px;height:${h}px">
             <div class="runit-panel${im ? ' photo' : ''}" style="width:${panelW}px;height:${h}px;flex:none${im ? `;background-color:#0b0d12;background-image:url('${im.url}')${fH ? `,url('${im.furl}')` : ''};background-position:0 ${imTop}px${fH ? `,0 ${fTop}px` : ''};background-size:${panelW}px ${imH}px${fH ? `,${panelW}px ${fH}px` : ''};background-repeat:no-repeat` : ''}">${conns}</div>
             <div style="width:${CHW}px;flex:none"></div>
-            <div class="runit-lbl" style="background:${CATS[u.cat].c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>${rearImage(u.name) ? '<small style="display:block;color:#ffd9a8">📷 תמונת גב אמיתית</small>' : ''}${rearVerified(u.name) ? '<small style="display:block;color:#bfe6d6">✓ גב מהספרייה</small>' : '<small style="display:block;color:#ffcbb3;font-weight:800" title="המחברים המוצגים הם ניחוש — הגדר את גב הדגם בספריית גבי המוצרים">⚠ גב לא מאומת</small>'}
+            <div class="runit-lbl" style="background:${(CATS[u.cat] || CATS.other).c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>${rearImage(u.name) ? '<small style="display:block;color:#ffd9a8">📷 תמונת גב אמיתית</small>' : ''}${rearVerified(u.name) ? '<small style="display:block;color:#bfe6d6">✓ גב מהספרייה</small>' : '<small style="display:block;color:#ffcbb3;font-weight:800" title="המחברים המוצגים הם ניחוש — הגדר את גב הדגם בספריית גבי המוצרים">⚠ גב לא מאומת</small>'}
               <button class="runit-edit" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="ערוך את פריסת הגב של הדגם" style="position:absolute;bottom:3px;left:3px">✎ גב</button></div></div>`;
           used += u.u;
           yCur += h + GAPV;
@@ -3552,7 +3553,7 @@ function renderNodes() {
           const attr = ` data-uid="${u.id}"`;
           const UZ = UPX * (n.uz || 1);
           const fim = rearImage(u.name), fsrc = fim ? (fim.furl || fim.url) : '';   /* חזית הארון: צילום החזית של המוצר (או הגב אם אין חזית) */
-          rows += `<div class="unit${fsrc ? ' photo' : ''}"${attr} title="${esc(u.name)} · ${esc(ioTip(u.name))}" style="top:${u.pos * UZ}px;height:${u.u * UZ}px;background:${fsrc ? `#0b0d12 url('${fsrc}') center/100% 100% no-repeat` : CATS[u.cat].c};font-size:${(n.uz || 1) >= 1.6 ? 12 : 10}px"><b${fsrc ? ` style="background:rgba(0,0,0,.55);color:#fff;border-radius:4px;padding:0 4px"` : ''}>${esc(u.name)}</b><span>${u.panel ? '🧩' + u.panel.holes.length + '·' : ''}${u.u}U</span><button onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="עריכת המחברים של המוצר (פריסת הגב)" style="position:absolute;left:2px;top:2px;padding:0 4px;font-size:10px;line-height:16px;border-radius:5px;background:rgba(255,255,255,.88);border:none;cursor:pointer;z-index:2">🔌✎</button></div>`;
+          rows += `<div class="unit${fsrc ? ' photo' : ''}"${attr} title="${esc(u.name)} · ${esc(ioTip(u.name))}" style="top:${u.pos * UZ}px;height:${u.u * UZ}px;background:${fsrc ? `#0b0d12 url('${fsrc}') center/100% 100% no-repeat` : (CATS[u.cat] || CATS.other).c};font-size:${(n.uz || 1) >= 1.6 ? 12 : 10}px"><b${fsrc ? ` style="background:rgba(0,0,0,.55);color:#fff;border-radius:4px;padding:0 4px"` : ''}>${esc(u.name)}</b><span>${u.panel ? '🧩' + u.panel.holes.length + '·' : ''}${u.u}U</span><button onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="עריכת המחברים של המוצר (פריסת הגב)" style="position:absolute;left:2px;top:2px;padding:0 4px;font-size:10px;line-height:16px;border-radius:5px;background:rgba(255,255,255,.88);border:none;cursor:pointer;z-index:2">🔌✎</button></div>`;
           used += u.u;
         }
         /* ＋ בכל רצף פנוי — הוספת יחידה ישר במקום */
@@ -3699,6 +3700,10 @@ function renderNodes() {
     if (n.kind === 'point') d.addEventListener('dblclick', e => {
       /* דאבל-קליק על רמקול → הצג כיסוי ובחר (הסיבוב עצמו בגרירת הידית) */
       e.stopPropagation(); sel = n.id; ui.tab = 'node'; P.showCoverage = true; render();
+    });
+    /* דאבל-קליק על ארון מכווץ (או פאנל מכווץ) → נפתח ומציג את הפריטים שבו */
+    if (!floatPass && ((n.kind === 'rack' && n.min) || (n.kind === 'panel' && n.pmin))) d.addEventListener('dblclick', e => {
+      e.stopPropagation(); e.preventDefault(); if (n.kind === 'rack') n.min = false; else n.pmin = false; sel = n.id; render(); save();
     });
     if (floatPass) floatResizeHandle(n, d);
     host.appendChild(d);
@@ -8841,7 +8846,7 @@ function renderPanel() {
     <div class="fld"><label>${n.rtype === 'elec' ? 'מספר מסילות DIN' : n.rtype === 'boxWp' ? 'גובה פנימי (שורות ציוד)' : 'גובה ארון (U)'}</label><input type="number" min="1" max="48" value="${n.ru}" onchange="byId('${n.id}').ru=+this.value;render()"></div>
       <h3 class="sec">יחידות בארון — ▲▼ להזזה, או הקלד מיקום U</h3><ul class="ulist">` +
       sorted.map(({ u, i }) => `<li>
-        <span class="sw" style="background:${CATS[u.cat].c}"></span><b>${esc(u.name)}</b>
+        <span class="sw" style="background:${(CATS[u.cat] || CATS.other).c}"></span><b>${esc(u.name)}</b>
         <input class="posin" type="number" min="1" max="${n.ru}" value="${u.pos + 1}" title="מיקום U מלמעלה" onchange="setPos('${n.id}',${i},this.value)">
         <span>${u.u}U</span>
         <button onclick="mvU('${n.id}',${i},-1)" title="למעלה">▲</button>
@@ -14534,10 +14539,10 @@ function cableTableHTML() {
 function rackSection(n) {
   let rows = '';
   for (const u of n.units)
-    rows += `<div class="unit" style="top:${u.pos * UPX}px;height:${u.u * UPX}px;background:${CATS[u.cat].c}"><b>${esc(u.name)}</b><span>${u.u}U</span></div>`;
+    rows += `<div class="unit" style="top:${u.pos * UPX}px;height:${u.u * UPX}px;background:${(CATS[u.cat] || CATS.other).c}"><b>${esc(u.name)}</b><span>${u.u}U</span></div>`;
   const sorted = [...n.units].sort((a, b) => a.pos - b.pos);
   let ut = '';
-  for (const u of sorted) ut += `<tr><td>U${u.pos + 1}</td><td>${esc(u.name)}</td><td>${u.u}U</td><td>${CATS[u.cat].n}</td></tr>`;
+  for (const u of sorted) ut += `<tr><td>U${u.pos + 1}</td><td>${esc(u.name)}</td><td>${u.u}U</td><td>${(CATS[u.cat] || CATS.other).n}</td></tr>`;
   const cbs = P.cables.map((c, i) => ({ c, i })).filter(({ c }) => c.from === n.id || c.to === n.id);
   let ct = '';
   for (const { c, i } of cbs) {
