@@ -2049,6 +2049,8 @@ function zoomBy(f, anchor) {
     wrap.scrollTop += (r2.top + py * Z2) - ay;
   }
   saveView();
+  /* גודל האייקונים (ומיקום אייקונים צמודים) תלוי בזום ומחושב ברינדור — מרנדרים מיד כשהגלגלת נרגעת, במקום קפיצה מאוחרת */
+  clearTimeout(zoomBy._t); zoomBy._t = setTimeout(() => { if (drag) return; try { renderNodes(); renderWires(); if (P.showCoverage) renderCoverage(); } catch (e) {} }, 110);
 }
 /* תיבת התוכן בקואורדינטות הקנבס (2200×1400, x משמאל): התכנית + כל המוקדים והאזורים.
    מאז שהתכנית יושבת במרכז הקנבס, "התאם לתצוגה" חייב להתאים לתוכן — לא לקנבס כולו */
@@ -3148,7 +3150,7 @@ function planWallSegs() {
 /* מרכז אייקון (קנבס) → מיקום על הקיר הקרוב, או null. טווח המשיכה 10px מסך מקצה האייקון; בפינה נצמד לשני הקירות */
 function nodeWallSnap(cx, cy, Z, R) {
   R = R || 0; const PULL = R + 10 / (Z || 1), segs = planWallSegs();   /* נצמד כשקצה האייקון עד 10px מסך מהקיר */   /* R = חצי האייקון בפועל (לפי הגודל על המסך) + עובי הקיר — האייקון נוגע בקיר מבפנים, לא יושב על הקו */
-  let x = cx, y = cy, first = null;
+  let x = cx, y = cy, first = null, second = null;
   for (let pass = 0; pass < 2; pass++) {
     let best = null;
     for (const sg of segs) {
@@ -3164,9 +3166,9 @@ function nodeWallSnap(cx, cy, Z, R) {
     let nx = x - best.px, ny = y - best.py; const nl = Math.hypot(nx, ny);
     if (nl < 0.5) { const l = Math.sqrt(best.L2); nx = -best.dy / l; ny = best.dx / l; } else { nx /= nl; ny /= nl; }
     x = best.px + nx * R; y = best.py + ny * R;
-    if (!first) first = best; else break;
+    if (!first) first = best; else { second = best; break; }
   }
-  return first ? { x, y, seg: first.sg } : null;
+  return first ? { x, y, seg: first.sg, seg2: second ? second.sg : null } : null;
 }
 const isIconNode = nn => nn.kind === 'point' || nn.kind === 'panel' || nn.kind === 'rack';   /* פאנל הוא תמיד אייקון בתכנית — הקופסה הפתוחה שלו צפה לידו */
 function objAttachDrop(n) {
@@ -5109,8 +5111,8 @@ function renderWires() {
     pp.forEach((q, i) => { out += `<circle data-cdpt="${i}" cx="${q.x}" cy="${q.y}" r="${7 / ZW}" fill="#fff" stroke="${col}" stroke-width="${2.5 / ZW}" style="pointer-events:all;cursor:grab"/>`; }); }
   /* קווי יישור בזמן גרירת מוקד */
   if (window.__wallG) {   /* הקיר שהרמקול נצמד אליו — נדלק בירוק בזמן הגרירה */
-    const [wa, wb] = window.__wallG, zz = getZ() || 1;
-    out += `<line x1="${wa.x}" y1="${wa.y}" x2="${wb.x}" y2="${wb.y}" stroke="#16a34a" stroke-width="${Math.max(4, Math.min(14, P.scale ? 0.15 / P.scale : 8)) + 3 / zz}" stroke-linecap="round" opacity=".9" pointer-events="none"/>`;   /* רחב מעט מהקיר עצמו — נראה גם מעל קיר עבה */
+    const zz = getZ() || 1;
+    for (const [wa, wb] of window.__wallG) out += `<line x1="${wa.x}" y1="${wa.y}" x2="${wb.x}" y2="${wb.y}" stroke="#16a34a" stroke-width="${Math.max(4, Math.min(14, P.scale ? 0.15 / P.scale : 8)) + 3 / zz}" stroke-linecap="round" opacity=".9" pointer-events="none"/>`;   /* רחב מעט מהקיר עצמו — נראה גם מעל קיר עבה */
   }
   if (window.__alignG) {
     const g = window.__alignG, EX = 6000;
@@ -10261,7 +10263,7 @@ document.addEventListener('pointermove', e => {
         if (mEl) { const mr = mEl.getBoundingClientRect(); drag.micR = mr.width / Z / 2 + 2.5; drag.micDx = (mr.left + mr.width / 2 - cvr.left) / Z - (2200 - drag.ox); drag.micDy = (mr.top + mr.height / 2 - cvr.top) / Z - drag.oy; }   /* האלמנט עדיין במקום ההתחלתי (ox/oy) — המיקום החדש עוד לא הוחל עליו */
         else { drag.micR = 0; drag.micDx = -20; drag.micDy = 24; } }
       const w = nodeWallSnap(2200 - drag.n.x + drag.micDx, drag.n.y + drag.micDy, Z, drag.micR);
-      if (w) { drag.n.x = 2200 - (w.x - drag.micDx); drag.n.y = w.y - drag.micDy; drag.att = null; window.__alignG = null; window.__wallG = w.seg; } else window.__wallG = null;
+      if (w) { drag.n.x = 2200 - (w.x - drag.micDx); drag.n.y = w.y - drag.micDy; drag.att = null; window.__alignG = null; window.__wallG = w.seg2 ? [w.seg, w.seg2] : [w.seg]; } else window.__wallG = null;
     } else window.__wallG = null;
   }
   const el = document.getElementById('nd_' + drag.n.id);
@@ -11295,7 +11297,13 @@ const KIT_BRANDS = [['FUNKTION ONE', /FUNKTION\s*-?\s*ONE|\bF1\b|\bF\d{2,3}\b|EV
 const KIT_SUB_RX = /סאב|\bsub\b|NOMOS|MB2|BR\s?1|\bSB\s?\d|F118|F121|F124|F218|F221|TILL\s?1[58]P?\s?SUB|\b1[1258]S\b|SUB\s?\d/i;
 /* שם לפי התוכן עם המותג המוביל בראש: "FUNKTION ONE · 6× F 5 · 2× SB 8 · DNA 20" */
 const KIT_BRAND_SHORT = { 'KT / Unicorn': 'KT' };
+const kitStdCache = new WeakMap();
 function kitStdName(k) {
+  /* מחושב פעם אחת לקיט (עד שהפריטים משתנים) — החיפוש בהצעה קורא לזה לכל קיט בכל רינדור, כולל בכל צעד זום */
+  if (k && typeof k === 'object' && k.name) { const sig = (k.items || []).length + '|' + (k.items || []).map(x => (x.key || x.name) + '*' + x.qty).join(','); const c = kitStdCache.get(k); if (c && c.sig === sig) return c.v; const v = kitStdName0(k); kitStdCache.set(k, { sig, v }); return v; }
+  return kitStdName0(k);
+}
+function kitStdName0(k) {
   const core = kitStdCore(k); if (!core) return k.name || '';
   const b = kitBrands({ name: '', items: k.items })[0]; if (!b) return core;
   const lbl = KIT_BRAND_SHORT[b] || b;
@@ -12070,10 +12078,13 @@ function pickKitForZone(zoneName, i) {
 }
 /* מחיקת כל השורות המסומנות ✓ בהצעת המחיר */
 async function deleteMarked() {
-  const marked = impItems.filter(it => it.on);
-  if (!marked.length) { alert('סמן שורות ✓ למחיקה'); return; }
-  if (!(await uiConfirm(`למחוק ${marked.length} שורות מסומנות מהצעת המחיר?\n(מוקדים שהוצבו מהן בתכנית לא יימחקו)`))) return;
-  impItems = impItems.filter(it => !it.on);
+  /* רק שורות עם תיבת סימון מסומנת. שורות שכבר בתכנית מוצגות עם ✓ קבוע (אי אפשר לבטל אותו) — הן לא נספרות ולא נמחקות כאן */
+  const isMarked = it => it.on && !it.added;
+  const marked = impItems.filter(isMarked);
+  if (!marked.length) { uiToast('סמן שורות (תיבת הסימון) למחיקה — שורות שכבר בתכנית נמחקות אחת-אחת'); return; }
+  const inPlan = impItems.filter(it => it.on && it.added).length;
+  if (!(await uiConfirm(`למחוק ${marked.length} שורות מסומנות מהצעת המחיר?${inPlan ? '\n' + inPlan + ' שורות שכבר בתכנית (✓) לא יימחקו.' : ''}`))) return;
+  impItems = impItems.filter(it => !isMarked(it));
   render(); save();
 }
 /* ===== שליחת הצעה ל-ERP =====
@@ -13767,6 +13778,7 @@ function zoneKitConfirm(zname, idx, opt) {
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
+    <div data-ktot style="text-align:left;font-weight:800;font-size:13px;margin:0 2px 8px"></div>
     ${!kitHasSpk && INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
     ${z && kitHasSpk ? `<div style="background:#f4f2ec;border-radius:8px;padding:7px 9px;margin-bottom:7px">
       <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px">🔊 סוג פריסה ב"${esc(z.name)}" — קובע איך יוצבו הרמקולים</label>
@@ -13777,8 +13789,8 @@ function zoneKitConfirm(zname, idx, opt) {
       </div>
     </div>` : ''}
     ${!kitHasSpk && z ? `<button data-srcwire style="width:100%;margin-bottom:6px;background:#efecfd;color:#4b3fb8;border:1px solid #c9c0f5;font-weight:700">🎧 חיווט מקורות שמע אל הארון — טבלת המקורות בלבד</button>` : ''}
-    ${opt && opt.dock ? '<button class="primary" data-only style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף להצעת המחיר (בלי הצבה על התכנית)</button>' : ''}
-    <button ${opt && opt.dock ? '' : 'class="primary"'} data-asis style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף את הקיט להצעה והצב על התכנית</button>
+    ${opt && opt.dock ? '<button data-only style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף להצעת המחיר (בלי הצבה על התכנית)</button>' : ''}
+    <button class="primary" data-asis style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף את הקיט להצעה והצב על התכנית</button>
     ${kitHasSpk ? `<button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>` : ''}
     <button data-cancel style="width:100%">ביטול</button>`);
   const done = () => ov.remove();
@@ -13800,7 +13812,7 @@ function zoneKitConfirm(zname, idx, opt) {
       <div style="display:flex;gap:6px;align-items:center">
         <input data-kq="${i}" type="number" min="0" value="${x.qty}" style="width:48px;font-size:12px;padding:2px 4px;flex:none">
         <span style="flex:1;font-size:11.5px;text-align:right">${esc((x.name || '').slice(0, 46))}</span>
-        ${(() => { const inf = x.key ? erpInfo(x.key) : null; const pr = inf ? inf.price : 0; return pr ? `<b style="white-space:nowrap;font-size:11px">₪${Math.round(pr * (x.qty || 1)).toLocaleString()}</b><span class="muted" style="font-size:9.5px;white-space:nowrap">₪${Math.round(pr).toLocaleString()}/יח׳</span>` : '<span class="muted" style="font-size:10px">—</span>'; })()}
+        ${(() => { const inf = x.key ? erpInfo(x.key) : null; const pr = inf ? inf.price : 0; return pr ? `<b data-ksum="${i}" style="white-space:nowrap;font-size:11px">₪${Math.round(pr * (+x.qty || 0)).toLocaleString()}</b><span class="muted" style="font-size:9.5px;white-space:nowrap">₪${Math.round(pr).toLocaleString()}/יח׳</span>` : '<span class="muted" style="font-size:10px">—</span>'; })()}
         ${x.key ? `<span style="background:#f0ede8;border-radius:5px;padding:1px 6px;font-size:10px;white-space:nowrap" title="מק&quot;ט ERP">${esc(String(x.key))}</span>` : '<span style="color:#c1121f;font-size:10px;white-space:nowrap">ללא מק"ט</span>'}
         <button data-swap="${i}" title="החלף פריט מהקטלוג" style="padding:1px 6px;font-size:11px;flex:none">🔄</button>
       </div>
@@ -13809,7 +13821,11 @@ function zoneKitConfirm(zname, idx, opt) {
         <div>${swapQ.trim() ? (dockSearchResults(swapQ).filter(r => r.type === 'item').slice(0, 6).map((r, ri2) => `<button data-pick="${ri2}" style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;font-size:11px;padding:3px 6px;margin-top:2px;border:1px solid #eee;border-radius:6px;background:#faf8f4;cursor:pointer"><span style="flex:1;text-align:right">${esc(r.name.slice(0, 46))}${r.key ? ' · ' + esc(String(r.key)) : ''}</span>${stockTag(r.key)}</button>`).join('') || '<small class="muted">אין תוצאות</small>') : ''}
       </div>` : ''}
     </div>`).join('');
-    rowsEl.querySelectorAll('[data-kq]').forEach(inp => { inp.onchange = () => { cur[+inp.dataset.kq].qty = Math.max(0, +inp.value || 0); }; });
+    /* שינוי כמות מעדכן מיד את סכום השורה ואת סה"כ הקיט */
+    const kTot = () => { let t = 0; cur.forEach((x, i) => { const inf = x.key ? erpInfo(x.key) : null, pr = inf ? inf.price : 0, sm = pr * (+x.qty || 0); t += sm; const el = rowsEl.querySelector('[data-ksum="' + i + '"]'); if (el) el.textContent = '₪' + Math.round(sm).toLocaleString(); });
+      const te = ov.querySelector('[data-ktot]'); if (te) te.textContent = 'סה"כ הקיט: ₪' + Math.round(t).toLocaleString() + ' · ' + cur.filter(x => x.qty > 0).length + ' שורות'; };
+    rowsEl.querySelectorAll('[data-kq]').forEach(inp => { inp.oninput = inp.onchange = () => { cur[+inp.dataset.kq].qty = Math.max(0, +inp.value || 0); kTot(); }; });
+    kTot();
     rowsEl.querySelectorAll('[data-swap]').forEach(b => { b.onclick = () => { swapIdx = swapIdx === +b.dataset.swap ? null : +b.dataset.swap; swapQ = ''; renderRows(); }; });
     const sq = rowsEl.querySelector('[data-swapq]');
     if (sq) sq.oninput = () => { swapQ = sq.value; renderRows(); const s3 = rowsEl.querySelector('[data-swapq]'); if (s3) { s3.focus(); s3.setSelectionRange(s3.value.length, s3.value.length); } };
