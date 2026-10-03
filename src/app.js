@@ -3540,7 +3540,7 @@ function renderNodes() {
             else { cx = PADL + li * STEP + STEP / 2; li++; }
             let cc = null, role = '';
             if (it.port && /^(OUT|LNK)/.test(it.port)) { role = 'out'; cc = P.cables.find(c => c.from === n.id && c.fromUnit === u.id && c.pOut === it.port); }
-            else if (it.port && /^IN/.test(it.port)) { role = 'in'; cc = P.cables.find(c => c.to === n.id && c.toUnit === u.id && c.pIn === it.port); }
+            else if (it.port && /^IN/.test(it.port)) { role = 'in'; cc = P.cables.find(c => c.to === n.id && c.toUnit === u.id && cablePIns(c).includes(it.port)); }
             /* צילום לדוח: תמונה של הפנימיים בלבד / של היוצאים בלבד — המחבר מסומן רק בכבל הרלוונטי */
             if (cc && window.__rearFilter === 'int' && cc.from !== cc.to) cc = null;
             if (cc && window.__rearFilter === 'ext' && cc.from === cc.to) cc = null;
@@ -3928,8 +3928,10 @@ function drawRearCables(n, d) {
        כדי שהנקודה תשב על המכשיר ולא תיפול לקצה הארון.
        (panelW לא קיים כאן — נגזר מרוחב השלדה בקואורדינטות הטבעיות) */
     const natW = cr.width / ZK;
-    const pp = port[uid + '|' + (p || '')] || { x: Math.max(40, natW - 250), y: (ub.top + ub.bottom) / 2 };
+    const pins = !isFrom ? cablePIns(c) : [];
+    const pp = port[uid + '|' + (pins.length > 1 ? pins[0] : (p || ''))] || { x: Math.max(40, natW - 250), y: (ub.top + ub.bottom) / 2 };
     if (!pp) return;
+    const pp2 = pins.length > 1 ? port[uid + '|' + pins[1]] : null;   /* פיצול: אותו כבל נכנס גם לכניסה השנייה */
     /* כל כבל יוצא בנתיב משלו — התעלה רצה ברווח שמתחת למכשיר, לא עליו */
     const col = cableColor(c);
     const laneY = ub.bottom + 5 + (k % 8) * 5;   /* נתיב נפרד לכל כבל — בלי חזרות שמאחדות קווים */
@@ -3937,6 +3939,7 @@ function drawRearCables(n, d) {
     const exitX = trunkX0 - k * 3.5, exitY = exitDown ? chBot : chTop; trunkXs.push(exitX);
     out += `<path d="M ${pp.x} ${pp.y} L ${pp.x} ${laneY} L ${exitX} ${laneY} L ${exitX} ${exitY}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
     out += `<circle cx="${pp.x}" cy="${pp.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/>`;
+    if (pp2) out += `<path d="M ${pp2.x} ${pp2.y} L ${pp2.x} ${laneY} L ${pp.x} ${laneY}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${pp2.x}" cy="${pp2.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/><circle cx="${pp.x}" cy="${laneY}" r="3.2" fill="${col}"/>` + badge(pp2.x, (pp2.y + laneY) / 2, LBL[c.id], col, c.id);
     out += badge(pp.x, (pp.y + laneY) / 2, LBL[c.id], col, c.id);
     REAREXIT[c.id] = { nodeId: n.id, pt: toCanvas(exitX, exitY) };
   });
@@ -5327,7 +5330,7 @@ function ioPanelHTML(name, nid, unitId) {
       const isOut = it.port && /^(OUT|LNK)/.test(it.port), isIn = it.port && /^IN/.test(it.port);
       let cc = null;
       if (isOut) cc = P.cables.find(c => c.from === nid && c.fromUnit === unitId && c.pOut === it.port);
-      else if (isIn) cc = P.cables.find(c => c.to === nid && c.toUnit === unitId && c.pIn === it.port);
+      else if (isIn) cc = P.cables.find(c => c.to === nid && c.toUnit === unitId && cablePIns(c).includes(it.port));
       const col = cc ? cableColor(cc) : null;
       const click = it.port ? (cc ? `pickCable('${cc.id}')` : `portClick('${nid}','${unitId}','${it.port}',${isOut})`) : '';
       return `<span onclick="${click}" title="${esc(it.label || it.t)}${cc ? ' · כבל ' + LBL[cc.id] : it.port ? ' — לחץ לחיבור' : ''}" style="position:relative;cursor:${it.port ? 'pointer' : 'default'};display:inline-flex;flex-direction:column;align-items:center">
@@ -5347,7 +5350,7 @@ function ioPanelHTML(name, nid, unitId) {
         const isOut = it.port && /^(OUT|LNK)/.test(it.port), isIn = it.port && /^IN/.test(it.port);
         let cc = null;
         if (isOut) cc = P.cables.find(c => c.from === nid && c.fromUnit === unitId && c.pOut === it.port);
-        else if (isIn) cc = P.cables.find(c => c.to === nid && c.toUnit === unitId && c.pIn === it.port);
+        else if (isIn) cc = P.cables.find(c => c.to === nid && c.toUnit === unitId && cablePIns(c).includes(it.port));
         const col = cc ? cableColor(cc) : null;
         const click = it.port && nid ? (cc ? `pickCable('${cc.id}')` : `portClick('${nid}','${unitId}','${it.port}',${!!isOut})`) : '';
         return { click, col, num: cc ? LBL[cc.id] : '', tip: cc ? 'כבל ' + LBL[cc.id] : it.port ? 'לחץ לחיבור' : '' };
@@ -5486,7 +5489,7 @@ function ioRoutingHTML(name, nid, unitId) {
   }
   h += `<div style="font-weight:800;font-size:11px;margin-top:8px">כניסות IN</div>`;
   for (let k = 1; k <= inN; k++) {
-    const c = P.cables.find(c => c.to === nid && c.toUnit === unitId && c.pIn === 'IN ' + k);
+    const c = P.cables.find(c => c.to === nid && c.toUnit === unitId && cablePIns(c).includes('IN ' + k));
     h += c
       ? line(`<b>IN ${k}</b> תפוס ⟵ מ-${endName(c.from, c.fromUnit)} <span class="badge" style="background:${cableColor(c)}">${LBL[c.id]}</span>`, 'used', `pickCable('${c.id}')`)
       : line(`<b>IN ${k}</b> פנוי — לחץ לחיבור`, 'free', `portClick('${nid}','${unitId}','IN ${k}',false)`);
@@ -14568,6 +14571,11 @@ function delUnit(nid, idx) {
   if (u && u.srcIid) unplace(u.srcIid);
   byId(nid).units.splice(idx, 1);
   render();
+}
+/* כבל אחד שנכנס לשתי כניסות (מולטי L+R: pIn = "IN 1+2") — רשימת הכניסות שהוא תופס */
+function cablePIns(c) {
+  const p = String((c && c.pIn) || ''), m = /^IN\s*(\d+)\s*\+\s*(\d+)$/.exec(p);
+  return m ? ['IN ' + m[1], 'IN ' + m[2]] : (p ? [p] : []);
 }
 /* סוג כבל מהשם — כשלפריט ההצעה אין type מפורש */
 function cableTypeFromName(nm) {
