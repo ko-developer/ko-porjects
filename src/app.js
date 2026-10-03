@@ -3254,16 +3254,19 @@ function cplBadgeHTML(n, mc) {
   return link + `<div title="${ttl}" style="position:absolute;right:-8px;top:-8px;min-width:15px;height:15px;border-radius:8px;background:#fff;border:1.5px solid ${mc};color:${mc};font-size:10px;font-weight:800;line-height:12px;text-align:center;z-index:4;pointer-events:none">${sym}</div>`;
 }
 function cplApply(nid, tid, mode) {
-  const n = byId(nid); let t = byId(tid); document.getElementById('cplAsk')?.remove(); if (!n || !t) return;
+  let n = byId(nid), t = byId(tid); document.getElementById('cplAsk')?.remove(); if (!n || !t) return;
   if (mode === 'none') { if (n.att) delete n.att.cpl; save(); render(); return; }
+  /* Stack / תלוי: הסאב הוא העוגן (נשאר במקומו ומוצג גדול), הטופ יושב עליו באותה נקודה — גם אם גררו את הסאב על הטופ */
+  if ((mode === 'stack' || mode === 'fly') && cplIsSub(n) && !cplIsSub(t)) { const tmp = n; n = t; t = tmp; }
   if (t.att && t.att.id === n.id) delete t.att;
   let sx = 0, sy = 0;
-  if (mode === 'stack' || mode === 'fly') sy = cplIsSub(t) ? -1 : 1;          /* הטופ תמיד למעלה */
+  if (mode === 'stack' || mode === 'fly') { sx = 0; sy = 0; }
   else if (mode === 'line') sy = 1;
   else sx = n.x <= t.x ? 1 : -1;                                              /* x נמדד מימין: x קטן = ימינה במסך */
   /* המשבצת תפוסה? ממשיכים בסוף השרשרת — רמקול שלישי מצטרף לשורה/לטור */
   for (let g = 0; g < 12; g++) { const f = P.nodes.find(q => q !== n && !q.hidden && q.att && q.att.id === t.id && q.att.sx === sx && q.att.sy === sy); if (!f) break; t = f; }
   n.att = { id: t.id, sx, sy, cpl: mode };
+  if (sx === 0 && sy === 0) { n.x = t.x; n.y = t.y; }   /* אותה נקודה — הטופ נשמר במיקום הסאב, התצוגה מרימה אותו */
   save(); render();
   uiToast({ side: '↔ צימוד צד לצד — הפיזור האופקי של המערך התרחב', line: '↕ ליין אראיי — אותו פיזור, עוצמה גבוהה יותר על הציר', stack: '▂ Stack — הטופ יושב על הסאב', fly: '⇡ הטופ תלוי מעל הסאב' }[mode]);
 }
@@ -3299,7 +3302,10 @@ function attachArrange() {
       const el = document.getElementById('nd_' + n.id), ea = document.getElementById('nd_' + a.id); if (!el || !ea) continue;
       const mN = bx(el.querySelector('.mic') || el), nN = bx(el), mA = bx(ea.querySelector('.mic') || ea), nA = bx(ea), t = n.att;
       /* הצמדה אייקון-לאייקון (ולא לפי תיבת המוקד עם הכיתוב): תחתית הטופ נוגעת בראש הסאב, רווח 2px */
-      const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1), tcy = t.sy === 0 ? mA.cy : mA.cy + t.sy * ((mA.H + mN.H) / 2 + (t.cpl === 'fly' ? 11 / Z : 0));   /* 0 רווח — האייקונים נוגעים; "תלוי מעל" — רווח קטן עם קו מקווקו */
+      const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1);
+      const tcy = t.cpl === 'stack' ? mA.cy - mA.H * 0.42 - mN.H * 0.2                       /* יושב על הסאב — חופף את חלקו העליון */
+        : t.cpl === 'fly' ? mA.cy - mA.H / 2 - mN.H / 2 - 11 / Z                             /* תלוי מעל — רווח וקו מקווקו */
+        : t.sy === 0 ? mA.cy : mA.cy + t.sy * ((mA.H + mN.H) / 2);   /* 0 רווח — האייקונים נוגעים; "תלוי מעל" — רווח קטן עם קו מקווקו */
       const dX = tcx - mN.cx, dY = tcy - mN.cy; if (Math.abs(dX) < 0.3 && Math.abs(dY) < 0.3) continue;
       const nr = parseFloat(el.style.right) - dX, nt = parseFloat(el.style.top) + dY; el.style.right = nr + 'px'; el.style.top = nt + 'px';
       n._fanX = nr - n.x + (n._chW || 0); n._fanY = nt - n.y; changed = true; }
@@ -3385,6 +3391,7 @@ function renderNodes() {
   const stackAt = {}, stackOf = {};
   for (const n of P.nodes) {
     if (n.hidden) continue;
+    if (n.att && (n.att.cpl === 'stack' || n.att.cpl === 'fly')) continue;   /* טופ על סאב — באותה נקודה בכוונה, לא נפרש */
     const k = Math.round(n.x / 4) + '|' + Math.round(n.y / 4);   /* רק מוקדים שיושבים ממש באותה נקודה נפרשים — אייקון שהונח ליד אחר נשאר בדיוק איפה שהונח */
     (stackAt[k] = stackAt[k] || []).push(n.id);
   }
@@ -3661,7 +3668,10 @@ function renderNodes() {
       else
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="15" r="4" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="7" r="1.8" fill="${mc}"/></svg>`;
       /* אייקון בערימה (טופ על סאב): המספר עובר לצד האייקון — אחרת האייקון שמעליו מכסה אותו */
-      const stk = !!(n.att && n.att.sy) || P.nodes.some(o => o.att && o.att.id === n.id && o.att.sy);
+      const cplOn = n.att && n.att.cpl, anchorOf = P.nodes.find(o => !o.hidden && o.att && o.att.id === n.id && (o.att.cpl === 'stack' || o.att.cpl === 'fly'));
+      if (anchorOf) d.classList.add('cplsub');                                   /* סאב שעליו יושב טופ — מוצג גדול יותר */
+      if (cplOn === 'stack' || cplOn === 'fly') { d.style.zIndex = 12; d.classList.add('cpltop'); }
+      const stk = !!(n.att && (n.att.sy || n.att.cpl === 'stack' || n.att.cpl === 'fly')) || !!anchorOf || P.nodes.some(o => o.att && o.att.id === n.id && o.att.sy);
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}" style="cursor:grab;position:relative">
         <div class="mnum" style="background:${mc}${stk ? ';position:absolute;left:-27px;top:50%;transform:translateY(-50%);z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.4)' : ''}">${mm ? mm[1] : '•'}</div>
         <div class="mic" style="border-color:${mc}">${icon}</div>${cplBadgeHTML(n, mc)}
@@ -8386,13 +8396,16 @@ function splColorAbs(db) { return jetColor((db - COV_FLOOR) / (COV_TOP - COV_FLO
 /* מקרא צבעים אנכי בצד המסך — משתנה לפי התכלית */
 function renderCovBar(bar) {
   bar.style.display = 'block';
+  if (!bar.__float) { bar.__float = 1; bar.style.pointerEvents = 'auto'; floatBarInit(bar, 'spl');
+    if (!localStorage.getItem('koBar_spl')) { bar.style.bottom = 'auto'; bar.style.right = '14px'; bar.style.top = '50%'; bar.style.transform = 'translateY(-50%)'; } }   /* ברירת מחדל: ימין-אמצע כמו קודם; גרירה משנה ונשמרת */
+  if (P.covBarMin) { bar.innerHTML = '<button style="padding:2px 8px;font-size:11px;font-weight:700" title="הצג את סרגל ה-SPL" onclick="P.covBarMin=false;save();renderCoverage()">SPL ▸</button>'; return; }
   const u = P.covUsage || (P.zones || []).map(z => z.usage).find(Boolean) || P.room?.usage || 'מוזיקה לבר';
   const steps = 40, h = 150;
   let grad = '';
   for (let i = 0; i <= steps; i++) { const db = COV_TOP - (i / steps) * (COV_TOP - COV_FLOOR); grad += `<div style="height:${h / (steps + 1)}px;background:${splColorAbs(db)}"></div>`; }
   const ticks = [];
   for (let db = Math.ceil(COV_TOP / 5) * 5; db >= COV_FLOOR; db -= 5) ticks.push(db);
-  bar.innerHTML = `<div style="font-size:10px;font-weight:700;text-align:center;margin-bottom:3px">SPL · ${esc(u)}</div>
+  bar.innerHTML = `<div style="font-size:10px;font-weight:700;text-align:center;margin-bottom:3px;display:flex;align-items:center;gap:4px"><span style="flex:1">SPL · ${esc(u)}</span><button style="padding:0 5px;font-size:10px;line-height:14px" title="כווץ (גרירה מזיזה את הסרגל)" onclick="P.covBarMin=true;save();renderCoverage()">▾</button></div>
     <div style="display:flex;gap:4px;align-items:stretch">
       <div style="width:18px;height:${h}px;border-radius:3px;overflow:hidden;display:flex;flex-direction:column">${grad}</div>
       <div style="position:relative;height:${h}px;font-size:9px;width:26px">${ticks.map(db => `<span style="position:absolute;top:${((COV_TOP - db) / (COV_TOP - COV_FLOOR) * h - 5).toFixed(0)}px">${db}</span>`).join('')}</div>
