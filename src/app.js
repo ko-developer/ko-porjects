@@ -15502,7 +15502,21 @@ holder.classList.add('rp-zoomable');
         document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
         if (L < Infinity) { const pad = 40, bw = Math.max(R - L, 320), bh = Math.max(B - T, 260), cx = (L + R) / 2, cy = (T + B) / 2;
           regC = { L: Math.max(0, cx - bw / 2 - pad), T: Math.max(0, cy - bh / 2 - pad), R: Math.min(2200, cx + bw / 2 + pad), B: Math.min(1400, cy + bh / 2 + pad) }; } }
-      const sec = makeSnap(pg.title + ' (' + cabs.length + ' כבלים)', regC, 510);
+      /* שם קצר + מספר ליד כל רמקול/מוקד מעורב — ברור וקריא על השרטוט */
+      { const host = $('#nodes'), crL = $('#canvas').getBoundingClientRect(), ZL = getZ(), placed = [];
+        document.querySelectorAll('#nodes > .node').forEach(el => { const n = byId(el.id.replace(/^ndo?_/, '')); if (!n || n.kind !== 'point' || !inv.has(n.id)) return;
+          const r = el.getBoundingClientRect(), mm = /\(([^()]+)\)\s*$/.exec(n.name || ''), txt = (shortModel(n.name) || (n.name || '').slice(0, 14)) + (mm ? ' (' + mm[1] + ')' : '');
+          const lx = ((r.left + r.right) / 2 - crL.left) / ZL; let ly = (r.bottom - crL.top) / ZL + 3;
+          while (placed.some(p => Math.abs(p.x - lx) < 90 && Math.abs(p.y - ly) < 16)) ly += 17;   /* רמקולים צמודים (טופ על סאב, ליין אריי) — התוויות נערמות זו מתחת לזו */
+          placed.push({ x: lx, y: ly });
+          const lb = document.createElement('div'); lb.className = 'rpTmpLbl'; lb.textContent = txt;
+          lb.style.cssText = 'position:absolute;z-index:9;white-space:nowrap;font-size:11px;font-weight:800;color:#111;background:rgba(255,255,255,.96);border:1.5px solid ' + CAT_COL[cat] + ';border-radius:6px;padding:0 5px;line-height:15px;pointer-events:none;direction:ltr;left:' + lx + 'px;top:' + ly + 'px;transform:translateX(-50%)';
+          host.appendChild(lb); }); }
+      const sec = makeSnap(pg.title + ' (' + cabs.length + ' כבלים)', regC, 950);
+      document.querySelectorAll('#nodes > .rpTmpLbl').forEach(x => x.remove());
+      /* מספרי הכבלים על התכנית — מוגדלים */
+      sec._holder.querySelectorAll('[data-cbadge]').forEach(g => { g.querySelectorAll('circle').forEach(c => { c.setAttribute('r', (parseFloat(c.getAttribute('r')) || 6) * 1.35); c.setAttribute('fill', '#fff'); });
+        g.querySelectorAll('text').forEach(t => { const fz = parseFloat(t.getAttribute('font-size')) || 9; t.setAttribute('font-size', fz * 1.4); t.setAttribute('font-weight', '900'); t.setAttribute('dy', (fz * 0.14).toFixed(1)); }); });
       document.querySelectorAll('#nodes > .node').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; el.style.opacity = ''; });
       /* הארונות (בתצוגת גב, עם החיווט) והקופסאות המעורבים — נפתחים רגע, מועתקים כמו שהם, ונסגרים */
       const sideEls = [];
@@ -15517,15 +15531,12 @@ holder.classList.add('rp-zoomable');
           cl.classList.remove('sel'); cl.style.cssText += ';position:absolute;right:auto;left:0;top:0;margin:0;outline:none;opacity:1;transform-origin:top left;width:' + w0 + 'px';
           sideEls.push({ cl, w0, h0, n }); });
         stSaved.forEach(([n, a, b2, c2]) => { if (n.kind === 'rack') { n.min = a; n.rear = c2; } else n.pmin = b2; }); }
-      const holder = sec._holder; holder.style.margin = '0'; holder.style.flex = 'none';
-      /* השרטוט מימין, גב הארון (עם מספרי הכבלים על המחברים) משמאל, ורשימת הקווים מתחת — ברוחב מלא */
-      const rowD = document.createElement('div'); rowD.style.cssText = 'display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap'; rowD.appendChild(holder);
-      if (sideEls.length) { const SW = 420, rearD = document.createElement('div'); rearD.style.cssText = 'flex:none;width:' + SW + 'px';
-        sideEls.forEach(({ cl, w0, h0, n }) => { const k2 = n.kind === 'rack' ? SW / w0 : Math.min(1.2, SW / w0), box   /* גב הארון מוקטן בתוך האלמנט — מגדילים לרוחב העמודה */ = document.createElement('div');
-          box.style.cssText = 'position:relative;width:' + Math.round(w0 * k2) + 'px;height:' + Math.round(h0 * k2) + 'px;margin:0 auto 10px;page-break-inside:avoid;overflow:hidden';
+      /* השרטוט ברוחב מלא; מתחתיו גב הארון (והקופסאות המעורבות) בגדול; ומתחת — רשימת הקווים */
+      if (sideEls.length) { const rearD = document.createElement('div'); rearD.style.cssText = 'display:flex;gap:14px;flex-wrap:wrap;justify-content:center;align-items:flex-start;margin-top:12px';
+        sideEls.forEach(({ cl, w0, h0, n }) => { const k2 = n.kind === 'rack' ? Math.min(900 / w0, 620 / h0) : Math.min(1.3, 420 / w0), box = document.createElement('div');   /* גב הארון מוקטן בתוך האלמנט — מגדילים */
+          box.style.cssText = 'position:relative;flex:none;width:' + Math.round(w0 * k2) + 'px;height:' + Math.round(h0 * k2) + 'px;page-break-inside:avoid;overflow:hidden';
           cl.style.transform = 'scale(' + k2.toFixed(4) + ')'; box.classList.add('rp-zoomable'); box.appendChild(cl); rearD.appendChild(box); });
-        rowD.appendChild(rearD); } else holder.style.margin = '0 auto';
-      sec.appendChild(rowD);
+        sec.appendChild(rearD); }
       const lad = document.createElement('div'); lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); sec.appendChild(lad);
       snaps.push(sec);
     }
