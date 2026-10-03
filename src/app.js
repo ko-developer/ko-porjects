@@ -3669,6 +3669,7 @@ function renderNodes() {
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="15" r="4" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="7" r="1.8" fill="${mc}"/></svg>`;
       /* אייקון בערימה (טופ על סאב): המספר עובר לצד האייקון — אחרת האייקון שמעליו מכסה אותו */
       const cplOn = n.att && n.att.cpl, anchorOf = P.nodes.find(o => !o.hidden && o.att && o.att.id === n.id && (o.att.cpl === 'stack' || o.att.cpl === 'fly'));
+      if (cplIsSub(n) || /סאב|\bsub\b|NOMOS|TILL\s?18|SB-?\d|וופר/i.test(n.name || '')) d.classList.add('subico');   /* סאב — אייקון גדול ב-30% מטופ */
       if (anchorOf) d.classList.add('cplsub');                                   /* סאב שעליו יושב טופ — מוצג גדול יותר */
       if (cplOn === 'stack' || cplOn === 'fly') { d.style.zIndex = 12; d.classList.add('cpltop'); }
       const stk = !!(n.att && (n.att.sy || n.att.cpl === 'stack' || n.att.cpl === 'fly')) || !!anchorOf || P.nodes.some(o => o.att && o.att.id === n.id && o.att.sy);
@@ -11966,9 +11967,11 @@ function dockSearchResults(q) {
   const CAP = 400;   /* אוספים הרבה וחותכים אחרי המיון — אחרת חלקי חילוף "גונבים" את המקומות לפני המוצרים */
   const K = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [];
   const userK = (store.userKits || []);
+  const liveKits = new Set(allKits());
   /* קיטים קודם — הם התשובה הכי "גדולה" לחיפוש */
   [...K, ...userK].forEach((k, i) => {
-    if (res.length >= CAP || !hit(k.name)) return;
+    if (res.length >= CAP || !hit(k.name + ' ' + kitStdName(k))) return;
+    if (!liveKits.has(k) || kitHidden(k.name)) return;   /* קיט מוסתר, או קיט ERP שגרסה שלי מחליפה — לא מוצג פעמיים */
     res.push({ type: 'kit', i, name: k.name, n: (k.items || []).length });
   });
   const addItem = (name, key) => {
@@ -12528,9 +12531,11 @@ function renderImp() {
   const q = dockQ.trim();
   const allRes = q ? dockSearchResults(q) : [];
   const catN = {}; allRes.forEach(r => { if (r.cat) catN[r.cat] = (catN[r.cat] || 0) + 1; });
-  const results = dockCat ? allRes.filter(r => r.cat === dockCat) : allRes;
+  const kitN = allRes.filter(r => r.type === 'kit').length;
+  if (dockCat === 'kit' && !kitN) dockCat = '';
+  const results = dockCat === 'kit' ? allRes.filter(r => r.type === 'kit') : dockCat ? allRes.filter(r => r.cat === dockCat) : allRes;
   let lastCat = null;
-  const catBar = q && allRes.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin:-2px 0 6px"><button onclick="dockCat='';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat ? '' : 'background:#1a1e28;color:#fff'}">הכל ${allRes.length}</button>${SRCH_CATS.filter(([c]) => catN[c]).map(([c, l]) => `<button onclick="dockCat='${c}';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat === c ? 'background:#1a1e28;color:#fff' : ''}">${l} ${catN[c]}</button>`).join('')}</div>` : '';
+  const catBar = q && allRes.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin:-2px 0 6px"><button onclick="dockCat='';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat ? '' : 'background:#1a1e28;color:#fff'}">הכל ${allRes.length}</button>${kitN ? `<button onclick="dockCat='kit';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat === 'kit' ? 'background:#1a1e28;color:#fff' : ''}">🧰 קיטים ${kitN}</button>` : ''}${SRCH_CATS.filter(([c]) => catN[c]).map(([c, l]) => `<button onclick="dockCat='${c}';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat === c ? 'background:#1a1e28;color:#fff' : ''}">${l} ${catN[c]}</button>`).join('')}</div>` : '';
   const catHdr = r => { if (dockCat || !r.cat || r.cat === lastCat) return ''; lastCat = r.cat; return `<div style="font-size:11px;font-weight:800;color:#666;margin:6px 2px 2px">${(SRCH_CATS.find(x => x[0] === r.cat) || [])[1] || ''}</div>`; };
   dk.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:6px">
       <h3 style="font-size:14px;flex:1;margin:0">🧾 הצעת מחיר · פריטים (${impItems.length})</h3>
