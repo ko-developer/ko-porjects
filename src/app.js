@@ -1534,7 +1534,9 @@ function addNode(kind, rtype) {
   uiToast((kind === 'rack' ? '🗄 ארון חדש' : kind === 'panel' ? '🧩 פאנל חדש' : kind === 'power' ? '⚡ הכנת חשמל — בחר סוג שקע/סיקון ולחץ על החורים' : '📍 מוקד חדש') + ' נוסף במרכז המסך — גרור אותו למקום');
 }
 async function delNode(id) {
-  if (!(await uiConfirm('למחוק את המוקד וכל הכבלים שלו?'))) return;
+  const n0 = byId(id);
+  { const nc = (P.cables || []).filter(c => c.from === id || c.to === id).length;
+    if (!(await uiConfirm('למחוק את המוקד "' + (n0 ? (n0.name || '').slice(0, 60) : '') + '"' + (nc === 1 ? ' ואת הכבל שלו' : nc ? ' ואת ' + nc + ' הכבלים שלו' : '') + '?'))) return; }
   const n = byId(id);
   if (n) {
     if (n.srcIid) unplace(n.srcIid); /* מחיקה מחזירה את הפריט לרשימה למשיכה חוזרת */
@@ -8903,6 +8905,7 @@ function renderPanel() {
     const sorted = n.units.map((u, i) => ({ u, i })).sort((a, b) => a.u.pos - b.u.pos);
     html += `<div class="fld"><label>סוג ארון</label><select onchange="setRackType('${n.id}',this.value)">${Object.entries(RACK_TYPES).map(([k, t]) => `<option value="${k}" ${(n.rtype || 'rack') === k ? 'selected' : ''}>${t.ic} ${t.n}</option>`).join('')}</select></div>
     <div class="fld"><label>${n.rtype === 'elec' ? 'מספר מסילות DIN' : n.rtype === 'boxWp' ? 'גובה פנימי (שורות ציוד)' : 'גובה ארון (U)'}</label><input type="number" min="1" max="48" value="${n.ru}" onchange="byId('${n.id}').ru=+this.value;render()"></div>
+      ${rackSurplusHTML(n)}
       <h3 class="sec">יחידות בארון — ▲▼ להזזה, או הקלד מיקום U</h3><ul class="ulist">` +
       sorted.map(({ u, i }) => `<li>
         <span class="sw" style="background:${(CATS[u.cat] || CATS.other).c}"></span><b>${esc(u.name)}</b>
@@ -14525,6 +14528,41 @@ function connPinFromItem(iid) {
   pinMode = null; wireMode = null; wireStock = null;
   render();
 }
+/* יחידות בארון מעבר לכמות שבהצעת המחיר (מגברים / פרוססורים): התראה + הסרה של העודפים */
+function rackSurplus(n) {
+  const out = [], seen = new Set();
+  for (const u of n.units || []) {
+    if (seen.has(u.name) || !(u.cat === 'amp' || u.cat === 'proc' || /מגבר|פרוססור/.test(u.name || ''))) continue; seen.add(u.name);
+    const inRack = P.nodes.filter(r => r.kind === 'rack').reduce((a, r) => a + (r.units || []).filter(x => x.name === u.name).length, 0);
+    /* אותו מוצר גם כששם היחידה בארון קוצר: שם זהה / תחילית / אותו דגם / השורה שממנה היחידה הוצבה */
+    const sm = shortModel(u.name), same = it => { const a2 = it.name || '', b2 = u.name || ''; return a2 === b2 || a2.startsWith(b2) || b2.startsWith(a2) || (sm && sm.length >= 3 && shortModel(a2) === sm) || (u.srcIid && it.iid === u.srcIid); };
+    const offer = impItems.filter(it => it.on !== false && same(it)).reduce((a, it) => a + (+it.qty || 0), 0);
+    const here = (n.units || []).filter(x => x.name === u.name).length;
+    if (inRack > offer) out.push({ name: u.name, inRack, offer, extra: Math.min(here, inRack - offer) });
+  }
+  return out;
+}
+function rackSurplusHTML(n) {
+  const sp = rackSurplus(n); if (!sp.length) return '';
+  return '<div style="background:#fdf0f0;border:1px solid #e9b4b4;border-radius:9px;padding:7px 9px;margin-bottom:8px;font-size:12px">' + sp.map(x =>
+    '<div style="display:flex;gap:8px;align-items:center;margin:2px 0"><span style="flex:1">⚠ <b>' + esc(shortModel(x.name) || x.name.slice(0, 30)) + '</b> — בארונות ' + x.inRack + ', בהצעת המחיר ' + x.offer + '</span>' +
+    '<button style="padding:2px 9px;background:#fff;color:#c1121f;font-weight:700;border:1px solid #e9b4b4;white-space:nowrap" onclick="rackTrimSurplus(\'' + n.id + '\',\'' + jsq(x.name) + '\')">🗑 הסר ' + x.extra + ' עודפים מהארון</button></div>').join('') + '</div>';
+}
+async function rackTrimSurplus(nid, name) {
+  const n = byId(nid); if (!n) return;
+  const sp = rackSurplus(n).find(x => x.name === name); if (!sp || !sp.extra) return;
+  const cabN = u => (P.cables || []).filter(c => (c.from === nid && c.fromUnit === u.id) || (c.to === nid && c.toUnit === u.id)).length;
+  /* קודם יחידות בלי כבלים, ומהן — התחתונות בארון */
+  const cand = (n.units || []).filter(u => u.name === name).sort((a, b) => cabN(a) - cabN(b) || b.pos - a.pos).slice(0, sp.extra);
+  const wired = cand.reduce((a, u) => a + cabN(u), 0);
+  if (wired && !(await uiConfirm('ל-' + cand.filter(u => cabN(u)).length + ' מהיחידות שיוסרו מחוברים ' + wired + ' כבלים — הם יימחקו יחד איתן. להמשיך?'))) return;
+  const ids = new Set(cand.map(u => u.id));
+  P.cables = (P.cables || []).filter(c => !((c.from === nid && ids.has(c.fromUnit)) || (c.to === nid && ids.has(c.toUnit))));
+  for (let i = n.units.length - 1; i >= 0; i--) if (ids.has(n.units[i].id)) n.units.splice(i, 1);   /* במקום — בארון משותף units הוא getter */
+  save(); render();
+  uiToast('🗑 הוסרו ' + cand.length + ' × ' + (shortModel(name) || name.slice(0, 24)) + ' מהארון' + (wired ? ' · נמחקו ' + wired + ' כבלים' : ''));
+}
+window.rackTrimSurplus = rackTrimSurplus;
 function delUnit(nid, idx) {
   const u = byId(nid).units[idx];
   if (u && u.srcIid) unplace(u.srcIid);
