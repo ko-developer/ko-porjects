@@ -2123,7 +2123,7 @@ function render() {
   try { zoneBarRender(); } catch (e) { console.warn(e); }
   if (typeof alignDragRender === 'function') alignDragRender();
   if (typeof bgFitRender === 'function') bgFitRender();
-  renderHeader(); renderBg(); applyZoom(); renderZones(); renderCoverage(); renderNodes(); renderWires(); renderPanel(); renderLegend(); renderCableKey();
+  renderHeader(); renderBg(); applyZoom(); renderZones(); renderCoverage(); renderNodes(); if (P.showCoverage) renderCoverage();   /* שוב אחרי פריסת האייקונים — הקונוסים יוצאים מהאייקון כפי שהוא מוצב בפועל */ renderWires(); renderPanel(); renderLegend(); renderCableKey();
   if (dockOpen) renderImp();
   $('#tabNode').classList.toggle('active', ui.tab === 'node');
   $('#tabCable').classList.toggle('active', ui.tab === 'cable');
@@ -3221,6 +3221,17 @@ function iconSlotFor(drag, wide, rawPos) {
     const d = Math.hypot(cx - raw.cx, cy - raw.cy); if (d < range && (!best || d < best.d)) best = { d, cx, cy, id: q.nn.id, sx: sx2, sy: sy2 }; }
   return best ? { gx: 2200 - best.cx - o.x, gy: best.cy - o.y, att: { id: best.id, sx: best.sx, sy: best.sy } } : null;
 }
+/* מרכז האייקון (קנבס) וחצי רוחבו, נמדדים מה-DOM; לפני הרינדור הראשון — הערכה לפי המיקום השמור */
+function nodeIconGeo(n) {
+  const el = document.querySelector('#nd_' + n.id + ' .mic'), cv = document.getElementById('canvas');
+  if (el && cv) { const r = el.getBoundingClientRect(), c = cv.getBoundingClientRect(), Z = getZ() || 1; if (r.width > 0) return { x: (r.left + r.width / 2 - c.left) / Z, y: (r.top + r.height / 2 - c.top) / Z, r: Math.max(r.width, r.height) / Z / 2 }; }
+  return { x: 2200 - n.x - 20, y: n.y + 24, r: 21 };
+}
+/* רמקול שהוא חלק מליין אראיי (אחד מתחת לשני): אלמנט שטוח ורחב — כמו ארון ליין אראיי בחזית */
+function cplLineMember(n) { return !!(n.att && n.att.cpl === 'line' && byId(n.att.id)) || P.nodes.some(o => !o.hidden && o.att && o.att.id === n.id && o.att.cpl === 'line'); }
+function spkLineIcon(mc) {
+  return '<svg width="30" height="11" viewBox="0 0 30 11"><rect x="1" y="1" width="28" height="9" rx="1.5" fill="none" stroke="' + mc + '" stroke-width="1.8"/><path d="M9 3.2v4.6M15 3.2v4.6M21 3.2v4.6" stroke="' + mc + '" stroke-width="1.5" stroke-linecap="round"/></svg>';
+}
 /* אייקון רמקול עם כיוון: מבט מלמעלה — ארון (החזית = הצד הקדמי) ושלושה גלי קול קדימה. מסובב לפי n.aim (0 = ימינה, 90 = מטה) */
 function spkAimIcon(n, mc) {
   const col = /קולונ|column|441|INTERPID|SEQUENZA/i.test(n.name || '');
@@ -3303,6 +3314,7 @@ function attachArrange() {
       if (!a || a.hidden || n.hidden || !isIconNode(a) || !isIconNode(n)) { if (!a) delete n.att; continue; }
       const el = document.getElementById('nd_' + n.id), ea = document.getElementById('nd_' + a.id); if (!el || !ea) continue;
       const mN = bx(el.querySelector('.mic') || el), nN = bx(el), mA = bx(ea.querySelector('.mic') || ea), nA = bx(ea), t = n.att;
+      if ((t.cpl === 'stack' || t.cpl === 'fly') && (n.x !== a.x || n.y !== a.y) && !(n._fanX || n._fanY)) { n.x = a.x; n.y = a.y; el.style.right = ea.style.right; el.style.top = ea.style.top; }   /* זוג ישן / סאב שהוזז — המיקום השמור של הטופ חוזר לסאב */
       /* הצמדה אייקון-לאייקון (ולא לפי תיבת המוקד עם הכיתוב): תחתית הטופ נוגעת בראש הסאב, רווח 2px */
       const tcx = mA.cx + t.sx * ((mA.W + mN.W) / 2 + 1);
       const tcy = t.cpl === 'stack' ? mA.cy - mA.H * 0.42 - mN.H * 0.2                       /* יושב על הסאב — חופף את חלקו העליון */
@@ -3662,7 +3674,7 @@ function renderNodes() {
       else if (mpt === 'device' || mpt === 'ap' || mpt === 'other')
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="8" cy="12" r="1.6" fill="${mc}"/><path d="M12 10.5h6M12 13.5h6" stroke="${mc}" stroke-width="1.6"/></svg>`;
       else if (!/סאב|sub|NOMOS|TILL\s?18|SB-?\d|וופר/i.test(n.name) && !(/שקוע|ceiling/i.test(n.name || '') || /תקרה/.test(n.mount || '')) && (n.disp ?? guessDisp(n.name)) < 300)
-        icon = spkAimIcon(n, mc);   /* רמקול מכוון: ארון מלמעלה + גלי קול לכיוון הכיוון — רואים לאן הוא מופנה גם בלי שכבת הפיזור */
+        icon = cplLineMember(n) ? (d.classList.add('larr'), spkLineIcon(mc)) : spkAimIcon(n, mc);   /* רמקול מכוון: ארון מלמעלה + גלי קול לכיוון הכיוון — רואים לאן הוא מופנה גם בלי שכבת הפיזור */
       else if (/קולונ|column|441|INTERPID|SEQUENZA/i.test(n.name))
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="8.5" y="1" width="7" height="22" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="6" r="1.4" fill="${mc}"/><circle cx="12" cy="10" r="1.4" fill="${mc}"/><circle cx="12" cy="14" r="1.4" fill="${mc}"/><circle cx="12" cy="18" r="1.4" fill="${mc}"/></svg>`;
       else if (/סאב|sub|NOMOS|TILL\s?18|SB-?\d|וופר/i.test(n.name))
@@ -8466,8 +8478,10 @@ function renderCoverage() {
     const spl = Math.min(effSpl(n) + cg.gain, COV_TOP);
     const aim = (n.aim ?? 0) * Math.PI / 180;
     /* קודקוד הקונוס בגב האייקון — כל האייקון בתוך הקונוס, הפיזור "יוצא" מהרמקול */
-    const backPx = 22; /* חצי רוחב האייקון + שוליים, בקואורדינטות קנבס */
-    const cx0 = 2200 - n.x - 20, cy0 = n.y + 24;
+    /* מרכז האייקון וגודלו כפי שהם על המסך (תלויי זום, צימוד לסאב, פריסה) — הקונוס יוצא מגב האייקון האמיתי */
+    const ig = nodeIconGeo(n);
+    const backPx = ig.r + 1;
+    const cx0 = ig.x, cy0 = ig.y;
     /* רמקול שקוע בתקרה מקרין מטה — עיגול, לא קונוס קיר */
     const isCeil = /שקוע|ceiling/i.test(n.name || '') || /תקרה/.test(n.mount || '');
     const isOmni = disp >= 300 || isCeil;
