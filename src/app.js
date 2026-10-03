@@ -12029,6 +12029,9 @@ function pickKitInline(i) {
   /* האינדקס הוא לתוך [קיטי ERP, קיטים שלי] — כמו ב-dockSearchResults; קיט שלי (i מעבר לקיטי ה-ERP) נפל כאן על undefined */
   const k = [...(typeof ERP_KITS !== 'undefined' ? ERP_KITS : []), ...(store.userKits || [])][i];
   if (!k) { uiToast('⚠ הקיט לא נמצא — רענן את החיפוש'); return; }
+  /* פופאפ הכמויות (כמו בבחירת קיט לאזור): עריכת כמות, 0 = דלג, 🔄 החלפת פריט — ואז להצעה */
+  { const ai = allKits().indexOf(k);
+    if (ai >= 0) { const zid = wireZoneId(), z = zid && (P.zones || []).find(x => x.id === zid); zoneKitConfirm(z ? z.name : '', ai, { dock: true }); return; } }
   const src = 'קיט: ' + k.name.slice(0, 30);
   for (const x of k.items) {
     const st = classifyStock(x.name);
@@ -13745,7 +13748,7 @@ function placeZoneRackItems(z) {
   return n2;
 }
 /* בחירת קיט לאזור — לפני ההוספה להצעה: כמויות כמו בקיט, או חישוב אוטומטי לפי האזור */
-function zoneKitConfirm(zname, idx) {
+function zoneKitConfirm(zname, idx, opt) {
   const k = allKits()[idx];
   if (!k) return;
   const z = (P.zones || []).find(x => x.name === zname);
@@ -13774,7 +13777,8 @@ function zoneKitConfirm(zname, idx) {
       </div>
     </div>` : ''}
     ${!kitHasSpk && z ? `<button data-srcwire style="width:100%;margin-bottom:6px;background:#efecfd;color:#4b3fb8;border:1px solid #c9c0f5;font-weight:700">🎧 חיווט מקורות שמע אל הארון — טבלת המקורות בלבד</button>` : ''}
-    <button class="primary" data-asis style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף את הקיט להצעה והצב על התכנית</button>
+    ${opt && opt.dock ? '<button class="primary" data-only style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף להצעת המחיר (בלי הצבה על התכנית)</button>' : ''}
+    <button ${opt && opt.dock ? '' : 'class="primary"'} data-asis style="width:100%;margin-bottom:6px;font-weight:700">➕ הוסף את הקיט להצעה והצב על התכנית</button>
     ${kitHasSpk ? `<button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>` : ''}
     <button data-cancel style="width:100%">ביטול</button>`);
   const done = () => ov.remove();
@@ -13871,6 +13875,14 @@ function zoneKitConfirm(zname, idx) {
     render(); save();
     if (err) uiToast('🧰 נוספו ' + items.length + ' פריטים להצעה · ⚠ ההצבה על התכנית נכשלה: ' + (err.message || err));
     else uiToast('🧰 נוספו ' + items.length + ' פריטים מהקיט "' + k.name.slice(0, 26) + '" להצעה' + (placed > 0 ? ' · הוצבו ' + placed + ' על התכנית' : ' · פתח את ההצעה בצד לראות אותם'));
+  };
+  /* מהחיפוש בהצעת המחיר: רק מוסיף את השורות (בכמויות שנערכו) — בלי בנייה והצבה על התכנית */
+  const onlyBtn = ov.querySelector('[data-only]');
+  if (onlyBtn) onlyBtn.onclick = () => {
+    const items = edited(); addItems(items);
+    impItems.forEach(it => { if (it.zones && Object.prototype.hasOwnProperty.call(it.zones, '')) delete it.zones; });   /* בלי אזור — לא משייכים לאזור ריק */
+    mergeOfferDupes(true); done(); dockQ = ''; render(); save();
+    uiToast('🧰 נוספו ' + items.length + ' פריטים מהקיט "' + k.name.slice(0, 26) + '" להצעה');
   };
   ov.querySelector('[data-asis]').onclick = () => {
     /* קיט התקנה (עמדה/ארון): לפני שהקיט נכנס להצעה — טבלת החיווט של מקורות
