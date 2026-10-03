@@ -3118,9 +3118,9 @@ function planWallSegs() {
   });
   return out;
 }
-/* מרכז אייקון (קנבס) → מיקום צמוד לקיר הקרוב, או null. טווח המשיכה 26px מסך; בפינה נצמד לשני הקירות */
+/* מרכז אייקון (קנבס) → מיקום על הקיר הקרוב, או null. טווח המשיכה 30px מסך; בפינה נצמד לשני הקירות */
 function nodeWallSnap(cx, cy, Z) {
-  const R = 21, PULL = R + 26 / (Z || 1), segs = planWallSegs();
+  const R = 0, PULL = 30 / (Z || 1), segs = planWallSegs();   /* R=0 — מרכז האייקון יושב על קו הקיר (רמקול קיר), לא מורחק ממנו */
   let x = cx, y = cy, first = null;
   for (let pass = 0; pass < 2; pass++) {
     let best = null;
