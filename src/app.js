@@ -2495,9 +2495,10 @@ let MCOLS = {}, REARPORTS = {}, REAREXIT = {}, REARUNIT = {}, aiming = null;
 function aimUpdate(e) {
   const n = byId(aiming); if (!n) { aiming = null; return; }
   const pt = canvasPt(e);
-  const cx = 2200 - n.x - 20, cy = n.y + 24;
+  const ig = nodeIconGeo(n), cx = ig.x, cy = ig.y;   /* מרכז האייקון כפי שהוא על המסך */
   n.aim = Math.round(Math.atan2(pt.y - cy, pt.x - cx) * 180 / Math.PI);
   if (n.aim < 0) n.aim += 360;
+  cplAimSync(n);
   renderCoverage();
 }
 document.addEventListener('pointermove', e => { if (aiming) aimUpdate(e); });
@@ -3253,6 +3254,16 @@ function cplRoot(n) { let q = n; for (let g = 0; g < 20 && q.att && q.att.cpl; g
 function cplDesc(root) { const out = [], seen = new Set([root.id]); let front = [root.id];
   for (let g = 0; g < 20 && front.length; g++) { const nx = []; for (const q of P.nodes) { if (seen.has(q.id) || q.hidden || !q.att || !q.att.cpl || !front.includes(q.att.id)) continue; seen.add(q.id); out.push(q); nx.push(q.id); } front = nx; }
   return out; }
+/* מערך מצומד (ליין אראיי / צד לצד) מסתובב יחד: כיוון של חבר אחד = הכיוון של כל המערך. סאב/טופ בזוג Stack/תלוי — כל אחד לעצמו */
+function cplAimSync(n) {
+  const arr = q => !!(q.att && (q.att.cpl === 'line' || q.att.cpl === 'side'));
+  /* המערך = הרכיב המחובר בקשרי ליין/צד-לצד בלבד (טופ שתלוי על סאב ויש לו אלמנט נוסף מתחתיו: הטופ והאלמנט — בלי הסאב) */
+  let root = n; for (let g = 0; g < 20 && arr(root); g++) { const up = byId(root.att.id); if (!up || up.hidden) break; root = up; }
+  const grp = [root], seen = new Set([root.id]); let front = [root.id];
+  for (let g = 0; g < 20 && front.length; g++) { const nx = []; for (const q of P.nodes) { if (seen.has(q.id) || q.hidden || !arr(q) || !front.includes(q.att.id)) continue; seen.add(q.id); grp.push(q); nx.push(q.id); } front = nx; }
+  if (grp.length < 2) return;
+  grp.forEach(q => { if (q !== n) { q.aim = n.aim; const g2 = document.querySelector('#nd_' + q.id + ' .mic g[transform^=rotate]'); if (g2) g2.setAttribute('transform', 'rotate(' + (n.aim ?? 0) + ' 12 12)'); } });
+}
 function cplFollower(n) { return !!(n.att && (n.att.cpl === 'side' || n.att.cpl === 'line') && byId(n.att.id)); }
 function cplGroup(root) {
   let side = 1, line = 1; const seen = new Set([root.id]); let front = [root.id];
@@ -3289,6 +3300,7 @@ function cplApply(nid, tid, mode) {
   /* המשבצת תפוסה? ממשיכים בסוף השרשרת — רמקול שלישי מצטרף לשורה/לטור */
   for (let g = 0; g < 12; g++) { const f = P.nodes.find(q => q !== n && !q.hidden && q.att && q.att.id === t.id && q.att.sx === sx && q.att.sy === sy); if (!f) break; t = f; }
   n.att = { id: t.id, sx, sy, cpl: mode };
+  if (mode === 'line' || mode === 'side') { const rt = cplRoot(n); if (rt !== n && rt.aim != null) n.aim = rt.aim; }   /* מצטרף למערך — מקבל את הכיוון שלו */
   if (sx === 0 && sy === 0) { n.x = t.x; n.y = t.y; }   /* אותה נקודה — הטופ נשמר במיקום הסאב, התצוגה מרימה אותו */
   save(); render();
   uiToast({ side: '↔ צימוד צד לצד — הפיזור האופקי של המערך התרחב', line: '↕ ליין אראיי — אותו פיזור, עוצמה גבוהה יותר על הציר', stack: '▂ Stack — הטופ יושב על הסאב', fly: '⇡ הטופ תלוי מעל הסאב' }[mode]);
@@ -8854,7 +8866,7 @@ function renderPanel() {
       const oth = fol === n ? byId(fol.att.id) : fol, lbl = { side: '↔ צד לצד', line: '↕ ליין אראיי', stack: '▂ Stack', fly: '⇡ תלוי מעל הסאב' }[fol.att.cpl];
       return '<div class="fld" style="background:#f4f1fb;border-radius:8px;padding:6px 8px"><label>🔗 מצומד — ' + lbl + '</label><div style="font-size:11.5px;margin-bottom:5px">עם: ' + esc(shortModel(oth.name) || oth.name.slice(0, 30)) + '</div><div style="display:flex;gap:6px"><button style="flex:1" onclick="cplAsk(\'' + fol.id + '\',\'' + fol.att.id + '\')">שנה סוג</button><button style="flex:1;background:#fdf0f0;color:#c1121f;font-weight:700" onclick="cplApply(\'' + fol.id + '\',\'' + fol.att.id + '\',\'detach\')">✂ הפרד</button></div></div>'; })()}
     <div class="fld"><label>כיוון הרמקול (${n.aim ?? 0}° · 0=ימין, 90=מטה)</label>
-      <input type="range" min="0" max="359" value="${n.aim ?? 0}" oninput="byId('${n.id}').aim=+this.value;renderCoverage();const g=document.querySelector('#nd_${n.id} .mic g[transform^=rotate]');if(g)g.setAttribute('transform','rotate('+this.value+' 12 12)')" onchange="save();render()"></div>
+      <input type="range" min="0" max="359" value="${n.aim ?? 0}" oninput="byId('${n.id}').aim=+this.value;cplAimSync(byId('${n.id}'));renderCoverage();const g=document.querySelector('#nd_${n.id} .mic g[transform^=rotate]');if(g)g.setAttribute('transform','rotate('+this.value+' 12 12)')" onchange="save();render()"></div>
     <p class="muted" style="font-size:10px">🎯 לסיבוב: גרור את הידית הכתומה שמופיעה ליד הרמקול על התכנית. הצג קונוסים ב"הגדרות תכנית → פיזור רמקולים".</p>` : ''}`;
   }
   if (n.kind === 'rack' || n.kind === 'panel') {
