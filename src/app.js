@@ -6330,7 +6330,7 @@ function patchRender() {
   /* שתי טבלאות נפרדות: רמקולים→מגברים, או מקורות→ארון (נפתחת מקיט ההתקנה) */
   const inMode = PATCH.mode === 'in';
   body.innerHTML = inMode
-    ? (insBlock || '<div style="font-size:12px;color:#8a8377;background:#f7f5f0;border-radius:9px;padding:9px 10px">אין בתכנית מקורות נגינה או פרוססור/מיקסר בארון — אין מה לחווט כאן.</div>')
+    ? (insBlock || '<div style="font-size:12px;color:#8a8377;background:#f7f5f0;border-radius:9px;padding:9px 10px">אין בתכנית מקורות נגינה או פרוססור/מיקסר בארון — אין מה לחווט כאן.</div>') + patchSigBlockHTML()
     : spkBlock;
   const tt = document.getElementById('patchTitle');
   if (tt) tt.textContent = inMode ? '🎧 חיווט — מקורות שמע אל הארון' : '🔌 חיווט — ניתוב רמקולים למגברים';
@@ -6715,6 +6715,70 @@ function patchProcPicker() {
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
 window.patchProcPicker = patchProcPicker; window.patchAddProc = patchAddProc;
+/* ===== סיגנל מהפרוססור אל המגברים (בתוך הארון): איזו יציאת פרוססור מזינה כל כניסת מגבר — XLR אנלוגי, או Dante ברשת =====
+   השינויים כאן חלים מיד (כבלים פנימיים בארון), בלי לחכות ל"חבר". */
+const DANTE_RX = /dante|aes\s?67|network|רשת/i;
+function unitDanteOk(u) { try { return DANTE_RX.test(u.name || '') || rearLayout(u.name).some(i => DANTE_RX.test((i.port || '') + ' ' + (i.label || '') + ' ' + (i.t || ''))); } catch (e) { return DANTE_RX.test(u.name || ''); } }
+function patchSigRacks() {
+  return P.nodes.filter(n => n.kind === 'rack' && !n.hidden).map(rk => {
+    const us = rk.units || [], proc = us.find(u => isInUnit(u.name));
+    const amps = us.filter(u => u !== proc && (u.cat === 'amp' || /מגבר/.test(u.name || '')) && !isInUnit(u.name));
+    return proc && amps.length ? { rk, proc, amps } : null;
+  }).filter(Boolean);
+}
+function patchSigCabs(rk, amp) { return (P.cables || []).filter(c => c.from === rk.id && c.to === rk.id && c.toUnit === amp.id && (c.internal === 'proc-amp' || c.internal === 'proc-amp-dante')); }
+function patchSigBlockHTML() {
+  const R = patchSigRacks(); if (!R.length) return '';
+  return '<div style="height:1px;background:#e3ded3;margin:14px 0 10px"></div><div style="font-size:12.5px;font-weight:800;margin-bottom:3px">🎚 סיגנל מהפרוססור אל המגברים</div><div style="font-size:11px;color:#8a8377;margin-bottom:8px">איזו יציאת פרוססור מזינה כל כניסת מגבר. שינוי כאן נשמר מיד. הפאצ׳ים נוצרים אוטומטית ב"חבר" לכל ערוץ מגבר שמזין רמקולים.</div>' +
+    R.map(({ rk, proc, amps }) => {
+      const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true }));
+      const pd = unitDanteOk(proc);
+      return amps.map(amp => {
+        const cabs = patchSigCabs(rk, amp), net = !!amp.sigNet, ad = unitDanteOk(amp), ok = pd && ad;
+        const xl = cabs.filter(c => c.internal === 'proc-amp').sort((a, b) => String(a.pIn).localeCompare(String(b.pIn), 'en', { numeric: true }));
+        const rows = net
+          ? '<div style="padding:7px 10px;font-size:12px;color:#4b3fb8">🌐 Dante — ' + esc(shortModel(proc.name)) + ' → ' + esc(shortModel(amp.name)) + ' בכבל רשת אחד, כל הערוצים ברשת' + (ok ? '' : ' · <b style="color:#c1121f">⚠ לא זוהתה יכולת Dante ב' + (pd ? '' : 'פרוססור') + (!pd && !ad ? ' וב' : '') + (ad ? '' : 'מגבר') + ' — בדוק מול המפרט</b>') + '</div>'
+          : (xl.length ? xl.map(c => '<div style="display:flex;gap:8px;align-items:center;padding:4px 10px;border-top:1px solid #f0ede8;font-size:12px"><b style="width:44px;color:#c9502e">' + esc(c.pIn || '') + '</b><span style="color:#888">⟵</span><select onchange="patchSigSet(\'' + c.id + '\',this.value)" style="flex:1;font-size:12px;padding:3px 6px">' +
+              '<option value="">— בלי יציאה —</option>' + outs.map(o => '<option value="' + esc(o) + '"' + (c.pOut === o ? ' selected' : '') + '>' + esc(shortModel(proc.name)) + ' · ' + esc(o) + '</option>').join('') + (c.pOut && !outs.includes(c.pOut) ? '<option selected value="' + esc(c.pOut) + '">' + esc(c.pOut) + ' (לא בגב שבספרייה)</option>' : '') + '</select></div>').join('')
+            : '<div style="padding:7px 10px;font-size:11.5px;color:#8a8377">אין עדיין פאצ׳ים — ייווצרו ב"חבר" לערוצים שמזינים רמקולים</div>');
+        return '<div style="border:1px solid #e3ded3;border-radius:10px;margin-bottom:8px;overflow:hidden;background:#fff"><div style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:#f7f5f0"><b style="flex:1;font-size:12.5px">🎚 ' + esc(shortModel(amp.name) || amp.name.slice(0, 28)) + ' <span style="font-weight:400;color:#8a8377">· U' + (amp.pos + 1) + ' · ' + esc(rk.name.slice(0, 22)) + '</span></b>' +
+          '<select onchange="patchSigMode(\'' + rk.id + '\',\'' + amp.id + '\',this.value)" style="font-size:11.5px;padding:2px 6px" title="איך הסיגנל מגיע למגבר"><option value="xlr"' + (net ? '' : ' selected') + '>XLR אנלוגי</option><option value="dante"' + (net ? ' selected' : '') + '>🌐 Dante' + (ok ? '' : ' ⚠') + '</option></select></div>' + rows + '</div>';
+      }).join('');
+    }).join('');
+}
+function patchSigSet(cid, port) {
+  const c = (P.cables || []).find(x => x.id === cid); if (!c) return;
+  const rk = byId(c.from), proc = rk && (rk.units || []).find(u => u.id === c.fromUnit), amp = rk && (rk.units || []).find(u => u.id === c.toUnit);
+  /* היציאה תפוסה אצל פאץ׳ אחר מאותו פרוססור — מחליפים ביניהם */
+  const oth = port ? (P.cables || []).find(x => x !== c && x.internal === 'proc-amp' && x.from === c.from && x.fromUnit === c.fromUnit && x.pOut === port) : null;
+  const nt = x => { const a2 = (rk.units || []).find(u => u.id === x.toUnit); x.note = 'פאץ׳ פנימי · ' + shortModel(proc ? proc.name : '') + ' ' + (x.pOut || '⚠ בלי יציאה') + ' → ' + shortModel(a2 ? a2.name : '') + ' ' + (x.pIn || ''); };
+  if (oth) { oth.pOut = c.pOut || undefined; nt(oth); }
+  c.pOut = port || undefined; c.manual = true; nt(c);
+  save(); render(); if (PATCH) patchRender();
+}
+function patchSigMode(rkId, ampId, mode) {
+  const rk = byId(rkId), amp = rk && (rk.units || []).find(u => u.id === ampId), proc = rk && (rk.units || []).find(u => isInUnit(u.name)); if (!amp || !proc) return;
+  const rest = (P.cables || []).filter(c => !(c.from === rkId && c.to === rkId && c.toUnit === ampId && (c.internal === 'proc-amp' || c.internal === 'proc-amp-dante')));
+  if (mode === 'dante') {
+    amp.sigNet = true;
+    const ok = unitDanteOk(proc) && unitDanteOk(amp);
+    rest.push({ id: uid('c'), from: rkId, fromUnit: proc.id, to: rkId, toUnit: ampId, type: 'cat', qty: '1', spec: 'Dante / AES67', len: 1, internal: 'proc-amp-dante',
+      note: 'Dante · ' + shortModel(proc.name) + ' → ' + shortModel(amp.name) + ' (כל הערוצים ברשת)' + (ok ? '' : ' · ⚠ יכולת Dante לא מאומתת לדגם') });
+    P.cables = rest;
+    if (!ok) uiToast('⚠ לא זוהתה יכולת Dante באחד המוצרים — בדוק מול המפרט לפני ההזמנה', 5000);
+  } else {
+    delete amp.sigNet; P.cables = rest;
+    /* חזרה ל-XLR: פאץ׳ לכל ערוץ מגבר שמזין רמקולים, מיציאת הפרוססור הפנויה הבאה (לפי הגב שבספרייה) */
+    const chs = [...new Set(P.cables.filter(c => c.from === rkId && c.fromUnit === ampId && c.to !== rkId).map(c => +(String(c.pOut || '').match(/\d+/) || [0])[0]).filter(Boolean))].sort((a, b) => a - b);
+    const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true }));
+    const taken = new Set(P.cables.filter(c => c.from === rkId && c.to === rkId && c.fromUnit === proc.id && c.pOut).map(c => c.pOut));
+    chs.forEach(ch => { const pOut = outs.find(o => !taken.has(o)); if (pOut) taken.add(pOut);
+      P.cables.push({ id: uid('c'), from: rkId, fromUnit: proc.id, pOut: pOut || undefined, to: rkId, toUnit: ampId, pIn: 'IN ' + ch, type: 'xlr', qty: '1', spec: '', len: 1, conn: 'xlrm', conn2: 'xlrf', internal: 'proc-amp',
+        note: 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + (pOut || '⚠ אין יציאה פנויה') + ' → ' + shortModel(amp.name) + ' IN ' + ch }); });
+  }
+  save(); render(); if (PATCH) patchRender();
+}
+window.patchSigSet = patchSigSet; window.patchSigMode = patchSigMode;
 /* בורר מגבר מהקטלוג — לרמקולים שנשארו בלי ערוץ */
 function patchAmpPicker() {
   const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
@@ -6927,8 +6991,9 @@ async function patchApply() {
     PATCH.amps.forEach((a, ai) => {
       const chs = (used[ai] || []).sort((x, y) => x - y); if (!chs.length) return;
       const proc = (a.rk.units || []).find(u => isInUnit(u.name)); if (!proc) return;
+      if (a.u.sigNet) return;   /* המגבר מקבל סיגנל ב-Dante — בלי פאצ׳ים אנלוגיים */
       /* יציאות הפרוססור לפי הגב שלו (מהספרייה) — לא מניחים OUT 1..N */
-      const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))];
+      const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true }));
       const taken = new Set(P.cables.filter(c => c.from === a.rk.id && c.to === a.rk.id && c.fromUnit === proc.id && c.pOut).map(c => c.pOut));
       chs.forEach(ch => {
         const pIn = 'IN ' + ch;
