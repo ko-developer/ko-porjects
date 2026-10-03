@@ -15083,6 +15083,104 @@ function bomHTML() {
         return '<tr><td style="text-align:center;color:#888">' + (i + 1) + '</td><td style="text-align:center;font-weight:800;font-size:13px">' + (Math.round(r.qty * 100) / 100) + '</td><td style="width:44px">' + (img ? '<img src="' + esc(img) + '" style="width:36px;height:36px;object-fit:contain;border:1px solid #eee;border-radius:6px;background:#fff">' : '') + '</td><td><b>' + esc(r.name) + '</b></td><td dir="ltr" style="text-align:right;font-size:11px">' + esc(r.key) + '</td></tr>'; }).join(''); });
   return '<div class="rp-sec" style="page-break-before:always"><h3>📋 כתב כמויות — ' + tot + ' פריטים</h3><table><thead><tr><th>#</th><th>כמות</th><th></th><th>פריט</th><th>מק״ט</th></tr></thead><tbody>' + h + '</tbody></table></div>';
 }
+/* 🖼 הדמיה לדוח — מבט איזומטרי של כל אזור לפי התכנית: רצפה, ריהוט מהשרטוט, רמקולים בגובה ובכיוון שלהם,
+   אלומות כיסוי, ארונות ודמויות. המיקומים, הגבהים והכיוונים אמיתיים; צורות המוצרים סכמטיות (לפי המידות כשהן ידועות). */
+function isoViewHTML() {
+  if (!P.scale) return '';
+  const zones = (P.zones || []).filter(z => P.nodes.some(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z)));
+  if (!zones.length) return '';
+  const m = P.scale, C = 0.866, S2 = 0.5, VW = 1000;
+  const shade = (hex, f) => { const h = (hex || '#888').replace('#', ''), v = h.length === 3 ? h.split('').map(c => c + c).join('') : h; const ch = i => Math.max(0, Math.min(255, Math.round(parseInt(v.substr(i, 2), 16) * f + (f > 1 ? (f - 1) * 60 : 0)))); return 'rgb(' + ch(0) + ',' + ch(2) + ',' + ch(4) + ')'; };
+  const used = new Map();
+  const out = zones.map(z => {
+    const b = zoneBounds(z), W = b.W * m, H = b.H * m; if (!(W > 0.5 && H > 0.5)) return '';
+    const ceil = +z.ceil || +(P.room && P.room.ceil) || 0;
+    const s = (VW - 80) / ((W + H) * C), VZ = 1.2;
+    const pts = P.nodes.filter(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z));
+    const topZ = Math.max(ceil, 3.2);
+    const ox = 40 + H * C * s, oy = 30 + topZ * s * VZ;
+    const pr = (X, Y, Z) => [ox + (X - Y) * C * s, oy + (X + Y) * S2 * s - (Z || 0) * s * VZ];
+    const P2 = (X, Y, Z) => { const p = pr(X, Y, Z); return p[0].toFixed(1) + ',' + p[1].toFixed(1); };
+    const poly = (arr, fill, extra) => '<polygon points="' + arr.map(a => P2(a[0], a[1], a[2])).join(' ') + '" fill="' + fill + '" ' + (extra || '') + '/>';
+    const wX = x => (x - b.L) * m, wY = y => (y - b.T) * m;
+    const VH = oy + (W + H) * S2 * s + 46;
+    /* מנסרה: בסיס מצולע (מטרים), מגובה z0 בגובה h */
+    const prism = (base, z0, h, col, op) => { const n = base.length, faces = [];
+      for (let i = 0; i < n; i++) { const a = base[i], c = base[(i + 1) % n], nx = c[1] - a[1], ny = -(c[0] - a[0]);   /* נורמל החוצה (לבסיס בכיוון השעון על המסך) */
+        faces.push({ d: (a[0] + a[1] + c[0] + c[1]) / 2, a, c, lit: nx + ny }); }
+      let cx = 0, cy = 0; base.forEach(p => { cx += p[0] / n; cy += p[1] / n; });
+      const vis = faces.filter(f => { const mx = (f.a[0] + f.c[0]) / 2 - cx, my = (f.a[1] + f.c[1]) / 2 - cy; return mx + my > -1e-6; }).sort((f1, f2) => f1.d - f2.d);
+      let g = ''; vis.forEach(f => { const mx = (f.a[0] + f.c[0]) / 2 - cx, my = (f.a[1] + f.c[1]) / 2 - cy; g += poly([[f.a[0], f.a[1], z0], [f.c[0], f.c[1], z0], [f.c[0], f.c[1], z0 + h], [f.a[0], f.a[1], z0 + h]], shade(col, mx > my ? 0.62 : 0.8), 'stroke="' + shade(col, 0.45) + '" stroke-width="0.6"' + (op ? ' opacity="' + op + '"' : '')); });
+      return g + poly(base.map(p => [p[0], p[1], z0 + h]), shade(col, 1.12), 'stroke="' + shade(col, 0.5) + '" stroke-width="0.6"' + (op ? ' opacity="' + op + '"' : '')); };
+    const rectBase = (cx, cy, w, d, deg) => { const a = (deg || 0) * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a); return [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([x, y]) => [cx + x * ca - y * sa, cy + x * sa + y * ca]); };
+    const ngon = (cx, cy, r, k) => Array.from({ length: k }, (_, i) => [cx + r * Math.cos(i * 2 * Math.PI / k), cy + r * Math.sin(i * 2 * Math.PI / k)]);
+    const label = (X, Y, Z, txt, col) => { const p0 = pr(X, Y, Z), w = txt.length * 5.6 + 12, p = [Math.max(w / 2 + 4, Math.min(VW - w / 2 - 4, p0[0])), p0[1]]; return '<g><line x1="' + p0[0] + '" y1="' + p[1] + '" x2="' + p[0] + '" y2="' + (p[1] - 12) + '" stroke="' + col + '" stroke-width="1"/><rect x="' + (p[0] - w / 2) + '" y="' + (p[1] - 27) + '" width="' + w + '" height="15" rx="7.5" fill="#fff" stroke="' + col + '" stroke-width="1.2" opacity="0.96"/><text x="' + p[0] + '" y="' + (p[1] - 16) + '" text-anchor="middle" font-size="9.5" font-weight="800" fill="#1a1e28" direction="ltr" style="unicode-bidi:plaintext">' + esc(txt) + '</text></g>'; };
+    /* רצפה */
+    const fl = z.poly && z.poly.length > 2 ? z.poly.map(p => [wX(p.x), wY(p.y)]) : [[0, 0], [W, 0], [W, H], [0, H]];
+    /* בלי gradient/clipPath לפי id — התצוגה המקדימה משכפלת את הדוח, ומזהים כפולים נפתרים אל המקור המוסתר */
+    let g = '<rect x="0" y="0" width="' + VW + '" height="' + VH.toFixed(0) + '" rx="10" fill="#eef3f8"/>';
+    g += prism([[0, 0], [W, 0], [W, H], [0, H]], -0.25, 0.25, '#b9ad94');
+    g += poly(fl.map(a => [a[0], a[1], 0]), '#ebe3d2', 'stroke="#8d8370" stroke-width="1.2"');
+    let grid = ''; for (let x = 1; x < W; x++) grid += '<line x1="' + pr(x, 0, 0)[0].toFixed(1) + '" y1="' + pr(x, 0, 0)[1].toFixed(1) + '" x2="' + pr(x, H, 0)[0].toFixed(1) + '" y2="' + pr(x, H, 0)[1].toFixed(1) + '"/>';
+    for (let y = 1; y < H; y++) grid += '<line x1="' + pr(0, y, 0)[0].toFixed(1) + '" y1="' + pr(0, y, 0)[1].toFixed(1) + '" x2="' + pr(W, y, 0)[0].toFixed(1) + '" y2="' + pr(W, y, 0)[1].toFixed(1) + '"/>';
+    g += '<g stroke="#cfc5b0" stroke-width="0.5" opacity="0.7">' + grid + '</g>';
+    /* קירות אחוריים — רק כשהוגדר גובה תקרה */
+    if (ceil) { g += poly([[0, 0, 0], [W, 0, 0], [W, 0, ceil], [0, 0, ceil]], '#e9e4d8', 'stroke="#a79f8e" stroke-width="1" opacity="0.85"') + poly([[0, 0, 0], [0, H, 0], [0, H, ceil], [0, 0, ceil]], '#dcd6c8', 'stroke="#a79f8e" stroke-width="1" opacity="0.85"'); }
+    /* אובייקטים מהשרטוט */
+    const solids = [], blocked = [];
+    const inZ = (x, y) => x >= b.L - 2 && x <= b.L + b.W + 2 && y >= b.T - 2 && y <= b.T + b.H + 2;
+    ((P.sketch && P.sketch.objs) || []).filter(o => inZ(o.x, o.y)).forEach(o => { const d = SK_OBJS[o.t] || {}, cx = wX(o.x), cy = wY(o.y), w = o.w * m, dd = o.h * m, col = d.c || '#777';
+      blocked.push({ x: cx, y: cy, r: Math.max(w, dd) / 2 + 0.4 });
+      if (o.t === 'pool') { const base = rectBase(cx, cy, w * 0.92, dd * 0.86, o.r); let wv = ''; for (let k = 1; k <= 3; k++) { const t = k / 4, a = base[0], c2 = base[3], e = base[1], f = base[2]; const p1 = [a[0] + (c2[0] - a[0]) * t, a[1] + (c2[1] - a[1]) * t], p2 = [e[0] + (f[0] - e[0]) * t, e[1] + (f[1] - e[1]) * t]; wv += '<line x1="' + pr(p1[0], p1[1], 0)[0].toFixed(1) + '" y1="' + pr(p1[0], p1[1], 0)[1].toFixed(1) + '" x2="' + pr(p2[0], p2[1], 0)[0].toFixed(1) + '" y2="' + pr(p2[0], p2[1], 0)[1].toFixed(1) + '" stroke="#fff" stroke-width="1.4" stroke-dasharray="10 7" opacity="0.6"/>'; }
+        g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0]), '#f7f3ea', 'stroke="#b7ad98" stroke-width="1"') + poly(base.map(p => [p[0], p[1], 0]), '#4aa8dc', 'stroke="#1f6fa8" stroke-width="1.2"') + wv; const lp = pr(cx, cy, 0); g += '<text x="' + lp[0] + '" y="' + (lp[1] + 4) + '" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" opacity="0.9">' + esc(d.n || '') + '</text>'; return; }
+      if (o.t === 'dance') { g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0]), col + '22', 'stroke="' + col + '" stroke-width="1.4" stroke-dasharray="7 5"'); return; }
+      const h = (typeof SIDE_OBJ_H !== 'undefined' && SIDE_OBJ_H[o.t]) || 0.8, base = d.round ? ngon(cx, cy, Math.min(w, dd) / 2, 14) : rectBase(cx, cy, w, dd, o.r);
+      solids.push({ d: cx + cy, svg: prism(base, 0, h, col) + (o.t === 'plant' ? '' : (() => { const lp = pr(cx, cy, h); return '<text x="' + lp[0] + '" y="' + (lp[1] + 3) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" opacity="0.92">' + esc(d.n || '') + '</text>'; })()) }); });
+    /* רמקולים */
+    const cones = [], stackN = {};
+    pts.forEach(n => { if (!cplSpkLike(n)) return;
+      const anchor = n.att && n.att.cpl && byId(n.att.id), gg = anchor && (n.att.cpl === 'stack' || n.att.cpl === 'fly') ? nodeIconGeo(anchor) : nodeIconGeo(n);
+      const X = Math.max(0.2, Math.min(W - 0.2, wX(gg.x))), Y = Math.max(0.2, Math.min(H - 0.2, wY(gg.y))), sub = cplIsSub(n), full = nodeFullName(n), d = spkData(full) || {};
+      const dm = /(\d{2,4})\s*mm[^x×]*[x×]\s*(\d{2,4})\s*mm[^x×]*[x×]\s*(\d{2,4})/i.exec(d.dims || '') || /(\d{2,4})\s*[x×]\s*(\d{2,4})\s*[x×]\s*(\d{2,4})/.exec(d.dims || '');
+      let bw = sub ? 0.55 : 0.34, bh = sub ? 0.55 : 0.55, bd = sub ? 0.6 : 0.32;
+      if (dm) { bw = Math.max(0.14, +dm[1] / 1000); bh = Math.max(0.14, +dm[2] / 1000); bd = Math.max(0.14, +dm[3] / 1000); }
+      let hgt = n.hgt != null && n.hgt !== '' ? +n.hgt : null;
+      if (sub) hgt = hgt || 0; else if (hgt == null) hgt = n.att && n.att.cpl === 'stack' ? 0.6 : (ceil ? Math.max(1.8, Math.min(2.6, ceil - 0.4)) : 2.6);
+      let z0 = sub ? hgt : Math.max(0, hgt - bh / 2);
+      const key = Math.round(X * 2) + '|' + Math.round(Y * 2) + '|' + (sub ? 's' : 't'), idx = stackN[key] || 0; stackN[key] = idx + 1;
+      if (sub) z0 += idx * bh; else if (n.att && n.att.cpl === 'stack') z0 = 0.6 + idx * bh; else z0 = Math.max(0, z0 - idx * (bh + 0.03));
+      const aim = n.aim ?? 0, base = rectBase(X, Y, bd, bw, aim), col = sub ? '#23262e' : '#2f3440';
+      let sv = '';
+      if (!sub && z0 > 0.7 && !(n.att && n.att.cpl === 'stack') && idx === 0) { const p0 = pr(X, Y, 0), p1 = pr(X, Y, z0); sv += '<line x1="' + p0[0].toFixed(1) + '" y1="' + p0[1].toFixed(1) + '" x2="' + p1[0].toFixed(1) + '" y2="' + p1[1].toFixed(1) + '" stroke="#555b66" stroke-width="2.2"/><ellipse cx="' + p0[0].toFixed(1) + '" cy="' + p0[1].toFixed(1) + '" rx="7" ry="3.5" fill="#555b66" opacity="0.7"/>'; }
+      sv += prism(base, z0, bh, col);
+      { const a = aim * Math.PI / 180, fx = X + Math.cos(a) * bd / 2, fy = Y + Math.sin(a) * bd / 2, fp = pr(fx, fy, z0 + bh / 2); sv += '<circle cx="' + fp[0].toFixed(1) + '" cy="' + fp[1].toFixed(1) + '" r="' + Math.max(2.2, Math.min(bw, bh) * s * 0.22).toFixed(1) + '" fill="' + (sub ? '#3f8f6b' : '#7c5cff') + '" stroke="#fff" stroke-width="0.8"/>'; }
+      const mm = /\(([^()]+)\)\s*$/.exec(n.name || ''), sm = shortModel(n.name) || (n.name || '').slice(0, 14);
+      solids.push({ d: X + Y + 0.01 * idx, svg: sv, lab: idx === 0 || !(n.att && n.att.cpl === 'line') ? { X, Y, Z: z0 + bh, t: sm + (mm ? ' (' + mm[1] + ')' : ''), c: sub ? '#0f6e56' : '#6a4fc9', lift: idx } : null });
+      const uk = sm; const u = used.get(uk) || { n, cnt: 0, sm }; u.cnt++; used.set(uk, u);
+      if (!sub && idx === 0) { const disp = Math.min(170, +(n.disp || d.h || 90)), R = Math.min(Math.max(W, H) * 0.6, 12), a0 = (aim - disp / 2) * Math.PI / 180, a1 = (aim + disp / 2) * Math.PI / 180, arc = [[X, Y, 0]]; for (let k = 0; k <= 14; k++) { const a = a0 + (a1 - a0) * k / 14; arc.push([Math.max(0, Math.min(W, X + Math.cos(a) * R)), Math.max(0, Math.min(H, Y + Math.sin(a) * R)), 0]); }   /* נחתך לגבולות הרצפה */ cones.push(poly(arc, '#7c5cff', 'opacity="0.13"')); }
+    });
+    g += cones.join('');
+    /* ארונות */
+    P.nodes.filter(n => n.kind === 'rack' && !n.hidden).forEach(n => { const x = 2200 - n.x - 20, y = n.y + 24; if (!inZ(x, y) && !(Math.abs(x - (b.L + b.W / 2)) < b.W / 2 + 120 && Math.abs(y - (b.T + b.H / 2)) < b.H / 2 + 120)) return;
+      const X = Math.max(0.3, Math.min(W - 0.3, wX(x))), Y = Math.max(0.3, Math.min(H - 0.3, wY(y))), h = (n.ru || 12) * 0.0445 + 0.15;
+      blocked.push({ x: X, y: Y, r: 0.9 });
+      solids.push({ d: X + Y, svg: prism(rectBase(X, Y, 0.6, 0.6, 0), 0, h, '#1d2230'), lab: { X, Y, Z: h, t: (n.ru || 12) + 'U ' + (n.name || '').slice(0, 16), c: '#c9502e', lift: 0, rtl: 1 } }); });
+    /* דמויות — פיזור קבוע (לא אקראי בכל הפקה), לא על ריהוט */
+    { let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647; const want = Math.max(4, Math.min(16, Math.round(W * H / 30))); let tries = 0, k = 0;
+      const cols = ['#5b6b86', '#8a5a6b', '#4f7a6a', '#7a6a4f', '#5e5a8a', '#3f5f7a'];
+      while (k < want && tries++ < 300) { const X = 0.8 + rnd() * (W - 1.6), Y = 0.8 + rnd() * (H - 1.6); if (blocked.some(q => Math.hypot(q.x - X, q.y - Y) < q.r)) continue; blocked.push({ x: X, y: Y, r: 0.9 });
+        const p0 = pr(X, Y, 0), hh = 1.72 * s * VZ, bw = Math.max(5, 0.46 * s * 0.9), col = cols[k % cols.length];
+        solids.push({ d: X + Y, svg: '<g><ellipse cx="' + p0[0].toFixed(1) + '" cy="' + p0[1].toFixed(1) + '" rx="' + (bw * 0.75).toFixed(1) + '" ry="' + (bw * 0.3).toFixed(1) + '" fill="#000" opacity="0.14"/><path d="M' + (p0[0] - bw * 0.32).toFixed(1) + ' ' + p0[1].toFixed(1) + ' L' + (p0[0] - bw / 2).toFixed(1) + ' ' + (p0[1] - hh * 0.82).toFixed(1) + ' Q' + p0[0].toFixed(1) + ' ' + (p0[1] - hh * 0.9).toFixed(1) + ' ' + (p0[0] + bw / 2).toFixed(1) + ' ' + (p0[1] - hh * 0.82).toFixed(1) + ' L' + (p0[0] + bw * 0.32).toFixed(1) + ' ' + p0[1].toFixed(1) + ' Z" fill="' + col + '"/><circle cx="' + p0[0].toFixed(1) + '" cy="' + (p0[1] - hh * 0.92).toFixed(1) + '" r="' + (hh * 0.085).toFixed(1) + '" fill="#e8c9a8" stroke="' + col + '" stroke-width="0.6"/></g>' }); k++; } }
+    solids.sort((a, c) => a.d - c.d).forEach(o => { g += o.svg; });
+    solids.filter(o => o.lab).sort((a, c) => a.d - c.d).forEach(o => { const L = o.lab; g += label(L.X, L.Y, L.Z + (L.lift || 0) * 0.45, L.t, L.c); });
+    /* מידות */
+    { const a = pr(0, H, 0), c = pr(W, H, 0), e = pr(W, 0, 0); g += '<text x="' + ((a[0] + c[0]) / 2 - 14) + '" y="' + ((a[1] + c[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + W.toFixed(1) + ' מ׳</text><text x="' + ((c[0] + e[0]) / 2 + 14) + '" y="' + ((c[1] + e[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + H.toFixed(1) + ' מ׳</text>'; }
+    return '<h4 style="font-size:13px;margin:10px 0 4px">' + esc(z.name || 'אזור') + '</h4><svg viewBox="0 0 ' + VW + ' ' + Math.round(VH) + '" style="width:100%;height:auto;border:1px solid #e3ded3;border-radius:10px;background:#fff" direction="ltr">' + g + '</svg>';
+  }).join('');
+  if (!out) return '';
+  const leg = [...used.values()].map(u => '<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #e3ded3;border-radius:10px;padding:4px 9px;background:#fff">' + prodImgCell(u.n, 38) + '<span style="font-size:11.5px"><b>' + u.cnt + '×</b> ' + esc(u.sm) + '</span></span>').join('');
+  return '<div class="rp-sec" style="page-break-before:always"><h3>🖼 הדמיה — מבט תלת־ממדי על ההצבה</h3>' + out + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' + leg + '</div><div style="font-size:10.5px;color:#777;margin-top:5px">הדמיה סכמטית לפי התכנית: המיקומים, הגבהים וכיווני הרמקולים אמיתיים · האלומה הסגולה = זווית הפיזור האופקית · צורות המוצרים והדמויות להמחשה בלבד</div></div>';
+}
 function sideViewHTML() {
   if (!P.scale) return '';
   const zones = (P.zones || []).filter(z => P.nodes.some(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z)));
@@ -15466,6 +15564,7 @@ holder.classList.add('rp-zoomable');
     if (L < Infinity && (R - L) < (xmax + 30) * 0.6 && actA < mainA * 0.55) { snaps.push(makeSnap('🔎 אזור הפעילות — תקריב', { L: Math.max(0, L - pad), T: Math.max(0, T - pad), R: Math.min(2200, R + pad), B: Math.min(1400, B + pad) }, 950)); } }
   ovRestore();
   /* היטל צד — מיד אחרי התכנית הכללית (או התקריב, אם יש) */
+  try { const iv = isoViewHTML(); if (iv) { const t = document.createElement('div'); t.innerHTML = iv; if (t.firstElementChild) snaps.push(t.firstElementChild); } } catch (e) { console.warn('isoView', e); }
   try { const sv = sideViewHTML(); if (sv) { const t = document.createElement('div'); t.innerHTML = sv; if (t.firstElementChild) snaps.push(t.firstElementChild); } } catch (e) { console.warn('sideView', e); }
   try { const bq = bomHTML(); if (bq) { const t = document.createElement('div'); t.innerHTML = bq; snaps.unshift(t.firstElementChild); }   /* כתב הכמויות פותח את הדוח */ } catch (e) { console.warn('bom', e); }
   /* שרטוט לכל קטגוריה שיש בה כבלים: מדליקים רק אותה, מרנדרים, מצלמים */
