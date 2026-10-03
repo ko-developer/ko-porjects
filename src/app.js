@@ -3281,6 +3281,16 @@ function cplGroup(root) {
   const sub = cplIsSub(root), nCoh = sub ? side + line - 1 : line;
   return { side: sub ? 1 : side, line, n: side + line - 1, gain: nCoh > 1 ? 20 * Math.log10(nCoh) : 0 };
 }
+/* 🔌 תג הכבל שמזין את המוקד — צמוד לאייקון, בצבע הכבל ועם מספרו: תמיד ברור איזה כבל מתחבר לאיזה רמקול */
+let _nodeCabLbl = null;
+const PLUG_SVG = '<svg width="9" height="9" viewBox="0 0 24 24" style="vertical-align:-1px"><path d="M8 2v6M16 2v6M5 8h14v4a7 7 0 0 1-14 0zM12 19v3" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
+function nodeCabsIn(n) { const inc = (P.cables || []).filter(c => c.to === n.id && cableVisible(c)); return inc.length ? inc : []; }
+function nodeCabChipHTML(n, side) {
+  const cs = nodeCabsIn(n); if (!cs.length) return '';
+  const now = performance.now(); if (!_nodeCabLbl || now - _nodeCabLbl.t > 40) _nodeCabLbl = { t: now, l: cableLabels() };
+  const pos = side ? 'left:calc(100% + 3px);top:50%;transform:translateY(-50%)' : 'left:50%;top:calc(100% + 1px);transform:translateX(-50%)';
+  return `<div style="position:absolute;${pos};display:flex;gap:2px;z-index:5;white-space:nowrap">${cs.slice(0, 3).map(c => { const col = cableColor(c); return `<span title="כבל ${_nodeCabLbl.l[c.id] || ''} — ${esc(cableKindLabel(c))}${+c.len > 0 ? ' · ' + c.len + ' מ׳' : ''}" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();pickCable('${c.id}')" style="display:inline-flex;align-items:center;gap:1px;background:#fff;border:1.5px solid ${col};color:${col};border-radius:8px;padding:0 3px;font-size:9px;font-weight:900;line-height:12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.25);direction:ltr">${PLUG_SVG}${_nodeCabLbl.l[c.id] || ''}</span>`; }).join('')}</div>`;
+}
 function cplBadgeHTML(n, mc) {
   const c = n.att && n.att.cpl; if (!c || !byId(n.att.id)) return '';
   const sym = { side: '↔', line: '↕', stack: '▂', fly: '⇡' }[c], ttl = { side: 'צד לצד — פיזור אופקי רחב', line: 'ליין אראיי — אחד מתחת לשני', stack: 'Stack — יושב על הסאב', fly: 'תלוי מעל הסאב' }[c];
@@ -3723,7 +3733,7 @@ function renderNodes() {
       const stk = !!(n.att && (n.att.sy || n.att.cpl === 'stack' || n.att.cpl === 'fly')) || !!anchorOf || P.nodes.some(o => o.att && o.att.id === n.id && o.att.sy);
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}" style="cursor:grab;position:relative">
         <div class="mnum" style="background:${mc}${stk ? ';position:absolute;left:-27px;top:50%;transform:translateY(-50%);z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.4)' : ''}">${mm ? mm[1] : '•'}</div>
-        <div class="mic" style="border-color:${mc}">${icon}</div>${cplBadgeHTML(n, mc)}
+        <div class="mic" style="border-color:${mc}">${icon}</div>${cplBadgeHTML(n, mc)}${nodeCabChipHTML(n, stk)}
 </div>`; /* לחיצה על האייקון פותחת — אין צורך בכפתור צף */
       /* לחיצה על האייקון עצמו פותחת את המוקד — כמו בארון ובפאנל; גרירה נשארת גרירה */
       d.addEventListener('pointerdown', e => {
@@ -15606,11 +15616,14 @@ holder.classList.add('rp-zoomable');
         document.querySelectorAll('#nodes > .node').forEach(el => { const n = byId(el.id.replace(/^ndo?_/, '')); if (!n || n.kind !== 'point' || !inv.has(n.id)) return;
           const r = el.getBoundingClientRect(), mm = /\(([^()]+)\)\s*$/.exec(n.name || ''), txt = (shortModel(n.name) || (n.name || '').slice(0, 14)) + (mm ? ' (' + mm[1] + ')' : '');
           const lx = ((r.left + r.right) / 2 - crL.left) / ZL; let ly = (r.bottom - crL.top) / ZL + 3;
-          while (placed.some(p => Math.abs(p.x - lx) < 90 && Math.abs(p.y - ly) < 16)) ly += 17;   /* רמקולים צמודים (טופ על סאב, ליין אריי) — התוויות נערמות זו מתחת לזו */
+          while (placed.some(p => Math.abs(p.x - lx) < 110 && Math.abs(p.y - ly) < 16)) ly += 17;   /* רמקולים צמודים (טופ על סאב, ליין אריי) — התוויות נערמות זו מתחת לזו */
           placed.push({ x: lx, y: ly });
-          const lb = document.createElement('div'); lb.className = 'rpTmpLbl'; lb.textContent = txt;
+          const lb = document.createElement('div'); lb.className = 'rpTmpLbl'; const LBq = cableLabels();
+          lb.innerHTML = '<span style="font-size:10px">🔊</span> ' + esc(txt) + cabs.filter(c => c.to === n.id).map(c => ' <span style="display:inline-flex;align-items:center;gap:1px;border:1.5px solid ' + cableColor(c) + ';color:' + cableColor(c) + ';border-radius:8px;padding:0 4px;margin-inline-start:2px;line-height:12px;font-size:10.5px;font-weight:900;background:#fff">' + PLUG_SVG + esc(String(LBq[c.id] || '')) + '</span>').join('');
           lb.style.cssText = 'position:absolute;z-index:9;white-space:nowrap;font-size:11px;font-weight:800;color:#111;background:rgba(255,255,255,.96);border:1.5px solid ' + CAT_COL[cat] + ';border-radius:6px;padding:0 5px;line-height:15px;pointer-events:none;direction:ltr;left:' + lx + 'px;top:' + ly + 'px;transform:translateX(-50%)';
-          host.appendChild(lb); }); }
+          host.appendChild(lb); });
+        /* האזור המצולם מתרחב כך שאף תווית לא נחתכת */
+        if (regC) host.querySelectorAll('div.rpTmpLbl').forEach(lb => { const r = lb.getBoundingClientRect(); regC.L = Math.max(0, Math.min(regC.L, (r.left - crL.left) / ZL - 8)); regC.R = Math.min(2200, Math.max(regC.R, (r.right - crL.left) / ZL + 8)); regC.B = Math.min(1400, Math.max(regC.B, (r.bottom - crL.top) / ZL + 8)); }); }
       const sec = makeSnap(pg.title + ' (' + cabs.length + ' כבלים)', regC, 950);
       document.querySelectorAll('#nodes > .rpTmpLbl').forEach(x => x.remove());
       /* מספרי הכבלים על התכנית — מוגדלים */
