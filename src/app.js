@@ -1179,6 +1179,9 @@ function normalizeAll() {
     if (c.fromHole && !c.toHole && b.panel && b.panel.holes[c.fromHole - 1]) c.toHole = c.fromHole;
     if (c.toHole && !c.fromHole && a.panel && a.panel.holes[c.toHole - 1]) c.fromHole = c.toHole;
   }
+  for (const pr of store.projects) for (const c of pr.cables || []) { if (c.srcCh) srcPanelHoles(c, pr.nodes);
+    /* כבל הרשת לעמדת ה-DJ — אל מחבר ה-RJ45 הראשון בקופסה */
+    if (c.type === 'cat' && !c.toHole && !(c.chans && c.chans.length) && /^רשת לעמדת DJ/.test(c.note || '')) { const dj = (pr.nodes || []).find(q => q.id === c.to), hs = dj && dj.panel && dj.panel.holes, hi = hs ? hs.findIndex(h => h.conn === 'rj45') : -1; if (hi >= 0) { c.toHole = hi + 1; if (!hs[hi].label) hs[hi].label = 'NET'; } } }   /* קווי מקור קיימים — משויכים לחורים 1/2 בקופסה */
   /* גובה ברירת המחדל של מיין מונף היה 3.5 מ׳ — עבר ל-2.6 (חד-פעמי לפרויקט; גובה שהוזן ידנית אחר כך נשמר) */
   for (const pr of store.projects) if (!pr.hgt26) { pr.hgt26 = 1; for (const n of pr.nodes || []) if (n.kind === 'point' && n.hgt === 3.5 && n.mount === 'טראס/הנפה') n.hgt = 2.6; }
   for (const pr of store.projects)
@@ -7050,7 +7053,7 @@ async function patchApply() {
           };
           if (P.scale) cc2.len = +(dist(src, t.rk) * P.scale).toFixed(1);
           const ref2 = inRef('multi'); if (ref2) applyStockRef(ref2, null, cc2);
-          P.cables.push(cc2); n2++; made.push(cc2);
+          srcPanelHoles(cc2); P.cables.push(cc2); n2++; made.push(cc2);
           const net2 = djNetCable(t.rk, src, inRef); if (net2) { n2++; made.push(net2); }
           return;
         }
@@ -7063,7 +7066,7 @@ async function patchApply() {
       };
       if (P.scale) cc.len = +(dist(src, t.rk) * P.scale).toFixed(1);
       const ref = inRef(cc.type); if (ref) applyStockRef(ref, null, cc);
-      P.cables.push(cc); n2++; made.push(cc);
+      srcPanelHoles(cc); P.cables.push(cc); n2++; made.push(cc);
       const net = djNetCable(t.rk, src, inRef); if (net) { n2++; made.push(net); }
     });
   }
@@ -7441,6 +7444,17 @@ window.gapRemoveUnit = gapRemoveUnit;
 function gapBack() { if (window.__gapReopen) setTimeout(projGapCheck, 250); }
 window.gapBack = gapBack;
 /* עמדת DJ מקבלת תמיד גם כבל רשת (Cat6) מהארון — שליטה, סטרימינג, רשת לציוד העמדה */
+/* קו מקור נגינה שיוצא מקופסה/עמדה: מתחבר בקופסה לחורים 1 ו-2 (שני מחברי ה-XLR הראשונים) — בלי קשר לכניסות שנבחרו בפרוססור —
+   והמחברים מקבלים שם ברירת מחדל MAIN L / MAIN R (שם שכבר הוזן נשמר) */
+function srcPanelHoles(c, nodes) {
+  if (!c || !c.srcCh || c.fromHole || (c.chans && c.chans.length)) return;
+  const n = (nodes || P.nodes || []).find(q => q.id === c.from); if (!n || n.kind !== 'panel' || !n.panel || !n.panel.holes) return;
+  const sig = n.panel.holes.map((h, i) => [h, i]).filter(([h]) => /^xlr/.test(h.conn || '')); if (sig.length < 2) return;
+  const [hL, iL] = sig[0], [hR, iR] = sig[1], lab = (h, t) => { if (!h.label || !String(h.label).trim()) h.label = t; };
+  if (c.srcCh === 'LR') { c.chans = [{ a: iL + 1 }, { a: iR + 1 }]; lab(hL, 'MAIN L'); lab(hR, 'MAIN R'); }
+  else if (c.srcCh === 'L') { c.fromHole = iL + 1; lab(hL, 'MAIN L'); }
+  else if (c.srcCh === 'R') { c.fromHole = iR + 1; lab(hR, 'MAIN R'); }
+}
 function djNetCable(rk, dj, refFn) {
   if (!rk || !dj) return null;
   const isDj = dj.srcKind === 'dj' || /עמדת נגינה|\bDJ\b/i.test(dj.name || '');
@@ -7450,6 +7464,7 @@ function djNetCable(rk, dj, refFn) {
   const cc = { id: uid('c'), from: rk.id, to: dj.id, type: 'cat', qty: '1', spec: '', conn: 'rj45', conn2: 'rj45', note: 'רשת לעמדת DJ — שליטה / סטרימינג / רשת לציוד העמדה, מהארון' };
   if (P.scale) cc.len = +(Math.hypot(rk.x - dj.x, rk.y - dj.y) * P.scale).toFixed(1);
   const ref = refFn ? refFn('cat') : null; if (ref) applyStockRef(ref, null, cc);
+  { const hs = dj.panel && dj.panel.holes, hi = hs ? hs.findIndex(h => h.conn === 'rj45') : -1; if (hi >= 0) { cc.toHole = hi + 1; if (!hs[hi].label) hs[hi].label = 'NET'; } }
   P.cables.push(cc);
   return cc;
 }
@@ -15179,13 +15194,32 @@ function isoViewHTML() {
     { let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647; const want = Math.max(4, Math.min(16, Math.round(W * H / 30))); let tries = 0, k = 0;
       const cols = ['#5b6b86', '#8a5a6b', '#4f7a6a', '#7a6a4f', '#5e5a8a', '#3f5f7a'];
       while (k < want && tries++ < 300) { const X = 0.8 + rnd() * (W - 1.6), Y = 0.8 + rnd() * (H - 1.6); if (blocked.some(q => Math.hypot(q.x - X, q.y - Y) < q.r)) continue; blocked.push({ x: X, y: Y, r: 0.9 });
-        const p0 = pr(X, Y, 0), hh = 1.72 * s * VZ, bw = Math.max(5, 0.46 * s * 0.9), col = cols[k % cols.length];
-        solids.push({ d: X + Y, svg: '<g><ellipse cx="' + p0[0].toFixed(1) + '" cy="' + p0[1].toFixed(1) + '" rx="' + (bw * 0.75).toFixed(1) + '" ry="' + (bw * 0.3).toFixed(1) + '" fill="#000" opacity="0.14"/><path d="M' + (p0[0] - bw * 0.32).toFixed(1) + ' ' + p0[1].toFixed(1) + ' L' + (p0[0] - bw / 2).toFixed(1) + ' ' + (p0[1] - hh * 0.82).toFixed(1) + ' Q' + p0[0].toFixed(1) + ' ' + (p0[1] - hh * 0.9).toFixed(1) + ' ' + (p0[0] + bw / 2).toFixed(1) + ' ' + (p0[1] - hh * 0.82).toFixed(1) + ' L' + (p0[0] + bw * 0.32).toFixed(1) + ' ' + p0[1].toFixed(1) + ' Z" fill="' + col + '"/><circle cx="' + p0[0].toFixed(1) + '" cy="' + (p0[1] - hh * 0.92).toFixed(1) + '" r="' + (hh * 0.085).toFixed(1) + '" fill="#e8c9a8" stroke="' + col + '" stroke-width="0.6"/></g>' }); k++; } }
+        const p0 = pr(X, Y, 0), hh = Math.max(30, 1.72 * s * VZ), col = cols[k % cols.length], fem = k % 2 === 1, x0 = p0[0], y0 = p0[1], f = v => v.toFixed(1);
+        const skin = ['#f0cfae', '#e3b48c', '#c98f66', '#f4d8bd'][k % 4], hair = ['#2b1d14', '#5a3a1e', '#1b1b1f', '#8a5a2b', '#b08a4a'][k % 5], yy = t => f(y0 - hh * t), xx = t => f(x0 + hh * t);
+        let fig = '<ellipse cx="' + f(x0) + '" cy="' + f(y0) + '" rx="' + f(hh * 0.2) + '" ry="' + f(hh * 0.07) + '" fill="#000" opacity="0.16"/>';
+        if (fem) {
+          fig += '<path d="M' + xx(-0.045) + ' ' + yy(0) + ' L' + xx(-0.05) + ' ' + yy(0.34) + ' M' + xx(0.045) + ' ' + yy(0) + ' L' + xx(0.05) + ' ' + yy(0.34) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.05) + '" stroke-linecap="round"/>' +
+            '<path d="M' + xx(-0.2) + ' ' + yy(0.82) + ' Q' + xx(-0.17) + ' ' + yy(0.56) + ' ' + xx(-0.12) + ' ' + yy(0.5) + ' M' + xx(0.2) + ' ' + yy(0.82) + ' Q' + xx(0.17) + ' ' + yy(0.56) + ' ' + xx(0.12) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.045) + '" stroke-linecap="round" fill="none"/>' +
+            '<path d="M' + xx(-0.17) + ' ' + yy(0.3) + ' Q' + xx(0) + ' ' + yy(0.25) + ' ' + xx(0.17) + ' ' + yy(0.3) + ' L' + xx(0.085) + ' ' + yy(0.6) + ' L' + xx(0.11) + ' ' + yy(0.82) + ' Q' + xx(0) + ' ' + yy(0.86) + ' ' + xx(-0.11) + ' ' + yy(0.82) + ' L' + xx(-0.085) + ' ' + yy(0.6) + ' Z" fill="' + col + '" stroke="' + shade(col, 0.7) + '" stroke-width="0.6"/>' +
+            '<ellipse cx="' + f(x0) + '" cy="' + yy(0.9) + '" rx="' + f(hh * 0.1) + '" ry="' + f(hh * 0.115) + '" fill="' + hair + '"/><rect x="' + xx(-0.1) + '" y="' + yy(0.9) + '" width="' + f(hh * 0.2) + '" height="' + f(hh * 0.16) + '" rx="' + f(hh * 0.05) + '" fill="' + hair + '"/>' +
+            '<circle cx="' + f(x0) + '" cy="' + yy(0.9) + '" r="' + f(hh * 0.072) + '" fill="' + skin + '"/><path d="M' + xx(-0.075) + ' ' + yy(0.92) + ' Q' + xx(0) + ' ' + yy(1.02) + ' ' + xx(0.075) + ' ' + yy(0.92) + ' Q' + xx(0) + ' ' + yy(0.96) + ' ' + xx(-0.075) + ' ' + yy(0.92) + ' Z" fill="' + hair + '"/>';
+        } else {
+          const pants = ['#2f3644', '#3b3f52', '#4a4032', '#27303a'][k % 4];
+          fig += '<path d="M' + xx(-0.06) + ' ' + yy(0) + ' L' + xx(-0.055) + ' ' + yy(0.48) + ' M' + xx(0.06) + ' ' + yy(0) + ' L' + xx(0.055) + ' ' + yy(0.48) + '" stroke="' + pants + '" stroke-width="' + f(hh * 0.085) + '" stroke-linecap="round"/>' +
+            '<path d="M' + xx(-0.16) + ' ' + yy(0.8) + ' L' + xx(-0.18) + ' ' + yy(0.5) + ' M' + xx(0.16) + ' ' + yy(0.8) + ' L' + xx(0.18) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.05) + '" stroke-linecap="round"/>' +
+            '<path d="M' + xx(-0.16) + ' ' + yy(0.8) + ' L' + xx(-0.17) + ' ' + yy(0.64) + ' M' + xx(0.16) + ' ' + yy(0.8) + ' L' + xx(0.17) + ' ' + yy(0.64) + '" stroke="' + col + '" stroke-width="' + f(hh * 0.065) + '" stroke-linecap="round"/>' +
+            '<path d="M' + xx(-0.13) + ' ' + yy(0.84) + ' Q' + xx(0) + ' ' + yy(0.87) + ' ' + xx(0.13) + ' ' + yy(0.84) + ' L' + xx(0.11) + ' ' + yy(0.45) + ' L' + xx(-0.11) + ' ' + yy(0.45) + ' Z" fill="' + col + '" stroke="' + shade(col, 0.7) + '" stroke-width="0.6"/>' +
+            '<circle cx="' + f(x0) + '" cy="' + yy(0.92) + '" r="' + f(hh * 0.075) + '" fill="' + skin + '"/><path d="M' + xx(-0.078) + ' ' + yy(0.93) + ' Q' + xx(0) + ' ' + yy(1.04) + ' ' + xx(0.078) + ' ' + yy(0.93) + ' Q' + xx(0) + ' ' + yy(0.975) + ' ' + xx(-0.078) + ' ' + yy(0.93) + ' Z" fill="' + hair + '"/>';
+        }
+        solids.push({ d: X + Y, svg: '<g>' + fig + '</g>' }); k++; } }
     solids.sort((a, c) => a.d - c.d).forEach(o => { g += o.svg; });
     solids.filter(o => o.lab).sort((a, c) => a.d - c.d).forEach(o => { const L = o.lab; g += label(L.X, L.Y, L.Z + (L.lift || 0) * 0.45, L.t, L.c); });
     /* מידות */
     { const a = pr(0, H, 0), c = pr(W, H, 0), e = pr(W, 0, 0); g += '<text x="' + ((a[0] + c[0]) / 2 - 14) + '" y="' + ((a[1] + c[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + W.toFixed(1) + ' מ׳</text><text x="' + ((c[0] + e[0]) / 2 + 14) + '" y="' + ((c[1] + e[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + H.toFixed(1) + ' מ׳</text>'; }
-    return '<h4 style="font-size:13px;margin:10px 0 4px">' + esc(z.name || 'אזור') + '</h4><svg viewBox="0 0 ' + VW + ' ' + Math.round(VH) + '" style="width:100%;height:auto;border:1px solid #e3ded3;border-radius:10px;background:#fff" direction="ltr">' + g + '</svg>';
+    { let area = W * H; if (z.poly && z.poly.length > 2) { let a2 = 0; z.poly.forEach((p, i) => { const q = z.poly[(i + 1) % z.poly.length]; a2 += p.x * q.y - q.x * p.y; }); area = Math.abs(a2) / 2 * m * m; }
+      const nTop = pts.filter(n => cplSpkLike(n) && !cplIsSub(n)).length, nSub = pts.filter(n => cplSpkLike(n) && cplIsSub(n)).length, chip = t => '<span style="border:1px solid #e3ded3;border-radius:999px;padding:2px 10px;background:#fff">' + t + '</span>';
+      var info = '<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11.5px;margin:0 0 6px">' + chip('📐 שטח <b>' + Math.round(area) + ' מ״ר</b>') + chip('מידות <b dir="ltr">' + W.toFixed(1) + ' × ' + H.toFixed(1) + ' מ׳</b>') + chip(ceil ? 'גובה תקרה <b>' + ceil + ' מ׳</b>' : 'חלל פתוח') + (nTop ? chip('🔊 <b>' + nTop + '</b> רמקולים') : '') + (nSub ? chip('🟢 <b>' + nSub + '</b> סאבים') : '') + (z.usage || (P.room && P.room.usage) ? chip('שימוש: <b>' + esc(z.usage || P.room.usage) + '</b>') : '') + '</div>'; }
+    return '<h4 style="font-size:13px;margin:10px 0 4px">' + esc(z.name || 'אזור') + '</h4>' + info + '<svg viewBox="0 0 ' + VW + ' ' + Math.round(VH) + '" style="width:100%;height:auto;border:1px solid #e3ded3;border-radius:10px;background:#fff" direction="ltr">' + g + '</svg>';
   }).join('');
   if (!out) return '';
   const leg = [...used.values()].map(u => '<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #e3ded3;border-radius:10px;padding:4px 9px;background:#fff">' + prodImgCell(u.n, 38) + '<span style="font-size:11.5px"><b>' + u.cnt + '×</b> ' + esc(u.sm) + '</span></span>').join('');
@@ -15468,7 +15502,7 @@ holder.classList.add('rp-zoomable');
     const rows = [];
     for (const c of cabs) {
       if (c.bands && c.bands.length) c.bands.forEach((bd, i) => rows.push({ c, lbl: LBLl[c.id] + '.' + (i + 1), a: endTxt(c.from, bd.unitId, null, bd.port), b: endTxt(c.to, c.toUnit) + ' · ' + esc(spkConnOf(nodeFullName(byId(c.to) || {})).lbl) + ' ' + esc(bd.pins || '') + ' (' + BAND_LBL[bd.band] + ')', sub: 'גידים ' + (bd.pair || '') + ' בכבל המשותף' }));
-      else if (c.chans && c.chans.length) c.chans.forEach((ch, i) => rows.push({ c, lbl: LBLl[c.id] + '.' + (i + 1), a: endTxt(c.from, c.fromUnit, ch.a), b: endTxt(c.to, c.toUnit, ch.b), sub: 'ליבה ' + (i + 1) + ' מתוך ' + c.chans.length }));
+      else if (c.chans && c.chans.length) c.chans.forEach((ch, i) => rows.push({ c, lbl: LBLl[c.id] + '.' + (i + 1), a: endTxt(c.from, c.fromUnit, ch.a), b: endTxt(c.to, c.toUnit, ch.b, ch.b ? null : (() => { const ps = String(c.pIn || '').replace(/^IN\s*/i, '').split('+'); return ps[i] ? 'IN ' + ps[i].trim() : c.pIn; })()), sub: 'ליבה ' + (i + 1) + ' מתוך ' + c.chans.length }));
       else rows.push({ c, lbl: LBLl[c.id], a: endTxt(c.from, c.fromUnit, c.fromHole, c.pOut), b: endTxt(c.to, c.toUnit, c.toHole, c.pIn), sub: '' });
     }
     if (!rows.length) return '';
@@ -15574,9 +15608,10 @@ holder.classList.add('rp-zoomable');
     if (L < Infinity && (R - L) < (xmax + 30) * 0.6 && actA < mainA * 0.55) { snaps.push(makeSnap('🔎 אזור הפעילות — תקריב', { L: Math.max(0, L - pad), T: Math.max(0, T - pad), R: Math.min(2200, R + pad), B: Math.min(1400, B + pad) }, 950)); } }
   ovRestore();
   /* היטל צד — מיד אחרי התכנית הכללית (או התקריב, אם יש) */
-  try { const iv = isoViewHTML(); if (iv) { const t = document.createElement('div'); t.innerHTML = iv; if (t.firstElementChild) snaps.push(t.firstElementChild); } } catch (e) { console.warn('isoView', e); }
   try { const sv = sideViewHTML(); if (sv) { const t = document.createElement('div'); t.innerHTML = sv; if (t.firstElementChild) snaps.push(t.firstElementChild); } } catch (e) { console.warn('sideView', e); }
-  try { const bq = bomHTML(); if (bq) { const t = document.createElement('div'); t.innerHTML = bq; snaps.unshift(t.firstElementChild); }   /* כתב הכמויות פותח את הדוח */ } catch (e) { console.warn('bom', e); }
+  try { const bq = bomHTML(); if (bq) { const t = document.createElement('div'); t.innerHTML = bq; snaps.unshift(t.firstElementChild); } } catch (e) { console.warn('bom', e); }
+  /* ההדמיה פותחת את הדוח, ואחריה כתב הכמויות */
+  try { const iv = isoViewHTML(); if (iv) { const t = document.createElement('div'); t.innerHTML = iv; if (t.firstElementChild) snaps.unshift(t.firstElementChild); } } catch (e) { console.warn('isoView', e); }
   /* שרטוט לכל קטגוריה שיש בה כבלים: מדליקים רק אותה, מרנדרים, מצלמים */
   const CAT_TITLES = { audio: '🔊 שרטוט חיווט סאונד', light: '💡 שרטוט חיווט תאורה', video: '📺 שרטוט חיווט וידאו', data: '🌐 שרטוט רשת ואופטי', power: '⚡ שרטוט חשמל' };
   const present = [...new Set((P.cables || []).map(c => cabGroup(c)))];
@@ -15611,6 +15646,8 @@ holder.classList.add('rp-zoomable');
         document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
         if (L < Infinity) { const pad = 40, bw = Math.max(R - L, 320), bh = Math.max(B - T, 260), cx = (L + R) / 2, cy = (T + B) / 2;
           regC = { L: Math.max(0, cx - bw / 2 - pad), T: Math.max(0, cy - bh / 2 - pad), R: Math.min(2200, cx + bw / 2 + pad), B: Math.min(1400, cy + bh / 2 + pad) }; } }
+      /* השרטוט המלא על כל רוחב הדף (לא חיתוך צר סביב הקו) — הקו עצמו מודגש והשאר מעומעם */
+      if (regC && regMain) regC = { L: Math.min(regC.L, regMain.L), T: Math.min(regC.T, regMain.T), R: Math.max(regC.R, regMain.R), B: Math.max(regC.B, regMain.B) };
       /* שם קצר + מספר ליד כל רמקול/מוקד מעורב — ברור וקריא על השרטוט */
       { const host = $('#nodes'), crL = $('#canvas').getBoundingClientRect(), ZL = getZ(), placed = [];
         document.querySelectorAll('#nodes > .node').forEach(el => { const n = byId(el.id.replace(/^ndo?_/, '')); if (!n || n.kind !== 'point' || !inv.has(n.id)) return;
@@ -15648,6 +15685,11 @@ holder.classList.add('rp-zoomable');
         sideEls.forEach(({ cl, w0, h0, n }) => { const k2 = n.kind === 'rack' ? Math.min(900 / w0, 620 / h0) : Math.min(1.3, 420 / w0), box = document.createElement('div');   /* גב הארון מוקטן בתוך האלמנט — מגדילים */
           box.style.cssText = 'position:relative;flex:none;width:' + Math.round(w0 * k2) + 'px;height:' + Math.round(h0 * k2) + 'px;page-break-inside:avoid;overflow:hidden';
           cl.style.transform = 'scale(' + k2.toFixed(4) + ')'; box.classList.add('rp-zoomable'); box.appendChild(cl); rearD.appendChild(box); });
+        /* מאיפה מגיע / לאן יוצא כל קו חיצוני של הארון */
+        { const LBx = cableLabels(), chips = []; sideEls.filter(e2 => e2.n.kind === 'rack').forEach(({ n: rk }) => cabs.forEach(c => { const inn = c.to === rk.id, outt = c.from === rk.id; if (inn === outt) return; const o = byId(inn ? c.from : c.to); if (!o) return;
+            const u = unitOf(rk.id, inn ? c.toUnit : c.fromUnit), prt = inn ? c.pIn : (c.pOut || ((c.bands || [])[0] || {}).port), col = cableColor(c);
+            chips.push(`<span style="display:inline-flex;align-items:center;gap:5px;border:1.5px solid ${col};border-radius:999px;padding:2px 9px 2px 3px;background:#fff;white-space:nowrap"><b style="background:${col};color:#fff;border-radius:999px;padding:0 7px">${esc(String(LBx[c.id] || ''))}</b>${inn ? 'מגיע מ־' : 'יוצא אל'} <b>${esc((shortModel(o.name) && o.kind === 'point' ? shortModel(o.name) + ((/\(([^()]+)\)\s*$/.exec(o.name) || [])[0] ? ' ' + /\(([^()]+)\)\s*$/.exec(o.name)[0] : '') : o.name).slice(0, 34))}</b>${u ? ' · ' + esc(shortModel(u.name) || u.name.slice(0, 18)) : ''}${prt ? ' <span dir="ltr" style="color:#555">' + esc(prt) + '</span>' : ''}</span>`); }));
+          if (chips.length) { const lg = document.createElement('div'); lg.style.cssText = 'flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;font-size:11.5px'; lg.innerHTML = '<div style="flex-basis:100%;text-align:center;font-size:11.5px;font-weight:700;color:#333">🔌 קווים חיצוניים של הארון — מאיפה מגיע / לאן יוצא כל קו</div>' + chips.join(''); rearD.appendChild(lg); } }
         sec.appendChild(rearD); }
       const lad = document.createElement('div'); lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); sec.appendChild(lad);
       snaps.push(sec);
