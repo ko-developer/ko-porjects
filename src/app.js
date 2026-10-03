@@ -3202,7 +3202,7 @@ function iconSlotFor(drag, wide, rawPos) {
   const elD = document.getElementById('nd_' + drag.n.id), micD = elD && (elD.querySelector('.mic') || elD); if (!elD || !micD) return null;
   if (!drag.off) { const m0 = bx(micD), n0 = bx(elD); drag.off = { x: 2200 - drag.ox - m0.cx - (drag.n._fanX || 0), y: m0.cy - drag.oy - (drag.n._fanY || 0), dmy: m0.cy - n0.cy, W: m0.W, H: m0.H, nH: n0.H }; }
   const o = drag.off, rp = rawPos || { x: drag.n.x, y: drag.n.y }, raw = { cx: 2200 - rp.x - o.x, cy: rp.y + o.y };   /* rawPos — מיקום הסמן בלי ההצמדה שכבר הוחלה בזמן הגרירה */
-  const others = P.nodes.filter(nn => nn !== drag.n && isIconNode(nn) && !nn.hidden && !(nn.att && nn.att.id === drag.n.id && (nn.att.cpl === 'stack' || nn.att.cpl === 'fly'))).map(nn => { const e2 = document.getElementById('nd_' + nn.id); if (!e2) return null; return { nn, m: bx(e2.querySelector('.mic') || e2), nb: bx(e2) }; }).filter(Boolean);
+  const others = P.nodes.filter(nn => nn !== drag.n && isIconNode(nn) && !nn.hidden && !(drag.grp || (drag.grp = new Set(cplDesc(drag.n).map(q => q.id)))).has(nn.id)).map(nn => { const e2 = document.getElementById('nd_' + nn.id); if (!e2) return null; return { nn, m: bx(e2.querySelector('.mic') || e2), nb: bx(e2) }; }).filter(Boolean);
   const over = (cx, cy, q) => Math.abs(cx - q.m.cx) < (o.W + q.m.W) / 2 - 1 && Math.abs(cy - q.m.cy) < (o.H + q.m.H) / 2 - 1;
   const overlapping = others.some(q => over(raw.cx, raw.cy, q));
   if (wide && !overlapping) return null;
@@ -3248,6 +3248,11 @@ function spkAimIcon(n, mc) {
    סאבים מצומדים (צד לצד או בערימה) מסתכמים קוהרנטית בשני המצבים */
 const cplIsSub = q => !!q && (q.ptype === 'sub' || (q.kind === 'point' && !q.ptype && /סאב|\bsub\b|וופר/i.test(q.name || '')));
 const cplSpkLike = q => !!q && q.kind === 'point' && (q.ptype === 'speaker' || q.ptype === 'sub' || (!q.ptype && /רמקול|סאב|speaker|\bsub\b|קולונ|וופר/i.test(q.name || '') && !/מגבר|פרוססור/.test(q.name || '')));
+/* שורש המערך המצומד (עולים בשרשרת הצימוד) וכל הצאצאים שלו — המערך נגרר כגוף אחד */
+function cplRoot(n) { let q = n; for (let g = 0; g < 20 && q.att && q.att.cpl; g++) { const a = byId(q.att.id); if (!a || a.hidden) break; q = a; } return q; }
+function cplDesc(root) { const out = [], seen = new Set([root.id]); let front = [root.id];
+  for (let g = 0; g < 20 && front.length; g++) { const nx = []; for (const q of P.nodes) { if (seen.has(q.id) || q.hidden || !q.att || !q.att.cpl || !front.includes(q.att.id)) continue; seen.add(q.id); out.push(q); nx.push(q.id); } front = nx; }
+  return out; }
 function cplFollower(n) { return !!(n.att && (n.att.cpl === 'side' || n.att.cpl === 'line') && byId(n.att.id)); }
 function cplGroup(root) {
   let side = 1, line = 1; const seen = new Set([root.id]); let front = [root.id];
@@ -3412,7 +3417,7 @@ function renderNodes() {
   const stackAt = {}, stackOf = {};
   for (const n of P.nodes) {
     if (n.hidden) continue;
-    if (n.att && (n.att.cpl === 'stack' || n.att.cpl === 'fly')) continue;   /* טופ על סאב — באותה נקודה בכוונה, לא נפרש */
+    if (n.att && n.att.cpl) continue;   /* חבר במערך מצומד — ממוקם ביחס לעוגן, לא נפרש */
     const k = Math.round(n.x / 4) + '|' + Math.round(n.y / 4);   /* רק מוקדים שיושבים ממש באותה נקודה נפרשים — אייקון שהונח ליד אחר נשאר בדיוק איפה שהונח */
     (stackAt[k] = stackAt[k] || []).push(n.id);
   }
@@ -5134,9 +5139,9 @@ function renderWires() {
     for (const [wa, wb] of window.__wallG) out += `<line x1="${wa.x}" y1="${wa.y}" x2="${wb.x}" y2="${wb.y}" stroke="#16a34a" stroke-width="${Math.max(4, Math.min(14, P.scale ? 0.15 / P.scale : 8)) + 3 / zz}" stroke-linecap="round" opacity=".9" pointer-events="none"/>`;   /* רחב מעט מהקיר עצמו — נראה גם מעל קיר עבה */
   }
   if (window.__alignG) {
-    const g = window.__alignG, EX = 6000;
-    if (g.x != null) out += `<line x1="${g.x}" y1="0" x2="${g.x}" y2="${EX}" stroke="#e2438a" stroke-width="1.5" stroke-dasharray="7 5" opacity="0.95" style="pointer-events:none"/>`;
-    if (g.y != null) out += `<line x1="0" y1="${g.y}" x2="${EX}" y2="${g.y}" stroke="#e2438a" stroke-width="1.5" stroke-dasharray="7 5" opacity="0.95" style="pointer-events:none"/>`;
+    const g = window.__alignG, zg = getZ() || 1, ext = 40 / zg, ln = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#16a34a" stroke-width="${2 / zg}" stroke-dasharray="${8 / zg} ${5 / zg}" opacity="0.95" style="pointer-events:none"/>`;
+    if (g.v && g.v.length) out += ln(g.cx, Math.min(g.cy, ...g.v) - ext, g.cx, Math.max(g.cy, ...g.v) + ext);       /* מיושר אנכית עם אייקון אחר */
+    if (g.h && g.h.length) out += ln(Math.min(g.cx, ...g.h) - ext, g.cy, Math.max(g.cx, ...g.h) + ext, g.cy);       /* מיושר אופקית */
   }
   /* פוליגון אזור בזמן ציור */
   if (zoneMode && zoneMode.poly && zoneMode.poly.length) {
@@ -10122,7 +10127,7 @@ document.addEventListener('pointerdown', e => {
   let n = byId(h.dataset.drag);
   sel = n.id; ui.tab = 'node';
   /* טופ שיושב / תלוי על סאב — גוררים את הזוג כולו (הסאב הוא העוגן), כך שהמיקום של שניהם נשמר יחד. Shift = לגרור את הטופ לבד (מנתק) */
-  if (n.att && (n.att.cpl === 'stack' || n.att.cpl === 'fly') && !e.shiftKey && byId(n.att.id) && !byId(n.att.id).hidden) n = byId(n.att.id);
+  if (n.att && n.att.cpl && !e.shiftKey) n = cplRoot(n);   /* גם ליין אראיי / צד לצד — כל המערך נוסע כגוף אחד עד שמפרידים */
   bakeAtt(n);
   drag = { n, sx: e.clientX, sy: e.clientY, ox: n.x, oy: n.y };
   const onFloat = !!h.closest('.floatbox');
@@ -10262,6 +10267,12 @@ document.addEventListener('pointermove', e => {
   if (isIcon(drag.n) && !P.snapOff && !e.altKey) {   /* הצמדה — אפשר לבטל בתפריט התצוגה, או זמנית עם Alt בזמן הגרירה */
     const TH = 8 / Z;
     let gx = null, gy = null;
+    /* מרכז האייקון הנגרר (קנבס) וגודלו נמדדים מה-DOM בתחילת הגרירה; ושאר האייקונים — ליישור ולקווי העזר */
+    if (drag.micR == null) { const mEl = document.querySelector('#nd_' + drag.n.id + ' .mic'), cvr = $('#canvas').getBoundingClientRect();
+      if (mEl) { const mr = mEl.getBoundingClientRect(); drag.micR = mr.width / Z / 2 + 2.5; drag.micDx = (mr.left + mr.width / 2 - cvr.left) / Z - (2200 - drag.ox); drag.micDy = (mr.top + mr.height / 2 - cvr.top) / Z - drag.oy; }
+      else { drag.micR = 0; drag.micDx = -20; drag.micDy = 24; }
+      const own = new Set(cplDesc(drag.n).map(q => q.id));
+      drag.oth = P.nodes.filter(nn => nn !== drag.n && isIcon(nn) && !nn.hidden && !own.has(nn.id) && !(nn.att && nn.att.cpl)).map(nn => nodeIconGeo(nn)); }
     /* הצמדה לפי משבצות: לכל אייקון אחר ארבע משבצות צמודות (ימין/שמאל/מעל/מתחת). האייקון הנגרר נצמד למשבצת הפנויה הקרובה —
        וכשהוא משוחרר מעל אייקון אחר הוא עובר למשבצת הפנויה הקרובה ביותר (אף פעם לא לאותה נקודה, שגורמת לשניהם לזוז) */
     drag.att = null;
@@ -10279,23 +10290,28 @@ document.addEventListener('pointermove', e => {
     }
     if (gx != null) drag.n.x = gx;
     if (gy != null) drag.n.y = gy;
-    if (gx != null || gy != null) window.__alignG = { x: gx, y: gy };
+    /* יישור מרכז-למרכז מול אייקונים אחרים: כשהמרכז הנגרר מתקרב לקו (אנכי/אופקי) של אייקון אחר — נדבק אליו */
+    { const TA = 10 / Z, cx = 2200 - drag.n.x + drag.micDx, cy = drag.n.y + drag.micDy; let bx = null, by = null;
+      for (const o of drag.oth || []) { const dx = o.x - cx, dy = o.y - cy; if (Math.abs(dx) < TA && (bx == null || Math.abs(dx) < Math.abs(bx))) bx = dx; if (Math.abs(dy) < TA && (by == null || Math.abs(dy) < Math.abs(by))) by = dy; }
+      if (bx != null && !drag.att) drag.n.x -= bx;
+      if (by != null && !drag.att) drag.n.y += by; }
     /* מגנט לקיר: מוקד (רמקול) שמתקרב לקיר נצמד אליו — האייקון נוגע בקיר מהצד שממנו הגיע. גובר על שאר ההצמדות בציר הניצב לקיר */
     if (drag.n.kind === 'point') {   /* גם כשהאייקון ליד אייקון אחר — הקיר גובר */
       /* מרכז האייקון וגודלו נמדדים מה-DOM — גודל האייקון והמרחק שלו מפינת המוקד תלויים בזום */
-      if (drag.micR == null) { const mEl = document.querySelector('#nd_' + drag.n.id + ' .mic'), cvr = $('#canvas').getBoundingClientRect();
-        if (mEl) { const mr = mEl.getBoundingClientRect(); drag.micR = mr.width / Z / 2 + 2.5; drag.micDx = (mr.left + mr.width / 2 - cvr.left) / Z - (2200 - drag.ox); drag.micDy = (mr.top + mr.height / 2 - cvr.top) / Z - drag.oy; }   /* האלמנט עדיין במקום ההתחלתי (ox/oy) — המיקום החדש עוד לא הוחל עליו */
-        else { drag.micR = 0; drag.micDx = -20; drag.micDy = 24; } }
       const w = nodeWallSnap(2200 - drag.n.x + drag.micDx, drag.n.y + drag.micDy, Z, drag.micR);
-      if (w) { drag.n.x = 2200 - (w.x - drag.micDx); drag.n.y = w.y - drag.micDy; drag.att = null; window.__alignG = null; window.__wallG = w.seg2 ? [w.seg, w.seg2] : [w.seg]; } else window.__wallG = null;
+      if (w) { drag.n.x = 2200 - (w.x - drag.micDx); drag.n.y = w.y - drag.micDy; drag.att = null; window.__wallG = w.seg2 ? [w.seg, w.seg2] : [w.seg]; } else window.__wallG = null;
     } else window.__wallG = null;
+    /* קווי העזר — לפי המיקום הסופי (אחרי כל ההצמדות): קו ירוק מקווקו אל כל אייקון שהנגרר מיושר איתו */
+    { const cx = 2200 - drag.n.x + drag.micDx, cy = drag.n.y + drag.micDy, v = [], hz = [];
+      for (const o of drag.oth || []) { if (Math.abs(o.x - cx) < 0.8) v.push(o.y); if (Math.abs(o.y - cy) < 0.8) hz.push(o.x); }
+      window.__alignG = v.length || hz.length ? { cx, cy, v, h: hz } : null; }
   }
   const el = document.getElementById('nd_' + drag.n.id);
   /* טופים שיושבים על הסאב הנגרר זזים איתו — במיקום השמור וגם על המסך */
-  if (!drag.fol) drag.fol = P.nodes.filter(q => !q.hidden && q.att && q.att.id === drag.n.id && (q.att.cpl === 'stack' || q.att.cpl === 'fly')).map(q => { const fe = document.getElementById('nd_' + q.id); return fe ? { q, fe, dr: parseFloat(fe.style.right) - parseFloat(el.style.right), dt: parseFloat(fe.style.top) - parseFloat(el.style.top) } : null; }).filter(Boolean);
+  if (!drag.fol) drag.fol = cplDesc(drag.n).map(q => { const fe = document.getElementById('nd_' + q.id); return fe ? { q, fe, x0: q.x - drag.ox, y0: q.y - drag.oy, dr: parseFloat(fe.style.right) - parseFloat(el.style.right), dt: parseFloat(fe.style.top) - parseFloat(el.style.top) } : null; }).filter(Boolean);
   el.style.right = (drag.n.x - (drag.n._chW || 0)) + 'px';
   el.style.top = drag.n.y + 'px';
-  drag.fol.forEach(f => { f.q.x = drag.n.x; f.q.y = drag.n.y; f.fe.style.right = (parseFloat(el.style.right) + f.dr) + 'px'; f.fe.style.top = (parseFloat(el.style.top) + f.dt) + 'px'; });
+  drag.fol.forEach(f => { f.q.x = drag.n.x + f.x0; f.q.y = drag.n.y + f.y0; f.fe.style.right = (parseFloat(el.style.right) + f.dr) + 'px'; f.fe.style.top = (parseFloat(el.style.top) + f.dt) + 'px'; });
   renderWires();
   /* עורך החיווט פתוח? הדיליי והעומסים מתעדכנים חי תוך כדי גרירה */
   if (PATCH && document.getElementById('patchBody') && !window.__pchT) {
