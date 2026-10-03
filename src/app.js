@@ -3264,10 +3264,15 @@ function cplBadgeHTML(n, mc) {
   const sym = { side: '↔', line: '↕', stack: '▂', fly: '⇡' }[c], ttl = { side: 'צד לצד — פיזור אופקי רחב', line: 'ליין אראיי — אחד מתחת לשני', stack: 'Stack — יושב על הסאב', fly: 'תלוי מעל הסאב' }[c];
   /* "תלוי מעל": קו מקווקו מהטופ אל הסאב שמתחתיו (או מהסאב אל הטופ שמעליו) */
   const link = false ? `<div style="position:absolute;left:50%;${n.att.sy < 0 ? 'top:100%' : 'bottom:100%'};height:11px;border-left:2px dashed ${mc};transform:translateX(-1px);pointer-events:none"></div>` : '';
-  return link + `<div title="${ttl}" style="position:absolute;right:-8px;top:-8px;min-width:15px;height:15px;border-radius:8px;background:#fff;border:1.5px solid ${mc};color:${mc};font-size:10px;font-weight:800;line-height:12px;text-align:center;z-index:4;pointer-events:none">${sym}</div>`;
+  return link + `<div title="${ttl} — לחץ לשינוי או להפרדה" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();cplAsk('${n.id}','${n.att.id}')" style="position:absolute;right:-10px;top:-10px;min-width:19px;height:19px;border-radius:10px;background:#fff;border:1.5px solid ${mc};color:${mc};font-size:12px;font-weight:800;line-height:16px;text-align:center;z-index:6;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)">${sym}</div>`;
 }
 function cplApply(nid, tid, mode) {
   let n = byId(nid), t = byId(tid); document.getElementById('cplAsk')?.remove(); if (!n || !t) return;
+  if (mode === 'detach') {   /* הפרדה: הצימוד נמחק, והרמקול זז הצידה כדי שיהיה אפשר לתפוס כל אחד בנפרד */
+    const was = n.att && n.att.cpl; delete n.att;
+    if (was === 'stack' || was === 'fly') { const stp = nodeIconGeo(t).r * 2 + 8; n.x = Math.max(0, t.x - stp); n.y = t.y; }
+    save(); render(); uiToast('✂ הופרדו — כל רמקול עומד עכשיו בפני עצמו'); return;
+  }
   if (mode === 'none') { if (n.att) delete n.att.cpl; save(); render(); return; }
   /* Stack / תלוי: הסאב הוא העוגן (נשאר במקומו ומוצג גדול), הטופ יושב עליו באותה נקודה — גם אם גררו את הסאב על הטופ */
   if ((mode === 'stack' || mode === 'fly') && cplIsSub(n) && !cplIsSub(t)) { const tmp = n; n = t; t = tmp; }
@@ -3295,11 +3300,13 @@ function cplAsk(nid, tid) {
   const el = document.getElementById('nd_' + n.id), r = el ? el.getBoundingClientRect() : { left: innerWidth / 2, bottom: innerHeight / 2, width: 0 };
   const d = document.createElement('div'); d.id = 'cplAsk';
   d.style.cssText = 'position:fixed;z-index:140;background:#fff;border:1px solid #cfd3dc;border-radius:11px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:9px;direction:rtl;font-size:12px;width:250px;left:' + Math.max(8, Math.min(innerWidth - 262, r.left + r.width / 2 - 125)) + 'px;top:' + Math.min(innerHeight - 190, r.bottom + 10) + 'px';
-  d.innerHTML = '<div style="font-weight:800;margin-bottom:6px">' + (mixed ? 'טופ על סאב — איך הם מותקנים?' : subs ? 'סאב על סאב — איך הם מצומדים?' : 'רמקול על רמקול — איך הם מצומדים?') + '</div>' +
+  d.innerHTML = '<div style="font-weight:800;margin-bottom:6px">' + (n.att && n.att.cpl && n.att.id === tid ? 'צימוד קיים — שנה או הפרד' : mixed ? 'טופ על סאב — איך הם מותקנים?' : subs ? 'סאב על סאב — איך הם מצומדים?' : 'רמקול על רמקול — איך הם מצומדים?') + '</div>' +
     opts.map(o => '<button data-m="' + o[0] + '" style="display:block;width:100%;text-align:right;margin-bottom:5px;padding:6px 9px;border:1px solid #cfd3dc;border-radius:8px;background:#f7f7fb;cursor:pointer"><b>' + o[1] + '</b><br><span style="color:#666;font-size:10.5px">' + o[2] + '</span></button>').join('') +
-    '<button data-m="none" style="display:block;width:100%;padding:4px;border:0;background:none;color:#777;cursor:pointer;font-size:11px">רק להניח ליד — בלי צימוד</button>';
+    (n.att && n.att.cpl && n.att.id === tid
+      ? '<button data-m="detach" style="display:block;width:100%;padding:6px 9px;border:1px solid #e9b4b4;border-radius:8px;background:#fdf0f0;color:#c1121f;cursor:pointer;font-weight:700;margin-bottom:4px">✂ הפרד — כל אחד בנפרד</button><button data-x style="display:block;width:100%;padding:4px;border:0;background:none;color:#777;cursor:pointer;font-size:11px">סגור</button>'
+      : '<button data-m="none" style="display:block;width:100%;padding:4px;border:0;background:none;color:#777;cursor:pointer;font-size:11px">רק להניח ליד — בלי צימוד</button>');
   d.addEventListener('pointerdown', ev => ev.stopPropagation());
-  d.addEventListener('click', ev => { const b = ev.target.closest('[data-m]'); if (b) cplApply(nid, tid, b.dataset.m); });
+  d.addEventListener('click', ev => { if (ev.target.closest('[data-x]')) { d.remove(); return; } const b = ev.target.closest('[data-m]'); if (b) cplApply(nid, tid, b.dataset.m); });
   document.body.appendChild(d);
 }
 /* אייקון צמוד מוצג בהיסט מהמיקום השמור; בתחילת גרירה ההיסט נכנס למיקום עצמו — האייקון לא קופץ כשמתחילים לגרור */
@@ -8838,6 +8845,9 @@ function renderPanel() {
     <div class="fld"><label>SPL מקס @1מ׳ (דריסה ידנית)</label><input type="number" min="90" max="150" value="${n.spl ?? ''}" placeholder="${effSpl(n).toFixed(0)} (מחושב)" onchange="byId('${n.id}').spl=this.value?+this.value:undefined;render();save()"></div>
     <p class="muted" style="font-size:10px;margin:-2px 0 4px">SPL אפקטיבי בשימוש: <b>${effSpl(n).toFixed(0)} dB</b> ${(n.sens ?? guessSens(n.name)) != null && n.pow ? '(רגישות + 10·log₁₀·הספק)' : '(Max SPL)'}</p>
     <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;margin-bottom:4px"><input type="checkbox" style="width:auto" ${!n.noCov ? 'checked' : ''} onchange="byId('${n.id}').noCov=!this.checked;render();save()"> הצג פיזור לרמקול זה</label>
+    ${(() => { const fol = n.att && n.att.cpl && byId(n.att.id) ? n : P.nodes.find(o => !o.hidden && o.att && o.att.cpl && o.att.id === n.id); if (!fol) return '';
+      const oth = fol === n ? byId(fol.att.id) : fol, lbl = { side: '↔ צד לצד', line: '↕ ליין אראיי', stack: '▂ Stack', fly: '⇡ תלוי מעל הסאב' }[fol.att.cpl];
+      return '<div class="fld" style="background:#f4f1fb;border-radius:8px;padding:6px 8px"><label>🔗 מצומד — ' + lbl + '</label><div style="font-size:11.5px;margin-bottom:5px">עם: ' + esc(shortModel(oth.name) || oth.name.slice(0, 30)) + '</div><div style="display:flex;gap:6px"><button style="flex:1" onclick="cplAsk(\'' + fol.id + '\',\'' + fol.att.id + '\')">שנה סוג</button><button style="flex:1;background:#fdf0f0;color:#c1121f;font-weight:700" onclick="cplApply(\'' + fol.id + '\',\'' + fol.att.id + '\',\'detach\')">✂ הפרד</button></div></div>'; })()}
     <div class="fld"><label>כיוון הרמקול (${n.aim ?? 0}° · 0=ימין, 90=מטה)</label>
       <input type="range" min="0" max="359" value="${n.aim ?? 0}" oninput="byId('${n.id}').aim=+this.value;renderCoverage();const g=document.querySelector('#nd_${n.id} .mic g[transform^=rotate]');if(g)g.setAttribute('transform','rotate('+this.value+' 12 12)')" onchange="save();render()"></div>
     <p class="muted" style="font-size:10px">🎯 לסיבוב: גרור את הידית הכתומה שמופיעה ליד הרמקול על התכנית. הצג קונוסים ב"הגדרות תכנית → פיזור רמקולים".</p>` : ''}`;
