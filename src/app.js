@@ -6739,6 +6739,21 @@ function patchSigClass(rk, amp, ch) {
   if (ns.some(n => /מיין|main|במה|stage|L\/R/i.test((n.sub || '') + ' ' + (n.name || '')))) return 1;
   return 2;
 }
+/* לאן הולך ערוץ המגבר: הרמקולים שמחוברים ל-OUT ch, כולל אלה שמשורשרים אחריהם */
+function patchSigDest(rk, amp, ch) {
+  const out = [], seen = new Set();
+  let front = (P.cables || []).filter(c => c.from === rk.id && c.fromUnit === amp.id && c.to !== rk.id && +(String(c.pOut || '').match(/\d+/) || [0])[0] === ch).map(c => c.to);
+  for (let g = 0; g < 12 && front.length; g++) { const nx = [];
+    front.forEach(id => { if (seen.has(id)) return; seen.add(id); const n = byId(id); if (!n) return; out.push(n);
+      (P.cables || []).forEach(c => { if (c.from === id && c.type === 'nl4' && !seen.has(c.to) && byId(c.to) && byId(c.to).kind === 'point') nx.push(c.to); }); });
+    front = nx; }
+  return out;
+}
+function patchSigDestHTML(rk, amp, ch) {
+  const ns = patchSigDest(rk, amp, ch); if (!ns.length) return '<span style="color:#aaa">— אין רמקולים על OUT ' + ch + ' —</span>';
+  const grp = {}; ns.forEach(n => { const m = shortModel(n.name) || (n.name || '').slice(0, 16); const num = (/\((\d+)\)\s*$/.exec(n.name || '') || [])[1]; (grp[m] = grp[m] || []).push(num || ''); });
+  return '<span style="color:#888">OUT ' + ch + ' →</span> ' + Object.entries(grp).map(([m, nums]) => '<span onclick="jumpToNode(\'' + ns.find(n => (shortModel(n.name) || '') === m || (n.name || '').startsWith(m)).id + '\')" title="הצג בתכנית" style="display:inline-block;background:#2d3444;color:#fff;border-radius:7px;padding:1px 7px;margin:1px 2px;font-size:11px;cursor:pointer;direction:ltr;unicode-bidi:embed">' + (nums.length > 1 ? nums.length + '× ' : '') + esc(m) + (nums.filter(Boolean).length ? ' <span style="opacity:.7">#' + nums.filter(Boolean).join(',') + '</span>' : '') + '</span>').join('');
+}
 const SIG_CLS = ['🔈 סאבים', '🔊 טופים', '🔉 פיזורים', ''];
 /* חלוקת יציאות הפרוססור מחדש לפי הסדר: סאבים ← טופים ← פיזורים, ובתוך כל קבוצה לפי מיקום המגבר והערוץ */
 function patchSigReorder(rkId, quiet) {
@@ -6771,8 +6786,8 @@ function patchSigBlockHTML() {
         const rows = net
           ? '<div style="padding:7px 10px;font-size:12px;color:#4b3fb8">🌐 Dante — ' + esc(shortModel(proc.name)) + ' → ' + esc(shortModel(amp.name)) + ' בכבל רשת אחד, כל הערוצים ברשת' + (ok ? '' : ' · <b style="color:#c1121f">⚠ לא זוהתה יכולת Dante ב' + (pd ? '' : 'פרוססור') + (!pd && !ad ? ' וב' : '') + (ad ? '' : 'מגבר') + ' — בדוק מול המפרט</b>') + '</div>'
           : (xl.length ? xl.map(c => { const ch = +(String(c.pIn || '').match(/\d+/) || [0])[0], isProc = c.fromUnit === proc.id;
-              return '<div style="display:flex;gap:8px;align-items:center;padding:4px 10px;border-top:1px solid #f0ede8;font-size:12px"><b style="width:40px;color:#c9502e">' + esc(c.pIn || '') + '</b><span style="width:74px;font-size:10.5px;color:#666;white-space:nowrap">' + SIG_CLS[patchSigClass(rk, amp, ch)] + '</span><span style="color:#888">⟵</span><select onchange="patchSigSet(\'' + c.id + '\',this.value)" style="flex:1;font-size:12px;padding:3px 6px;' + (!c.pOut ? 'border-color:#e9b4b4;background:#fdf7f7' : '') + '">' +
-              '<option value="">— בלי יציאה —</option>' + outs.map(o => '<option value="P|' + esc(o) + '"' + (isProc && c.pOut === o ? ' selected' : '') + '>' + esc(shortModel(proc.name)) + ' · ' + esc(o) + '</option>').join('') + (isProc && c.pOut && !outs.includes(c.pOut) ? '<option selected value="P|' + esc(c.pOut) + '">' + esc(c.pOut) + ' (לא בגב שבספרייה)</option>' : '') + lnkOpts(c, ch) + '</select></div>'; }).join('')
+              return '<div style="display:flex;gap:8px;align-items:center;padding:4px 10px;border-top:1px solid #f0ede8;font-size:12px"><b style="width:40px;color:#c9502e">' + esc(c.pIn || '') + '</b><span style="width:74px;font-size:10.5px;color:#666;white-space:nowrap">' + SIG_CLS[patchSigClass(rk, amp, ch)] + '</span><span style="color:#888">⟵</span><select onchange="patchSigSet(\'' + c.id + '\',this.value)" style="flex:0 1 230px;min-width:150px;font-size:12px;padding:3px 6px;' + (!c.pOut ? 'border-color:#e9b4b4;background:#fdf7f7' : '') + '">' +
+              '<option value="">— בלי יציאה —</option>' + outs.map(o => '<option value="P|' + esc(o) + '"' + (isProc && c.pOut === o ? ' selected' : '') + '>' + esc(shortModel(proc.name)) + ' · ' + esc(o) + '</option>').join('') + (isProc && c.pOut && !outs.includes(c.pOut) ? '<option selected value="P|' + esc(c.pOut) + '">' + esc(c.pOut) + ' (לא בגב שבספרייה)</option>' : '') + lnkOpts(c, ch) + '</select><span style="flex:1;min-width:0;font-size:11.5px;line-height:1.5">' + patchSigDestHTML(rk, amp, ch) + '</span></div>'; }).join('')
             : '<div style="padding:7px 10px;font-size:11.5px;color:#8a8377">אין עדיין פאצ׳ים — ייווצרו ב"חבר" לערוצים שמזינים רמקולים</div>');
         return '<div style="border:1px solid #e3ded3;border-radius:10px;margin-bottom:8px;overflow:hidden;background:#fff"><div style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:#f7f5f0"><b style="flex:1;font-size:12.5px">🎚 ' + esc(shortModel(amp.name) || amp.name.slice(0, 28)) + ' <span style="font-weight:400;color:#8a8377">· U' + (amp.pos + 1) + ' · ' + esc(rk.name.slice(0, 22)) + '</span></b>' +
           '<select onchange="patchSigMode(\'' + rk.id + '\',\'' + amp.id + '\',this.value)" style="font-size:11.5px;padding:2px 6px" title="איך הסיגנל מגיע למגבר"><option value="xlr"' + (net ? '' : ' selected') + '>XLR אנלוגי</option><option value="dante"' + (net ? ' selected' : '') + '>🌐 Dante' + (ok ? '' : ' ⚠') + '</option></select></div>' + rows + '</div>';
