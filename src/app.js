@@ -1179,6 +1179,8 @@ function normalizeAll() {
     if (c.fromHole && !c.toHole && b.panel && b.panel.holes[c.fromHole - 1]) c.toHole = c.fromHole;
     if (c.toHole && !c.fromHole && a.panel && a.panel.holes[c.toHole - 1]) c.fromHole = c.toHole;
   }
+  /* גובה ברירת המחדל של מיין מונף היה 3.5 מ׳ — עבר ל-2.6 (חד-פעמי לפרויקט; גובה שהוזן ידנית אחר כך נשמר) */
+  for (const pr of store.projects) if (!pr.hgt26) { pr.hgt26 = 1; for (const n of pr.nodes || []) if (n.kind === 'point' && n.hgt === 3.5 && n.mount === 'טראס/הנפה') n.hgt = 2.6; }
   for (const pr of store.projects)
     for (const n of pr.nodes || [])
       if (n.kind === 'rack') {
@@ -2454,7 +2456,8 @@ function renderCableKey() {
 function cabGroup(c) {
   const g = CAB_GROUP[c.type] || 'audio';
   if (g !== 'audio' || (c.type !== 'xlr' && c.type !== 'multi' && c.type !== 'aes')) return g;
-  if (/dmx/i.test((c.spec || '') + ' ' + (c.note || ''))) return 'light';
+  if (c.internal && /^proc-amp/.test(c.internal)) return g;
+  if (/(^|[^a-z0-9])dmx(?![a-z0-9])/i.test((c.spec || '') + ' ' + (c.note || ''))) return 'light';
   const holesOf = (nid, list) => { const n = (P.nodes || []).find(q => q.id === nid), hs = n && n.panel && n.panel.holes; return hs ? list.map(i => hs[i - 1]).filter(Boolean) : []; };
   const hs = [...holesOf(c.from, c.fromHole ? [c.fromHole] : (c.chans || []).map(x => x.a)), ...holesOf(c.to, c.toHole ? [c.toHole] : (c.chans || []).map(x => x.b))];
   return hs.length && hs.every(h => h.conn === 'dmx' || /dmx/i.test(h.label || '')) ? 'light' : g;
@@ -3026,7 +3029,7 @@ function rearImageHTML(name, items, opts = {}) {
   }).join('');
   const cap = opts.caption === false ? '' : `<div class="cap">📷 ${esc(im.model || name)}${im.custom ? ' · העלאה ידנית' : im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : ''}</div>`;
   let h = im.url ? `<div class="rearimg${opts.edit ? ' edit' : ''}${opts.edit && window.__rearPlace != null ? ' placing' : ''}" data-side="rear" style="${opts.style || ''}"><img src="${im.url}" alt="" draggable="false" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'">${marksFor('rear')}${cap}</div>` : '';
-  if (im.furl) h += `<div class="rearimg front${opts.edit ? ' edit' : ''}${opts.edit && window.__rearPlace != null ? ' placing' : ''}" data-side="front" style="margin-top:3px;${opts.style || ''}"><img src="${im.furl}" alt="" draggable="false" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'">${marksFor('front')}<div class="cap">חזית${im.url ? '' : ' · ' + esc(im.model || '') + (im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : '')}</div></div>`;
+  if (im.furl && !(opts.rearOnly && im.url)) h += `<div class="rearimg front${opts.edit ? ' edit' : ''}${opts.edit && window.__rearPlace != null ? ' placing' : ''}" data-side="front" style="margin-top:3px;${opts.style || ''}"><img src="${im.furl}" alt="" draggable="false" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'">${marksFor('front')}<div class="cap">חזית${im.url ? '' : ' · ' + esc(im.model || '') + (im.page ? ' · <a href="' + esc(im.page) + '" target="_blank" rel="noopener">מקור ↗</a>' : '')}</div></div>`;
   return h;
 }
 /* ===== מנהל ספריית הגבים — כל הדגמים, עריכה, הוספה, ייבוא/ייצוא ===== */
@@ -14504,7 +14507,7 @@ function buildZoneSystem(zid) {
     const LR = [{ t: inset, lbl: 'L' }, { t: seg.len - inset, lbl: 'R' }];
     LR.forEach(pt => {
       const cx = seg.x1 + ux * pt.t + seg.nx * inset, cy = seg.y1 + uy * pt.t + seg.ny * inset;
-      P.nodes.push({ id: uid('n'), kind: 'point', name: spk + ' (' + pt.lbl + ')', sub: 'מיין במה · ' + z.name, x: 2200 - cx - 20, y: cy - 24, srcIid: it.iid, mini: true, mount: 'טראס/הנפה', hgt: 3.5, aim: A });
+      P.nodes.push({ id: uid('n'), kind: 'point', name: spk + ' (' + pt.lbl + ')', sub: 'מיין במה · ' + z.name, x: 2200 - cx - 20, y: cy - 24, srcIid: it.iid, mini: true, mount: 'טראס/הנפה', hgt: 2.6, aim: A });
     });
     let subMsg2 = '';
     if (z._sub) {
@@ -15086,7 +15089,7 @@ function sideViewHTML() {
       let hgt = n.hgt != null && n.hgt !== '' ? +n.hgt : null, assumed = false, kind = 'gear';
       if (spk && sub) { kind = 'sub'; if (hgt == null) hgt = 0; }
       else if (spk) { kind = 'top';
-        if (hgt == null) { if (n.att && n.att.cpl === 'stack') hgt = subTop; else { hgt = ceil ? Math.max(1.8, ceil - 0.6) : 2.5; assumed = true; } } }
+        if (hgt == null) { if (n.att && n.att.cpl === 'stack') hgt = subTop; else { hgt = ceil ? Math.max(1.8, Math.min(2.6, ceil - 0.4)) : 2.6; assumed = true; } } }
       else { if (hgt == null) hgt = 0; }
       const mm = /\((\d+)\)\s*$/.exec(n.name || '');
       return { n, u, hgt, assumed, kind, num: mm ? mm[1] : '', lbl: shortModel(n.name) || (n.name || '').slice(0, 14) };
@@ -15201,7 +15204,6 @@ function exportPDF() {
     <h1>KO Projects — דוח פרויקט</h1><h2>${esc(P.name)}</h2>
     <p>${new Date().toLocaleDateString('he-IL')} · ${racks.length} ארונות · ${points.length} מוקדי קצה · ${P.cables.length} כבלים${P.room && (P.room.ceil || P.room.usage) ? `<br>תקרה: ${P.room.ceil || '?'} מ׳ · ספיגה אקוסטית: ${P.room.absorb ?? '?'}/10 · שימוש: ${esc(P.room.usage || '—')}` : ''}${P.scale ? ' · קנה מידה מכויל ✓' : ''}${(P.zones || []).length ? '<br>אזורי סאונד: ' + P.zones.map(z => esc(z.name) + ' (' + esc(z.usage || '—') + ')').join(' · ') : ''}</p>
   </div></div>`;
-  try { h += sideViewHTML(); } catch (e) { console.warn('sideView', e); }
   for (const n of racks) h += rackSection(n);
   /* פאנלים וקופסאות מולטי */
   /* פאנלים שכבר מופיעים במקום אחר בדוח לא חוזרים כאן: הכנות חשמל (בפרק החשמל), ופאנלים עם כבלים (בשרטוטי הדיסציפלינות) */
@@ -15343,19 +15345,38 @@ function exportPDF() {
       else rows.push({ c, lbl: LBLl[c.id], a: endTxt(c.from, c.fromUnit, c.fromHole, c.pOut), b: endTxt(c.to, c.toUnit, c.toHole, c.pIn), sub: '' });
     }
     if (!rows.length) return '';
-    const RH = 22, W = 940, x1 = 300, x2 = 640, H = rows.length * RH + 8;
-    const svg = rows.map((r, i) => { const y = 14 + i * RH, cc = cableColor(r.c); const kind = esc(cableKindLabel(r.c)) + (r.c.spec ? ' · ' + esc(r.c.spec) : '');
-      return `<text x="${x1 - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="#333">${r.a}</text>
-        <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${cc}" stroke-width="${r.c.chans ? 2.4 : 1.8}"/>
-        <rect x="${(x1 + x2) / 2 - 22}" y="${y - 8}" width="44" height="16" rx="8" fill="#fff" stroke="${cc}" stroke-width="1.5"/><text x="${(x1 + x2) / 2}" y="${y + 4}" text-anchor="middle" font-size="10" font-weight="800" fill="${cc}">${esc(r.lbl)}</text>
-        <text x="${x2 + 8}" y="${y + 4}" font-size="11" fill="#333">${r.b}</text>
-        <text x="${W - 4}" y="${y + 4}" text-anchor="end" font-size="9.5" fill="#777">${r.sub ? r.sub + ' · ' : ''}${kind}</text>`; }).join('');
-    return `<div style="margin-top:12px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${col};margin-bottom:4px">🧵 חיווט — כבל אחר כבל (${rows.length} קווים)</div>
-      <div style="overflow-x:auto"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="direction:ltr;display:block;font-family:inherit">${svg}</svg></div></div>`;
+    const td = 'padding:3px 7px;border-bottom:1px solid #eee7da;vertical-align:middle';
+    const trs = rows.map(r => { const cc = cableColor(r.c), kind = esc(cableKindLabel(r.c)) + (r.c.spec ? ' · ' + esc(r.c.spec) : '');
+      return `<tr><td style="${td};text-align:center;white-space:nowrap"><span style="display:inline-block;min-width:26px;border:1.5px solid ${cc};color:${cc};border-radius:999px;padding:0 6px;font-weight:800;font-size:10.5px;background:#fff">${esc(r.lbl)}</span></td><td style="${td}">${r.a}</td><td style="${td};color:${cc};font-weight:800;text-align:center">←</td><td style="${td}">${r.b}</td><td style="${td};color:#666;font-size:10.5px">${kind}${r.sub ? '<br>' + r.sub : ''}</td><td style="${td};color:#666;font-size:10.5px;white-space:nowrap">${+r.c.len > 0 ? r.c.len + ' מ׳' : ''}</td></tr>`; }).join('');
+    return `<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;color:${col};margin-bottom:4px">🧵 חיווט — כבל אחר כבל (${rows.length} קווים)</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px;direction:rtl"><thead><tr style="background:#f6f2ea;font-size:10.5px;color:#555"><th style="padding:3px 7px">מס׳</th><th style="padding:3px 7px;text-align:right">מ־</th><th></th><th style="padding:3px 7px;text-align:right">אל</th><th style="padding:3px 7px;text-align:right">סוג</th><th style="padding:3px 7px;text-align:right">אורך</th></tr></thead><tbody>${trs}</tbody></table></div>`;
+  };
+  /* גב הארון לדוח: כל יחידה שמעורבת בכבלי הדיסציפלינה — תמונת הגב, ועל כל מחבר מחווט טבעת בצבע הכבל ומספרו */
+  const rackRearHTML = (cabs, col) => {
+    const LBLr = cableLabels(); let out = '';
+    P.nodes.filter(n => n.kind === 'rack' && cabs.some(c => c.from === n.id || c.to === n.id)).forEach(rk => {
+      const us = (rk.units || []).slice().sort((x, y) => (x.pos || 0) - (y.pos || 0)); let body = '';
+      us.forEach(u => {
+        const mine = [];   /* [port, cable, label] */
+        cabs.forEach(c => {
+          if (c.bands && c.bands.length) c.bands.forEach((bd, i) => { if (c.from === rk.id && bd.unitId === u.id) mine.push([bd.port, c, LBLr[c.id] + '.' + (i + 1)]); });
+          else if (c.from === rk.id && c.fromUnit === u.id) mine.push([c.pOut, c, LBLr[c.id]]);
+          if (c.to === rk.id && c.toUnit === u.id) (typeof cablePIns === 'function' && c.pIn ? String(c.pIn).replace(/^IN\s*/i, '').split('+').map(x => 'IN ' + x.trim()) : [c.pIn]).forEach(pi => mine.push([pi, c, LBLr[c.id]]));
+        });
+        if (!mine.length) return;
+        const norm = v => String(v || '').replace(/\s+/g, '').toUpperCase();
+        const items = rearPortsAuto(rearLayout(u.name)), im = rearImage(u.name);
+        const pic = im && im.url ? rearImageHTML(u.name, items, { caption: false, rearOnly: true, mark: it => { const m = mine.find(q => q[0] && norm(q[0]) === norm(it.port)); return m ? { col: cableColor(m[1]), num: m[2] } : null; } }) : '';
+        body += `<div style="margin-bottom:8px;page-break-inside:avoid"><div style="font-size:10.5px;font-weight:700;color:#333;margin-bottom:2px">${esc(shortModel(u.name) || u.name.slice(0, 40))}</div>${pic || ''}
+          <div style="font-size:10px;color:#555;line-height:1.5;margin-top:${pic ? 14 : 0}px">${mine.map(q => `<span style="white-space:nowrap;margin-inline-end:8px"><b style="color:${cableColor(q[1])}">${esc(q[2])}</b> ${esc(q[0] || '—')}</span>`).join(' ')}</div></div>`;
+      });
+      if (body) out += `<div style="border:1px solid #ddd;border-radius:8px;padding:8px;background:#fafaf7;margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:${col};margin-bottom:6px">🔌 גב הארון — ${esc(rk.name)}</div>${body}</div>`;
+    });
+    return out;
   };
   /* תרשים חיבורים: הקופסאות/הארונות המעורבים (מקורות למעלה, יעדים למטה) עם קווים חור-אל-חור בצבע הכבל, מספר הכבל,
      ורצועה בצבע הצינור סביב הקווים שעוברים באותו צינור (תג צ1 Ø50) */
-  const snaps = [];
+  const snaps = []; let regMain = null;
   const savedVis = JSON.stringify(P.cabVis || {});
   /* בתכנית הכללית (ובתקריב) הכול סגור — אייקונים בלבד, והשם המלא כתוב מעל כל אייקון; גם קופסה שנשארה פתוחה במסך נסגרת כאן, ומוחזרת אחרי הצילום */
   const ovSaved = P.nodes.map(n => [n, n.min, n.pmin, n.mini, n.full]);
@@ -15408,14 +15429,18 @@ function exportPDF() {
     document.querySelectorAll('#nodes > .node, #nodes > div.rpTmpLbl').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
     const reg0 = L < Infinity ? { L: Math.max(0, L - 10), T: Math.max(0, T - 10), R: Math.min(2200, R + 10), B: Math.min(1400, B + 10) } : null;
-    snaps.push(makeSnap('תכנית כללית — פריסה וחיווט', reg0, 950)); }
+    regMain = reg0; snaps.push(makeSnap('תכנית כללית — פריסה וחיווט', reg0, 950)); }
   /* אזור הפעילות: חיתוך למקום שבו המוקדים והכבלים, מוגדל — כשהתכנית גדולה והציוד מרוכז בפינה */
   { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
     const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
     document.querySelectorAll('#nodes > .node, #nodes > div.rpTmpLbl').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
-    if (L < Infinity && (R - L) < (xmax + 30) * 0.6) { const pad = 60; snaps.push(makeSnap('🔎 אזור הפעילות — תקריב', { L: Math.max(0, L - pad), T: Math.max(0, T - pad), R: Math.min(2200, R + pad), B: Math.min(1400, B + pad) }, 950)); } }
+    const pad = 60, mainA = regMain ? (regMain.R - regMain.L) * (regMain.B - regMain.T) : Infinity, actA = (Math.min(2200, R + pad) - Math.max(0, L - pad)) * (Math.min(1400, B + pad) - Math.max(0, T - pad));
+    /* תקריב רק כשהוא באמת מגדיל — אזור פעילות שגודלו דומה לתכנית הכללית הוא דף כפול */
+    if (L < Infinity && (R - L) < (xmax + 30) * 0.6 && actA < mainA * 0.55) { snaps.push(makeSnap('🔎 אזור הפעילות — תקריב', { L: Math.max(0, L - pad), T: Math.max(0, T - pad), R: Math.min(2200, R + pad), B: Math.min(1400, B + pad) }, 950)); } }
   ovRestore();
+  /* היטל צד — מיד אחרי התכנית הכללית (או התקריב, אם יש) */
+  try { const sv = sideViewHTML(); if (sv) { const t = document.createElement('div'); t.innerHTML = sv; if (t.firstElementChild) snaps.push(t.firstElementChild); } } catch (e) { console.warn('sideView', e); }
   /* שרטוט לכל קטגוריה שיש בה כבלים: מדליקים רק אותה, מרנדרים, מצלמים */
   const CAT_TITLES = { audio: '🔊 שרטוט חיווט סאונד', light: '💡 שרטוט חיווט תאורה', video: '📺 שרטוט חיווט וידאו', data: '🌐 שרטוט רשת ואופטי', power: '⚡ שרטוט חשמל' };
   const present = [...new Set((P.cables || []).map(c => cabGroup(c)))];
@@ -15444,10 +15469,12 @@ function exportPDF() {
       document.querySelectorAll('#nodes > .node').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; el.style.opacity = ''; });
       opened.forEach(([n, f2]) => n[f2] = true);
       const holder = sec._holder; holder.style.margin = '0'; holder.style.flex = 'none';
-      /* כמו בהכנות החשמל: השרטוט מימין (הקופסאות המעורבות פתוחות, עם המסלולים הפנימיים) והרשימה משמאל */
+      /* השרטוט מימין, גב הארון (עם מספרי הכבלים על המחברים) משמאל, ורשימת הקווים מתחת — ברוחב מלא */
       const rowD = document.createElement('div'); rowD.style.cssText = 'display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap'; rowD.appendChild(holder);
-      const lad = document.createElement('div'); lad.style.cssText = 'flex:1;min-width:300px'; lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); rowD.appendChild(lad);
+      const rr = rackRearHTML(cabs, CAT_COL[cat]);
+      if (rr) { const rearD = document.createElement('div'); rearD.style.cssText = 'flex:1;min-width:280px'; rearD.innerHTML = rr; rowD.appendChild(rearD); } else holder.style.margin = '0 auto';
       sec.appendChild(rowD);
+      const lad = document.createElement('div'); lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); sec.appendChild(lad);
       snaps.push(sec);
     }
     P.cabVis = JSON.parse(savedVis);
