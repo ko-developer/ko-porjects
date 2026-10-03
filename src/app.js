@@ -14684,10 +14684,115 @@ function cableTableHTML() {
       <td>${endName(c.from, c.fromUnit)}${c.pOut ? ' <small style="color:#888">· ' + esc(c.pOut) + '</small>' : ''}</td><td>${endName(c.to, c.toUnit)}${c.pIn ? ' <small style="color:#888">· ' + esc(c.pIn) + '</small>' : ''}</td>
       <td>${CTYPES[c.type].n}${c.cores?' · '+c.cores+'× '+coreTxt(c):''}${c.fiber?' · '+c.fiber:''}${c.conn && CONNS[c.conn] ? ' · ' + CONNS[c.conn].n + (c.conn2 && CONNS[c.conn2] && c.conn2 !== c.conn ? ' ← ' + CONNS[c.conn2].n : '') : ''}${c.dir === 'both' ? ' ↔' : ''}</td><td>${esc(c.qty)}</td><td>${esc(c.spec)}</td><td>${vdCell(c)}</td><td>${c.inst === 'exist' ? '♻️ קיים' : c.inst === 'pull' ? '🚚 להעברה' : '➕ חדש'}</td><td>${esc(c.note)}</td></tr>`).join('') + '</table>';
 }
+/* ===== היטל צד לדוח: חתך לאורך הציר הארוך של כל אזור — רצפה, תקרה (אם הוגדרה), אנשים בגובה 1.75 מ׳, הריהוט מהשרטוט,
+   והרמקולים בגובה ההתקנה שלהם. גובה שלא הוגדר למוקד מסומן "?" ומצויר בקו מקווקו (הנחה לתצוגה בלבד).
+   גובהי הריהוט טיפוסיים — להמחשה, לא מדידה. */
+const SIDE_OBJ_H = { bar: 1.1, barStools: 1.1, counter: 1.1, outKitchen: 0.9, kitchen: 0.9, table: 0.75, tableR: 0.75, sofa: 0.8, lounge: 0.8, stage: 0.6, plant: 1.2, door: 2.1 };
+function sideViewHTML() {
+  if (!P.scale) return '';
+  const zones = (P.zones || []).filter(z => P.nodes.some(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z)));
+  if (!zones.length) return '';
+  const m = P.scale;
+  const out = zones.map(z => {
+    const b = zoneBounds(z), alongX = b.W >= b.H, L = (alongX ? b.W : b.H) * m;
+    if (!(L > 0.5)) return '';
+    const ceil = +z.ceil || +(P.room && P.room.ceil) || 0;
+    const uOf = (x, y) => ((alongX ? x - b.L : y - b.T) * m);
+    const inZ = (x, y) => x >= b.L - 2 && x <= b.L + b.W + 2 && y >= b.T - 2 && y <= b.T + b.H + 2;
+    /* מוקדים */
+    const pts = P.nodes.filter(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z));
+    const subTop = 0.6;
+    const items = pts.map(n => {
+      const g = nodeIconGeo(n), anchor = n.att && n.att.cpl && byId(n.att.id);
+      const gx = anchor && (n.att.cpl === 'stack' || n.att.cpl === 'fly') ? nodeIconGeo(anchor) : g;
+      const u = Math.max(0, Math.min(L, uOf(gx.x, gx.y)));
+      const spk = cplSpkLike(n), sub = cplIsSub(n);
+      let hgt = n.hgt != null && n.hgt !== '' ? +n.hgt : null, assumed = false, kind = 'gear';
+      if (spk && sub) { kind = 'sub'; if (hgt == null) hgt = 0; }
+      else if (spk) { kind = 'top';
+        if (hgt == null) { if (n.att && n.att.cpl === 'stack') hgt = subTop; else { hgt = ceil ? Math.max(1.8, ceil - 0.6) : 2.5; assumed = true; } } }
+      else { if (hgt == null) hgt = 0; }
+      const mm = /\((\d+)\)\s*$/.exec(n.name || '');
+      return { n, u, hgt, assumed, kind, num: mm ? mm[1] : '', lbl: shortModel(n.name) || (n.name || '').slice(0, 14) };
+    });
+    /* ריהוט מהשרטוט */
+    const objs = ((P.sketch && P.sketch.objs) || []).filter(o => inZ(o.x, o.y)).map(o => {
+      const a = (o.r || 0) * Math.PI / 180, ext = alongX ? Math.abs(o.w * Math.cos(a)) + Math.abs(o.h * Math.sin(a)) : Math.abs(o.w * Math.sin(a)) + Math.abs(o.h * Math.cos(a));
+      return { t: o.t, name: (SK_OBJS[o.t] || {}).n || o.t, c: (SK_OBJS[o.t] || {}).c || '#777', u: uOf(o.x, o.y), w: ext * m, h: SIDE_OBJ_H[o.t] };
+    });
+    const racks = P.nodes.filter(n => n.kind === 'rack' && !n.hidden && inZ(2200 - n.x - 20, n.y + 24));
+    /* קנה מידה */
+    const topM = Math.max(ceil || 0, 3, ...items.map(i => i.hgt + 0.6)) + 1;
+    const VW = 1000, padL = 46, padR = 18, sx = (VW - padL - padR) / L, sy = Math.max(sx, Math.min(60, 240 / topM));
+    const padT = 34, floorY = padT + topM * sy, VH = floorY + 62;
+    const X = u => padL + u * sx, Y = hm => floorY - hm * sy;
+    let g = '';
+    /* רצפה + רשת גובה */
+    for (let hm = 1; hm <= Math.floor(topM); hm++) g += '<line x1="' + padL + '" y1="' + Y(hm) + '" x2="' + (VW - padR) + '" y2="' + Y(hm) + '" stroke="#e7e3da" stroke-width="1"/><text x="' + (padL - 6) + '" y="' + (Y(hm) + 3.5) + '" font-size="10" fill="#888" text-anchor="end">' + hm + ' מ׳</text>';
+    if (ceil) g += '<line x1="' + padL + '" y1="' + Y(ceil) + '" x2="' + (VW - padR) + '" y2="' + Y(ceil) + '" stroke="#3f3a33" stroke-width="3"/><text x="' + (VW - padR) + '" y="' + (Y(ceil) - 5) + '" font-size="10.5" fill="#3f3a33" text-anchor="end">תקרה ' + ceil + ' מ׳</text>';
+    g += '<line x1="' + padL + '" y1="' + Y(1.6) + '" x2="' + (VW - padR) + '" y2="' + Y(1.6) + '" stroke="#16a34a" stroke-width="1" stroke-dasharray="6 5" opacity=".7"/><text x="' + (padL + 4) + '" y="' + (Y(1.6) - 4) + '" font-size="9.5" fill="#16a34a">גובה אוזן 1.6 מ׳</text>';
+    g += '<rect x="' + padL + '" y="' + floorY + '" width="' + (VW - padL - padR) + '" height="7" fill="#3f3a33"/>';
+    /* קירות הקצה */
+    g += '<line x1="' + padL + '" y1="' + Y(ceil || topM - 0.3) + '" x2="' + padL + '" y2="' + floorY + '" stroke="#3f3a33" stroke-width="3"/><line x1="' + (VW - padR) + '" y1="' + Y(ceil || topM - 0.3) + '" x2="' + (VW - padR) + '" y2="' + floorY + '" stroke="#3f3a33" stroke-width="3"/>';
+    /* ריהוט */
+    const blocked = [];
+    objs.forEach(o => {
+      const x1 = X(Math.max(0, o.u - o.w / 2)), x2 = X(Math.min(L, o.u + o.w / 2)), w = Math.max(4, x2 - x1);
+      if (o.t === 'pool') { g += '<rect x="' + x1 + '" y="' + floorY + '" width="' + w + '" height="16" fill="' + o.c + '55" stroke="' + o.c + '" stroke-width="1.2"/><text x="' + (x1 + w / 2) + '" y="' + (floorY + 30) + '" font-size="10.5" fill="' + o.c + '" text-anchor="middle">' + esc(o.name) + '</text>'; blocked.push([o.u - o.w / 2, o.u + o.w / 2]); return; }
+      if (o.t === 'dance') { g += '<line x1="' + x1 + '" y1="' + (floorY - 1) + '" x2="' + x2 + '" y2="' + (floorY - 1) + '" stroke="' + o.c + '" stroke-width="3" stroke-dasharray="7 5"/><text x="' + (x1 + w / 2) + '" y="' + (floorY + 30) + '" font-size="10.5" fill="' + o.c + '" text-anchor="middle">' + esc(o.name) + '</text>'; return; }
+      const hh = o.h || 0.8;
+      g += '<rect x="' + x1 + '" y="' + Y(hh) + '" width="' + w + '" height="' + (hh * sy) + '" fill="' + o.c + '33" stroke="' + o.c + '" stroke-width="1.2" rx="2"/><text x="' + (x1 + w / 2) + '" y="' + (floorY + 30) + '" font-size="10.5" fill="' + o.c + '" text-anchor="middle">' + esc(o.name) + '</text>';
+      if (o.t !== 'stage') blocked.push([o.u - o.w / 2, o.u + o.w / 2]);
+    });
+    /* ארונות */
+    racks.forEach(r => { const u = Math.max(0.3, Math.min(L - 0.3, uOf(2200 - r.x - 20, r.y + 24))), hh = (r.ru || 12) * 0.0445 + 0.15, w = Math.max(8, 0.6 * sx);
+      g += '<rect x="' + (X(u) - w / 2) + '" y="' + Y(hh) + '" width="' + w + '" height="' + (hh * sy) + '" fill="#2d3444" rx="2"/><text x="' + X(u) + '" y="' + (floorY + 44) + '" font-size="10" fill="#2d3444" text-anchor="middle">ארון ' + (r.ru || '') + 'U</text>';
+      blocked.push([u - 0.5, u + 0.5]); });
+    /* אנשים — 1.75 מ׳, מפוזרים לאורך הרצפה (לא על ריהוט) */
+    const person = (u, col) => { const x = X(u), H = 1.75 * sy, r = H * 0.075, top = floorY - H;
+      return '<g fill="' + col + '" stroke="none" opacity=".8"><circle cx="' + x + '" cy="' + (top + r) + '" r="' + r + '"/>' +
+        '<path d="M' + (x - H * 0.11) + ' ' + (top + r * 2.3) + ' q' + (H * 0.11) + ' ' + (-r * 0.6) + ' ' + (H * 0.22) + ' 0 l' + (-H * 0.03) + ' ' + (H * 0.36) + ' l' + (-H * 0.02) + ' ' + (H * 0.47) + ' h' + (-H * 0.045) + ' l' + (-H * 0.015) + ' ' + (-H * 0.42) + ' l' + (-H * 0.015) + ' ' + (H * 0.42) + ' h' + (-H * 0.045) + ' l' + (-H * 0.02) + ' ' + (-H * 0.47) + ' z"/></g>'; };
+    const nP = Math.max(3, Math.min(9, Math.round(L / 3.5)));
+    for (let i = 0; i < nP; i++) { const u = (i + 0.5) * L / nP + (i % 2 ? 0.35 : -0.35); if (blocked.some(([a2, b2]) => u > a2 - 0.3 && u < b2 + 0.3)) continue; g += person(u, i % 2 ? '#8a8f99' : '#6b7280'); }
+    /* רמקולים: מקובצים לפי מיקום וגובה (שני רמקולים באותו חתך = ×2) */
+    const grp = {};
+    items.filter(i => i.kind !== 'gear').forEach(i => { const k = Math.round(i.u * 2) / 2 + '|' + i.hgt + '|' + i.kind + '|' + i.lbl; (grp[k] = grp[k] || { ...i, cnt: 0, nums: [] }); grp[k].cnt++; if (i.num) grp[k].nums.push(i.num); });
+    const lblRows = [];   /* שורות תוויות — תווית שמתנגשת עם קודמתה עולה שורה */
+    Object.values(grp).sort((a2, b2) => a2.u - b2.u).forEach(i => {
+      const x = X(i.u), col = i.kind === 'sub' ? '#0f6e56' : '#6d28d9';
+      const bw = (i.kind === 'sub' ? 0.6 : 0.35) * Math.max(sx, 22), bh = (i.kind === 'sub' ? 0.6 : 0.5) * sy;
+      const yb = i.kind === 'sub' ? Y(i.hgt) : Y(i.hgt) + bh / 2;      /* סאב: גובה = תחתית; טופ: גובה = מרכז */
+      g += '<rect x="' + (x - bw / 2) + '" y="' + (yb - bh) + '" width="' + bw + '" height="' + bh + '" rx="2" fill="' + col + (i.assumed ? '22' : '') + '" stroke="' + col + '" stroke-width="1.6"' + (i.assumed ? ' stroke-dasharray="4 3"' : '') + '/>';
+      if (i.kind === 'top' && i.hgt > 0.9) g += ceil ? '<line x1="' + x + '" y1="' + Y(ceil) + '" x2="' + x + '" y2="' + (yb - bh) + '" stroke="#555" stroke-width="1"/>' : '';
+      const txt = (i.cnt > 1 ? i.cnt + '× ' : '') + i.lbl + (i.kind === 'top' ? ' · ' + (i.assumed ? '?' : (+i.hgt).toFixed(1) + 'm') : '');
+      const tw = txt.length * 6.2 + 8, key = Math.round(yb - bh);
+      const xc = Math.max(padL + tw / 2, Math.min(VW - padR - tw / 2, x));
+      let row = 0; while (lblRows.some(q => q.row === row && Math.abs(q.key - key) < 14 && Math.abs(q.x - xc) < (q.w + tw) / 2)) row++;
+      lblRows.push({ row, key, x: xc, w: tw });
+      const ly = (yb - bh) - 6 - row * 13;
+      if (row || Math.abs(xc - x) > 3) g += '<line x1="' + x + '" y1="' + (yb - bh) + '" x2="' + xc + '" y2="' + (ly + 2) + '" stroke="' + col + '" stroke-width=".8" opacity=".6"/>';
+      g += '<text x="' + xc + '" y="' + ly + '" font-size="10.5" font-weight="700" fill="' + col + '" text-anchor="middle" direction="ltr" style="unicode-bidi:plaintext">' + esc(txt) + '</text>';
+    });
+    /* מידת אורך */
+    g += '<line x1="' + padL + '" y1="' + (VH - 8) + '" x2="' + (VW - padR) + '" y2="' + (VH - 8) + '" stroke="#555" stroke-width="1"/><text x="' + ((padL + VW - padR) / 2) + '" y="' + (VH - 12) + '" font-size="11" fill="#333" text-anchor="middle">' + L.toFixed(1) + ' מ׳ — ' + (alongX ? 'לרוחב התכנית (שמאל ← ימין)' : 'לאורך התכנית (למעלה ← למטה)') + '</text>';
+    const anyAssumed = items.some(i => i.assumed);
+    return '<h4 style="font-size:13px;margin:10px 0 4px">' + esc(z.name || 'אזור') + (ceil ? ' · תקרה ' + ceil + ' מ׳' : ' · חלל פתוח (לא הוגדר גובה תקרה)') + '</h4>' +
+      '<svg viewBox="0 0 ' + VW + ' ' + Math.round(VH) + '" style="width:100%;height:auto;border:1px solid #e3ded3;border-radius:8px;background:#fff" direction="ltr">' + g + '</svg>' +
+      '<div style="font-size:10.5px;color:#777;margin-top:3px">🟣 רמקול · 🟢 סאב · דמויות = אדם עומד 1.75 מ׳ · גובהי הריהוט טיפוסיים, להמחשה' + (sy > sx * 1.05 ? ' · קנה המידה האנכי מוגדל פי ' + (sy / sx).toFixed(1) : '') + (anyAssumed ? ' · <b style="color:#c1121f">"?" = גובה התקנה לא הוגדר למוקד (מצויר בהנחה) — יש להזין גובה בפאנל המוקד</b>' : '') + '</div>';
+  }).join('');
+  return out ? '<div class="rp-sec" style="page-break-before:always"><h3>📐 היטל צד — גבהים והצבה</h3>' + out + '</div>' : '';
+}
 function rackSection(n) {
+  /* חזית הארון בדוח: לכל יחידה תמונת החזית האמיתית שלה (data/rear_images → front), כמו בתוכנה; בלי תמונה — פס צבעוני עם השם.
+     U גבוה יותר מבתכנית (30px) כדי שהחזיתות יהיו קריאות; רוחב הארון נגזר מיחס 19" (‎482×44.45 מ״מ ל-1U) */
+  const RU = 30, RW = Math.round(RU * 482 / 44.45) + 24;
   let rows = '';
-  for (const u of n.units)
-    rows += `<div class="unit" style="top:${u.pos * UPX}px;height:${u.u * UPX}px;background:${(CATS[u.cat] || CATS.other).c}"><b>${esc(u.name)}</b><span>${u.u}U</span></div>`;
+  for (const u of n.units) {
+    const im = typeof rearImage === 'function' ? rearImage(u.name) : null, furl = im && im.furl;
+    rows += furl
+      ? `<div class="unit" title="${esc(u.name)}" style="top:${u.pos * RU}px;height:${u.u * RU}px;padding:0;background:#111"><img src="${furl}" alt="${esc(u.name)}" style="width:100%;height:100%;display:block;object-fit:fill"></div>`
+      : `<div class="unit" style="top:${u.pos * RU}px;height:${u.u * RU}px;font-size:12px;background:${(CATS[u.cat] || CATS.other).c}"><b>${esc(u.name)}</b><span>${u.u}U</span></div>`;
+  }
   const sorted = [...n.units].sort((a, b) => a.pos - b.pos);
   let ut = '';
   for (const u of sorted) ut += `<tr><td>U${u.pos + 1}</td><td>${esc(u.name)}</td><td>${u.u}U</td><td>${(CATS[u.cat] || CATS.other).n}</td></tr>`;
@@ -14705,7 +14810,8 @@ function rackSection(n) {
   const used = n.units.reduce((s, u) => s + u.u, 0);
   return `<div class="rp-sec"><h3>${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
     <div class="rp-flex">
-      <div class="rp-rails"><div class="rails" style="height:${n.ru * UPX}px;position:relative">${rows}</div></div>
+      <div class="rp-rails" style="width:${RW}px"><div class="rails" style="height:${n.ru * RU}px;position:relative;background:repeating-linear-gradient(180deg, #2b2e34 0 ${RU - 2}px, #26292f ${RU - 2}px ${RU}px)">${rows}</div>
+        <div style="font-size:10.5px;color:#777;text-align:center;margin-top:3px">חזית הארון</div></div>
       <div style="flex:1"><table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table></div>
     </div>
     ${ct ? `<h4 style="font-size:13px;margin:10px 0 4px">כבלים מחוברים לארון</h4><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th></tr>${ct}</table>` : ''}
@@ -14719,6 +14825,7 @@ function exportPDF() {
     <h1>KO Projects — דוח פרויקט</h1><h2>${esc(P.name)}</h2>
     <p>${new Date().toLocaleDateString('he-IL')} · ${racks.length} ארונות · ${points.length} מוקדי קצה · ${P.cables.length} כבלים${P.room && (P.room.ceil || P.room.usage) ? `<br>תקרה: ${P.room.ceil || '?'} מ׳ · ספיגה אקוסטית: ${P.room.absorb ?? '?'}/10 · שימוש: ${esc(P.room.usage || '—')}` : ''}${P.scale ? ' · קנה מידה מכויל ✓' : ''}${(P.zones || []).length ? '<br>אזורי סאונד: ' + P.zones.map(z => esc(z.name) + ' (' + esc(z.usage || '—') + ')').join(' · ') : ''}</p>
   </div></div>`;
+  try { h += sideViewHTML(); } catch (e) { console.warn('sideView', e); }
   for (const n of racks) h += rackSection(n);
   /* פאנלים וקופסאות מולטי */
   /* פאנלים שכבר מופיעים במקום אחר בדוח לא חוזרים כאן: הכנות חשמל (בפרק החשמל), ופאנלים עם כבלים (בשרטוטי הדיסציפלינות) */
