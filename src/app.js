@@ -6822,7 +6822,10 @@ function patchSigBlockHTML() {
         const rows = net
           ? '<div style="padding:7px 10px;font-size:12px;color:#4b3fb8">🌐 Dante — ' + esc(shortModel(proc.name)) + ' → ' + esc(shortModel(amp.name)) + ' בכבל רשת אחד, כל הערוצים ברשת' + (ok ? '' : ' · <b style="color:#c1121f">⚠ לא זוהתה יכולת Dante ב' + (pd ? '' : 'פרוססור') + (!pd && !ad ? ' וב' : '') + (ad ? '' : 'מגבר') + ' — בדוק מול המפרט</b>') + '</div>'
           : (xl.length ? xl.map(c => { const ch = +(String(c.pIn || '').match(/\d+/) || [0])[0], isProc = c.fromUnit === proc.id;
-              return '<div style="display:flex;gap:8px;align-items:center;padding:4px 10px;border-top:1px solid #f0ede8;font-size:12px"><b style="width:40px;color:#c9502e">' + esc(c.pIn || '') + '</b><span style="flex:1;min-width:0;font-size:11.5px;line-height:1.5" title="' + SIG_CLS[patchSigClass(rk, amp, ch)].replace(/^\S+\s*/, '') + '">' + SIG_CLS[patchSigClass(rk, amp, ch)].split(' ')[0] + ' ' + patchSigDestHTML(rk, amp, ch) + '</span><span style="color:#888">⟵</span><select onchange="patchSigSet(\'' + c.id + '\',this.value)" style="flex:0 1 230px;min-width:150px;font-size:12px;padding:3px 6px;' + (!c.pOut ? 'border-color:#e9b4b4;background:#fdf7f7' : '') + '">' +
+              /* אייקון "במקביל" בין שתי כניסות סמוכות: הכניסה הזאת מוזנת מה-LNK של הכניסה שמעליה */
+              const prevC = xl.find(q => +(String(q.pIn || '').match(/\d+/) || [0])[0] === ch - 1), parOn = c.fromUnit === amp.id && c.pOut === 'LNK ' + (ch - 1);
+              const parBtn = prevC ? '<button onclick="patchSigPar(\'' + c.id + '\',\'' + amp.id + '\',' + (ch - 1) + ')" title="' + (parOn ? 'IN ' + ch + ' מוזן במקביל ל-IN ' + (ch - 1) + ' — לחץ לביטול' : 'חבר את IN ' + ch + ' במקביל ל-IN ' + (ch - 1) + ' (גשר מ-LNK ' + (ch - 1) + ')') + '" style="position:absolute;right:14px;top:-11px;width:26px;height:20px;padding:0;border-radius:10px;font-size:11px;line-height:18px;z-index:2;cursor:pointer;border:1.5px solid ' + (parOn ? '#4b3fb8' : '#d5d0c6') + ';background:' + (parOn ? '#4b3fb8' : '#fff') + ';color:' + (parOn ? '#fff' : '#999') + '">🔗</button>' : '';
+              return '<div style="position:relative;display:flex;gap:8px;align-items:center;padding:4px 10px;border-top:1px solid #f0ede8;font-size:12px' + (parOn ? ';background:#f6f4fd' : '') + '">' + parBtn + '<b style="width:40px;color:#c9502e">' + esc(c.pIn || '') + '</b><span style="flex:1;min-width:0;font-size:11.5px;line-height:1.5" title="' + SIG_CLS[patchSigClass(rk, amp, ch)].replace(/^\S+\s*/, '') + '">' + SIG_CLS[patchSigClass(rk, amp, ch)].split(' ')[0] + ' ' + patchSigDestHTML(rk, amp, ch) + '</span><span style="color:#888">⟵</span><select onchange="patchSigSet(\'' + c.id + '\',this.value)" style="flex:0 1 230px;min-width:150px;font-size:12px;padding:3px 6px;' + (!c.pOut ? 'border-color:#e9b4b4;background:#fdf7f7' : '') + '">' +
               '<option value="">— בלי יציאה —</option>' + outs.map(o => '<option value="P|' + esc(o) + '"' + (isProc && c.pOut === o ? ' selected' : '') + '>' + esc(shortModel(proc.name)) + ' · ' + esc(o) + '</option>').join('') + (isProc && c.pOut && !outs.includes(c.pOut) ? '<option selected value="P|' + esc(c.pOut) + '">' + esc(c.pOut) + ' (לא בגב שבספרייה)</option>' : '') + lnkOpts(c, ch) + '</select></div>'; }).join('')
             : '<div style="padding:7px 10px;font-size:11.5px;color:#8a8377">אין עדיין פאצ׳ים — ייווצרו ב"חבר" לערוצים שמזינים רמקולים</div>');
         return '<div style="border:1px solid #e3ded3;border-radius:10px;margin-bottom:8px;overflow:hidden;background:#fff"><div style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:#f7f5f0"><b style="flex:1;font-size:12.5px">🎚 ' + esc(shortModel(amp.name) || amp.name.slice(0, 28)) + ' <span style="font-weight:400;color:#8a8377">· U' + (amp.pos + 1) + ' · ' + esc(rk.name.slice(0, 22)) + '</span></b>' +
@@ -6851,6 +6854,17 @@ function patchSigSet(cid, val) {
   }
   save(); render(); if (PATCH) patchRender();
 }
+/* אייקון הקישור בין שתי כניסות: מדליק/מכבה הזנה במקביל מה-LNK של הכניסה שמעל. בכיבוי — הכניסה חוזרת ליציאת הפרוססור הפנויה הבאה */
+function patchSigPar(cid, ampId, srcCh) {
+  const c = (P.cables || []).find(x => x.id === cid); if (!c) return;
+  const on = c.fromUnit === ampId && c.pOut === 'LNK ' + srcCh;
+  if (!on) { patchSigSet(cid, 'L|' + ampId + '|LNK ' + srcCh); return; }
+  const rk = byId(c.from), proc = rk && (rk.units || []).find(u => isInUnit(u.name));
+  const outs = proc ? [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true })) : [];
+  const taken = new Set((P.cables || []).filter(x => x !== c && x.from === c.from && x.internal === 'proc-amp' && proc && x.fromUnit === proc.id && x.pOut).map(x => x.pOut));
+  patchSigSet(cid, (o => o ? 'P|' + o : '')(outs.find(o => !taken.has(o))));
+}
+window.patchSigPar = patchSigPar;
 /* גב הארון בגדול, כשטבלת החיווט נשארת פתוחה מעליו */
 function patchShowRear() {
   if (document.getElementById('rackFocusOv')) { rackFocusClose(); return; }
