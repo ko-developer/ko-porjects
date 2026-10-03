@@ -5730,7 +5730,8 @@ function patchOpen(z, amps, lines, leftover) {
       <div class="pf">
         <button onclick="patchClose()">ביטול</button>
         <button onclick="patchAutoFill()">⚡ סדר אוטומטית</button>
-        <button onclick="patchAddAmp()">➕ הוסף מגבר</button>
+        <button id="pchAddProc" onclick="patchProcPicker()" style="${(PATCH.srcPool || []).length || !PATCH.ins.length ? '' : 'display:none'}">➕ הוסף פרוססור</button>
+        <button onclick="patchAmpPicker()">➕ הוסף מגבר</button>
         <button class="go" onclick="patchApply()">🔌 חבר</button>
       </div></div>`;
   document.body.appendChild(ov);
@@ -6216,7 +6217,7 @@ function patchRender() {
     <div style="font-size:12px;font-weight:700;margin:8px 0 5px">${PATCH.srcPool.length ? '⚠ ' : '✓ '}מקורות ללא כניסה (${PATCH.srcPool.length})</div>
     <div class="pchPool ${PATCH.srcPool.length ? '' : 'ok'}" data-slot="srcpool">${PATCH.srcPool.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל המקורות מחוברים ✓</small>'}</div>
     <div style="height:1px;background:#e3ded3;margin:12px 0"></div>` :
-    ((PATCH.srcPool || []).length ? `<div style="font-size:11.5px;color:#c96a13;background:#fdf3e6;border-radius:9px;padding:7px 9px;margin-bottom:9px">🎧 יש ${PATCH.srcPool.length} מקורות נגינה בתכנית, אבל אין בארון פרוססור/מיקסר לחבר אליו — הוסף אחד להצעה ולארון.</div>` : '');
+    ((PATCH.srcPool || []).length ? `<div style="font-size:11.5px;color:#c96a13;background:#fdf3e6;border-radius:9px;padding:7px 9px;margin-bottom:9px">🎧 יש ${PATCH.srcPool.length} מקורות נגינה בתכנית, אבל אין בארון פרוססור/מיקסר לחבר אליו — <button onclick="patchProcPicker()" style="padding:2px 10px;font-weight:700;background:#eef7f1;color:#0f6e56">➕ הוסף פרוססור</button> להצעה ולארון.</div>` : '');
   const spkBlock = amps + patchBundleDiagrams() + `
     <div style="font-size:12px;font-weight:700;margin:10px 0 5px">${PATCH.pool.length ? '⚠ ' : '✓ '}רמקולים ללא ערוץ (${PATCH.pool.length})</div>
     <div class="pchPool ${PATCH.pool.length ? '' : 'ok'}" data-slot="pool">${PATCH.pool.map(id2 => patchChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל הרמקולים מנותבים ✓</small>'}</div>
@@ -6576,6 +6577,57 @@ function patchAddAmp(name, key) {
   patchRender();
   uiToast('✓ נוסף מגבר "' + nu.name.slice(0, 26) + '" לארון ולהצעה — ' + ampChCount(nu.name) + ' ערוצים פנויים');
 }
+/* הוספת פרוססור / מיקסר לארון ולהצעה — למקורות הנגינה שאין להם כניסה */
+function patchAddProc(name, key) {
+  const rk = (PATCH.ins[0] && PATCH.ins[0].rk) || (PATCH.amps[0] && PATCH.amps[0].rk) || P.nodes.find(n => n.kind === 'rack');
+  if (!rk) { uiToast('אין ארון בתכנית — הוסף ארון קודם'); return; }
+  const z = (P.zones || []).find(x => x.id === PATCH.zid);
+  const nu = { id: uid('u'), name, u: 1, cat: 'proc', pos: (rk.units || []).reduce((s2, x) => Math.max(s2, x.pos + x.u), 0) };
+  if (nu.pos + nu.u > rk.ru) rk.ru = nu.pos + nu.u;
+  (rk.units = rk.units || []).push(nu);
+  let it = impItems.find(x => x.name === name && x.dest === 'unit');
+  if (it) { it.qty = (+it.qty || 1) + 1; it.placed = (it.placed || 0) + 1; }
+  else { it = { on: true, qty: 1, name, key: key || undefined, src: 'חיווט · ' + (z ? z.name : ''), dest: 'unit', cat: 'proc', u: 1, iid: uid('i'), added: true, placed: 1, zones: z ? { [z.name]: 1 } : undefined }; autoPrice(it); impItems.push(it); }
+  const inN = patchInChips(nu);
+  if (inN) PATCH.ins.push({ rk, u: nu, inTotal: inN });
+  render(); save(); patchRender();
+  uiToast('✓ נוסף "' + shortModel(name) + '" לארון ולהצעה' + (inN ? ' — ' + inN + ' כניסות פנויות למקורות' : ''));
+}
+/* בורר פרוססור/מיקסר מהקטלוג: ההמלצה לפי כללי הבית למעלה, אחר כך הכול לפי מלאי ומכירות */
+function patchProcPicker() {
+  const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
+  const NOT_RX = /כרטיס|card|מתקן|תושבת|כבל|מחבר|ערכת|מדף|מאוורר|ת\.ח|ספק כח|לוח ראשי|פנל|פאנל|קיפד|תכנות|דוגמא|חלופי|לתיקון|פגום|השכר|ללא אחריות|וידאו|video|HDMI|מסך|לד\b|יחידת הרחבה|אוזניות|תאורה|פיקוד|\\bDMX\\b|קריוקי/i;
+  const seen = new Set(); const rows = [];
+  for (const it of items) {
+    const key = it[0], name = it[1]; if (!name || seen.has(name) || NOT_RX.test(name)) continue;
+    const cls = kitFuncClass(name);
+    if (cls !== 'proc' && cls !== 'mixer') continue;
+    seen.add(name); rows.push({ key, name, cls });
+  }
+  rows.sort((a, b) => byStockThenSold(a.key, b.key) || a.name.localeCompare(b.name, 'he'));
+  const rec = dspCompletion({ items: impItems.filter(x => x.on !== false) }), recIt = items.find(x => x[0] === rec.key);
+  const ov = uiModal(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">🎚 הוסף פרוססור / מיקסר להצעה ולארון</b><button data-x>✕</button></div>
+    ${recIt ? `<button class="primary" data-rec style="width:100%;margin-bottom:8px;font-weight:700;text-align:right;line-height:1.3">⚡ מומלץ — ${esc(shortModel(recIt[1]))}<br><span style="font-weight:400;font-size:11px">${esc(rec.why)} · ${patchInChips({ name: recIt[1] })} כניסות</span></button>` : ''}
+    <input data-q placeholder="🔍 סינון פרוססורים ומיקסרים…" style="width:100%;padding:6px;font-size:14px;box-sizing:border-box;margin-bottom:8px">
+    <div data-list style="max-height:44vh;overflow-y:auto"></div>`);
+  const listEl = ov.querySelector('[data-list]');
+  const paint = q => {
+    const f = rows.filter(r => !q || r.name.toLowerCase().includes(q.toLowerCase()));
+    listEl.innerHTML = f.slice(0, 60).map(r => `
+      <div data-i="${rows.indexOf(r)}" style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;cursor:pointer">
+        ${imgCell(r.key, 36, r.name)}<b style="flex:1;font-size:12.5px">${esc(r.name.slice(0, 64))}</b>
+        <span class="muted" style="font-size:10.5px;white-space:nowrap">${r.cls === 'mixer' ? 'מיקסר' : (patchInChips({ name: r.name }) || '?') + ' כניסות'}</span>
+        ${stockBadge(r.key)}</div>`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
+    listEl.querySelectorAll('[data-i]').forEach(el => el.onclick = () => { const r = rows[+el.dataset.i]; ov.remove(); patchAddProc(r.name, r.key); });
+  };
+  paint('');
+  ov.querySelector('[data-q]').oninput = e => paint(e.target.value);
+  if (ov.querySelector('[data-rec]')) ov.querySelector('[data-rec]').onclick = () => { ov.remove(); patchAddProc(recIt[1], recIt[0]); };
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
+window.patchProcPicker = patchProcPicker; window.patchAddProc = patchAddProc;
 /* בורר מגבר מהקטלוג — לרמקולים שנשארו בלי ערוץ */
 function patchAmpPicker() {
   const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
