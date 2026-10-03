@@ -6596,7 +6596,7 @@ function patchAddProc(name, key) {
 /* בורר פרוססור/מיקסר מהקטלוג: ההמלצה לפי כללי הבית למעלה, אחר כך הכול לפי מלאי ומכירות */
 function patchProcPicker() {
   const items = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []);
-  const NOT_RX = /כרטיס|card|מתקן|תושבת|כבל|מחבר|ערכת|מדף|מאוורר|ת\.ח|ספק כח|לוח ראשי|פנל|פאנל|קיפד|תכנות|דוגמא|חלופי|לתיקון|פגום|השכר|ללא אחריות|וידאו|video|HDMI|מסך|לד\b|יחידת הרחבה|אוזניות|תאורה|פיקוד|\\bDMX\\b|קריוקי/i;
+  const NOT_RX = /כרטיס|card|מתקן|תושבת|כבל|מחבר|ערכת|מדף|מאוורר|ת\.ח|ספק כח|לוח ראשי|פנל|פאנל|קיפד|תכנות|דוגמא|חלופי|לתיקון|פגום|השכר|ללא אחריות|וידאו|video|HDMI|מסך|לד\b|יחידת הרחבה|אוזניות|תאורה|פיקוד|\bDMX\b|קריוקי/i;
   const seen = new Set(); const rows = [];
   for (const it of items) {
     const key = it[0], name = it[1]; if (!name || seen.has(name) || NOT_RX.test(name)) continue;
