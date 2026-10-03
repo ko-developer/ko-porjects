@@ -2090,8 +2090,34 @@ document.addEventListener('wheel', e => {
   e.preventDefault();
   zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, e);   /* זום סביב הסמן */
 }, { passive: false });
+/* כפתור האזור בכותרת: מציג את האזור שעובדים עליו (הנבחר, או זה של המוקד הנבחר, או הראשון); עם כמה אזורים — לחיצה פותחת רשימה */
+function zoneBarRender() {
+  const dd = document.getElementById('zoneDd'); if (!dd) return;
+  const zs = P.zones || [];
+  if (!zs.length) { dd.style.display = 'none'; return; }
+  dd.style.display = ''; dd.dataset.n = zs.length;
+  const cur = wireZoneId(), z = zs.find(x => x.id === cur) || zs[0];
+  const btn = document.getElementById('zoneDdBtn');
+  btn.dataset.zid = z.id;
+  btn.innerHTML = '📍 ' + esc(z.name || 'אזור') + (zs.length > 1 ? ' <span style="opacity:.7;font-weight:400">(' + (zs.indexOf(z) + 1) + '/' + zs.length + ')</span> ▾' : '');
+  document.getElementById('zoneMenu').innerHTML = zs.map(q => {
+    const spk = P.nodes.filter(n => n.kind === 'point' && !n.hidden && cplSpkLike(n) && nodeInZone(n, q)).length;
+    const a = P.scale ? zoneArea(q) * P.scale * P.scale : 0;
+    return '<button onclick="zoneGo(\'' + jsq(q.id) + '\');this.closest(\'.dd\').classList.remove(\'open\')" style="' + (q.id === z.id ? 'background:#eef7f1;font-weight:700' : '') + '">' +
+      '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + (q.color || '#6c5ce7') + ';margin-inline-end:6px"></span>' + esc(q.name || 'אזור') +
+      ' <span style="color:#777;font-size:11px">· 🔊 ' + spk + (a ? ' · ' + Math.round(a) + ' מ״ר' : '') + (q.usage ? ' · ' + esc(q.usage) : '') + '</span></button>';
+  }).join('');
+}
+/* מעבר לאזור: נבחר, הפאנל שלו נפתח והתכנית נגללת אליו */
+function zoneGo(zid) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  openZonePanel(zid);
+  try { const b = zoneBounds(z); scrollToBox({ L: b.L, T: b.T, R: b.L + b.W, B: b.T + b.H }, 60); } catch (e) {}
+}
+window.zoneGo = zoneGo;
 function render() {
   { const sh = document.getElementById('shTabsHost'); if (sh) sh.innerHTML = sheetTabsHTML(); }
+  try { zoneBarRender(); } catch (e) { console.warn(e); }
   if (typeof alignDragRender === 'function') alignDragRender();
   if (typeof bgFitRender === 'function') bgFitRender();
   renderHeader(); renderBg(); applyZoom(); renderZones(); renderCoverage(); renderNodes(); renderWires(); renderPanel(); renderLegend(); renderCableKey();

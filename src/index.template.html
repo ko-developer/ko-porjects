@@ -321,6 +321,10 @@ body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer
       <button onclick="$('#itemsIn').click();this.closest('.dd').classList.remove('open')">📦 ייבוא פריטים מ-ERP (JSON)</button>
     </div>
   </div>
+  <div class="dd" id="zoneDd" style="display:none" title="האזור שעובדים עליו עכשיו — לחיצה פותחת את רשימת כל האזורים">
+    <button id="zoneDdBtn" onclick="if(this.parentElement.dataset.n>1){this.parentElement.classList.toggle('open');event.stopPropagation()}else{zoneGo(this.dataset.zid)}" style="background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0">📍 אזור</button>
+    <div class="ddm" id="zoneMenu"></div>
+  </div>
   <button onclick="window.print()">הדפסה</button>
 </header>
 <main>
