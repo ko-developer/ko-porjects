@@ -3200,7 +3200,7 @@ function iconSlotFor(drag, wide, rawPos) {
   const elD = document.getElementById('nd_' + drag.n.id), micD = elD && (elD.querySelector('.mic') || elD); if (!elD || !micD) return null;
   if (!drag.off) { const m0 = bx(micD), n0 = bx(elD); drag.off = { x: 2200 - drag.ox - m0.cx - (drag.n._fanX || 0), y: m0.cy - drag.oy - (drag.n._fanY || 0), dmy: m0.cy - n0.cy, W: m0.W, H: m0.H, nH: n0.H }; }
   const o = drag.off, rp = rawPos || { x: drag.n.x, y: drag.n.y }, raw = { cx: 2200 - rp.x - o.x, cy: rp.y + o.y };   /* rawPos — מיקום הסמן בלי ההצמדה שכבר הוחלה בזמן הגרירה */
-  const others = P.nodes.filter(nn => nn !== drag.n && isIconNode(nn) && !nn.hidden).map(nn => { const e2 = document.getElementById('nd_' + nn.id); if (!e2) return null; return { nn, m: bx(e2.querySelector('.mic') || e2), nb: bx(e2) }; }).filter(Boolean);
+  const others = P.nodes.filter(nn => nn !== drag.n && isIconNode(nn) && !nn.hidden && !(nn.att && nn.att.id === drag.n.id && (nn.att.cpl === 'stack' || nn.att.cpl === 'fly'))).map(nn => { const e2 = document.getElementById('nd_' + nn.id); if (!e2) return null; return { nn, m: bx(e2.querySelector('.mic') || e2), nb: bx(e2) }; }).filter(Boolean);
   const over = (cx, cy, q) => Math.abs(cx - q.m.cx) < (o.W + q.m.W) / 2 - 1 && Math.abs(cy - q.m.cy) < (o.H + q.m.H) / 2 - 1;
   const overlapping = others.some(q => over(raw.cx, raw.cy, q));
   if (wide && !overlapping) return null;
@@ -10093,8 +10093,10 @@ document.addEventListener('pointerdown', e => {
     }
     return;
   }
-  const n = byId(h.dataset.drag);
+  let n = byId(h.dataset.drag);
   sel = n.id; ui.tab = 'node';
+  /* טופ שיושב / תלוי על סאב — גוררים את הזוג כולו (הסאב הוא העוגן), כך שהמיקום של שניהם נשמר יחד. Shift = לגרור את הטופ לבד (מנתק) */
+  if (n.att && (n.att.cpl === 'stack' || n.att.cpl === 'fly') && !e.shiftKey && byId(n.att.id) && !byId(n.att.id).hidden) n = byId(n.att.id);
   bakeAtt(n);
   drag = { n, sx: e.clientX, sy: e.clientY, ox: n.x, oy: n.y };
   const onFloat = !!h.closest('.floatbox');
@@ -10263,8 +10265,11 @@ document.addEventListener('pointermove', e => {
     } else window.__wallG = null;
   }
   const el = document.getElementById('nd_' + drag.n.id);
+  /* טופים שיושבים על הסאב הנגרר זזים איתו — במיקום השמור וגם על המסך */
+  if (!drag.fol) drag.fol = P.nodes.filter(q => !q.hidden && q.att && q.att.id === drag.n.id && (q.att.cpl === 'stack' || q.att.cpl === 'fly')).map(q => { const fe = document.getElementById('nd_' + q.id); return fe ? { q, fe, dr: parseFloat(fe.style.right) - parseFloat(el.style.right), dt: parseFloat(fe.style.top) - parseFloat(el.style.top) } : null; }).filter(Boolean);
   el.style.right = (drag.n.x - (drag.n._chW || 0)) + 'px';
   el.style.top = drag.n.y + 'px';
+  drag.fol.forEach(f => { f.q.x = drag.n.x; f.q.y = drag.n.y; f.fe.style.right = (parseFloat(el.style.right) + f.dr) + 'px'; f.fe.style.top = (parseFloat(el.style.top) + f.dt) + 'px'; });
   renderWires();
   /* עורך החיווט פתוח? הדיליי והעומסים מתעדכנים חי תוך כדי גרירה */
   if (PATCH && document.getElementById('patchBody') && !window.__pchT) {
@@ -10400,7 +10405,11 @@ document.addEventListener('pointerup', e => {
     /* שחרור אייקון על שולחן/בר משורטט — נצמד אליו ומסתדר בשורה לרוחבו יחד עם שאר האייקונים שעל אותו אובייקט */
     if (movedFar && isIconNode(n) && !P.snapOff && !e.altKey && objAttachDrop(n)) { render(); save(); return; }
     if (movedFar && isIconNode(n) && !P.snapOff && !e.altKey) { const Zd = getZ() || 1, rawPos = { x: Math.max(0, moved.ox - (e.clientX - moved.sx) / Zd), y: Math.max(0, moved.oy + (e.clientY - moved.sy) / Zd) };
-      const sl = iconSlotFor(moved, true, rawPos); if (sl && (sl.att.sx === 0 || !moved.att)) { n.x = sl.gx; n.y = sl.gy; moved.att = sl.att; } }
+      const sl = iconSlotFor(moved, true, rawPos);
+      /* טופ על סאב (או סאב על טופ): לא מזיזים למשבצת שכנה — המיקום שסומן נשמר, והשאלה (Stack / תלוי) קובעת את הצימוד */
+      const tq0 = moved.overId && byId(moved.overId), mixedPair = tq0 && cplSpkLike(n) && cplSpkLike(tq0) && cplIsSub(n) !== cplIsSub(tq0);
+      if (mixedPair) moved.att = null;
+      else if (sl && (sl.att.sx === 0 || !moved.att)) { n.x = sl.gx; n.y = sl.gy; moved.att = sl.att; } }
     if (movedFar) {
       /* צמוד לאייקון אחר = קשר שנשמר (n.att) ומסודר מחדש בכל רינדור — נשאר צמוד בכל זום; גרירה הצידה מנתקת */
       if (isIconNode(n) && moved.att) { let q = byId(moved.att.id), g = 0; while (q && q.att && g++ < 20) { if (q.att.id === n.id) { delete q.att; break; } q = byId(q.att.id); } n.att = moved.att; } else delete n.att;
