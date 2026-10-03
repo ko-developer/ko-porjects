@@ -5809,7 +5809,7 @@ function patchOpen(z, amps, lines, leftover) {
         <button id="patchAllBtn" onclick="PATCH.showAll=PATCH.showAll===false;patchRender()" style="display:none;font-size:11px;padding:2px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;cursor:pointer"></button>
         <button onclick="patchClose()" style="background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button></div>
       <div class="pb" id="patchBody"></div>
-      <div style="display:flex;gap:6px;align-items:center;padding:6px 12px;border-top:1px solid #eee;font-size:12px;background:#faf8f4">
+      <div id="pchCableRow" style="display:flex;gap:6px;align-items:center;padding:6px 12px;border-top:1px solid #eee;font-size:12px;background:#faf8f4">
         🧵 <span style="white-space:nowrap">כבל הרמקולים ייחתך מ:</span>
         <select id="pchCableSrc" title="הקווים שייווצרו ישויכו למוצר הכבל הזה — המטרים נצרכים ממנו" style="flex:1;font-size:12px;padding:3px 6px;border:1px solid #ddd;border-radius:7px">${patchCableOpts()}</select>
       </div>
@@ -6065,7 +6065,7 @@ function patchCabPick(key) {
   const cur = (PATCH.cab || {})[key] || '', ap = patchAutoProduct(key);
   ensureStock(P);
   const rows = [{ v: '', t: 'אוטו · ' + (ap ? spkCabLabel(ap) : patchAutoCab(key) + ' ממ״ר') + ' — לפי מרחק והספק', g: '' }];
-  P.stock.reels.filter(st => !st.type || st.type === 'nl4' || /רמקול/.test(st.name)).forEach(st => rows.push({ v: 'ref:reel|' + st.id, t: '🧵 בהצעה: ' + st.name + ' · נותרו ' + Math.max(0, (st.total || 0) - (st.used || 0)) + ' מ׳', g: 'בהצעה' }));
+  P.stock.reels.filter(st => !st.type || st.type === 'nl4' || /רמקול/.test(st.name)).forEach(st => rows.push({ v: 'ref:reel|' + st.id, t: '🧵 בהצעה: ' + st.name + ' · נותרו ' + (+Math.max(0, (st.total || 0) - (st.used || 0)).toFixed(1)) + ' מ׳', g: 'בהצעה' }));
   spkCableProducts().forEach(pr => rows.push({ v: 'key:' + pr.k, t: spkCabLabel(pr), k: pr.k, g: 'קטלוג', cores: pr.cores }));
   rows.push({ v: 'xlr', t: 'XLR — סיגנל לסאב מוגבר', g: '' });
   /* מספר גידים לכל שורה — מהקטלוג, או מהשם (4x2.5 · 8*2.5 · 7X2.5) */
@@ -6334,6 +6334,7 @@ function patchRender() {
     : spkBlock;
   const tt = document.getElementById('patchTitle');
   if (tt) tt.textContent = inMode ? '🎧 חיווט — מקורות שמע אל הארון' : '🔌 חיווט — ניתוב רמקולים למגברים';
+  { const cr2 = document.getElementById('pchCableRow'); if (cr2) cr2.style.display = inMode ? 'none' : 'flex'; }   /* בחירת גליל כבל הרמקולים שייכת לניתוב הרמקולים בלבד */
   { const mb = document.getElementById('patchModeBtn'); if (mb) mb.textContent = inMode ? '🔌 לניתוב רמקולים ←' : '🎧 לניתוב כניסות ←'; }
   /* גרירה + הקשה */
   body.querySelectorAll('[data-chipro]').forEach(el => {
@@ -6817,12 +6818,16 @@ function patchAmpPicker() {
 function patchCableOpts() {
   ensureStock(P);
   const opts = [];
-  P.stock.reels.forEach(st => { if (!st.type || st.type === 'nl4' || /רמקול/.test(st.name)) opts.push({ v: 'ref:reel|' + st.id, nm: '🧵 גליל במלאי: ' + st.name.slice(0, 40) + ' · נותרו ' + Math.max(0, (st.total || 0) - (st.used || 0)) + ' מ׳' }); });
+  /* רק כבל רמקול שאפשר לחתוך ממנו: גליל / מטר רץ. כבל מוכן באורך קבוע ("ספיקון באורך 2 מטר") אינו מקור לקווים — הוא יורד לסוף ומסומן.
+     הגלילים קודמים, והשם מוצג במלואו כדי שיהיה ברור איזה כבל נבחר */
+  const ready = nm => /באורך\s*\d+(\.\d+)?\s*(מטר|מ׳|m\b)/i.test(nm || '') && !/גליל|מטר רץ|100\s*מטר/.test(nm || '');
+  P.stock.reels.forEach(st => { if (!st.type || st.type === 'nl4' || /רמקול/.test(st.name)) opts.push({ rd: ready(st.name), v: 'ref:reel|' + st.id, nm: (ready(st.name) ? '🔌 כבל מוכן (לא גליל): ' : '🧵 גליל במלאי: ') + st.name + ' · נותרו ' + Math.max(0, (st.total || 0) - (st.used || 0)) + ' מ׳' }); });
   impItems.forEach(it => {
     if (it.on === false || it.stockId) return;
     if ((it.dest === 'reel' || it.dest === 'cable') && (it.type === 'nl4' || /רמקול/.test(it.name)))
-      opts.push({ v: 'iid:' + it.iid, nm: '🧵 מההצעה: ' + it.name.slice(0, 44) });
+      opts.push({ rd: ready(it.name), v: 'iid:' + it.iid, nm: (ready(it.name) ? '🔌 כבל מוכן מההצעה: ' : '🧵 מההצעה: ') + it.name });
   });
+  opts.sort((a, b) => (a.rd ? 1 : 0) - (b.rd ? 1 : 0));
   return opts.map((o, i) => `<option value="${o.v}" ${i === 0 ? 'selected' : ''}>${esc(o.nm)}</option>`).join('') +
     `<option value="" ${opts.length ? '' : 'selected'}>ללא שיוך — כבל חדש (יושלם בבדיקת השלמות)</option>`;
 }
