@@ -908,10 +908,10 @@
   "w": 1400,
   "h": 607,
   "front": "sae-pqm-front.jpg",
-  "fw": 1400,
-  "fh": 531,
+  "fw": 1244,
+  "fh": 232,
   "fsrc": "http://www.saeaudio.com/wp-content/uploads/2015/08/PQM-F.jpg",
-  "v": 3
+  "v": 4
  },
  {
   "re": "\\bMA\\s?(800|1200|3600)\\b",
