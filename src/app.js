@@ -5800,6 +5800,7 @@ function patchOpen(z, amps, lines, leftover) {
   ov.innerHTML = `<div id="patchBox">
       <div class="ph" id="patchDrag"><span style="opacity:.6">⠿</span><b id="patchTitle">🔌 חיווט — ניתוב רמקולים למגברים</b>
         <small style="opacity:.8;font-size:11px">גרור צ׳יפ ליציאה · הקש עליו כדי לראות אותו על התכנית</small>
+        <button id="patchModeBtn" onclick="PATCH.mode=PATCH.mode==='in'?'out':'in';patchRender()" title="מעבר בין ניתוב הרמקולים למגברים לבין ניתוב מקורות השמע אל הכניסות" style="font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.18);color:#fff;cursor:pointer;white-space:nowrap"></button>
         <button id="patchAllBtn" onclick="PATCH.showAll=PATCH.showAll===false;patchRender()" style="display:none;font-size:11px;padding:2px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;cursor:pointer"></button>
         <button onclick="patchClose()" style="background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button></div>
       <div class="pb" id="patchBody"></div>
@@ -6328,6 +6329,7 @@ function patchRender() {
     : spkBlock;
   const tt = document.getElementById('patchTitle');
   if (tt) tt.textContent = inMode ? '🎧 חיווט — מקורות שמע אל הארון' : '🔌 חיווט — ניתוב רמקולים למגברים';
+  { const mb = document.getElementById('patchModeBtn'); if (mb) mb.textContent = inMode ? '🔌 לניתוב רמקולים ←' : '🎧 לניתוב כניסות ←'; }
   /* גרירה + הקשה */
   body.querySelectorAll('[data-chipro]').forEach(el => {
     const id = el.dataset.chipro;
@@ -13830,7 +13832,7 @@ function zoneKitConfirm(zname, idx, opt) {
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
-    <div data-ktot style="text-align:left;font-weight:800;font-size:13px;margin:0 2px 8px"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:0 2px 8px"><button data-savekit style="padding:3px 10px;font-size:11.5px;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0" title="הכמויות והפריטים כפי שהם כאן נשמרים בקיט עצמו — לכל הפרויקטים">💾 עדכן את הקיט ברשימת הקיטים</button><div data-ktot style="flex:1;text-align:left;font-weight:800;font-size:13px"></div></div>
     ${!kitHasSpk && INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
     ${z && kitHasSpk ? `<div style="background:#f4f2ec;border-radius:8px;padding:7px 9px;margin-bottom:7px">
       <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px">🔊 סוג פריסה ב"${esc(z.name)}" — קובע איך יוצבו הרמקולים</label>
@@ -13944,6 +13946,19 @@ function zoneKitConfirm(zname, idx, opt) {
     if (err) uiToast('🧰 נוספו ' + items.length + ' פריטים להצעה · ⚠ ההצבה על התכנית נכשלה: ' + (err.message || err));
     else uiToast('🧰 נוספו ' + items.length + ' פריטים מהקיט "' + k.name.slice(0, 26) + '" להצעה' + (placed > 0 ? ' · הוצבו ' + placed + ' על התכנית' : ' · פתח את ההצעה בצד לראות אותם'));
   };
+  /* שמירת הקיט כפי שנערך כאן (כמויות, פריטים שהוחלפו, שורות שאופסו = נמחקות) בחזרה לרשימת הקיטים */
+  { const sk = ov.querySelector('[data-savekit]');
+    if (sk) sk.onclick = () => {
+      const items = cur.filter(x => x.qty > 0 && x.name).map(x => ({ key: x.key || undefined, name: x.name, qty: x.qty }));
+      if (!items.length) { uiToast('אין שורות לשמור — כל הכמויות 0'); return; }
+      store.userKits = store.userKits || [];
+      const ui2 = store.userKits.indexOf(k);
+      if (ui2 >= 0) k.items = items;   /* קיט שלי — מתעדכן במקום */
+      else store.userKits.push({ name: k.name, cat: k.cat, sys: k.sys, items, cabOk: k.cabOk });   /* קיט ERP — הגרסה שלי מחליפה אותו (אותו שם) */
+      save();
+      sk.textContent = '✓ הקיט עודכן'; sk.disabled = true;
+      uiToast('💾 הקיט "' + k.name.slice(0, 30) + '" עודכן ברשימת הקיטים — ' + items.length + ' שורות');
+    }; }
   /* מהחיפוש בהצעת המחיר: רק מוסיף את השורות (בכמויות שנערכו) — בלי בנייה והצבה על התכנית */
   const onlyBtn = ov.querySelector('[data-only]');
   if (onlyBtn) onlyBtn.onclick = () => {
