@@ -12041,17 +12041,32 @@ function rackFocus(id) {
     ov = document.createElement('div'); ov.id = 'rackFocusOv';
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.72);z-index:120;display:flex;flex-direction:column;align-items:stretch';
     ov.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#1a1e28;color:#fff"><b style="flex:1">🗄 ${esc(n.name)} — גב הארון בגדול</b>
-      <span class="muted" style="color:#c9ccd4;font-size:11.5px">לחץ על מחבר ואז על מחבר אחר (כל מכשיר, כל סוג) — והכבל נוצר · Shift = בחירת כבל מהמלאי · ✎ גב = עריכת המחברים · גלגלת = גלילה</span>
-      <button onclick="rackFocusZoom(-0.25)" title="הקטן">−</button><button onclick="rackFocusZoom(0.25)" title="הגדל">+</button>
+      <span class="muted" style="color:#c9ccd4;font-size:11.5px">לחץ על מחבר ואז על מחבר אחר — והכבל נוצר · Ctrl+גלגלת = זום</span>
+      <button onclick="rackFocusWire('in')" title="טבלת ניתוב מקורות השמע אל הכניסות — נפתחת מעל גב הארון" style="background:#efecfd;color:#4b3fb8;font-weight:700;white-space:nowrap">🎧 ניתוב כניסות</button>
+      <button onclick="rackFocusWire('out')" title="טבלת ניתוב הרמקולים למגברים — נפתחת מעל גב הארון" style="background:#eef7f1;color:#0f6e56;font-weight:700;white-space:nowrap">🔌 ניתוב רמקולים</button>
+      <button onclick="rackFocusZoom(-1)" title="הקטן (גם Ctrl + גלגלת)">−</button><span id="rackFocusPct" style="font-size:11.5px;min-width:38px;text-align:center">100%</span><button onclick="rackFocusZoom(1)" title="הגדל (גם Ctrl + גלגלת)">+</button>
+      <button onclick="window.__rackFocusK=1;rackFocusMount()" title="התאם לרוחב החלון">⤢</button>
       <button onclick="const n=byId(window.__rackFocus);if(n){n.rear=!n.rear;render();}" title="חזית/גב">⇄</button>
       <button onclick="rackFocusClose()">✕ סגור</button></div>
-      <div id="rackFocusBody" style="flex:1;overflow:auto;padding:16px;display:flex;justify-content:center;align-items:flex-start"></div>`;
+      <div id="rackFocusBody" style="flex:1;overflow:auto;padding:16px;display:flex;justify-content:safe center;align-items:flex-start"></div>`;
     document.body.appendChild(ov);
+    /* Ctrl + גלגלת = זום על גב הארון */
+    ov.querySelector('#rackFocusBody').addEventListener('wheel', ev => { if (!ev.ctrlKey && !ev.metaKey) return; ev.preventDefault(); rackFocusZoom(ev.deltaY < 0 ? 1 : -1); }, { passive: false });
     window.__rackFocusK = 1;
   }
   render();
 }
-function rackFocusZoom(d) { window.__rackFocusK = Math.max(0.4, Math.min(4, (window.__rackFocusK || 1) + d)); rackFocusMount(); }
+/* זום בכפל (×1.25 לכל צעד) עד פי 10 מרוחב החלון — כדי לראות מחבר בודד בגדול; הגלילה עוברת לשני הצירים */
+function rackFocusZoom(d) { const f = d > 0 ? 1.25 : 1 / 1.25; window.__rackFocusK = Math.max(0.3, Math.min(10, (window.__rackFocusK || 1) * f)); rackFocusMount(); }
+/* טבלת הניתוב (כניסות / רמקולים) מעל גב הארון הפתוח — מנתבים בטבלה ורואים את התוצאה על הגב */
+function rackFocusWire(mode) {
+  const rk = byId(window.__rackFocus);
+  const z = (P.zones || []).find(q => zoneRack && zoneRack(q) === rk) || (P.zones || []).find(q => q.id === wireZoneId());
+  if (!z) { uiToast('אין אזור בתכנית — סמן אזור קודם'); return; }
+  const after = () => { const o = document.getElementById('patchOv'); if (o) o.style.zIndex = ++FLOAT_Z; };
+  if (mode === 'in') Promise.resolve(openSrcWire(z.id)).then(after); else Promise.resolve(smartWire(z.id)).then(() => { if (PATCH) { PATCH.mode = 'out'; patchRender(); } after(); });
+}
+window.rackFocusWire = rackFocusWire;
 function rackFocusClose() { const ov = document.getElementById('rackFocusOv'); if (ov) ov.remove(); window.__rackFocus = null; render(); }
 function rackFocusMount() {
   const id = window.__rackFocus, body = document.getElementById('rackFocusBody'); if (!id || !body) return;
@@ -12059,15 +12074,17 @@ function rackFocusMount() {
   const n = byId(id);
   /* האלמנט ממוקם absolute בקנבס — בחלון הוא סטטי, מוגדל לרוחב הזמין */
   body.innerHTML = '';
-  const wrap = document.createElement('div'); wrap.style.cssText = 'position:relative;transform-origin:top center;';
-  el.style.position = 'relative'; el.style.right = 'auto'; el.style.top = 'auto'; el.style.left = 'auto'; el.style.zIndex = '1'; el.style.transform = '';   /* בחלון הגדול קנה המידה נקבע על העטיפה, לא לפי n.fk */
-  const natW = el.offsetWidth || Math.round((n._frontW || 240) / (n._rearK || 1)) || 600;
-  const availW = Math.max(300, window.innerWidth - 60);
-  const k = Math.min(availW / Math.max(1, natW), 3) * (window.__rackFocusK || 1);
+  /* הרוחב הטבעי נמדד כשהאלמנט כבר בחלון ומתכווץ לתוכן (inline-block) — קודם הוא נמדד כבלוק ברוחב הקנבס (2200), ולכן הארון יצא קטן */
+  const wrap = document.createElement('div'); wrap.style.cssText = 'position:relative;display:inline-block;flex:none;transform-origin:top left;';
+  el.style.position = 'relative'; el.style.right = 'auto'; el.style.top = 'auto'; el.style.left = 'auto'; el.style.zIndex = '1'; el.style.transform = ''; el.style.display = 'inline-block';   /* בחלון הגדול קנה המידה נקבע על העטיפה, לא לפי n.fk */
   wrap.appendChild(el); body.appendChild(wrap);
-  const w0 = el.offsetWidth, h0 = el.offsetHeight;
-  wrap.style.transform = 'scale(' + k.toFixed(3) + ')'; wrap.style.width = w0 + 'px'; wrap.style.height = h0 + 'px'; wrap.style.marginBottom = Math.round(h0 * (k - 1)) + 'px';
-  wrap.style.marginLeft = wrap.style.marginRight = Math.round(w0 * (k - 1) / 2) + 'px';
+  const w0 = el.offsetWidth || 600, h0 = el.offsetHeight || 400;
+  /* 100% = הארון כולו ממלא את החלון (רוחב וגובה); מעבר לזה — זום וגלילה */
+  const availW = Math.max(300, body.clientWidth - 40), availH = Math.max(200, body.clientHeight - 36);
+  const k = Math.min(availW / Math.max(1, w0), availH / Math.max(1, h0)) * (window.__rackFocusK || 1);
+  { const pe = document.getElementById('rackFocusPct'); if (pe) pe.textContent = Math.round((window.__rackFocusK || 1) * 100) + '%'; }
+  wrap.style.transform = 'scale(' + k.toFixed(3) + ')'; wrap.style.width = w0 + 'px'; wrap.style.height = h0 + 'px';
+  wrap.style.marginRight = Math.round(w0 * (k - 1)) + 'px'; wrap.style.marginBottom = Math.round(h0 * (k - 1)) + 'px';   /* מקום בפריסה לגודל המוגדל — גלילה לשני הצירים */
 }
 /* פריסת כבל מפריט ברשימה — מפעיל חיבור בלחיצה עם כל פרטי הכבל */
 /* ===== 🔗 שיוך אוטומטי: הכבלים שכבר בהצעה ↔ הקווים בתכנית =====
