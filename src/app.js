@@ -9674,7 +9674,8 @@ function routeReportHTML() {
 function uiModal(inner) { /* בסיס משותף: מחזיר {ov, box} */
   const ov = document.createElement('div');
   ov.className = 'uiDlgOv';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.45);z-index:135;display:flex;align-items:center;justify-content:center';
+  /* מעל כל החלונות הצפים (עורך החיווט, בר השרטוט…) — ה-z שלהם עולה בכל פתיחה */
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.45);z-index:' + Math.max(135, (typeof FLOAT_Z !== 'undefined' ? FLOAT_Z : 0) + 5) + ';display:flex;align-items:center;justify-content:center';
   ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:380px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.4)">${inner}</div>`;
   document.body.appendChild(ov);
   return ov;
