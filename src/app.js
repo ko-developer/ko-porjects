@@ -3192,6 +3192,15 @@ function iconSlotFor(drag, wide, rawPos) {
     const d = Math.hypot(cx - raw.cx, cy - raw.cy); if (d < range && (!best || d < best.d)) best = { d, cx, cy, id: q.nn.id, sx: sx2, sy: sy2 }; }
   return best ? { gx: 2200 - best.cx - o.x, gy: best.cy - o.y, att: { id: best.id, sx: best.sx, sy: best.sy } } : null;
 }
+/* אייקון רמקול עם כיוון: מבט מלמעלה — ארון (החזית = הצד הקדמי) ושלושה גלי קול קדימה. מסובב לפי n.aim (0 = ימינה, 90 = מטה) */
+function spkAimIcon(n, mc) {
+  const col = /קולונ|column|441|INTERPID|SEQUENZA/i.test(n.name || '');
+  const body = col
+    ? '<rect x="4" y="4" width="8" height="16" rx="1.5" fill="none" stroke="' + mc + '" stroke-width="2"/><circle cx="8" cy="8" r="1.1" fill="' + mc + '"/><circle cx="8" cy="12" r="1.1" fill="' + mc + '"/><circle cx="8" cy="16" r="1.1" fill="' + mc + '"/>'
+    : '<rect x="3" y="6" width="9" height="12" rx="1.5" fill="none" stroke="' + mc + '" stroke-width="2"/><circle cx="7.5" cy="12" r="1.5" fill="' + mc + '"/>';
+  return '<svg width="18" height="18" viewBox="0 0 24 24"><g transform="rotate(' + (n.aim ?? 0) + ' 12 12)">' + body +
+    '<path d="M14.5 8.5a5 5 0 0 1 0 7M17.5 6a9 9 0 0 1 0 12M20.5 3.8a12.5 12.5 0 0 1 0 16.4" fill="none" stroke="' + mc + '" stroke-width="1.8" stroke-linecap="round"/></g></svg>';
+}
 /* ===== צימוד רמקולים (n.att.cpl) =====
    side  = צד לצד: מערך אופקי, כל רמקול מכסה גזרה משלו → הפיזור האופקי מוכפל במספר הרמקולים (עד 180°), העוצמה לא משתנה
    line  = אחד מתחת לשני (ליין אראיי): אותו פיזור אופקי, סכימה קוהרנטית על הציר → +20·log10(N) dB
@@ -3616,6 +3625,8 @@ function renderNodes() {
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="${mc}" stroke-width="2"/><path d="M10 8.5l6 3.5-6 3.5z" fill="${mc}"/></svg>`;
       else if (mpt === 'device' || mpt === 'ap' || mpt === 'other')
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="8" cy="12" r="1.6" fill="${mc}"/><path d="M12 10.5h6M12 13.5h6" stroke="${mc}" stroke-width="1.6"/></svg>`;
+      else if (!/סאב|sub|NOMOS|TILL\s?18|SB-?\d|וופר/i.test(n.name) && !(/שקוע|ceiling/i.test(n.name || '') || /תקרה/.test(n.mount || '')) && (n.disp ?? guessDisp(n.name)) < 300)
+        icon = spkAimIcon(n, mc);   /* רמקול מכוון: ארון מלמעלה + גלי קול לכיוון הכיוון — רואים לאן הוא מופנה גם בלי שכבת הפיזור */
       else if (/קולונ|column|441|INTERPID|SEQUENZA/i.test(n.name))
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="8.5" y="1" width="7" height="22" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><circle cx="12" cy="6" r="1.4" fill="${mc}"/><circle cx="12" cy="10" r="1.4" fill="${mc}"/><circle cx="12" cy="14" r="1.4" fill="${mc}"/><circle cx="12" cy="18" r="1.4" fill="${mc}"/></svg>`;
       else if (/סאב|sub|NOMOS|TILL\s?18|SB-?\d|וופר/i.test(n.name))
@@ -8715,7 +8726,7 @@ function renderPanel() {
     <p class="muted" style="font-size:10px;margin:-2px 0 4px">SPL אפקטיבי בשימוש: <b>${effSpl(n).toFixed(0)} dB</b> ${(n.sens ?? guessSens(n.name)) != null && n.pow ? '(רגישות + 10·log₁₀·הספק)' : '(Max SPL)'}</p>
     <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;margin-bottom:4px"><input type="checkbox" style="width:auto" ${!n.noCov ? 'checked' : ''} onchange="byId('${n.id}').noCov=!this.checked;render();save()"> הצג פיזור לרמקול זה</label>
     <div class="fld"><label>כיוון הרמקול (${n.aim ?? 0}° · 0=ימין, 90=מטה)</label>
-      <input type="range" min="0" max="359" value="${n.aim ?? 0}" oninput="byId('${n.id}').aim=+this.value;renderCoverage()" onchange="save();render()"></div>
+      <input type="range" min="0" max="359" value="${n.aim ?? 0}" oninput="byId('${n.id}').aim=+this.value;renderCoverage();const g=document.querySelector('#nd_${n.id} .mic g[transform^=rotate]');if(g)g.setAttribute('transform','rotate('+this.value+' 12 12)')" onchange="save();render()"></div>
     <p class="muted" style="font-size:10px">🎯 לסיבוב: גרור את הידית הכתומה שמופיעה ליד הרמקול על התכנית. הצג קונוסים ב"הגדרות תכנית → פיזור רמקולים".</p>` : ''}`;
   }
   if (n.kind === 'rack' || n.kind === 'panel') {
