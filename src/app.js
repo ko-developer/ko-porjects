@@ -5068,7 +5068,7 @@ function renderWires() {
   /* קווי יישור בזמן גרירת מוקד */
   if (window.__wallG) {   /* הקיר שהרמקול נצמד אליו — נדלק בירוק בזמן הגרירה */
     const [wa, wb] = window.__wallG, zz = getZ() || 1;
-    out += `<line x1="${wa.x}" y1="${wa.y}" x2="${wb.x}" y2="${wb.y}" stroke="#16a34a" stroke-width="${5 / zz}" stroke-linecap="round" opacity=".85" pointer-events="none"/>`;
+    out += `<line x1="${wa.x}" y1="${wa.y}" x2="${wb.x}" y2="${wb.y}" stroke="#16a34a" stroke-width="${Math.max(4, Math.min(14, P.scale ? 0.15 / P.scale : 8)) + 3 / zz}" stroke-linecap="round" opacity=".9" pointer-events="none"/>`;   /* רחב מעט מהקיר עצמו — נראה גם מעל קיר עבה */
   }
   if (window.__alignG) {
     const g = window.__alignG, EX = 6000;
@@ -10155,10 +10155,10 @@ document.addEventListener('pointermove', e => {
     if (gy != null) drag.n.y = gy;
     if (gx != null || gy != null) window.__alignG = { x: gx, y: gy };
     /* מגנט לקיר: מוקד (רמקול) שמתקרב לקיר נצמד אליו — האייקון נוגע בקיר מהצד שממנו הגיע. גובר על שאר ההצמדות בציר הניצב לקיר */
-    if (drag.n.kind === 'point' && !drag.att) {
+    if (drag.n.kind === 'point') {   /* גם כשהאייקון ליד אייקון אחר — הקיר גובר */
       if (drag.micR == null) { const mEl = document.querySelector('#nd_' + drag.n.id + ' .mic'); drag.micR = mEl ? mEl.getBoundingClientRect().width / Z / 2 + 2.5 : 0; }
       const w = nodeWallSnap(2200 - drag.n.x - 20, drag.n.y + 24, Z, drag.micR);
-      if (w) { drag.n.x = 2200 - w.x - 20; drag.n.y = w.y - 24; window.__alignG = null; window.__wallG = w.seg; } else window.__wallG = null;
+      if (w) { drag.n.x = 2200 - w.x - 20; drag.n.y = w.y - 24; drag.att = null; window.__alignG = null; window.__wallG = w.seg; } else window.__wallG = null;
     } else window.__wallG = null;
   }
   const el = document.getElementById('nd_' + drag.n.id);
