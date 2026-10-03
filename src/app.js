@@ -4700,6 +4700,7 @@ function pickRear(nodeId, unitId) {
 }
 /* לחיצה על מחבר — חיבור מכל סדר (OUT/LNK או IN, לא משנה מה קודם) */
 function portClick(nid, unitId, portStr, isOut) {
+  if (window.__rackAssign) { rackAssignPort(nid, unitId, portStr); return; }   /* כבל שמגיע לארון ממתין למחבר */
   /* חור בפאנל נבחר ← לחיצה על מחבר בגב מכשיר = חיבור חור→מחבר */
   if (selHole) { connectHoleToPort(selHole, nid, unitId, portStr, isOut); return; }
   if (wireMode && wireMode.from) {
@@ -12100,6 +12101,7 @@ function rackFocus(id) {
       <div style="flex:1;display:flex;min-height:0">
         <div id="rackFocusSide" style="width:300px;flex:none;overflow:auto;background:#f7f5f0;border-inline-end:1px solid #2d3444;padding:10px;font-size:12px;direction:rtl"></div>
         <div id="rackFocusBody" style="flex:1;min-width:0;overflow:auto;padding:16px;display:flex;justify-content:safe center;align-items:flex-start"></div>
+        <div id="rackFocusSideL" style="width:280px;flex:none;overflow:auto;background:#f7f5f0;border-inline-start:1px solid #2d3444;padding:10px;font-size:12px;direction:rtl"></div>
       </div>`;
     document.body.appendChild(ov);
     /* Ctrl + גלגלת = זום על גב הארון */
@@ -12137,17 +12139,49 @@ function rackFocusMount() {
   { const pe = document.getElementById('rackFocusPct'); if (pe) pe.textContent = Math.round((window.__rackFocusK || 1) * 100) + '%'; }
   wrap.style.transform = 'scale(' + k.toFixed(3) + ')'; wrap.style.width = w0 + 'px'; wrap.style.height = h0 + 'px';
   wrap.style.marginRight = Math.round(w0 * (k - 1)) + 'px'; wrap.style.marginBottom = Math.round(h0 * (k - 1)) + 'px';   /* מקום בפריסה לגודל המוגדל — גלילה לשני הצירים */
-  try { const sd = document.getElementById('rackFocusSide'); if (sd) sd.innerHTML = rackFocusSideHTML(n); } catch (e) { console.warn(e); }
+  try { const sd = document.getElementById('rackFocusSide'); if (sd) sd.innerHTML = rackFocusSideHTML(n); const sl = document.getElementById('rackFocusSideL'); if (sl) sl.innerHTML = rackFocusSideHTML(n, 'L'); } catch (e) { console.warn(e); }
 }
 /* ===== לוח הצד בגב הארון: מה נבחר ולאן זה הולך =====
    מחבר שנבחר (צהוב) → היעדים האפשריים ברשימה ללחיצה · כבל שנבחר → מאיפה לאיפה, עם ניתוק · אחרת — כל החיבורים של הארון */
-function rackFocusSideHTML(n) {
+/* כבל שמגיע לארון אבל הקצה שלו בארון לא חובר למחבר של מכשיר */
+function rackCabUnwired(n, c) {
+  if (c.from === n.id && c.to === n.id) return !(c.fromUnit && c.toUnit);
+  if (c.to === n.id) return !(c.toUnit && c.pIn);
+  if (c.from === n.id) return !(c.fromUnit && (c.pOut || (c.bands && c.bands.length)));
+  return false;
+}
+function rackAssignPort(nid, unitId, portStr) {
+  const c = (P.cables || []).find(x => x.id === window.__rackAssign); window.__rackAssign = null;
+  if (!c || (c.from !== nid && c.to !== nid)) { render(); return; }
+  if (c.to === nid && !(c.toUnit && c.pIn)) { c.toUnit = unitId; c.pIn = portStr; } else { c.fromUnit = unitId; c.pOut = portStr; }
+  selCable = c.id; save(); render(); uiToast('🔌 הכבל חובר ל-' + portStr);
+}
+function rackFocusSideHTML(n, which) {
   const LBL = cableLabels(), uOf = id => (n.units || []).find(u => u.id === id), um = u => u ? (shortModel(u.name) || u.name.slice(0, 20)) + ' · U' + (u.pos + 1) : '';
   const tName = t => ({ rj45: 'רשת', speakon: 'ספיקון', xlrf: 'XLR נקבה', xlrm: 'XLR זכר', rca: 'RCA', bnc: 'BNC', hdmi: 'HDMI', fiber: 'אופטי', pwr: 'חשמל', power: 'חשמל', block3: 'בלוק 3', block8: 'בלוק' })[t] || t || '';
   const fam = x => { const t = (x && x.t) || ''; return /^block/.test(t) && x._auto ? 'ctl:' + t : (/^xlr/.test(t) || t === 'block3') ? 'sig' : t === 'power' ? 'pwr' : t; };   /* בלוק בקרה (RS232 / GPIO) אינו יעד לסיגנל */
   const endTxt = (nid, unitId, port) => nid === n.id ? esc(um(uOf(unitId))) + (port ? ' · <b>' + esc(port) + '</b>' : '') : esc(endNameTxt(nid, unitId).slice(0, 44)) + (port ? ' · <b>' + esc(port) + '</b>' : '');
   const cabRow = (c, hl) => '<div onclick="pickCable(\'' + c.id + '\')" style="display:flex;gap:6px;align-items:flex-start;padding:5px 6px;border-radius:7px;cursor:pointer;margin-bottom:3px;background:' + (hl ? '#fff3c4' : '#fff') + ';border:1px solid ' + (hl ? '#e9b949' : '#e3ded3') + '"><span class="badge" style="background:' + cableColor(c) + ';flex:none">' + (LBL[c.id] || '') + '</span><span style="flex:1;line-height:1.45">' + endTxt(c.from, c.fromUnit, c.pOut) + '<br><span style="color:#888">↓ ' + esc((CTYPES[c.type] || {}).n || c.type) + '</span><br>' + endTxt(c.to, c.toUnit, c.pIn) + '</span></div>';
+  const cabsAll = (P.cables || []).filter(c => c.from === n.id || c.to === n.id), unw = cabsAll.filter(c => rackCabUnwired(n, c)), wired = cabsAll.filter(c => !rackCabUnwired(n, c));
+  if (which === 'L') {   /* צד שמאל: כל הקווים שכבר חוברו */
+    const scL = selCable, inner = wired.filter(c => c.from === n.id && c.to === n.id), ext = wired.filter(c => !(c.from === n.id && c.to === n.id));
+    return '<div style="font-weight:800;font-size:13px;margin-bottom:6px">✅ קווים מחוברים (' + wired.length + ')</div>' +
+      '<div style="font-weight:800;margin:4px 0">בתוך הארון (' + inner.length + ')</div>' + (inner.map(c => cabRow(c, scL === c.id)).join('') || '<div style="color:#999;margin-bottom:6px">אין</div>') +
+      '<div style="font-weight:800;margin:8px 0 4px">החוצה — לרמקולים ולמוקדים (' + ext.length + ')</div>' + (ext.map(c => cabRow(c, scL === c.id)).join('') || '<div style="color:#999">אין</div>');
+  }
   let h = '';
+  /* כבל ממתין לחיבור: בוחרים מחבר בגב הארון */
+  const asg = window.__rackAssign && unw.find(c => c.id === window.__rackAssign);
+  if (window.__rackAssign && !asg) window.__rackAssign = null;
+  if (asg) {
+    const want = asg.type === 'cat' ? 'rj45' : asg.type === 'nl4' ? 'speakon' : (asg.type === 'xlr' || asg.type === 'multi' || asg.type === 'aes') ? 'sig' : asg.type === 'pwr' ? 'pwr' : '';
+    const occ = new Set(); (P.cables || []).forEach(c => { if (c.from === n.id && c.fromUnit && c.pOut) occ.add(c.fromUnit + '|' + c.pOut); if (c.to === n.id && c.toUnit) cablePIns(c).forEach(p => occ.add(c.toUnit + '|' + p)); });
+    const other = byId(asg.from === n.id ? asg.to : asg.from); let rows = '';
+    [...(n.units || [])].sort((a, b) => a.pos - b.pos).forEach(u2 => { const cand = rearPortsAuto(rearLayout(u2.name)).filter(x => x.port && (!want || fam(x) === want) && !occ.has(u2.id + '|' + x.port)); if (!cand.length) return;
+      rows += '<div style="font-size:11px;color:#666;font-weight:700;margin:6px 2px 3px">' + esc(um(u2)) + '</div><div style="display:flex;flex-wrap:wrap;gap:4px">' + cand.map(x => '<button onclick="portClick(\'' + n.id + '\',\'' + u2.id + '\',\'' + jsq(x.port) + '\',' + /^(OUT|LNK)/.test(x.port) + ')" style="padding:2px 8px;font-size:11.5px;background:#fff;border:1px solid #cfd3dc;border-radius:7px">' + esc(x.port) + '</button>').join('') + '</div>'; });
+    return '<div style="background:#fff3c4;border:1.5px solid #e9b949;border-radius:9px;padding:8px 9px;margin-bottom:8px"><div style="font-size:11px;color:#8a6d00;font-weight:700">🟡 מחברים כבל <span class="badge" style="background:' + cableColor(asg) + '">' + (LBL[asg.id] || '') + '</span></div><div style="margin:3px 0">' + esc((CTYPES[asg.type] || {}).n || asg.type) + (other ? ' · ' + esc((other.name || '').slice(0, 30)) : '') + '</div><button style="padding:2px 10px;font-size:11.5px" onclick="window.__rackAssign=null;render()">ביטול</button></div>' +
+      '<div style="font-weight:800;margin-bottom:2px">לאיזה מחבר בארון?</div><div style="color:#777;font-size:11px;margin-bottom:4px">לחץ על מחבר בגב הארון, או בחר כאן מחבר פנוי מתאים:</div>' + (rows || '<div style="color:#999">אין מחבר פנוי מתאים — אפשר ללחוץ על כל מחבר בגב</div>');
+  }
   const wm = wireMode && wireMode.from && wireMode.from.nid === n.id && wireMode.srcPort ? wireMode : null;
   if (wm) {
     const u = uOf(wm.from.unitId), items = u ? rearPortsAuto(rearLayout(u.name)) : [], it = items.find(x => x.port === wm.srcPort) || {};
@@ -12172,10 +12206,9 @@ function rackFocusSideHTML(n) {
       '<div style="margin-top:5px;line-height:1.6"><span style="color:#888">מ:</span> ' + endTxt(sc.from, sc.fromUnit, sc.pOut) + '<br><span style="color:#888">אל:</span> ' + endTxt(sc.to, sc.toUnit, sc.pIn) + '</div>' + (sc.note ? '<div style="color:#777;font-size:11px;margin-top:3px">' + esc(sc.note) + '</div>' : '') +
       '<div style="display:flex;gap:6px;margin-top:7px"><button style="flex:1;padding:3px;background:#fdf0f0;color:#c1121f;font-weight:700" onclick="delCable(\'' + sc.id + '\')">✂ נתק / מחק</button><button style="flex:1;padding:3px" onclick="selCable=null;render()">סגור</button></div></div>';
   } else h += '<div style="background:#eef4fd;border:1px solid #b9d0f0;border-radius:9px;padding:7px 9px;margin-bottom:8px;color:#185fa5">לחץ על מחבר בגב הארון — כאן יוצג מה נבחר ולאן הוא הולך.</div>';
-  const cabs = (P.cables || []).filter(c => c.from === n.id || c.to === n.id);
-  const inner = cabs.filter(c => c.from === n.id && c.to === n.id), ext = cabs.filter(c => !(c.from === n.id && c.to === n.id));
-  h += '<div style="font-weight:800;margin:4px 0">חיבורים בתוך הארון (' + inner.length + ')</div>' + (inner.map(c => cabRow(c, sc === c)).join('') || '<div style="color:#999;margin-bottom:6px">אין</div>');
-  h += '<div style="font-weight:800;margin:8px 0 4px">חיבורים החוצה (' + ext.length + ')</div>' + (ext.map(c => cabRow(c, sc === c)).join('') || '<div style="color:#999">אין</div>');
+  /* צד ימין: כבלים שמגיעים לארון ועדיין לא חוברו למחבר של מכשיר */
+  h += '<div style="font-weight:800;font-size:13px;margin:4px 0 6px">⏳ מגיעים לארון — לא חווטו (' + unw.length + ')</div>' + (unw.map(c => { const o = byId(c.from === n.id ? c.to : c.from);
+    return '<div style="padding:6px 7px;border-radius:8px;margin-bottom:4px;background:#fff;border:1.5px dashed ' + cableColor(c) + '"><div style="display:flex;gap:6px;align-items:center"><span class="badge" style="background:' + cableColor(c) + ';flex:none">' + (LBL[c.id] || '') + '</span><b style="flex:1">' + esc((CTYPES[c.type] || {}).n || c.type) + '</b>' + (+c.len > 0 ? '<span style="color:#888">' + c.len + ' מ׳</span>' : '') + '</div><div style="margin:3px 0;color:#444">' + (c.to === n.id ? 'מגיע מ־' : 'יוצא אל ') + '<b>' + esc(((o && o.name) || '?').slice(0, 40)) + '</b></div><button class="primary" style="width:100%;padding:3px;font-size:11.5px" onclick="window.__rackAssign=\'' + c.id + '\';wireMode=null;selCable=null;render()">🔌 חבר למחבר בארון</button></div>'; }).join('') || '<div style="color:#0f6e56;background:#eef7f1;border:1px solid #bfe0cc;border-radius:8px;padding:6px 8px">✓ כל הכבלים שמגיעים לארון מחוברים</div>');
   return h;
 }
 /* פריסת כבל מפריט ברשימה — מפעיל חיבור בלחיצה עם כל פרטי הכבל */
