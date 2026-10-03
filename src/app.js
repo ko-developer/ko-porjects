@@ -9234,7 +9234,8 @@ const SK_OBJS = {
   lounge: { n: 'פינת ישיבה', w: 3, h: 3, c: '#7a4ab7', deco: 'lounge' },
   kitchen: { n: 'מטבח', w: 4, h: 3, c: '#5d6b7a', deco: 'kitchen' },
   barStools: { n: 'בר + כסאות', w: 3, h: 1.4, c: '#8b5a2b', deco: 'barStools' },
-  outKitchen: { n: 'מטבח חוץ', w: 3, h: 0.7, c: '#5d6b7a', deco: 'outKitchen' }
+  outKitchen: { n: 'מטבח חוץ', w: 3, h: 0.7, c: '#5d6b7a', deco: 'outKitchen' },
+  grass: { n: 'דשא', w: 6, h: 4, c: '#3f9b46', deco: 'grass' }
 };
 /* ציור פנימי לאובייקטים מורכבים — בתוך המלבן של האובייקט (x,y = מרכז; w,h = גודל בפיקסלי קנבס) */
 function skObjDeco(o, d) {
@@ -9249,6 +9250,11 @@ function skObjDeco(o, d) {
     return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + t + '" rx="' + t * 0.25 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw + '"/>' +
       '<rect x="' + L + '" y="' + (T + t) + '" width="' + t + '" height="' + (H - t) + '" rx="' + t * 0.25 + '" fill="' + c + '33" stroke="' + c + '" stroke-width="' + sw + '"/>' +
       '<rect x="' + (L + t + (W - t) * 0.2) + '" y="' + (T + t + (H - t) * 0.25) + '" width="' + (W - t) * 0.55 + '" height="' + (H - t) * 0.45 + '" rx="4" fill="#fff" stroke="#4a6ab7" stroke-width="' + sw + '"/>';
+  }
+  if (d.deco === 'grass') {   /* משטח דשא: מילוי ירוק + ציצות דשא פזורות */
+    let tf = ''; const nx = Math.max(2, Math.round(W / Math.max(26, Math.min(W, H) * 0.22))), ny = Math.max(2, Math.round(H / Math.max(26, Math.min(W, H) * 0.22))), u = Math.min(W / nx, H / ny) * 0.16;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) { const x = L + (i + 0.5 + ((j % 2) ? 0.22 : -0.22)) * W / nx, y = T + (j + 0.6) * H / ny; tf += 'M' + (x - u) + ' ' + y + ' l' + (u * 0.5) + ' ' + (-u * 1.3) + ' M' + x + ' ' + y + ' l0 ' + (-u * 1.7) + ' M' + (x + u) + ' ' + y + ' l' + (-u * 0.5) + ' ' + (-u * 1.3) + ' '; }
+    return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + H + '" rx="' + Math.min(W, H) * 0.05 + '" fill="' + c + '3d" stroke="' + c + '" stroke-width="' + sw + '"/><path d="' + tf + '" stroke="' + c + '" stroke-width="' + sw + '" stroke-linecap="round" fill="none" opacity="0.75"/>';
   }
   if (d.deco === 'outKitchen') {   /* פס אחד: משטח עבודה עם גריל, כיור ומשטח */
     const gW = Math.min(W * 0.3, H * 1.4), pad = H * 0.16;
@@ -15158,6 +15164,7 @@ function isoViewHTML() {
       blocked.push({ x: cx, y: cy, r: Math.max(w, dd) / 2 + 0.4 });
       if (o.t === 'pool') { const base = rectBase(cx, cy, w * 0.92, dd * 0.86, o.r); let wv = ''; for (let k = 1; k <= 3; k++) { const t = k / 4, a = base[0], c2 = base[3], e = base[1], f = base[2]; const p1 = [a[0] + (c2[0] - a[0]) * t, a[1] + (c2[1] - a[1]) * t], p2 = [e[0] + (f[0] - e[0]) * t, e[1] + (f[1] - e[1]) * t]; wv += '<line x1="' + pr(p1[0], p1[1], 0)[0].toFixed(1) + '" y1="' + pr(p1[0], p1[1], 0)[1].toFixed(1) + '" x2="' + pr(p2[0], p2[1], 0)[0].toFixed(1) + '" y2="' + pr(p2[0], p2[1], 0)[1].toFixed(1) + '" stroke="#fff" stroke-width="1.4" stroke-dasharray="10 7" opacity="0.6"/>'; }
         g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0]), '#f7f3ea', 'stroke="#b7ad98" stroke-width="1"') + poly(base.map(p => [p[0], p[1], 0]), '#4aa8dc', 'stroke="#1f6fa8" stroke-width="1.2"') + wv; const lp = pr(cx, cy, 0); g += '<text x="' + lp[0] + '" y="' + (lp[1] + 4) + '" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" opacity="0.9">' + esc(d.n || '') + '</text>'; return; }
+      if (o.t === 'grass') { blocked.pop(); g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0]), '#8fcf7a', 'stroke="#4d9a45" stroke-width="1"'); return; }   /* דשא — משטח ירוק שאנשים עומדים עליו */
       if (o.t === 'dance') { g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0]), col + '22', 'stroke="' + col + '" stroke-width="1.4" stroke-dasharray="7 5"'); return; }
       const h = (typeof SIDE_OBJ_H !== 'undefined' && SIDE_OBJ_H[o.t]) || 0.8, base = d.round ? ngon(cx, cy, Math.min(w, dd) / 2, 14) : rectBase(cx, cy, w, dd, o.r);
       solids.push({ d: cx + cy, svg: prism(base, 0, h, col) + (o.t === 'plant' ? '' : (() => { const lp = pr(cx, cy, h); return '<text x="' + lp[0] + '" y="' + (lp[1] + 3) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" opacity="0.92">' + esc(d.n || '') + '</text>'; })()) }); });
@@ -15191,25 +15198,35 @@ function isoViewHTML() {
       blocked.push({ x: X, y: Y, r: 0.9 });
       solids.push({ d: X + Y, svg: prism(rectBase(X, Y, 0.6, 0.6, 0), 0, h, '#1d2230'), lab: { X, Y, Z: h, t: (n.ru || 12) + 'U ' + (n.name || '').slice(0, 16), c: '#c9502e', lift: 0, rtl: 1 } }); });
     /* דמויות — פיזור קבוע (לא אקראי בכל הפקה), לא על ריהוט */
-    { let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647; const want = Math.max(4, Math.min(16, Math.round(W * H / 30))); let tries = 0, k = 0;
+    { let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647; const want = Math.max(6, Math.min(22, Math.round(W * H / 24))); let tries = 0, k = 0;
       const cols = ['#5b6b86', '#8a5a6b', '#4f7a6a', '#7a6a4f', '#5e5a8a', '#3f5f7a'];
       while (k < want && tries++ < 300) { const X = 0.8 + rnd() * (W - 1.6), Y = 0.8 + rnd() * (H - 1.6); if (blocked.some(q => Math.hypot(q.x - X, q.y - Y) < q.r)) continue; blocked.push({ x: X, y: Y, r: 0.9 });
-        const p0 = pr(X, Y, 0), hh = Math.max(30, 1.72 * s * VZ), col = cols[k % cols.length], fem = k % 2 === 1, x0 = p0[0], y0 = p0[1], f = v => v.toFixed(1);
+        const p0 = pr(X, Y, 0), hh = Math.max(30, 1.72 * s * VZ), col = cols[k % cols.length], fem = k % 4 !== 3, x0 = p0[0], y0 = p0[1], f = v => v.toFixed(1);
         const skin = ['#f0cfae', '#e3b48c', '#c98f66', '#f4d8bd'][k % 4], hair = ['#2b1d14', '#5a3a1e', '#1b1b1f', '#8a5a2b', '#b08a4a'][k % 5], yy = t => f(y0 - hh * t), xx = t => f(x0 + hh * t);
         let fig = '<ellipse cx="' + f(x0) + '" cy="' + f(y0) + '" rx="' + f(hh * 0.2) + '" ry="' + f(hh * 0.07) + '" fill="#000" opacity="0.16"/>';
         if (fem) {
-          fig += '<path d="M' + xx(-0.045) + ' ' + yy(0) + ' L' + xx(-0.05) + ' ' + yy(0.34) + ' M' + xx(0.045) + ' ' + yy(0) + ' L' + xx(0.05) + ' ' + yy(0.34) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.05) + '" stroke-linecap="round"/>' +
-            '<path d="M' + xx(-0.2) + ' ' + yy(0.82) + ' Q' + xx(-0.17) + ' ' + yy(0.56) + ' ' + xx(-0.12) + ' ' + yy(0.5) + ' M' + xx(0.2) + ' ' + yy(0.82) + ' Q' + xx(0.17) + ' ' + yy(0.56) + ' ' + xx(0.12) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.045) + '" stroke-linecap="round" fill="none"/>' +
-            '<path d="M' + xx(-0.17) + ' ' + yy(0.3) + ' Q' + xx(0) + ' ' + yy(0.25) + ' ' + xx(0.17) + ' ' + yy(0.3) + ' L' + xx(0.085) + ' ' + yy(0.6) + ' L' + xx(0.11) + ' ' + yy(0.82) + ' Q' + xx(0) + ' ' + yy(0.86) + ' ' + xx(-0.11) + ' ' + yy(0.82) + ' L' + xx(-0.085) + ' ' + yy(0.6) + ' Z" fill="' + col + '" stroke="' + shade(col, 0.7) + '" stroke-width="0.6"/>' +
-            '<ellipse cx="' + f(x0) + '" cy="' + yy(0.9) + '" rx="' + f(hh * 0.1) + '" ry="' + f(hh * 0.115) + '" fill="' + hair + '"/><rect x="' + xx(-0.1) + '" y="' + yy(0.9) + '" width="' + f(hh * 0.2) + '" height="' + f(hh * 0.16) + '" rx="' + f(hh * 0.05) + '" fill="' + hair + '"/>' +
-            '<circle cx="' + f(x0) + '" cy="' + yy(0.9) + '" r="' + f(hh * 0.072) + '" fill="' + skin + '"/><path d="M' + xx(-0.075) + ' ' + yy(0.92) + ' Q' + xx(0) + ' ' + yy(1.02) + ' ' + xx(0.075) + ' ' + yy(0.92) + ' Q' + xx(0) + ' ' + yy(0.96) + ' ' + xx(-0.075) + ' ' + yy(0.92) + ' Z" fill="' + hair + '"/>';
+          const dress = ['#e0356b', '#1f1f28', '#d93a2b', '#7b3fd1', '#0f8a8a', '#f2a81d', '#e85d9e', '#2456c9'][k % 8], sw2 = (k % 3 === 0 ? 1 : -1) * 0.02;   /* תנוחה קלה של הירך */
+          /* רגליים ארוכות + עקבים */
+          fig += '<path d="M' + xx(-0.05 + sw2) + ' ' + yy(0.02) + ' L' + xx(-0.045 + sw2) + ' ' + yy(0.5) + ' M' + xx(0.055 + sw2) + ' ' + yy(0.02) + ' L' + xx(0.04 + sw2) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.052) + '" stroke-linecap="round"/>' +
+            '<path d="M' + xx(-0.075 + sw2) + ' ' + yy(0) + ' L' + xx(-0.03 + sw2) + ' ' + yy(0.03) + ' M' + xx(0.03 + sw2) + ' ' + yy(0) + ' L' + xx(0.075 + sw2) + ' ' + yy(0.03) + '" stroke="' + shade(dress, 0.7) + '" stroke-width="' + f(hh * 0.03) + '" stroke-linecap="round"/>' +
+            /* זרועות — אחת על המותן */
+            '<path d="M' + xx(-0.105) + ' ' + yy(0.8) + ' Q' + xx(-0.2) + ' ' + yy(0.68) + ' ' + xx(-0.1 + sw2) + ' ' + yy(0.6) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.04) + '" stroke-linecap="round" fill="none"/><path d="M' + xx(0.105) + ' ' + yy(0.8) + ' Q' + xx(0.15) + ' ' + yy(0.64) + ' ' + xx(0.13) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.04) + '" stroke-linecap="round" fill="none"/>' +
+            /* שמלה קצרה צמודה — כתפיים, מותן צרה, ירכיים */
+            '<path d="M' + xx(-0.095) + ' ' + yy(0.83) + ' Q' + xx(0) + ' ' + yy(0.79) + ' ' + xx(0.095) + ' ' + yy(0.83) + ' Q' + xx(0.115) + ' ' + yy(0.75) + ' ' + xx(0.06 + sw2 * 0.5) + ' ' + yy(0.64) + ' Q' + xx(0.135 + sw2) + ' ' + yy(0.56) + ' ' + xx(0.115 + sw2) + ' ' + yy(0.43) + ' Q' + xx(sw2) + ' ' + yy(0.405) + ' ' + xx(-0.115 + sw2) + ' ' + yy(0.43) + ' Q' + xx(-0.135 + sw2) + ' ' + yy(0.56) + ' ' + xx(-0.06 + sw2 * 0.5) + ' ' + yy(0.64) + ' Q' + xx(-0.115) + ' ' + yy(0.75) + ' ' + xx(-0.095) + ' ' + yy(0.83) + ' Z" fill="' + dress + '" stroke="' + shade(dress, 0.65) + '" stroke-width="0.6"/>' +
+            '<path d="M' + xx(-0.03) + ' ' + yy(0.84) + ' L' + xx(-0.03) + ' ' + yy(0.87) + ' L' + xx(0.03) + ' ' + yy(0.87) + ' L' + xx(0.03) + ' ' + yy(0.84) + ' Z" fill="' + skin + '"/>' +
+            /* שיער ארוך גולש */
+            '<path d="M' + xx(-0.1) + ' ' + yy(0.93) + ' Q' + xx(-0.11) + ' ' + yy(1.03) + ' ' + xx(0) + ' ' + yy(1.03) + ' Q' + xx(0.11) + ' ' + yy(1.03) + ' ' + xx(0.1) + ' ' + yy(0.93) + ' Q' + xx(0.14) + ' ' + yy(0.8) + ' ' + xx(0.11) + ' ' + yy(0.66) + ' Q' + xx(0.07) + ' ' + yy(0.74) + ' ' + xx(0.06) + ' ' + yy(0.86) + ' L' + xx(-0.06) + ' ' + yy(0.86) + ' Q' + xx(-0.07) + ' ' + yy(0.74) + ' ' + xx(-0.11) + ' ' + yy(0.66) + ' Q' + xx(-0.14) + ' ' + yy(0.8) + ' ' + xx(-0.1) + ' ' + yy(0.93) + ' Z" fill="' + hair + '"/>' +
+            '<ellipse cx="' + f(x0) + '" cy="' + yy(0.92) + '" rx="' + f(hh * 0.062) + '" ry="' + f(hh * 0.072) + '" fill="' + skin + '"/><path d="M' + xx(-0.066) + ' ' + yy(0.93) + ' Q' + xx(-0.02) + ' ' + yy(1.02) + ' ' + xx(0.066) + ' ' + yy(0.95) + ' Q' + xx(0.02) + ' ' + yy(0.975) + ' ' + xx(-0.066) + ' ' + yy(0.93) + ' Z" fill="' + hair + '"/>' +
+            '<path d="M' + xx(-0.02) + ' ' + yy(0.885) + ' Q' + xx(0) + ' ' + yy(0.872) + ' ' + xx(0.02) + ' ' + yy(0.885) + '" stroke="#c0304a" stroke-width="' + f(Math.max(0.7, hh * 0.012)) + '" fill="none" stroke-linecap="round"/>';
         } else {
-          const pants = ['#2f3644', '#3b3f52', '#4a4032', '#27303a'][k % 4];
-          fig += '<path d="M' + xx(-0.06) + ' ' + yy(0) + ' L' + xx(-0.055) + ' ' + yy(0.48) + ' M' + xx(0.06) + ' ' + yy(0) + ' L' + xx(0.055) + ' ' + yy(0.48) + '" stroke="' + pants + '" stroke-width="' + f(hh * 0.085) + '" stroke-linecap="round"/>' +
-            '<path d="M' + xx(-0.16) + ' ' + yy(0.8) + ' L' + xx(-0.18) + ' ' + yy(0.5) + ' M' + xx(0.16) + ' ' + yy(0.8) + ' L' + xx(0.18) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.05) + '" stroke-linecap="round"/>' +
-            '<path d="M' + xx(-0.16) + ' ' + yy(0.8) + ' L' + xx(-0.17) + ' ' + yy(0.64) + ' M' + xx(0.16) + ' ' + yy(0.8) + ' L' + xx(0.17) + ' ' + yy(0.64) + '" stroke="' + col + '" stroke-width="' + f(hh * 0.065) + '" stroke-linecap="round"/>' +
-            '<path d="M' + xx(-0.13) + ' ' + yy(0.84) + ' Q' + xx(0) + ' ' + yy(0.87) + ' ' + xx(0.13) + ' ' + yy(0.84) + ' L' + xx(0.11) + ' ' + yy(0.45) + ' L' + xx(-0.11) + ' ' + yy(0.45) + ' Z" fill="' + col + '" stroke="' + shade(col, 0.7) + '" stroke-width="0.6"/>' +
-            '<circle cx="' + f(x0) + '" cy="' + yy(0.92) + '" r="' + f(hh * 0.075) + '" fill="' + skin + '"/><path d="M' + xx(-0.078) + ' ' + yy(0.93) + ' Q' + xx(0) + ' ' + yy(1.04) + ' ' + xx(0.078) + ' ' + yy(0.93) + ' Q' + xx(0) + ' ' + yy(0.975) + ' ' + xx(-0.078) + ' ' + yy(0.93) + ' Z" fill="' + hair + '"/>';
+          const mi = Math.floor(k / 4), pants = ['#2f3644', '#1f2430', '#3a3226', '#27303a'][mi % 4], shirt = ['#f4f1ea', '#1d2433', '#2f6fb0', '#7a1f2b'][mi % 4];
+          fig += '<path d="M' + xx(-0.06) + ' ' + yy(0) + ' L' + xx(-0.05) + ' ' + yy(0.5) + ' M' + xx(0.06) + ' ' + yy(0) + ' L' + xx(0.05) + ' ' + yy(0.5) + '" stroke="' + pants + '" stroke-width="' + f(hh * 0.085) + '" stroke-linecap="round"/>' +
+            '<path d="M' + xx(-0.17) + ' ' + yy(0.8) + ' L' + xx(-0.19) + ' ' + yy(0.5) + ' M' + xx(0.17) + ' ' + yy(0.8) + ' L' + xx(0.19) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.055) + '" stroke-linecap="round"/>' +
+            '<path d="M' + xx(-0.17) + ' ' + yy(0.8) + ' L' + xx(-0.18) + ' ' + yy(0.66) + ' M' + xx(0.17) + ' ' + yy(0.8) + ' L' + xx(0.18) + ' ' + yy(0.66) + '" stroke="' + shirt + '" stroke-width="' + f(hh * 0.07) + '" stroke-linecap="round"/>' +
+            /* פלג גוף עליון בצורת V — כתפיים רחבות, מותן צרה */
+            '<path d="M' + xx(-0.165) + ' ' + yy(0.84) + ' Q' + xx(0) + ' ' + yy(0.88) + ' ' + xx(0.165) + ' ' + yy(0.84) + ' L' + xx(0.095) + ' ' + yy(0.47) + ' L' + xx(-0.095) + ' ' + yy(0.47) + ' Z" fill="' + shirt + '" stroke="' + shade(shirt, 0.7) + '" stroke-width="0.6"/>' +
+            '<path d="M' + xx(-0.035) + ' ' + yy(0.86) + ' L' + xx(0) + ' ' + yy(0.78) + ' L' + xx(0.035) + ' ' + yy(0.86) + ' Z" fill="' + skin + '"/>' +
+            '<circle cx="' + f(x0) + '" cy="' + yy(0.93) + '" r="' + f(hh * 0.072) + '" fill="' + skin + '"/><path d="M' + xx(-0.076) + ' ' + yy(0.94) + ' Q' + xx(0) + ' ' + yy(1.05) + ' ' + xx(0.076) + ' ' + yy(0.94) + ' Q' + xx(0) + ' ' + yy(0.985) + ' ' + xx(-0.076) + ' ' + yy(0.94) + ' Z" fill="' + hair + '"/>';
         }
         solids.push({ d: X + Y, svg: '<g>' + fig + '</g>' }); k++; } }
     solids.sort((a, c) => a.d - c.d).forEach(o => { g += o.svg; });
@@ -15276,6 +15293,7 @@ function sideViewHTML() {
     objs.forEach(o => {
       const x1 = X(Math.max(0, o.u - o.w / 2)), x2 = X(Math.min(L, o.u + o.w / 2)), w = Math.max(4, x2 - x1);
       if (o.t === 'pool') { g += '<rect x="' + x1 + '" y="' + floorY + '" width="' + w + '" height="16" fill="' + o.c + '55" stroke="' + o.c + '" stroke-width="1.2"/><text x="' + (x1 + w / 2) + '" y="' + (floorY + 30) + '" font-size="10.5" fill="' + o.c + '" text-anchor="middle">' + esc(o.name) + '</text>'; blocked.push([o.u - o.w / 2, o.u + o.w / 2]); return; }
+      if (o.t === 'grass') { g += '<line x1="' + x1 + '" y1="' + (floorY - 1) + '" x2="' + x2 + '" y2="' + (floorY - 1) + '" stroke="#3f9b46" stroke-width="4"/><text x="' + (x1 + w / 2) + '" y="' + (floorY + 30) + '" font-size="10.5" fill="#3f9b46" text-anchor="middle">דשא</text>'; return; }
       if (o.t === 'dance') { g += '<line x1="' + x1 + '" y1="' + (floorY - 1) + '" x2="' + x2 + '" y2="' + (floorY - 1) + '" stroke="' + o.c + '" stroke-width="3" stroke-dasharray="7 5"/><text x="' + (x1 + w / 2) + '" y="' + (floorY + 30) + '" font-size="10.5" fill="' + o.c + '" text-anchor="middle">' + esc(o.name) + '</text>'; return; }
       const hh = o.h || 0.8;
       g += '<rect x="' + x1 + '" y="' + Y(hh) + '" width="' + w + '" height="' + (hh * sy) + '" fill="' + o.c + '33" stroke="' + o.c + '" stroke-width="1.2" rx="2"/><text x="' + (x1 + w / 2) + '" y="' + (floorY + 30) + '" font-size="10.5" fill="' + o.c + '" text-anchor="middle">' + esc(o.name) + '</text>';
