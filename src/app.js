@@ -11266,7 +11266,7 @@ window.openMatrix = openMatrix;
 
 /* סינון קיטים לפי כמות רמקולים ומותג — כדי למצוא קיט מתאים בלי לגלול 47 שורות */
 var kitBrand = '', kitSpk = '';
-const KIT_BRANDS = [['FUNKTION ONE', /FUNKTION[\s-]?ONE|\bF1\b|\bF\d{2,3}\b|EVO\s?X|EVO\s?\d|RES\s?\d|SB\s?\d|BR\s?1|F218|F124/i], ['K&F', /K\s?&\s?F|KLING|SONA|\bLINE\s?212|NOMOS|SCALA|VIDA|\bGRAVIS|\bCA\s?\d/i], ['KT / Unicorn', /\bKT\b|UNICORN|PAGAZ|EUPHORIA|DYNAMIQ|\bWR\s?\d|\b1000S\b/i], ['CELTO', /CELTO|\bIFIX\s?\d/i], ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d/i], ['NST', /\bNST\b/i], ['XTA', /\bXTA\b|\bDNA\s?\d|\bDPA\s?\d/i], ['SAE', /\bSAE\b|PQM/i], ['JBL', /\bJBL\b/i], ['RCF', /\bRCF\b/i], ['QSC', /\bQSC\b/i], ['Bose', /\bBOSE\b/i], ['Martin Audio', /MARTIN\s?AUDIO/i], ['Nexo', /\bNEXO\b/i], ['d&b', /\bD&B\b/i], ['L-Acoustics', /L-?ACOUSTICS/i], ['Yamaha', /YAMAHA/i], ['dB Technologies', /\bDB\s?TECH/i], ['Turbosound', /TURBOSOUND/i], ['Pioneer', /PIONEER/i], ['EV', /ELECTRO[\s-]?VOICE|\bEV\b/i]];
+const KIT_BRANDS = [['FUNKTION ONE', /FUNKTION\s*-?\s*ONE|\bF1\b|\bF\d{2,3}\b|EVO\s?X|EVO\s?\d|RES\s?\d|SB\s?\d|BR\s?1|F218|F124/i], ['K&F', /K\s?&\s?F|KLING|SONA|\bLINE\s?212|NOMOS|SCALA|VIDA|\bGRAVIS|\bCA\s?\d/i], ['KT / Unicorn', /\bKT\b|UNICORN|PAGAZ|EUPHORIA|DYNAMIQ|\bWR\s?\d|\b1000S\b/i], ['CELTO', /CELTO|\bIFIX\s?\d/i], ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d/i], ['NST', /\bNST\b/i], ['XTA', /\bXTA\b|\bDNA\s?\d|\bDPA\s?\d/i], ['SAE', /\bSAE\b|PQM/i], ['JBL', /\bJBL\b/i], ['RCF', /\bRCF\b/i], ['QSC', /\bQSC\b/i], ['Bose', /\bBOSE\b/i], ['Martin Audio', /MARTIN\s?AUDIO/i], ['Nexo', /\bNEXO\b/i], ['d&b', /\bD&B\b/i], ['L-Acoustics', /L-?ACOUSTICS/i], ['Yamaha', /YAMAHA/i], ['dB Technologies', /\bDB\s?TECH/i], ['Turbosound', /TURBOSOUND/i], ['Pioneer', /PIONEER/i], ['EV', /ELECTRO[\s-]?VOICE|\bEV\b/i]];
 /* שם קיט אחיד, מהתוכן: דגמי הרמקולים · דגמי הסאבים · המגברים · הפרוססור — "4× PAGAZ 641 + 2× PAGAZ 115S · DYNAMIQ 750 · VMX88L".
    שם ה-ERP המקורי נשמר לזיהוי (מטא-דאטה, הסתרה, חיפוש) ומוצג בקטן מתחת */
 const KIT_SUB_RX = /סאב|\bsub\b|NOMOS|MB2|BR\s?1|\bSB\s?\d|F118|F121|F124|F218|F221|TILL\s?1[58]P?\s?SUB|\b1[1258]S\b|SUB\s?\d/i;
@@ -12968,6 +12968,8 @@ function autoZonesHint() {
 }
 /* עוצמת נגינה יעד (dB) לפי תכלית */
 const USAGE_SPL = { 'מוזיקת רקע': 72, 'בית קפה': 85, 'חדר כושר — חלל כללי': 80, 'מסעדה': 90, 'סטודיו בחדר כושר': 90, 'מוזיקה לבר': 95, 'מסעדה + DJ': 98, 'הופעות חיות': 100, 'סטודיו ספינינג': 100, 'מוזיקת ריקודים': 110, 'מועדון על מלא': 115 };
+/* המותגים העיקריים בסינון המוצרים באזור — [שם כמו ב-KIT_BRANDS, תווית] */
+const ZONE_BRANDS = [['KT / Unicorn', 'KT / Unicorn'], ['K&F', 'Kling & Freitag'], ['FUNKTION ONE', 'Funktion One']];
 const USAGES = ['מוזיקת רקע', 'חדר כושר — חלל כללי', 'בית קפה', 'מסעדה', 'סטודיו בחדר כושר', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'סטודיו ספינינג', 'מוזיקת ריקודים', 'מועדון על מלא'];
 /* תכליות שדורשות מיקרופון מובנה בתכנון (מדריך/מנחה) */
 const USAGE_MIC = { 'סטודיו בחדר כושר': 1, 'סטודיו ספינינג': 1, 'הופעות חיות': 1 };
@@ -13026,7 +13028,10 @@ function zoneSystemBuilder(z) {
   const zid = z.id;
   const tgt = z.usage ? USAGE_SPL[z.usage] : '';
   const q = (z._sq || '').trim();
-  const res = q ? dockSearchResults(q).filter(r => r.type === 'item') : [];
+  /* סינון מותג (סאונד): KT/Unicorn · K&F · Funktion One · אחר = כל השאר. חל על המוצרים וגם על הקיטים */
+  const kb = z._kcat === 'audio' ? (z._kbrand || '') : '';
+  const brandOk = nm => { if (!kb) return true; const b = kitBrandOf(nm); return kb === 'other' ? !ZONE_BRANDS.some(x => x[0] === b) : b === kb; };
+  const res = q ? dockSearchResults(q).filter(r => r.type === 'item' && brandOk(r.name)) : [];
   return `<div style="background:#f4f2ec;border-radius:8px;padding:10px;margin-top:6px">
     <div class="fld"><label>🏷 תבנית מקום — ממלא אוטומטית את כל ההגדרות</label>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -13073,7 +13078,8 @@ function zoneSystemBuilder(z) {
     })() : ''}
     ${(() => {
       /* קיטים למעלה: קטגוריות + חיפוש, יחד עם מוצרים */
-      const kcat = z._kcat || '';
+      const kcat = z._kcat || '', kb = kcat === 'audio' ? (z._kbrand || '') : '';
+      const bchips = kcat === 'audio' ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px;align-items:center"><span class="muted" style="font-size:10px">מותג:</span>' + [['', 'הכל'], ...ZONE_BRANDS, ['other', 'אחר']].map(([v, l]) => '<button onclick="setZoneField(\'' + zid + '\',\'_kbrand\',\'' + v + '\')" style="padding:1px 9px;border-radius:12px;font-size:10.5px;border:1px solid ' + ((z._kbrand || '') === v ? '#534ab7' : '#ccc') + ';background:' + ((z._kbrand || '') === v ? '#534ab7' : '#fff') + ';color:' + ((z._kbrand || '') === v ? '#fff' : '#333') + '">' + l + '</button>').join('') + '</div>' : '';
       const chips = [['', 'הכל'], ['audio', '🔊 סאונד'], ['lighting', '💡 תאורה'], ['video', '📺 וידאו']].map(([v, l]) => `<button onclick="setZoneField('${zid}','_kcat','${v}')" style="padding:2px 10px;border-radius:14px;font-size:11px;border:1px solid ${kcat === v ? '#c9502e' : '#ccc'};background:${kcat === v ? '#c9502e' : '#fff'};color:${kcat === v ? '#fff' : '#333'}">${l}</button>`).join(' ');
       const kq = (z._sq || '').trim();
       /* קיט מומלץ לפי תבנית המקום: club→4 פינות, live→במה, bar→בר */
@@ -13082,10 +13088,11 @@ function zoneSystemBuilder(z) {
       const isRec = k => recRe && (recRe.test(k.name) || recRe.test(k.sys || ''));
       const kits = allKits().map((k, i) => ({ k, i, rec: isRec(k) }))
         .filter(x => !kcat || (x.k.cat || '') === kcat)
+        .filter(x => { if (!kb) return true; const bs = kitBrands(x.k); return kb === 'other' ? !bs.some(b => ZONE_BRANDS.some(y => y[0] === b)) : bs.includes(kb); })
         .filter(x => !kq || x.k.name.includes(kq))
         .sort((a, b) => (b.rec ? 1 : 0) - (a.rec ? 1 : 0));
       return `<div class="fld"><label>3️⃣ חיפוש מוצר או קיט (ERP)</label>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px">${chips}</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px">${chips}</div>${bchips}
         <input id="zsq" value="${esc(z._sq || '')}" placeholder="למשל UNICORN / F81 / קיט בר" oninput="setZoneField('${zid}','_sq',this.value)"></div>
       ${kq && kits.length ? `<div style="max-height:160px;overflow-y:auto;margin-bottom:4px">${kits.slice(0, 40).map(x => `<button style="display:block;width:100%;text-align:right;margin-bottom:3px;font-size:11px;background:#efe9fa" onclick="zoneKitConfirm('${jsq(z.name)}',${x.i})">🧰 קיט: ${esc((x.k.name + (kitStdDiff(x.k) ? ' — ' + kitStdName(x.k) : '')).slice(0, 68))}</button>`).join('')}</div>` : ''}
       ${!kq ? `<div class="fld"><label style="font-size:10px">כל הקיטים (${kits.length})</label><select onchange="if(this.value!==''){zoneKitConfirm('${jsq(z.name)}',+this.value);this.value='';}">
