@@ -12026,7 +12026,9 @@ function pickSearchItem(name, key) {
   render();
 }
 function pickKitInline(i) {
-  const k = ERP_KITS[i];
+  /* האינדקס הוא לתוך [קיטי ERP, קיטים שלי] — כמו ב-dockSearchResults; קיט שלי (i מעבר לקיטי ה-ERP) נפל כאן על undefined */
+  const k = [...(typeof ERP_KITS !== 'undefined' ? ERP_KITS : []), ...(store.userKits || [])][i];
+  if (!k) { uiToast('⚠ הקיט לא נמצא — רענן את החיפוש'); return; }
   const src = 'קיט: ' + k.name.slice(0, 30);
   for (const x of k.items) {
     const st = classifyStock(x.name);
