@@ -15458,10 +15458,9 @@ function exportPDF() {
       const inv = new Set(); cabs.forEach(c => { inv.add(c.from); inv.add(c.to); });
       P.cabVis = {}; ['audio', 'light', 'video', 'data', 'power'].forEach(k2 => P.cabVis[k2] = (k2 === cat));
       /* הקופסאות המעורבות נפתחות על התכנית עצמה (עם המחברים והמסלולים הפנימיים) לפני הצילום */
-      const opened = [];
-      P.nodes.forEach(n => { if (!inv.has(n.id)) return; if (n.kind === 'panel' && n.pmin) { n.pmin = false; opened.push([n, 'pmin']); } });
-      /* ארון לעולם לא נפתח על התכנית (מסתיר אותה) — גב הארון מוצג משמאל */
-      const rkShut = P.nodes.filter(n => n.kind === 'rack' && !n.min); rkShut.forEach(n => n.min = true);
+      /* שום ארון או קופסה לא נפתחים על התכנית (מסתירים אותה) — הם מוצגים פתוחים משמאל, בדיוק כמו בתכנית */
+      const stSaved = P.nodes.filter(n => n.kind === 'rack' || n.kind === 'panel').map(n => [n, n.min, n.pmin, n.rear]);
+      P.nodes.forEach(n => { if (n.kind === 'rack') n.min = true; else if (n.kind === 'panel') n.pmin = true; });
       renderNodes(); renderWires();
       /* התכנית — המעורבים במסגרת בצבע הדיסציפלינה, השאר מעומעמים */
       document.querySelectorAll('#nodes > .node').forEach(el => { const id = el.id.replace(/^ndo?_/, ''); if (inv.has(id)) { el.style.outline = '3px solid ' + CAT_COL[cat]; el.style.outlineOffset = '2px'; el.style.opacity = ''; } else el.style.opacity = '0.22'; });
@@ -15473,14 +15472,29 @@ function exportPDF() {
         document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
         if (L < Infinity) { const pad = 40, bw = Math.max(R - L, 320), bh = Math.max(B - T, 260), cx = (L + R) / 2, cy = (T + B) / 2;
           regC = { L: Math.max(0, cx - bw / 2 - pad), T: Math.max(0, cy - bh / 2 - pad), R: Math.min(2200, cx + bw / 2 + pad), B: Math.min(1400, cy + bh / 2 + pad) }; } }
-      const sec = makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', regC, 560);
+      const sec = makeSnap(CAT_TITLES[cat] + ' (' + cabs.length + ' כבלים)', regC, 510);
       document.querySelectorAll('#nodes > .node').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; el.style.opacity = ''; });
-      opened.forEach(([n, f2]) => n[f2] = true); rkShut.forEach(n => n.min = false);
+      /* הארונות (בתצוגת גב, עם החיווט) והקופסאות המעורבים — נפתחים רגע, מועתקים כמו שהם, ונסגרים */
+      const sideEls = [];
+      { const invN = P.nodes.filter(n => inv.has(n.id) && (n.kind === 'rack' || (n.kind === 'panel' && n.panel)));
+        invN.forEach(n => { if (n.kind === 'rack') { n.min = false; n.rear = true; } else n.pmin = false; });
+        renderNodes(); renderWires();
+        invN.sort((a2, b2) => (a2.kind === 'rack' ? 0 : 1) - (b2.kind === 'rack' ? 0 : 1)).forEach(n => { const el = document.getElementById('ndo_' + n.id) || document.getElementById('nd_' + n.id); if (!el) return;
+          try { floatRedraw(n, el); } catch {}
+          const w0 = el.offsetWidth, h0 = el.offsetHeight; if (!w0 || !h0) return;
+          const cl = el.cloneNode(true); cl.removeAttribute('id'); cl.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+          cl.querySelectorAll('canvas').forEach((cv2, i2) => { const org = el.querySelectorAll('canvas')[i2]; try { const im2 = document.createElement('img'); im2.src = org.toDataURL(); im2.style.cssText = cv2.style.cssText; cv2.replaceWith(im2); } catch { cv2.remove(); } });
+          cl.classList.remove('sel'); cl.style.cssText += ';position:absolute;right:auto;left:0;top:0;margin:0;outline:none;opacity:1;transform-origin:top left;width:' + w0 + 'px';
+          sideEls.push({ cl, w0, h0, n }); });
+        stSaved.forEach(([n, a, b2, c2]) => { if (n.kind === 'rack') { n.min = a; n.rear = c2; } else n.pmin = b2; }); }
       const holder = sec._holder; holder.style.margin = '0'; holder.style.flex = 'none';
       /* השרטוט מימין, גב הארון (עם מספרי הכבלים על המחברים) משמאל, ורשימת הקווים מתחת — ברוחב מלא */
       const rowD = document.createElement('div'); rowD.style.cssText = 'display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap'; rowD.appendChild(holder);
-      const rr = rackRearHTML(cabs, CAT_COL[cat]);
-      if (rr) { const rearD = document.createElement('div'); rearD.style.cssText = 'flex:1;min-width:280px'; rearD.innerHTML = rr; rowD.appendChild(rearD); } else holder.style.margin = '0 auto';
+      if (sideEls.length) { const SW = 420, rearD = document.createElement('div'); rearD.style.cssText = 'flex:none;width:' + SW + 'px';
+        sideEls.forEach(({ cl, w0, h0, n }) => { const k2 = n.kind === 'rack' ? SW / w0 : Math.min(1.2, SW / w0), box   /* גב הארון מוקטן בתוך האלמנט — מגדילים לרוחב העמודה */ = document.createElement('div');
+          box.style.cssText = 'position:relative;width:' + Math.round(w0 * k2) + 'px;height:' + Math.round(h0 * k2) + 'px;margin:0 auto 10px;page-break-inside:avoid;overflow:hidden';
+          cl.style.transform = 'scale(' + k2.toFixed(4) + ')'; box.appendChild(cl); rearD.appendChild(box); });
+        rowD.appendChild(rearD); } else holder.style.margin = '0 auto';
       sec.appendChild(rowD);
       const lad = document.createElement('div'); lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); sec.appendChild(lad);
       snaps.push(sec);
