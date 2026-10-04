@@ -1538,19 +1538,34 @@ function addNode(kind, rtype) {
   sel = id; ui.tab = 'node'; render();
   uiToast((kind === 'rack' ? '🗄 ארון חדש' : kind === 'panel' ? '🧩 פאנל חדש' : kind === 'power' ? '⚡ הכנת חשמל — בחר סוג שקע/סיקון ולחץ על החורים' : '📍 מוקד חדש') + ' נוסף במרכז המסך — גרור אותו למקום');
 }
+/* מחיקת מוקד — שלוש רמות: רק מהתצוגה בתכנית · מהתכנית ומהצעת המחיר · מהתכנית, מההצעה ומטבלת החיווט */
 async function delNode(id) {
-  const n0 = byId(id);
-  { const nc = (P.cables || []).filter(c => c.from === id || c.to === id).length;
-    if (!(await uiConfirm('למחוק את המוקד "' + (n0 ? (n0.name || '').slice(0, 60) : '') + '"' + (nc === 1 ? ' ואת הכבל שלו' : nc ? ' ואת ' + nc + ' הכבלים שלו' : '') + '?'))) return; }
-  const n = byId(id);
-  if (n) {
-    if (n.srcIid) unplace(n.srcIid); /* מחיקה מחזירה את הפריט לרשימה למשיכה חוזרת */
-    (n.units || []).forEach(u => u.srcIid && unplace(u.srcIid));
-  }
-  P.nodes = P.nodes.filter(n => n.id !== id);
+  const n0 = byId(id); if (!n0) return;
+  const cabs = (P.cables || []).filter(c => c.from === id || c.to === id), nc = cabs.length;
+  const iids = [n0.srcIid, ...(n0.units || []).map(u => u.srcIid)].filter(Boolean), inOffer = iids.some(i => impItems.some(x => x.iid === i));
+  const mode = await new Promise(res => {
+    const ov = uiModal(`
+      <p style="font-size:14px;font-weight:800;margin:0 0 4px">מחיקת "${esc((n0.name || '').slice(0, 60))}"</p>
+      <p class="muted" style="font-size:12px;margin:0 0 12px">${nc === 1 ? 'למוקד מחובר כבל אחד בטבלת החיווט.' : nc ? 'למוקד מחוברים ' + nc + ' כבלים בטבלת החיווט.' : 'אין כבלים מחוברים למוקד.'}${inOffer ? ' הוא מופיע בהצעת המחיר.' : ''}</p>
+      <button data-m="hide" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🙈 מהתצוגה בתכנית בלבד</b><br><span class="muted" style="font-size:11.5px">המוקד מוסתר מהתכנית. נשאר בהצעת המחיר${nc ? ' ובטבלת החיווט' : ''}.</span></button>
+      ${inOffer ? `<button data-m="offer" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🧾 מהתכנית + מהצעת המחיר</b><br><span class="muted" style="font-size:11.5px">מוסתר מהתכנית, והכמות בהצעה יורדת ב-1${nc ? '. הקווים נשארים בטבלת החיווט' : ''}.</span></button>` : ''}
+      <button class="primary" data-m="all" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4;background:#c1121f"><b>🗑 מהתכנית${inOffer ? ', מההצעה' : ''} ומטבלת החיווט</b><br><span style="font-size:11.5px;opacity:.9">המוקד נמחק לגמרי${nc ? ' יחד עם ' + (nc === 1 ? 'הכבל שלו' : nc + ' הכבלים שלו') : ''}${inOffer ? ', והכמות בהצעה יורדת ב-1' : ''}.</span></button>
+      <button data-m="" style="width:100%">ביטול</button>`);
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelectorAll('[data-m]').forEach(bt => bt.onclick = () => done(bt.dataset.m));
+    ov.addEventListener('click', e => { if (e.target === ov) done(''); });
+  });
+  if (!mode) return;
+  const n = byId(id); if (!n) return;
+  /* הורדת הפריט מהצעת המחיר: כמות −1 (וגם "בתכנית" −1); שורה שהגיעה ל-0 נמחקת */
+  const offerDec = iid => { const it = impItems.find(x => x.iid === iid); if (!it) return; it.qty = Math.max(0, (+it.qty || 0) - 1); it.placed = Math.max(0, (it.placed || 0) - 1); if (it.placed < it.qty) it.added = false; if (!it.qty) impItems = impItems.filter(x => x !== it); };
+  if (mode === 'hide') { n.hidden = true; if (sel === id) sel = null; save(); render(); uiToast('🙈 המוקד הוסתר מהתכנית — נשאר בהצעה' + (nc ? ' ובחיווט' : '') + ' · מחזירים אותו מ"תצוגה"', 5000); return; }
+  if (mode === 'offer') { iids.forEach(offerDec); n.srcIid = undefined; (n.units || []).forEach(u => { u.srcIid = undefined; }); n.hidden = true; if (sel === id) sel = null; save(); render(); uiToast('🧾 המוקד הוסתר מהתכנית והורד מהצעת המחיר' + (nc ? ' — הקווים נשארו בטבלת החיווט' : ''), 5000); return; }
+  iids.forEach(offerDec);
+  P.nodes = P.nodes.filter(x => x.id !== id);
   P.cables = P.cables.filter(c => c.from !== id && c.to !== id);
   if (sel === id) sel = null;
-  render();
+  save(); render();
 }
 
 /* ---- units with explicit rack position ---- */
