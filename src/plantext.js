@@ -283,7 +283,7 @@ function ptMarksSVG() {
    ב-PDF עם שכבות (AutoCAD/Revit) מרנדרים את הדף כשכל מה שאינו מבנה כבוי — ריהוט, מידות, טקסט, צמחייה, תאורה,
    כלים סניטריים, דלתות. כך חלוקת החלל לאזורים נשענת על קירות ומפרידים בלבד, ולא נחתכת סביב כיסאות וקווי מידה.
    מחזיר canvas באותו כיוון ויחס כמו P.bg, או null (אין PDF / אין שכבות / אין שכבת קירות). */
-var PT_NONSTRUCT = /ריהוט|FURN|TEXT|ANNO|DIM|טקסט|צמח|PLNT|PLANT|תאורה|טאורה|LIGHT|LITE|SANR|FIXT|EQPM|(^|[^א-ת])בר(ים)?($|[^א-ת])|\bBAR|DOOR|דלת|HDLN|SYMB|TITLE|VIEWPORT|Defpoints/i;
+var PT_NONSTRUCT = /COLS?\b|COLUMN|עמוד|ריהוט|FURN|TEXT|ANNO|DIM|טקסט|צמח|PLNT|PLANT|תאורה|טאורה|LIGHT|LITE|SANR|FIXT|EQPM|(^|[^א-ת])בר(ים)?($|[^א-ת])|\bBAR|DOOR|דלת|HDLN|SYMB|TITLE|VIEWPORT|Defpoints/i;
 let PT_STRUCT = null;
 async function ptStructCanvas() {
   if (window.__ptNoStruct) return null;
@@ -339,10 +339,17 @@ async function ptBinary() {
     for (let t = 0; t < 235; t++) { wB += hist[t]; if (!wB) continue; const wF = total - wB; if (!wF) break; sumB += t * hist[t]; const mB = sumB / wB, mF = (sum - sumB) / wF, v = wB * wF * (mB - mF) ** 2; if (v > bestV) { bestV = v; best = t; } }
     thr = Math.max(60, Math.min(170, best));
   }
-  for (let j = 0; j < w * h; j++) dark0[j] = luma[j] < thr ? 1 : 0;
+  if (sc) { for (let j = 0, i = 0; j < w * h; j++, i += 4) { const mx = Math.max(px[i], px[i + 1], px[i + 2]), mn = Math.min(px[i], px[i + 1], px[i + 2]); dark0[j] = luma[j] < thr && mx - mn < 50 ? 1 : 0; } }   /* תמונת מבנה: קיר הוא שחור/אפור — קו צבעוני (מידה, סימון) אינו קיר */
+  else for (let j = 0; j < w * h; j++) dark0[j] = luma[j] < thr ? 1 : 0;
   /* (תכנית צבועה: "החוץ" מזוהה ב-ptFilledRegions — לבן-נייר רחב שמגיע לשוליים — ולא כאן) */
   /* עיבוי הקירות: רדיוס ≈ 0.5 מ׳ (סוגר דלתות) — בפיקסלים של הקנבס */
   const pxPerM = P.scale ? (1 / P.scale) * (w / (P.bgW || 1400)) : w / 60;
+  /* תמונת מבנה: גוף כהה קטן וחופשי (עמוד, סמל, נקודת תאורה — עד ~1.5 מ׳, לא מחובר לקיר) אינו גבול אזור — מוסר */
+  if (sc) { const lab = new Int32Array(w * h).fill(-1), q = new Int32Array(w * h), T = 1.5 * pxPerM;
+    for (let s0 = 0; s0 < w * h; s0++) { if (!dark0[s0] || lab[s0] >= 0) continue; let qh = 0, qt = 0; q[qt++] = s0; lab[s0] = s0; let x0 = w, x1 = 0, y0 = h, y1 = 0;
+      while (qh < qt) { const i = q[qh++], x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const j = yy * w + xx; if (dark0[j] && lab[j] < 0) { lab[j] = s0; q[qt++] = j; } } }
+      if (x1 - x0 < T && y1 - y0 < T) for (let k = 0; k < qt; k++) dark0[q[k]] = 0; } }
   const r = Math.max(1, Math.min(20, Math.round(pxPerM * OPT.rM)));
   const dark = new Uint8Array(w * h);
   /* הרחבה מופרדת (אופקית ואז אנכית) — O(n·r) */
@@ -553,7 +560,24 @@ function ptDilateN(src, w, h, r) {
   return out;
 }
 /* מסכת חלל אחד, מורחבת חזרה עד הקירות המקוריים (העיבוי כיווץ אותה) */
+/* תמונת מבנה: החלל גדל חזרה עד פני הקיר בלי לעבור דרכו — התפשטות מכל החללים בו-זמנית, רק דרך פיקסלים שאינם קיר,
+   עד מרחק r. פתח דלת מתחלק באמצע בין שני החדרים; קיר דק לא נחצה לעולם. */
+function ptGeoLabels(B, comp) {
+  if (B._geo && B._geoComp === comp) return B._geo;
+  const { w, h, r, dark0 } = B, lab = Int32Array.from(comp), dist = new Uint16Array(w * h), q = new Int32Array(w * h); let qh = 0, qt = 0;
+  for (let i = 0; i < w * h; i++) if (comp[i] >= 0) { const x = i % w, y = (i - x) / w;
+    if ((x > 0 && comp[i - 1] < 0) || (x < w - 1 && comp[i + 1] < 0) || (y > 0 && comp[i - w] < 0) || (y < h - 1 && comp[i + w] < 0)) q[qt++] = i; }
+  /* גדלים רק בתוך הרצועה שהעיבוי אכל (עד r מכל חלל, בקו ישר) — אבל מגיעים אליה בעקיפה, כך שגם פינה שמאחורי בליטת קיר מתמלאת */
+  const near = ptDilateN(Uint8Array.from(comp, v => v >= 0 ? 1 : 0), w, h, r + 1);
+  while (qh < qt) { const i = q[qh++], d = dist[i]; if (!near[i]) continue; const x = i % w, y = (i - x) / w, id = lab[i];
+    if (x > 0 && lab[i - 1] < 0 && !dark0[i - 1] && near[i - 1]) { lab[i - 1] = id; q[qt++] = i - 1; }
+    if (x < w - 1 && lab[i + 1] < 0 && !dark0[i + 1] && near[i + 1]) { lab[i + 1] = id; q[qt++] = i + 1; }
+    if (y > 0 && lab[i - w] < 0 && !dark0[i - w] && near[i - w]) { lab[i - w] = id; q[qt++] = i - w; }
+    if (y < h - 1 && lab[i + w] < 0 && !dark0[i + w] && near[i + w]) { lab[i + w] = id; q[qt++] = i + w; } }
+  B._geo = lab; B._geoComp = comp; return lab;
+}
 function ptCompMask(B, comp, id) {
+  if (B.struct) { const lab = ptGeoLabels(B, comp), o = new Uint8Array(B.w * B.h); for (let i = 0; i < o.length; i++) if (lab[i] === id) o[i] = 1; return o; }
   const { w, h, r, dark0 } = B, m = new Uint8Array(w * h), t = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) if (comp[i] === id) m[i] = 1;
   for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = 0; x < w; x++) { if (m[row + x]) run = r + 1; if (run > 0) { t[row + x] = 1; run--; } } }
@@ -896,9 +920,9 @@ async function ptPartition() {
     if (!aud.length && c.n < minArea) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'small-unlabeled' }); continue; }
     /* חותמת השרטוט (תאריך / קנ״מ / פורמט / הערות…) היא מסגרת, לא חלל */
     if (!aud.length && labs.some(it => /תאריך|הערות|קנ\s*["״']?\s*מ|פורמט|גיליון|גליון|עיצוב ותכנון|\bSCALE\b|\bDATE\b|\bDRAWN\b|\bSHEET\b|\bREV\b/i.test(it.t))) { if (dbg) dbg.push({ id: c.id, why: 'title-block' }); continue; }                          /* חלל קטן בלי כיתוב — פינה/ארון */
-    const mask = ptAbsorbPockets(B, ptCompMask(B, comp, c.id), comp, c.id);
+    const mask = B.struct ? ptCompMask(B, comp, c.id) : ptAbsorbPockets(B, ptCompMask(B, comp, c.id), comp, c.id);   /* בתמונת מבנה כל קו הוא קיר — לא בולעים כיסים שמעבר לו */
     /* כיסים שנבלעו מעבר לקו לא מחוברים פיזית למסכה — מעבים ב-2 פיקסלים כדי לגשר, ומקיפים את החלק הגדול */
-    const bridged = ptDilateN(mask, w, h, 2);
+    const bridged = B.struct ? mask : ptDilateN(mask, w, h, 2);
     const parts = ptSplitMask(bridged, w, h).sort((a, b) => b.n - a.n); if (!parts.length) { if (dbg) dbg.push({ id: c.id, why: 'no-parts' }); continue; }
     const poly = mkPoly(parts[0].mask); if (!poly) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'no-poly', part: +(parts[0].n / pxPerM2).toFixed(1) }); continue; }
     if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'zone', part: +(parts[0].n / pxPerM2).toFixed(1), pts: poly.length });
@@ -1110,7 +1134,7 @@ async function rfWalls() {
   const k = Math.min(1, 1600 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
   const px = g.getImageData(0, 0, w, h).data, dark = new Uint8Array(w * h);
-  for (let i = 0; i < w * h; i++) { const l = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2]; dark[i] = l < 185 ? 1 : 0; }
+  for (let i = 0; i < w * h; i++) { const r0 = px[i * 4], g0 = px[i * 4 + 1], b0 = px[i * 4 + 2], l = 0.299 * r0 + 0.587 * g0 + 0.114 * b0; dark[i] = l < 185 && (!sc || Math.max(r0, g0, b0) - Math.min(r0, g0, b0) < 50) ? 1 : 0; }
   const W = P.bgW || 1400, pxPerM = (w / W) / (P.scale || 0.01);
   const rThin = Math.max(1, Math.round(0.06 * pxPerM));   /* חצי עובי קיר מינימלי */
   const walls = rfBox(rfBox(dark, w, h, rThin, false), w, h, rThin, true);
