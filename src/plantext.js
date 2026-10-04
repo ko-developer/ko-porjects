@@ -351,7 +351,7 @@ async function ptBinary() {
   for (let y = 0; y < h; y++) { let run = 0; const row = y * w; for (let x = w - 1; x >= 0; x--) { if (dark0[row + x]) run = r + 1; if (run > 0) { tmp[row + x] = 1; run--; } } }   /* שמאלה */
   for (let x = 0; x < w; x++) { let run = 0; for (let y = 0; y < h; y++) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
   for (let x = 0; x < w; x++) { let run = 0; for (let y = h - 1; y >= 0; y--) { const i = y * w + x; if (tmp[i]) run = r + 1; if (run > 0) { dark[i] = 1; run--; } } }
-  PT_BIN = { w, h, dark, dark0, r, pxPerM, key, thr, rendered, filled, darkFrac: +(dark0.reduce((a, b) => a + b, 0) / (w * h)).toFixed(3) };
+  PT_BIN = { struct: !!sc, w, h, dark, dark0, r, pxPerM, key, thr, rendered, filled, darkFrac: +(dark0.reduce((a, b) => a + b, 0) / (w * h)).toFixed(3) };
   return PT_BIN;
 }
 /* מילוי מנקודה אחת: { n, edge, box } */
@@ -468,6 +468,8 @@ function zoneNoOverlap(z, others) {
 /* יצירת אזורי סאונד מכיתובי הקהל — לפי גבולות החדר סביב כל כיתוב; rebuild = מחליף אזורים שנוצרו מכיתובים */
 async function ptMakeZones(rebuild) {
   const pt = P.planText; if (!pt || !pt.items) return;
+  /* כשיש תמונת מבנה (PDF עם שכבות): גבולות האזור נקבעים לפי הקירות בלבד — הריהוט והכיתובים קובעים מה יש באזור (שם ותכלית), לא איפה הוא נגמר */
+  if (!window.__ptNoPart && await ptStructCanvas()) { if (rebuild) P.zones = (P.zones || []).filter(z => !z.fromText); return ptPartition(); }
   const aud = pt.items.filter(i => i.cat === 'audience').sort((a, b) => (b.bw || 0) * (b.bh || 0) - (a.bw || 0) * (a.bh || 0));   /* אזורים משכבות ה-PDF קודם, מהגדול לקטן */
   const PT_WC_RE = /\bW\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|שירותים|שרותים|תא נכים/i;
   const wcs = pt.items.filter(i => i.cat === 'service' && (PT_WC_RE.test(i.t) || /SANR|SANIT|PLUMB|סניטר/i.test(i.ly || '')));
@@ -638,6 +640,17 @@ function ptTrace(mask, w, h) {
   return pts;
 }
 /* פישוט Ramer–Douglas–Peucker */
+/* יישור מצולע של חדר לקירות: מוחקים שיניים קטנות (נקודה שהסרתה משנה שטח קטן מ-minSeg²/2 — Visvalingam),
+   ואז מיישרים צלעות כמעט-אופקיות/אנכיות לציר ומסירים נקודות על קו ישר. חדר מלבני יוצא עם 4–8 נקודות. */
+function ptSquare(pts, minSeg) {
+  let p = pts.map(q => [q[0], q[1]]); const thr = minSeg * minSeg / 2;
+  const triA = (a, b, c) => Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+  for (let guard = 0; guard < 400 && p.length > 4; guard++) { let bi = -1, ba = thr; for (let i = 0; i < p.length; i++) { const a = triA(p[(i - 1 + p.length) % p.length], p[i], p[(i + 1) % p.length]); if (a < ba) { ba = a; bi = i; } } if (bi < 0) break; p.splice(bi, 1); }
+  for (let pass = 0; pass < 3; pass++) for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length], dx = Math.abs(b[0] - a[0]), dy = Math.abs(b[1] - a[1]);
+    if (dy <= dx * 0.12) { const y = (a[1] + b[1]) / 2; a[1] = b[1] = y; } else if (dx <= dy * 0.12) { const x = (a[0] + b[0]) / 2; a[0] = b[0] = x; } }
+  for (let i = p.length - 1; i >= 0 && p.length > 3; i--) { const a = p[(i - 1 + p.length) % p.length], b = p[i], c = p[(i + 1) % p.length]; if (triA(a, b, c) < 0.5 || Math.hypot(b[0] - a[0], b[1] - a[1]) < 1) p.splice(i, 1); }
+  return p.length >= 3 ? p : pts;
+}
 function ptRdp(pts, eps) {
   if (pts.length < 3) return pts;
   const d2 = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1; const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L)); const px = a[0] + t * dx - p[0], py = a[1] + t * dy - p[1]; return px * px + py * py; };
@@ -846,6 +859,7 @@ async function ptPartition() {
     const tr = ptTrace(mask, w, h);
     const eps = Math.max(1.5, B.pxPerM * 0.2);
     let sp = tr.length >= 4 ? ptRdp(tr, eps) : [];
+    if (B.struct && sp.length > 4) sp = ptSquare(sp, B.pxPerM * 0.7);   /* גבול לפי קירות: מיישרים ומוחקים שיניים עד ~70 ס״מ */
     if (sp.length < 3) {   /* מתאר מנוון — המלבן החוסם של המסכה */
       let x0 = w, y0 = h, x1 = 0, y1 = 0; for (let i = 0; i < w * h; i++) if (mask[i]) { const x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
       if (x1 <= x0 || y1 <= y0) return null; sp = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -879,7 +893,9 @@ async function ptPartition() {
     if (c.n < labelMin) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'tiny' }); continue; }
     if (svc.length && !aud.length) { skipped++; if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'service' }); continue; }
     if (labs.some(it => it.cat === 'passage') && !aud.length) { skipped++; if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'passage' }); continue; }   /* כניסה / מסדרון — לא אזור */             /* שירותים / מטבח / מחסן — בלי מוזיקה */
-    if (!aud.length && c.n < minArea) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'small-unlabeled' }); continue; }                          /* חלל קטן בלי כיתוב — פינה/ארון */
+    if (!aud.length && c.n < minArea) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'small-unlabeled' }); continue; }
+    /* חותמת השרטוט (תאריך / קנ״מ / פורמט / הערות…) היא מסגרת, לא חלל */
+    if (!aud.length && labs.some(it => /תאריך|הערות|קנ\s*["״']?\s*מ|פורמט|גיליון|גליון|עיצוב ותכנון|\bSCALE\b|\bDATE\b|\bDRAWN\b|\bSHEET\b|\bREV\b/i.test(it.t))) { if (dbg) dbg.push({ id: c.id, why: 'title-block' }); continue; }                          /* חלל קטן בלי כיתוב — פינה/ארון */
     const mask = ptAbsorbPockets(B, ptCompMask(B, comp, c.id), comp, c.id);
     /* כיסים שנבלעו מעבר לקו לא מחוברים פיזית למסכה — מעבים ב-2 פיקסלים כדי לגשר, ומקיפים את החלק הגדול */
     const bridged = ptDilateN(mask, w, h, 2);
