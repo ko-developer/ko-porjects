@@ -116,7 +116,65 @@ async function ptFromPdf() {
     const t2 = t.split(/\s+/).map(w => /[֐-׿]/.test(w) ? [...w].reverse().join('') : w).join(' ');
     tokens.push({ t: t2, x: cx, y: vp.height - cy, w, h, frame: vert ? 'v' : 'h', c: 99 });
   }
-  return { tokens, W: vp.width, H: vp.height };
+  let layers = [];
+  try { layers = await ptPdfLayers(pg, vp); } catch (e) { console.warn('ptPdfLayers', e); }
+  return { tokens, W: vp.width, H: vp.height, layers };
+}
+/* ---------- שכבות ה-PDF (AutoCAD / Revit שומרים את שמות השכבות בקובץ) ----------
+   שכבת "ריהוט" = איפה יושבים: מקבצים את הציור שבה לפי קרבה → אזורי ישיבה. שכבת "ברים" → בר,
+   כלים סניטריים → שירותים, מטבח → מטבח, במה → במה. זה מדויק יותר מכיתוב — זה הציור עצמו. */
+var PT_LAYERS = [
+  { k: 'seat', re: /ריהוט|FURN|SEAT|CHAIR|TABLE|ישיבה|כסא|כיסא|שולחנ/i, t: 'אזור ישיבה', cat: 'audience', gap: 2.0, minN: 12, minM2: 4 },   /* פחות מ-4 מ״ר = סמלי ריהוט במקרא/בחותמת, לא אזור */
+  { k: 'bar', re: /(^|[^א-ת])בר(ים)?($|[^א-ת])|\bBAR/i, t: 'בר', cat: 'audience', gap: 2.0, minN: 6, minM2: 1 },
+  { k: 'stage', re: /STAGE|במה/i, t: 'במה', cat: 'audience', gap: 2.0, minN: 3, minM2: 2 },
+  { k: 'wc', re: /SANR|SANIT|PLUMB|סניטר|שירותים/i, t: 'שירותים', cat: 'service', gap: 2.5, minN: 6, minM2: 1 },
+  { k: 'kitchen', re: /KITCH|מטבח/i, t: 'מטבח', cat: 'ops', gap: 2.5, minN: 6, minM2: 2 },
+];
+async function ptPdfLayers(pg, vp) {
+  const cfg = await pg._transport.getOptionalContentConfig(), groups = cfg && cfg.getGroups ? (cfg.getGroups() || {}) : {};
+  const names = {}; Object.entries(groups).forEach(([id, g]) => { names[id] = (g && g.name) || ''; });
+  if (!Object.keys(names).length) return [];
+  const ol = await pg.getOperatorList(), O = pdfjsLib.OPS;
+  const mul = (m, n) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+  let ctm = [1, 0, 0, 1, 0, 0]; const st = [], mc = [], per = {};
+  const pageA = vp.width * vp.height;
+  for (let i = 0; i < ol.fnArray.length; i++) {
+    const f = ol.fnArray[i], a = ol.argsArray[i];
+    if (f === O.save) st.push(ctm.slice());
+    else if (f === O.restore) ctm = st.pop() || ctm;
+    else if (f === O.transform) ctm = mul(ctm, a);
+    else if (f === O.paintFormXObjectBegin) { st.push(ctm.slice()); if (a && a[0]) ctm = mul(ctm, a[0]); }
+    else if (f === O.paintFormXObjectEnd) ctm = st.pop() || ctm;
+    else if (f === O.beginMarkedContentProps) mc.push(a && a[0] === 'OC' && a[1] && a[1].id ? a[1].id : null);
+    else if (f === O.beginMarkedContent) mc.push(null);
+    else if (f === O.endMarkedContent) mc.pop();
+    else if (f === O.constructPath) {
+      let id = null; for (let j = mc.length - 1; j >= 0; j--) if (mc[j]) { id = mc[j]; break; }
+      const mm = a && a[2]; if (!id || !mm) continue;
+      /* minMax = [minX, maxX, minY, maxY] במרחב המשתמש → נקודות התצוגה (y כלפי מטה) */
+      const cs = [[mm[0], mm[2]], [mm[1], mm[2]], [mm[0], mm[3]], [mm[1], mm[3]]].map(([x, y]) => vp.convertToViewportPoint(ctm[0] * x + ctm[2] * y + ctm[4], ctm[1] * x + ctm[3] * y + ctm[5]));
+      const xs = cs.map(p => p[0]), ys = cs.map(p => p[1]), b = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+      if (!isFinite(b.x0 + b.x1 + b.y0 + b.y1) || (b.x1 - b.x0) * (b.y1 - b.y0) > pageA * 0.25) continue;   /* מסגרת הגיליון וכד׳ */
+      if (b.x1 < 0 || b.y1 < 0 || b.x0 > vp.width || b.y0 > vp.height) continue;
+      (per[id] = per[id] || []).push(b);
+    }
+  }
+  /* נקודות PDF למטר: מהכיתוב 1:N, אחרת מהכיול, אחרת 2% מרוחב הדף */
+  const ratio = P.autoScale && P.autoScale.ratio, ptPerM = ratio ? (1000 * 72 / 25.4) / ratio : (P.scale ? (1 / P.scale) * (vp.width / (P.bgW || 1400)) : vp.width * 0.02);
+  const out = []; window.__ptLayerInfo = Object.entries(names).map(([id, n]) => ({ id, name: n, paths: (per[id] || []).length }));
+  for (const [id, name] of Object.entries(names)) {
+    const def = PT_LAYERS.find(d => d.re.test(name)), bs = per[id]; if (!def || !bs || !bs.length) continue;
+    const els = def.k === 'seat' ? bs.filter(b => Math.max(b.x1 - b.x0, b.y1 - b.y0) < 6 * ptPerM) : bs, gap = def.gap * ptPerM;
+    /* קיבוץ לפי קרבה (union-find): שני קטעים במרחק קטן מהסף שייכים לאותו אזור */
+    const par = els.map((_, i) => i), find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+    for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) { const p = els[i], q = els[j];
+      const dx = Math.max(0, Math.max(p.x0, q.x0) - Math.min(p.x1, q.x1)), dy = Math.max(0, Math.max(p.y0, q.y0) - Math.min(p.y1, q.y1));
+      if (dx <= gap && dy <= gap && dx * dx + dy * dy <= gap * gap) { const a2 = find(i), b2 = find(j); if (a2 !== b2) par[a2] = b2; } }
+    const cl = {}; els.forEach((b, i) => { const r = find(i), c = cl[r] = cl[r] || { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, n: 0 }; c.x0 = Math.min(c.x0, b.x0); c.y0 = Math.min(c.y0, b.y0); c.x1 = Math.max(c.x1, b.x1); c.y1 = Math.max(c.y1, b.y1); c.n++; });
+    const keep = Object.values(cl).filter(c => c.n >= def.minN && ((c.x1 - c.x0) * (c.y1 - c.y0)) / (ptPerM * ptPerM) >= def.minM2).sort((a2, b2) => (a2.y0 - b2.y0) || (a2.x0 - b2.x0));
+    keep.forEach((c, i) => out.push({ t: def.t + (keep.length > 1 ? ' ' + (i + 1) : ''), cat: def.cat, ly: name, n: c.n, x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, m2: Math.round(((c.x1 - c.x0) * (c.y1 - c.y0)) / (ptPerM * ptPerM)) }));
+  }
+  return out;
 }
 /* סיבוב התכנית (P.bgRot, כפולות של 90° עם כיוון השעון) — מיקום יחסי (u,v) מסתובב איתה */
 function ptRotUV(u, v) { let n = ((P.bgRot || 0) / 90) % 4; while (n-- > 0) { const u2 = 1 - v; v = u; u = u2; } return { u, v }; }
@@ -140,8 +198,8 @@ async function planTextScan() {
   window.__ptBusy = true; render();
   try {
     uiToast(P.bgPdf ? '🔤 קורא את הכיתובים משכבת הטקסט של ה-PDF…' : '🔤 קורא את הכיתובים בתכנית (OCR מקומי, בלי AI) — יכול לקחת כדקה, ממשיכים בינתיים…', 6000);
-    let tokens, SW, SH, src = 'ocr';
-    if (P.bgPdf) { const r = await ptFromPdf(); tokens = r.tokens; SW = r.W; SH = r.H; src = 'pdf'; }
+    let tokens, SW, SH, src = 'ocr', layers = [];
+    if (P.bgPdf) { const r = await ptFromPdf(); tokens = r.tokens; SW = r.W; SH = r.H; src = 'pdf'; layers = r.layers || []; }
     else { const cv = await ptCanvas(); tokens = await ptOcr(cv); SW = cv.width; SH = cv.height; }
     window.__ptTokens = tokens;   /* לניפוי: מה נקרא */
     let phrases = [...ptGroup(tokens, 'h'), ...ptGroup(tokens, 'v'), ...ptGroup(tokens, 'w')].filter(ptKeep);
@@ -156,11 +214,26 @@ async function planTextScan() {
     }
     const items = kept.map(p => { const uv = src === 'pdf' ? ptRotUV(p.x / SW, p.y / SH) : { u: p.x / SW, v: p.y / SH }; const sw = src === 'pdf' && ((P.bgRot || 0) / 90) % 2 ? [p.h / SH, p.w / SW] : [p.w / SW, p.h / SH]; return { t: p.t, u: +uv.u.toFixed(4), v: +uv.v.toFixed(4), w: +sw[0].toFixed(4), h: +sw[1].toFixed(4), cat: ptClassify(p.t), c: Math.round(p.c), vert: p.frame !== 'h' }; })
       .sort((a, b) => a.v - b.v || a.u - b.u);
+    /* אזורים מתוך שכבות ה-PDF (ריהוט → אזורי ישיבה, ברים, שירותים…) — עם המלבן המדויק של הציור */
+    for (const ly of layers) { const a = ptRotUV(ly.x0 / SW, ly.y0 / SH), b = ptRotUV(ly.x1 / SW, ly.y1 / SH), u0 = Math.min(a.u, b.u), u1 = Math.max(a.u, b.u), v0 = Math.min(a.v, b.v), v1 = Math.max(a.v, b.v);
+      items.push({ t: ly.t, u: +((u0 + u1) / 2).toFixed(4), v: +((v0 + v1) / 2).toFixed(4), w: 0.03, h: 0.012, cat: ly.cat, c: 100, ly: ly.ly, n: ly.n, m2: ly.m2, bu: +u0.toFixed(4), bv: +v0.toFixed(4), bw: +(u1 - u0).toFixed(4), bh: +(v1 - v0).toFixed(4) }); }
+    /* שכבת טקסט דלה או משובשת (פונט חסר ב-PDF) — משלימים ב-OCR על התמונה, ומוסיפים מה שלא נקרא */
+    let ocrAdded = 0;
+    if (src === 'pdf' && items.filter(i => !i.ly).length < 8) {
+      try { uiToast('🔤 שכבת הטקסט של ה-PDF דלה — משלים בקריאת OCR של השרטוט (כדקה)…', 6000);
+        const cv = await ptCanvas(), tk2 = await ptOcr(cv); let ph2 = [...ptGroup(tk2, 'h'), ...ptGroup(tk2, 'v'), ...ptGroup(tk2, 'w')].filter(ptKeep);
+        for (const p of ph2.sort((a, b) => b.c - a.c)) { const u = p.x / cv.width, v = p.y / cv.height;
+          /* אותו מקום כבר נקרא משכבת הטקסט: כש-OCR בטוח וקרא משהו אחר — שכבת הטקסט שם משובשת (פונט חסר), וה-OCR מחליף אותה */
+          const same = items.find(q => !q.ly && Math.abs(q.u - u) < 0.025 && Math.abs(q.v - v) < 0.02);
+          if (same) { if (!same.ocr && p.c >= 80 && p.t !== same.t && ptClassify(same.t) === 'other') { same.t = p.t; same.cat = ptClassify(p.t); same.ocr = 1; ocrAdded++; } continue; }
+          items.push({ t: p.t, u: +u.toFixed(4), v: +v.toFixed(4), w: +(p.w / cv.width).toFixed(4), h: +(p.h / cv.height).toFixed(4), cat: ptClassify(p.t), c: Math.round(p.c), ocr: 1 }); ocrAdded++; }
+      } catch (e) { console.warn('pt ocr fallback', e); } }
+    items.sort((a, b) => a.v - b.v || a.u - b.u);
     const prev = P.planText || {};
-    P.planText = { items, at: new Date().toISOString(), src, show: prev.show !== false, cats: prev.cats || { audience: 1, ops: 1, service: 1, furniture: 0, level: 1, other: 0 }, tokens: tokens.length };
+    P.planText = { layerInfo: window.__ptLayerInfo && src === 'pdf' ? window.__ptLayerInfo.filter(l => l.paths).map(l => l.name) : undefined, ocrAdded, items, at: new Date().toISOString(), src, show: prev.show !== false, cats: prev.cats || { audience: 1, ops: 1, service: 1, furniture: 0, level: 1, other: 0 }, tokens: tokens.length };
     save(); render();
     const cnt = ptCounts();
-    uiToast('🔤 נקראו ' + items.length + ' כיתובים' + (src === 'pdf' ? ' משכבת הטקסט של ה-PDF (מדויק)' : ' ב-OCR') + ': ' + Object.entries(cnt).filter(([, n]) => n).map(([c, n]) => PT_CATS[c].n + ' ' + n).join(' · '), 8000);
+    uiToast('🔤 נמצאו ' + items.length + ' פריטים' + (layers.length ? ' · ' + layers.length + ' אזורים משכבות ה-PDF (' + [...new Set(layers.map(l => l.ly))].join(', ') + ')' : '') + (ocrAdded ? ' · ' + ocrAdded + ' הושלמו ב-OCR' : '') + ': ' + Object.entries(cnt).filter(([, n]) => n).map(([c, n]) => PT_CATS[c].n + ' ' + n).join(' · '), 8000);
   } catch (e) { console.warn('planTextScan', e); uiToast('⚠ קריאת הכיתובים נכשלה: ' + (e.message || e)); }
   finally { window.__ptBusy = false; render(); }
 }
@@ -177,6 +250,7 @@ function ptMarksSVG() {
   pt.items.forEach((it, i) => {
     if (!pt.cats[it.cat]) return;
     const { x, y, w } = ptPos(it), col = PT_CATS[it.cat].c, foc = window.__ptFocus === i;
+    if (it.bw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(); out += `<rect x="${bgLeft() + it.bu * Wb}" y="${bgTop() + it.bv * Hb}" width="${it.bw * Wb}" height="${it.bh * Hb}" rx="6" fill="${col}" fill-opacity="${foc ? 0.22 : 0.1}" stroke="${col}" stroke-width="${(foc ? 3 : 1.6) / getZ()}" stroke-dasharray="${7 / getZ()} ${4 / getZ()}" style="pointer-events:none"/>`; }
     const bw = Math.max(w, it.t.length * fz * 0.6 + 10);
     out += `<g style="cursor:pointer" onclick="window.__ptFocus=${i};ui.tab='node';render()"><rect x="${x - bw / 2}" y="${y - fz * 0.75}" width="${bw}" height="${fz * 1.5}" rx="3" fill="${col}" opacity="${foc ? 1 : 0.78}" stroke="${foc ? '#111' : 'none'}" stroke-width="${foc ? 2 : 0}"/><text x="${x}" y="${y + fz * 0.35}" text-anchor="middle" font-size="${fz}" font-weight="700" fill="#fff" direction="ltr" unicode-bidi="embed">${esc(it.t)}</text></g>`;
   });
@@ -296,7 +370,7 @@ async function ptRoomRect(it) {
 /* יצירת אזורי סאונד מכיתובי הקהל — לפי גבולות החדר סביב כל כיתוב; rebuild = מחליף אזורים שנוצרו מכיתובים */
 async function ptMakeZones(rebuild) {
   const pt = P.planText; if (!pt || !pt.items) return;
-  const aud = pt.items.filter(i => i.cat === 'audience');
+  const aud = pt.items.filter(i => i.cat === 'audience').sort((a, b) => (b.bw || 0) * (b.bh || 0) - (a.bw || 0) * (a.bh || 0));   /* אזורים משכבות ה-PDF קודם, מהגדול לקטן */
   if (!aud.length) { uiToast('לא נמצאו כיתובי אזורי קהל'); return; }
   P.zones = P.zones || [];
   if (rebuild) P.zones = P.zones.filter(z => !z.fromText);
@@ -307,9 +381,11 @@ async function ptMakeZones(rebuild) {
   for (const it of aud) {
     const p = ptPos(it);
     if (P.zones.some(z => inZone(z, p))) continue;   /* כבר יש אזור שם (גם כיתוב שני באותו חדר) */
-    let rr = null; try { rr = await ptRoomRect(it); } catch (e) { console.warn('ptRoomRect', e); }
+    let rr = null;
+    if (it.bw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), pad = P.scale ? 0.6 / P.scale : Wb * 0.01; rr = { left: bgLeft() + it.bu * Wb - pad, top: bgTop() + it.bv * Hb - pad, w: it.bw * Wb + 2 * pad, h: it.bh * Hb + 2 * pad }; }   /* אזור משכבת ה-PDF — המלבן של הציור עצמו (+60 ס״מ) */
+    else try { rr = await ptRoomRect(it); } catch (e) { console.warn('ptRoomRect', e); }
     let left, top, w, h, isOpen = false;
-    if (rr && rr.w >= minPx && rr.h >= minPx) { ({ left, top, w, h } = rr); if (rr.open) { isOpen = true; open++; } }
+    if (rr && (it.bw || (rr.w >= minPx && rr.h >= minPx))) { ({ left, top, w, h } = rr); if (rr.open) { isOpen = true; open++; } }
     else { w = side; h = side; left = p.x - w / 2; top = p.y - h / 2; isOpen = true; open++; }
     /* אותו חדר שכבר נוצר מכיתוב אחר (חפיפה של 70%+) — לא מכפילים; שם שלם עדיף על שבר OCR */
     const dup = P.zones.find(o => { const b = zoneBounds(o); const ix = Math.max(0, Math.min(left + w, b.L + b.W) - Math.max(left, b.L)), iy = Math.max(0, Math.min(top + h, b.T + b.H) - Math.max(top, b.T)); const inter = ix * iy; return inter > 0.7 * Math.min(w * h, b.W * b.H); });
@@ -877,9 +953,9 @@ function ptPanelHTML() {
     <details style="margin-top:4px"><summary class="muted" style="cursor:pointer">כל הכיתובים (${pt.items.length}) — לחיצה מסמנת על התכנית</summary><div style="max-height:180px;overflow:auto;font-size:10.5px">`;
     for (const [c, m] of Object.entries(PT_CATS)) {
       const its = pt.items.map((it, i) => ({ it, i })).filter(x => x.it.cat === c); if (!its.length) continue;
-      h += `<div style="font-weight:700;color:${m.c};margin-top:3px">${m.ic} ${m.n}</div>` + its.map(({ it, i }) => `<div style="display:flex;gap:4px;align-items:center;padding:1px 0;${window.__ptFocus === i ? 'background:#fff3e6' : ''}"><span style="flex:1;cursor:pointer;direction:ltr;text-align:left" onclick="window.__ptFocus=${i};P.planText.show=true;render()">${esc(it.t)}</span><select style="width:auto;font-size:10px;padding:0 2px" onchange="P.planText.items[${i}].cat=this.value;save();render()">${Object.entries(PT_CATS).map(([c2, m2]) => `<option value="${c2}" ${it.cat === c2 ? 'selected' : ''}>${m2.ic}</option>`).join('')}</select><button style="padding:0 5px;font-size:10px" onclick="P.planText.items.splice(${i},1);save();render()" title="מחק כיתוב שגוי">✕</button></div>`).join('');
+      h += `<div style="font-weight:700;color:${m.c};margin-top:3px">${m.ic} ${m.n}</div>` + its.map(({ it, i }) => `<div style="display:flex;gap:4px;align-items:center;padding:1px 0;${window.__ptFocus === i ? 'background:#fff3e6' : ''}"><span style="flex:1;cursor:pointer;direction:ltr;text-align:left" onclick="window.__ptFocus=${i};P.planText.show=true;render()">${esc(it.t)}${it.ly ? ' <span style="color:#888">· שכבה “' + esc(it.ly) + '”' + (it.m2 ? ' · ~' + it.m2 + ' מ״ר' : '') + '</span>' : it.ocr ? ' <span style="color:#888">· OCR</span>' : ''}</span><select style="width:auto;font-size:10px;padding:0 2px" onchange="P.planText.items[${i}].cat=this.value;save();render()">${Object.entries(PT_CATS).map(([c2, m2]) => `<option value="${c2}" ${it.cat === c2 ? 'selected' : ''}>${m2.ic}</option>`).join('')}</select><button style="padding:0 5px;font-size:10px" onclick="P.planText.items.splice(${i},1);save();render()" title="מחק כיתוב שגוי">✕</button></div>`).join('');
     }
-    h += `</div></details><div class="muted" style="font-size:10px">${pt.at ? 'נסרק ' + new Date(pt.at).toLocaleString('he-IL') : ''}${pt.src === 'pdf' ? ' · משכבת הטקסט של ה-PDF (מדויק)' : ' · OCR על התמונה — כיתובים קטנים עלולים להיקרא חלקית; PDF מקורי נקרא במדויק'} · הסיווג ניתן לתיקון בבורר ליד כל כיתוב</div>`;
+    h += `</div></details><div class="muted" style="font-size:10px">${pt.at ? 'נסרק ' + new Date(pt.at).toLocaleString('he-IL') : ''}${pt.src === 'pdf' ? ' · משכבת הטקסט של ה-PDF' + (pt.ocrAdded ? ' + ' + pt.ocrAdded + ' מ-OCR' : '') + (pt.layerInfo && pt.layerInfo.length ? ' · שכבות בקובץ: ' + esc(pt.layerInfo.join(', ')) : '') : ' · OCR על התמונה — כיתובים קטנים עלולים להיקרא חלקית; PDF מקורי נקרא במדויק'} · הסיווג ניתן לתיקון בבורר ליד כל כיתוב</div>`;
   }
   return h + '</div>';
 }
