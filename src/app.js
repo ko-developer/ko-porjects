@@ -5792,6 +5792,7 @@ function dbSpkType(prodName) {
 }
 const patchKind = n => dbSpkType(n.name) === 'סאב' || isActiveSub(n.name) || /סאב|\bsub\b|NOMOS|MB2|BR\s?1|F118|F221/i.test(n.name) ? 'sub' : PREMIUM_RE.test(n.name) ? 'prem' : '';
 function patchOpen(z, amps, lines, leftover) {
+  matrixCellsLoad();
   patchCss();
   purgeServiceUnits();
   PATCH = {
@@ -6638,6 +6639,59 @@ function patchMove(id, slot) {
    סאב = קו נפרד · רמקולים מחולקים שווה על הערוצים (ceil(N/ערוצים)), כל ערוץ עד תקרת
    העומס (Ω רמקול ÷ Ω מינימלי), בשרשור לפי קרבה — כך שכל שרשרת נשארת באזור השמעה
    אחד וניתן להנמיך אותה בנפרד. */
+/* ===== שיבוץ לפי התאמה: קודם מטריצת ההתאמות (איזה רמקול הולך עם איזה מגבר), ואז משפחת המותג =====
+   Funktion One ↔ מגברי Funktion One / XTA (DPA, DNA, MX3) · Unicorn (PAGAZ) ↔ Unicorn / SAE PQM. לא מערבבים מותגים על אותו מגבר.
+   תאי המטריצה נטענים מהשרת (מצב הדף /matrix): 'amp|רמקול|מגבר' → מספר (כמה לערוץ) או 'no'. */
+let MX_CELLS = null, MX_LOADING = false;
+setTimeout(() => { try { matrixCellsLoad(); } catch (e) {} }, 4000);   /* נטען ברקע — כדי שהשיבוץ הראשון כבר יכיר את המטריצה */
+function matrixCellsLoad() {
+  if (MX_CELLS || MX_LOADING) return; MX_LOADING = true;
+  fetch('/api/pagestate?k=matrix').then(r => r.ok ? r.json() : null).then(d => { MX_LOADING = false; if (!d || !d.cells) { MX_CELLS = { rows: {}, cols: new Set() }; return; }
+    const rows = {}, cols = new Set();
+    for (const [k, v] of Object.entries(d.cells)) { const [kind, sp, am] = k.split('|'); if (kind !== 'amp' || !sp || !am) continue; const rs = spkNorm(sp), cs = spkNorm(am); if (!rs || !cs) continue; (rows[rs] = rows[rs] || {})[cs] = v; cols.add(cs); }
+    MX_CELLS = { rows, cols };
+  }).catch(() => { MX_LOADING = false; MX_CELLS = { rows: {}, cols: new Set() }; });
+}
+function spkFam(n) {
+  const it = n.srcIid && impItems.find(x => x.iid === n.srcIid), t = (n.name || '') + ' ' + ((it && it.name) || '');
+  if (/FUNKTION|\bF1\b/i.test(t) || /(^|[^A-Z0-9])(F\s?-?\d{2,4}|BR\s?-?\d{3}|RES\s?-?\d|EVO\s?-?\d|PSM\s?-?\d|SB\s?-?\d{2,3}|MB\s?-?\d)/i.test(shortModel(n.name) || '')) return 'f1';
+  if (/UNICORN|PAGAZ|KT[\s-]?AUDIO/i.test(t)) return 'kt';
+  return '';
+}
+function ampFam(name) {
+  if (/XTA|FUNKTION|\bF1\b|(^|[^A-Z])D[PN]A\s?-?\d|^\s*DPA\s*$|(^|[^A-Z])DPA(\s|$)|\bMX3\b/i.test(name || '')) return 'f1';
+  if (/\bSAE\b|PQM|UNICORN|PAGAZ/i.test(name || '')) return 'kt';
+  return '';
+}
+/* 2 = מופיע במטריצה כמתאים · 1 = אותה משפחת מותג · 0 = לא ידוע · -1 = לא מתאים (מטריצה: no / חסר, או מותגים שונים) */
+function ampSpkScore(ampName, n) {
+  const M = MX_CELLS;
+  if (M) { const full = spkNorm(nodeFullName(n)), sm = spkNorm(shortModel(n.name) || ''), an = spkNorm(ampName);
+    const rk = Object.keys(M.rows).filter(r => r.length >= 2 && (r === sm || (r.length >= 4 && full.includes(r)))).sort((a, b) => b.length - a.length)[0];
+    const ck = [...M.cols].filter(c => c.length >= 3 && an.includes(c)).sort((a, b) => b.length - a.length)[0];
+    if (rk && ck) { const v = M.rows[rk][ck]; return v != null && !/^no$/i.test(String(v)) ? 2 : -1; } }
+  const sf = spkFam(n), af = ampFam(ampName);
+  return sf && af ? (sf === af ? 1 : -1) : 0;
+}
+function allocByMatch(freeSlots, speakerNodes, dRef) {
+  const amps = [...new Set(freeSlots.map(f => f.a))], nameOf = a => (a.u && a.u.name) || '';
+  const info = speakerNodes.map(n => { const sc = amps.map(a => ampSpkScore(nameOf(a), n)), good = amps.filter((_, i) => sc[i] > 0), neutral = amps.filter((_, i) => sc[i] === 0);
+    return { n, fam: spkFam(n) || 'n', cand: good.length ? good : neutral }; });
+  if (info.every(x => x.cand.length === amps.length)) return allocBalanced(freeSlots, speakerNodes, dRef);   /* אין מידע שמבדיל — החלוקה הרגילה */
+  const groups = {}; info.forEach(x => { const k = x.fam + '#' + x.cand.map(a => amps.indexOf(a)).join(','); (groups[k] = groups[k] || { fam: x.fam, cand: x.cand, nodes: [] }).nodes.push(x.n); });
+  let slots = freeSlots.slice(); const claimed = new Map(), assigned = [], leftover = [], noAmp = {};
+  Object.values(groups).sort((a, b) => a.cand.length - b.cand.length).forEach(g => {
+    const sl = slots.filter(f => g.cand.includes(f.a) && (!claimed.has(f.a) || claimed.get(f.a) === g.fam));
+    if (!sl.length) { g.nodes.forEach(n => leftover.push(n.id)); noAmp[g.fam] = (noAmp[g.fam] || 0) + g.nodes.length; return; }
+    const r = allocBalanced(sl, g.nodes, dRef);
+    r.assigned.forEach(x => { assigned.push(x); claimed.set(x.slot.a, g.fam); slots = slots.filter(f => f !== x.slot); });
+    r.leftover.forEach(id => leftover.push(id)); if (r.leftover.length) noAmp[g.fam] = (noAmp[g.fam] || 0) + r.leftover.length;
+  });
+  const FN = { f1: 'Funktion One (צריך מגבר Funktion One / XTA)', kt: 'Unicorn (צריך מגבר Unicorn / SAE PQM)', n: 'ללא מגבר מתאים במטריצה' };
+  const msg = Object.entries(noAmp).map(([f, k]) => k + ' רמקולי ' + (FN[f] || f)).join(' · ');
+  if (msg) setTimeout(() => uiToast('⚠ לא שובצו — אין מגבר מתאים: ' + msg + '. הוסף מגבר מתאים; לא מערבבים מותגים על אותו מגבר', 9000), 300);
+  return { assigned, leftover };
+}
 function allocBalanced(freeSlots, speakerNodes, dRef) {
   const dist = (x, y) => Math.hypot(x.x - y.x, x.y - y.y);
   /* רמקולים על אותו ערוץ חולקים דיליי אחד — השרשור מעדיף שכנים במרחק דומה מעמדת ההשמעה */
@@ -6702,7 +6756,7 @@ function patchAutoFill() {
   const free = [];
   PATCH.amps.forEach((a, ai) => { for (let ch = 1; ch <= a.chTotal; ch++) { const key = ai + '|' + ch; if (!a.pre.has(ch) && !(PATCH.slots[key] || []).length) free.push({ a, ai, ch, key }); } });
   if (!free.length) { uiToast('אין ערוצים פנויים — הוסף מגבר'); return; }
-  const { assigned, leftover } = allocBalanced(free, pool, zoneDelayRef((P.zones || []).find(x => x.id === PATCH.zid)));
+  const { assigned, leftover } = allocByMatch(free, pool, zoneDelayRef((P.zones || []).find(x => x.id === PATCH.zid)));
   assigned.forEach(x => { PATCH.slots[x.slot.key] = x.ids; });
   PATCH.pool = leftover;
   patchRender();
@@ -7641,7 +7695,7 @@ async function smartWire(zid) {
   /* הצעה התחלתית — המקצה המאוזן (מנצל את כל הערוצים עד האום המינימלי) */
   const freeSlots = [];
   amps.forEach(a => { for (let ch = 1; ch <= a.chTotal; ch++) if (!a.used.has(ch)) freeSlots.push({ a, ch }); });
-  const { assigned, leftover } = allocBalanced(freeSlots, spks, zoneDelayRef(z));
+  const { assigned, leftover } = allocByMatch(freeSlots, spks, zoneDelayRef(z));
   others.forEach(n => { if (!leftover.includes(n.id)) leftover.push(n.id); });
   const lines = assigned.map(x => {
     const nodes = x.ids.map(byId).filter(Boolean);
