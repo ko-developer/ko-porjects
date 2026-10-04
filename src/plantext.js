@@ -600,13 +600,17 @@ function ptFootprint(B) {
 /* פנים של ריהוט צמוד (ספות, תאים, דלפקים) — "כיס" לבן שקו דק מפריד אותו מהרצפה: כיס עד ~6 מ״ר שצמוד למסכת
    החלל דרך קו של עד 3 פיקסלים ואינו נוגע בחלל אחר מצטרף לאזור (כלל: ריהוט אינו גבול). כמה סבבים (כיס ליד כיס) */
 function ptAbsorbPockets(B, mask, comp, selfId) {
-  const { w, h, dark0, pxPerM } = B, maxN = Math.round(6 * pxPerM * pxPerM);
+  const { w, h, dark0, pxPerM } = B, maxN = Math.round((B.struct ? 4 : 6) * pxPerM * pxPerM);
   const lab = new Int32Array(w * h).fill(-1), q = new Int32Array(w * h), pockets = [];
+  /* תמונת מבנה: כיס נבלע רק אם הוא שקע בתוך המלבן החוסם של החדר — לא הרחבה החוצה אל מעבר לקיר */
+  let bx0 = 0, by0 = 0, bx1 = w, by1 = h;
+  if (B.struct) { bx0 = w; by0 = h; bx1 = 0; by1 = 0; for (let i = 0; i < w * h; i++) if (mask[i]) { const x = i % w, y = (i - x) / w; if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; } const mg = Math.max(2, Math.round(0.3 * pxPerM)); bx0 -= mg; by0 -= mg; bx1 += mg; by1 += mg; }
   for (let s0 = 0; s0 < w * h; s0++) {
     if (dark0[s0] || mask[s0] || lab[s0] >= 0) continue;
     const id = pockets.length; let qh = 0, qt = 0, n = 0, other = false; q[qt++] = s0; lab[s0] = id; const start = 0;
     while (qh < qt) { const i = q[qh++], x = i % w; n++;
       if (comp[i] >= 0 && comp[i] !== selfId) other = true;
+      if (B.struct && !other) { const y = (i - x) / w; if (x < bx0 || x > bx1 || y < by0 || y > by1) other = true; }
       const nb = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w];
       for (const j of nb) { if (j < 0 || j >= w * h || dark0[j] || mask[j] || lab[j] >= 0) continue; lab[j] = id; q[qt++] = j; } }
     pockets.push({ id, n, ok: n <= maxN && !other, px: n <= maxN && !other ? Array.from(q.subarray(0, qt)) : null });
@@ -920,9 +924,10 @@ async function ptPartition() {
     if (!aud.length && c.n < minArea) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'small-unlabeled' }); continue; }
     /* חותמת השרטוט (תאריך / קנ״מ / פורמט / הערות…) היא מסגרת, לא חלל */
     if (!aud.length && labs.some(it => /תאריך|הערות|קנ\s*["״']?\s*מ|פורמט|גיליון|גליון|עיצוב ותכנון|\bSCALE\b|\bDATE\b|\bDRAWN\b|\bSHEET\b|\bREV\b/i.test(it.t))) { if (dbg) dbg.push({ id: c.id, why: 'title-block' }); continue; }                          /* חלל קטן בלי כיתוב — פינה/ארון */
-    const mask = B.struct ? ptCompMask(B, comp, c.id) : ptAbsorbPockets(B, ptCompMask(B, comp, c.id), comp, c.id);   /* בתמונת מבנה כל קו הוא קיר — לא בולעים כיסים שמעבר לו */
+    /* כיס קטן שקו דק מפריד אותו מהחדר (ארון, מקרר, דלפק צמוד-קיר) הוא חלק מהחדר — לא מעקף. קיר אמיתי בתמונת המבנה עבה (ממולא), ולכן לא נחצה */
+    const mask = ptAbsorbPockets(B, ptCompMask(B, comp, c.id), comp, c.id);
     /* כיסים שנבלעו מעבר לקו לא מחוברים פיזית למסכה — מעבים ב-2 פיקסלים כדי לגשר, ומקיפים את החלק הגדול */
-    const bridged = B.struct ? mask : ptDilateN(mask, w, h, 2);
+    const bridged = B.struct ? ptErodeN(ptDilateN(mask, w, h, 2), w, h, 2) : ptDilateN(mask, w, h, 2);   /* מבנה: סגירה (בלי התרחבות החוצה) — רק ממלאת את הקו הדק שבין הכיס לחדר */
     const parts = ptSplitMask(bridged, w, h).sort((a, b) => b.n - a.n); if (!parts.length) { if (dbg) dbg.push({ id: c.id, why: 'no-parts' }); continue; }
     const poly = mkPoly(parts[0].mask); if (!poly) { if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'no-poly', part: +(parts[0].n / pxPerM2).toFixed(1) }); continue; }
     if (dbg) dbg.push({ id: c.id, m2: +(c.n / pxPerM2).toFixed(1), why: 'zone', part: +(parts[0].n / pxPerM2).toFixed(1), pts: poly.length });
