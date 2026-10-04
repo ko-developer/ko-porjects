@@ -12150,6 +12150,21 @@ function rackCabUnwired(n, c) {
   if (c.from === n.id) return !(c.fromUnit && (c.pOut || (c.bands && c.bands.length)));
   return false;
 }
+/* הצעת כבל מהקטלוג לקו: כבל מוכן באורך הקצר ביותר שמכסה את המרחק + 15% ספייר (מלאי קודם), ועוד גליל אחד כחלופה */
+function cableSuggest(c, max) {
+  if (typeof ERP_ITEMS === 'undefined') return [];
+  const re = { cat: /רשת|cat\s?-?[5-8]|rj-?45|ethernet/i, xlr: /xlr/i, nl4: /רמקול|ספיקון|speakon/i, multi: /מולטי|multi/i, hdmi: /hdmi/i, dmx: /dmx/i, fiber: /אופטי|fiber/i, sdi: /sdi|bnc/i, pwr: /חשמל|power/i, aes: /aes/i }[c.type]; if (!re) return [];
+  const need = (+c.len || 0) * 1.15, isReel = n => /גליל|לפי מטר|מטר רץ|למטר|100\s?מ|305\s?מ/i.test(n);
+  const lenOf = n => { const m = /(\d+(?:\.\d+)?)\s*(?:מטר|מ׳|מ'|מ(?![א-ת])|m(?![a-z]))/i.exec(n); return m ? +m[1] : 0; };
+  const ready = [], reels = [];
+  for (const [k, n] of ERP_ITEMS) { if (!n || !/^\s*(כבל|גליל|cable)/i.test(n) || /ספליט|מפצל|מאריך|מתאם|ממיר|פינים|pin\b/i.test(n) || !re.test(n)) continue;   /* רק כבל ממש — לא ממיר/מפצל/מתאם שמזכיר כבל */
+    if (c.type === 'xlr' && /מולטי|multi/i.test(n)) continue;
+    if (isReel(n)) reels.push({ k, n, rl: 1, len: 0 }); else { const l = lenOf(n); if (l && (!need || l >= need)) ready.push({ k, n, rl: 0, len: l }); } }
+  ready.sort((a, b) => (a.len - b.len) || byStockThenSold(a.k, b.k)); reels.sort((a, b) => byStockThenSold(a.k, b.k));
+  /* מהאורך הקצר ביותר שמספיק — קודם מה שבמלאי */
+  const minL = ready.length ? ready[0].len : 0, best = ready.filter(r => r.len <= minL * 1.3).sort((a, b) => byStockThenSold(a.k, b.k) || (a.len - b.len));
+  return [...best.slice(0, (max || 3)), ...reels.slice(0, 1)];
+}
 /* הכבל שממתין לחיבור בגב הארון: זה שנלחץ עליו "חבר", או כבל נבחר שהקצה שלו בארון עוד לא חווט */
 function rackPendingCable(nid) {
   const n = byId(nid); if (!n) return null;
@@ -12169,7 +12184,9 @@ function rackAssignPort(nid, unitId, portStr) {
   const offerRow = c.inst === 'exist' ? '<div style="color:#666">הכבל קיים במקום — לא נכנס להצעה.</div>'
     : st ? '<div>🧾 הכבל כבר משויך בהצעה ל־<b>' + esc((st.name || '').slice(0, 50)) + '</b>.</div>'
     : it ? '<div>🧾 ייכנס לרשימת הפריסה בהצעה: <b>' + esc(it.name.slice(0, 50)) + '</b>' + (L ? ' · <b>' + L + ' מ׳</b>' : '') + '</div>'
-    : '<div style="color:#9a3412">🧾 אין בהצעה כבל מתאים (' + esc(tn) + ') — צריך לבחור מוצר מהקטלוג.</div>';
+    : (() => { const sg = cableSuggest(c, 3); window.__rasgSg = sg; return sg.length
+        ? '<div style="font-weight:700;margin-bottom:5px">🧾 אין בהצעה כבל ' + esc(tn) + ' — הצעה מהקטלוג' + (L ? ' לאורך ' + L + ' מ׳ + 15% ספייר (' + (Math.ceil(L * 1.15 * 10) / 10) + ' מ׳ לפחות)' : '') + ':</div>' + sg.map((x, i) => '<button data-sg="' + i + '" style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;margin-bottom:4px;font-size:12px;' + (i === 0 ? 'border:1.5px solid #0f6e56;background:#eef7f1' : '') + '"><span style="flex:1;text-align:right">' + (x.rl ? '🧵' : '🔌') + ' ' + esc(x.n.slice(0, 52)) + (x.len ? ' <b style="color:#0f6e56">· ' + x.len + ' מ׳</b>' : '') + '</span>' + stockTag(x.k) + '</button>').join('')
+        : '<div style="color:#9a3412">🧾 אין בהצעה כבל מתאים (' + esc(tn) + ') ולא נמצא בקטלוג כבל באורך מתאים — אפשר לחפש ידנית.</div>'; })();
   const ov = uiModal(`
     <div style="font-size:15px;font-weight:800;margin-bottom:8px">✓ בוצע — לאישור</div>
     <div style="border:1.5px solid ${col};border-radius:10px;padding:9px 11px;margin-bottom:10px;line-height:1.7;font-size:13px">
@@ -12178,14 +12195,17 @@ function rackAssignPort(nid, unitId, portStr) {
       <div><span style="color:#888">אל:</span> ${esc(endNameTxt(c.to, c.toUnit).slice(0, 44))}${c.pIn ? ' · <b>' + esc(c.pIn) + '</b>' : c.toHole ? ' · חור ' + c.toHole : ''}</div>
     </div>
     <div style="font-size:12.5px;margin-bottom:12px;line-height:1.55">${offerRow}</div>
-    <button class="primary" data-ok style="width:100%;margin-bottom:6px">${it ? '✓ אשר והוסף לרשימת הפריסה' : (!st && c.inst !== 'exist') ? '✓ אשר ובחר כבל מהקטלוג' : '✓ אשר'}</button>
+    <button class="primary" data-ok style="width:100%;margin-bottom:6px">${it ? '✓ אשר והוסף לרשימת הפריסה' : (!st && c.inst !== 'exist') ? (cableSuggest(c, 1).length ? '✓ אשר והוסף את הכבל המוצע להצעה' : '✓ אשר ובחר כבל מהקטלוג') : '✓ אשר'}
+    ${!it && !st && c.inst !== 'exist' ? '</button><button data-cat style="width:100%;margin-bottom:6px">🔍 חפש כבל אחר בקטלוג' : ''}</button>
     ${it ? '<button data-other style="width:100%;margin-bottom:6px">🔍 אשר, אבל בחר כבל אחר מהקטלוג</button>' : ''}
     ${!st && c.inst !== 'exist' ? '<button data-skip style="width:100%;margin-bottom:6px">אשר בלי להוסיף להצעה</button>' : ''}
     <button data-undo style="width:100%;background:#fdf0f0;color:#c1121f">↩ בטל את החיבור</button>`);
   const done = () => ov.remove(), q = sel => ov.querySelector(sel);
   q('[data-ok]').onclick = () => { done();
     if (it) { const s2 = ensureStockItem(it); applyStockRef((it.dest === 'reel' ? 'reel|' : 'cable|') + s2.id, '', c); save(); render(); uiToast('🧾 נוסף לרשימת הפריסה: ' + it.name.slice(0, 40) + (L ? ' · ' + L + ' מ׳' : '')); }
-    else if (!st && c.inst !== 'exist') offerCablePick(c); };
+    else if (!st && c.inst !== 'exist') { const x = (window.__rasgSg || [])[0]; if (x) { ocpPick(x.k, x.n, c.id, x.rl); uiToast('🧾 נוסף להצעה: ' + x.n.slice(0, 44)); } else offerCablePick(c); } };
+  ov.querySelectorAll('[data-sg]').forEach(b2 => b2.onclick = () => { const x = (window.__rasgSg || [])[+b2.dataset.sg]; done(); if (x) { ocpPick(x.k, x.n, c.id, x.rl); uiToast('🧾 נוסף להצעה: ' + x.n.slice(0, 44)); } });
+  if (q('[data-cat]')) q('[data-cat]').onclick = () => { done(); offerCablePick(c); };
   if (q('[data-other]')) q('[data-other]').onclick = () => { done(); offerCablePick(c); };
   if (q('[data-skip]')) q('[data-skip]').onclick = done;
   q('[data-undo]').onclick = () => { done(); if (toSide) { c.toUnit = prev[0]; c.pIn = prev[1]; } else { c.fromUnit = prev[0]; c.pOut = prev[1]; } save(); render(); uiToast('↩ החיבור בוטל'); };
