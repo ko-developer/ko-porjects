@@ -161,6 +161,24 @@ async function ptPdfLayers(pg, vp) {
   }
   /* נקודות PDF למטר: מהכיתוב 1:N, אחרת מהכיול, אחרת 2% מרוחב הדף */
   const ratio = P.autoScale && P.autoScale.ratio, ptPerM = ratio ? (1000 * 72 / 25.4) / ratio : (P.scale ? (1 / P.scale) * (vp.width / (P.bgW || 1400)) : vp.width * 0.02);
+  /* קירות מתוך שכבות הקירות שבקובץ: אזור לעולם לא חוצה קיר — לא בקיבוץ הריהוט ולא בשוליים */
+  const wallIds = Object.entries(names).filter(([, n]) => /WALL|קיר|PARTITION|מחיצ/i.test(n) && !/PATT|FNSH|HATCH|TEXT|DIM/i.test(n)).map(([id]) => id);
+  const mainIds = wallIds.filter(id => /^A-WALL$|קיר/i.test(names[id]));
+  const wallsOf = ids => ids.flatMap(id => per[id] || []).filter(b => Math.max(b.x1 - b.x0, b.y1 - b.y0) >= 0.8 * ptPerM0());
+  function ptPerM0() { const ratio0 = P.autoScale && P.autoScale.ratio; return ratio0 ? (1000 * 72 / 25.4) / ratio0 : (P.scale ? (1 / P.scale) * (vp.width / (P.bgW || 1400)) : vp.width * 0.02); }
+  const walls = wallsOf(wallIds), mainWalls = mainIds.length ? wallsOf(mainIds) : walls;
+  /* האם הקטע בין שתי נקודות חוצה מלבן (Liang–Barsky) */
+  const segHits = (ax, ay, bx, by, r) => { let t0 = 0, t1 = 1; const dx = bx - ax, dy = by - ay; for (const [p, q] of [[-dx, ax - r.x0], [dx, r.x1 - ax], [-dy, ay - r.y0], [dy, r.y1 - ay]]) { if (p === 0) { if (q < 0) return false; } else { const t = q / p; if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } } } return true; };
+  const crossesWall = (p, q) => { const ax = (p.x0 + p.x1) / 2, ay = (p.y0 + p.y1) / 2, bx = (q.x0 + q.x1) / 2, by = (q.y0 + q.y1) / 2; return walls.some(w => segHits(ax, ay, bx, by, w)); };
+  /* הרחבת מלבן עד הקיר הקרוב בכל צד (עד maxD), ובלי קיר — שוליים של defPad; לעולם לא מעבר לקיר */
+  const toWalls = (c, ws, maxD, defPad) => { const b = { ...c }, ov = (a0, a1, b0, b1) => Math.min(a1, b1) - Math.max(a0, b0) > 0.2 * ptPerM0();
+    const V = ws.filter(w => (w.y1 - w.y0) >= (w.x1 - w.x0) && ov(w.y0, w.y1, c.y0, c.y1)), Hz = ws.filter(w => (w.x1 - w.x0) > (w.y1 - w.y0) && ov(w.x0, w.x1, c.x0, c.x1));
+    const eps = 0.15 * ptPerM0();
+    const l = V.filter(w => w.x1 <= c.x0 + eps && w.x1 >= c.x0 - maxD).map(w => w.x1), r = V.filter(w => w.x0 >= c.x1 - eps && w.x0 <= c.x1 + maxD).map(w => w.x0);
+    const t = Hz.filter(w => w.y1 <= c.y0 + eps && w.y1 >= c.y0 - maxD).map(w => w.y1), bt = Hz.filter(w => w.y0 >= c.y1 - eps && w.y0 <= c.y1 + maxD).map(w => w.y0);
+    b.x0 = l.length ? Math.min(c.x0, Math.max(...l)) : c.x0 - defPad; b.x1 = r.length ? Math.max(c.x1, Math.min(...r)) : c.x1 + defPad;
+    b.y0 = t.length ? Math.min(c.y0, Math.max(...t)) : c.y0 - defPad; b.y1 = bt.length ? Math.max(c.y1, Math.min(...bt)) : c.y1 + defPad;
+    return b; };
   const out = []; window.__ptLayerInfo = Object.entries(names).map(([id, n]) => ({ id, name: n, paths: (per[id] || []).length }));
   for (const [id, name] of Object.entries(names)) {
     const def = PT_LAYERS.find(d => d.re.test(name)), bs = per[id]; if (!def || !bs || !bs.length) continue;
@@ -169,10 +187,11 @@ async function ptPdfLayers(pg, vp) {
     const par = els.map((_, i) => i), find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
     for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) { const p = els[i], q = els[j];
       const dx = Math.max(0, Math.max(p.x0, q.x0) - Math.min(p.x1, q.x1)), dy = Math.max(0, Math.max(p.y0, q.y0) - Math.min(p.y1, q.y1));
-      if (dx <= gap && dy <= gap && dx * dx + dy * dy <= gap * gap) { const a2 = find(i), b2 = find(j); if (a2 !== b2) par[a2] = b2; } }
+      if (dx <= gap && dy <= gap && dx * dx + dy * dy <= gap * gap && (def.k === 'wc' || !crossesWall(p, q))) { const a2 = find(i), b2 = find(j); if (a2 !== b2) par[a2] = b2; } }
     const cl = {}; els.forEach((b, i) => { const r = find(i), c = cl[r] = cl[r] || { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, n: 0 }; c.x0 = Math.min(c.x0, b.x0); c.y0 = Math.min(c.y0, b.y0); c.x1 = Math.max(c.x1, b.x1); c.y1 = Math.max(c.y1, b.y1); c.n++; });
     const keep = Object.values(cl).filter(c => c.n >= def.minN && ((c.x1 - c.x0) * (c.y1 - c.y0)) / (ptPerM * ptPerM) >= def.minM2).sort((a2, b2) => (a2.y0 - b2.y0) || (a2.x0 - b2.x0));
-    keep.forEach((c, i) => out.push({ t: def.t + (keep.length > 1 ? ' ' + (i + 1) : ''), cat: def.cat, ly: name, n: c.n, x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, m2: Math.round(((c.x1 - c.x0) * (c.y1 - c.y0)) / (ptPerM * ptPerM)) }));
+    keep.forEach((c, i) => { const z = def.k === 'wc' ? toWalls(c, mainWalls, 3.5 * ptPerM, 1 * ptPerM) : toWalls(c, walls, 0.5 * ptPerM, 0.5 * ptPerM);   /* שירותים: התאים + החלל המרכזי — עד הקירות הראשיים; אחרים: שוליים של חצי מטר שנעצרים בקיר */
+      out.push({ t: def.t + (keep.length > 1 ? ' ' + (i + 1) : ''), cat: def.cat, ly: name, n: c.n, x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, z, m2: Math.round(((c.x1 - c.x0) * (c.y1 - c.y0)) / (ptPerM * ptPerM)) }); });
   }
   return out;
 }
@@ -216,7 +235,7 @@ async function planTextScan() {
       .sort((a, b) => a.v - b.v || a.u - b.u);
     /* אזורים מתוך שכבות ה-PDF (ריהוט → אזורי ישיבה, ברים, שירותים…) — עם המלבן המדויק של הציור */
     for (const ly of layers) { const a = ptRotUV(ly.x0 / SW, ly.y0 / SH), b = ptRotUV(ly.x1 / SW, ly.y1 / SH), u0 = Math.min(a.u, b.u), u1 = Math.max(a.u, b.u), v0 = Math.min(a.v, b.v), v1 = Math.max(a.v, b.v);
-      items.push({ t: ly.t, u: +((u0 + u1) / 2).toFixed(4), v: +((v0 + v1) / 2).toFixed(4), w: 0.03, h: 0.012, cat: ly.cat, c: 100, ly: ly.ly, n: ly.n, m2: ly.m2, bu: +u0.toFixed(4), bv: +v0.toFixed(4), bw: +(u1 - u0).toFixed(4), bh: +(v1 - v0).toFixed(4) }); }
+      items.push({ t: ly.t, u: +((u0 + u1) / 2).toFixed(4), v: +((v0 + v1) / 2).toFixed(4), w: 0.03, h: 0.012, cat: ly.cat, c: 100, ly: ly.ly, n: ly.n, m2: ly.m2, bu: +u0.toFixed(4), bv: +v0.toFixed(4), bw: +(u1 - u0).toFixed(4), bh: +(v1 - v0).toFixed(4), ...(() => { if (!ly.z) return {}; const a2 = ptRotUV(ly.z.x0 / SW, ly.z.y0 / SH), b2 = ptRotUV(ly.z.x1 / SW, ly.z.y1 / SH); return { zu: +Math.min(a2.u, b2.u).toFixed(4), zv: +Math.min(a2.v, b2.v).toFixed(4), zw: +Math.abs(a2.u - b2.u).toFixed(4), zh: +Math.abs(a2.v - b2.v).toFixed(4) }; })() }); }
     /* שכבת טקסט דלה או משובשת (פונט חסר ב-PDF) — משלימים ב-OCR על התמונה, ומוסיפים מה שלא נקרא */
     let ocrAdded = 0;
     if (src === 'pdf' && items.filter(i => !i.ly).length < 8) {
@@ -250,7 +269,7 @@ function ptMarksSVG() {
   pt.items.forEach((it, i) => {
     if (!pt.cats[it.cat]) return;
     const { x, y, w } = ptPos(it), col = PT_CATS[it.cat].c, foc = window.__ptFocus === i;
-    if (it.bw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(); out += `<rect x="${bgLeft() + it.bu * Wb}" y="${bgTop() + it.bv * Hb}" width="${it.bw * Wb}" height="${it.bh * Hb}" rx="6" fill="${col}" fill-opacity="${foc ? 0.22 : 0.1}" stroke="${col}" stroke-width="${(foc ? 3 : 1.6) / getZ()}" stroke-dasharray="${7 / getZ()} ${4 / getZ()}" style="pointer-events:none"/>`; }
+    if (it.bw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), zq = it.zw ? [it.zu, it.zv, it.zw, it.zh] : [it.bu, it.bv, it.bw, it.bh]; out += `<rect x="${bgLeft() + zq[0] * Wb}" y="${bgTop() + zq[1] * Hb}" width="${zq[2] * Wb}" height="${zq[3] * Hb}" rx="6" fill="${col}" fill-opacity="${foc ? 0.22 : 0.1}" stroke="${col}" stroke-width="${(foc ? 3 : 1.6) / getZ()}" stroke-dasharray="${7 / getZ()} ${4 / getZ()}" style="pointer-events:none"/>`; }
     const bw = Math.max(w, it.t.length * fz * 0.6 + 10);
     out += `<g style="cursor:pointer" onclick="window.__ptFocus=${i};ui.tab='node';render()"><rect x="${x - bw / 2}" y="${y - fz * 0.75}" width="${bw}" height="${fz * 1.5}" rx="3" fill="${col}" opacity="${foc ? 1 : 0.78}" stroke="${foc ? '#111' : 'none'}" stroke-width="${foc ? 2 : 0}"/><text x="${x}" y="${y + fz * 0.35}" text-anchor="middle" font-size="${fz}" font-weight="700" fill="#fff" direction="ltr" unicode-bidi="embed">${esc(it.t)}</text></g>`;
   });
@@ -367,11 +386,28 @@ async function ptRoomRect(it) {
   const x0 = Math.max(0, minX - r), x1 = Math.min(w, maxX + r + 1), y0 = Math.max(0, minY - r), y1 = Math.min(h, maxY + r + 1);
   return { left: L + x0 / w * W, top: T + y0 / h * H, w: (x1 - x0) / w * W, h: (y1 - y0) / h * H, fill: best.n / (w * h), open };
 }
+/* אזורים לעולם לא חופפים: אזור אחד נגמר איפה שהאחר מתחיל. חותכים את האזור החדש בציר שבו החפיפה קטנה יותר, כך שהוא נצמד לגבול של השכן */
+function zoneNoOverlap(z, others) {
+  if (z.poly) return true;
+  for (const o of others) { if (o === z || o.poly) continue;
+    const a = zoneBounds(z), b = zoneBounds(o);
+    const ix = Math.min(a.L + a.W, b.L + b.W) - Math.max(a.L, b.L), iy = Math.min(a.T + a.H, b.T + b.H) - Math.max(a.T, b.T);
+    if (ix <= 0.5 || iy <= 0.5) continue;
+    let L = a.L, T = a.T, W = a.W, H = a.H;
+    if (ix <= iy) { if (a.L + a.W / 2 < b.L + b.W / 2) W = b.L - a.L; else { const nl = b.L + b.W; W = a.L + a.W - nl; L = nl; } }
+    else { if (a.T + a.H / 2 < b.T + b.H / 2) H = b.T - a.T; else { const nt = b.T + b.H; H = a.T + a.H - nt; T = nt; } }
+    if (W < 8 || H < 8) return false;   /* נבלע כולו בשכן */
+    z.w = W; z.h = H; z.y = Math.max(0, T); z.x = Math.max(0, 2200 - L - W);
+  }
+  return true;
+}
 /* יצירת אזורי סאונד מכיתובי הקהל — לפי גבולות החדר סביב כל כיתוב; rebuild = מחליף אזורים שנוצרו מכיתובים */
 async function ptMakeZones(rebuild) {
   const pt = P.planText; if (!pt || !pt.items) return;
   const aud = pt.items.filter(i => i.cat === 'audience').sort((a, b) => (b.bw || 0) * (b.bh || 0) - (a.bw || 0) * (a.bh || 0));   /* אזורים משכבות ה-PDF קודם, מהגדול לקטן */
-  if (!aud.length) { uiToast('לא נמצאו כיתובי אזורי קהל'); return; }
+  const PT_WC_RE = /\bW\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|שירותים|שרותים|תא נכים/i;
+  const wcs = pt.items.filter(i => i.cat === 'service' && (PT_WC_RE.test(i.t) || /SANR|SANIT|PLUMB|סניטר/i.test(i.ly || '')));
+  if (!aud.length && !wcs.length) { uiToast('לא נמצאו כיתובי אזורי קהל'); return; }
   P.zones = P.zones || [];
   if (rebuild) P.zones = P.zones.filter(z => !z.fromText);
   const W = P.bgW || 1400, side = P.scale ? 12 / P.scale : W * 0.2;
@@ -382,7 +418,8 @@ async function ptMakeZones(rebuild) {
     const p = ptPos(it);
     if (P.zones.some(z => inZone(z, p))) continue;   /* כבר יש אזור שם (גם כיתוב שני באותו חדר) */
     let rr = null;
-    if (it.bw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), pad = P.scale ? 0.6 / P.scale : Wb * 0.01; rr = { left: bgLeft() + it.bu * Wb - pad, top: bgTop() + it.bv * Hb - pad, w: it.bw * Wb + 2 * pad, h: it.bh * Hb + 2 * pad }; }   /* אזור משכבת ה-PDF — המלבן של הציור עצמו (+60 ס״מ) */
+    if (it.zw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(); rr = { left: bgLeft() + it.zu * Wb, top: bgTop() + it.zv * Hb, w: it.zw * Wb, h: it.zh * Hb }; }   /* המלבן של הציור, מורחב חצי מטר ונעצר בקירות */
+    else if (it.bw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), pad = P.scale ? 0.6 / P.scale : Wb * 0.01; rr = { left: bgLeft() + it.bu * Wb - pad, top: bgTop() + it.bv * Hb - pad, w: it.bw * Wb + 2 * pad, h: it.bh * Hb + 2 * pad }; }   /* אזור משכבת ה-PDF — המלבן של הציור עצמו (+60 ס״מ) */
     else try { rr = await ptRoomRect(it); } catch (e) { console.warn('ptRoomRect', e); }
     let left, top, w, h, isOpen = false;
     if (rr && (it.bw || (rr.w >= minPx && rr.h >= minPx))) { ({ left, top, w, h } = rr); if (rr.open) { isOpen = true; open++; } }
@@ -392,9 +429,41 @@ async function ptMakeZones(rebuild) {
     if (dup) { if (dup.fromText && it.t.length > dup.name.length && it.t.includes(dup.name.slice(-4))) dup.name = it.t; continue; }
     const z = { id: uid('z'), name: it.t, usage: ptUsageOf(it.t), x: Math.max(0, 2200 - left - w), y: Math.max(0, top), w, h, fromText: true };
     if (isOpen) z.openArea = true;
+    if (!zoneNoOverlap(z, P.zones)) continue;
     P.zones.push(z); n++;
   }
+  /* 🚻 שירותים — תמיד אזור: התאים והחלל המרכזי יחד. מאחדים את החדרים שסביב הכלים הסניטריים / הכיתוב (כל תא הוא חדר קטן) עם מלבן הכלים עצמו */
+  let nWc = 0;
+  { const Wb = P.bgW || 1400, Hb = bgHeightPx(), mPx = P.scale ? 1 / P.scale : Wb * 0.02, boxes = [];
+    for (const it of wcs) {
+      let L, T, R, B;
+      if (it.zw) { L = bgLeft() + it.zu * Wb; T = bgTop() + it.zv * Hb; boxes.push({ L, T, R: L + it.zw * Wb, B: T + it.zh * Hb }); continue; }   /* משכבות ה-PDF: כבר הורחב עד הקירות */
+      if (it.bw) { L = bgLeft() + it.bu * Wb; T = bgTop() + it.bv * Hb; R = L + it.bw * Wb; B = T + it.bh * Hb; }
+      else { const p = ptPos(it); L = p.x - mPx * 0.5; R = p.x + mPx * 0.5; T = p.y - mPx * 0.5; B = p.y + mPx * 0.5; }
+      /* זרעים: המרכז, ונקודות לאורך המלבן ומחוצה לו (החלל המרכזי שמול התאים) */
+      const seeds = [[(L + R) / 2, (T + B) / 2]]; const nx = Math.max(1, Math.round((R - L) / mPx)), ny = Math.max(1, Math.round((B - T) / mPx));
+      for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++) seeds.push([L + (R - L) * i / nx, T + (B - T) * j / ny]);
+      [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => seeds.push([(L + R) / 2 + dx * ((R - L) / 2 + mPx * 0.8), (T + B) / 2 + dy * ((B - T) / 2 + mPx * 0.8)]));
+      const maxA = (mPx * mPx) * 45;   /* חדר שירותים — עד ~45 מ״ר; מילוי גדול יותר = ברח לחלל אחר */
+      for (const [sx, sy] of seeds) { let rr = null; try { rr = await ptRoomRect({ t: 'wc', u: (sx - bgLeft()) / Wb, v: (sy - bgTop()) / Hb, w: 0.004, h: 0.004 }); } catch (e) {}
+        if (!rr || rr.open || rr.w * rr.h > maxA) continue;
+        /* רק חדר שנוגע במלבן הכלים (או קרוב אליו עד 1.5 מ׳) */
+        if (rr.left > R + mPx * 1.5 || rr.left + rr.w < L - mPx * 1.5 || rr.top > B + mPx * 1.5 || rr.top + rr.h < T - mPx * 1.5) continue;
+        L = Math.min(L, rr.left); T = Math.min(T, rr.top); R = Math.max(R, rr.left + rr.w); B = Math.max(B, rr.top + rr.h); }
+      if (it.bw || R - L > mPx * 1.2) boxes.push({ L: L - mPx * 0.15, T: T - mPx * 0.15, R: R + mPx * 0.15, B: B + mPx * 0.15 });
+    }
+    /* כיתובים/קבוצות סמוכים (גברים / נשים / נכים) — אזור שירותים אחד */
+    const merged = [];
+    for (const b of boxes) { const m = merged.find(o => b.L < o.R + mPx && b.R > o.L - mPx && b.T < o.B + mPx && b.B > o.T - mPx); if (m) { m.L = Math.min(m.L, b.L); m.T = Math.min(m.T, b.T); m.R = Math.max(m.R, b.R); m.B = Math.max(m.B, b.B); } else merged.push({ ...b }); }
+    if (rebuild) P.zones = P.zones.filter(z => !z.wc);
+    merged.forEach((b, i) => { const cx = (b.L + b.R) / 2, cy = (b.T + b.B) / 2;
+      if (P.zones.some(z => z.wc && inZone(z, { x: cx, y: cy }))) return;
+      const zw = { id: uid('z'), name: 'שירותים' + (merged.length > 1 ? ' ' + (i + 1) : ''), usage: 'מוזיקת רקע', x: Math.max(0, 2200 - b.L - (b.R - b.L)), y: Math.max(0, b.T), w: b.R - b.L, h: b.B - b.T, fromText: true, wc: true };
+      if (!zoneNoOverlap(zw, P.zones)) return;
+      P.zones.push(zw); nWc++; });
+  }
   save(); render();
+  if (nWc) uiToast('🚻 ' + nWc + ' אזורי שירותים נוצרו — התאים והחלל המרכזי', 5000);
   uiToast(n ? '✓ ' + n + ' אזורים לפי גבולות החדרים' + (open ? ' · ' + open + ' בחלל פתוח (גבול משוער עד ~10 מ׳ מהכיתוב — גרור פינה להתאמה)' : '') + ' · 🔗 מיזוג אזורים בפאנל האזור' : 'לכל כיתובי הקהל כבר יש אזור', 7000);
 }
 /* מיזוג שני אזורים לאחד: המלבן החוסם של שניהם, השם/התכלית של הראשון, הפריטים של השני עוברים אליו */
