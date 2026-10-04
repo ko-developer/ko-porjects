@@ -20,18 +20,27 @@ const AS_RATIOS = [10, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 400
 const AS_PT_PER_MM = 72 / 25.4;
 
 /* --- "1:50" מתוך שורות טקסט --- */
-function asFindRatio(lines) {
+function asFindRatio(lines, tokens) {
   const votes = {};
-  const add = (n, w) => { if (AS_RATIOS.includes(n)) votes[n] = (votes[n] || 0) + w; };
+  /* קנה מידה מקובל — תמיד; קנה מידה לא שגרתי (1:35, 1:60…) — רק כשהוא ליד "קנ״מ"/scale או עומד לבדו בתא של החותמת */
+  const add = (n, w, strong) => { if (AS_RATIOS.includes(n) || (strong && n >= 10 && n <= 2000)) votes[n] = (votes[n] || 0) + w; };
+  const KW = /scale|קנ\s*["'״׳]?\s*מ|קנה\s*מידה|מ\.ק|ק\.מ/i;
+  /* חותמת בטבלה: "קנ״מ" בתא אחד ו-"1:35" בתא שלידו (אותה שורה) או מתחתיו */
+  if (tokens && tokens.length) {
+    const kws = tokens.filter(t => KW.test(t.t || ''));
+    for (const t of tokens) { const m = /^\s*1\s*[:∶：]\s*(\d{2,4})\s*$/.exec(t.t || ''); if (!m) continue;
+      const h = t.h || 10, near = kws.some(k => k !== t && ((Math.abs(k.y - t.y) <= h * 1.6 && Math.abs(k.x - t.x) <= h * 40) || (Math.abs(k.x - t.x) <= h * 8 && Math.abs(k.y - t.y) <= h * 5)));
+      if (near) add(+m[1], 5, true); }
+  }
   for (const t of lines) {
     const s = String(t);
     let m;
     /* 1:50 — ה-1 לא חלק ממספר אחר (למשל 11:50 או 1:50:00) */
     const rx = /(?:^|[^\d.,])1\s*[:∶：]\s*(\d{2,4})(?![\d.,:])/g;
-    while ((m = rx.exec(s))) add(+m[1], /scale|קנ|מידה|מ\.ק|ק\.מ/i.test(s) ? 3 : 1);
+    while ((m = rx.exec(s))) { const kw = KW.test(s) || /מידה/.test(s), alone = /^\s*1\s*[:∶：]\s*\d{2,4}\s*$/.test(s) && +m[1] % 5 === 0; add(+m[1], kw ? 3 : 1, kw || alone); }
     /* 1/50 — רק ליד המילה קנה מידה / scale */
     const rx2 = /(?:scale|קנ["'״]?מ|קנה\s*מידה)\s*[:\-–]?\s*1\s*\/\s*(\d{2,4})(?!\d)/gi;
-    while ((m = rx2.exec(s))) add(+m[1], 3);
+    while ((m = rx2.exec(s))) add(+m[1], 3, true);
   }
   const best = Object.entries(votes).sort((a, b) => b[1] - a[1])[0];
   return best ? { n: +best[0], votes: best[1], all: votes } : null;
@@ -245,7 +254,7 @@ async function autoScalePdf(pg, bgW) {
     const tc = await pg.getTextContent();
     const tokens = asPdfTextTokens(tc);
     window.__asTextToks = tokens;
-    let ratio = asFindRatio([...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')].map(l => l.text));
+    let ratio = asFindRatio([...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')].map(l => l.text).concat(tokens.map(t => t.t)), tokens);
     if (!ratio) {
       uiToast('🔍 קורא את חותמת השרטוט…', 4000);
       const toks = await asOcrZoomPdf(pg, { sc: 6, stampOnly: true });
@@ -412,7 +421,7 @@ async function asOcrZoomPdf(pg, opt = {}) {
       tk.y = vp1.height - tk.y;   /* נקודות PDF — y מלמטה */
       tokens.push(tk);
     }
-    if (!ratio) { ratio = asFindRatio(lines().map(l => l.text)); if (ratio) { ratioAt = done; if (opt.onRatio) opt.onRatio(ratio); } }
+    if (!ratio) { ratio = asFindRatio(lines().map(l => l.text).concat(tokens.map(t => t.t)), tokens); if (ratio) { ratioAt = done; if (opt.onRatio) opt.onRatio(ratio); } }
     if (opt.onTile) opt.onTile(done, Math.min(rows * cols, maxTiles), tokens.length, ratio);
     log.push({ x: Math.round(x0), y: Math.round(y0), hOnly: !!hOnly, ms: Date.now() - T0, kept, toks: tokens.length - n0, ratio: ratio && ratio.n });
     return true;
@@ -426,7 +435,8 @@ async function asOcrZoomPdf(pg, opt = {}) {
   /* שלב א — החותמת: אריחים מעוגנים לפינה הימנית-תחתונה (ואם אין שם — לשמאלית-תחתונה), טקסט אופקי בלבד. שם כתוב "קנה מידה 1:N" */
   if (!ratio) {
     const W = vp1.width, H = vp1.height, s2 = tw * 0.92;
-    const stamp = [[W - tw, H - tw], [W - tw - s2, H - tw], [W - tw, H - tw - s2], [W - tw - s2, H - tw - s2], [0, H - tw], [s2, H - tw]];
+    const stamp = [[W - tw, H - tw], [W - tw - s2, H - tw], [W - tw, H - tw - s2], [W - tw - s2, H - tw - s2], [0, H - tw], [s2, H - tw],
+      [0, 0], [0, s2], [W - tw, 0], [W - tw, s2], [0, H - tw - s2], [s2, 0]];   /* חותמת בעמודה בצד שמאל/ימין או למעלה */
     for (const [x, y] of stamp) { if (ratio || Date.now() > tStop) break; await scanTile(x, y, true); }
   }
   if (opt.stampOnly) { await worker.terminate(); return fin(); }
@@ -485,8 +495,13 @@ async function autoScaleImage(img, bgW) {
     const tokens = await asOcrTokens(cv);
     window.__asTokens = tokens; /* לניפוי: מה ה-OCR קרא */
     const lines = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')].map(l => l.text);
-    const ratio = asFindRatio(lines);
-    const r = asDecide(tokens, ratio, null);   /* בתמונה אין גודל דף — רק המידות */
+    const ratio = asFindRatio(lines.concat(tokens.map(t => t.t)), tokens);
+    /* בתמונה אין גודל דף — אבל אם בחותמת כתוב פורמט הגיליון (A3, A1…), ובהנחה שהתמונה היא הגיליון המלא, אפשר לחשב ממנו */
+    let sheetK = null, sheet = '';
+    if (ratio) { const SH = { A0: 1189, A1: 841, A2: 594, A3: 420, A4: 297 }; const st = tokens.map(t => /^\s*(A[0-4])\s*$/i.exec(t.t || '')).filter(Boolean)[0] || /(?:גיליון|גליון|פורמט|format|sheet)\s*[:\-]?\s*(A[0-4])\b/i.exec(lines.join(' \n ')) || /\b(A[0-4])\s*(?:גיליון|גליון)/i.exec(lines.join(' \n '));
+      if (st) { sheet = st[1].toUpperCase(); sheetK = Math.max(cv.width, cv.height) / (SH[sheet] / 1000 * ratio.n); } }
+    const r = asDecide(tokens, ratio, sheetK);
+    if (sheet) { r.sheet = sheet; r.note = (r.note || '') + ' · גודל הדף לפי הכיתוב "גיליון ' + sheet + '" (בהנחה שהתמונה היא הגיליון המלא)'; }
     const pxPerM = r.unitPerM ? r.unitPerM * (bgW / cv.width) : null;
     asNormMarks(r, cv.width, cv.height, false);
     r.tokens = tokens.length;

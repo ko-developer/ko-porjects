@@ -3906,6 +3906,11 @@ function drawPanelCables(n, d) {
   svg.innerHTML = out;
   d.appendChild(svg);
 }
+/* קו נבחר בגב הארון: מודגש בהילה צהובה, שאר הקווים מעומעמים — כדי שיהיה ברור איזה קו נבחר ברשימה */
+function rearSelG(c) {
+  const sel = typeof selCable !== 'undefined' && selCable && (P.cables || []).some(x => x.id === selCable) ? selCable : null;
+  return !sel ? '<g>' : c.id === sel ? '<g style="filter:drop-shadow(0 0 2.5px #ffd400) drop-shadow(0 0 5px #ffd400)">' : '<g opacity="0.16">';
+}
 function drawRearCables(n, d) {
   const chassis = d.querySelector('.rearchassis'), svg = d.querySelector('.rearsvg');
   if (!chassis || !svg) return;
@@ -3934,9 +3939,10 @@ function drawRearCables(n, d) {
     const chanX = (panelEl ? panelEl.offsetWidth : cr.width / ZK - 220) + 8 + 24 - 14 + (k % 7) * 4;
     const sy = (dir > 0 ? sa.bottom + 6 : sa.top - 6) + dir * (k % 3) * 5;
     const laneY = (dir > 0 ? tb.top - 8 : tb.bottom + 8) - dir * (k % 3) * 5;
+    out += rearSelG(c);
     out += `<path d="M ${pa.x} ${pa.y} L ${pa.x} ${sy} L ${chanX} ${sy} L ${chanX} ${laneY} L ${pb.x} ${laneY} L ${pb.x} ${pb.y}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="round"/>`;
     out += `<circle cx="${pa.x}" cy="${pa.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/><circle cx="${pb.x}" cy="${pb.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/>`;
-    out += badge(pa.x, pa.y + dir * 15, LBL[c.id], col, c.id) + badge(pb.x, pb.y - dir * 15, LBL[c.id], col, c.id);
+    out += badge(pa.x, pa.y + dir * 15, LBL[c.id], col, c.id) + badge(pb.x, pb.y - dir * 15, LBL[c.id], col, c.id) + '</g>';
   });
   const cvrR = $('#canvas').getBoundingClientRect(), ibR = nodeBox(n), exitDown = (ibR.y + (ibR.h || 0) / 2) > ((dr.top + dr.bottom) / 2 - cvrR.top) / Z;
   const chTop = (dr.top - cr.top) / ZK, chBot = (dr.bottom - cr.top) / ZK, trunkX0 = (dr.left - cr.left) / ZK - 8, trunkXs = [];
@@ -3958,10 +3964,11 @@ function drawRearCables(n, d) {
     const laneY = ub.bottom + 5 + (k % 8) * 5;   /* נתיב נפרד לכל כבל — בלי חזרות שמאחדות קווים */
     /* הארון צף: הכבל יוצא מהמחבר, רץ בנתיב שלו אל תעלה אנכית שמחוץ לדופן השמאלית, ובה אל נקודת הכניסה לארון — בשפה שפונה אל האייקון */
     const exitX = trunkX0 - k * 3.5, exitY = exitDown ? chBot : chTop; trunkXs.push(exitX);
+    out += rearSelG(c);
     out += `<path d="M ${pp.x} ${pp.y} L ${pp.x} ${laneY} L ${exitX} ${laneY} L ${exitX} ${exitY}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
     out += `<circle cx="${pp.x}" cy="${pp.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/>`;
     if (pp2) out += `<path d="M ${pp2.x} ${pp2.y} L ${pp2.x} ${laneY} L ${pp.x} ${laneY}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${pp2.x}" cy="${pp2.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.2"/><circle cx="${pp.x}" cy="${laneY}" r="3.2" fill="${col}"/>` + badge(pp2.x, (pp2.y + laneY) / 2, LBL[c.id], col, c.id);
-    out += badge(pp.x, (pp.y + laneY) / 2, LBL[c.id], col, c.id);
+    out += badge(pp.x, (pp.y + laneY) / 2, LBL[c.id], col, c.id) + '</g>';
     REAREXIT[c.id] = { nodeId: n.id, pt: toCanvas(exitX, exitY) };
   });
   if (trunkXs.length) { const mx = (Math.min(...trunkXs) + Math.max(...trunkXs)) / 2; FLOATPORT[n.id] = { x: (cr.left + mx * ZK - cvrR.left) / Z, y: (cr.top + (exitDown ? chBot : chTop) * ZK - cvrR.top) / Z, n: trunkXs.length }; }
