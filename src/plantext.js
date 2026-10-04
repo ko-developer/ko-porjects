@@ -279,12 +279,39 @@ function ptMarksSVG() {
    הקירות בשרטוט הם קווים כהים. מעבים אותם מעט (סוגר פתחי דלתות של עד ~1 מ׳), ממלאים מהנקודה
    הלבנה הקרובה לכיתוב עד שנעצרים בקירות, ולוקחים את המלבן החוסם של המילוי. מילוי שבורח
    (חלל פתוח / הגיע לשולי התכנית / גדול מדי) = אזור פתוח → ריבוע 12×12 מ׳ סביב הכיתוב. */
+/* ---------- תמונת מבנה: רק הקירות והמפרידים הפיזיים ----------
+   ב-PDF עם שכבות (AutoCAD/Revit) מרנדרים את הדף כשכל מה שאינו מבנה כבוי — ריהוט, מידות, טקסט, צמחייה, תאורה,
+   כלים סניטריים, דלתות. כך חלוקת החלל לאזורים נשענת על קירות ומפרידים בלבד, ולא נחתכת סביב כיסאות וקווי מידה.
+   מחזיר canvas באותו כיוון ויחס כמו P.bg, או null (אין PDF / אין שכבות / אין שכבת קירות). */
+var PT_NONSTRUCT = /ריהוט|FURN|TEXT|ANNO|DIM|טקסט|צמח|PLNT|PLANT|תאורה|טאורה|LIGHT|LITE|SANR|FIXT|EQPM|(^|[^א-ת])בר(ים)?($|[^א-ת])|\bBAR|DOOR|דלת|HDLN|SYMB|TITLE|VIEWPORT|Defpoints/i;
+let PT_STRUCT = null;
+async function ptStructCanvas() {
+  if (window.__ptNoStruct) return null;
+  try {
+    const pg = typeof asPdfPage === 'function' ? await asPdfPage() : null; if (!pg) return null;
+    const key = P.id + '|' + (P.curSheet || '') + '|' + (P.bgPdfPage || 1) + '|' + (P.bgPdf || '').length + '|' + (P.bgRot || 0);
+    if (PT_STRUCT && PT_STRUCT.key === key) return PT_STRUCT.cv;
+    const cfg = await pg._transport.getOptionalContentConfig(), groups = cfg && cfg.getGroups ? (cfg.getGroups() || {}) : {};
+    const ents = Object.entries(groups).map(([id, g]) => [id, (g && g.name) || '']);
+    if (!ents.some(([, n]) => /WALL|קיר/i.test(n))) { PT_STRUCT = { key, cv: null }; return null; }
+    const hidden = []; ents.forEach(([id, n]) => { if (PT_NONSTRUCT.test(n) && !/WALL|קיר/i.test(n)) { cfg.setVisibility(id, false); hidden.push(n); } });
+    const vp1 = pg.getViewport({ scale: 1 }), k = Math.min(3, 1700 / Math.max(vp1.width, vp1.height)), vp = pg.getViewport({ scale: k });
+    const c0 = document.createElement('canvas'); c0.width = Math.round(vp.width); c0.height = Math.round(vp.height);
+    const g0 = c0.getContext('2d'); g0.fillStyle = '#fff'; g0.fillRect(0, 0, c0.width, c0.height);
+    await pg.render({ canvasContext: g0, viewport: vp, optionalContentConfigPromise: Promise.resolve(cfg) }).promise;
+    let cv = c0, n = ((P.bgRot || 0) / 90) % 4;
+    while (n-- > 0) { const r = document.createElement('canvas'); r.width = cv.height; r.height = cv.width; const g = r.getContext('2d'); g.translate(r.width / 2, r.height / 2); g.rotate(Math.PI / 2); g.drawImage(cv, -cv.width / 2, -cv.height / 2); cv = r; }
+    PT_STRUCT = { key, cv, hidden, shown: ents.map(e => e[1]).filter(n2 => !hidden.includes(n2)) };
+    return cv;
+  } catch (e) { console.warn('ptStructCanvas', e); return null; }
+}
 let PT_BIN = null;   /* { w, h, dark: Uint8Array, key } */
 async function ptBinary() {
   const OPT = Object.assign({ thr: 200, rM: 0.8 }, window.__ptOpt || {});   /* סף כהות ורדיוס עיבוי (מ׳) — לכוונון */
-  const key = (P.bg || '').length + ':' + (P.bgW || 0) + ':' + (P.scale || 0) + ':' + OPT.thr + ':' + OPT.rM;
+  const sc = await ptStructCanvas();   /* PDF עם שכבות: רק קירות ומפרידים */
+  const key = (P.bg || '').length + ':' + (P.bgW || 0) + ':' + (P.scale || 0) + ':' + OPT.thr + ':' + OPT.rM + (sc ? ':S' : '');
   if (PT_BIN && PT_BIN.key === key) return PT_BIN;
-  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
+  const img = sc || await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
   const k = Math.min(1, 1400 / img.width);
   const w = Math.round(img.width * k), h = Math.round(img.height * k);
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
@@ -386,6 +413,43 @@ async function ptRoomRect(it) {
   const x0 = Math.max(0, minX - r), x1 = Math.min(w, maxX + r + 1), y0 = Math.max(0, minY - r), y1 = Math.min(h, maxY + r + 1);
   return { left: L + x0 / w * W, top: T + y0 / h * H, w: (x1 - x0) / w * W, h: (y1 - y0) / h * H, fill: best.n / (w * h), open };
 }
+async function ptMakeWcZones(rebuild) {
+  /* 🚻 שירותים — תמיד אזור: התאים והחלל המרכזי יחד. מאחדים את החדרים שסביב הכלים הסניטריים / הכיתוב (כל תא הוא חדר קטן) עם מלבן הכלים עצמו */
+  let nWc = 0; const pt = P.planText; if (!pt || !pt.items) return 0;
+  const PT_WC_RE = /\bW\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|שירותים|שרותים|תא נכים/i;
+  const wcs = pt.items.filter(i => i.cat === 'service' && (PT_WC_RE.test(i.t) || /SANR|SANIT|PLUMB|סניטר/i.test(i.ly || '')));
+  if (!wcs.length) return 0;
+  P.zones = P.zones || [];
+  { const Wb = P.bgW || 1400, Hb = bgHeightPx(), mPx = P.scale ? 1 / P.scale : Wb * 0.02, boxes = [];
+    for (const it of wcs) {
+      let L, T, R, B;
+      if (it.zw) { L = bgLeft() + it.zu * Wb; T = bgTop() + it.zv * Hb; boxes.push({ L, T, R: L + it.zw * Wb, B: T + it.zh * Hb }); continue; }   /* משכבות ה-PDF: כבר הורחב עד הקירות */
+      if (it.bw) { L = bgLeft() + it.bu * Wb; T = bgTop() + it.bv * Hb; R = L + it.bw * Wb; B = T + it.bh * Hb; }
+      else { const p = ptPos(it); L = p.x - mPx * 0.5; R = p.x + mPx * 0.5; T = p.y - mPx * 0.5; B = p.y + mPx * 0.5; }
+      /* זרעים: המרכז, ונקודות לאורך המלבן ומחוצה לו (החלל המרכזי שמול התאים) */
+      const seeds = [[(L + R) / 2, (T + B) / 2]]; const nx = Math.max(1, Math.round((R - L) / mPx)), ny = Math.max(1, Math.round((B - T) / mPx));
+      for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++) seeds.push([L + (R - L) * i / nx, T + (B - T) * j / ny]);
+      [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => seeds.push([(L + R) / 2 + dx * ((R - L) / 2 + mPx * 0.8), (T + B) / 2 + dy * ((B - T) / 2 + mPx * 0.8)]));
+      const maxA = (mPx * mPx) * 45;   /* חדר שירותים — עד ~45 מ״ר; מילוי גדול יותר = ברח לחלל אחר */
+      for (const [sx, sy] of seeds) { let rr = null; try { rr = await ptRoomRect({ t: 'wc', u: (sx - bgLeft()) / Wb, v: (sy - bgTop()) / Hb, w: 0.004, h: 0.004 }); } catch (e) {}
+        if (!rr || rr.open || rr.w * rr.h > maxA) continue;
+        /* רק חדר שנוגע במלבן הכלים (או קרוב אליו עד 1.5 מ׳) */
+        if (rr.left > R + mPx * 1.5 || rr.left + rr.w < L - mPx * 1.5 || rr.top > B + mPx * 1.5 || rr.top + rr.h < T - mPx * 1.5) continue;
+        L = Math.min(L, rr.left); T = Math.min(T, rr.top); R = Math.max(R, rr.left + rr.w); B = Math.max(B, rr.top + rr.h); }
+      if (it.bw || R - L > mPx * 1.2) boxes.push({ L: L - mPx * 0.15, T: T - mPx * 0.15, R: R + mPx * 0.15, B: B + mPx * 0.15 });
+    }
+    /* כיתובים/קבוצות סמוכים (גברים / נשים / נכים) — אזור שירותים אחד */
+    const merged = [];
+    for (const b of boxes) { const m = merged.find(o => b.L < o.R + mPx && b.R > o.L - mPx && b.T < o.B + mPx && b.B > o.T - mPx); if (m) { m.L = Math.min(m.L, b.L); m.T = Math.min(m.T, b.T); m.R = Math.max(m.R, b.R); m.B = Math.max(m.B, b.B); } else merged.push({ ...b }); }
+    if (rebuild) P.zones = P.zones.filter(z => !z.wc);
+    merged.forEach((b, i) => { const cx = (b.L + b.R) / 2, cy = (b.T + b.B) / 2;
+      if (P.zones.some(z => z.wc && inZone(z, { x: cx, y: cy }))) return;
+      const zw = { id: uid('z'), name: 'שירותים' + (merged.length > 1 ? ' ' + (i + 1) : ''), usage: 'מוזיקת רקע', x: Math.max(0, 2200 - b.L - (b.R - b.L)), y: Math.max(0, b.T), w: b.R - b.L, h: b.B - b.T, fromText: true, wc: true };
+      if (!zoneNoOverlap(zw, P.zones)) return;
+      P.zones.push(zw); nWc++; });
+  }
+  return nWc;
+}
 /* אזורים לעולם לא חופפים: אזור אחד נגמר איפה שהאחר מתחיל. חותכים את האזור החדש בציר שבו החפיפה קטנה יותר, כך שהוא נצמד לגבול של השכן */
 function zoneNoOverlap(z, others) {
   if (z.poly) return true;
@@ -432,36 +496,7 @@ async function ptMakeZones(rebuild) {
     if (!zoneNoOverlap(z, P.zones)) continue;
     P.zones.push(z); n++;
   }
-  /* 🚻 שירותים — תמיד אזור: התאים והחלל המרכזי יחד. מאחדים את החדרים שסביב הכלים הסניטריים / הכיתוב (כל תא הוא חדר קטן) עם מלבן הכלים עצמו */
-  let nWc = 0;
-  { const Wb = P.bgW || 1400, Hb = bgHeightPx(), mPx = P.scale ? 1 / P.scale : Wb * 0.02, boxes = [];
-    for (const it of wcs) {
-      let L, T, R, B;
-      if (it.zw) { L = bgLeft() + it.zu * Wb; T = bgTop() + it.zv * Hb; boxes.push({ L, T, R: L + it.zw * Wb, B: T + it.zh * Hb }); continue; }   /* משכבות ה-PDF: כבר הורחב עד הקירות */
-      if (it.bw) { L = bgLeft() + it.bu * Wb; T = bgTop() + it.bv * Hb; R = L + it.bw * Wb; B = T + it.bh * Hb; }
-      else { const p = ptPos(it); L = p.x - mPx * 0.5; R = p.x + mPx * 0.5; T = p.y - mPx * 0.5; B = p.y + mPx * 0.5; }
-      /* זרעים: המרכז, ונקודות לאורך המלבן ומחוצה לו (החלל המרכזי שמול התאים) */
-      const seeds = [[(L + R) / 2, (T + B) / 2]]; const nx = Math.max(1, Math.round((R - L) / mPx)), ny = Math.max(1, Math.round((B - T) / mPx));
-      for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++) seeds.push([L + (R - L) * i / nx, T + (B - T) * j / ny]);
-      [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => seeds.push([(L + R) / 2 + dx * ((R - L) / 2 + mPx * 0.8), (T + B) / 2 + dy * ((B - T) / 2 + mPx * 0.8)]));
-      const maxA = (mPx * mPx) * 45;   /* חדר שירותים — עד ~45 מ״ר; מילוי גדול יותר = ברח לחלל אחר */
-      for (const [sx, sy] of seeds) { let rr = null; try { rr = await ptRoomRect({ t: 'wc', u: (sx - bgLeft()) / Wb, v: (sy - bgTop()) / Hb, w: 0.004, h: 0.004 }); } catch (e) {}
-        if (!rr || rr.open || rr.w * rr.h > maxA) continue;
-        /* רק חדר שנוגע במלבן הכלים (או קרוב אליו עד 1.5 מ׳) */
-        if (rr.left > R + mPx * 1.5 || rr.left + rr.w < L - mPx * 1.5 || rr.top > B + mPx * 1.5 || rr.top + rr.h < T - mPx * 1.5) continue;
-        L = Math.min(L, rr.left); T = Math.min(T, rr.top); R = Math.max(R, rr.left + rr.w); B = Math.max(B, rr.top + rr.h); }
-      if (it.bw || R - L > mPx * 1.2) boxes.push({ L: L - mPx * 0.15, T: T - mPx * 0.15, R: R + mPx * 0.15, B: B + mPx * 0.15 });
-    }
-    /* כיתובים/קבוצות סמוכים (גברים / נשים / נכים) — אזור שירותים אחד */
-    const merged = [];
-    for (const b of boxes) { const m = merged.find(o => b.L < o.R + mPx && b.R > o.L - mPx && b.T < o.B + mPx && b.B > o.T - mPx); if (m) { m.L = Math.min(m.L, b.L); m.T = Math.min(m.T, b.T); m.R = Math.max(m.R, b.R); m.B = Math.max(m.B, b.B); } else merged.push({ ...b }); }
-    if (rebuild) P.zones = P.zones.filter(z => !z.wc);
-    merged.forEach((b, i) => { const cx = (b.L + b.R) / 2, cy = (b.T + b.B) / 2;
-      if (P.zones.some(z => z.wc && inZone(z, { x: cx, y: cy }))) return;
-      const zw = { id: uid('z'), name: 'שירותים' + (merged.length > 1 ? ' ' + (i + 1) : ''), usage: 'מוזיקת רקע', x: Math.max(0, 2200 - b.L - (b.R - b.L)), y: Math.max(0, b.T), w: b.R - b.L, h: b.B - b.T, fromText: true, wc: true };
-      if (!zoneNoOverlap(zw, P.zones)) return;
-      P.zones.push(zw); nWc++; });
-  }
+  const nWc = await ptMakeWcZones(rebuild);
   save(); render();
   if (nWc) uiToast('🚻 ' + nWc + ' אזורי שירותים נוצרו — התאים והחלל המרכזי', 5000);
   uiToast(n ? '✓ ' + n + ' אזורים לפי גבולות החדרים' + (open ? ' · ' + open + ' בחלל פתוח (גבול משוער עד ~10 מ׳ מהכיתוב — גרור פינה להתאמה)' : '') + ' · 🔗 מיזוג אזורים בפאנל האזור' : 'לכל כיתובי הקהל כבר יש אזור', 7000);
@@ -857,6 +892,7 @@ async function ptPartition() {
     if (seenNames[name]) name += ' ' + (++seenNames[name]); else seenNames[name] = 1;
     addZone(name, usage, poly, aud.some(x => /DANCE|ריקוד/i.test(x.t)) ? { dance: true } : {});
   }
+  try { made += await ptMakeWcZones(false); } catch (e) { console.warn('wc zones', e); }   /* שירותים — תמיד אזור */
   save(); render();
   uiToast(made ? '🧩 ' + made + ' אזורים לפי הקירות' + (skipped ? ' · ' + skipped + ' חללי שירות/תפעול הושמטו' : '') + (outdoor ? ' · ' + outdoor + ' בחוץ' : '') + ' — גרור נקודות לעריכה, אזור שנבלע מתמזג' : 'לא זוהו חללים סגורים — כייל את התכנית ובדוק שהקירות כהים', 8000);
 }
@@ -1051,9 +1087,10 @@ function rfBox(src, w, h, r, isMax) {   /* מינימום/מקסימום בחל�
   return out;
 }
 async function rfWalls() {
-  const key = (P.bg || '').length + '|' + P.scale + '|' + (P.bgW || 0) + '|' + JSON.stringify(P.virtWalls || []);
+  const sc = await ptStructCanvas();   /* PDF עם שכבות: רק קירות ומפרידים */
+  const key = (P.bg || '').length + '|' + P.scale + '|' + (P.bgW || 0) + '|' + JSON.stringify(P.virtWalls || []) + (sc ? '|S' : '');
   if (ROOMFILL && ROOMFILL.key === key) return ROOMFILL;
-  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
+  const img = sc || await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
   const k = Math.min(1, 1600 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
   const px = g.getImageData(0, 0, w, h).data, dark = new Uint8Array(w * h);
