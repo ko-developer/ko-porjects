@@ -1006,10 +1006,18 @@ function sheetsView3D() {
       <label style="display:flex;gap:4px;align-items:center">מרווח מפלסים <input id="v3dZ" type="range" min="4" max="60" value="16" style="width:110px"></label>
       <label style="display:flex;gap:4px;align-items:center"><input id="v3dImg" type="checkbox" checked style="width:auto"> תכניות רקע</label>
       <button id="v3dX" style="padding:5px 12px;border-radius:8px;border:none;cursor:pointer">✕ סגור</button></div>
+    <div style="display:flex;gap:8px;align-items:center;color:#fff;font-size:12.5px;flex-wrap:wrap;justify-content:center">
+      <span style="background:#2d3444;border-radius:8px;padding:3px 10px">🖱 גרור תכנית = הזזה במקום · Shift+גרירה או גרירת התווית השחורה = שינוי מפלס · חצים = הזזה עדינה של התכנית המסומנת</span>
+      <span id="v3dLv" style="display:flex;gap:8px;flex-wrap:wrap"></span>
+      <span id="v3dInfo" style="color:#ffd58a;font-weight:700"></span></div>
     <div id="v3dBox" style="flex:1;width:min(1300px,98vw);background:#fff;border-radius:12px;overflow:hidden"></div>`;
   document.body.appendChild(ov);
   ov.querySelector('#v3dX').onclick = () => ov.remove();
-  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  /* מיקום התכניות ישירות במבט התלת־ממדי: גרירה = הזזה אופקית (org), Shift/תווית = מפלס (level) */
+  let selSh = null, frozenVb = null, lastK = 1, lastA = { cos: 1, sin: 1, z: 16 };
+  const lvBox = ov.querySelector('#v3dLv');
+  lvBox.innerHTML = shs.map(sh => '<label data-lvrow="' + sh.id + '" style="display:flex;gap:4px;align-items:center;background:#2d3444;border-radius:8px;padding:2px 8px;cursor:pointer"><span>' + esc(sh.name.slice(0, 16)) + '</span> מפלס <input data-lvin="' + sh.id + '" type="number" step="0.1" style="width:58px;padding:2px 4px;color:#111"> מ׳</label>').join('');
+  lvBox.querySelectorAll('[data-lvin]').forEach(inp => { inp.onchange = () => { const sh = shs.find(x => x.id === inp.dataset.lvin); if (!sh) return; sh.level = inp.value === '' ? null : +inp.value; selSh = sh.id; save(); paint(); }; inp.onfocus = () => { selSh = inp.dataset.lvin; paint(); }; });
   const paint = () => {
     const ang = +ov.querySelector('#v3dA').value, zGap = +ov.querySelector('#v3dZ').value, withImg = ov.querySelector('#v3dImg').checked;
     const rad = ang * Math.PI / 180, cosA = Math.cos(rad), sinA = Math.sin(rad);
@@ -1018,6 +1026,7 @@ function sheetsView3D() {
     const spans = shs.map(sh => ({ sh, w: (sh.bgW || 1400) * (sh.scale || 0.01), h: (sh.bgW || 1400) * aspOf(sh) * (sh.scale || 0.01) }));
     const wMax = Math.max(...spans.map(s => s.w)), k = 620 / Math.max(6, wMax);
     const iso = (x, y, z) => ({ X: (x - y) * cosA * k, Y: ((x + y) * sinA * k) - z * zGap });
+    lastK = k; lastA = { cos: cosA, sin: sinA, z: zGap };
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9, body = '';
     const pts = [];
     const isoW = (sh, x, y) => { const w = sheetWorld(sh, { x, y }); return iso(w.x, w.y, sh.level || 0); };
@@ -1033,7 +1042,7 @@ function sheetsView3D() {
         const bx = (c[3].X - c[0].X) / ((sh.bgW || 1400) * aspOf(sh)), by = (c[3].Y - c[0].Y) / ((sh.bgW || 1400) * aspOf(sh));
         body += `<g transform="matrix(${ax.toFixed(4)} ${ay.toFixed(4)} ${bx.toFixed(4)} ${by.toFixed(4)} ${c[0].X.toFixed(1)} ${c[0].Y.toFixed(1)})"><image href="${img}" x="0" y="0" width="${sh.bgW || 1400}" height="${(sh.bgW || 1400) * aspOf(sh)}" opacity="0.62" preserveAspectRatio="none"/></g>`;
       }
-      body += `<polygon points="${poly}" fill="${img ? 'none' : 'rgba(120,130,160,.10)'}" stroke="#4b3fb8" stroke-width="1.6"/>`;
+      body += `<polygon data-sh="${sh.id}" points="${poly}" fill="${selSh === sh.id ? 'rgba(255,170,40,.10)' : img ? 'rgba(0,0,0,.001)' : 'rgba(120,130,160,.10)'}" stroke="${selSh === sh.id ? '#e08a00' : '#4b3fb8'}" stroke-width="${selSh === sh.id ? 3.2 : 1.6}" style="cursor:move" pointer-events="all"/>`;
       /* אזורים ומוקדים */
       for (const z2 of sh.zones || []) { const b = zoneBounds(z2), o = shOrg(sh), lv = sh.level || 0, sc = sh.scale || 0.01;
         const q = [[b.L, b.T], [b.L + b.W, b.T], [b.L + b.W, b.T + b.H], [b.L, b.T + b.H]].map(([x, y]) => isoW(sh, x, y));
@@ -1046,7 +1055,7 @@ function sheetsView3D() {
         body += `<circle cx="${q.X.toFixed(1)}" cy="${q.Y.toFixed(1)}" r="${n.kind === 'rack' ? 5 : 3.4}" fill="${col}" stroke="#fff" stroke-width="1"><title>${esc(n.name)} · ${esc(sh.name)}</title></circle>`; }
       /* תווית התכנית */
       const lbl = iso(shOrg(sh).x, shOrg(sh).y + h, sh.level || 0);
-      body += `<rect x="${(lbl.X - 60).toFixed(1)}" y="${(lbl.Y + 6).toFixed(1)}" width="120" height="19" rx="9" fill="#1a1e28"/><text x="${lbl.X.toFixed(1)}" y="${(lbl.Y + 19).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${esc(sh.name)}${sh.level != null ? ' · ' + sh.level + ' מ׳' : ''}</text>`;
+      body += `<rect data-sh="${sh.id}" data-lv="1" x="${(lbl.X - 60).toFixed(1)}" y="${(lbl.Y + 6).toFixed(1)}" width="120" height="19" rx="9" fill="${selSh === sh.id ? '#e08a00' : '#1a1e28'}" style="cursor:ns-resize"><title>גרור למעלה/למטה לשינוי המפלס</title></rect><text x="${lbl.X.toFixed(1)}" y="${(lbl.Y + 19).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${esc(sh.name)}${sh.level != null ? ' · ' + sh.level + ' מ׳' : ''}</text>`;
     }
     /* קווי התשתית בין התכניות */
     for (const l of xlinks()) {
@@ -1060,9 +1069,29 @@ function sheetsView3D() {
       pts.push(pa, pb);
     }
     pts.forEach(q => { minX = Math.min(minX, q.X); maxX = Math.max(maxX, q.X); minY = Math.min(minY, q.Y); maxY = Math.max(maxY, q.Y); });
-    const pad = 70, vb = `${(minX - pad).toFixed(0)} ${(minY - pad).toFixed(0)} ${(maxX - minX + pad * 2).toFixed(0)} ${(maxY - minY + pad * 2).toFixed(0)}`;
-    ov.querySelector('#v3dBox').innerHTML = `<svg viewBox="${vb}" style="width:100%;height:100%" font-family="Assistant,Arial,sans-serif">${body}</svg>`;
+    const pad = 70, vb = frozenVb || `${(minX - pad).toFixed(0)} ${(minY - pad).toFixed(0)} ${(maxX - minX + pad * 2).toFixed(0)} ${(maxY - minY + pad * 2).toFixed(0)}`;   /* בזמן גרירה המסגרת קפואה — התצוגה לא קופצת */
+    ov._vb = vb;
+    ov.querySelector('#v3dBox').innerHTML = `<svg viewBox="${vb}" style="width:100%;height:100%;user-select:none" font-family="Assistant,Arial,sans-serif">${body.replace(/<image /g, '<image pointer-events="none" ').replace(/<text /g, '<text pointer-events="none" ')}</svg>`;
+    lvBox.querySelectorAll('[data-lvin]').forEach(inp => { const sh = shs.find(x => x.id === inp.dataset.lvin); if (sh && document.activeElement !== inp) inp.value = sh.level ?? ''; inp.parentNode.style.outline = selSh === inp.dataset.lvin ? '2px solid #e08a00' : ''; });
+    const ss = shs.find(x => x.id === selSh), inf = ov.querySelector('#v3dInfo');
+    if (ss) { const o = shOrg(ss), oth = shs.filter(x => x !== ss).map(x => { const d = Math.hypot(shOrg(x).x - o.x, shOrg(x).y - o.y); return esc(x.name.slice(0, 12)) + ': ' + d.toFixed(1) + ' מ׳ אופקית, ' + Math.abs((x.level || 0) - (ss.level || 0)).toFixed(1) + ' מ׳ גובה'; }).join(' · '); inf.innerHTML = '📍 ' + esc(ss.name) + ' — מפלס ' + (ss.level ?? 0) + ' מ׳' + (oth ? ' · מרחק מ' + oth : ''); } else inf.textContent = '';
   };
+  { const box = ov.querySelector('#v3dBox'); let dr = null;
+    box.addEventListener('pointerdown', e => { const t = e.target.closest && e.target.closest('[data-sh]'); if (!t || e.button) { if (selSh && !e.target.closest('[data-sh]')) { selSh = null; paint(); } return; }
+      const sh = shs.find(x => x.id === t.dataset.sh); if (!sh) return; e.preventDefault(); selSh = sh.id;
+      const svg = box.querySelector('svg'), m = svg.getScreenCTM(), sc = m ? 1 / m.a : 1;
+      dr = { sh, z: !!(e.shiftKey || t.dataset.lv), sx: e.clientX, sy: e.clientY, sc, o0: { ...shOrg(sh) }, l0: sh.level || 0, moved: false }; frozenVb = ov._vb;
+      box.setPointerCapture(e.pointerId); paint(); });
+    box.addEventListener('pointermove', e => { if (!dr) return; const dX = (e.clientX - dr.sx) * dr.sc, dY = (e.clientY - dr.sy) * dr.sc; if (Math.abs(dX) + Math.abs(dY) > 1) dr.moved = true;
+      if (dr.z) dr.sh.level = +(dr.l0 - dY / lastA.z).toFixed(1);
+      else { const a = dX / (lastA.cos * lastK), b = dY / (lastA.sin * lastK); dr.sh.org = { x: +(dr.o0.x + (a + b) / 2).toFixed(2), y: +(dr.o0.y + (b - a) / 2).toFixed(2) }; }
+      paint(); });
+    const end = () => { if (!dr) return; const d = dr; dr = null; frozenVb = null; if (d.moved) { if (!d.z) d.sh.alignBy = 'מוקמה בתצוגת המבנה (תלת־ממד)'; save(); } paint(); };
+    box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+    const onKey = e => { if (!document.getElementById('v3dOv')) { document.removeEventListener('keydown', onKey); return; } if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return; const sh = shs.find(x => x.id === selSh); if (!sh) return;
+      const st = e.shiftKey ? 1 : 0.1, mv = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[e.key]; if (!mv) { if (e.key === 'PageUp' || e.key === 'PageDown') { sh.level = +((sh.level || 0) + (e.key === 'PageUp' ? 0.1 : -0.1)).toFixed(1); e.preventDefault(); save(); paint(); } return; }
+      e.preventDefault(); const o = shOrg(sh); sh.org = { x: +(o.x + mv[0]).toFixed(2), y: +(o.y + mv[1]).toFixed(2) }; sh.alignBy = 'מוקמה בתצוגת המבנה (תלת־ממד)'; save(); paint(); };
+    document.addEventListener('keydown', onKey); }
   ['#v3dA', '#v3dZ', '#v3dImg'].forEach(k => ov.querySelector(k).oninput = paint);
   paint();
 }
