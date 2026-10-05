@@ -1338,7 +1338,7 @@ function sheetTabsHTML() {
   const lvl = sh => sh.level != null ? ` <small style="opacity:.75">${sh.level > 0 ? '+' : ''}${sh.level} מ׳</small>` : '';
   return `<div id="shTabs">${P.sheets.map(sh => `<button class="shTab${sh.id === P.curSheet ? ' on' : ''}" onclick="sheetGo('${sh.id}')" ondblclick="sheetRename('${sh.id}')" title="לחיצה כפולה = שינוי שם · ${(sh.nodes || []).length} מוקדים">${esc(sh.name)}${lvl(sh)}</button>`).join('')}
     <button class="shTab add" onclick="sheetAdd()" title="הוסף תכנית לפרויקט (קומה / מבנה / שרטוט נוסף)">➕ תכנית</button>
-    ${P.sheets.length > 1 ? `<button class="shTab" onclick="sheetAlignDlg()" title="יישור בין התכניות — אובייקט משותף או מרחק ידני">📐 יישור</button><button class="shTab" onclick="sheetDelete('${P.curSheet}')" title="מחק את התכנית הנוכחית">🗑</button>` : ''}</div>`;
+    ${P.sheets.length > 1 ? `<button class="shTab" onclick="sheetsView3D()" title="יישור התכניות במבט תלת־ממדי — גרירה, מפלס, סיבוב, קנה מידה, אובייקט משותף וכיתובים זהים">📐 יישור 3D</button><button class="shTab" onclick="sheetDelete('${P.curSheet}')" title="מחק את התכנית הנוכחית">🗑</button>` : ''}</div>`;
 }
 /* סעיף "תכניות בפרויקט" במסך הגדרות התכנית — הוספת קומה/מבנה, מפלס, יישור, קווי תשתית בין התכניות ותצוגת המבנה */
 function sheetsPanelHTML() {
