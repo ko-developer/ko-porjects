@@ -671,13 +671,43 @@ function ptTrace(mask, w, h) {
 /* יישור מצולע של חדר לקירות: מוחקים שיניים קטנות (נקודה שהסרתה משנה שטח קטן מ-minSeg²/2 — Visvalingam),
    ואז מיישרים צלעות כמעט-אופקיות/אנכיות לציר ומסירים נקודות על קו ישר. חדר מלבני יוצא עם 4–8 נקודות. */
 function ptSquare(pts, minSeg) {
-  let p = pts.map(q => [q[0], q[1]]); const thr = minSeg * minSeg / 2;
+  let p = pts.map(q => [q[0], q[1]]); const thr = minSeg * minSeg / 2, tiny = minSeg * 0.2;
   const triA = (a, b, c) => Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
-  for (let guard = 0; guard < 400 && p.length > 4; guard++) { let bi = -1, ba = thr; for (let i = 0; i < p.length; i++) { const a = triA(p[(i - 1 + p.length) % p.length], p[i], p[(i + 1) % p.length]); if (a < ba) { ba = a; bi = i; } } if (bi < 0) break; p.splice(bi, 1); }
+  const at = i => p[(i + p.length) % p.length];
+  if (p.length > 3 && Math.hypot(p[0][0] - at(-1)[0], p[0][1] - at(-1)[1]) < 1e-6) p.pop();   /* מתאר סגור: בלי נקודת סיום כפולה */
+  /* "קוצים" (קו שיוצא וחוזר על עצמו — פתח דלת, קו ברוחב פיקסל) ונקודות צמודות: מוחקים עד שאין */
+  const clean = () => { for (let ch = true, g = 0; ch && g < 60; g++) { ch = false;
+    for (let i = p.length - 1; i >= 0 && p.length > 3; i--) { const a = at(i - 1), b = p[i], c = at(i + 1);
+      const ux = a[0] - b[0], uy = a[1] - b[1], vx = c[0] - b[0], vy = c[1] - b[1], lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+      if (lu < tiny || lv < tiny) { p.splice(i, 1); ch = true; continue; }
+      if ((ux * vx + uy * vy) / (lu * lv) > 0.94) { p.splice(i, 1); ch = true; } } } };
+  clean();
+  for (let guard = 0; guard < 2000 && p.length > 4; guard++) { let bi = -1, ba = thr; for (let i = 0; i < p.length; i++) { const a = triA(at(i - 1), p[i], at(i + 1)); if (a < ba) { ba = a; bi = i; } } if (bi < 0) break; p.splice(bi, 1); }
+  clean();
   for (let pass = 0; pass < 3; pass++) for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length], dx = Math.abs(b[0] - a[0]), dy = Math.abs(b[1] - a[1]);
     if (dy <= dx * 0.12) { const y = (a[1] + b[1]) / 2; a[1] = b[1] = y; } else if (dx <= dy * 0.12) { const x = (a[0] + b[0]) / 2; a[0] = b[0] = x; } }
-  for (let i = p.length - 1; i >= 0 && p.length > 3; i--) { const a = p[(i - 1 + p.length) % p.length], b = p[i], c = p[(i + 1) % p.length]; if (triA(a, b, c) < 0.5 || Math.hypot(b[0] - a[0], b[1] - a[1]) < 1) p.splice(i, 1); }
+  /* נקודות על קו ישר (סטייה קטנה מ-~1/8 מהסף ביחס לאורך) — נמחקות: נשארות רק פינות */
+  for (let i = p.length - 1; i >= 0 && p.length > 3; i--) { const a = at(i - 1), b = p[i], c = at(i + 1), base = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1; if (2 * triA(a, b, c) / base < Math.max(0.5, minSeg * 0.12) || Math.hypot(b[0] - a[0], b[1] - a[1]) < 1) p.splice(i, 1); }
   return p.length >= 3 ? p : pts;
+}
+/* פישוט אזור קיים (נקודות במסך) — אותו יישור: קווים ארוכים, בלי שיניים וקוצים */
+function zoneSimplify(zid) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z || !z.poly) return;
+  const m = P.scale ? 1 / P.scale : (P.bgW || 1400) * 0.02, n0 = z.poly.length;
+  const sp = ptSquare(z.poly.map(q => [q.x, q.y]), m);
+  if (sp.length >= n0) { uiToast('הסימון כבר פשוט — ' + n0 + ' נקודות'); return; }
+  if (typeof pushUndo === 'function') pushUndo();
+  z.poly = sp.map(([x, y]) => ({ x: Math.round(x), y: Math.round(y) })); z.walls = {};
+  const xs = z.poly.map(q => q.x), ys = z.poly.map(q => q.y), left = Math.min(...xs), top = Math.min(...ys);
+  z.w = Math.max(...xs) - left; z.h = Math.max(...ys) - top; z.y = top; z.x = Math.max(0, 2200 - left - z.w);
+  save(); render(); uiToast('✂ ' + n0 + ' → ' + z.poly.length + ' נקודות');
+}
+/* ניקוי מסכה לפני המתאר: פתיחה מורפולוגית ברדיוס ~20 ס״מ מוחקת לשונות דקות (פתחי דלת, קווים) שיוצרות קוצים */
+function ptOpenMask(B, mask) {
+  const { w, h } = B, r = Math.max(1, Math.round(B.pxPerM * 0.2));
+  const o = ptDilateN(ptErodeN(mask, w, h, r), w, h, r); let n0 = 0; for (let i = 0; i < w * h; i++) { if (mask[i]) n0++; else o[i] = 0; }
+  const parts = ptSplitMask(o, w, h).sort((a, b) => b.n - a.n);
+  return parts.length && parts[0].n > 0.6 * n0 ? parts[0].mask : mask;
 }
 function ptRdp(pts, eps) {
   if (pts.length < 3) return pts;
@@ -884,10 +914,11 @@ async function ptPartition() {
   let made = 0, skipped = 0, outdoor = 0, idx = 0;
   const seenNames = {};
   const mkPoly = (mask) => {
+    mask = ptOpenMask(B, mask);
     const tr = ptTrace(mask, w, h);
     const eps = Math.max(1.5, B.pxPerM * 0.2);
     let sp = tr.length >= 4 ? ptRdp(tr, eps) : [];
-    if (B.struct && sp.length > 4) sp = ptSquare(sp, B.pxPerM * 0.7);   /* גבול לפי קירות: מיישרים ומוחקים שיניים עד ~70 ס״מ */
+    if (sp.length > 4) sp = ptSquare(sp, B.pxPerM * (B.struct ? 1 : 0.8));   /* קווים ארוכים: מיישרים ומוחקים שיניים/קוצים עד ~1 מ׳ */
     if (sp.length < 3) {   /* מתאר מנוון — המלבן החוסם של המסכה */
       let x0 = w, y0 = h, x1 = 0, y1 = 0; for (let i = 0; i < w * h; i++) if (mask[i]) { const x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
       if (x1 <= x0 || y1 <= y0) return null; sp = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -998,8 +1029,10 @@ async function ptPartitionFilled(B) {
   P.zones = (P.zones || []).filter(z => !z.auto);
   let made = 0, skipped = 0, outdoor = 0, idx = 0; const seenNames = {};
   const mkPoly = (mask) => {
+    mask = ptOpenMask(B, mask);
     const tr = ptTrace(mask, w, h), eps = Math.max(1.5, B.pxPerM * 0.2);
     let sp = tr.length >= 4 ? ptRdp(tr, eps) : [];
+    if (sp.length > 4) sp = ptSquare(sp, B.pxPerM * 0.8);
     if (sp.length < 3) { let x0 = w, y0 = h, x1 = 0, y1 = 0; for (let i = 0; i < w * h; i++) if (mask[i]) { const x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; } if (x1 <= x0 || y1 <= y0) return null; sp = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; }
     return sp.map(([x, y]) => ({ x: Math.round(L + x / w * W), y: Math.round(T + y / h * H) }));
   };

@@ -9287,6 +9287,7 @@ function renderPanel() {
         </div>
         <h3 class="sec">🧱 קירות האזור — פתוח/סגור וחומר</h3>
         <p class="muted" style="margin:-2px 0 4px;font-size:10px">משפיע על החזרות (קיר קשה=החזרה) ועל דעיכה (פתוח=בריחת סאונד).</p>
+        ${z.poly && z.poly.length > 6 ? `<button style="width:100%;margin:2px 0 6px" onclick="zoneSimplify('${z.id}')" title="מוחק נקודות מיותרות, שיניים וקוצים — נשארות רק הפינות">✂ פשט קווים (${z.poly.length} נקודות)</button>` : ''}
         ${wallRows(z)}
         <p class="muted">📐 ${dims}</p>
         <button style="width:100%;margin-top:8px;${z._sysOpen ? 'background:#0f6e56;color:#fff;font-weight:700' : ''}" onclick="(P.zones.find(x=>x.id==='${z.id}'))._sysOpen=${z._sysOpen ? 'false' : 'true'};render()">🔧 בנה מערכת אוטומטית לאזור ${z._sysOpen ? '▲' : '▼'}</button>
