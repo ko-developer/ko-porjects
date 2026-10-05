@@ -999,7 +999,7 @@ function sheetsView3D() {
   document.getElementById('v3dOv')?.remove();
   const ov = document.createElement('div');
   ov.id = 'v3dOv';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(18,20,26,.92);z-index:150;display:flex;flex-direction:column;align-items:center;padding:12px;gap:8px;direction:rtl';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(18,20,26,.92);z-index:130;display:flex;flex-direction:column;align-items:center;padding:12px;gap:8px;direction:rtl';
   ov.innerHTML = `<div style="display:flex;gap:8px;align-items:center;color:#fff;font-size:13px;flex-wrap:wrap">
       <b style="font-size:15px">🏗 מבנה הפרויקט — ${esc(P.name)}</b>
       <label style="display:flex;gap:4px;align-items:center">זווית <input id="v3dA" type="range" min="10" max="60" value="30" style="width:110px"></label>
@@ -1010,8 +1010,10 @@ function sheetsView3D() {
       <span style="background:#2d3444;border-radius:8px;padding:3px 10px">🖱 גרור תכנית = הזזה במקום · Shift+גרירה או גרירת התווית השחורה = שינוי מפלס · חצים = הזזה עדינה של התכנית המסומנת</span>
       <span id="v3dLv" style="display:flex;gap:8px;flex-wrap:wrap"></span>
       <span style="display:flex;gap:4px;align-items:center;background:#2d3444;border-radius:8px;padding:2px 8px">סיבוב התכנית המסומנת <button data-rot="-15" style="padding:1px 7px">↺15°</button><button data-rot="-1" style="padding:1px 7px">↺1°</button><input id="v3dRot" type="number" step="0.5" style="width:58px;padding:2px 4px;color:#111">°<button data-rot="1" style="padding:1px 7px">↻1°</button><button data-rot="15" style="padding:1px 7px">↻15°</button><button data-rot="90" style="padding:1px 7px">↻90°</button></span>
+      <span style="display:flex;gap:4px;align-items:center;background:#2d3444;border-radius:8px;padding:2px 8px" title="קנה המידה של התכנית המסומנת בלבד — מגדיל/מקטין אותה ביחס לשאר">קנה מידה של המסומנת <button data-sc="0.95" style="padding:1px 7px">−5%</button><button data-sc="0.99" style="padding:1px 7px">−1%</button><span id="v3dSc" style="min-width:74px;text-align:center;font-weight:700"></span><button data-sc="1.01" style="padding:1px 7px">+1%</button><button data-sc="1.05" style="padding:1px 7px">+5%</button> 1: <input id="v3dRatio" type="number" min="5" step="5" style="width:58px;padding:2px 4px;color:#111" title="קנה המידה שכתוב בתכנית (1:N) — משנה לפי היחס לקנה המידה שזוהה"></span>
+      <button id="v3dAuto" style="padding:4px 10px;border-radius:8px;border:none;cursor:pointer;background:#d6249f;color:#fff;font-weight:700" title="מוצא כיתובים זהים בשתי התכניות וממקם לפיהם — עם שני כיתובים גם מתקן קנה מידה וסיבוב">⚓ מיקום אוטומטי לפי כיתובים</button>
       <button id="v3dPick" style="padding:4px 10px;border-radius:8px;border:none;cursor:pointer" title="לחץ על אותו אובייקט (פיר, מדרגות, עמוד, פינת קיר) בשתי תכניות — השנייה תזוז כך שהנקודות יתלכדו">🎯 אובייקט משותף</button>
-      <button id="v3dRead" style="padding:4px 10px;border-radius:8px;border:none;cursor:pointer" title="קורא את הכיתובים בכל התכניות ומסמן כיתובים זהים שמופיעים בשתי תכניות">🔤 קרא כיתובים זהים</button>
+      <button id="v3dRead" style="padding:4px 10px;border-radius:8px;border:none;cursor:pointer" title="קורא את הכיתובים בכל התכניות ומסמן כיתובים זהים שמופיעים בשתי תכניות">🔤 הבלט כיתובים זהים</button>
       <button id="v3dFit" style="padding:4px 10px;border-radius:8px;border:none;cursor:pointer">⤢ התאם תצוגה</button>
       <span style="background:#2d3444;border-radius:8px;padding:3px 10px">גלגלת = זום · גרירת הרקע = הזזת התצוגה</span>
       <span id="v3dPairs" style="display:flex;gap:6px;flex-wrap:wrap;flex-basis:100%;justify-content:center"></span>
@@ -1029,10 +1031,30 @@ function sheetsView3D() {
   const snapSheets = (shA, ptA, shB, ptB, by) => { const wA = sheetWorld(shA, ptA), wB = sheetWorld(shB, ptB), o = shOrg(shB); shB.org = { x: +(o.x + wA.x - wB.x).toFixed(3), y: +(o.y + wA.y - wB.y).toFixed(3) }; shB.alignBy = by; selSh = shB.id; save(); paint(); uiToast('📐 "' + shB.name + '" יושרה מול "' + shA.name + '" — ' + by, 5000); };
   /* כיתובים זהים שמופיעים (פעם אחת) בשתי תכניות — מועמדים ליישור */
   const ptItems = sh => { const pt = sh.planText || (sh.id === P.curSheet ? P.planText : null), W = sh.bgW || 1400, H = W * (sh.bgAsp || 0.64), m = {};
-    ((pt && pt.items) || []).forEach(it => { if (it.cat === 'level') return; const key = String(it.t || '').trim().replace(/\s+\d+$/, '').toLowerCase(); if (key.length < 3 || /תאריך|הערות|קנ.?מ|פורמט|גיליון|גליון|עיצוב|תכנון|^\d+$/.test(key)) return; (m[key] = m[key] || []).push({ x: shBgL(sh) + it.u * W, y: shBgT(sh) + it.v * H, t: it.t }); });
+    ((pt && pt.items) || []).forEach(it => { if (it.cat === 'level' || it.ly) return;   /* שם שנוצר משכבת PDF ("אזור ישיבה") אינו כיתוב שכתוב בתכנית */
+      const key = String(it.t || '').trim().replace(/\s+\d+$/, '').toLowerCase().split(/\s+/).sort().join(' ');   /* סדר המילים לא משנה (עברית נקראת לפעמים הפוך) */
+      if (key.length < 3 || /תאריך|הערות|קנ.?מ|פורמט|גיליון|גליון|עיצוב|תכנון|תקשורת|ביצוע|עיון|מקרא|^\d+$/.test(key) || (it.u < 0.14 && /[א-ת]/.test(key) && false)) return; (m[key] = m[key] || []).push({ x: shBgL(sh) + it.u * W, y: shBgT(sh) + it.v * H, t: it.t }); });
     return m; };
+  const lev1 = (a, b) => { if (a === b) return true; let i = 0, j = 0, d = 0; while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++d > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } } return d + (a.length - i) + (b.length - j) <= 1; };
+  let showPairs = false;
+  /* שינוי קנה המידה של תכנית אחת (סביב מרכזה): מ׳ לפיקסל × f */
+  const scaleSheet = (sh, f) => { if (!(f > 0) || !sh.scale) return; const c0 = sheetWorld(sh, bgCenter(sh)), ns = sh.scale * f; if (sh.id === P.curSheet) P.scale = ns; sh.scale = ns; const c1 = sheetWorld(sh, bgCenter(sh)), o = shOrg(sh); sh.org = { x: +(o.x + c0.x - c1.x).toFixed(3), y: +(o.y + c0.y - c1.y).toFixed(3) }; sh.calSrc = 'manual'; };
+  /* מיקום אוטומטי לפי כיתובים זהים: כיתוב אחד → הזזה; שניים ומעלה → גם קנה מידה וסיבוב (בהתאמה של שני הכיתובים הרחוקים ביותר) */
+  const autoPlace = async () => { const all = labelPairs(); if (!all.length) { uiToast('לא נמצא כיתוב זהה שמופיע בשתי תכניות — נסה "🎯 אובייקט משותף"', 6000); return; }
+    const A = all[0].A, B = all.find(p => p.A === A).B, ps = all.filter(p => p.A === A && p.B === B); let msg = [];
+    if (ps.length >= 2) { let best = null; for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) { const d = Math.hypot(ps[i].pa.x - ps[j].pa.x, ps[i].pa.y - ps[j].pa.y); if (!best || d > best.d) best = { d, p: ps[i], q: ps[j] }; }
+      const wa1 = sheetWorld(A, best.p.pa), wa2 = sheetWorld(A, best.q.pa), wb1 = sheetWorld(B, best.p.pb), wb2 = sheetWorld(B, best.q.pb);
+      const dA = Math.hypot(wa2.x - wa1.x, wa2.y - wa1.y), dB = Math.hypot(wb2.x - wb1.x, wb2.y - wb1.y), f = dB > 0.2 ? dA / dB : 1;
+      let dAng = (Math.atan2(wa2.y - wa1.y, wa2.x - wa1.x) - Math.atan2(wb2.y - wb1.y, wb2.x - wb1.x)) * 180 / Math.PI; dAng = (((dAng % 360) + 540) % 360) - 180;
+      if (Math.abs(f - 1) > 0.02) { const ok = await uiConfirm('לפי הכיתובים "' + best.p.t + '" ו"' + best.q.t + '", המרחק ביניהם ב"' + A.name + '" הוא ' + dA.toFixed(1) + ' מ׳ וב"' + B.name + '" ' + dB.toFixed(1) + ' מ׳.\nקנה המידה של "' + B.name + '" נראה שונה פי ' + f.toFixed(2) + '. לתקן אותו כך שהתכניות יתאימו?', { okText: 'תקן קנה מידה ומקם', cancelText: 'מקם בלי לשנות קנה מידה' }); if (ok) { scaleSheet(B, f); msg.push('קנה מידה ×' + f.toFixed(2)); } }
+      if (Math.abs(dAng) > 0.5 && Math.abs(dAng) < 179.5 || Math.abs(dAng) >= 179.5) { if (Math.abs(dAng) > 0.5) { rotSheet(B, (B.rot || 0) + dAng); msg.push('סיבוב ' + dAng.toFixed(1) + '°'); } }
+      snapSheets(A, best.p.pa, B, best.p.pb, 'מיקום אוטומטי לפי "' + best.p.t + '" ו"' + best.q.t + '"' + (msg.length ? ' · ' + msg.join(' · ') : ''));
+    } else snapSheets(A, ps[0].pa, B, ps[0].pb, 'מיקום אוטומטי לפי הכיתוב "' + ps[0].t + '" (כיתוב אחד — הזזה בלבד, בלי קנה מידה וסיבוב)');
+    showPairs = true; paint(); };
   const labelPairs = () => { const maps = shs.map(sh => [sh, ptItems(sh)]), out = [];
-    for (let i = 0; i < maps.length; i++) for (let j = i + 1; j < maps.length; j++) for (const k of Object.keys(maps[i][1])) { const a = maps[i][1][k], b = maps[j][1][k]; if (b && a.length === 1 && b.length === 1) out.push({ key: k, t: a[0].t, A: maps[i][0], pa: a[0], B: maps[j][0], pb: b[0] }); }
+    for (let i = 0; i < maps.length; i++) for (let j = i + 1; j < maps.length; j++) for (const k of Object.keys(maps[i][1])) { const a = maps[i][1][k]; let b = maps[j][1][k];
+      if (!b && k.length >= 5) { const k2 = Object.keys(maps[j][1]).find(q => Math.abs(q.length - k.length) <= 1 && lev1(q, k)); if (k2) b = maps[j][1][k2]; }   /* כמעט זהה (אות אחת) — קריאת OCR */
+      if (b && a.length === 1 && b.length === 1) out.push({ key: k, t: a[0].t, A: maps[i][0], pa: a[0], B: maps[j][0], pb: b[0] }); }
     return out; };
   const lvBox = ov.querySelector('#v3dLv');
   lvBox.innerHTML = shs.map(sh => '<label data-lvrow="' + sh.id + '" style="display:flex;gap:4px;align-items:center;background:#2d3444;border-radius:8px;padding:2px 8px;cursor:pointer"><span>' + esc(sh.name.slice(0, 16)) + '</span> מפלס <input data-lvin="' + sh.id + '" type="number" step="0.1" style="width:58px;padding:2px 4px;color:#111"> מ׳</label>').join('');
@@ -1090,17 +1112,18 @@ function sheetsView3D() {
     pts.forEach(q => { minX = Math.min(minX, q.X); maxX = Math.max(maxX, q.X); minY = Math.min(minY, q.Y); maxY = Math.max(maxY, q.Y); });
     /* כיתובים זהים בין תכניות: תגית בכל תכנית וקו מקווקו ביניהן */
     const pairs = labelPairs();
-    pairs.forEach(pr => { const a = isoW(pr.A, pr.pa.x, pr.pa.y), b2 = isoW(pr.B, pr.pb.x, pr.pb.y), far = Math.hypot(a.X - b2.X, a.Y - b2.Y) > 3;
-      body += '<line x1="' + a.X.toFixed(1) + '" y1="' + a.Y.toFixed(1) + '" x2="' + b2.X.toFixed(1) + '" y2="' + b2.Y.toFixed(1) + '" stroke="#d6249f" stroke-width="1.6" stroke-dasharray="6 4"/>' + [a, b2].map(q => '<circle cx="' + q.X.toFixed(1) + '" cy="' + q.Y.toFixed(1) + '" r="5" fill="#d6249f" stroke="#fff" stroke-width="1.5"/>').join('') +
-        '<text x="' + a.X.toFixed(1) + '" y="' + (a.Y - 9).toFixed(1) + '" text-anchor="middle" font-size="11" font-weight="800" fill="#d6249f" stroke="#fff" stroke-width="3" paint-order="stroke">' + esc(pr.t) + (far ? '' : ' ✓') + '</text>'; });
+    (showPairs ? pairs : []).forEach(pr => { const a = isoW(pr.A, pr.pa.x, pr.pa.y), b2 = isoW(pr.B, pr.pb.x, pr.pb.y), far = Math.hypot(a.X - b2.X, a.Y - b2.Y) > 3;
+      body += '<line x1="' + a.X.toFixed(1) + '" y1="' + a.Y.toFixed(1) + '" x2="' + b2.X.toFixed(1) + '" y2="' + b2.Y.toFixed(1) + '" stroke="#d6249f" stroke-width="1.6" stroke-dasharray="6 4"/>' + [a, b2].map(q => { const tw = pr.t.length * 7.4 + 18; return '<circle cx="' + q.X.toFixed(1) + '" cy="' + q.Y.toFixed(1) + '" r="9" fill="#d6249f" opacity="0.25"/><circle cx="' + q.X.toFixed(1) + '" cy="' + q.Y.toFixed(1) + '" r="5" fill="#d6249f" stroke="#fff" stroke-width="1.5"/><rect x="' + (q.X - tw / 2).toFixed(1) + '" y="' + (q.Y - 30).toFixed(1) + '" width="' + tw.toFixed(1) + '" height="19" rx="9" fill="#d6249f"/><text x="' + q.X.toFixed(1) + '" y="' + (q.Y - 16.5).toFixed(1) + '" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">' + esc(pr.t) + (far ? '' : ' ✓') + '</text>'; }).join(''); });
     if (pick) { const q = isoW(pick.sh, pick.pt.x, pick.pt.y); body += '<circle cx="' + q.X.toFixed(1) + '" cy="' + q.Y.toFixed(1) + '" r="8" fill="none" stroke="#0f6e56" stroke-width="3"/><circle cx="' + q.X.toFixed(1) + '" cy="' + q.Y.toFixed(1) + '" r="2.5" fill="#0f6e56"/>'; }
     { const pb = ov.querySelector('#v3dPairs'); ov._pairs = pairs;
-      pb.innerHTML = pairs.length ? '<span style="color:#f3a7dd;font-weight:700">כיתובים זהים — לחיצה מיישרת לפיהם:</span>' + pairs.slice(0, 10).map((pr, i) => '<button data-pair="' + i + '" style="padding:2px 9px;border-radius:8px;border:1.5px solid #d6249f;background:#fff;cursor:pointer;font-size:12px">⚓ ' + esc(pr.t) + ' <span style="color:#888">(' + esc(pr.A.name.slice(0, 10)) + ' ↔ ' + esc(pr.B.name.slice(0, 10)) + ')</span></button>').join('') : '';
+      pb.innerHTML = pairs.length && showPairs ? '<span style="color:#f3a7dd;font-weight:700">כיתובים זהים — לחיצה מיישרת לפיהם:</span>' + pairs.slice(0, 10).map((pr, i) => '<button data-pair="' + i + '" style="padding:2px 9px;border-radius:8px;border:1.5px solid #d6249f;background:#fff;cursor:pointer;font-size:12px">⚓ ' + esc(pr.t) + ' <span style="color:#888">(' + esc(pr.A.name.slice(0, 10)) + ' ↔ ' + esc(pr.B.name.slice(0, 10)) + ')</span></button>').join('') : '';
       pb.querySelectorAll('[data-pair]').forEach(bt => bt.onclick = () => { const pr = ov._pairs[+bt.dataset.pair]; if (!pr) return; const moveA = selSh === pr.A.id; if (moveA) snapSheets(pr.B, pr.pb, pr.A, pr.pa, 'לפי הכיתוב "' + pr.t + '"'); else snapSheets(pr.A, pr.pa, pr.B, pr.pb, 'לפי הכיתוב "' + pr.t + '"'); }); }
     const pad = 70, aw = maxX - minX + pad * 2, ah = maxY - minY + pad * 2, vw = aw / vz, vh = ah / vz, vcx = minX - pad + aw / 2 + vpx, vcy = minY - pad + ah / 2 + vpy;
     const vb = frozenVb || `${(vcx - vw / 2).toFixed(1)} ${(vcy - vh / 2).toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}`;   /* בזמן גרירה המסגרת קפואה — התצוגה לא קופצת */
     ov._vb = vb; ov._auto = { aw, ah };
-    { const ss0 = shs.find(x => x.id === selSh), ri = ov.querySelector('#v3dRot'); if (ri && document.activeElement !== ri) ri.value = ss0 ? (ss0.rot || 0) : ''; }
+    { const ss0 = shs.find(x => x.id === selSh), ri = ov.querySelector('#v3dRot'); if (ri && document.activeElement !== ri) ri.value = ss0 ? (ss0.rot || 0) : '';
+      const sc = ov.querySelector('#v3dSc'), rt = ov.querySelector('#v3dRatio'), as0 = ss0 && (ss0.autoScale || (ss0.id === P.curSheet && P.autoScale));
+      if (sc) sc.textContent = ss0 && ss0.scale ? (((ss0.bgW || 1400) * ss0.scale).toFixed(1) + ' מ׳ רוחב') : '—'; if (rt && document.activeElement !== rt) rt.value = as0 && as0.ratio ? as0.ratio : ''; }
     ov.querySelector('#v3dBox').innerHTML = `<svg viewBox="${vb}" style="width:100%;height:100%;user-select:none" font-family="Assistant,Arial,sans-serif">${body.replace(/<image /g, '<image pointer-events="none" ').replace(/<text /g, '<text pointer-events="none" ')}</svg>`;
     lvBox.querySelectorAll('[data-lvin]').forEach(inp => { const sh = shs.find(x => x.id === inp.dataset.lvin); if (sh && document.activeElement !== inp) inp.value = sh.level ?? ''; inp.parentNode.style.outline = selSh === inp.dataset.lvin ? '2px solid #e08a00' : ''; });
     const ss = shs.find(x => x.id === selSh), inf = ov.querySelector('#v3dInfo');
@@ -1143,7 +1166,11 @@ function sheetsView3D() {
     ov.querySelector('#v3dRot').onchange = e => { const sh = shs.find(x => x.id === selSh); if (!sh) { uiToast('לחץ קודם על תכנית כדי לסמן אותה'); return; } rotSheet(sh, +e.target.value || 0); };
     ov.querySelector('#v3dPick').onclick = e => { if (pickMode) { pickMode = 0; pick = null; box.style.cursor = ''; e.target.style.background = ''; paint(); return; } pickMode = 1; pick = null; box.style.cursor = 'crosshair'; e.target.style.background = '#ffd58a'; uiToast('🎯 לחץ על אובייקט משותף בתכנית הראשונה (זו שנשארת במקום)', 6000); };
     ov.querySelector('#v3dFit').onclick = () => { vz = 1; vpx = 0; vpy = 0; paint(); };
+    ov.querySelectorAll('[data-sc]').forEach(bt => bt.onclick = () => { const sh = shs.find(x => x.id === selSh); if (!sh) { uiToast('לחץ קודם על תכנית כדי לסמן אותה'); return; } scaleSheet(sh, +bt.dataset.sc); save(); paint(); });
+    ov.querySelector('#v3dRatio').onchange = e => { const sh = shs.find(x => x.id === selSh), n = +e.target.value; if (!sh || !(n > 0)) return; const cur = (sh.autoScale && sh.autoScale.ratio) || (sh.id === P.curSheet && P.autoScale && P.autoScale.ratio); if (!cur) { uiToast('לתכנית הזו לא זוהה קנה מידה 1:N — השתמש בכפתורי האחוזים'); return; } scaleSheet(sh, n / cur); const as = sh.id === P.curSheet ? P.autoScale : sh.autoScale; if (as) as.ratio = n; save(); paint(); uiToast('קנה המידה של "' + sh.name + '" שונה ל-1:' + n); };
+    ov.querySelector('#v3dAuto').onclick = () => autoPlace();
     ov.querySelector('#v3dRead').onclick = async e => { const bt = e.target, back = P.curSheet, need = shs.filter(sh => !(sh.planText || (sh.id === P.curSheet && P.planText)));
+      if (!need.length || labelPairs().length) { showPairs = !showPairs; bt.style.background = showPairs ? '#f3a7dd' : ''; paint(); if (showPairs && !labelPairs().length) uiToast('לא נמצא כיתוב זהה שמופיע פעם אחת בשתי תכניות', 5000); return; }
       if (!need.length) { const n = labelPairs().length; uiToast(n ? '🔤 נמצאו ' + n + ' כיתובים זהים — מסומנים בוורוד; לחיצה על כפתור מיישרת לפיו' : 'הכיתובים כבר נקראו בכל התכניות — לא נמצא כיתוב זהה שמופיע פעם אחת בשתי תכניות', 6000); paint(); return; }
       bt.disabled = true; bt.textContent = '⏳ קורא כיתובים…'; ov.remove();
       try { for (const sh of need) { sheetGo(sh.id); await new Promise(r => setTimeout(r, 400)); if (P.bg && typeof planTextScan === 'function') await planTextScan(); } } catch (err) { console.warn('v3d read', err); }
