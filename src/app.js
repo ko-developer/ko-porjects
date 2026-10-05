@@ -506,7 +506,7 @@ function sheetAlignDlg() {
       ${sh !== cur ? `<div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">
         <button class="primary" style="padding:3px 9px;font-size:11.5px" onclick="sheetAlignDrag('${sh.id}')" title="התכנית מוצגת שקופה מעל הנוכחית — גוררים אותה למקום הנכון ומסובבים">🧭 גרור למקומה על התכנית (גרפי)</button>
         <button style="padding:3px 9px;font-size:11.5px" onclick="sheetAlignPoint('${sh.id}')">🎯 אובייקט משותף — לחיצה בשתי התכניות</button>
-        <button style="padding:3px 9px;font-size:11.5px" onclick="sheetAlignManual('${sh.id}')">↔ מרחק וכיוון ידניים</button>
+        <button style="padding:3px 9px;font-size:11.5px" onclick="sheetAlignManual('${sh.id}')" title="שתי התכניות מוצגות יחד — גוררים למקום, מקלידים רווח, או מותחים קו בין שתי נקודות">↔ זו לצד זו — גרירה / מרחק</button>
         ${sh.org ? `<button style="padding:3px 9px;font-size:11.5px" onclick="const s2=P.sheets.find(x=>x.id==='${sh.id}');delete s2.org;delete s2.rot;delete s2.alignBy;save();sheetAlignDlg()">✕ בטל יישור</button>` : ''}
       </div>` : ''}</div>`).join('')}
     <button data-x style="width:100%;margin-top:6px">סגור</button></div>`);
@@ -761,9 +761,131 @@ document.addEventListener('pointerdown', e => {
   save(); render(); uiToast('📐 "' + other.name + '" יושרה מול "' + base.name + '"', 5000); sheetAlignDlg();
 }, true);
 document.addEventListener('keydown', e => { if (window.__shAlign && e.key === 'Escape') { window.__shAlign = null; document.body.style.cursor = ''; uiToast('היישור בוטל'); } });
-/* יישור ידני: מרחק אווירי וכיוון מהתכנית הנוכחית */
-function sheetAlignManual(otherId) {
+/* ===== ↔ מיקום שתי תכניות זו לצד זו (אותו מפלס או מפלסים שונים) =====
+   שתי התכניות מוצגות יחד באותו קנה מידה. גוררים את האחרת למקומה ביחס לנוכחית, והמרחק ביניהן מוצג חי.
+   אפשר גם להקליד את הרווח, או "למתוח קו": לוחצים על נקודה בכל תכנית ומקלידים את המרחק האמיתי ביניהן. */
+async function sheetAlignSide(otherId) {
   const base = curSheet(P), other = P.sheets.find(x => x.id === otherId);
+  if (!other || other === base) return;
+  if (!base.scale || !other.scale) { uiToast('שתי התכניות צריכות כיול (קנה מידה) לפני המיקום'); return; }
+  if (window.__alignOv) window.__alignOv.remove();
+  if (!(P.bgs && P.bgs[other.id]) && other.hasBg !== false) { try { uiToast('⏳ מביא את תכנית "' + other.name + '"…', 3000); await sheetFetchBg(P, other, false); } catch (e) {} }
+  const imgO = (P.bgs && P.bgs[other.id]) || '', imgB = P.bg || '';
+  const S0 = 22;   /* פיקסלים למטר בבמה (לפני זום) */
+  const Lb = bgLeft(), Tb = bgTop(), Wb = P.bgW || 1400, Hb = bgHeightPx();
+  const Wo = other.bgW || 1400, Ho = Wo * (other.bgAsp || 0.64), Lo = shBgL(other), To = shBgT(other);
+  const B = { x0: Lb * base.scale, y0: Tb * base.scale, w: Wb * base.scale, h: Hb * base.scale };   /* מלבן הנוכחית במטרים (מערכת הקנבס שלה) */
+  const O = { w: Wo * other.scale, h: Ho * other.scale, cx: 0, cy: 0, th: 0 };
+  const p0 = { x: Lo + Wo / 2, y: To + Ho / 2 };
+  if (other.org) { const cc = sheetFromWorld(base, sheetWorld(other, p0)); O.cx = cc.x * base.scale; O.cy = cc.y * base.scale; O.th = (other.rot || 0) - (base.rot || 0); }
+  else { O.cx = B.x0 + B.w + 2 + O.w / 2; O.cy = B.y0 + B.h / 2; }
+  let Z = 1, pan = { x: 0, y: 0 }, line = null, lineMode = 0, level = other.level;
+  const ov = document.createElement('div'); ov.id = 'sideAlignOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:130;background:#11151d;display:flex;flex-direction:column;direction:rtl';
+  ov.innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 14px;background:#1a1e28;color:#fff;font-size:12.5px">
+      <b style="font-size:14px">↔ מיקום "${esc(other.name)}" ביחס ל"${esc(base.name)}"</b>
+      <span style="color:#aab">גרור את התכנית המקווקוות · גלגלת = זום · גרירת הרקע = הזזה</span>
+      <span style="flex:1"></span>
+      <label style="display:flex;gap:5px;align-items:center">רווח בין התכניות <input data-gap type="number" step="0.1" min="0" style="width:70px;padding:3px 5px;color:#111"> מ׳</label>
+      <button data-line style="padding:4px 10px">📏 מתיחת קו</button>
+      <label style="display:flex;gap:5px;align-items:center">סיבוב <input data-rot type="number" step="0.5" style="width:60px;padding:3px 5px;color:#111">°</label>
+      <button data-r90 style="padding:4px 8px">↻ 90°</button>
+      <label style="display:flex;gap:5px;align-items:center" title="גובה הקומה במטרים ביחס לקרקע">מפלס <input data-lv type="number" step="0.1" placeholder="0" style="width:60px;padding:3px 5px;color:#111"> מ׳</label>
+      <button data-num style="padding:4px 10px;background:#3a4052;color:#fff;border:none;border-radius:8px">⌨ הקלדת מרחק וכיוון</button>
+      <button data-ok style="padding:6px 14px;background:#0f6e56;color:#fff;border:none;border-radius:8px;font-weight:800">✓ אשר</button>
+      <button data-x style="padding:6px 12px;background:#3a4052;color:#fff;border:none;border-radius:8px">✕ ביטול</button></div>
+    <div data-view style="flex:1;position:relative;overflow:hidden;cursor:grab;background:#eef0f3;background-image:linear-gradient(#dfe3ea 1px,transparent 1px),linear-gradient(90deg,#dfe3ea 1px,transparent 1px)">
+      <div data-stage style="position:absolute;left:0;top:0;transform-origin:0 0">
+        <div data-b style="position:absolute;outline:2px solid #1a1e28;background:#fff"></div>
+        <div data-o style="position:absolute;outline:3px dashed #534ab7;background:#fff;cursor:move;transform-origin:50% 50%"></div>
+        <svg data-svg style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none" width="1" height="1"></svg>
+      </div>
+      <div data-info style="position:absolute;right:12px;bottom:12px;background:#1a1e28;color:#fff;border-radius:10px;padding:8px 12px;font-size:13px;line-height:1.6;box-shadow:0 4px 16px rgba(0,0,0,.3)"></div>
+      <div data-hint style="position:absolute;left:50%;top:10px;transform:translateX(-50%);background:#fff3c4;border:1.5px solid #e9b949;border-radius:9px;padding:5px 12px;font-size:12.5px;display:none"></div>
+    </div>`;
+  document.body.appendChild(ov);
+  const q = k => ov.querySelector(k), view = q('[data-view]'), stage = q('[data-stage]'), elB = q('[data-b]'), elO = q('[data-o]'), svg = q('[data-svg]'), info = q('[data-info]'), hint = q('[data-hint]');
+  const ph = (el, img, name) => { el.innerHTML = img ? '<img src="' + img + '" draggable="false" style="width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none;pointer-events:none">' : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#888;font-size:22px">' + esc(name) + ' (בלי תכנית רקע)</div>'; el.insertAdjacentHTML('beforeend', '<div style="position:absolute;right:0;top:-26px;font-size:15px;font-weight:800;color:#1a1e28;white-space:nowrap;direction:rtl">' + esc(name) + '</div>'); };
+  ph(elB, imgB, base.name + ' (הנוכחית)'); ph(elO, imgO, other.name);
+  /* מלבן חוסם של האחרת (אחרי סיבוב), במטרים */
+  const oBox = () => { const a = O.th * Math.PI / 180, c = Math.abs(Math.cos(a)), s2 = Math.abs(Math.sin(a)), hw = (O.w * c + O.h * s2) / 2, hh = (O.w * s2 + O.h * c) / 2; return { x0: O.cx - hw, x1: O.cx + hw, y0: O.cy - hh, y1: O.cy + hh }; };
+  const gaps = () => { const o = oBox(), gx = Math.max(o.x0 - (B.x0 + B.w), B.x0 - o.x1), gy = Math.max(o.y0 - (B.y0 + B.h), B.y0 - o.y1); return { gx, gy, gap: gx > 0 && gy > 0 ? Math.hypot(gx, gy) : Math.max(gx, gy, 0), overlap: gx <= 0 && gy <= 0 }; };
+  /* נקודה במערכת האחרת (מטרים ממרכזה, לפני סיבוב) → מטרים בבמה */
+  const oToStage = p => { const a = O.th * Math.PI / 180, c = Math.cos(a), s2 = Math.sin(a); return { x: O.cx + p.x * c - p.y * s2, y: O.cy + p.x * s2 + p.y * c }; };
+  const stageToO = p => { const a = -O.th * Math.PI / 180, c = Math.cos(a), s2 = Math.sin(a), dx = p.x - O.cx, dy = p.y - O.cy; return { x: dx * c - dy * s2, y: dx * s2 + dy * c }; };
+  const draw = () => {
+    stage.style.transform = 'translate(' + pan.x + 'px,' + pan.y + 'px) scale(' + Z + ')';
+    elB.style.left = B.x0 * S0 + 'px'; elB.style.top = B.y0 * S0 + 'px'; elB.style.width = B.w * S0 + 'px'; elB.style.height = B.h * S0 + 'px';
+    elO.style.left = (O.cx - O.w / 2) * S0 + 'px'; elO.style.top = (O.cy - O.h / 2) * S0 + 'px'; elO.style.width = O.w * S0 + 'px'; elO.style.height = O.h * S0 + 'px'; elO.style.transform = 'rotate(' + O.th + 'deg)';
+    const g = gaps(), cd = Math.hypot(O.cx - (B.x0 + B.w / 2), O.cy - (B.y0 + B.h / 2)), dir = Math.abs(O.cx - (B.x0 + B.w / 2)) >= Math.abs(O.cy - (B.y0 + B.h / 2)) ? (O.cx > B.x0 + B.w / 2 ? 'מימין' : 'משמאל') : (O.cy > B.y0 + B.h / 2 ? 'מתחת' : 'מעל');
+    let s = '';
+    /* קו הרווח בין הקצוות הקרובים */
+    if (!g.overlap) { const o = oBox(); let a2, b2;
+      if (g.gx >= g.gy) { const y = Math.max(Math.min((Math.max(o.y0, B.y0) + Math.min(o.y1, B.y0 + B.h)) / 2, Math.max(o.y1, B.y0 + B.h)), Math.min(o.y0, B.y0)); a2 = { x: o.x0 > B.x0 + B.w ? B.x0 + B.w : B.x0, y }; b2 = { x: o.x0 > B.x0 + B.w ? o.x0 : o.x1, y }; }
+      else { const x = (Math.max(o.x0, B.x0) + Math.min(o.x1, B.x0 + B.w)) / 2; a2 = { x, y: o.y0 > B.y0 + B.h ? B.y0 + B.h : B.y0 }; b2 = { x, y: o.y0 > B.y0 + B.h ? o.y0 : o.y1 }; }
+      const L = Math.hypot(b2.x - a2.x, b2.y - a2.y), mx = (a2.x + b2.x) / 2 * S0, my = (a2.y + b2.y) / 2 * S0;
+      s += '<line x1="' + a2.x * S0 + '" y1="' + a2.y * S0 + '" x2="' + b2.x * S0 + '" y2="' + b2.y * S0 + '" stroke="#c9502e" stroke-width="' + 2.5 / Z + '" stroke-dasharray="' + 8 / Z + ' ' + 5 / Z + '"/><rect x="' + (mx - 34 / Z) + '" y="' + (my - 12 / Z) + '" width="' + 68 / Z + '" height="' + 22 / Z + '" rx="' + 6 / Z + '" fill="#c9502e"/><text x="' + mx + '" y="' + (my + 4.5 / Z) + '" text-anchor="middle" font-size="' + 13 / Z + '" font-weight="800" fill="#fff">' + L.toFixed(1) + ' מ׳</text>'; }
+    if (line && line.a) { const a2 = line.a, b2 = line.b ? oToStage(line.b) : null;
+      s += '<circle cx="' + a2.x * S0 + '" cy="' + a2.y * S0 + '" r="' + 6 / Z + '" fill="#0f6e56" stroke="#fff" stroke-width="' + 2 / Z + '"/>';
+      if (b2) { const L = Math.hypot(b2.x - a2.x, b2.y - a2.y), mx = (a2.x + b2.x) / 2 * S0, my = (a2.y + b2.y) / 2 * S0;
+        s += '<line x1="' + a2.x * S0 + '" y1="' + a2.y * S0 + '" x2="' + b2.x * S0 + '" y2="' + b2.y * S0 + '" stroke="#0f6e56" stroke-width="' + 3 / Z + '"/><circle cx="' + b2.x * S0 + '" cy="' + b2.y * S0 + '" r="' + 6 / Z + '" fill="#0f6e56" stroke="#fff" stroke-width="' + 2 / Z + '"/><rect x="' + (mx - 34 / Z) + '" y="' + (my - 12 / Z) + '" width="' + 68 / Z + '" height="' + 22 / Z + '" rx="' + 6 / Z + '" fill="#0f6e56"/><text x="' + mx + '" y="' + (my + 4.5 / Z) + '" text-anchor="middle" font-size="' + 13 / Z + '" font-weight="800" fill="#fff">' + L.toFixed(1) + ' מ׳</text>'; } }
+    svg.innerHTML = s;
+    info.innerHTML = (g.overlap ? '<b style="color:#ffb199">התכניות חופפות</b>' : 'רווח בין התכניות: <b>' + g.gap.toFixed(1) + ' מ׳</b>') + '<br>מרכז מול מרכז: <b>' + cd.toFixed(1) + ' מ׳</b> · "' + esc(other.name) + '" ' + dir + '<br><span style="color:#aab;font-size:11.5px">' + esc(base.name) + ': ' + B.w.toFixed(1) + '×' + B.h.toFixed(1) + ' מ׳ · ' + esc(other.name) + ': ' + O.w.toFixed(1) + '×' + O.h.toFixed(1) + ' מ׳</span>';
+    if (document.activeElement !== q('[data-gap]')) q('[data-gap]').value = g.overlap ? 0 : +g.gap.toFixed(1);
+    if (document.activeElement !== q('[data-rot]')) q('[data-rot]').value = O.th;
+  };
+  const fit = () => { const o = oBox(), x0 = Math.min(B.x0, o.x0) - 3, y0 = Math.min(B.y0, o.y0) - 4, x1 = Math.max(B.x0 + B.w, o.x1) + 3, y1 = Math.max(B.y0 + B.h, o.y1) + 3; Z = Math.min(view.clientWidth / ((x1 - x0) * S0), view.clientHeight / ((y1 - y0) * S0)); pan.x = (view.clientWidth - (x1 - x0) * S0 * Z) / 2 - x0 * S0 * Z; pan.y = (view.clientHeight - (y1 - y0) * S0 * Z) / 2 - y0 * S0 * Z; };
+  const toM = e => { const r = view.getBoundingClientRect(); return { x: (e.clientX - r.left - pan.x) / (S0 * Z), y: (e.clientY - r.top - pan.y) / (S0 * Z) }; };
+  const inB = p => p.x >= B.x0 && p.x <= B.x0 + B.w && p.y >= B.y0 && p.y <= B.y0 + B.h;
+  const inO = p => { const l = stageToO(p); return Math.abs(l.x) <= O.w / 2 && Math.abs(l.y) <= O.h / 2; };
+  const setHint = t => { hint.style.display = t ? '' : 'none'; hint.textContent = t || ''; };
+  view.addEventListener('wheel', e => { e.preventDefault(); const r = view.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, f = e.deltaY < 0 ? 1.15 : 1 / 1.15, z2 = Math.max(0.05, Math.min(20, Z * f)); pan.x = mx - (mx - pan.x) * z2 / Z; pan.y = my - (my - pan.y) * z2 / Z; Z = z2; draw(); }, { passive: false });
+  view.addEventListener('pointerdown', e => {
+    if (e.button) return; const m = toM(e);
+    if (lineMode === 1) { if (!inB(m)) { uiToast('לחץ על נקודה בתוך "' + base.name + '"'); return; } line = { a: m }; lineMode = 2; setHint('📏 עכשיו לחץ על הנקודה המתאימה ב"' + other.name + '"'); draw(); return; }
+    if (lineMode === 2) { if (!inO(m)) { uiToast('לחץ על נקודה בתוך "' + other.name + '"'); return; } line.b = stageToO(m); lineMode = 0; setHint(''); draw();
+      const cur = Math.hypot(m.x - line.a.x, m.y - line.a.y);
+      const mo = uiModal('<b style="font-size:14px">📏 מה המרחק האמיתי בין שתי הנקודות?</b><p class="muted" style="font-size:12px;margin:6px 0 8px">כרגע בשרטוט: ' + cur.toFixed(1) + ' מ׳. "' + esc(other.name) + '" תזוז לאורך הקו עד שהמרחק יתאים.</p><div class="fld"><label>מרחק (מ׳)</label><input data-len type="number" step="0.1" min="0" value="' + cur.toFixed(1) + '"></div><div style="display:flex;gap:6px"><button class="primary" data-ok style="flex:1">החל</button><button data-c style="flex:1">השאר כמו שהוא</button></div>');
+      const inp = mo.querySelector('[data-len]'); setTimeout(() => { inp.focus(); inp.select(); }, 50);
+      const apply = () => { const L = +inp.value; mo.remove(); if (!(L >= 0)) return; const b2 = oToStage(line.b), d = Math.hypot(b2.x - line.a.x, b2.y - line.a.y) || 1, ux = (b2.x - line.a.x) / d, uy = (b2.y - line.a.y) / d; O.cx += ux * (L - d); O.cy += uy * (L - d); fit(); draw(); };
+      mo.querySelector('[data-ok]').onclick = apply; mo.querySelector('[data-c]').onclick = () => mo.remove(); inp.onkeydown = ev => { if (ev.key === 'Enter') apply(); };
+      return; }
+    const onO = inO(m), sx = e.clientX, sy = e.clientY, c0 = { x: O.cx, y: O.cy }, p0 = { x: pan.x, y: pan.y };
+    view.setPointerCapture(e.pointerId); view.style.cursor = onO ? 'move' : 'grabbing';
+    const mv = ev => { if (onO) { O.cx = c0.x + (ev.clientX - sx) / (S0 * Z); O.cy = c0.y + (ev.clientY - sy) / (S0 * Z); } else { pan.x = p0.x + ev.clientX - sx; pan.y = p0.y + ev.clientY - sy; } draw(); };
+    const up = () => { view.removeEventListener('pointermove', mv); view.removeEventListener('pointerup', up); view.removeEventListener('pointercancel', up); view.style.cursor = 'grab'; };
+    view.addEventListener('pointermove', mv); view.addEventListener('pointerup', up); view.addEventListener('pointercancel', up);
+  });
+  q('[data-gap]').onchange = e => { const v = Math.max(0, +e.target.value || 0), o = oBox(), bcx = B.x0 + B.w / 2, bcy = B.y0 + B.h / 2;
+    if (Math.abs(O.cx - bcx) >= Math.abs(O.cy - bcy)) O.cx = O.cx >= bcx ? B.x0 + B.w + v + (o.x1 - o.x0) / 2 : B.x0 - v - (o.x1 - o.x0) / 2;
+    else O.cy = O.cy >= bcy ? B.y0 + B.h + v + (o.y1 - o.y0) / 2 : B.y0 - v - (o.y1 - o.y0) / 2;
+    fit(); draw(); };
+  q('[data-rot]').onchange = e => { O.th = +e.target.value || 0; draw(); };
+  q('[data-r90]').onclick = () => { O.th = ((O.th + 90 + 180) % 360) - 180; draw(); };
+  q('[data-lv]').value = other.level ?? ''; q('[data-lv]').onchange = e => { level = e.target.value === '' ? null : +e.target.value; };
+  q('[data-line]').onclick = () => { line = null; lineMode = 1; setHint('📏 לחץ על נקודה ב"' + base.name + '" (פינה, עמוד, קצה קיר)'); draw(); };
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey, true); };
+  const onKey = e => { if (e.key === 'Escape' && !document.querySelector('.uimodal')) { if (lineMode) { lineMode = 0; line = null; setHint(''); draw(); } else close(); } };
+  document.addEventListener('keydown', onKey, true);
+  q('[data-x]').onclick = close;
+  q('[data-num]').onclick = () => { close(); sheetAlignManual(otherId, true); };
+  q('[data-ok]').onclick = () => {
+    /* מרכז האחרת בקנבס הנוכחי → עולם; rot = rot הבסיס + θ; org = W(c0) − R(rot)·s·p0 */
+    const c0 = { x: O.cx / base.scale, y: O.cy / base.scale }, w0 = sheetWorld(base, c0);
+    const rot = ((((base.rot || 0) + O.th) % 360) + 540) % 360 - 180, a = rot * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a), sx = p0.x * other.scale, sy = p0.y * other.scale;
+    other.org = { x: +(w0.x - (sx * c - sy * sn)).toFixed(3), y: +(w0.y - (sx * sn + sy * c)).toFixed(3) };
+    if (Math.abs(rot) > 0.01) other.rot = +rot.toFixed(2); else delete other.rot;
+    const g = gaps();
+    other.alignBy = 'מוקמה בגרירה ליד "' + base.name + '" · רווח ' + (g.overlap ? '0' : g.gap.toFixed(1)) + ' מ׳' + (other.rot ? ' · סיבוב ' + other.rot + '°' : '');
+    if (level !== undefined) other.level = level;
+    close(); save(); render(); uiToast('📐 נשמר: ' + other.alignBy, 5000); sheetAlignDlg();
+  };
+  fit(); draw();
+}
+/* יישור ידני: מרחק אווירי וכיוון מהתכנית הנוכחית (כששתי התכניות מכוילות — נפתח קודם המיקום הגרפי זו לצד זו) */
+function sheetAlignManual(otherId, typed) {
+  const base = curSheet(P), other = P.sheets.find(x => x.id === otherId);
+  if (!typed && base && other && base.scale && other.scale) return sheetAlignSide(otherId);
   if (window.__alignOv) window.__alignOv.remove();
   const ov = uiModal(`<b style="font-size:14px">↔ מרחק בין "${esc(base.name)}" ל"${esc(other.name)}"</b>
     <p style="font-size:12px;color:#555;margin:6px 0 8px">המרחק האווירי בין מרכזי התכניות, והכיוון שבו "${esc(other.name)}" נמצאת ביחס לנוכחית.</p>
