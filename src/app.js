@@ -1781,35 +1781,44 @@ function addNode(kind, rtype) {
   sel = id; ui.tab = 'node'; render();
   uiToast((kind === 'rack' ? '🗄 ארון חדש' : kind === 'panel' ? '🧩 פאנל חדש' : kind === 'power' ? '⚡ הכנת חשמל — בחר סוג שקע/סיקון ולחץ על החורים' : '📍 מוקד חדש') + ' נוסף במרכז המסך — גרור אותו למקום');
 }
-/* מחיקת מוקד — שלוש רמות: רק מהתצוגה בתכנית · מהתכנית ומהצעת המחיר · מהתכנית, מההצעה ומטבלת החיווט */
-async function delNode(id) {
-  const n0 = byId(id); if (!n0) return;
-  const cabs = (P.cables || []).filter(c => c.from === id || c.to === id), nc = cabs.length;
-  const iids = [n0.srcIid, ...(n0.units || []).map(u => u.srcIid)].filter(Boolean), inOffer = iids.some(i => impItems.some(x => x.iid === i));
+/* מחיקת מוקד/ים — שלוש רמות: רק מהתצוגה בתכנית · מהתכנית ומהצעת המחיר · מהתכנית, מההצעה ומטבלת החיווט.
+   אותו חלון למוקד בודד ולכמה מסומנים — עם פירוט מה נמחק. */
+async function delNodes(ids) {
+  const ns = [...ids].map(byId).filter(Boolean); if (!ns.length) return false;
+  const idSet = new Set(ns.map(n => n.id));
+  const nc = (P.cables || []).filter(c => idSet.has(c.from) || idSet.has(c.to)).length;
+  const iidsOf = n => [n.srcIid, ...(n.units || []).map(u => u.srcIid)].filter(Boolean);
+  const inOffer = ns.some(n => iidsOf(n).some(i => impItems.some(x => x.iid === i)));
+  const one = ns.length === 1;
+  const list = one ? '' : '<div style="max-height:150px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:5px 9px;margin:0 0 10px;font-size:12.5px;line-height:1.7">' + ns.map((n, i) => { const k = (P.cables || []).filter(c => c.from === n.id || c.to === n.id).length; return '<div><b>' + (i + 1) + '.</b> ' + esc((n.name || '').slice(0, 56)) + (k ? ' <span class="muted">· ' + (k === 1 ? 'כבל אחד' : k + ' כבלים') + '</span>' : '') + '</div>'; }).join('') + '</div>';
   const mode = await new Promise(res => {
     const ov = uiModal(`
-      <p style="font-size:14px;font-weight:800;margin:0 0 4px">מחיקת "${esc((n0.name || '').slice(0, 60))}"</p>
-      <p class="muted" style="font-size:12px;margin:0 0 12px">${nc === 1 ? 'למוקד מחובר כבל אחד בטבלת החיווט.' : nc ? 'למוקד מחוברים ' + nc + ' כבלים בטבלת החיווט.' : 'אין כבלים מחוברים למוקד.'}${inOffer ? ' הוא מופיע בהצעת המחיר.' : ''}</p>
-      <button data-m="hide" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🙈 מהתצוגה בתכנית בלבד</b><br><span class="muted" style="font-size:11.5px">המוקד מוסתר מהתכנית. נשאר בהצעת המחיר${nc ? ' ובטבלת החיווט' : ''}.</span></button>
-      ${inOffer ? `<button data-m="offer" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🧾 מהתכנית + מהצעת המחיר</b><br><span class="muted" style="font-size:11.5px">מוסתר מהתכנית, והכמות בהצעה יורדת ב-1${nc ? '. הקווים נשארים בטבלת החיווט' : ''}.</span></button>` : ''}
-      <button class="primary" data-m="all" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4;background:#c1121f"><b>🗑 מהתכנית${inOffer ? ', מההצעה' : ''} ומטבלת החיווט</b><br><span style="font-size:11.5px;opacity:.9">המוקד נמחק לגמרי${nc ? ' יחד עם ' + (nc === 1 ? 'הכבל שלו' : nc + ' הכבלים שלו') : ''}${inOffer ? ', והכמות בהצעה יורדת ב-1' : ''}.</span></button>
+      <p style="font-size:14px;font-weight:800;margin:0 0 4px">${one ? 'מחיקת "' + esc((ns[0].name || '').slice(0, 60)) + '"' : 'מחיקת ' + ns.length + ' מוקדים מסומנים'}</p>
+      <p class="muted" style="font-size:12px;margin:0 0 ${one ? 12 : 6}px">${nc === 1 ? 'מחובר כבל אחד בטבלת החיווט.' : nc ? 'מחוברים ' + nc + ' כבלים בטבלת החיווט.' : 'אין כבלים מחוברים.'}${inOffer ? (one ? ' הוא מופיע בהצעת המחיר.' : ' הם מופיעים בהצעת המחיר.') : ''}</p>
+      ${list}
+      <button data-m="hide" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🙈 מהתצוגה בתכנית בלבד</b><br><span class="muted" style="font-size:11.5px">${one ? 'המוקד מוסתר' : 'המוקדים מוסתרים'} מהתכנית. ${one ? 'נשאר' : 'נשארים'} בהצעת המחיר${nc ? ' ובטבלת החיווט' : ''}.</span></button>
+      ${inOffer ? `<button data-m="offer" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🧾 מהתכנית + מהצעת המחיר</b><br><span class="muted" style="font-size:11.5px">${one ? 'מוסתר' : 'מוסתרים'} מהתכנית, והכמות בהצעה יורדת ${one ? 'ב-1' : 'בהתאם'}${nc ? '. הקווים נשארים בטבלת החיווט' : ''}.</span></button>` : ''}
+      <button class="primary" data-m="all" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4;background:#c1121f"><b>🗑 מהתכנית${inOffer ? ', מההצעה' : ''} ומטבלת החיווט</b><br><span style="font-size:11.5px;opacity:.9">${one ? 'המוקד נמחק' : 'המוקדים נמחקים'} לגמרי${nc ? ' יחד עם ' + (nc === 1 ? 'הכבל' : nc + ' הכבלים') : ''}${inOffer ? ', והכמות בהצעה יורדת' : ''}.</span></button>
       <button data-m="" style="width:100%">ביטול</button>`);
     const done = v => { ov.remove(); res(v); };
     ov.querySelectorAll('[data-m]').forEach(bt => bt.onclick = () => done(bt.dataset.m));
     ov.addEventListener('click', e => { if (e.target === ov) done(''); });
   });
-  if (!mode) return;
-  const n = byId(id); if (!n) return;
+  if (!mode) return false;
   /* הורדת הפריט מהצעת המחיר: כמות −1 (וגם "בתכנית" −1); שורה שהגיעה ל-0 נמחקת */
   const offerDec = iid => { const it = impItems.find(x => x.iid === iid); if (!it) return; it.qty = Math.max(0, (+it.qty || 0) - 1); it.placed = Math.max(0, (it.placed || 0) - 1); if (it.placed < it.qty) it.added = false; if (!it.qty) impItems = impItems.filter(x => x !== it); };
-  if (mode === 'hide') { n.hidden = true; if (sel === id) sel = null; save(); render(); uiToast('🙈 המוקד הוסתר מהתכנית — נשאר בהצעה' + (nc ? ' ובחיווט' : '') + ' · מחזירים אותו מ"תצוגה"', 5000); return; }
-  if (mode === 'offer') { iids.forEach(offerDec); n.srcIid = undefined; (n.units || []).forEach(u => { u.srcIid = undefined; }); n.hidden = true; if (sel === id) sel = null; save(); render(); uiToast('🧾 המוקד הוסתר מהתכנית והורד מהצעת המחיר' + (nc ? ' — הקווים נשארו בטבלת החיווט' : ''), 5000); return; }
-  iids.forEach(offerDec);
-  P.nodes = P.nodes.filter(x => x.id !== id);
-  P.cables = P.cables.filter(c => c.from !== id && c.to !== id);
-  if (sel === id) sel = null;
+  const live = ns.map(n => byId(n.id)).filter(Boolean), k = live.length;
+  if (mode === 'hide') live.forEach(n => { n.hidden = true; });
+  else if (mode === 'offer') live.forEach(n => { iidsOf(n).forEach(offerDec); n.srcIid = undefined; (n.units || []).forEach(u => { u.srcIid = undefined; }); n.hidden = true; });
+  else { live.forEach(n => iidsOf(n).forEach(offerDec)); P.nodes = P.nodes.filter(x => !idSet.has(x.id)); P.cables = P.cables.filter(c => !idSet.has(c.from) && !idSet.has(c.to)); }
+  if (sel && idSet.has(sel)) sel = null;
+  if (typeof selMulti !== 'undefined') selMulti.clear();
+  const mb = document.getElementById('multiBar'); if (mb) mb.remove();
   save(); render();
+  uiToast(mode === 'hide' ? '🙈 ' + k + ' הוסתרו מהתכנית — נשארו בהצעה' + (nc ? ' ובחיווט' : '') + ' · מחזירים מ"תצוגה"' : mode === 'offer' ? '🧾 ' + k + ' הוסתרו מהתכנית והורדו מהצעת המחיר' + (nc ? ' — הקווים נשארו בטבלת החיווט' : '') : '🗑 ' + k + ' נמחקו' + (nc ? ' יחד עם ' + nc + ' כבלים' : ''), 5000);
+  return true;
 }
+function delNode(id) { return delNodes([id]); }
 
 /* ---- units with explicit rack position ---- */
 function fits(rack, pos, u, skipIdx) {
@@ -3787,7 +3796,7 @@ function renderNodes() {
         window.__chainLoad = window.__chainLoad || null;
         const RZ = (n.uz || 1);
         const GAPV = 26 * RZ, ROWMIN = 96 * RZ, yTop = 14;
-        const sortedU = n.units.slice().sort((a, b) => a.pos - b.pos);
+        const sortedU = n.units.filter(u0 => !u0.rearHide).sort((a, b) => a.pos - b.pos);   /* יחידה שהוסתרה מתצוגת הגב (🙈) לא מצוירת כאן */
         let yCur = yTop;
         for (const u of sortedU) {
           const items = rearPortsAuto(rearLayout(u.name));
@@ -4658,13 +4667,7 @@ document.addEventListener('keydown', e => {
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     if (selMulti.size) {
-      uiConfirm('למחוק ' + selMulti.size + ' רמקולים/מוקדים מסומנים?').then(ok => {
-        if (!ok) return;
-        [...selMulti].forEach(id => { const n = byId(id); if (n && n.srcIid) unplace(n.srcIid); });
-        P.nodes = P.nodes.filter(n => !selMulti.has(n.id));
-        P.cables = P.cables.filter(c => byId(c.from) && byId(c.to));
-        selMulti.clear(); sel = null; render(); save();
-      });
+      delNodes([...selMulti]);
       e.preventDefault(); return;
     }
     if (selCable) { delCable(selCable); e.preventDefault(); return; }
@@ -5907,7 +5910,7 @@ function showMultiBar() {
   bar.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:70;background:#1a1e28;color:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 6px 24px rgba(0,0,0,.4);display:flex;gap:10px;align-items:center;direction:rtl';
   bar.innerHTML = `<b style="font-size:13px">${selMulti.size} מסומנים</b>
     ${spk.length >= 2 ? `<button style="background:#0f6e56;color:#fff;font-weight:700;padding:6px 12px;border-radius:8px" onclick="chainSelectedToAmp()">🔗 שרשר ${spk.length} רמקולים למגבר</button>` : ''}
-    <button style="background:#f3d9d2;color:#8c2f16;padding:6px 12px;border-radius:8px" onclick="uiConfirm('למחוק ${selMulti.size} מסומנים?').then(ok=>{if(!ok)return;[...selMulti].forEach(id=>{const n=byId(id);if(n&&n.srcIid)unplace(n.srcIid)});P.nodes=P.nodes.filter(n=>!selMulti.has(n.id));P.cables=P.cables.filter(c=>byId(c.from)&&byId(c.to));selMulti.clear();render();save();document.getElementById('multiBar').remove();})">🗑 מחק</button>
+    <button style="background:#f3d9d2;color:#8c2f16;padding:6px 12px;border-radius:8px" onclick="delNodes([...selMulti])">🗑 מחק</button>
     <button style="background:#3a4152;color:#fff;padding:6px 10px;border-radius:8px" onclick="selMulti.clear();render();document.getElementById('multiBar').remove()">✕</button>`;
   document.body.appendChild(bar);
 }
@@ -6475,6 +6478,39 @@ function patchChip(id, ro, nObj) {
 }
 /* 🌉 Bridge — גישור זוג ערוצים ליציאה אחת חזקה: הספק ≈ ×2 מהערוץ בחצי העומס,
    אום מינימלי ×2. תואם לנתונים הרשמיים (DYNAMIQ 450: ‏2×450W@4Ω → ‏900W@8Ω גשר). */
+/* 🗑 מחיקת מגבר מעורך החיווט: רק מתצוגת גב הארון · מהארון (נשאר בהצעה) · מהארון וגם מהצעת המחיר */
+function patchAmpRearShow(ai) { const a = PATCH && PATCH.amps[ai]; if (!a) return; delete a.u.rearHide; save(); render(); patchRender(); }
+async function patchDelAmp(ai) {
+  const a = PATCH && PATCH.amps[ai]; if (!a) return;
+  const u = a.u, rk = a.rk, zid = PATCH.zid;
+  const cabs = (P.cables || []).filter(c => (c.from === rk.id && c.fromUnit === u.id) || (c.to === rk.id && c.toUnit === u.id) || (c.bands || []).some(bd => bd.unitId === u.id));
+  const nSpk = cabs.filter(c => !c.internal && c.from !== c.to).length;
+  const sm = shortModel(u.name), same = it => { const a2 = it.name || '', b2 = u.name || ''; return a2 === b2 || a2.startsWith(b2) || b2.startsWith(a2) || (sm && shortModel(a2) === sm); };
+  const it = (u.srcIid && impItems.find(x => x.iid === u.srcIid)) || impItems.find(x => x.dest === 'unit' && same(x));
+  const mode = await new Promise(res => {
+    const ov = uiModal(`
+      <p style="font-size:14px;font-weight:800;margin:0 0 4px">מחיקת המגבר "${esc((u.name || '').slice(0, 56))}"</p>
+      <p class="muted" style="font-size:12px;margin:0 0 12px">${esc(rk.name)}${nSpk ? ' · מחוברים אליו ' + nSpk + ' קווי רמקול' : ' · אין קווי רמקול מחוברים'}${it ? ' · בהצעת המחיר: ' + (+it.qty || 1) + ' יח׳' : ' · לא נמצא בהצעת המחיר'}</p>
+      <button data-m="rear" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🙈 רק מתצוגת גב הארון</b><br><span class="muted" style="font-size:11.5px">המגבר נשאר בארון, בחיווט ובהצעה — רק לא מוצג בגב הארון.</span></button>
+      <button data-m="rack" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🗄 מהארון בלבד</b><br><span class="muted" style="font-size:11.5px">יוצא מהארון${nSpk ? ', ' + nSpk + ' קווי הרמקול שלו חוזרים ל"ממתינים"' : ''}. נשאר בהצעת המחיר (להצבה מחדש).</span></button>
+      ${it ? `<button class="primary" data-m="offer" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4;background:#c1121f"><b>🗑 מהארון וגם מהצעת המחיר</b><br><span style="font-size:11.5px;opacity:.9">יוצא מהארון${nSpk ? ', הקווים חוזרים ל"ממתינים"' : ''}, והכמות בהצעה יורדת ב-1.</span></button>` : ''}
+      <button data-m="" style="width:100%">ביטול</button>`);
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelectorAll('[data-m]').forEach(bt => bt.onclick = () => done(bt.dataset.m));
+    ov.addEventListener('click', e => { if (e.target === ov) done(''); });
+  });
+  if (!mode) return;
+  if (mode === 'rear') { u.rearHide = true; save(); render(); patchRender(); uiToast('🙈 המגבר מוסתר בתצוגת גב הארון — נשאר בארון, בחיווט ובהצעה', 5000); return; }
+  const del = new Set(cabs.map(c => c.id));
+  P.cables = P.cables.filter(c => !del.has(c.id));
+  const R = rk.proxy ? (proxyReal(rk) || {}).n || rk : rk;
+  R.units = (R.units || []).filter(x => x.id !== u.id);
+  if (it) { if (mode === 'offer') { it.qty = Math.max(0, (+it.qty || 1) - 1); it.placed = Math.max(0, (it.placed || 1) - 1); if (!it.qty) impItems = impItems.filter(x => x !== it); else if (it.placed < it.qty) it.added = false; } else { it.placed = Math.max(0, (it.placed || 1) - 1); if (it.placed < it.qty) it.added = false; } }
+  try { rackArrange(R); } catch (e) {}
+  patchClose(); save(); render();
+  uiToast('🗑 ' + (sm || 'המגבר') + ' הוסר מהארון' + (mode === 'offer' ? ' ומהצעת המחיר' : ' — נשאר בהצעה') + (nSpk ? ' · ' + nSpk + ' רמקולים חזרו לממתינים' : ''), 5000);
+  if (zid && typeof smartWire === 'function') setTimeout(() => smartWire(zid), 250);
+}
 function patchBridge(ai) {
   const a = PATCH.amps[ai];
   a.bridge = !a.bridge;
@@ -6600,7 +6636,9 @@ function patchRender() {
           <input type="number" min="1" max="16" value="${a.chTotal}" title="מספר ערוצי המגבר — ניתן לתיקון, נשמר לדגם" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchAmpSet(${ai},'ch',this.value)"> ערוצים ·
           מינ׳ <input type="number" min="1" max="16" step="0.1" value="${a.minOhm}" title="אום מינימלי לערוץ (סטריאו) — ניתן לתיקון, נשמר לדגם" style="width:38px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchAmpSet(${ai},'mo',this.value)">Ω ·
           ${esc(a.rk.name.slice(0, 14))} ·
-          <button onclick="patchBridge(${ai})" title="Bridge — גישור כל זוג ערוצים ליציאה אחת: הספק ×2, אום מינימלי ×2 (${a.minOhm * 2}Ω)" style="font-size:10.5px;padding:1px 7px;border-radius:7px;border:1px solid ${a.bridge ? '#6c5ce7' : '#ddd'};background:${a.bridge ? '#6c5ce7' : '#fff'};color:${a.bridge ? '#fff' : '#666'};cursor:pointer;font-weight:700">🌉 Bridge${a.bridge ? ' ✓' : ''}</button></small></div>${chs.join('')}</div>`;
+          <button onclick="patchBridge(${ai})" title="Bridge — גישור כל זוג ערוצים ליציאה אחת: הספק ×2, אום מינימלי ×2 (${a.minOhm * 2}Ω)" style="font-size:10.5px;padding:1px 7px;border-radius:7px;border:1px solid ${a.bridge ? '#6c5ce7' : '#ddd'};background:${a.bridge ? '#6c5ce7' : '#fff'};color:${a.bridge ? '#fff' : '#666'};cursor:pointer;font-weight:700">🌉 Bridge${a.bridge ? ' ✓' : ''}</button>
+          ${a.u.rearHide ? `<button onclick="patchAmpRearShow(${ai})" title="המגבר מוסתר בתצוגת גב הארון — החזר" style="font-size:10.5px;padding:1px 7px;border-radius:7px;border:1px solid #c96a13;background:#fff3e6;color:#8a4b00;cursor:pointer">👁 מוסתר בגב — החזר</button>` : ''}
+          <button onclick="patchDelAmp(${ai})" title="מחק את המגבר — מהארון, מתצוגת הגב בלבד, או גם מהצעת המחיר" style="font-size:10.5px;padding:1px 7px;border-radius:7px;border:1px solid #e3b0b0;background:#fdf0f0;color:#c1121f;cursor:pointer">🗑</button></small></div>${chs.join('')}</div>`;
   }).join('');
   /* אומדן מחברים: כל קו = 2 קצוות (ספיקון / XLR-RCA לסאב אקטיבי) — מאושר כאן לפני החיבור */
   let estCables = 0;
