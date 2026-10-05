@@ -1005,6 +1005,8 @@ function sheetsView3D() {
       <label style="display:flex;gap:4px;align-items:center">זווית <input id="v3dA" type="range" min="10" max="60" value="30" style="width:110px"></label>
       <label style="display:flex;gap:4px;align-items:center">מרווח מפלסים <input id="v3dZ" type="range" min="4" max="60" value="16" style="width:110px"></label>
       <label style="display:flex;gap:4px;align-items:center"><input id="v3dImg" type="checkbox" checked style="width:auto"> תכניות רקע</label>
+      <button id="v3dSave" style="padding:6px 14px;border-radius:8px;border:none;cursor:pointer;background:#0f6e56;color:#fff;font-weight:800">💾 שמור מיקום התכניות</button>
+      <button id="v3dUndo" style="padding:5px 12px;border-radius:8px;border:none;cursor:pointer" title="מחזיר את כל התכניות למיקום, לסיבוב, למפלס ולקנה המידה שהיו כשהמסך נפתח">↩ בטל שינויים</button>
       <button id="v3dX" style="padding:5px 12px;border-radius:8px;border:none;cursor:pointer">✕ סגור</button></div>
     <div style="display:flex;gap:8px;align-items:center;color:#fff;font-size:12.5px;flex-wrap:wrap;justify-content:center">
       <span style="background:#2d3444;border-radius:8px;padding:3px 10px">🖱 גרור תכנית = הזזה במקום · Shift+גרירה או גרירת התווית השחורה = שינוי מפלס · חצים = הזזה עדינה של התכנית המסומנת</span>
@@ -1020,7 +1022,13 @@ function sheetsView3D() {
       <span id="v3dInfo" style="color:#ffd58a;font-weight:700"></span></div>
     <div id="v3dBox" style="flex:1;width:min(1300px,98vw);background:#fff;border-radius:12px;overflow:hidden"></div>`;
   document.body.appendChild(ov);
-  ov.querySelector('#v3dX').onclick = () => ov.remove();
+  /* מצב התכניות בפתיחת המסך — ל"בטל שינויים" */
+  const snap0 = shs.map(sh => ({ sh, org: sh.org ? { ...sh.org } : undefined, rot: sh.rot, level: sh.level, scale: sh.scale, alignBy: sh.alignBy }));
+  const dirty = () => snap0.some(q => JSON.stringify(q.org) !== JSON.stringify(q.sh.org) || q.rot !== q.sh.rot || q.level !== q.sh.level || q.scale !== q.sh.scale);
+  ov.querySelector('#v3dSave').onclick = () => { save(); if (typeof pushSrv === 'function') { try { pushSrv(); } catch (e) {} } snap0.forEach(q => { q.org = q.sh.org ? { ...q.sh.org } : undefined; q.rot = q.sh.rot; q.level = q.sh.level; q.scale = q.sh.scale; q.alignBy = q.sh.alignBy; }); render();
+    uiToast('💾 מיקום התכניות נשמר: ' + shs.map(sh => sh.name + ' (מפלס ' + (sh.level ?? 0) + ' מ׳' + (sh.rot ? ', סיבוב ' + sh.rot + '°' : '') + ')').join(' · '), 6000); };
+  ov.querySelector('#v3dUndo').onclick = () => { if (!dirty()) { uiToast('אין שינויים לביטול'); return; } snap0.forEach(q => { if (q.org) q.sh.org = { ...q.org }; else delete q.sh.org; if (q.rot != null) q.sh.rot = q.rot; else delete q.sh.rot; q.sh.level = q.level; if (q.sh.id === P.curSheet) P.scale = q.scale; q.sh.scale = q.scale; if (q.alignBy) q.sh.alignBy = q.alignBy; else delete q.sh.alignBy; }); save(); paint(); uiToast('↩ התכניות חזרו למצב שהיה בפתיחת המסך'); };
+  ov.querySelector('#v3dX').onclick = () => { save(); ov.remove(); render(); };
   /* מיקום התכניות ישירות במבט התלת־ממדי: גרירה = הזזה אופקית (org), Shift/תווית = מפלס (level) */
   let selSh = null, frozenVb = null, lastK = 1, lastA = { cos: 1, sin: 1, z: 16 };
   let vz = 1, vpx = 0, vpy = 0, pickMode = 0, pick = null;
