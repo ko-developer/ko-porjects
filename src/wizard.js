@@ -5,11 +5,20 @@
    =================================================================================== */
 let WIZ = null; /* { step } */
 
+/* סדר השלבים: תכנית → כיול → יישור תכניות (כשיש יותר מאחת) → אזור → מערכת → חיווט רמקולים → קיט התקנה →
+   מקורות וגב הארון (אחרי הקיט — הוא מביא את הקופסאות, הפנלים והמחברים שאליהם מחווטים) → בדיקת שלמות → הצעה → דוח */
 const WIZ_STEPS = [
-  ['plan', '🖼 תכנית'], ['cal', '📏 כיול'], ['zone', '🗺 אזור'],
-  ['sys', '🔊 מערכת'], ['wire', '🔌 חיווט'], ['kit', '🧰 קיט התקנה'],
+  ['plan', '🖼 תכנית'], ['cal', '📏 כיול'], ['align', '📐 יישור תכניות'], ['zone', '🗺 אזור'],
+  ['sys', '🔊 מערכת'], ['wire', '🔌 חיווט רמקולים'], ['kit', '🧰 קיט התקנה'], ['src', '🎚 מקורות וגב ארון'],
   ['gap', '🤔 שכחתי משהו?'], ['offer', '🧾 הצעה'], ['report', '📑 דוח']
 ];
+const WS = k => WIZ_STEPS.findIndex(x => x[0] === k);   /* מספר השלב לפי שמו — לא מקודדים מספרים */
+const wizMultiSheet = () => (P.sheets || []).length > 1;
+/* מיושר = לכל תכנית יש מיקום, חוץ מאחת לכל היותר (היא נקודת הייחוס שנשארת בראשית) */
+const wizAlignDone = () => { const shs = P.sheets || []; return shs.length < 2 || !!P._alignOk || shs.filter(sh => !sh.org).length <= 1; };
+/* כבלים שמגיעים לארון ועוד לא חוברו למחבר של מכשיר — בכל הארונות */
+function wizRackUnwired() { let n = 0; if (typeof rackCabUnwired !== 'function') return 0; (P.nodes || []).filter(x => x.kind === 'rack').forEach(rk => (P.cables || []).forEach(c => { if ((c.from === rk.id || c.to === rk.id) && rackCabUnwired(rk, c)) n++; })); return n; }
+const wizSrcDone = () => !!P._srcOk || ((typeof srcUnwired === 'function' ? srcUnwired() : 0) === 0 && wizRackUnwired() === 0 && (P.nodes || []).some(x => x.kind === 'rack'));
 /* מצב חיווט של אזור: כמה רמקולים ניזונים מקו */
 function wizWireStat(z) {
   const fed = new Set(); P.cables.forEach(c => { if (c.to) fed.add(c.to); });
@@ -63,21 +72,23 @@ function wizClose() { WIZ = null; clearInterval(window.__wizT); const w = docume
 function wizHasSketch() { const sk = P.sketch || {}; return ((sk.walls || []).length + (sk.objs || []).length) > 0; }
 function wizHasPlan() { return !!(P.hasBg || P.hasPdf || P.bg || wizHasSketch()); }
 function wizAutoStep() {
-  if (!wizHasPlan()) return 0;
-  if (!P.scale) return 1;
-  if (!(P.zones || []).length) return 2;
-  if (!(P.zones || []).every(z => z._built)) return 3;
-  if ((P.zones || []).some(z => { const w = wizWireStat(z); return w.tot && w.fed < w.tot; })) return 4;
-  if (!P._instKit) return 5;
-  if (!P._gapOk) return 6;
-  return 7;
+  if (!wizHasPlan()) return WS('plan');
+  if (!P.scale) return WS('cal');
+  if (!wizAlignDone()) return WS('align');
+  if (!(P.zones || []).length) return WS('zone');
+  if (!(P.zones || []).every(z => z._built)) return WS('sys');
+  if ((P.zones || []).some(z => { const w = wizWireStat(z); return w.tot && w.fed < w.tot; })) return WS('wire');
+  if (!P._instKit) return WS('kit');
+  if (!wizSrcDone()) return WS('src');
+  if (!P._gapOk) return WS('gap');
+  return WS('offer');
 }
 function wizZone() { return (P.zones || []).find(z => z.id === WIZ?.zid) || (P.zones || [])[0]; }
 function wizDone(i) {
   const zs = P.zones || [];
   const allBuilt = zs.length > 0 && zs.every(z => z._built);
   const allWired = zs.length > 0 && zs.every(z => { const w = wizWireStat(z); return !w.tot || w.fed >= w.tot; }) && zs.some(z => wizWireStat(z).tot);
-  return [wizHasPlan(), !!P.scale, zs.some(z => !z.prop), allBuilt, allWired, !!P._instKit, !!P._gapOk, impItems.length > 0, false][i];
+  return ({ plan: wizHasPlan(), cal: !!P.scale, align: wizAlignDone(), zone: zs.some(z => !z.prop), sys: allBuilt, wire: allWired, kit: !!P._instKit, src: !!P._instKit && wizSrcDone(), gap: !!P._gapOk, offer: impItems.length > 0, report: false })[WIZ_STEPS[i][0]];
 }
 function wizRefreshBadges() {
   document.querySelectorAll('#wiz .wzstep').forEach((el, i) => el.classList.toggle('done', wizDone(i) && i !== WIZ.step));
@@ -97,8 +108,8 @@ function wizRender() {
     <div class="wzsteps">${steps}</div>
     <div class="wzbody" id="wizBody">${wizStepHTML(WIZ.step)}</div>
     <div class="wzfoot">
-      <button onclick="WIZ.step=Math.max(0,WIZ.step-1);wizRender()" ${WIZ.step === 0 ? 'disabled' : ''}>▶ הקודם</button>
-      <button class="nx" onclick="wizNext()" ${WIZ.step === WIZ_STEPS.length - 1 ? 'disabled' : ''} ${WIZ.step === 2 && (!(P.zones || []).some(z => !z.prop) || (P.zones || []).some(z => z.prop)) ? 'style="opacity:.45" title="קודם סמן אזור (או אשר אזור מוצע)"' : ''}>הבא ◀</button>
+      <button onclick="wizPrev()" ${WIZ.step === 0 ? 'disabled' : ''}>▶ הקודם</button>
+      <button class="nx" onclick="wizNext()" ${WIZ.step === WIZ_STEPS.length - 1 ? 'disabled' : ''} ${WIZ.step === WS('zone') && (!(P.zones || []).some(z => !z.prop) || (P.zones || []).some(z => z.prop)) ? 'style="opacity:.45" title="קודם סמן אזור (או אשר אזור מוצע)"' : ''}>הבא ◀</button>
     </div>`;
   document.body.appendChild(w);
   /* חלון צף — נגרר מהכותרת והמיקום נשמר */
@@ -123,14 +134,16 @@ function wizRender() {
 }
 
 function wizStepHTML(s) {
-  const z = wizZone();
-  if (s === 0) return `
+  const z = wizZone(), k = WIZ_STEPS[s][0];
+  if (k === 'align') return wizAlignHTML();
+  if (k === 'src') return wizSrcStepHTML();
+  if (k === 'plan') return `
     <h4>העלאת תכנית</h4>
     <p class="hint">גרור/בחר צילום או PDF-תמונה של התכנית. אפשר גם להמשיך עם התכנית הקיימת.</p>
     ${wizHasPlan() ? `<button class="sec done" onclick="wizNext()">✓ ${P.hasBg || P.hasPdf || P.bg ? 'יש תכנית בפרויקט' : 'יש שרטוט בפרויקט — הוא התכנית'} — אפשר להמשיך</button>` : ''}
     <input type="file" accept="image/*,application/pdf,.pdf,.dxf,.dwg" onchange="wizUploadBg(this)">
     <button class="sec" onclick="wizNewProject()">🗂 התחל פרויקט חדש נקי</button>`;
-  if (s === 1) {
+  if (k === 'cal') {
     const curW = P.scale ? P.bgW * P.scale : 0;
     const odd = curW && (curW < 4 || curW > 200);
     return `
@@ -146,7 +159,7 @@ function wizStepHTML(s) {
       : `<p class="hint">כייל בשתי לחיצות על מידה ידועה בתכנית — קיר, פתח או מידה מודפסת (מידות בתכנית בנייה בד"כ במ״מ: 23700 = 23.7 מ׳).</p>`}
     <button class="big" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
   }
-  if (s === 2) {
+  if (k === 'zone') {
     const usages2 = typeof USAGES !== 'undefined' ? USAGES : [];
     return `
     <h4>סימון אזור סאונד</h4>
@@ -179,7 +192,7 @@ function wizStepHTML(s) {
     ${wizPropHTML()}
     <button class="sec" onclick="ptPartition()" title="חלוקה אוטומטית של החלל לאזורים לפי הקירות והכיתובים (אחרי קריאת הכיתובים)">🧩 חלק את כל החלל לאזורים</button>`;
   }
-  if (s === 3) {
+  if (k === 'sys') {
     if (!z) return '<p class="hint">קודם סמן אזור בשלב הקודם.</p>';
     const usages = typeof USAGES !== 'undefined' ? USAGES : [];
     return `
@@ -198,7 +211,7 @@ function wizStepHTML(s) {
     ${z._built ? `<button class="sec" onclick="wizBuildAll(true)">🔄 בנה מחדש מאפס — מחליף את המערכת הקיימת</button>` : ''}
     ${z._built ? wizPlacementsHTML(z) : ''}`;
   }
-  if (s === 4) {
+  if (k === 'wire') {
     const zs = (P.zones || []).filter(zz => zz._built || wizWireStat(zz).tot);
     const allOk = zs.length && zs.every(zz => { const w2 = wizWireStat(zz); return !w2.tot || w2.fed >= w2.tot; });
     return `
@@ -206,23 +219,23 @@ function wizStepHTML(s) {
     <p class="hint">לכל אזור: טבלת הניתוב מציגה ערוצים, אום, יחס הספק, דיליי ו-Bridge. אשר "חבר" בכל אזור — ורק אז ממשיכים לקיט ההתקנה.</p>
     ${zs.map(zz => { const w2 = wizWireStat(zz); const ok = w2.tot && w2.fed >= w2.tot;
       return `<button class="sec ${ok ? 'done' : ''}" onclick="wizEnsureMic('${zz.id}');window.__patchDone=wizWireStepDone;smartWire('${zz.id}')">${ok ? '✓' : '🔌'} ${esc(zz.name)} — ${w2.fed}/${w2.tot} רמקולים מחווטים${ok ? '' : ' · פתח לאישור'}</button>`; }).join('') || '<p class="hint">אין עדיין אזורים בנויים — חזור לשלב המערכת.</p>'}
-    ${allOk ? '<button class="big" style="background:#0f6e56" onclick="WIZ.step=5;wizRender()">✓ הכל מחווט — המשך לקיט ההתקנה</button>' : ''}`;
+    ${allOk ? '<button class="big" style="background:#0f6e56" onclick="WIZ.step=WS(\'kit\');wizRender()">✓ הכל מחווט — המשך לקיט ההתקנה</button>' : ''}`;
   }
-  if (s === 5) {
+  if (k === 'kit') {
     const kits = installKitList();
     return `
     <h4>קיט התקנה לפרויקט</h4>
     <p class="hint">קיטי התשתית שסוגרים את הפרויקט — עמדה, ארון, מולטי, פנלים ומחברים. הכמויות ניתנות לעריכה לפני ההוספה.</p>
     ${kits.map(x => `<button class="sec" onclick="P._instKit=1;save();zoneKitConfirm('${jsq((z || {}).name || '')}',${x.i});wizRender()">🧰 ${esc((x.k.name + (kitStdDiff(x.k) ? ' — ' + kitStdName(x.k) : '')).slice(0, 70))} · ${(x.k.items || []).length} פריטים</button>`).join('') || '<p class="hint">אין קיטי התקנה בקטלוג</p>'}
-    ${P._instKit ? '<button class="sec done">✓ נבחר קיט התקנה</button>' : `<button class="sec" onclick="P._instKit=1;save();WIZ.step=6;wizRender()">דלג — בלי קיט</button>`}
+    ${P._instKit ? '<button class="sec done" onclick="WIZ.step=WS(\'src\');wizRender()">✓ נבחר קיט התקנה — המשך לחיווט המקורות וגב הארון</button>' : `<button class="sec" onclick="P._instKit=1;save();WIZ.step=WS('src');wizRender()">דלג — בלי קיט</button>`}
     <button class="big" onclick="installManager()">🔧 טבלת התקנה ותמחור (זמנים ומחירים)</button>`;
   }
-  if (s === 6) return `
+  if (k === 'gap') return `
     <h4>האם שכחתי משהו?</h4>
     <p class="hint">סריקה אוטומטית של התכנית מול ההצעה: חיווט, גלילי כבל, מחברים, תושבות, פס שקעים, שורת התקנה ומק"טים. כל ממצא — או שמתקנים אותו בלחיצה, או מסמנים ✓ "לקחתי בחשבון" וממשיכים.</p>
     <button class="big" onclick="projGapCheck();setTimeout(wizRender,300)">🤔 הרץ בדיקת שלמות</button>
     ${P._gapOk ? '<button class="sec done">✓ אין ממצאים פתוחים — אפשר להמשיך להצעה</button>' : ''}`;
-  if (s === 7) {
+  if (k === 'offer') {
     const rows = impItems.filter(it => it.on !== false);
     const total = rows.reduce((s2, it) => s2 + (+it.price || 0) * (+it.qty || 0), 0);
     const noKey = rows.filter(it => !it.key).length;
@@ -248,6 +261,48 @@ function wizStepHTML(s) {
     <button class="sec" onclick="window.print()">🖨 הדפסת התכנית והמפתח (הקיים)</button>`;
 }
 
+/* ---- 📐 שלב יישור התכניות (קומות / מבנים / שרטוטים נוספים) ---- */
+function wizAlignHTML() {
+  const shs = P.sheets || [], cur = typeof curSheet === 'function' ? curSheet(P) : null;
+  if (shs.length < 2) return `
+    <h4>יישור תכניות</h4>
+    <p class="hint">בפרויקט תכנית אחת — אין מה ליישר. יש קומה נוספת, מבנה נוסף או שרטוט נוסף? הוסף אותו עכשיו, ואז מיישרים אותם זה מול זה (מיקום ומפלס) כדי שהתשתית ביניהם תחושב נכון.</p>
+    <button class="sec" onclick="sheetAdd()">＋ הוסף תכנית — קומה / מבנה / שרטוט נוסף</button>
+    <button class="sec done" onclick="wizNext()">✓ תכנית אחת — המשך לסימון אזור</button>`;
+  const noOrg = shs.filter(sh => !sh.org), ref = noOrg.length === 1 ? noOrg[0] : null;
+  const rows = shs.map(sh => { const al = !!sh.org, cal = !!sh.scale;
+    return `<div style="border:1px solid ${sh === cur ? '#1a1e28' : '#e6e1d6'};border-radius:9px;padding:6px 9px;margin-bottom:5px;font-size:12px;line-height:1.6">
+      <b>${esc(sh.name)}</b>${sh === cur ? ' <span class="muted">(הנוכחית)</span>' : ''}<br>
+      ${cal ? '<span style="color:#0f6e56">✓ מכוילת</span>' : '<span style="color:#c1121f">✗ לא מכוילת</span>'} · מפלס <b>${sh.level ?? '—'}</b> מ׳ · ${sh === ref ? '<span style="color:#0f6e56">✓ נקודת הייחוס</span> <span class="muted">(לא הוזזה — השאר מיושרות אליה)</span>' : al ? '<span style="color:#0f6e56">✓ מיושרת</span>' + (sh.alignBy ? ' <span class="muted">(' + esc(sh.alignBy.slice(0, 40)) + ')</span>' : '') : '<span style="color:#c96a13">⏳ לא מיושרת</span>'}
+      ${!cal ? `<button class="sec" style="margin:4px 0 0" onclick="sheetGo('${sh.id}');WIZ.step=WS('cal');wizRender()">📏 עבור לתכנית הזו וכייל אותה</button>` : ''}</div>`; }).join('');
+  const uncal = shs.filter(sh => !sh.scale).length, done = wizAlignDone();
+  return `
+    <h4>יישור התכניות — מיקום, מפלס וקנה מידה</h4>
+    <p class="hint">בפרויקט ${shs.length} תכניות. מיישרים אותן זו מול זו כדי שאורך התשתית בין קומות ומבנים יחושב נכון: איפה כל תכנית נמצאת ביחס לאחרות, באיזה מפלס, ובאותו קנה מידה.</p>
+    ${rows}
+    ${uncal ? '<p class="hint" style="color:#c1121f">' + uncal + ' תכניות לא מכוילות — אי אפשר ליישר תכנית בלי קנה מידה.</p>' : ''}
+    <button class="big" style="background:#534ab7" onclick="sheetsView3D()">📐 יישור 3D — גרירה, מפלס, סיבוב, קנה מידה, אובייקט משותף וכיתובים זהים</button>
+    ${shs.filter(sh => sh !== cur && sh.scale && cur && cur.scale).map(sh => `<button class="sec" onclick="sheetAlignSide('${sh.id}')">↔ "${esc(sh.name)}" לצד "${esc(cur.name)}" — מבט מלמעלה, גרירה ומתיחת קו</button>`).join('')}
+    <button class="sec" onclick="sheetAdd()">＋ הוסף תכנית נוספת</button>
+    ${done ? '<button class="big" style="background:#0f6e56" onclick="P._alignOk=1;save();wizNext()">✓ התכניות מיושרות — המשך לסימון אזור</button>' : '<button class="sec" onclick="P._alignOk=1;save();wizNext()">המשך בלי ליישר (אורכי התשתית בין התכניות לא יהיו מדויקים)</button>'}`;
+}
+/* ---- 🎚 שלב מקורות וגב הארון — אחרי קיט ההתקנה, כי הוא מביא את הקופסאות/הפנלים/המחברים שאליהם מחווטים ---- */
+function wizSrcStepHTML() {
+  const zs = (P.zones || []).filter(zz => !zz.prop), racks = (P.nodes || []).filter(n => n.kind === 'rack' && !n.proxy);
+  const nSrc = typeof srcUnwired === 'function' ? srcUnwired() : 0, nRk = wizRackUnwired();
+  if (!racks.length) return `
+    <h4>מקורות וגב הארון</h4>
+    <p class="hint">אין עדיין ארון בתכנית — חזור לשלב המערכת ובנה את המערכת (ארון, עמדה / קופסת במה).</p>
+    <button class="sec" onclick="WIZ.step=WS('sys');wizRender()">◀ חזרה לשלב המערכת</button>`;
+  return `
+    <h4>חיווט מקורות וגב הארון</h4>
+    <p class="hint">אחרי שקיט ההתקנה הביא את הקופסאות, הפנלים והמחברים: מחברים את מקורות הנגינה (עמדת DJ, קופסת במה, פנלים, סטרימר) אל כניסות הפרוססור / המיקסר, ומוודאים שכל כבל שמגיע לארון מחובר למחבר של מכשיר.</p>
+    <div class="kpi"><div><b style="color:${nSrc ? '#c1121f' : '#0f6e56'}">${nSrc}</b><small>מקורות לא מחווטים</small></div><div><b style="color:${nRk ? '#c96a13' : '#0f6e56'}">${nRk}</b><small>כבלים לא מחווטים בארון</small></div></div>
+    ${!P._instKit ? '<p class="hint" style="color:#c96a13">עוד לא נבחר קיט התקנה — בלי הקיט חסרים הקופסאות והפנלים שאליהם מחווטים. <a href="#" onclick="WIZ.step=WS(\'kit\');wizRender();return false">חזרה לקיט ההתקנה</a></p>' : ''}
+    ${zs.map(zz => `<button class="sec" onclick="openSrcWire('${zz.id}')">🎚 ${esc(zz.name)} — ניתוב מקורות אל הכניסות</button>`).join('')}
+    ${racks.map(rk => { const k2 = (P.cables || []).filter(c => (c.from === rk.id || c.to === rk.id) && rackCabUnwired(rk, c)).length; return `<button class="sec ${k2 ? '' : 'done'}" onclick="byId('${rk.id}').rear=true;byId('${rk.id}').min=false;render();rackFocus('${rk.id}')">${k2 ? '🔌' : '✓'} גב הארון "${esc(rk.name.slice(0, 26))}"${k2 ? ' — ' + k2 + ' כבלים מחכים לחיבור' : ' — הכול מחובר'}</button>`; }).join('')}
+    ${!nSrc && !nRk ? '<button class="big" style="background:#0f6e56" onclick="P._srcOk=1;save();wizNext()">✓ המקורות והארון מחווטים — המשך לבדיקת השלמות</button>' : '<button class="sec" onclick="P._srcOk=1;save();wizNext()">המשך בכל זאת — אשלים אחר כך (בדיקת השלמות תזכיר)</button>'}`;
+}
 /* ---- פעולות האשף ---- */
 /* מקורות משותפים בין אזורים: אזור יכול לשאוב את המקורות של אזור אחר (_srcShare)
    ולהוסיף מקורות מקומיים משלו (_srcLocal). z.sources נשאר הרשימה האפקטיבית —
@@ -340,8 +395,8 @@ function wizSrcToggle(zid, k) {
 function wizCalConfirm() {
   if (!P.scale) { uiToast('כייל קודם'); return; }
   P.calOk = 1; if (!P.calSrc) P.calSrc = 'manual'; save();
-  WIZ.step = 2; wizRender();
-  uiToast('✓ הכיול אושר — עכשיו סימון אזור');
+  WIZ.step = wizAlignDone() ? WS('zone') : WS('align'); wizRender();
+  uiToast(wizAlignDone() ? '✓ הכיול אושר — עכשיו סימון אזור' : '✓ הכיול אושר — עכשיו יישור התכניות זו מול זו');
 }
 /* ✂️ חיתוך התכנית — סימון מלבן על הרקע וחיתוך בפועל */
 function cropStart() {
@@ -466,13 +521,15 @@ function wizPropAll(ok) {
   render(); save(); wizRender();
 }
 function wizGo(i) {
-  if (i > 2 && !(P.zones || []).some(z => !z.prop)) { uiToast('🗺 קודם סמן אזור (או אשר אזור מוצע) — בלי אזור אין מערכת'); WIZ.step = 2; wizRender(); return; }
+  if (i > WS('zone') && !(P.zones || []).some(z => !z.prop)) { uiToast('🗺 קודם סמן אזור (או אשר אזור מוצע) — בלי אזור אין מערכת'); WIZ.step = WS('zone'); wizRender(); return; }
   WIZ.step = i; wizRender();
 }
+/* שלב יישור התכניות מדולג אוטומטית כשיש תכנית אחת */
+function wizPrev() { let i = Math.max(0, WIZ.step - 1); if (WIZ_STEPS[i][0] === 'align' && !wizMultiSheet()) i = Math.max(0, i - 1); WIZ.step = i; wizRender(); }
 function wizNext() {
-  if (WIZ.step === 1 && P.scale && !P.calOk && (P.hasBg || P.hasPdf || P.bg)) {   /* שרטוט בלי רקע משורטט כבר במידות — אין מה לאשר */ uiToast('📏 אשר את הכיול לפני שממשיכים — השווה מול שולחן או דלת'); return; }
+  if (WIZ.step === WS('cal') && P.scale && !P.calOk && (P.hasBg || P.hasPdf || P.bg)) {   /* שרטוט בלי רקע משורטט כבר במידות — אין מה לאשר */ uiToast('📏 אשר את הכיול לפני שממשיכים — השווה מול שולחן או דלת'); return; }
   /* שאלת חובה: אי אפשר להתקדם מהאזור בלי תכלית — היא קובעת את המערכת */
-  if (WIZ.step === 2) {
+  if (WIZ.step === WS('zone')) {
     if ((P.zones || []).some(z => z.prop)) { uiToast('💡 יש אזורים מוצעים — אשר או דחה אותם לפני שממשיכים'); return; }
     if (!(P.zones || []).length) { uiToast('🗺 אין עדיין אזור — צייר אזור או קרא את הכיתובים ואשר אזור מוצע'); return; }
     const z = wizZone();
@@ -487,7 +544,7 @@ function wizNext() {
       return;
     }
   }
-  if (WIZ.step === 3) {
+  if (WIZ.step === WS('sys')) {
     const z3 = wizZone(), s3 = z3 ? wizOwnSources(z3) : [];
     if (z3 && z3._built) {
       const miss = s3.find(k => srcLocOf(z3, k) === 'plan' && SRC_NODE[k] && !(z3[SRC_NODE[k].f] && byId(z3[SRC_NODE[k].f])));
@@ -495,17 +552,18 @@ function wizNext() {
     }
   }
   WIZ.step = Math.min(WIZ_STEPS.length - 1, WIZ.step + 1);
+  if (WIZ_STEPS[WIZ.step][0] === 'align' && !wizMultiSheet()) WIZ.step++;
   wizRender();
 }
 function wizUploadBg(inp) {
   if (!(inp.files && inp.files[0])) return;
   /* אותו נתיב של האפליקציה: PDF→תמונה, הקטנה, ורוחב רקע לפי יחס הצדדים */
   uploadBg(inp, () => {
-    save(); WIZ.step = 1; wizRender();
+    save(); WIZ.step = WS('cal'); wizRender();
     uiToast('✓ התכנית נטענה — עכשיו כיול');
   });
 }
-function wizNewProject() { newProj(); WIZ.step = 0; wizRender(); }
+function wizNewProject() { newProj(); WIZ.step = WS('plan'); wizRender(); }
 function wizDrawZone() {
   const nm = document.getElementById('wizZName').value.trim();
   zoneNameNext = nm || 'אזור ' + ((P.zones || []).length + 1);
@@ -536,7 +594,7 @@ function wizEnsureMic(zid) {
 function wizWireStepDone() {
   if (!WIZ) return;
   const allOk = (P.zones || []).every(zz => { const w = wizWireStat(zz); return !w.tot || w.fed >= w.tot; });
-  if (allOk) { WIZ.step = 5; wizRender(); uiToast('✓ כל האזורים מחווטים — עוברים לקיט ההתקנה'); }
+  if (allOk) { WIZ.step = WS('kit'); wizRender(); uiToast('✓ כל האזורים מחווטים — עוברים לקיט ההתקנה'); }
   else wizRender();
 }
 /* המשך אחרי אישור חיווט של אזור: האזור הבא אם יש, אחרת שלב החיווט המרוכז */
@@ -544,8 +602,8 @@ function wizAfterWire(z) {
   return () => {
     if (!WIZ) return;
     const nxt = (P.zones || []).find(zz => !zz._built);
-    if (nxt) { WIZ.zid = nxt.id; selZone = nxt.id; WIZ.step = 3; render(); wizRender(); uiToast('✓ "' + z.name + '" מחווט — עוברים לאזור "' + nxt.name + '"'); }
-    else { WIZ.step = 4; wizRender(); uiToast('✓ החיווט אושר — ודא שכל האזורים ירוקים והמשך לקיט ההתקנה'); }
+    if (nxt) { WIZ.zid = nxt.id; selZone = nxt.id; WIZ.step = WS('sys'); render(); wizRender(); uiToast('✓ "' + z.name + '" מחווט — עוברים לאזור "' + nxt.name + '"'); }
+    else { WIZ.step = WS('wire'); wizRender(); uiToast('✓ החיווט אושר — ודא שכל האזורים ירוקים והמשך לקיט ההתקנה'); }
   };
 }
 /* מפרט המוקד של כל סוג מקור כשהוא על התכנית */
@@ -628,7 +686,7 @@ function wizRackInside(z, rk, force) {
 window.wizRackInside = wizRackInside;
 function wizBuildAll(force) {
   const z = wizZone(); if (!z) return;
-  if (!z.usage) { uiToast('🎯 חובה לבחור תכלית לאזור לפני הבנייה — חזור שלב אחד'); WIZ.step = 2; wizRender(); return; }
+  if (!z.usage) { uiToast('🎯 חובה לבחור תכלית לאזור לפני הבנייה — חזור שלב אחד'); WIZ.step = WS('zone'); wizRender(); return; }
   /* מערכת כבר נבחרה ונבנתה — לא בונים שוב: ישר לטבלת החיווט */
   if (!force && z._built && wizWireStat(z).tot) {
     wizEnsureMic(z.id);

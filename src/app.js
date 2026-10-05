@@ -15128,7 +15128,7 @@ function zonePlanBack(zid) {
   const z = zs.find(x => x.id === zid) || zs[0];
   selZone = z.id;
   /* באשף — קופצים לשלב האזור עצמו */
-  if (typeof WIZ === 'object' && WIZ && document.getElementById('wiz')) { WIZ.zid = z.id; WIZ.step = 2; if (typeof wizRender === 'function') wizRender(); }
+  if (typeof WIZ === 'object' && WIZ && document.getElementById('wiz')) { WIZ.zid = z.id; WIZ.step = typeof WS === 'function' ? WS('zone') : 2; if (typeof wizRender === 'function') wizRender(); }
   render(); save();
   uiToast('🗺 חזרה לתכנון "' + z.name + '"');
 }
