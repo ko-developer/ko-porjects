@@ -27,6 +27,7 @@ export function assembleAppJs() {
   try { app += '\n' + readFileSync('src/sysdesign.js', 'utf8'); } catch (e) { /* תכנון מערכת אופציונלי */ }
   try { app += '\n' + readFileSync('src/soundreport.js', 'utf8'); } catch (e) { /* ייבוא דוח תכנון סאונד אופציונלי */ }
   try { app += '\n' + readFileSync('src/wizard.js', 'utf8'); } catch (e) { /* אשף אופציונלי */ }
+  try { app += '\n' + readFileSync('src/zonetrain.js', 'utf8'); } catch (e) { /* אימון אזורים אופציונלי */ }
   return app;
 }
 
