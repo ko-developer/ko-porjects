@@ -1,8 +1,72 @@
 {
- "at": "2026-10-08T13:23:30.151Z",
+ "at": "2026-10-08T15:52:49.894Z",
  "source": "store.kot.co.il + gs://ko-wp-images/docs",
- "n": 1204,
+ "n": 1207,
  "items": [
+  {
+   "sku": "CAUK1KO",
+   "name": "מגבר עוצמה ריפיטר ללד 1CH*30A מתח 5-24V הספק מקסימלי 720W Power Amplifier",
+   "cat": "בקרה ושליטה / בקרי לד",
+   "root": 254,
+   "cats": [
+    "בקרי לד"
+   ],
+   "price": 84,
+   "img": "",
+   "desc": "",
+   "link": "https://store.kot.co.il/product/CAUK1KO/",
+   "roots": [
+    254
+   ],
+   "pdf": null,
+   "spec": {
+    "watt": 720
+   },
+   "ev": {
+    "watt": "שם/תיאור בחנות: 720W"
+   },
+   "kind": "control"
+  },
+  {
+   "sku": "GZHS6KO",
+   "name": "עמדת DJ עיניים מראה אין סופית עם סטריפ דיגיטלי בצבע שחור עם GROOVE STATION ALIEN EYES",
+   "cat": "אביזרים תליה ובמה / במות",
+   "root": 253,
+   "cats": [
+    "במות"
+   ],
+   "price": 6684,
+   "img": "",
+   "desc": "",
+   "link": "https://store.kot.co.il/product/GZHS6KO/",
+   "roots": [
+    253
+   ],
+   "pdf": null,
+   "spec": {},
+   "ev": {},
+   "kind": "strip"
+  },
+  {
+   "sku": "GZHS5KO",
+   "name": "עמדת DJ דאבל טראבל בצבע שחור עם 2 מסכי הולוגרמה GROOVE STATION DOUBLE TROUBLE BLACK",
+   "cat": "אביזרים תליה ובמה / במות",
+   "root": 253,
+   "cats": [
+    "במות"
+   ],
+   "price": 12532,
+   "img": "",
+   "desc": "",
+   "link": "https://store.kot.co.il/product/GZHS5KO/",
+   "roots": [
+    253
+   ],
+   "pdf": null,
+   "spec": {},
+   "ev": {},
+   "kind": "other"
+  },
   {
    "sku": "LMLJ1KOS",
    "name": "פנס GLOW SHINY 100 ZOOM פאר לד 46 עם זום אלקטרוני בצבע לבן WHITE עוצמה של 100W ,עם RDM ו CRI 96 דימר",
@@ -147,7 +211,7 @@
    "price": 2297,
    "img": "",
    "desc": "",
-   "link": "https://store.kot.co.il/product/lova4kos/",
+   "link": "https://store.kot.co.il/product/LOVA4KOS/",
    "roots": [
     250
    ],
@@ -1504,13 +1568,24 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LUPS1KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LUPS1KOS.pdf",
    "spec": {
-    "watt": 1000
+    "watt": 1000,
+    "dmx": [
+     10
+    ],
+    "kelvin": 6500,
+    "source": "LED Type: 5050 1.5W",
+    "tilt": 185
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 1000W"
+    "watt": "Power: 1000W",
+    "dmx": "Control Modes: 10CH / 20CH / 77CH",
+    "kelvin": "LED Type: 3535 5W 6500K LEDs",
+    "source": "LED Type: 5050 1.5W RGB 3in1 LEDs",
+    "tilt": "Tilt (Degrees): 185°"
    },
+   "parsedAt": "2026-10-08T15:43:24.392Z",
    "kind": "effect"
   },
   {
@@ -1586,9 +1661,15 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRUT7KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "terminated",
+   "spec": {
+    "dmx": [
+     5
+    ]
+   },
+   "ev": {
+    "dmx": "Up or down   to choose 05CH/13CH /290CH ， press enter to store."
+   },
+   "parsedAt": "2026-10-08T15:43:26.045Z",
    "kind": "effect"
   },
   {
@@ -1608,12 +1689,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRUT6KOS.pdf",
    "spec": {
+    "dmx": [
+     10
+    ],
+    "ip": "IP20",
     "watt": 60
    },
    "ev": {
+    "dmx": "CH10Channel description ：",
+    "ip": "IP class: IP20",
     "watt": "שם/תיאור בחנות: 60 W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:26.776Z",
    "kind": "static"
   },
   {
@@ -1633,12 +1720,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRUT64KOS.pdf",
    "spec": {
-    "kelvin": 2200
+    "watt": 480,
+    "dmx": [
+     8
+    ],
+    "kelvin": 2200,
+    "source": "LED three-in-one light beads, 60W"
    },
    "ev": {
-    "kelvin": "שם/תיאור בחנות"
+    "watt": "Power: 480W",
+    "dmx": "address code of the first light is set to A001, and the number of light channels is 8CH; The starting",
+    "kelvin": "GOLDEN AXE 500 LED 2200K + RGB",
+    "source": "This product uses high-brightness and stable LED three-in-one light beads, 60W high-brightness"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:27.796Z",
    "kind": "static"
   },
   {
@@ -1658,12 +1753,19 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRUT40KOS.pdf",
    "spec": {
-    "watt": 60
+    "watt": 250,
+    "dmx": [
+     512,
+     15,
+     20,
+     26
+    ]
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 60 W"
+    "watt": "Power ： 250W",
+    "dmx": "Channel ： International standard dmx512, 15/20/26CH selection"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:28.363Z",
    "kind": "moving"
   },
   {
@@ -1683,12 +1785,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRUT18KOS.pdf",
    "spec": {
-    "watt": 300
+    "watt": 300,
+    "dmx": [
+     512
+    ],
+    "ip": "IP20"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 300 W"
+    "watt": "POWER:   300W",
+    "dmx": "五、 DMX512 CHANNEL",
+    "ip": "IP20"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:29.193Z",
    "kind": "static"
   },
   {
@@ -1708,12 +1816,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRUN8KOS.pdf",
    "spec": {
+    "kg": 3.2,
     "watt": 1800
    },
    "ev": {
+    "kg": "Weight: 3.2KG",
     "watt": "שם/תיאור בחנות: 1800W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:30.279Z",
    "kind": "other"
   },
   {
@@ -1733,12 +1843,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRUN6KOS.pdf",
    "spec": {
+    "kg": 3.2,
     "watt": 1200
    },
    "ev": {
+    "kg": "Weight: 3.2KG",
     "watt": "שם/תיאור בחנות: 1200W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:31.840Z",
    "kind": "other"
   },
   {
@@ -1758,12 +1870,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRUN5KOS.pdf",
    "spec": {
+    "kg": 3.2,
     "watt": 600
    },
    "ev": {
+    "kg": "Weight: 3.2KG",
     "watt": "שם/תיאור בחנות: 600W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:32.877Z",
    "kind": "other"
   },
   {
@@ -1783,12 +1897,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRUN10KOS.pdf",
    "spec": {
+    "kg": 3.2,
     "watt": 4000
    },
    "ev": {
+    "kg": "Weight: 3.2KG",
     "watt": "שם/תיאור בחנות: 4000W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:34.034Z",
    "kind": "other"
   },
   {
@@ -1807,9 +1923,20 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS869KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 120,
+    "dmx": [
+     8,
+     4
+    ],
+    "source": "18X10W"
+   },
+   "ev": {
+    "watt": "Power supply: 120W",
+    "dmx": "Channel: 8/4CH",
+    "source": "Porfessional LED par 18X10W"
+   },
+   "parsedAt": "2026-10-08T15:43:34.894Z",
    "kind": "static"
   },
   {
@@ -1829,14 +1956,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS868KOS.pdf",
    "spec": {
+    "dmx": [
+     23
+    ],
+    "source": "7x40W",
     "watt": 260,
     "ip": "IP65"
    },
    "ev": {
+    "dmx": "Control channel: 23CH/CH35/51CH",
+    "source": "TOTAL WASH 7x40W",
     "watt": "שם/תיאור בחנות: 260W",
     "ip": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:35.551Z",
    "kind": "static"
   },
   {
@@ -1856,14 +1989,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS867KOS.pdf",
    "spec": {
+    "dmx": [
+     14
+    ],
     "watt": 300,
     "ip": "IP65"
    },
    "ev": {
+    "dmx": "channel mode   14CH",
     "watt": "שם/תיאור בחנות: 300W",
     "ip": "שם/תיאור בחנות"
    },
-   "pdfErr": "terminated",
+   "parsedAt": "2026-10-08T15:43:36.714Z",
    "kind": "moving"
   },
   {
@@ -1916,12 +2053,23 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS865KOS.pdf",
    "spec": {
-    "watt": 60
+    "watt": 60,
+    "dmx": [
+     3,
+     9,
+     24,
+     144
+    ],
+    "ip": "IP20",
+    "kg": 1.5
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 60W"
+    "watt": "2. Input power: MAX60W;",
+    "dmx": "7. Channel mode: 3/9/24/144 channels",
+    "ip": "9. Protection level: IP20;",
+    "kg": "11. Net weight of product: 1.5Kg"
    },
-   "pdfErr": "terminated",
+   "parsedAt": "2026-10-08T15:43:37.803Z",
    "kind": "effect"
   },
   {
@@ -1941,12 +2089,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS864KOS.pdf",
    "spec": {
-    "watt": 50
+    "watt": 60,
+    "dmx": [
+     12
+    ],
+    "ip": "IP20"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 50W"
+    "watt": "4. Input power: MAX60W, RGB fully lit 50W, white flicker fully lit 10W;",
+    "dmx": "12   Channel ( b asic   f unction)",
+    "ip": "1. Protection level: IP20;"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:38.525Z",
    "kind": "effect"
   },
   {
@@ -1965,9 +2119,20 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS863KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 120,
+    "dmx": [
+     8,
+     4
+    ],
+    "source": "18X10W"
+   },
+   "ev": {
+    "watt": "Power supply: 120W",
+    "dmx": "Channel: 8/4CH",
+    "source": "Porfessional LED par 18X10W"
+   },
+   "parsedAt": "2026-10-08T15:43:39.352Z",
    "kind": "static"
   },
   {
@@ -2018,15 +2183,21 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS678KOS.pdf",
    "spec": {
     "watt": 350,
-    "source": "7 X 50W ",
+    "dmx": [
+     8
+    ],
+    "kg": 6,
+    "source": "LED three-in-one lamp beads, 60W",
     "kelvin": 2200
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 7 X 50W",
-    "source": "שם/תיאור בחנות",
+    "watt": "Power: 350W",
+    "dmx": "address code of the   fi rst lamp is set to A001, and the number of lamp channels is 8CH; The star 9 ng",
+    "kg": "Weight: 6 KG",
+    "source": "This product uses high-brightness and stable LED three-in-one lamp beads, 60W high-brightness",
     "kelvin": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:42.084Z",
    "kind": "static"
   },
   {
@@ -2046,14 +2217,23 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS62KOS.pdf",
    "spec": {
-    "watt": 20,
+    "watt": 26,
+    "dmx": [
+     1,
+     3
+    ],
+    "ip": "IP20",
+    "kg": 0.8,
     "kelvin": 2700
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 20W",
-    "kelvin": "שם/תיאור בחנות"
+    "watt": "Total   power   consumption:   26W",
+    "dmx": "Control:   DMX   512   1   /   3CH   (monochrome),   2   /   5CH   (2   in   1)",
+    "ip": "Protection   level:   IP20",
+    "kg": "Net   weight:   0.8KG",
+    "kelvin": "different   lighting   requirements.   The   20 - watt   LED   (2700K   /   3000K,   CRI>   90)   ensures"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:42.668Z",
    "kind": "static"
   },
   {
@@ -2073,14 +2253,23 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS60KOS.pdf",
    "spec": {
-    "watt": 20,
+    "watt": 26,
+    "dmx": [
+     1,
+     3
+    ],
+    "ip": "IP20",
+    "kg": 0.8,
     "kelvin": 2700
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 20W",
-    "kelvin": "שם/תיאור בחנות"
+    "watt": "Total   power   consumption:   26W",
+    "dmx": "Control:   DMX   512   1   /   3CH   (monochrome),   2   /   5CH   (2   in   1)",
+    "ip": "Protection   level:   IP20",
+    "kg": "Net   weight:   0.8KG",
+    "kelvin": "different   lighting   requirements.   The   20 - watt   LED   (2700K   /   3000K,   CRI>   90)   ensures"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:43.469Z",
    "kind": "static"
   },
   {
@@ -2154,12 +2343,25 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS509KOS.pdf",
    "spec": {
-    "watt": 30
+    "watt": 300,
+    "dmx": [
+     2,
+     3,
+     5,
+     8,
+     42,
+     44
+    ],
+    "ip": "IP65",
+    "source": "14x30W RGB"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 30W"
+    "watt": "Power consumption: up to 300W;",
+    "dmx": "DMX channel: 2/3/5/8/42/44 channel mode can be selected;",
+    "ip": "Protection grade: IP65.N.W:7.5KGS",
+    "source": "LED: 14x30W RGB 3in1 LED, each LED RGB color can be controlled individually;"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:45.926Z",
    "kind": "static"
   },
   {
@@ -2179,14 +2381,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS505KOS.pdf",
    "spec": {
-    "watt": 60,
-    "source": "12x5W "
+    "dmx": [
+     5
+    ],
+    "source": "12 x 5W",
+    "watt": 60
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 12x5W",
-    "source": "שם/תיאור בחנות"
+    "dmx": "Chnd   5ch   14ch   Channel mode selec 0 on",
+    "source": "PIX 100 12 x 5W",
+    "watt": "שם/תיאור בחנות: 12x5W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:46.646Z",
    "kind": "static"
   },
   {
@@ -2204,13 +2410,20 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS431KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS431KOS.pdf",
    "spec": {
+    "dmx": [
+     13
+    ],
+    "kg": 2.7,
     "watt": 200
    },
    "ev": {
+    "dmx": "13 Channel mode (A001 status)",
+    "kg": "Net weight: 2.7kg",
     "watt": "שם/תיאור בחנות: 200W"
    },
+   "parsedAt": "2026-10-08T15:43:49.068Z",
    "kind": "static"
   },
   {
@@ -2230,12 +2443,22 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS3KOS.pdf",
    "spec": {
-    "ip": "IP65"
+    "watt": 150,
+    "dmx": [
+     8
+    ],
+    "ip": "IP65",
+    "kg": 2.2,
+    "source": "LED beads * 0.2W"
    },
    "ev": {
-    "ip": "שם/תיאור בחנות"
+    "watt": "Power: 150W",
+    "dmx": "Channel: 8CH, 10CH",
+    "ip": "IP rating: IP65, connectable.",
+    "kg": "Weight: 2.2kg",
+    "source": "Light source 2: 26*5050 LED beads * 0.2W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:49.797Z",
    "kind": "static"
   },
   {
@@ -2255,14 +2478,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS231KOS.pdf",
    "spec": {
-    "watt": 120,
+    "watt": 70,
+    "dmx": [
+     3
+    ],
+    "ip": "IP20",
     "source": "40 x 3W "
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 40 x 3W",
+    "watt": "Power: 70W",
+    "dmx": "121 Channel Mode (point control)",
+    "ip": "IP: Indoor Use , IP20",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:50.472Z",
    "kind": "static"
   },
   {
@@ -2334,12 +2563,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS174KOS.pdf",
    "spec": {
-    "watt": 60
+    "watt": 60,
+    "dmx": [
+     13
+    ],
+    "kg": 1.65
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 60W"
+    "watt": "2. Power: 60W",
+    "dmx": "7. Channel: 13CH",
+    "kg": "9.Weight: 1.65kg"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:51.243Z",
    "kind": "static"
   },
   {
@@ -2359,14 +2594,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS171KOS.pdf",
    "spec": {
-    "watt": 480,
-    "source": "12x40W "
+    "watt": 500,
+    "dmx": [
+     26
+    ],
+    "ip": "IP20",
+    "source": "12x40W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 12x40W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power:   500W",
+    "dmx": "CH26   Channel   Description ：",
+    "ip": "IP   level:   IP20",
+    "source": "SOLARIS IRON DOME 12x40W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:51.876Z",
    "kind": "moving"
   },
   {
@@ -2386,12 +2627,26 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS168KOS.pdf",
    "spec": {
-    "watt": 100
+    "watt": 200,
+    "dmx": [
+     512
+    ],
+    "ip": "IP20",
+    "kg": 5.65,
+    "source": "LED: 1pcs * 100W",
+    "pan": 540,
+    "tilt": 270
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 100W"
+    "watt": "●   Power Dissipation ： 200W",
+    "dmx": "●   Channel mode: 14 DMX512 Channel",
+    "ip": "●   IP level :IP20",
+    "kg": "●   Weight ： 5.65kg",
+    "source": "●   LED: 1pcs * 100W White LED",
+    "pan": "●   Pan scan ： 540°(16bit) Electric correction",
+    "tilt": "●   Tilt scan ： 270° (16bit) Electric correction"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:53.082Z",
    "kind": "moving"
   },
   {
@@ -2411,14 +2666,24 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS165KOS.pdf",
    "spec": {
-    "watt": 120,
-    "source": "1X120W "
+    "watt": 150,
+    "dmx": [
+     16
+    ],
+    "kg": 6.75,
+    "source": "1 X 150 W White",
+    "pan": 540,
+    "tilt": 270
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 1X120W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power :   150 W",
+    "dmx": "Channle :   16   CH",
+    "kg": "Weight :   6.75kg",
+    "source": "Light   source :   1 X 150 W   White   LED",
+    "pan": "Pan   scanning : 540 °",
+    "tilt": "Tilt scanning : 270°"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:53.975Z",
    "kind": "moving"
   },
   {
@@ -2438,14 +2703,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS161KOS.pdf",
    "spec": {
-    "watt": 500,
-    "source": "10x50w "
+    "dmx": [
+     1
+    ],
+    "source": "10x50w",
+    "watt": 500
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 10x50w",
-    "source": "שם/תיאור בחנות"
+    "dmx": "A001   channel",
+    "source": "10x50w COB bar light",
+    "watt": "שם/תיאור בחנות: 10x50w"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:54.578Z",
    "kind": "static"
   },
   {
@@ -2463,13 +2732,23 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS15KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS15KOS.pdf",
    "spec": {
-    "watt": 200
+    "watt": 250,
+    "dmx": [
+     7,
+     15
+    ],
+    "ip": "IP20",
+    "kg": 4.25
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 200W"
+    "watt": "   Input power: 250W;",
+    "dmx": "   Channel mode: 7 / 15 channels;",
+    "ip": "   Protection level: IP20 ；",
+    "kg": "   N/W   ： 4.25kg"
    },
+   "parsedAt": "2026-10-08T15:43:57.576Z",
    "kind": "static"
   },
   {
@@ -2489,16 +2768,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS157KOS.pdf",
    "spec": {
+    "dmx": [
+     1
+    ],
+    "source": "10x50w",
     "watt": 500,
-    "source": "10x50w ",
     "kelvin": 1100
    },
    "ev": {
+    "dmx": "A001 channel",
+    "source": "10x50w cob bar light",
     "watt": "שם/תיאור בחנות: 10x50w",
-    "source": "שם/תיאור בחנות",
     "kelvin": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:58.388Z",
    "kind": "static"
   },
   {
@@ -2517,9 +2800,21 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LRDS14KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 110,
+    "dmx": [
+     4
+    ],
+    "ip": "IP20",
+    "kg": 8.4
+   },
+   "ev": {
+    "watt": "Power: 110W",
+    "dmx": "CH4Channel description ：",
+    "ip": "IP rating: IP20",
+    "kg": "Size: Gross weight:8.4kg"
+   },
+   "parsedAt": "2026-10-08T15:43:59.178Z",
    "kind": "effect"
   },
   {
@@ -2539,14 +2834,26 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LQIN4KOS.pdf",
    "spec": {
-    "watt": 144,
-    "source": "18x8W "
+    "watt": 200,
+    "dmx": [
+     4,
+     6,
+     9,
+     72,
+     74
+    ],
+    "ip": "IP65",
+    "kg": 7.5,
+    "source": "18 × 10 W RGBW"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 18x8W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power consumption   200 W",
+    "dmx": "■   Five DMX personalities: 4 / 6 / 9 / 72 / 74 channels",
+    "ip": "■   The fixture is rated IP65 and may be used outdoors, but it must not be submerged and connectors must",
+    "kg": "Gross weight   7.5 kg",
+    "source": "The SOLARIS PIX 180 V2 is a 1 m outdoor-rated LED wall washer built around 18 × 10 W RGBW 4-in-1"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:43:59.864Z",
    "kind": "static"
   },
   {
@@ -2566,14 +2873,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LQIN3KOS.pdf",
    "spec": {
-    "watt": 500,
-    "source": "10x50W "
+    "watt": 300,
+    "dmx": [
+     512
+    ],
+    "kg": 10,
+    "source": "672 x 0.5W RGB"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 10x50W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power: 300W",
+    "dmx": "4 Channel",
+    "kg": "Net weight:10KG",
+    "source": "Light source: 672 x 0.5W RGB LED,112 x 3W CWLED"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:00.716Z",
    "kind": "static"
   },
   {
@@ -2593,12 +2906,24 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LQIN2KOS.pdf",
    "spec": {
-    "ip": "IP67"
+    "watt": 800,
+    "dmx": [
+     15,
+     50,
+     158
+    ],
+    "ip": "IP65",
+    "kg": 9,
+    "source": "200x3W CW"
    },
    "ev": {
-    "ip": "שם/תיאור בחנות"
+    "watt": "Power: 800w",
+    "dmx": "Channels:15/50/158 CH",
+    "ip": "Waterproof level: outdoor.IP65",
+    "kg": "Net weight: 9kG",
+    "source": "Light source: 200x3W CW + 800 * 0.5W RGBBeam anale:120"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:01.874Z",
    "kind": "static"
   },
   {
@@ -2618,14 +2943,22 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LQIN1KOS.pdf",
    "spec": {
-    "watt": 670,
-    "ip": "IP66"
+    "beam": 101,
+    "dmx": [
+     7
+    ],
+    "ip": "IP66",
+    "source": "672 x 0.5 W RGB",
+    "watt": 670
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 670W",
-    "ip": "שם/תיאור בחנות"
+    "beam": "RGB   Beam   Angle :   101 °",
+    "dmx": "7   Channel",
+    "ip": "Protection   rating :   IP 66",
+    "source": "672   x   0.5 W   RGB   LED",
+    "watt": "שם/תיאור בחנות: 670W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:03.757Z",
    "kind": "static"
   },
   {
@@ -2645,12 +2978,29 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LPOL4KOS.pdf",
    "spec": {
+    "beam": 4.5,
+    "beamMax": 30,
+    "dmx": [
+     22
+    ],
+    "ip": "IP20",
+    "kg": 13.7,
+    "kelvin": 2800,
+    "pan": 540,
+    "tilt": 540,
     "watt": 300
    },
    "ev": {
+    "beam": "● Zooming angle: 4.5 ° -30 °",
+    "dmx": "● Channel ： 22CH",
+    "ip": "● IP class: IP20",
+    "kg": "● Net weight ： 13.7KG",
+    "kelvin": "● CTO ：   Color temperature can be linear adjusted   （ 2800K-7800K ）",
+    "pan": "● Pan/tilt: 540 ° /270 ° , 16-bit control and automatic return correction",
+    "tilt": "● Pan/tilt: 540 ° /270 ° , 16-bit control and automatic return correction",
     "watt": "שם/תיאור בחנות: 300W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:05.401Z",
    "kind": "moving"
   },
   {
@@ -2669,9 +3019,21 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LPOL3KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "dmx": [
+     17
+    ],
+    "source": "Osram Neolux 295W",
+    "pan": 540,
+    "tilt": 270
+   },
+   "ev": {
+    "dmx": "Channel: 17CH",
+    "source": "● Lamp: Osram Neolux 295W",
+    "pan": "● Pan :   540 ° ;   8Bit/16Bit ;",
+    "tilt": "● Tilt   :   270 ° ;   8Bit/16Bit"
+   },
+   "parsedAt": "2026-10-08T15:44:07.220Z",
    "kind": "moving"
   },
   {
@@ -2689,13 +3051,29 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LPOL14KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LPOL14KOS.pdf",
    "spec": {
+    "beam": 4,
+    "beamMax": 35,
+    "dmx": [
+     23
+    ],
+    "kg": 23,
+    "kelvin": 9500,
+    "pan": 540,
+    "tilt": 270,
     "watt": 300
    },
    "ev": {
+    "beam": "Zoom ：   4-35° linear zoom",
+    "dmx": "Channel:23CH",
+    "kg": "Gross weight: 23KG",
+    "kelvin": "Color temperature: 9500K",
+    "pan": "Movement ： Pan 540° ； Tilt 270° ；   auto X/Y repositioning, fast, quiet and smooth",
+    "tilt": "Movement ： Pan 540° ； Tilt 270° ；   auto X/Y repositioning, fast, quiet and smooth",
     "watt": "שם/תיאור בחנות: 300W"
    },
+   "parsedAt": "2026-10-08T15:44:08.293Z",
    "kind": "moving"
   },
   {
@@ -2715,14 +3093,21 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LOVA1KOS.pdf",
    "spec": {
-    "watt": 600,
+    "watt": 200,
+    "dmx": [
+     2,
+     5
+    ],
+    "ip": "IP20",
     "kelvin": 2800
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 600W",
-    "kelvin": "שם/תיאור בחנות"
+    "watt": "Studio   Studio power mode, silent (200W)",
+    "dmx": "DMX   2/5CH   DMX channel mode",
+    "ip": "IP\n20",
+    "kelvin": "CTO   000-255   Color temperature 2800K - 6500K"
    },
-   "pdfErr": "terminated",
+   "parsedAt": "2026-10-08T15:44:09.791Z",
    "kind": "static"
   },
   {
@@ -2742,16 +3127,24 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LMOF3KOS.pdf",
    "spec": {
-    "watt": 250,
+    "beam": 25,
+    "dmx": [
+     5
+    ],
     "ip": "IP65",
+    "kg": 5.2,
+    "watt": 250,
     "source": "25x10W "
    },
    "ev": {
+    "beam": "➢   Beam Angel: 25 °",
+    "dmx": "SETTING   DMX Channel   5CH/7CH/10CH   Choosing DMX channel",
+    "ip": "➢   This device for indoor use only ， the protection grade is: IP65",
+    "kg": "➢   N/W:   5.2 KG(1pc/CTN)   24 K g( 4 pcs/CTN)",
     "watt": "שם/תיאור בחנות: 25x10W",
-    "ip": "שם/תיאור בחנות",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:10.715Z",
    "kind": "static"
   },
   {
@@ -2771,16 +3164,24 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LMOF2KOS.pdf",
    "spec": {
-    "watt": 160,
+    "beam": 25,
+    "dmx": [
+     5
+    ],
     "ip": "IP65",
+    "kg": 5,
+    "watt": 160,
     "source": "16x10W "
    },
    "ev": {
+    "beam": "➢   Beam Angel: 25 °",
+    "dmx": "SETTING   DMX Channel   5CH/7CH/10CH   Choosing DMX channel",
+    "ip": "➢   This device for indoor use only ， the protection grade is: IP65",
+    "kg": "➢   N/W:   3 .5 KG(1pc/CTN)   1 8 Kg( 4 pcs/CTN)",
     "watt": "שם/תיאור בחנות: 16x10W",
-    "ip": "שם/תיאור בחנות",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:11.710Z",
    "kind": "static"
   },
   {
@@ -2824,16 +3225,24 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LMOF1KOS.pdf",
    "spec": {
-    "watt": 90,
+    "watt": 55,
+    "beam": 25,
+    "dmx": [
+     5
+    ],
     "ip": "IP65",
+    "kg": 2.7,
     "source": "9x10W "
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 9x10W",
-    "ip": "שם/תיאור בחנות",
+    "watt": "➢   Power consumption :   55 W",
+    "beam": "➢   Beam Angel:   25 °",
+    "dmx": "SETTING   DMX Channel   5CH/7CH/10CH   Choosing DMX channel",
+    "ip": "➢   This device for indoor use only ， the protection grade is: IP65",
+    "kg": "➢   N/W:   2.7 KG(1pc/CTN)   6 Kg( 20 pcs/C TN)",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:13.308Z",
    "kind": "static"
   },
   {
@@ -3083,9 +3492,26 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LMEL4KOS.zip",
-   "spec": {},
-   "ev": {},
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LMEL4KOS.pdf",
+   "spec": {
+    "watt": 500,
+    "dmx": [
+     6,
+     16,
+     42
+    ],
+    "ip": "IP20",
+    "kg": 4.3,
+    "kelvin": 6500
+   },
+   "ev": {
+    "watt": "◎   Power consumption (Flashing mode):500W",
+    "dmx": "◎   Channel:6/16/42CH",
+    "ip": "As the fixture is IP20-rated, it is suitable for indoor applications,such as",
+    "kg": "◎   Weight:4.3kg",
+    "kelvin": "◎   Color temperature:5000-6500K"
+   },
+   "parsedAt": "2026-10-08T15:44:14.993Z",
    "kind": "static"
   },
   {
@@ -3105,12 +3531,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LMEL48KOS.pdf",
    "spec": {
+    "ip": "IP65",
     "watt": 300
    },
    "ev": {
+    "ip": "As the f ixture is fully IP65 ‐ rated, it is suitable for both indoor and outdoor",
     "watt": "שם/תיאור בחנות: 300W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:16.374Z",
    "kind": "static"
   },
   {
@@ -3130,12 +3558,27 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LMEL25KOS.pdf",
    "spec": {
+    "beam": 5,
+    "beamMax": 45,
+    "dmx": [
+     13
+    ],
+    "ip": "IP20",
+    "kg": 2.8,
+    "kelvin": 3200,
+    "source": "1 x 60 W",
     "watt": 60
    },
    "ev": {
+    "beam": "Beam angle:   5° to 45°",
+    "dmx": "13CH   18CH   Descrip Z on   DMX Value   Func Z on",
+    "ip": "IP ra Z ng:IP20",
+    "kg": "Net weight:2.8 kg",
+    "kelvin": "008-015   3200K",
+    "source": "Light source:1 x 60 Wa 4 s RGBW COB LED",
     "watt": "שם/תיאור בחנות: 60W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:17.355Z",
    "kind": "static"
   },
   {
@@ -3153,13 +3596,27 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LLTK1KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LLTK1KOS.pdf",
    "spec": {
+    "beam": 4,
+    "beamMax": 60,
+    "dmx": [
+     21,
+     35,
+     42,
+     49,
+     63
+    ],
+    "source": "LED Source : 7*40 W",
     "watt": 40
    },
    "ev": {
+    "beam": "Zoom   angle :   4-60 °",
+    "dmx": "DMX   Channels :   21/35/42/49 /63 channel",
+    "source": "LED   Source :   7*40 W   RGBW   4- in -1   LED",
     "watt": "שם/תיאור בחנות: 40W"
    },
+   "parsedAt": "2026-10-08T15:44:18.311Z",
    "kind": "moving"
   },
   {
@@ -3179,12 +3636,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LLIF8KOS.pdf",
    "spec": {
+    "dmx": [
+     1
+    ],
+    "kg": 5.5,
     "watt": 700
    },
    "ev": {
+    "dmx": "   Via1 DMX channels",
+    "kg": "Weight:   5.5kg",
     "watt": "שם/תיאור בחנות: 700W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:19.005Z",
    "kind": "effect"
   },
   {
@@ -3204,12 +3667,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LLIF7KOS.pdf",
    "spec": {
+    "dmx": [
+     1
+    ],
+    "ip": "IP20",
+    "kg": 5.2,
     "watt": 1000
    },
    "ev": {
+    "dmx": "DMX   1 channel mode",
+    "ip": "The unit is intended for indoor use only (IP20)! Please",
+    "kg": "Weight   5,2 Kg",
     "watt": "שם/תיאור בחנות: 1000W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:20.317Z",
    "kind": "effect"
   },
   {
@@ -3313,12 +3784,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LLIF13KOS.pdf",
    "spec": {
-    "watt": 3000
+    "watt": 3.1,
+    "dmx": [
+     9
+    ],
+    "kg": 15.5,
+    "source": "LED: 29pcs RGB 9W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 3000W"
+    "watt": "Total Power Consumption: 3,100 W",
+    "dmx": "First page   “addr   ”   is for dmx address, enter display, then you can choose both 9 channels",
+    "kg": "Net Weight:   15.50kg",
+    "source": "LED: 29pcs RGB 9W LED"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:20.940Z",
    "kind": "effect"
   },
   {
@@ -3362,16 +3841,27 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LLEA34KOS.pdf",
    "spec": {
-    "watt": 21,
-    "source": "3x7W ",
+    "watt": 30,
+    "beam": 15,
+    "beamMax": 60,
+    "dmx": [
+     7
+    ],
+    "ip": "IP20",
+    "kg": 2.6,
+    "source": "3x10w",
     "kelvin": 3200
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 3x7W",
-    "source": "שם/תיאור בחנות",
+    "watt": "Power consumption :30W",
+    "beam": "Manual zoom:15-60°",
+    "dmx": "DMX Channel :7 CH",
+    "ip": "IP rate : IP20",
+    "kg": "Net weight:2.6kg",
+    "source": "Battery 3x10w COB LED BAR",
     "kelvin": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:22.303Z",
    "kind": "other"
   },
   {
@@ -3390,9 +3880,21 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LLEA33KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 210,
+    "dmx": [
+     4
+    ],
+    "ip": "IP20",
+    "source": "LED, each 30W"
+   },
+   "ev": {
+    "watt": "Power consumption :210W",
+    "dmx": "Mode:4CH",
+    "ip": "IP Rating: IP20",
+    "source": "Light source:7pcs LED, each 30Watt, RGBW 4in1"
+   },
+   "parsedAt": "2026-10-08T15:44:24.234Z",
    "kind": "static"
   },
   {
@@ -3412,12 +3914,22 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LLEA22KOS.pdf",
    "spec": {
-    "watt": 25
+    "watt": 35,
+    "dmx": [
+     14
+    ],
+    "ip": "IP20",
+    "kg": 3.22,
+    "source": "laser,4*2W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 25W"
+    "watt": "Power: 35W",
+    "dmx": "Channel: 14ch",
+    "ip": "IP Rate: IP20",
+    "kg": "Weight: 3.22kg",
+    "source": "Light Source: 2*10W RGBW 4in1 ,0.05W red ,green laser,4*2W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:25.599Z",
    "kind": "static"
   },
   {
@@ -3480,9 +3992,21 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LKON8KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 80,
+    "dmx": [
+     5
+    ],
+    "kg": 2.7,
+    "source": "24 × 0.5W RGB"
+   },
+   "ev": {
+    "watt": "Power   consumption   80W",
+    "dmx": "DMX channel   5 CH   /8CH",
+    "kg": "Wight   2.7 Kg",
+    "source": "Light source   1 × 6 0W   +24 × 0.5W RGB W"
+   },
+   "parsedAt": "2026-10-08T15:44:26.429Z",
    "kind": "static"
   },
   {
@@ -3501,9 +4025,15 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LKON4KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "dmx": [
+     5
+    ]
+   },
+   "ev": {
+    "dmx": "8CH DMX general function"
+   },
+   "parsedAt": "2026-10-08T15:44:27.106Z",
    "kind": "static"
   },
   {
@@ -3522,9 +4052,19 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LKON19KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 60,
+    "dmx": [
+     2
+    ],
+    "kg": 2.5
+   },
+   "ev": {
+    "watt": "Power consumption   60W",
+    "dmx": "DMX channel   2 CH",
+    "kg": "Wight   2.5 Kg"
+   },
+   "parsedAt": "2026-10-08T15:44:28.084Z",
    "kind": "static"
   },
   {
@@ -3543,9 +4083,23 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LKON12KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 210,
+    "dmx": [
+     10
+    ],
+    "kg": 5.3,
+    "kelvin": 2200,
+    "source": "3 × 60 W LED"
+   },
+   "ev": {
+    "watt": "Power consumption   210   W",
+    "dmx": "2. Select DMX mode （ 10CH ） .",
+    "kg": "Wight   5.3   Kg",
+    "kelvin": "Color temperature   2200 K",
+    "source": "Light source   3 × 60 W   LED + 48 × 0.5W LED"
+   },
+   "parsedAt": "2026-10-08T15:44:28.918Z",
    "kind": "static"
   },
   {
@@ -3565,12 +4119,26 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LITO5KO.pdf",
    "spec": {
-    "watt": 80
+    "watt": 120,
+    "dmx": [
+     7
+    ],
+    "kg": 4,
+    "kelvin": 8000,
+    "source": "LED Beam Effects with 80W",
+    "pan": 120,
+    "tilt": 90
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 80W"
+    "watt": "•   Power:120W",
+    "dmx": "•   7CH",
+    "kg": "Product dimension : 310 x 280 x 150mm Net weight: 4KG",
+    "kelvin": "•   Fixture CT:8000K",
+    "source": "LED Beam Effects with 80W COB LED in cold white and gobo wheel",
+    "pan": "•   Pan: 120 °",
+    "tilt": "•   Tilt : 90 °"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:30.815Z",
    "kind": "static"
   },
   {
@@ -3588,15 +4156,20 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LGSH2KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LGSH2KOS.pdf",
    "spec": {
-    "watt": 280,
-    "source": "7X40W "
+    "watt": 350,
+    "dmx": [
+     35
+    ],
+    "source": "Led :7pcs 40w"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 7X40W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power:350w",
+    "dmx": "35CH Mode",
+    "source": "Led :7pcs 40w leds"
    },
+   "parsedAt": "2026-10-08T15:44:33.199Z",
    "kind": "moving"
   },
   {
@@ -3614,15 +4187,20 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LGSH1KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LGSH1KOS.pdf",
    "spec": {
+    "dmx": [
+     24
+    ],
     "watt": 760,
     "source": "19×40 W"
    },
    "ev": {
+    "dmx": "Dmx Mode   24CH/26CH/43CH/81CH/95CH/100CH/102CH",
     "watt": "שם/תיאור בחנות: 19×40 W",
     "source": "שם/תיאור בחנות"
    },
+   "parsedAt": "2026-10-08T15:44:34.292Z",
    "kind": "moving"
   },
   {
@@ -3660,9 +4238,18 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LGLE3KOS.zip",
-   "spec": {},
-   "ev": {},
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LGLE3KOS.pdf",
+   "spec": {
+    "dmx": [
+     1
+    ],
+    "ip": "IP20"
+   },
+   "ev": {
+    "dmx": "DMX   channel   1\nChannel",
+    "ip": "●   The projector is for indoor use only, IP20."
+   },
+   "parsedAt": "2026-10-08T15:44:35.515Z",
    "kind": "moving"
   },
   {
@@ -3681,9 +4268,15 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LFZY4KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "terminated",
+   "spec": {
+    "dmx": [
+     17
+    ]
+   },
+   "ev": {
+    "dmx": "4   CHND   Channel   selection   for   17CH   and"
+   },
+   "parsedAt": "2026-10-08T15:44:36.222Z",
    "kind": "static"
   },
   {
@@ -4013,16 +4606,22 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LDEY8KOS.pdf",
    "spec": {
-    "watt": 60,
+    "watt": 48,
+    "dmx": [
+     512
+    ],
     "ip": "IP65",
+    "kg": 3,
     "source": "6X10W "
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 6X10W",
-    "ip": "שם/תיאור בחנות",
+    "watt": "2).Power Consumption:48W",
+    "dmx": "6).DMX512 Channels: 4/8 CH",
+    "ip": "IP65   LED BATTERY PAR",
+    "kg": "15).Net Weight: 3 kgs ; Gross Weight: 4 kgs",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "terminated",
+   "parsedAt": "2026-10-08T15:44:53.111Z",
    "kind": "static"
   },
   {
@@ -4063,15 +4662,21 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LDEY7KOS.pdf",
    "spec": {
     "watt": 48,
+    "dmx": [
+     512
+    ],
+    "kg": 2,
     "ip": "IP65",
     "source": "4x12W "
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 4x12W",
+    "watt": "2).Power Consumption:48W",
+    "dmx": "6).DMX512 Channels: 6/10 CH",
+    "kg": "13).Net Weight:   2 kgs",
     "ip": "שם/תיאור בחנות",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:54.208Z",
    "kind": "static"
   },
   {
@@ -4091,12 +4696,24 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LDEY5KOS.pdf",
    "spec": {
-    "ip": "IP65"
+    "watt": 30,
+    "beam": 360,
+    "dmx": [
+     10,
+     52,
+     124
+    ],
+    "ip": "IP65",
+    "kg": 3.34
    },
    "ev": {
-    "ip": "שם/תיאור בחנות"
+    "watt": "Power consumption: 30W /45W/60W",
+    "beam": "Field angle: 360°",
+    "dmx": "DMX Channels:10/52/124channels",
+    "ip": "IP rate: IP65,outdoor",
+    "kg": "Net weight: 3.34kg"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:57.310Z",
    "kind": "control"
   },
   {
@@ -4156,12 +4773,22 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LDEY1KO.pdf",
    "spec": {
+    "beam": 40,
+    "dmx": [
+     7
+    ],
+    "ip": "IP54",
+    "kg": 0.8,
     "watt": 16
    },
    "ev": {
+    "beam": "Beam angle: 40 °",
+    "dmx": "DMX Channel: 7 CH",
+    "ip": "IP Rate : IP54",
+    "kg": "Net Weight: 0.8kgs ;   Gross Weight: 1.5kgs",
     "watt": "שם/תיאור בחנות: 16W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:44:58.058Z",
    "kind": "static"
   },
   {
@@ -4186,7 +4813,7 @@
    "ev": {
     "watt": "שם/תיאור בחנות: 380W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:45:10.305Z",
    "kind": "moving"
   },
   {
@@ -4211,7 +4838,7 @@
    "ev": {
     "watt": "שם/תיאור בחנות: 420W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:45:20.570Z",
    "kind": "moving"
   },
   {
@@ -4236,7 +4863,7 @@
    "ev": {
     "watt": "שם/תיאור בחנות: 300W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:46:13.592Z",
    "kind": "moving"
   },
   {
@@ -4255,9 +4882,19 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LCRT4KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "dmx": [
+     2
+    ],
+    "ip": "IP20",
+    "kg": 2
+   },
+   "ev": {
+    "dmx": "2Ch/8Ch",
+    "ip": "The projector is for indoor use only, IP20. Use only in dry locations. Keep this device away",
+    "kg": "2 kg"
+   },
+   "parsedAt": "2026-10-08T15:46:24.176Z",
    "kind": "effect"
   },
   {
@@ -4276,9 +4913,13 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LCRT3KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "ip": "IP20"
+   },
+   "ev": {
+    "ip": "The projector is for indoor use only, IP20. Use only in dry"
+   },
+   "parsedAt": "2026-10-08T15:46:26.326Z",
    "kind": "effect"
   },
   {
@@ -4298,14 +4939,22 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LCRT2KO.pdf",
    "spec": {
+    "dmx": [
+     5
+    ],
+    "ip": "IP20",
+    "kg": 4,
     "watt": 10,
     "source": "5X2W"
    },
    "ev": {
+    "dmx": "Note: in the 10 channel mode, when the 5ch is 1000-005, the 1ch-4ch is valid.",
+    "ip": "The projector is for indoor use only, IP20. Use only in dry locations. Keep this device away from rain and",
+    "kg": "4KG",
     "watt": "שם/תיאור בחנות: 5X2W",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:46:32.980Z",
    "kind": "effect"
   },
   {
@@ -4324,9 +4973,17 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LCRT1KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "dmx": [
+     255
+    ],
+    "ip": "IP20"
+   },
+   "ev": {
+    "dmx": "255\nDMX Channel",
+    "ip": "The projector is for indoor use only, IP20. Use only in dry locations. Keep this device away from rain and moisture,"
+   },
+   "parsedAt": "2026-10-08T15:47:01.021Z",
    "kind": "static"
   },
   {
@@ -4426,14 +5083,22 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LBOL5KOS.pdf",
    "spec": {
-    "watt": 200,
-    "kelvin": 5600
+    "beam": 19,
+    "dmx": [
+     512
+    ],
+    "kg": 9.6,
+    "kelvin": 5600,
+    "watt": 200
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 200W",
-    "kelvin": "שם/תיאור בחנות"
+    "beam": "Beam angle   19°/26°/36°",
+    "dmx": "1.   The DMX512 channel",
+    "kg": "Gross Weight   9.6KG",
+    "kelvin": "Luminous   LED3200K/5600K",
+    "watt": "שם/תיאור בחנות: 200W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:47:02.520Z",
    "kind": "moving"
   },
   {
@@ -4578,9 +5243,17 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LAIC1KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "dmx": [
+     507
+    ],
+    "kg": 1.4
+   },
+   "ev": {
+    "dmx": "1   d001   001 -   512   DMX512 507 Channel address code setting",
+    "kg": "1.4kg/piece"
+   },
+   "parsedAt": "2026-10-08T15:47:03.365Z",
    "kind": "static"
   },
   {
@@ -4886,15 +5559,26 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LABL1KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/LABL1KOS.pdf",
    "spec": {
     "watt": 200,
-    "source": "5x40W "
+    "beam": 2,
+    "dmx": [
+     18
+    ],
+    "kg": 12,
+    "kelvin": 2000,
+    "source": "LED 5*40w"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 5x40W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power   consumption   200W",
+    "beam": "z   Beam   angle:   2°",
+    "dmx": "18\nchannels",
+    "kg": "Net   Weight   12KG",
+    "kelvin": "White   2000K   →   2700K   0   155",
+    "source": "LED   5*40w   RGBW   4in1   leds"
    },
+   "parsedAt": "2026-10-08T15:47:04.588Z",
    "kind": "moving"
   },
   {
@@ -6356,14 +7040,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L73127KO.pdf",
    "spec": {
-    "watt": 1600,
-    "source": "4X400W "
+    "dmx": [
+     1
+    ],
+    "ip": "IP20",
+    "source": "1 x 800 W",
+    "watt": 1600
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 4X400W",
-    "source": "שם/תיאור בחנות"
+    "dmx": "•   DMX channel quantity from 1CH~4CH settable",
+    "ip": "•   Waterproof grade: IP20",
+    "source": "1 x 800 W/VA",
+    "watt": "שם/תיאור בחנות: 4X400W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:47:05.532Z",
    "kind": "dimmer"
   },
   {
@@ -6384,7 +7074,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L7311KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:47:11.831Z",
    "kind": "control"
   },
   {
@@ -6763,9 +7453,19 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L7198KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 60,
+    "dmx": [
+     12
+    ],
+    "ip": "IP33"
+   },
+   "ev": {
+    "watt": "Power Consumption: 60W",
+    "dmx": "Output: 3KW each channel for 12ch dimmer pack",
+    "ip": "IP Rating: IP 33"
+   },
+   "parsedAt": "2026-10-08T15:47:13.524Z",
    "kind": "dimmer"
   },
   {
@@ -6784,9 +7484,19 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L7197KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 60,
+    "dmx": [
+     12
+    ],
+    "ip": "IP33"
+   },
+   "ev": {
+    "watt": "Power Consumption: 60W",
+    "dmx": "Output: 3KW each channel for 12ch dimmer pack",
+    "ip": "IP Rating: IP 33"
+   },
+   "parsedAt": "2026-10-08T15:47:14.312Z",
    "kind": "dimmer"
   },
   {
@@ -7155,7 +7865,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L7136KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:47:18.211Z",
    "kind": "control"
   },
   {
@@ -8248,7 +8958,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L649KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:47:23.334Z",
    "kind": "hoist"
   },
   {
@@ -8289,7 +8999,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L6455KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:47:38.253Z",
    "kind": "hoist"
   },
   {
@@ -8690,7 +9400,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L6424KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:09.637Z",
    "kind": "hoist"
   },
   {
@@ -8711,7 +9421,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L6423KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:14.996Z",
    "kind": "hoist"
   },
   {
@@ -8752,7 +9462,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L6421KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:19.893Z",
    "kind": "hoist"
   },
   {
@@ -8773,7 +9483,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L6420KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:24.999Z",
    "kind": "hoist"
   },
   {
@@ -8814,7 +9524,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L6419KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:31.289Z",
    "kind": "hoist"
   },
   {
@@ -9582,12 +10292,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4DAKOS.pdf",
    "spec": {
-    "watt": 280
+    "watt": 50,
+    "source": "Philips 280W",
+    "pan": 540,
+    "tilt": 270
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 280W"
+    "watt": "300w, power fluctuations (± 50W) works normally",
+    "source": "Philips 280W Philips Platinum Bulb 280W",
+    "pan": "Pan:540°   16/32 bit)",
+    "tilt": "Tilt 270 °   16/32 bit)"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:32.818Z",
    "kind": "moving"
   },
   {
@@ -9631,12 +10347,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4514KO.pdf",
    "spec": {
-    "watt": 160
+    "watt": 160,
+    "dmx": [
+     4
+    ],
+    "kg": 4.6,
+    "source": "12 X 15W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 160W"
+    "watt": "· Power ： 160W DMX Strobe Light",
+    "dmx": "The fixture can be controlled using any DMX-compliant controller (4 Ch. | 12",
+    "kg": "· Weight ： 4.6KG",
+    "source": "12 X\n15W "
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:33.572Z",
    "kind": "static"
   },
   {
@@ -9788,12 +10512,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4510KO.pdf",
    "spec": {
-    "watt": 300
+    "watt": 300,
+    "dmx": [
+     4
+    ],
+    "kg": 5.6
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 300W"
+    "watt": "Power:   300 W",
+    "dmx": "4 DMX Channel ：",
+    "kg": "Net   Weight: 5.6kg"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:34.598Z",
    "kind": "static"
   },
   {
@@ -10165,12 +10895,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4353KOS.pdf",
    "spec": {
+    "dmx": [
+     512
+    ],
+    "kg": 10.5,
     "watt": 1500
    },
    "ev": {
+    "dmx": "The FOG 1500 DMX can be operated from a single DMX512 channel as",
+    "kg": "Gross Weight: ..................................................................... 10.5 kg",
     "watt": "שם/תיאור בחנות: 1500W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:35.125Z",
    "kind": "effect"
   },
   {
@@ -10189,9 +10925,13 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4352KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 1000
+   },
+   "ev": {
+    "watt": "Power consumption   1000W"
+   },
+   "parsedAt": "2026-10-08T15:48:35.991Z",
    "kind": "effect"
   },
   {
@@ -10211,12 +10951,16 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4352KO.pdf",
    "spec": {
-    "watt": 1000
+    "watt": 1000,
+    "dmx": [
+     512
+    ]
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 1000W"
+    "watt": "Power consumption   1000W",
+    "dmx": "DMX-512 Channel"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:36.464Z",
    "kind": "effect"
   },
   {
@@ -10303,9 +11047,19 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L423KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 12,
+    "lumen": 80,
+    "beam": 12,
+    "ip": "IP65"
+   },
+   "ev": {
+    "watt": "Input Voltage   DC24V   Power   12W/15W （ Optional ）",
+    "lumen": "LM   80LM/W",
+    "beam": "LED Spec.   SMD2835/48/60PCS （ Optional ）   Beam Angle   12°/10*20° （ Optional ）",
+    "ip": "IP Class   IP65   Insulation Class   □ Ⅰ   □ Ⅱ   ■ Ⅲ"
+   },
+   "parsedAt": "2026-10-08T15:48:37.369Z",
    "kind": "static"
   },
   {
@@ -10325,12 +11079,29 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4232KOS.pdf",
    "spec": {
-    "watt": 400
+    "watt": 400,
+    "beam": 95,
+    "dmx": [
+     1,
+     2,
+     4,
+     8,
+     1,
+     8,
+     2,
+     11
+    ],
+    "kg": 7,
+    "kelvin": 1800
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 400W"
+    "watt": "Power Consumption ： 400W",
+    "beam": "Beam angle ： 95°",
+    "dmx": "Dmx channel ： 1/2/4/8.1/8.2/11 channel",
+    "kg": "N.W ： 7Kg",
+    "kelvin": "CCT ： 1800k/3200K （ adjustable ）"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:43.067Z",
    "kind": "static"
   },
   {
@@ -10504,15 +11275,22 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4226KO.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4226KO.pdf",
    "spec": {
-    "watt": 72,
-    "source": "24x3W "
+    "dmx": [
+     2
+    ],
+    "ip": "IP20",
+    "source": "24x3w",
+    "watt": 72
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 24x3W",
-    "source": "שם/תיאור בחנות"
+    "dmx": "The fixture can be controlled using any DMX-compliant controller (2 Ch. | 3 Ch. | 4 Ch. |",
+    "ip": "not expose this product to rain or moisture. (IP20)",
+    "source": "basic pixel bar 24x3w",
+    "watt": "שם/תיאור בחנות: 24x3W"
    },
+   "parsedAt": "2026-10-08T15:48:44.262Z",
    "kind": "static"
   },
   {
@@ -10530,13 +11308,22 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4222KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L4222KOS.pdf",
    "spec": {
+    "dmx": [
+     1
+    ],
+    "ip": "IP20",
+    "source": "10 X 75W",
     "watt": 50
    },
    "ev": {
+    "dmx": "The fixture can be controlled using any DMX-compliant controller (1 Ch. | 2 Ch. | 5 Ch. | 10",
+    "ip": "not expose this product to rain or moisture. (IP20)",
+    "source": "The GLOW® Sunstrip 500™ is a high-performance 10 X 75W Bar lighting fixture featuring 10",
     "watt": "שם/תיאור בחנות: 50W"
    },
+   "parsedAt": "2026-10-08T15:48:44.965Z",
    "kind": "effect"
   },
   {
@@ -13416,14 +14203,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2356KOS.pdf",
    "spec": {
+    "dmx": [
+     1
+    ],
+    "kg": 65,
     "watt": 700,
     "source": "7X100W "
    },
    "ev": {
+    "dmx": "DMX channel   1CH/6CH /7CH",
+    "kg": "Wight   7 .65 Kg",
     "watt": "שם/תיאור בחנות: 7X100W",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:45.871Z",
    "kind": "static"
   },
   {
@@ -13469,12 +14262,22 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2353KOS.pdf",
    "spec": {
-    "source": "7X300W"
+    "watt": 2100,
+    "dmx": [
+     1
+    ],
+    "kg": 12.5,
+    "kelvin": 2900,
+    "source": "7×300W"
    },
    "ev": {
-    "source": "שם/תיאור בחנות"
+    "watt": "Power consumption   2100W",
+    "dmx": "DMX channel   1CH/6CH /7CH",
+    "kg": "Wight   12.5Kg",
+    "kelvin": "Color temperature   2900K",
+    "source": "Light source   7×300W Halogen lamps"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:47.052Z",
    "kind": "static"
   },
   {
@@ -13534,14 +14337,22 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2350KOS.pdf",
    "spec": {
-    "watt": 40,
-    "source": "4X10W "
+    "watt": 30,
+    "dmx": [
+     4
+    ],
+    "ip": "IP20",
+    "kg": 3.17,
+    "source": "LED: 4pcs*7W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 4X10W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power consumption :30W",
+    "dmx": "DMX Channel :4 CH",
+    "ip": "IP rate : IP20",
+    "kg": "Net weight:3.17kg",
+    "source": "LED: 4pcs*7W COB LED"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:47.986Z",
    "kind": "static"
   },
   {
@@ -13757,12 +14568,16 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2323KO.pdf",
    "spec": {
+    "dmx": [
+     8
+    ],
     "watt": 60
    },
    "ev": {
+    "dmx": "DMX512 address code setting, 8 channel",
     "watt": "שם/תיאור בחנות: 60W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:48:48.892Z",
    "kind": "static"
   },
   {
@@ -14238,15 +15053,24 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2217KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2217KOS.pdf",
    "spec": {
-    "watt": 60,
+    "watt": 48,
+    "dmx": [
+     512
+    ],
+    "ip": "IP65",
+    "kg": 3,
     "source": "6X10W "
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 6X10W",
+    "watt": "2).Power Consumption:48W",
+    "dmx": "6).DMX512 Channels: 4/8 CH",
+    "ip": "IP65   LED BATTERY PAR",
+    "kg": "15).Net Weight: 3 kgs ; Gross Weight: 4 kgs",
     "source": "שם/תיאור בחנות"
    },
+   "parsedAt": "2026-10-08T15:49:18.997Z",
    "kind": "static"
   },
   {
@@ -14496,14 +15320,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L22113KOS.pdf",
    "spec": {
-    "watt": 162,
-    "source": "54X3W "
+    "dmx": [
+     3
+    ],
+    "ip": "IP20",
+    "source": "3 X 54W",
+    "watt": 162
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 54X3W",
-    "source": "שם/תיאור בחנות"
+    "dmx": "3\nChannel",
+    "ip": "(IP20)",
+    "source": "3\nX\n54W\n",
+    "watt": "שם/תיאור בחנות: 54X3W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:49:20.168Z",
    "kind": "static"
   },
   {
@@ -14548,13 +15378,18 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L22112KOS.pdf",
    "spec": {
     "watt": 180,
-    "source": "18X10W "
+    "dmx": [
+     8,
+     4
+    ],
+    "source": "18 X 10W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 18X10W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power supply: 180W",
+    "dmx": "Channel: 8/4CH",
+    "source": "Professional led par 18 X 10W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:49:32.797Z",
    "kind": "static"
   },
   {
@@ -14572,15 +15407,22 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L22111KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L22111KOS.pdf",
    "spec": {
-    "watt": 70,
-    "source": "7X10W "
+    "dmx": [
+     4
+    ],
+    "ip": "IP65",
+    "source": "7 X 10W RGBW",
+    "watt": 70
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 7X10W",
-    "source": "שם/תיאור בחנות"
+    "dmx": "The fixture can be controlled using any DMX-compliant controller (4 Channel Mode | 8",
+    "ip": "shock, use this product with the original parts attached properly . (IP65)",
+    "source": "The SOLARIS® Professional TOUGH70™ is a high-performance 7 X 10W RGBW (Warm White)",
+    "watt": "שם/תיאור בחנות: 7X10W"
    },
+   "parsedAt": "2026-10-08T15:49:41.375Z",
    "kind": "static"
   },
   {
@@ -14673,13 +15515,21 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L221103KOS.pdf",
    "spec": {
     "watt": 48,
+    "dmx": [
+     512
+    ],
+    "ip": "IP20",
+    "kg": 3,
     "source": "6X8W "
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 6X8W",
+    "watt": "2).Power Consumption:48W",
+    "dmx": "7).DMX512 Channels: 4/8 CH",
+    "ip": "10).Protection rating: IP20",
+    "kg": "17).Net Weight: 3KG ;   Gross Weight: 4KG",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:49:42.567Z",
    "kind": "static"
   },
   {
@@ -14719,14 +15569,23 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L22109KOS.pdf",
    "spec": {
-    "watt": 36,
-    "source": "12x3W "
+    "watt": 50,
+    "dmx": [
+     6,
+     9,
+     84,
+     89
+    ],
+    "kg": 14,
+    "source": "LED 3W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 12x3W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power: 50W",
+    "dmx": "Channel: 6/9/84/89 CH",
+    "kg": "Master weight: 14KG",
+    "source": "Light source: Cree Yellow LED 3W*12pcs + SMD5050 LED 72pcs"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:49:45.039Z",
    "kind": "static"
   },
   {
@@ -14774,14 +15633,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L22106KOS.pdf",
    "spec": {
+    "dmx": [
+     7
+    ],
     "watt": 210,
     "source": "21X10W "
    },
    "ev": {
+    "dmx": "3.   7 channel mode:   SATG/ARC1/AR1.d/ARC2/AR2.d/AR2.s/HSV ;",
     "watt": "שם/תיאור בחנות: 21X10W",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:49:45.931Z",
    "kind": "static"
   },
   {
@@ -14868,13 +15731,18 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L22100KOS.pdf",
    "spec": {
     "watt": 180,
-    "source": "18X10W "
+    "dmx": [
+     8,
+     4
+    ],
+    "source": "led par 18*10W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 18X10W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power supply:   180W",
+    "dmx": "Channel: 8/4 CH",
+    "source": "Professional UV led par 18*10W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:49:47.117Z",
    "kind": "static"
   },
   {
@@ -14894,14 +15762,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2203KO.pdf",
    "spec": {
+    "dmx": [
+     14
+    ],
     "watt": 90,
     "source": "9X10W "
    },
    "ev": {
+    "dmx": "2   14/9/36ch   Channel selection （ 14ch 、 9ch 、 36ch ）",
     "watt": "שם/תיאור בחנות: 9X10W",
     "source": "שם/תיאור בחנות"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:49:47.737Z",
    "kind": "static"
   },
   {
@@ -14991,14 +15863,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2197KO.pdf",
    "spec": {
-    "watt": 40,
-    "source": "4X10W "
+    "watt": 55,
+    "dmx": [
+     4
+    ],
+    "ip": "IP20",
+    "source": "LED: 4pcs *10W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 4X10W",
-    "source": "שם/תיאור בחנות"
+    "watt": "Power consumption: 55W",
+    "dmx": "DMX channel: 4 CH / 16 CH",
+    "ip": "IP rate :IP20",
+    "source": "LED: 4pcs *10W White LED"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:49:51.829Z",
    "kind": "moving"
   },
   {
@@ -15043,9 +15921,30 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2196KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 115,
+    "beam": 11,
+    "beamMax": 35,
+    "dmx": [
+     1,
+     2,
+     3
+    ],
+    "ip": "IP20",
+    "kg": 3.4,
+    "kelvin": 3000,
+    "source": "LED Sources: 100W"
+   },
+   "ev": {
+    "watt": "   Total Power consumption:   115W",
+    "beam": "   Beam Angle:   Stepless manual zoom from 11 ° to 35 °",
+    "dmx": "   1/2/3 Channel Mode;",
+    "ip": "   IP rating:   IP20",
+    "kg": "   Weight(N.W) ：   3.4Kgs",
+    "kelvin": "   Color Temperature:   3000K/4000K/5700K for option.",
+    "source": "   LED Sources:   100W White COB LED"
+   },
+   "parsedAt": "2026-10-08T15:49:53.049Z",
    "kind": "static"
   },
   {
@@ -15215,14 +16114,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2179KOS.pdf",
    "spec": {
-    "watt": 80,
-    "source": "8x10W "
+    "watt": 90,
+    "dmx": [
+     11
+    ],
+    "kg": 9.5,
+    "source": "8x10W"
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 8x10W",
-    "source": "שם/תיאור בחנות"
+    "watt": "2. Power Consumption: 90W",
+    "dmx": "2   Channel Mode   11CH",
+    "kg": "12. N.W/G.W: 8.0/9.5 KG",
+    "source": "SPIDER RGBW 8x10W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:49:54.218Z",
    "kind": "moving"
   },
   {
@@ -15426,12 +16331,20 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L21722KOS.pdf",
    "spec": {
+    "dmx": [
+     6
+    ],
+    "ip": "IP20",
+    "kelvin": 3200,
     "watt": 18
    },
    "ev": {
+    "dmx": "06CH( d001-d507)",
+    "ip": "The projector is for indoor use only, IP20. Use only in dry locations. Keep this device away",
+    "kelvin": "3W Golden LED chips with small angle lense (3200K/7 °",
     "watt": "שם/תיאור בחנות: 18W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:01.594Z",
    "kind": "static"
   },
   {
@@ -15705,12 +16618,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L2139KOS.pdf",
    "spec": {
+    "dmx": [
+     4
+    ],
+    "kg": 6.8,
     "watt": 500
    },
    "ev": {
+    "dmx": "4 DMX Channel :",
+    "kg": "Net Weight: 6.8KG Gross",
     "watt": "שם/תיאור בחנות: 500 W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:02.648Z",
    "kind": "static"
   },
   {
@@ -15892,13 +16811,14 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L21107KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L21107KOS.pdf",
    "spec": {
     "watt": 380
    },
    "ev": {
     "watt": "שם/תיאור בחנות: 380W"
    },
+   "parsedAt": "2026-10-08T15:50:04.398Z",
    "kind": "moving"
   },
   {
@@ -16006,13 +16926,28 @@
    "roots": [
     250
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L211011KOS.zip",
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/L211011KOS.pdf",
    "spec": {
+    "beam": 7,
+    "beamMax": 27,
+    "dmx": [
+     7,
+     3
+    ],
+    "kg": 10,
+    "pan": 540,
+    "tilt": 240,
     "watt": 320
    },
    "ev": {
+    "beam": "Zoom angle: 7 - 27 °",
+    "dmx": "7.3 Channel ----------------------------------------------------------------------------------------------   9",
+    "kg": "N.W. ： 10KG",
+    "pan": "Pan movement ： 540 °   (16 bit )",
+    "tilt": "Tilt movement ： 240 °   (16 bit )",
     "watt": "שם/תיאור בחנות: 320W"
    },
+   "parsedAt": "2026-10-08T15:50:05.219Z",
    "kind": "moving"
   },
   {
@@ -18769,9 +19704,13 @@
     253
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/GOWE3KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "kg": 13
+   },
+   "ev": {
+    "kg": "Weight :   13Kg"
+   },
+   "parsedAt": "2026-10-08T15:50:05.910Z",
    "kind": "hoist"
   },
   {
@@ -18790,9 +19729,13 @@
     253
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/GOWE2KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "kg": 24
+   },
+   "ev": {
+    "kg": "Weight :   24Kg"
+   },
+   "parsedAt": "2026-10-08T15:50:06.656Z",
    "kind": "hoist"
   },
   {
@@ -18811,9 +19754,13 @@
     253
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/GJRC1KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "kg": 12.2
+   },
+   "ev": {
+    "kg": "Weight :   12.2Kg"
+   },
+   "parsedAt": "2026-10-08T15:50:07.530Z",
    "kind": "hoist"
   },
   {
@@ -19454,7 +20401,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/GFAN1KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:08.313Z",
    "kind": "hoist"
   },
   {
@@ -22402,12 +23349,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCYLC1KO.pdf",
    "spec": {
-    "kelvin": 3000
+    "watt": 7,
+    "lumen": 130,
+    "ip": "IP65",
+    "kelvin": 2200
    },
    "ev": {
-    "kelvin": "שם/תיאור בחנות"
+    "watt": "Power: 7W/10W",
+    "lumen": "130 LM/W High quality LED .",
+    "ip": "waterproof for IP65 rated.",
+    "kelvin": "CCT: 2200K/2700K/3000K/4000K/5700K/6500K"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:09.193Z",
    "kind": "arch"
   },
   {
@@ -22567,12 +23520,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCSPR41KO.pdf",
    "spec": {
+    "beam": 270,
     "ip": "IP65"
    },
    "ev": {
-    "ip": "שם/תיאור בחנות"
+    "beam": "270° Beamangle",
+    "ip": "NEON FLEX RGBW IP65"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:10.070Z",
    "kind": "strip"
   },
   {
@@ -23522,12 +24477,16 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMUC12KO.pdf",
    "spec": {
-    "kelvin": 3000
+    "watt": 4.056,
+    "lumen": 143.07,
+    "kelvin": 3851
    },
    "ev": {
-    "kelvin": "שם/תיאור בחנות"
+    "watt": "Voltage: V = 24.02 V   Current: I = 0.1688 A   Power: P = 4.056 W   Power Factor: PF = 1.000   Frequency: 0.00 Hz",
+    "lumen": "Luminous Flux:   Φ   = 143.07 lm   Luminous Efficacy: 35.28 lm/W   Radiant Flux:   Φ e = 533.55 mW",
+    "kelvin": "Correlated Color Temperature: CCT = 3851 K   Dominant Wavelength:   λ d = 579.4 nm   Purity: 31.0 %"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:10.766Z",
    "kind": "arch"
   },
   {
@@ -23547,12 +24506,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET9KO.pdf",
    "spec": {
-    "watt": 24
+    "watt": 23.84,
+    "lumen": 2649.68
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 24W"
+    "watt": "Power:   23.84   W",
+    "lumen": "Luminaire Lumens: 2649.68 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:13.553Z",
    "kind": "static"
   },
   {
@@ -23571,9 +24532,15 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET8KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 73.56,
+    "lumen": 4975.21
+   },
+   "ev": {
+    "watt": "Power:   73.56   W",
+    "lumen": "Luminaire Lumens: 4975.21 lm"
+   },
+   "parsedAt": "2026-10-08T15:50:14.885Z",
    "kind": "static"
   },
   {
@@ -23592,9 +24559,15 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET7KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 71.85,
+    "lumen": 7126.65
+   },
+   "ev": {
+    "watt": "Power:   71.85   W",
+    "lumen": "Luminaire Lumens: 7126.65 lm"
+   },
+   "parsedAt": "2026-10-08T15:50:16.512Z",
    "kind": "static"
   },
   {
@@ -23614,12 +24587,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET6KO.pdf",
    "spec": {
-    "watt": 48
+    "watt": 49.73,
+    "lumen": 4349.45
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 48W"
+    "watt": "Power:   49.73   W",
+    "lumen": "Luminaire Lumens: 4349.45 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:18.156Z",
    "kind": "static"
   },
   {
@@ -23639,12 +24614,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET5KO.pdf",
    "spec": {
-    "watt": 48
+    "watt": 48.76,
+    "lumen": 5946.13
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 48W"
+    "watt": "Power:   48.76   W",
+    "lumen": "Luminaire Lumens: 5946.13 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:21.133Z",
    "kind": "static"
   },
   {
@@ -23664,12 +24641,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET4KO.pdf",
    "spec": {
-    "watt": 48
+    "watt": 48.53,
+    "lumen": 3920.54
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 48W"
+    "watt": "Power:   48.53   W",
+    "lumen": "Luminaire Lumens: 3920.54 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:22.443Z",
    "kind": "static"
   },
   {
@@ -23689,12 +24668,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET3KO.pdf",
    "spec": {
-    "watt": 48
+    "watt": 48.35,
+    "lumen": 5282.66
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 48W"
+    "watt": "Power:   48.35   W",
+    "lumen": "Luminaire Lumens: 5282.66 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:27.578Z",
    "kind": "static"
   },
   {
@@ -23714,12 +24695,18 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET31KOS.pdf",
    "spec": {
-    "watt": 12
+    "watt": 10,
+    "lumen": 800,
+    "ip": "IP65",
+    "kelvin": 2200
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 12W"
+    "watt": "DC24V   Power   10W/12W/15W （ Optional ）",
+    "lumen": "≥ 800LM/ ≥ 960LM/ ≥ 1200LM",
+    "ip": "2.   Please make connectors tightly to be waterproof, it is IP65",
+    "kelvin": "Product Image   12W DC24V 2200K 120 °   Real light effect"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:28.900Z",
    "kind": "strip"
   },
   {
@@ -23739,12 +24726,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET2KO.pdf",
    "spec": {
-    "watt": 15
+    "watt": 14.98,
+    "lumen": 184.83
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 15W"
+    "watt": "Power:   14.98   W",
+    "lumen": "Luminaire Lumens: 184.83 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:33.681Z",
    "kind": "static"
   },
   {
@@ -23764,12 +24753,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET1KO.pdf",
    "spec": {
-    "watt": 15
+    "watt": 15.01,
+    "lumen": 184.83
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 15W"
+    "watt": "Power:   15.01   W",
+    "lumen": "Luminaire Lumens: 184.83 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:34.901Z",
    "kind": "static"
   },
   {
@@ -23789,12 +24780,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET18KO.pdf",
    "spec": {
-    "watt": 10
+    "watt": 10.94,
+    "lumen": 807.18
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 10W"
+    "watt": "Power:   10.94   W",
+    "lumen": "Luminaire Lumens: 807.18 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:39.377Z",
    "kind": "static"
   },
   {
@@ -23814,12 +24807,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET17KO.pdf",
    "spec": {
-    "watt": 15
+    "watt": 15.83,
+    "lumen": 1035.98
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 15W"
+    "watt": "Power:   15.83   W",
+    "lumen": "Luminaire Lumens: 1035.98 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:41.093Z",
    "kind": "static"
   },
   {
@@ -23839,12 +24834,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET16KO.pdf",
    "spec": {
-    "watt": 15
+    "watt": 15.77,
+    "lumen": 1561.11
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 15W"
+    "watt": "Power:   15.77   W",
+    "lumen": "Luminaire Lumens: 1561.11 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:48.462Z",
    "kind": "static"
   },
   {
@@ -23863,9 +24860,15 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET15KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 5.38,
+    "lumen": 574.04
+   },
+   "ev": {
+    "watt": "Power:   5.38   W",
+    "lumen": "Luminaire Lumens: 574.04 lm"
+   },
+   "parsedAt": "2026-10-08T15:50:50.146Z",
    "kind": "static"
   },
   {
@@ -23885,12 +24888,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET14KO.pdf",
    "spec": {
-    "watt": 27
+    "watt": 26.63,
+    "lumen": 1862.77
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 27W"
+    "watt": "Power:   26.63   W",
+    "lumen": "Luminaire Lumens: 1862.77 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:52.534Z",
    "kind": "static"
   },
   {
@@ -23910,12 +24915,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET13KO.pdf",
    "spec": {
-    "watt": 27
+    "watt": 27.32,
+    "lumen": 3313.34
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 27W"
+    "watt": "Power:   27.32   W",
+    "lumen": "Luminaire Lumens: 3313.34 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:53.342Z",
    "kind": "static"
   },
   {
@@ -23935,12 +24942,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET12KO.pdf",
    "spec": {
-    "watt": 27
+    "watt": 27.14,
+    "lumen": 1904.62
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 27W"
+    "watt": "Power:   27.14   W",
+    "lumen": "Luminaire Lumens: 1904.62 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:55.999Z",
    "kind": "static"
   },
   {
@@ -23960,12 +24969,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET11KO.pdf",
    "spec": {
-    "watt": 27
+    "watt": 26.93,
+    "lumen": 2360.24
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 27W"
+    "watt": "Power:   26.93   W",
+    "lumen": "Luminaire Lumens: 2360.24 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:50:58.103Z",
    "kind": "static"
   },
   {
@@ -23985,12 +24996,14 @@
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/ARCMET10KO.pdf",
    "spec": {
-    "watt": 24
+    "watt": 24.12,
+    "lumen": 1908.45
    },
    "ev": {
-    "watt": "שם/תיאור בחנות: 24W"
+    "watt": "Power:   24.12   W",
+    "lumen": "Luminaire Lumens: 1908.45 lm"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:51:04.503Z",
    "kind": "static"
   },
   {
@@ -24695,7 +25708,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CSPE3KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:51:05.215Z",
    "kind": "control"
   },
   {
@@ -24714,9 +25727,19 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CSPE1KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "dmx": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   },
+   "ev": {
+    "dmx": "SP630E is compatible with multiple types of LEDs.It can work with 1/2/3/4/5CH"
+   },
+   "parsedAt": "2026-10-08T15:51:21.843Z",
    "kind": "control"
   },
   {
@@ -24795,9 +25818,17 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CJIM9KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 1,
+    "dmx": [
+     1
+    ]
+   },
+   "ev": {
+    "watt": "●   Static power consumption: <1 W",
+    "dmx": "MODEL: XDIMMER-1CH-30A"
+   },
+   "parsedAt": "2026-10-08T15:51:22.523Z",
    "kind": "dimmer"
   },
   {
@@ -25002,7 +26033,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CGLB1KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:52:38.236Z",
    "kind": "control"
   },
   {
@@ -25041,9 +26072,22 @@
     250
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CEAS1KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 150,
+    "dmx": [
+     5,
+     6,
+     9,
+     10
+    ],
+    "kg": 6.3
+   },
+   "ev": {
+    "watt": "Power   consumption:   150 W",
+    "dmx": "DMX   Mod   e   →   5/6/9/10CH   when   you   chose   RGB   in   the   “ Run   Mode ”",
+    "kg": "G.   W:   6.25/6.3 KG"
+   },
+   "parsedAt": "2026-10-08T15:52:39.317Z",
    "kind": "hoist"
   },
   {
@@ -25101,9 +26145,14 @@
    "roots": [
     254
    ],
-   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CCLL30KO.zip",
-   "spec": {},
-   "ev": {},
+   "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CCLL30KO.pdf",
+   "spec": {
+    "watt": 10
+   },
+   "ev": {
+    "watt": "Power   W   －   －   10W"
+   },
+   "parsedAt": "2026-10-08T15:52:40.681Z",
    "kind": "control"
   },
   {
@@ -25128,7 +26177,7 @@
    "ev": {
     "watt": "שם/תיאור בחנות: 200W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:52:42.213Z",
    "kind": "control"
   },
   {
@@ -25153,7 +26202,7 @@
    "ev": {
     "watt": "שם/תיאור בחנות: 200W"
    },
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:52:43.958Z",
    "kind": "control"
   },
   {
@@ -25194,7 +26243,7 @@
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CCHA5KO.pdf",
    "spec": {},
    "ev": {},
-   "pdfErr": "fetch failed",
+   "parsedAt": "2026-10-08T15:52:44.555Z",
    "kind": "control"
   },
   {
@@ -25253,9 +26302,13 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CCHA35KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "kg": 1.85
+   },
+   "ev": {
+    "kg": "• Weight: 1.85kg (4.1lbs)"
+   },
+   "parsedAt": "2026-10-08T15:52:45.365Z",
    "kind": "control"
   },
   {
@@ -25274,9 +26327,13 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CCHA34KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "kg": 3.65
+   },
+   "ev": {
+    "kg": "• Weight: 3.65kg (8.05 lbs)"
+   },
+   "parsedAt": "2026-10-08T15:52:46.342Z",
    "kind": "control"
   },
   {
@@ -25295,9 +26352,13 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CCHA33KO.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "kg": 7
+   },
+   "ev": {
+    "kg": "•   Weight: 7kg (15.4lb)"
+   },
+   "parsedAt": "2026-10-08T15:52:46.736Z",
    "kind": "control"
   },
   {
@@ -25416,9 +26477,15 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CBIR5KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "dmx": [
+     3
+    ]
+   },
+   "ev": {
+    "dmx": "5.Max output 5A*3CH."
+   },
+   "parsedAt": "2026-10-08T15:52:48.028Z",
    "kind": "control"
   },
   {
@@ -25437,9 +26504,19 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CBIR4KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "watt": 5,
+    "dmx": [
+     512
+    ],
+    "kg": 1
+   },
+   "ev": {
+    "watt": "   Power   consumption:   5 W",
+    "dmx": "   Wireless   DMX   512   channels",
+    "kg": "   Weight:   1   kg"
+   },
+   "parsedAt": "2026-10-08T15:52:48.791Z",
    "kind": "control"
   },
   {
@@ -25482,9 +26559,15 @@
     254
    ],
    "pdf": "https://storage.googleapis.com/ko-wp-images/docs/CBIN1KOS.pdf",
-   "spec": {},
-   "ev": {},
-   "pdfErr": "fetch failed",
+   "spec": {
+    "dmx": [
+     4
+    ]
+   },
+   "ev": {
+    "dmx": "4CH   DALI Dimming Driver"
+   },
+   "parsedAt": "2026-10-08T15:52:49.894Z",
    "kind": "control"
   },
   {
