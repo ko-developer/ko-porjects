@@ -2,7 +2,7 @@
 // המקור האחיד: src/app.js + סמני /*__DATA:NAME__*/ + src/index.template.html.
 import { readFileSync } from 'node:fs';
 
-export const DATA = ['CONDUIT_RULES', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_KITS', 'ERP_CATALOG', 'ERP_IMAGES', 'MODEL_IMAGES', 'REAR_IMAGES', 'REAR_LAYOUTS', 'ERP_SOLD', 'ERP_FILTERS', 'KIT_META'];
+export const DATA = ['CONDUIT_RULES', 'ERP_ITEMS', 'ERP_PRICES', 'ERP_KITS', 'ERP_CATALOG', 'ERP_IMAGES', 'MODEL_IMAGES', 'REAR_IMAGES', 'REAR_LAYOUTS', 'ERP_SOLD', 'ERP_FILTERS', 'KIT_META', 'LIGHT_FIXTURES'];
 
 // JS מלא של האפליקציה עם נתוני ה-ERP מוזרקים + אשף הזרימה (V2)
 export function matrixSpkJson() {
@@ -28,6 +28,7 @@ export function assembleAppJs() {
   try { app += '\n' + readFileSync('src/soundreport.js', 'utf8'); } catch (e) { /* ייבוא דוח תכנון סאונד אופציונלי */ }
   try { app += '\n' + readFileSync('src/wizard.js', 'utf8'); } catch (e) { /* אשף אופציונלי */ }
   try { app += '\n' + readFileSync('src/zonetrain.js', 'utf8'); } catch (e) { /* אימון אזורים אופציונלי */ }
+  try { app += '\n' + readFileSync('src/lighting.js', 'utf8'); } catch (e) { /* תאורה מקצועית אופציונלי */ }
   return app;
 }
 

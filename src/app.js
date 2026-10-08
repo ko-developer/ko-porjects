@@ -69,6 +69,7 @@ function conduitFor(c) {
 
 /*__DATA:ERP_KITS__*/
 /*__DATA:KIT_META__*/
+/*__DATA:LIGHT_FIXTURES__*/
 
 /*__DATA:ERP_CATALOG__*/
 /*__DATA:ERP_IMAGES__*/
@@ -1790,7 +1791,8 @@ function addNode(kind, rtype) {
     ? { id, kind, name:'פאנל מחברים', sub:'', x, y, panel: defPanel(16, 2) }
     : kind === 'power'
     ? { id, kind: 'panel', name:'הכנת חשמל', sub:'שקעים / סיקונים', x, y, ptype: 'power', panel: defPanel(4, 1, 'si16') }
-    : { id, kind, name:'מוקד חדש', sub:'', x, y });
+    : (P.layer === 'light' && typeof fxAddNode === 'function') ? null : P.layer === 'video' ? { id, kind, name: 'מסך / מקרן חדש', sub: '', x, y, ptype: 'screen' } : { id, kind, name:'מוקד חדש', sub:'', x, y });
+  if (kind === 'point' && P.layer === 'light' && typeof fxAddNode === 'function') { P.nodes = P.nodes.filter(Boolean); fxPicker({}); return; }
   sel = id; ui.tab = 'node'; render();
   uiToast((kind === 'rack' ? '🗄 ארון חדש' : kind === 'panel' ? '🧩 פאנל חדש' : kind === 'power' ? '⚡ הכנת חשמל — בחר סוג שקע/סיקון ולחץ על החורים' : '📍 מוקד חדש') + ' נוסף במרכז המסך — גרור אותו למקום');
 }
@@ -2637,6 +2639,7 @@ window.bugDialog = bugDialog; window.bugAddFiles = bugAddFiles; window.bugRender
 setTimeout(bugBadge, 1500); setInterval(bugBadge, 120000);
 function renderHeader() {
   const ab = document.getElementById('authBox'); if (ab) ab.innerHTML = authBoxHTML();
+  { const lb = document.getElementById('layerBar'); if (lb) lb.innerHTML = layerBarHTML(); }
   applySharedMode();
   $('#projSel').innerHTML = store.projects.map(p =>
     `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
@@ -2746,8 +2749,33 @@ function cabGroup(c) {
   return hs.length && hs.every(h => h.conn === 'dmx' || /dmx/i.test(h.label || '')) ? 'light' : g;
 }
 const CAB_GROUP = { multi: 'audio', xlr: 'audio', aes: 'audio', nl4: 'audio', dmx: 'light', sdi: 'video', hdmi: 'video', cat: 'data', fiber: 'data', pwr: 'power' };
+/* ===== שכבות דיסציפלינה על אותה תכנית: סאונד / תאורה / וידאו =====
+   מוקד שייך לשכבה לפי סוגו (רמקול → סאונד, פנס → תאורה, מסך/מצלמה → וידאו); כבל לפי סוג הכבל (cabGroup);
+   ארון / פאנל / הכנת חשמל / תשתית — משותפים לכל השכבות. P.layer = השכבה הפעילה ('audio' | 'light' | 'video' | 'all') */
+var LAYERS = [['audio', '🔊 סאונד'], ['light', '💡 תאורה'], ['video', '📺 וידאו'], ['all', '🧩 הכל']];
+function nodeLayer(n) {
+  if (!n || n.kind !== 'point') return 'all';
+  if (n.layer) return n.layer;
+  const pt = n.ptype || '';
+  if (pt === 'light') return 'light';
+  if (pt === 'screen' || pt === 'camera') return 'video';
+  if (pt === 'ap' || pt === 'device' || pt === 'other' || pt === 'panel') return 'all';
+  if (!pt && /מסך|מקרן|screen|projector|מצלמ|camera/i.test(n.name || '')) return 'video';
+  if (!pt && /פנס|תאורה|light|moving|wash|\bpar\b/i.test(n.name || '')) return 'light';
+  return 'audio';
+}
+function layerHas(n) { const L = P.layer || 'audio'; if (L === 'all') return true; const nl = nodeLayer(n); return nl === 'all' || nl === L; }
+function cableLayer(c) { const g = cabGroup(c); return g === 'light' ? 'light' : g === 'video' ? 'video' : g === 'audio' ? 'audio' : 'all'; }
+function layerHasCable(c) { const L = P.layer || 'audio'; if (L === 'all') return true; const cl = cableLayer(c); if (cl === 'all') { const a = byId(c.from), b = byId(c.to); return layerHas(a || {}) && layerHas(b || {}); } return cl === L; }
+function setLayer(l) { P.layer = l; if (l === 'light') P.disc = 'light'; else if (l === 'audio') P.disc = 'audio'; if (sel && byId(sel) && !layerHas(byId(sel))) sel = null; if (selCable && cById(selCable) && !layerHasCable(cById(selCable))) selCable = null; save(); render(); }
+function layerBarHTML() {
+  const L = P.layer || 'audio', cnt = { audio: 0, light: 0, video: 0 };
+  (P.nodes || []).forEach(n => { if (n.hidden) return; const l = nodeLayer(n); if (cnt[l] != null) cnt[l]++; });
+  return LAYERS.map(([k, lbl]) => `<button onclick="setLayer('${k}')" style="padding:4px 9px;border-radius:7px;font-size:12px;border:1px solid ${L === k ? '#ffb347' : '#3a4152'};background:${L === k ? '#ffb347' : '#2a303d'};color:${L === k ? '#1a1e28' : '#dfe3ea'};font-weight:${L === k ? 800 : 500}" title="${k === 'all' ? 'כל השכבות יחד' : 'שכבת ' + lbl.slice(2) + ' — רק המוקדים והכבלים שלה'}">${lbl}${cnt[k] ? ' <span style="opacity:.8;font-size:10.5px">' + cnt[k] + '</span>' : ''}</button>`).join('');
+}
 function cableVisible(c) {
-  if (window.__rpOnly && !window.__rpOnly.has(c.id)) return false;   /* דוח: דף שמציג רק חלק מהכבלים */
+  if (window.__rpOnly && !window.__rpOnly.has(c.id)) return false;
+  if (!window.__rpOnly && !layerHasCable(c)) return false;   /* שכבה פעילה — כבלים של דיסציפלינה אחרת לא מוצגים */   /* דוח: דף שמציג רק חלק מהכבלים */
   /* בידוד קו בעורך החיווט — מציגים רק את הכבלים של הערוץ שנבחר */
   if (typeof PATCH !== 'undefined' && PATCH && PATCH.solo) {
     const ids = new Set(PATCH.slots[PATCH.solo] || []);
@@ -3741,6 +3769,7 @@ function renderNodes() {
   const passList = []; for (const n of P.nodes) { passList.push([n, false]); if (!n.hidden && ((n.kind === 'panel' && !n.pmin) || (n.kind === 'rack' && !n.min))) passList.push([n, true]); }
   for (const [n, floatPass] of passList) {
     if (n.hidden) continue;
+    if (!window.__rpOnly && !layerHas(n)) continue;   /* מוקד של שכבה אחרת */
     const stk = floatPass ? null : stackOf[n.id];
     const d = document.createElement('div');
     d.className = 'node' + (sel === n.id ? ' sel' : '') + (n.kind === 'rack' && n.rear ? ' rear' : '')
@@ -3987,7 +4016,7 @@ function renderNodes() {
       if (mpt === 'screen')
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><path d="M8 21h8M12 17v4" stroke="${mc}" stroke-width="2"/></svg>`;
       else if (mpt === 'light')
-        icon = `<svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="10" r="6" fill="none" stroke="${mc}" stroke-width="2"/><path d="M9 18h6M10 21h4M12 1v2M4 10H2M22 10h-2M5 3l1.5 1.5M19 3l-1.5 1.5" stroke="${mc}" stroke-width="1.8"/></svg>`;
+        icon = typeof fxIcon === 'function' && n.fx ? fxIcon(n, mc) : `<svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="10" r="6" fill="none" stroke="${mc}" stroke-width="2"/><path d="M9 18h6M10 21h4M12 1v2M4 10H2M22 10h-2M5 3l1.5 1.5M19 3l-1.5 1.5" stroke="${mc}" stroke-width="1.8"/></svg>`;
       else if (mpt === 'camera')
         icon = `<svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="7" width="14" height="11" rx="2" fill="none" stroke="${mc}" stroke-width="2"/><path d="M16 11l6-3v9l-6-3z" fill="${mc}"/></svg>`;
       else if (mpt === 'mic')
@@ -9277,8 +9306,9 @@ function renderPanel() {
           <button class="primary" style="width:100%">הוסף כבל</button>
         </form>`;
     }
-    html += `<h3 class="sec">כל הכבלים (${P.cables.length}) — לחץ לעריכה</h3>` +
-      P.cables.map((cb, i) => {
+    const layerCabs = P.cables.filter(layerHasCable);
+    html += `<h3 class="sec">כל הכבלים (${layerCabs.length}${layerCabs.length !== P.cables.length ? " מתוך " + P.cables.length + " · בשכבה זו" : ""}) — לחץ לעריכה</h3>` +
+      layerCabs.map((cb, i) => {
         const col = cableColor(cb);
         return `<div class="crow ${cb.id === selCable ? 'selc' : ''}" onclick="pickCable('${cb.id}')">
           <span class="badge" style="background:${col}">${i + 1}</span>
@@ -9377,7 +9407,7 @@ function renderPanel() {
         ${['— בחר —'].concat(typeof USAGES !== 'undefined' ? USAGES : []).map(u => `<option value="${u}" ${P.room?.usage === u ? 'selected' : ''}>${u}${typeof USAGE_SPL!=='undefined'&&USAGE_SPL[u]?' · '+USAGE_SPL[u]+'dB':''}</option>`).join('')}
       </select></div>
       `;
-    let bgc = `<h3 class="sec">🗺 אזורי סאונד — תכלית שונה לכל אזור</h3>
+    let bgc = (typeof fxPanelHTML === 'function' ? fxPanelHTML() : '') + `<h3 class="sec">🗺 אזורי ${P.layer === 'light' ? 'תאורה' : P.layer === 'video' ? 'וידאו' : 'סאונד'} — תכלית שונה לכל אזור</h3>
       <div class="fld"><label>שם האזור הבא</label><input value="${esc(zoneNameNext)}" placeholder="למשל: חדר פרטי / רחבה / חוץ" oninput="zoneNameNext=this.value"></div>
       <button style="width:100%;margin-bottom:6px;${zoneMode ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="zoneMode={poly:[]};render()">${zoneMode ? 'נקר נקודות סביב האזור · לחיצה על הנקודה הראשונה סוגרת (Esc לביטול)' : '➕ סמן אזור — ניקור נקודות'}</button>
       <button style="width:100%;margin-bottom:6px" onclick="autoZones()">🤖 סמן לי אזורים אוטומטית${(store.zoneExamples || []).length ? ' (לומד מ-' + store.zoneExamples.length + ' דוגמאות שלך)' : ''}</button>
@@ -9449,6 +9479,7 @@ function renderPanel() {
       <div class="fld"><label>גובה (מ׳)</label><input type="number" step="0.1" min="0" value="${n.hgt ?? (isSub ? 0 : 2.6)}" onchange="byId('${n.id}').hgt=+this.value;save()"></div>
       <div class="fld"><label>התקנה על גבי</label><select onchange="byId('${n.id}').mount=this.value;save()">${MOUNTS.map(m => `<option value="${m}" ${curM === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
     </div>
+    ${pt === 'light' && typeof fxNodeHTML === 'function' ? fxNodeHTML(n) : ''}
     ${!isSpk ? `<p class="muted" style="font-size:11px">מוקד מסוג ${PTYPES.find(x => x[0] === pt)[1]} — ללא כיסוי אקוסטי.</p>
     <button style="width:100%;margin:4px 0 6px;background:#0f6e56;color:#fff;font-weight:700" onclick="wireMode={from:{nid:'${n.id}'}};wireStock=null;pinMode=null;connPin=null;render()">🔌 חבר כבל מכאן — ואז לחץ על מוצר היעד בתכנית</button>` : `
     <h3 class="sec" style="display:flex;align-items:center;gap:6px">🔊 נתונים אקוסטיים (EASE/GLL) וכיסוי<span style="flex:1"></span><button style="font-size:11px;padding:2px 8px" title="פתיחת הרמקול הזה בטבלת נתוני הרמקולים — שם הנתונים נערכים ומאומתים" onclick="spkTableGoto('${n.id}')">📋 בטבלת הנתונים</button></h3>
