@@ -14791,12 +14791,12 @@ function kitMaxSpl(k) {
 }
 /* הצעות לפי מותגי הבית — הצעה לכל מותג: הקיט הזול של המותג שעומד ביעד העוצמה של האזור (ועוד חלופות).
    הדרגה נקבעת לפי מותג הרמקולים בלבד (מגבר SAE בקיט KT לא משנה). התקנת קבע = פסיבי בלבד, בלי רסיברים ביתיים. */
-var OFFER_BRANDS = [
-  ['Funktion-One', /FUNKTION|\bRES ?\d|\bEVO ?\d|\bF ?(5|81|101|121|1201|218|124)\b|\bBR ?1?15|\bSB ?\d/i, '#0b3a2e', 'אנגליה — עוצמה, צליל ועמידות לשנים'],
-  ['Kling & Freitag', /KLING|K&F|GRAVIS|NOMOS|SONA|PASSIO|VIDA|SCENA|\bCA ?1?\d{2}\b/i, '#1d4f91', 'גרמניה — דיוק, גימור ואמינות'],
-  ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d|\bMF-?\d|\bQX-?\d/i, '#7a2a6b', 'אוסטריה — ליין ארז ופוינט סורס לאולמות'],
-  ['Unicorn', /UNICORN|EUPHORIA|PAGAZ|DYNAMIQ|MX3/i, '#534ab7', 'צליל נקי ומכובד בכשליש מהמחיר'],
-  ['KT', /\bKT\b|TILL|INTERPID|WR ?600|ARRAY|BOLD/i, '#a8650f', 'פתרון אמין למוזיקת רקע — מלאי גדול ומחיר נגיש'],
+var OFFER_BRANDS = [   /* סדר ההצגה: מהנגיש ליקר, לפי אורי. ה-order קובע את התצוגה; ההתאמה לקיט נבדקת לפי match (ספציפי קודם: KT UNICORN TILL = Unicorn) */
+  { label: 'KT', rx: /\bKT\b|TILL|INTERPID|WR ?600|ARRAY|BOLD/i, color: '#a8650f', blurb: 'פתרון אמין למוזיקת רקע — מלאי גדול ומחיר נגיש', match: 5 },
+  { label: 'Unicorn', rx: /UNICORN|EUPHORIA|PAGAZ|DYNAMIQ|MX3/i, color: '#534ab7', blurb: 'צליל נקי ומכובד בכשליש מהמחיר', match: 4 },
+  { label: 'Kling & Freitag', rx: /KLING|K&F|GRAVIS|NOMOS|SONA|PASSIO|VIDA|SCENA|\bCA ?1?\d{2}\b/i, color: '#1d4f91', blurb: 'גרמניה — דיוק, גימור ואמינות', match: 2 },
+  { label: 'Funktion-One', rx: /FUNKTION|\bRES ?\d|\bEVO ?\d|\bF ?(5|81|101|121|1201|218|124)\b|\bBR ?1?15|\bSB ?\d/i, color: '#0b3a2e', blurb: 'אנגליה — עוצמה, צליל ועמידות לשנים', match: 1 },
+  { label: 'Lambda Labs', rx: /LAMBDA|\bTX-?\d|\bCX-?\d|\bMF-?\d|\bQX-?\d/i, color: '#7a2a6b', blurb: 'אוסטריה — ליין ארז ופוינט סורס לאולמות', match: 3 },
 ];
 function zoneTierKits(z) {
   const target = (typeof USAGE_SPL !== 'undefined' && z && USAGE_SPL[z.usage]) || 90;
@@ -14816,10 +14816,11 @@ function zoneTierKits(z) {
     x._price = kitPriceOf(x.k); x._stock = kitStock(x.k); x._spl = kitMaxSpl(x.k);
     x._liveFit = isLive && LIVE_RX.test(x.k.name || '');
     x._spkTxt = (x.k.items || []).filter(it => isSpeakerItem(it.name || '')).map(it => it.name).join(' ');
-    x._brand = OFFER_BRANDS.findIndex(b => b[1].test(x._spkTxt));
+    const bm = OFFER_BRANDS.map((b, i) => ({ b, i })).sort((a, c) => a.b.match - c.b.match).find(o => o.b.rx.test(x._spkTxt));
+    x._brand = bm ? bm.i : -1;
   });
   const out = [];
-  OFFER_BRANDS.forEach(([label, , color, blurb], bi) => {
+  OFFER_BRANDS.forEach(({ label, color, blurb }, bi) => {
     const inB = ks.filter(x => x._brand === bi);
     if (!inB.length) { out.push({ label, color, blurb, empty: true, fits: true, gap: true, pick: null, alt: [] }); return; }
     const fit = inB.filter(x => x._spl >= need)
