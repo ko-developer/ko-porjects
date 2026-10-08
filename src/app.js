@@ -259,7 +259,9 @@ function load() {
    (שלעתים קורא ל-save כמה פעמים) ייחשב כצעד אחד בהיסטוריה. */
 const HIST = { past: [], future: [], busy: false, t: null };
 const HIST_MAX = 60;
-function snapProject() { return JSON.stringify({ nodes: P.nodes, cables: P.cables, zones: P.zones, imp: typeof impItems !== 'undefined' ? impItems : [] }); }
+/* הצילום כולל גם את הפרויקט והתכנית (גיליון) שבהם נעשה השינוי — ביטול אחרי מעבר תכנית/פרויקט חוזר לשם, ולא כותב את המוקדים על תכנית אחרת —
+   ואת שכבת התאורה: סימוני זיהוי, שרטוט (טראסים), עמדות תלייה, הספירה האחרונה */
+function snapProject() { return JSON.stringify({ pid: P.id, sheet: P.curSheet, nodes: P.nodes, cables: P.cables, zones: P.zones, imp: typeof impItems !== 'undefined' ? impItems : [], fxDet: P.fxDet || null, sketch: P.sketch || null, lightPos: P.lightPos || null, fxInventory: P.fxInventory || null, fxDefDepth: P.fxDefDepth }); }
 function pushHistory() {
   if (HIST.busy) return;
   clearTimeout(HIST.t);
@@ -274,7 +276,11 @@ function pushHistory() {
 }
 function applySnap(s) {
   const d = JSON.parse(s);
+  if (d.pid && d.pid !== P.id) { const pr = store.projects.find(p => p.id === d.pid); if (!pr) return; P = pr; sheetsInit(P); }
+  if (d.sheet && P.sheets && P.sheets.some(sh => sh.id === d.sheet) && P.curSheet !== d.sheet) { P.curSheet = d.sheet; window.__alignDrag = null; window.__bgFit = null; }
   P.nodes = d.nodes; P.cables = d.cables; P.zones = d.zones;
+  if ('fxDet' in d) P.fxDet = d.fxDet || undefined; if ('sketch' in d) P.sketch = d.sketch || undefined; if ('lightPos' in d) P.lightPos = d.lightPos || undefined; if ('fxInventory' in d) P.fxInventory = d.fxInventory || undefined; if ('fxDefDepth' in d) P.fxDefDepth = d.fxDefDepth;
+  window.__fxDetAdd = null; window.__pick2 = null; document.body.style.cursor = '';
   if (typeof impItems !== 'undefined') impItems = d.imp || [];
   sel = null; selCable = null; selZone = null; selMulti.clear();
   HIST.busy = true;
@@ -1540,7 +1546,8 @@ async function delProj() {
   store.projects = store.projects.filter(p => p.id !== P.id);
   P = store.projects[0]; sel = selCable = null; impItems = impLoad(); render();
 }
-function switchProj(id) { P = store.projects.find(p => p.id === id) || P; sheetsInit(P); sel = selCable = null; impItems = impLoad(); render(); viewToContent(); }
+function switchProj(id) { const was = P && P.id; P = store.projects.find(p => p.id === id) || P; sheetsInit(P); sel = selCable = null; impItems = impLoad(); render(); viewToContent();
+  if (P.id !== was) { HIST.past.length = 0; HIST.future.length = 0; HIST.busy = false; pushHistory(); renderHistBtns(); } }   /* היסטוריה לכל פרויקט בנפרד — ביטול לא מערבב פרויקטים */
 /* ===== מנהל פרויקטים — חיפוש, לקוח, בחירה מרובה ומחיקה ===== */
 function projManager() {
   const old = document.getElementById('pmOv'); if (old) old.remove();
