@@ -474,6 +474,7 @@ function zoneNoOverlap(z, others) {
 }
 /* יצירת אזורי סאונד מכיתובי הקהל — לפי גבולות החדר סביב כל כיתוב; rebuild = מחליף אזורים שנוצרו מכיתובים */
 async function ptMakeZones(rebuild) {
+  if (typeof sheetIsElevation === 'function' && sheetIsElevation()) { uiToast('🎭 זו חזית — אזורים מסמנים על תכנית תקרה/העמדה (מבט מלמעלה)', 6000); return; }
   const pt = P.planText; if (!pt || !pt.items) return;
   /* כשיש תמונת מבנה (PDF עם שכבות): גבולות האזור נקבעים לפי הקירות בלבד — הריהוט והכיתובים קובעים מה יש באזור (שם ותכלית), לא איפה הוא נגמר */
   if (!window.__ptNoPart && await ptStructCanvas()) { if (rebuild) P.zones = (P.zones || []).filter(z => !z.fromText); return ptPartition(); }
@@ -885,6 +886,7 @@ async function ptFilledRegions(B) {
   return { regions: out, lab, walls, outside, thick };
 }
 async function ptPartition() {
+  if (typeof sheetIsElevation === 'function' && sheetIsElevation()) { uiToast('🎭 זו חזית — אזורים מסמנים על תכנית תקרה/העמדה (מבט מלמעלה)', 6000); return; }
   if (!P.bg) { uiToast('אין תכנית'); return; }
   uiToast('🧩 מחלק את החלל לאזורים לפי הקירות…', 5000);
   const B = await ptBinary(); const { w, h } = B;

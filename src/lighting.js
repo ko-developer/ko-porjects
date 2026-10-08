@@ -145,20 +145,59 @@ function fxPatchTable() {
   ov.querySelector('[data-x]').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   ov.querySelector('[data-csv]').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = 'KO-DMX-' + (P.name || '').slice(0, 40) + '.csv'; a.click(); };
 }
+/* ---------- סוג המבט של השרטוט: תכנית (מלמעלה) / חזית (מהקהל) / חתך ----------
+   בסאונד תכנית העמדה היא תמיד מבט מלמעלה; בתאורה המעצב מצייר לרוב חזית: הטראסים בגובה, הפנסים תלויים עליהם.
+   בחזית ציר y של התמונה הוא גובה, לא עומק — לכן הקריאה שונה, ואזורים/כיסוי לא נבנים עליה. */
+function sheetView() { const sh = typeof curSheet === 'function' ? curSheet(P) : null; return (sh && sh.view) || 'plan'; }
+function sheetIsElevation() { return sheetView() === 'front' || sheetView() === 'side'; }
+function sheetSetView(v) { const sh = curSheet(P); if (!sh) return; sh.view = v && v !== 'plan' ? v : undefined; save(); render(); }
+function fxAfterUpload() {
+  if (P.layer !== 'light') return;   /* בסאונד — תמיד תכנית */
+  const ov = uiModal(`<b style="font-size:14px">💡 איזה מבט זה?</b>
+    <p class="muted" style="font-size:11.5px;margin:4px 0 10px">בתאורה השרטוט הוא לרוב חזית. בחזית ציר הגובה הוא למעלה-למטה, והפנסים נקראים לפי הטראס שהם תלויים עליו.</p>
+    <div style="display:grid;gap:6px">
+      <button data-v="front" style="text-align:right;padding:9px 12px"><b>🎭 חזית</b> — מבט מהקהל אל הבמה: טראסים בגובה, פנסים תלויים</button>
+      <button data-v="plan" style="text-align:right;padding:9px 12px"><b>🗺 תכנית תקרה / העמדה</b> — מבט מלמעלה</button>
+      <button data-v="side" style="text-align:right;padding:9px 12px"><b>↔ חתך / צד</b></button>
+      <button data-v="auto" style="text-align:right;padding:9px 12px;background:#eef">🤖 זהה אוטומטית מהתמונה</button>
+    </div>`);
+  ov.querySelectorAll('[data-v]').forEach(b => b.onclick = async () => { ov.remove(); const v = b.dataset.v;
+    if (v !== 'auto') { sheetSetView(v); uiToast(v === 'front' ? '🎭 חזית — "קרא תכנית תאורה" יקרא טראסים בגובה ופנסים עליהם' : v === 'side' ? '↔ חתך' : '🗺 תכנית'); return; }
+    const d = await fxDetectView(); if (!d) return; sheetSetView(d.view);
+    uiToast('🤖 ' + (d.view === 'front' ? '🎭 חזית' : d.view === 'side' ? '↔ חתך' : '🗺 תכנית מלמעלה') + (d.why ? ' — ' + d.why : ''), 7000); });
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
+async function fxDetectView() {
+  if (!P.bg || typeof claudeMsg !== 'function') return null;
+  uiToast('🤖 מזהה את סוג המבט…', 4000);
+  try {
+    const mt = /^data:image\/png/i.test(P.bg) ? 'image/png' : 'image/jpeg';
+    const j = await claudeMsg([{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mt, data: P.bg.split(',')[1] } },
+      { type: 'text', text: 'Is this technical drawing a top-down plan (floor/ceiling/rigging plan seen from above), a front elevation (stage seen from the audience: trusses drawn as horizontal bars at heights, fixtures hanging below them, floor line at the bottom), or a side section? Answer ONLY JSON: {"view":"plan|front|side","why":"one short sentence in Hebrew"}' }] }], 300);
+    const d = claudeJson(j); return d && d.view ? d : null;
+  } catch (e) { uiToast('הזיהוי נכשל: ' + e.message); return null; }
+}
 /* ---------- קריאת תכנית תאורה של מעצב (ראייה) ---------- */
 var FX_PLOT_PROMPT = `You are reading a stage/event lighting plot (a designer's drawing). Extract EVERY lighting fixture symbol you can see.
 Return ONLY JSON: {"fixtures":[{"x":0.0-1.0,"y":0.0-1.0,"type":"moving|static|effect|other","model":"text written for this fixture or its legend entry","label":"unit number/label if written","pos":"name of the truss/bar/position it hangs on, if written"}],
 "legend":[{"symbol":"short description of the symbol","model":"model/fixture name as written","qty":N}],
 "positions":[{"name":"truss/bar name as written","x1":0-1,"y1":0-1,"x2":0-1,"y2":0-1}],"notes":"anything unclear"}.
 x,y are relative to the whole image (0,0 = top-left, 1,1 = bottom-right), at the centre of each symbol. One entry per physical fixture (if a legend says 8× of a symbol, there should be 8 entries). Copy model names exactly as written (do not guess brands). type: moving = moving head/spot/beam/wash moving; static = PAR/wash/blinder/strobe/static LED bar; effect = haze/smoke/laser/mirror ball.`;
+var FX_PLOT_PROMPT_FRONT = `You are reading a FRONT ELEVATION lighting plot (stage seen from the audience): trusses/bars are drawn as horizontal members at their trim heights, fixtures hang below or sit on them, the stage floor is a horizontal line near the bottom. Extract EVERY fixture symbol.
+Return ONLY JSON: {"fixtures":[{"x":0.0-1.0,"y":0.0-1.0,"type":"moving|static|effect|other","model":"text written for this fixture or its legend entry","label":"unit number if written","pos":"name of the truss/bar it hangs on, if written"}],
+"legend":[{"symbol":"short description","model":"model name as written","qty":N}],
+"positions":[{"name":"truss/bar name as written","x1":0-1,"y1":0-1,"x2":0-1,"y2":0-1,"height_m":number or null if a trim height is written}],
+"floor_y":0.0-1.0 (relative y of the stage floor line, null if none),"notes":"anything unclear"}.
+x,y are relative to the whole image (0,0 = top-left, 1,1 = bottom-right), at the centre of each symbol. One entry per physical fixture. Copy model names exactly as written (do not guess brands). type: moving = moving head/spot/beam/wash moving; static = PAR/wash/blinder/strobe/static bar; effect = haze/smoke/laser/mirror ball.`;
 async function fxReadPlot() {
   if (!P.bg) { uiToast('העלה קודם את תמונת תכנית התאורה כרקע (📁 תכנית)'); return; }
+  const front = sheetView() === 'front';
   if (typeof claudeMsg !== 'function') { uiToast('אין חיבור ל-AI'); return; }
   uiToast('🪄 קורא את תכנית התאורה… (10–40 שניות)', 8000);
   let j;
   try {
     const mt = /^data:image\/png/i.test(P.bg) ? 'image/png' : 'image/jpeg';
-    j = await claudeMsg([{ role: 'user', content: [{ type: 'text', text: FX_PLOT_PROMPT }, { type: 'image', source: { type: 'base64', media_type: mt, data: P.bg.split(',')[1] } }, { type: 'text', text: 'Return the JSON only.' }] }], 8000);
+    j = await claudeMsg([{ role: 'user', content: [{ type: 'text', text: front ? FX_PLOT_PROMPT_FRONT : FX_PLOT_PROMPT }, { type: 'image', source: { type: 'base64', media_type: mt, data: P.bg.split(',')[1] } }, { type: 'text', text: 'Return the JSON only.' }] }], 8000);
   } catch (e) { if (e.message === 'NOKEY') { uiToast('אין מפתח API — צריך ANTHROPIC_API_KEY בשרת'); return; } uiToast('הקריאה נכשלה: ' + e.message, 7000); return; }
   let d; try { d = claudeJson(j); } catch (e) { uiToast('תשובה לא תקינה מה-AI'); console.warn(j); return; }
   const fixtures = d.fixtures || [], legend = d.legend || [], positions = d.positions || [];
@@ -167,16 +206,19 @@ async function fxReadPlot() {
   /* התאמת דגמים — פעם אחת לכל כיתוב, בלי ניחוש */
   const matchOf = {}; const keyOf = fx => (fx.model || fx.type || '').trim();
   for (const fx of fixtures) { const k = keyOf(fx); if (!(k in matchOf)) { const lg = legend.find(l => l.model && fx.model && l.model.toLowerCase() === fx.model.toLowerCase()); matchOf[k] = fxMatch(fx.model || (lg && lg.model), fx.type === 'other' ? '' : fx.type); } }
-  P.sketch = P.sketch || { walls: [], objs: [] }; P.lightPos = positions.map(p => ({ name: p.name, x1: L + p.x1 * W, y1: T + p.y1 * H, x2: L + p.x2 * W, y2: T + p.y2 * H }));
+  P.sketch = P.sketch || { walls: [], objs: [] }; P.lightPos = positions.map(p => ({ name: p.name, x1: L + p.x1 * W, y1: T + p.y1 * H, x2: L + p.x2 * W, y2: T + p.y2 * H, h: p.height_m != null ? +p.height_m : undefined, view: front ? 'front' : 'plan' }));
+  /* חזית: הגובה של כל פנס מהמרחק מקו הרצפה (לפי הכיול), או מגובה הטראס אם כתוב */
+  const floorY = front && d.floor_y != null ? T + (+d.floor_y) * H : null;
+  const hgtOf = fx => { const pos = positions.find(p => p.name && fx.pos && p.name.toLowerCase() === String(fx.pos).toLowerCase()); if (pos && pos.height_m != null) return +pos.height_m; if (floorY != null && P.scale) return +Math.max(0, (floorY - (T + (+fx.y || 0) * H)) * P.scale).toFixed(1); return undefined; };
   for (const p of P.lightPos) if (isFinite(p.x1) && isFinite(p.x2)) P.sketch.walls.push([{ x: p.x1, y: p.y1 }, { x: p.x2, y: p.y2 }]);
   P.disc = 'light'; P.layer = 'light';
   const made = [];
-  fixtures.forEach((fx, i) => { const f = matchOf[keyOf(fx)]; const n = fxAddNode(f ? f.sku : null, { x: L + (+fx.x || 0) * W, y: T + (+fx.y || 0) * H }, { name: f ? f.name : (fx.model || 'גוף תאורה'), sub: fx.label ? '#' + fx.label : '', pos: fx.pos || '', type: fx.type, model: fx.model || '' }); made.push({ n, fx, f }); });
+  fixtures.forEach((fx, i) => { const f = matchOf[keyOf(fx)]; const n = fxAddNode(f ? f.sku : null, { x: L + (+fx.x || 0) * W, y: T + (+fx.y || 0) * H }, { name: f ? f.name : (fx.model || 'גוף תאורה'), sub: fx.label ? '#' + fx.label : '', pos: fx.pos || '', type: fx.type, model: fx.model || '', hgt: front ? hgtOf(fx) : undefined }); if (front) n.fx.view = 'front'; made.push({ n, fx, f }); });
   save(); render();
   /* סיכום: מה שויך לקטלוג, מה לא — ולכל לא-משויך כפתור לבחירת דגם */
   const groups = {}; made.forEach(m => { const k = keyOf(m.fx); (groups[k] = groups[k] || { k, f: m.f, n: 0, ids: [] }).n++; groups[k].ids.push(m.n.id); });
   const gs = Object.values(groups), ok = gs.filter(g => g.f), bad = gs.filter(g => !g.f);
-  const ov = uiModal(`<b style="font-size:15px">🪄 תכנית התאורה נקראה — ${made.length} גופים</b>
+  const ov = uiModal(`<b style="font-size:15px">🪄 ${front ? 'החזית' : 'תכנית התאורה'} נקראה — ${made.length} גופים</b>${front ? '<p class="muted" style="font-size:11px;margin:2px 0">חזית: הגובה של כל פנס חושב מקו הרצפה' + (P.scale ? '' : ' — <b>התכנית לא מכוילת</b>, כייל לפי גובה טראס ידוע כדי לקבל גבהים') + '; העומק (מיקום על תכנית התקרה) נקבע לפי הטראס.</p>' : ''}
     <p class="muted" style="font-size:11.5px;margin:4px 0 8px">${legend.length ? 'מקרא: ' + legend.map(l => esc((l.qty ? l.qty + '× ' : '') + (l.model || l.symbol || ''))).join(' · ') + '<br>' : ''}${positions.length ? 'עמדות: ' + positions.map(p => esc(p.name)).join(', ') : ''}${d.notes ? '<br>הערות: ' + esc(d.notes) : ''}</p>
     ${ok.length ? '<div style="font-size:12px;margin-bottom:6px"><b>✓ שויכו לקטלוג (נכנסו להצעה):</b>' + ok.map(g => `<div>${g.n}× ${esc(g.f.name.slice(0, 60))} <span class="muted">(${esc(g.k)})</span></div>`).join('') + '</div>' : ''}
     ${bad.length ? '<div style="font-size:12px"><b style="color:#a32222">✗ בלי התאמה בקטלוג — בחר דגם לכל אחד:</b>' + bad.map(g => `<div style="display:flex;gap:6px;align-items:center;margin:3px 0"><span style="flex:1">${g.n}× ${esc(g.k || 'ללא כיתוב')}</span><button data-fix="${esc(g.ids.join(','))}">🔍 בחר דגם</button></div>`).join('') + '</div>' : ''}

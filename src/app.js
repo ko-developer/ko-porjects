@@ -1336,7 +1336,7 @@ document.addEventListener('pointerup', e => {
 window.sheetRackDlg = sheetRackDlg; window.riserPick = riserPick; window.riserClear = riserClear;
 function sheetTabsHTML() {
   if (!P.sheets || P.sheets.length < 2 && !P.showSheets) return '';
-  const lvl = sh => sh.level != null ? ` <small style="opacity:.75">${sh.level > 0 ? '+' : ''}${sh.level} מ׳</small>` : '';
+  const lvl = sh => (sh.view === 'front' ? ' <small style="opacity:.8">🎭 חזית</small>' : sh.view === 'side' ? ' <small style="opacity:.8">↔ חתך</small>' : '') + (sh.level != null ? ` <small style="opacity:.75">${sh.level > 0 ? '+' : ''}${sh.level} מ׳</small>` : '');
   return `<div id="shTabs">${P.sheets.map(sh => `<button class="shTab${sh.id === P.curSheet ? ' on' : ''}" onclick="sheetGo('${sh.id}')" ondblclick="sheetRename('${sh.id}')" title="לחיצה כפולה = שינוי שם · ${(sh.nodes || []).length} מוקדים">${esc(sh.name)}${lvl(sh)}</button>`).join('')}
     <button class="shTab add" onclick="sheetAdd()" title="הוסף תכנית לפרויקט (קומה / מבנה / שרטוט נוסף)">➕ תכנית</button>
     ${P.sheets.length > 1 ? `<button class="shTab" onclick="sheetsView3D()" title="יישור התכניות במבט תלת־ממדי — גרירה, מפלס, סיבוב, קנה מידה, אובייקט משותף וכיתובים זהים">📐 יישור 3D</button><button class="shTab" onclick="sheetDelete('${P.curSheet}')" title="מחק את התכנית הנוכחית">🗑</button>` : ''}</div>`;
@@ -1356,6 +1356,7 @@ function sheetsPanelHTML() {
   const rows = shs.map(sh => `<div class="crow" style="align-items:center;gap:6px;${sh.id === P.curSheet ? 'background:#eef3ff;border-radius:8px' : ''}" title="לחיצה = מעבר לתכנית">
       <span class="txt" style="cursor:pointer;flex:1;min-width:0" onclick="sheetGo('${sh.id}')"><b>${sh.id === P.curSheet ? '▸ ' : ''}${esc(sh.name)}</b><br><small class="muted">${st(sh)}</small></span>
       <label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap" title="מפלס הקומה במטרים — 0 = קרקע, 3.2 = קומה מעל, -3 = מרתף" onclick="event.stopPropagation()">מפלס <input type="number" step="0.1" value="${sh.level ?? ''}" placeholder="מ׳" style="width:54px;padding:2px 4px" onchange="sheetSetLevel('${sh.id}',this.value)"></label>
+      <select style="padding:1px 3px;font-size:10.5px" title="סוג המבט בשרטוט: תכנית (מלמעלה) · חזית (מהקהל — ציר הגובה) · חתך" onclick="event.stopPropagation()" onchange="(P.sheets.find(x=>x.id==='${sh.id}')).view=this.value||undefined;save();render()">${[['', '🗺 תכנית'], ['front', '🎭 חזית'], ['side', '↔ חתך']].map(([v, l]) => `<option value="${v}" ${(sh.view || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <button style="padding:2px 6px;font-size:11px" title="שינוי שם" onclick="event.stopPropagation();sheetRename('${sh.id}')">✎</button>
       ${many ? `<button style="padding:2px 6px;font-size:11px;background:#f3d9d2;color:#8c2f16" title="מחק תכנית" onclick="event.stopPropagation();sheetDelete('${sh.id}')">🗑</button>` : ''}
     </div>    ${many ? `<div style="display:flex;gap:4px;margin:-3px 0 7px;flex-wrap:wrap">      <button style="padding:2px 8px;font-size:11px;${sh.rackFrom ? 'background:#eef3ff;border-color:#534ab7' : ''}" onclick="sheetRackDlg('${sh.id}')" title="האם התכנית הזו מחווטת לארון בתכנית אחרת (קומה בלי ארון משלה)">🗄 ${sh.rackFrom ? 'ארון משותף מ"' + esc((shs.find(x => x.id === sh.rackFrom) || {}).name || '?') + '"' : 'ארון: משלה'}</button>      <button style="padding:2px 8px;font-size:11px;${sh.riser ? 'background:#fff3e0;border-color:#e08a00' : ''}" onclick="riserPick('${sh.id}')" title="הנקודה שבה הצנרת עולה/יורדת לקומה אחרת — אורכי הכבלים בין הקומות מחושבים דרכה">⇡ ${sh.riser ? 'פיר מסומן — הזז' : 'סמן פיר עלייה'}</button>      ${sh.riser ? `<button style="padding:2px 6px;font-size:11px" onclick="riserClear('${sh.id}')" title="בטל את סימון הפיר">✕</button>` : ''}</div>` : ''}`).join('');
@@ -2198,6 +2199,7 @@ function uploadBg(inp, onDone) {
         }
         if (pages.length > 1) { sheetGo(firstSheet); uiToast('📑 נטענו ' + pages.length + ' דפים — כל דף כתכנית משלו (לשוניות מעל התכנית)', 7000); }
         if (onDone) onDone();
+        if (!keepLayout && typeof fxAfterUpload === 'function') fxAfterUpload();
       } catch (err) { alert('קריאת ה-PDF נכשלה (נדרש אינטרנט לטעינת הספרייה): ' + err.message); }
     })();
     return;
@@ -2218,6 +2220,7 @@ function uploadBg(inp, onDone) {
     render();
     setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
     if (onDone) onDone();
+    if (!keepLayout && typeof fxAfterUpload === 'function') fxAfterUpload();   /* תאורה: תכנית תקרה או חזית? */
     /* OCR מקומי ברקע — התוצאה נכנסת כשמוכנה */
     if (!keepLayout && typeof autoScaleImage === 'function') autoScaleImage(img, P.bgW);
   };
@@ -13828,6 +13831,7 @@ function autoZonesSketch() {
 }
 window.autoZonesSketch = autoZonesSketch;
 async function autoZones() {
+  if (typeof sheetIsElevation === 'function' && sheetIsElevation()) { uiToast('🎭 זו חזית — אזורים מסמנים על תכנית תקרה/העמדה (מבט מלמעלה)', 6000); return; }
   if (!P.bg) { if ((P.sketch && P.sketch.walls || []).length) { autoZonesSketch(); return; } alert('העלה קודם תכנית רקע, או שרטט חדר בעורך השרטוט'); return; }
   render();
   try {
