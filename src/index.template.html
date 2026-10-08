@@ -307,7 +307,8 @@ body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer
   <div class="dd">
     <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייצוא ▾</button>
     <div class="ddm">
-      <button onclick="exportDXF();this.closest('.dd').classList.remove('open')">📐 שרטוט ל-AutoCAD (DXF → DWG)</button>
+      <button onclick="exportDXF();this.closest('.dd').classList.remove('open')" title="DXF נפתח ישירות ב-AutoCAD (File → Open); שמירה כ-DWG משם">📐 שרטוט ל-AutoCAD (DXF)</button>
+      <button onclick="exportPlanPDF();this.closest('.dd').classList.remove('open')" title="דף ה-PDF המקורי של התכנית + האזורים, הכבלים והמוקדים כקווים וקטוריים — לייבוא ב-AutoCAD (PDFIMPORT)">📄 תכנית ל-AutoCAD (PDF וקטורי)</button>
       <button onclick="exportJSON();this.closest('.dd').classList.remove('open')">💾 ייצוא פרויקט (JSON)</button>
       <button onclick="exportBackup();this.closest('.dd').classList.remove('open')">🗄 גיבוי מלא — כל הפרויקטים · Full Backup</button>
       <button onclick="exportPDF();this.closest('.dd').classList.remove('open')">📑 דוח PDF</button>

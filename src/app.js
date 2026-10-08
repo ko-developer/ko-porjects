@@ -14767,7 +14767,7 @@ function zoneKitConfirm(zname, idx, opt) {
 }
 /* בחירת רמקול אמיתי מהקטלוג לבניית מערכת — במקום "רמקול התקנה" גנרי.
    מציג רק מוצרי ERP שמזוהים בבסיס הנתונים האקוסטי (פיזור/SPL ידועים). */
-/* ---------- בורר מערכת לאזור: 3 הצעות · קיטים · מוצרים ---------- */
+/* ---------- בורר מערכת לאזור: הצעות לפי מותג · קיטים · מוצרים ---------- */
 function kitPriceOf(k) {
   return (k.items || []).reduce((s2, x) => {
     const inf = x.key ? erpInfo(x.key) : null;
@@ -14789,12 +14789,16 @@ function kitMaxSpl(k) {
   });
   return best;
 }
+/* הצעות לפי מותגי הבית — הצעה לכל מותג: הקיט הזול של המותג שעומד ביעד העוצמה של האזור (ועוד חלופות).
+   הדרגה נקבעת לפי מותג הרמקולים בלבד (מגבר SAE בקיט KT לא משנה). התקנת קבע = פסיבי בלבד, בלי רסיברים ביתיים. */
+var OFFER_BRANDS = [
+  ['Funktion-One', /FUNKTION|\bRES ?\d|\bEVO ?\d|\bF ?(5|81|101|121|1201|218|124)\b|\bBR ?1?15|\bSB ?\d/i, '#0b3a2e', 'אנגליה — עוצמה, צליל ועמידות לשנים'],
+  ['Kling & Freitag', /KLING|K&F|GRAVIS|NOMOS|SONA|PASSIO|VIDA|SCENA|\bCA ?1?\d{2}\b/i, '#1d4f91', 'גרמניה — דיוק, גימור ואמינות'],
+  ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d|\bMF-?\d|\bQX-?\d/i, '#7a2a6b', 'אוסטריה — ליין ארז ופוינט סורס לאולמות'],
+  ['Unicorn', /UNICORN|EUPHORIA|PAGAZ|DYNAMIQ|MX3/i, '#534ab7', 'צליל נקי ומכובד בכשליש מהמחיר'],
+  ['KT', /\bKT\b|TILL|INTERPID|WR ?600|ARRAY|BOLD/i, '#a8650f', 'פתרון אמין למוזיקת רקע — מלאי גדול ומחיר נגיש'],
+];
 function zoneTierKits(z) {
-  const RX = [
-    ['פרמיום', /FUNKTION|KLING|K&F|XTA|SPECTRA|GRAVIS|NOMOS|SONA|PASSIO/i, '#0b3a2e', 'עוצמה גבוהה, עמידים לשנים — Funktion-One · K&F'],
-    ['ביניים', /UNICORN|EUPHORIA|MX3|PAGAZ|DYNAMIQ|SAE|PQM/i, '#534ab7', 'צליל נקי ומכובד בכשליש מהמחיר — Unicorn'],
-    ['חסכוני', /\bKT\b|TILL|INTERPID|WR ?600|ARRAY|BOLD/i, '#a8650f', 'פתרון אמין למוזיקת רקע — מלאי גדול ומחיר נגיש — KT'],
-  ];
   const target = (typeof USAGE_SPL !== 'undefined' && z && USAGE_SPL[z.usage]) || 90;
   const need = target + 8;   /* מרווח לפסגות בלי קליפ */
   /* התאמה לתכלית: הופעות חיות → רק קיטים להופעות/במה/אולם (בית קפה, רקע, בר לא רלוונטיים); רקע/קפה → בלי קיטי הופעות */
@@ -14805,51 +14809,25 @@ function zoneTierKits(z) {
     .filter(x => !isLive || !BG_RX.test(x.k.name || ''))
     .filter(x => !isBg || !/הופע|במה|אולם אירועים/i.test(x.k.name || ''))
     .filter(x => (x.k.items || []).some(it => isSpeakerItem(it.name || '')))
-    /* התקנת קבע: אף פעם לא רמקולים מוגברים */
-    .filter(x => !(x.k.items || []).some(it => isSpeakerItem(it.name || '') && /מוגבר|אקטיבי/.test(it.name || '')));
+    /* התקנת קבע: אף פעם לא רמקולים מוגברים, ולא רסיבר ביתי */
+    .filter(x => !(x.k.items || []).some(it => isSpeakerItem(it.name || '') && /מוגבר|אקטיבי/.test(it.name || '')))
+    .filter(x => !(x.k.items || []).some(it => /רסיבר|receiver|SHERWOOD/i.test(it.name || '')));
   ks.forEach(x => {
     x._price = kitPriceOf(x.k); x._stock = kitStock(x.k); x._spl = kitMaxSpl(x.k);
     x._liveFit = isLive && LIVE_RX.test(x.k.name || '');
-    /* דרגה לפי מותג הרמקולים בלבד — מגבר SAE בקיט KT לא הופך אותו ל"ביניים" */
     x._spkTxt = (x.k.items || []).filter(it => isSpeakerItem(it.name || '')).map(it => it.name).join(' ');
+    x._brand = OFFER_BRANDS.findIndex(b => b[1].test(x._spkTxt));
   });
-  /* סולם כלכלי: חסכוני = הזול שעומד ביעד · ביניים ≥ ×1.25 ממנו · פרמיום ≥ ×1.3 מהביניים.
-     כולם באותה סקלת יכולת (עומדים ביעד בלי עודף ענק) — הפער הוא פער מותג, לא פער עוצמה. */
-  const tiersOf = ks.map(x => {
-    for (let j = 0; j < RX.length; j++) if (RX[j][1].test(x._spkTxt)) return j;
-    return RX.length - 1;
-  });
-  const byTier = ti => ks.filter((x, i2) => tiersOf[i2] === ti);
-  /* המחיר הזול שעומד ביעד בכל דרגה — משמש כתקרה: דרגה נמוכה לא תעלה על הגבוהות ממנה */
-  const cheapFit = [0, 1, 2].map(ti => {
-    const f = byTier(ti).filter(x => x._spl >= need);
-    return f.length ? Math.min(...f.map(x => x._price)) : Infinity;
-  });
-  const pickIn = (ti, floor, cap) => {
-    const inTier = byTier(ti);
-    if (!inTier.length) return null;
-    const fit = inTier.filter(x => x._spl >= need)
-      .sort((a, b) => ((b._liveFit ? 1 : 0) - (a._liveFit ? 1 : 0)) || (a._price - b._price) || (a._stock.dead - b._stock.dead));   /* בהופעות: קיטים ייעודיים להופעות קודם */
-    const above = fit.filter(x => x._price >= floor);
-    /* קיט שעומד ביעד אבל יקר מהדרגות שמעליו = נתון חשוד/מוצר לא מתאים — נופלים לקרוב ביותר */
-    if (above.length && above[0]._price <= cap) {
-      const pick = above[0];
-      return { pick, alt: fit.filter(x => x !== pick && x._price >= pick._price).slice(0, 3), fits: true, gap: true };
-    }
-    const near0 = inTier.slice().sort((a, b) => (b._spl - a._spl) || (a._price - b._price));
-    const near = near0.filter(x => x._price <= cap).length ? near0.filter(x => x._price <= cap) : near0;
-    const pick = fit[0] && fit[0]._price <= cap ? fit[0] : near[0];
-    return { pick, alt: near.filter(x => x !== pick).slice(0, 3), fits: !!(fit.length && pick._spl >= need), gap: !!above.length && above[0]._price <= cap };
-  };
-  /* בונים מלמטה למעלה כדי לכפות את הסולם; התקרה חוסמת רק חריגות קיצוניות (דרגה נמוכה יקרה בהרבה מהגבוהות) */
-  const bud = pickIn(2, 0, (Math.min(cheapFit[0], cheapFit[1]) * 1.5) || Infinity);
-  const mid = pickIn(1, bud ? bud.pick._price * 1.25 : 0, (cheapFit[0] * 1.5) || Infinity);
-  const prm = pickIn(0, mid ? mid.pick._price * 1.3 : (bud ? bud.pick._price * 1.6 : 0), Infinity);
   const out = [];
-  [[0, prm], [1, mid], [2, bud]].forEach(([ti, r]) => {
-    if (!r) return;
-    const [label, , color, blurb] = RX[ti];
-    out.push({ label, color, blurb, fits: r.fits, gap: r.gap, pick: r.pick, alt: r.alt });
+  OFFER_BRANDS.forEach(([label, , color, blurb], bi) => {
+    const inB = ks.filter(x => x._brand === bi);
+    if (!inB.length) { out.push({ label, color, blurb, empty: true, fits: true, gap: true, pick: null, alt: [] }); return; }
+    const fit = inB.filter(x => x._spl >= need)
+      .sort((a, b) => ((b._liveFit ? 1 : 0) - (a._liveFit ? 1 : 0)) || (a._price - b._price) || (a._stock.dead - b._stock.dead));   /* בהופעות: קיטים ייעודיים להופעות קודם */
+    const near = inB.slice().sort((a, b) => (b._spl - a._spl) || (a._price - b._price));
+    const pick = fit[0] || near[0];
+    const alt = (fit.length ? fit : near).filter(x => x !== pick).slice(0, 3);
+    out.push({ label, color, blurb, fits: !!fit.length, gap: true, pick, alt });
   });
   return out;
 }
@@ -14871,7 +14849,7 @@ function zoneSpkPicker(zid, tab) {
   const ov = uiModal(`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="flex:1;font-size:15px">🎛 מערכת לאזור "${esc(z.name)}"</b><button data-x>✕</button></div>
     <div style="display:flex;gap:5px;margin-bottom:10px">
-      <button data-tab="tiers" style="flex:1;font-weight:700">⚡ 3 הצעות</button>
+      <button data-tab="tiers" style="flex:1;font-weight:700">⚡ לפי מותג</button>
       <button data-tab="kits" style="flex:1;font-weight:700">🧰 קיטים</button>
       <button data-tab="prods" style="flex:1;font-weight:700">🔊 מוצרים</button>
     </div>
@@ -14898,14 +14876,13 @@ function zoneSpkPicker(zid, tab) {
     if (TAB === 'tiers') {
       const tiers = zoneTierKits(z);
       const tgt = (typeof USAGE_SPL !== 'undefined' && USAGE_SPL[z.usage]) || 90;
-      body.innerHTML = `<p class="muted" style="font-size:11px;margin:0 0 8px">🎯 ${z.usage ? esc(z.usage) + ' · ' : ''}יעד ${tgt}dB — מוצעים קיטים פסיביים שעומדים ביעד ובלי עודף מיותר. שנה את תכלית האזור כדי לקבל הצעות אחרות.</p>` + tiers.map(t => `
+      body.innerHTML = `<p class="muted" style="font-size:11px;margin:0 0 8px">🎯 ${z.usage ? esc(z.usage) + ' · ' : ''}יעד ${tgt}dB — הצעה לכל מותג: הקיט הפסיבי הזול של המותג שעומד ביעד. שנה את תכלית האזור כדי לקבל הצעות אחרות.</p>` + tiers.map(t => `
         <div style="border:2px solid ${t.color};border-radius:14px;padding:10px;margin-bottom:10px">
           <div style="display:flex;gap:8px;align-items:baseline"><b style="color:${t.color};font-size:14px">${t.label}</b>
           <span class="muted" style="font-size:11px;flex:1">${t.blurb}</span></div>
           ${t.fits === false ? '<p style="font-size:11px;color:#a32222;margin:2px 0">⚠ אין בדרגה זו קיט שעומד ביעד — מוצג הקרוב ביותר</p>' : ''}
-          ${t.gap === false ? '<p style="font-size:11px;color:#c96a13;margin:2px 0">⚠ אין בקטלוג קיט בדרגה זו במחיר גבוה מהדרגה שמתחתיו — מוצג היקר שבנמצא</p>' : ''}
-          ${kitCard(t.pick, t.color + '33')}
-          ${t.alt.length ? `<details><summary style="font-size:11.5px;cursor:pointer;color:#666">עוד ${t.alt.length} באותה דרגה</summary>${t.alt.map(a => kitCard(a)).join('')}</details>` : ''}
+          ${t.empty ? '<p class="muted" style="font-size:11.5px;margin:4px 0">אין קיט של המותג בקטלוג — בחר רמקולים בלשונית "מוצרים" או בנה קיט חדש</p>' : kitCard(t.pick, t.color + '33')}
+          ${t.alt.length ? `<details><summary style="font-size:11.5px;cursor:pointer;color:#666">עוד ${t.alt.length} של ${esc(t.label)}</summary>${t.alt.map(a => kitCard(a)).join('')}</details>` : ''}
         </div>`).join('') || '<p class="muted">אין קיטי סאונד בקטלוג</p>';
     } else if (TAB === 'kits') {
       const q = (body.dataset.q || '').toLowerCase();
@@ -16224,21 +16201,13 @@ holder.classList.add('rp-zoomable');
 /* תצוגה מקדימה של הדוח לפני הדפסה — רואים את כל הפריסה ואז מחליטים */
 /* ===== ייצוא ל-AutoCAD: DXF (פורמט ההחלפה של AutoCAD — נפתח ישירות ב-AutoCAD / BricsCAD / DraftSight ונשמר משם כ-DWG). DWG עצמו הוא פורמט בינארי סגור.
    יחידות: מטרים לפי הכיול (בלי כיול — פיקסלים). ראשית הצירים: הפינה השמאלית-תחתונה של תכנית הרקע. שכבות נפרדות לכל דיסציפלינה, לצנרת, לאזורים, לשרטוט ולטקסט ===== */
-function exportDXF() {
-  renderWires();
-  const k = P.scale || 1, X0 = P.bg ? bgLeft() : 0, Y0 = P.bg ? bgTop() + bgHeightPx() : 1400, tx = x => +((x - X0) * k).toFixed(4), ty = y => +((Y0 - y) * k).toFixed(4);
-  const uni = t => String(t == null ? '' : t).replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7e]/g, ch => '\\U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));
-  const LAY = { 'KO-RACKS': 5, 'KO-PANELS': 30, 'KO-POINTS': 1, 'KO-CBL-AUDIO': 6, 'KO-CBL-LIGHT': 40, 'KO-CBL-VIDEO': 3, 'KO-CBL-DATA': 4, 'KO-CBL-POWER': 8, 'KO-CONDUIT': 30, 'KO-ZONES': 2, 'KO-SKETCH': 7, 'KO-TEXT': 7, 'KO-CBL-NUM': 7 };
-  const out = []; const w = (...a) => { for (let i = 0; i < a.length; i += 2) out.push(String(a[i]), String(a[i + 1])); };
-  w(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$INSUNITS', 70, P.scale ? 6 : 0, 0, 'ENDSEC');
-  w(0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LTYPE', 70, 2, 0, 'LTYPE', 2, 'CONTINUOUS', 70, 0, 3, 'Solid', 72, 65, 73, 0, 40, 0, 0, 'LTYPE', 2, 'DASHED', 70, 0, 3, 'Dashed', 72, 65, 73, 2, 40, 0.6, 49, 0.4, 49, -0.2, 0, 'ENDTAB');
-  w(0, 'TABLE', 2, 'LAYER', 70, Object.keys(LAY).length); for (const [n, c] of Object.entries(LAY)) w(0, 'LAYER', 2, n, 70, 0, 62, c, 6, n === 'KO-CONDUIT' || n === 'KO-ZONES' ? 'DASHED' : 'CONTINUOUS'); w(0, 'ENDTAB');
-  w(0, 'TABLE', 2, 'STYLE', 70, 1, 0, 'STYLE', 2, 'KO', 70, 0, 40, 0, 41, 1, 50, 0, 71, 0, 42, 0.2, 3, 'arial.ttf', 4, '', 0, 'ENDTAB', 0, 'ENDSEC');
-  w(0, 'SECTION', 2, 'ENTITIES');
-  const H = (P.scale ? 0.18 : 9);   /* גובה טקסט: 18 ס״מ */
-  const poly = (layer, pts, closed) => { if (pts.length < 2) return; w(0, 'POLYLINE', 8, layer, 66, 1, 70, closed ? 1 : 0); pts.forEach(q => w(0, 'VERTEX', 8, layer, 10, tx(q[0]), 20, ty(q[1]))); w(0, 'SEQEND', 8, layer); };
-  const text = (layer, x, y, t, h, center) => { if (!t) return; w(0, 'TEXT', 8, layer, 10, tx(x), 20, ty(y), 40, h || H, 1, uni(t), 7, 'KO'); if (center) w(72, 1, 11, tx(x), 21, ty(y)); };
-  const circle = (layer, x, y, r) => w(0, 'CIRCLE', 8, layer, 10, tx(x), 20, ty(y), 40, +(r).toFixed(4));
+/* הגאומטריה של התכנית לייצוא (DXF / PDF וקטורי): אזורים, שרטוט, צנרת, כבלים (המסלול המדויק מהתכנית), מוקדים.
+   נקודות בקואורדינטות האפליקציה; גובה טקסט ורדיוס ביחידות הפלט (מטרים כשיש כיול, אחרת פיקסלים) — k = מטר לפיקסל */
+function planEntities(k) {
+  const ents = [], H = (P.scale ? 0.18 : 9);   /* גובה טקסט: 18 ס״מ */
+  const poly = (layer, pts, closed) => { if (pts.length < 2) return; ents.push({ t: 'poly', layer, pts, closed: !!closed }); };
+  const text = (layer, x, y, t, h, center) => { if (!t) return; ents.push({ t: 'text', layer, x, y, s: String(t), h: h || H, center: !!center }); };
+  const circle = (layer, x, y, r) => ents.push({ t: 'circle', layer, x, y, r });
   /* d של SVG → נקודות (M/L/V/H ו-Q מדוגם) */
   const pathPts = d => { const tk = String(d).match(/[MLVHQ]|-?\d*\.?\d+(?:e-?\d+)?/gi) || []; const pts = []; let i = 0, cmd = 'M', cx = 0, cy = 0; const num = () => +tk[i++];
     while (i < tk.length) { if (/[MLVHQ]/i.test(tk[i])) cmd = tk[i++].toUpperCase(); if (cmd === 'M' || cmd === 'L') { cx = num(); cy = num(); pts.push([cx, cy]); if (cmd === 'M') cmd = 'L'; } else if (cmd === 'V') { cy = num(); pts.push([cx, cy]); } else if (cmd === 'H') { cx = num(); pts.push([cx, cy]); }
@@ -16260,6 +16229,92 @@ function exportDXF() {
   P.nodes.filter(n => !n.hidden).forEach(n => { const b = nodeBox(n), cx = 2200 - b.x - b.w / 2, cy = b.y + (b.h || 0) / 2, layer = n.kind === 'rack' ? 'KO-RACKS' : n.kind === 'panel' ? 'KO-PANELS' : 'KO-POINTS';
     if (n.kind === 'point') circle(layer, cx, cy, P.scale ? 0.2 : 10); else { const hw = P.scale ? 0.3 / k : 14, hh = P.scale ? 0.2 / k : 10; poly(layer, [[cx - hw, cy - hh], [cx + hw, cy - hh], [cx + hw, cy + hh], [cx - hw, cy + hh]], true); }
     text('KO-TEXT', cx + (P.scale ? 0.35 / k : 14), cy, nodeFullName(n).slice(0, 60) + (n.kind === 'rack' ? ' (' + n.ru + 'U)' : n.hgt != null && n.kind === 'point' ? ' h=' + n.hgt + 'm' : ''), H); });
+  return ents;
+}
+/* תכנית ל-AutoCAD כ-PDF וקטורי: דף ה-PDF המקורי (כשהתכנית הועלתה כ-PDF ולא סובבה) + האזורים, הכבלים והמוקדים כקווים וקטוריים מעליו.
+   AutoCAD מייבא אותו (PDFIMPORT) עם כל הקווים — כולל קווי התכנית המקורית. הכיתובים (עברית) נכנסים כתמונות קטנות. */
+async function exportPlanPDF() {
+  if (!P.bg) { uiToast('אין תכנית רקע לייצוא'); return; }
+  renderWires();
+  uiToast('📄 בונה PDF וקטורי של התכנית…', 5000);
+  try {
+    if (!window.PDFLib) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
+    const { PDFDocument, rgb, degrees } = PDFLib;
+    const k = P.scale || 1, L = bgLeft(), T = bgTop(), W = P.bgW || 1400, Hpx = bgHeightPx();
+    const doc = await PDFDocument.create();
+    let page = null, sc = 1, vector = false, R = 0;   /* R = /Rotate של דף המקור: התכנית מוצגת מסובבת, והקואורדינטות ב-PDF הן של הדף הלא-מסובב */
+    const b64 = typeof P.bgPdf === 'string' && P.bgPdf[0] !== '@' && !P.bgRot ? P.bgPdf : null;
+    if (b64) {
+      try {
+        const bin = atob(b64.replace(/^data:[^,]*,/, '')), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+        const idx = Math.min(src.getPageCount(), P.bgPdfPage || 1) - 1;
+        const [pg] = await doc.copyPages(src, [idx]);
+        R = ((pg.getRotation().angle % 360) + 360) % 360; page = doc.addPage(pg); sc = (R % 180 ? page.getHeight() : page.getWidth()) / W; vector = true;
+      } catch (e) { console.warn('exportPlanPDF: embed pdf', e); }
+    }
+    if (!page) {
+      /* תכנית מתמונה (או PDF מסובב): התמונה כרקע, 1 פיקסל של האפליקציה = 1 נקודה */
+      const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = P.bg; });
+      const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height; cv.getContext('2d').drawImage(im, 0, 0);
+      const png = await doc.embedPng(cv.toDataURL('image/png'));
+      page = doc.addPage([W, Hpx]); page.drawImage(png, { x: 0, y: 0, width: W, height: Hpx });
+    }
+    const PW = page.getWidth(), PH = page.getHeight();
+    /* אפליקציה (x ימינה, y למטה, בתצוגה המסובבת) → קואורדינטות הדף (y למעלה, לפני הסיבוב) */
+    const M = (x, y) => { const u = (x - L) * sc, v = (y - T) * sc; return R === 90 ? [v, u] : R === 180 ? [PW - u, v] : R === 270 ? [PW - v, PH - u] : [u, PH - v]; };
+    const rot = R === 90 ? 90 : R === 180 ? 180 : R === 270 ? -90 : 0, th = rot * Math.PI / 180, cs = Math.cos(th), sn = Math.sin(th);
+    const COL = { 'KO-ZONES': [0.06, 0.43, 0.34], 'KO-SKETCH': [0.3, 0.3, 0.3], 'KO-CONDUIT': [0.55, 0.35, 0.1], 'KO-CBL-AUDIO': [0.79, 0.31, 0.18], 'KO-CBL-LIGHT': [0.72, 0.52, 0.04], 'KO-CBL-VIDEO': [0.1, 0.45, 0.7], 'KO-CBL-DATA': [0.1, 0.55, 0.3], 'KO-CBL-POWER': [0.75, 0.1, 0.1], 'KO-RACKS': [0.2, 0.25, 0.5], 'KO-PANELS': [0.4, 0.3, 0.6], 'KO-POINTS': [0.79, 0.31, 0.18], 'KO-TEXT': [0.1, 0.1, 0.1], 'KO-CBL-NUM': [0.3, 0.3, 0.3] };
+    const col = l => rgb(...(COL[l] || [0, 0, 0]));
+    const lw = l => (l === 'KO-ZONES' ? 1.4 : l === 'KO-CONDUIT' ? 1.2 : /CBL/.test(l) ? 0.8 : 1) * Math.max(0.5, Math.min(2, sc * 1.2));
+    const dash = l => l === 'KO-ZONES' ? [6, 3] : l === 'KO-CONDUIT' ? [4, 2] : undefined;
+    const imgs = new Map();
+    const txt = async (str, hPt, center, x, y, layer) => {
+      /* כיתוב → תמונה (גופן עברי לא זמין ב-PDF בלי קובץ גופן) */
+      const fpx = Math.max(6, hPt) * 3, cv = document.createElement('canvas'), g = cv.getContext('2d');
+      g.font = 'bold ' + fpx + 'px Arial, sans-serif'; const w = Math.ceil(g.measureText(str).width) + 8;
+      cv.width = w; cv.height = Math.ceil(fpx * 1.3); const g2 = cv.getContext('2d'); g2.font = 'bold ' + fpx + 'px Arial, sans-serif'; g2.textBaseline = 'middle';
+      const c = COL[layer] || [0, 0, 0]; g2.fillStyle = 'rgb(' + c.map(v => Math.round(v * 255)).join(',') + ')'; g2.fillText(str, 4, cv.height / 2);
+      const key = str + '|' + layer + '|' + fpx; let im = imgs.get(key); if (!im) { im = await doc.embedPng(cv.toDataURL('image/png')); imgs.set(key, im); }
+      const wPt = w / 3, hh = cv.height / 3, [cx, cy] = M(x, y), ax = center ? wPt / 2 : 0, ay = hh / 2;   /* עוגן: מרכז או אמצע-שמאל; התמונה מסובבת כך שתעמוד ישר בתצוגה */
+      page.drawImage(im, { x: cx - (ax * cs - ay * sn), y: cy - (ax * sn + ay * cs), width: wPt, height: hh, rotate: degrees(rot) });
+    };
+    const ents = planEntities(k); let n = 0;
+    for (const e of ents) {
+      if (e.t === 'poly') {
+        const d = e.pts.map((q, i) => { const [px, py] = M(q[0], q[1]); return (i ? 'L' : 'M') + px.toFixed(2) + ' ' + (PH - py).toFixed(2); }).join(' ') + (e.closed ? ' Z' : '');
+        const o = { x: 0, y: PH, borderColor: col(e.layer), borderWidth: lw(e.layer) }; if (dash(e.layer)) o.borderDashArray = dash(e.layer);
+        if (e.layer === 'KO-ZONES' && e.closed) { o.color = col(e.layer); o.opacity = 0.08; }
+        page.drawSvgPath(d, o); n++;
+      } else if (e.t === 'circle') { const [px, py] = M(e.x, e.y); page.drawCircle({ x: px, y: py, size: e.r / k * sc, borderColor: col(e.layer), borderWidth: lw(e.layer), color: col(e.layer), opacity: 0.25 }); n++; }
+      else { await txt(e.s, e.h / k * sc, e.center, e.x, e.y, e.layer); n++; }
+    }
+    doc.setTitle('KO Projects — ' + (P.name || '')); doc.setProducer('KO Projects');
+    const bytes = await doc.save();
+    const name = 'KO-' + String(P.name || 'project').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + '-plan.pdf';
+    const blob = new Blob([bytes], { type: 'application/pdf' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    window.__lastPlanPdf = { name, bytes: bytes.length, vector, ents: n, pw: PW, ph: PH };
+    uiToast('⬇ ' + name + ' — ' + (vector ? 'דף ה-PDF המקורי + ' + n + ' אלמנטים וקטוריים · ב-AutoCAD: PDFIMPORT' : 'תמונת התכנית + ' + n + ' אלמנטים וקטוריים (התכנית עצמה תמונה)'), 8000);
+  } catch (e) { console.warn('exportPlanPDF', e); uiToast('ייצוא ה-PDF נכשל: ' + (e && e.message || e)); }
+}
+window.exportPlanPDF = exportPlanPDF;
+function exportDXF() {
+  renderWires();
+  const k = P.scale || 1, X0 = P.bg ? bgLeft() : 0, Y0 = P.bg ? bgTop() + bgHeightPx() : 1400, tx = x => +((x - X0) * k).toFixed(4), ty = y => +((Y0 - y) * k).toFixed(4);
+  const uni = t => String(t == null ? '' : t).replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7e]/g, ch => '\\U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));
+  const LAY = { 'KO-RACKS': 5, 'KO-PANELS': 30, 'KO-POINTS': 1, 'KO-CBL-AUDIO': 6, 'KO-CBL-LIGHT': 40, 'KO-CBL-VIDEO': 3, 'KO-CBL-DATA': 4, 'KO-CBL-POWER': 8, 'KO-CONDUIT': 30, 'KO-ZONES': 2, 'KO-SKETCH': 7, 'KO-TEXT': 7, 'KO-CBL-NUM': 7 };
+  const out = []; const w = (...a) => { for (let i = 0; i < a.length; i += 2) out.push(String(a[i]), String(a[i + 1])); };
+  w(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$INSUNITS', 70, P.scale ? 6 : 0, 0, 'ENDSEC');
+  w(0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LTYPE', 70, 2, 0, 'LTYPE', 2, 'CONTINUOUS', 70, 0, 3, 'Solid', 72, 65, 73, 0, 40, 0, 0, 'LTYPE', 2, 'DASHED', 70, 0, 3, 'Dashed', 72, 65, 73, 2, 40, 0.6, 49, 0.4, 49, -0.2, 0, 'ENDTAB');
+  w(0, 'TABLE', 2, 'LAYER', 70, Object.keys(LAY).length); for (const [n, c] of Object.entries(LAY)) w(0, 'LAYER', 2, n, 70, 0, 62, c, 6, n === 'KO-CONDUIT' || n === 'KO-ZONES' ? 'DASHED' : 'CONTINUOUS'); w(0, 'ENDTAB');
+  w(0, 'TABLE', 2, 'STYLE', 70, 1, 0, 'STYLE', 2, 'KO', 70, 0, 40, 0, 41, 1, 50, 0, 71, 0, 42, 0.2, 3, 'arial.ttf', 4, '', 0, 'ENDTAB', 0, 'ENDSEC');
+  w(0, 'SECTION', 2, 'ENTITIES');
+  const H = (P.scale ? 0.18 : 9);   /* גובה טקסט: 18 ס״מ */
+  const poly = (layer, pts, closed) => { if (pts.length < 2) return; w(0, 'POLYLINE', 8, layer, 66, 1, 70, closed ? 1 : 0); pts.forEach(q => w(0, 'VERTEX', 8, layer, 10, tx(q[0]), 20, ty(q[1]))); w(0, 'SEQEND', 8, layer); };
+  const text = (layer, x, y, t, h, center) => { if (!t) return; w(0, 'TEXT', 8, layer, 10, tx(x), 20, ty(y), 40, h || H, 1, uni(t), 7, 'KO'); if (center) w(72, 1, 11, tx(x), 21, ty(y)); };
+  const circle = (layer, x, y, r) => w(0, 'CIRCLE', 8, layer, 10, tx(x), 20, ty(y), 40, +(r).toFixed(4));
+  for (const e of planEntities(k)) { if (e.t === 'poly') poly(e.layer, e.pts, e.closed); else if (e.t === 'circle') circle(e.layer, e.x, e.y, e.r); else text(e.layer, e.x, e.y, e.s, e.h, e.center); }
   w(0, 'ENDSEC', 0, 'EOF');
   const blob = new Blob([out.join('\r\n') + '\r\n'], { type: 'application/dxf' }), a = document.createElement('a'), name = 'KO-' + String(P.name || 'project').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + '.dxf';
   window.__lastDxf = { name, bytes: blob.size, entities: out.filter((v, i) => i % 2 === 1 && out[i - 1] === '0' && /^(POLYLINE|TEXT|CIRCLE)$/.test(v)).length };
