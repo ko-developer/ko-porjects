@@ -318,7 +318,7 @@ createServer(async (req, res) => {
   /* פרוקסי ל-Claude API (כמו src/routes/api/ai ב-SvelteKit): המפתח ב-.env בשרת, לעולם לא בדפדפן.
      GET → { configured } · POST { messages, max_tokens, model? } → /v1/messages. בלי מפתח: 503 והלקוח נופל לבקשת מפתח אישי */
   if (path === '/api/ai') {
-    const key = (process.env.ANTHROPIC_API_KEY || '').trim(), MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
+    const key = (process.env.ANTHROPIC_API_KEY || '').trim(), MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5', WS = (process.env.ANTHROPIC_WORKSPACE_ID || '').trim();   /* מפתח ברמת משתמש (sk-ant-usr) דורש anthropic-workspace-id */
     if (req.method === 'GET') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify({ configured: !!key, model: MODEL })); return; }
     if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
     const chunks = [];
@@ -329,7 +329,7 @@ createServer(async (req, res) => {
       let p; try { p = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return out(400, { error: 'גוף בקשה לא תקין' }); }
       if (!Array.isArray(p.messages) || !p.messages.length) return out(400, { error: 'חסרות הודעות' });
       try {
-        const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', ...(WS ? { 'anthropic-workspace-id': WS } : {}) },
           body: JSON.stringify({ model: p.model || MODEL, max_tokens: Math.min(Math.max(+p.max_tokens || 2000, 256), 8000), messages: p.messages }) });
         const j = await r.json();
         if (!r.ok || j.error) return out(r.ok ? 502 : r.status, { error: (j.error && j.error.message) || ('שגיאת API ' + r.status) });

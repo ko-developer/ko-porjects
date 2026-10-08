@@ -22,7 +22,7 @@ export async function POST({ request }) {
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', ...(env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE_ID } : {}) },   /* מפתח ברמת משתמש דורש מזהה סביבת עבודה */
       body: JSON.stringify({
         model: p.model || MODEL,
         max_tokens: Math.min(Math.max(+p.max_tokens || 2000, 256), MAX_TOKENS),
