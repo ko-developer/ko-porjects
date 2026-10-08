@@ -491,8 +491,8 @@ async function ptMakeZones(rebuild) {
     const p = ptPos(it);
     if (P.zones.some(z => inZone(z, p))) continue;   /* כבר יש אזור שם (גם כיתוב שני באותו חדר) */
     let rr = null;
-    if (it.zw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(); rr = { left: bgLeft() + it.zu * Wb, top: bgTop() + it.zv * Hb, w: it.zw * Wb, h: it.zh * Hb }; }   /* המלבן של הציור, מורחב חצי מטר ונעצר בקירות */
-    else if (it.bw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), pad = P.scale ? 0.6 / P.scale : Wb * 0.01; rr = { left: bgLeft() + it.bu * Wb - pad, top: bgTop() + it.bv * Hb - pad, w: it.bw * Wb + 2 * pad, h: it.bh * Hb + 2 * pad }; }   /* אזור משכבת ה-PDF — המלבן של הציור עצמו (+60 ס״מ) */
+    /* המלבן החוסם של שכבת הריהוט (zw) אינו גבול — ריהוט פזור על כל הקומה עטף גם מדרגות ומעלית. הגבול = החדר סביב הכיתוב */
+    if (it.bw && !it.zw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), pad = P.scale ? 0.6 / P.scale : Wb * 0.01; rr = { left: bgLeft() + it.bu * Wb - pad, top: bgTop() + it.bv * Hb - pad, w: it.bw * Wb + 2 * pad, h: it.bh * Hb + 2 * pad }; }   /* אזור משכבת ה-PDF — המלבן של הציור עצמו (+60 ס״מ) */
     else try { rr = await ptRoomRect(it); } catch (e) { console.warn('ptRoomRect', e); }
     let left, top, w, h, isOpen = false;
     if (rr && (it.bw || (rr.w >= minPx && rr.h >= minPx))) { ({ left, top, w, h } = rr); if (rr.open) { isOpen = true; open++; } }

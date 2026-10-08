@@ -1760,6 +1760,19 @@ const RACK_TYPES = { rack: { n: 'ארון Rack', ic: '🗄', c: '#2d3444' }, rac
 function rackTypeOf(n) { return RACK_TYPES[n && n.rtype] || RACK_TYPES.rack; }
 function setRackType(id, v) { const n = byId(id); if (!n) return; if (v === 'rack') delete n.rtype; else n.rtype = v; if (!n.name || /^ארון( Rack| חשמל| מוגן מים)?( חדש)?$/.test(n.name)) n.name = RACK_TYPES[v].n + ' חדש'; render(); save(); }
 /* תפריט הוספה: "ארון" אחד — בחירת הסוג בחלון קטן */
+/* מגבר / מוצר כללי — נכנס ישר לארון כיחידה (לא כמוקד על התכנית): ארון אחד = ישר לטופס היחידה; כמה = בוחרים; אין = קודם ארון */
+function addRackProduct() {
+  const racks = (P.nodes || []).filter(n => n.kind === 'rack' && !n.hidden);
+  const go = r => { const pos = firstFree(r, 1); if (pos < 0) { uiToast('אין מקום פנוי בארון "' + r.name + '" — הגדל את גובה הארון'); sel = r.id; ui.tab = 'node'; render(); return; } addUnitAt(r.id, pos); uiToast('🎛 מלא שם / סוג / גובה U — היחידה תיכנס לארון "' + r.name + '" ותיערך שם כמו פאנל', 5000); };
+  if (!racks.length) { uiToast('אין ארון בתכנית — קודם מוסיפים ארון, ואז את המוצר לתוכו', 5000); pickRackType(); return; }
+  if (racks.length === 1) { go(racks[0]); return; }
+  const ov = uiModal(`<b style="font-size:14px">🎛 לאיזה ארון להכניס את המוצר?</b>
+    <div style="display:grid;gap:6px;margin:10px 0">${racks.map(r => `<button data-r="${r.id}" style="text-align:right;padding:9px 12px;font-size:13px">🗄 ${esc(r.name)}<span class="muted" style="font-size:11px"> · ${(r.units || []).length} יחידות · פנוי ${Math.max(0, r.ru - (r.units || []).reduce((s, u) => s + (u.u || 1), 0))}U</span></button>`).join('')}</div>
+    <button data-close style="width:100%;padding:7px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer">ביטול</button>`);
+  ov.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { ov.remove(); go(byId(b.dataset.r)); });
+  ov.querySelector('[data-close]').onclick = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
 function pickRackType() {
   const ov = uiModal(`<b style="font-size:14px">🗄 איזה ארון להוסיף?</b>
     <div style="display:grid;gap:6px;margin:10px 0">${Object.entries(RACK_TYPES).map(([k, t]) => `<button data-rt="${k}" style="text-align:right;padding:9px 12px;font-size:13px;border:1.5px solid ${t.c};border-radius:9px;background:#fff;cursor:pointer"><span style="display:inline-block;width:22px">${t.ic}</span> ${esc(t.n)}</button>`).join('')}</div>
@@ -13569,6 +13582,8 @@ function closeZonePoly() {
   selZone = z.id; sel = null; ui.tab = 'node';
   if (typeof WIZ !== 'undefined' && WIZ) { WIZ.zid = z.id; setTimeout(() => wizRender(), 50); }
   render();
+  /* אזור שסומן ידנית = דוגמה לאיך ממפים — שואלים אם לשמור אותו לאימון הזיהוי האוטומטי */
+  if (typeof ztSave === 'function' && P.bg) setTimeout(() => uiConfirm('לשמור את החלוקה הזו כדוגמת אימון — "ככה ממפים את התכנית הזו"?\n(נשמרת כל החלוקה שעל המסך; לחיצה חוזרת אחרי עריכה מחליפה אותה)', { okText: '🎓 שמור לאימון', cancelText: 'לא עכשיו' }).then(ok => { if (ok) ztSave(); }), 300);
 }
 document.addEventListener('dblclick', e => {
   if (zoneMode && zoneMode.poly && zoneMode.poly.length > 2) closeZonePoly();
