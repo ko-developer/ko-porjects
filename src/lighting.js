@@ -376,6 +376,7 @@ function fxDetFromRaw(d, front) {
   P.fxDet = { front: !!front, legend: d.legend || [], positions: (d.positions || []).map(p => ({ ...p, X1: L + p.x1 * W, Y1: T + p.y1 * H, X2: L + p.x2 * W, Y2: T + p.y2 * H })), trusses: d.trusses || [], counts: d.counts || [], floor_y: d.floor_y, notes: d.notes || '', items };
 }
 function fxDetSVG() {
+  if (typeof FX_DET_TYPES === 'undefined') return '';   /* הרינדור הראשון רץ לפני שהקובץ הזה הסתיים (var עוד לא הוצב) */
   const D = P.fxDet; if (!D || P.layer !== 'light' && P.layer !== 'all') return '';
   const col = t => (FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[4])[2];
   let s = '';
@@ -402,9 +403,9 @@ function fxDetEdit(id) {
   ov.querySelector('[data-x]').onclick = () => ov.remove();
 }
 function fxDetPanelHTML() {
-  const D = P.fxDet; if (!D) return '';
+  const D = P.fxDet; if (!D || typeof FX_DET_TYPES === 'undefined') return '';
   const A = window.__fxDetAdd, cnt = {}; (D.items || []).forEach(it => { const k = it.type + '|' + (it.model || ''); cnt[k] = (cnt[k] || 0) + 1; });
-  const chips = Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const [t, m] = k.split('|'); const c = (FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[4])[2]; return `<span style="display:inline-block;border:1px solid ${c};color:${c};border-radius:12px;padding:1px 8px;font-size:10.5px;margin:1px">${n}× ${esc(m || t)}</span>`; }).join('');
+  const chips = Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const [t, m] = k.split('|'); const T = FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[4], c = T[2]; return `<span style="display:inline-flex;align-items:center;gap:4px;border:1px solid ${c};color:${c};border-radius:12px;padding:1px 4px 1px 8px;font-size:10.5px;margin:1px">${n}× ${esc(m || T[1].slice(2))}<button style="padding:0 5px;font-size:10px;border-radius:9px;border:1px solid ${c};background:#fff;color:${c}" title="חפש בתמונה עוד פריטים כמו אלה שסומנו" onclick="fxDetFindSimilar('${esc(t)}','${jsq(m)}')">🔎 עוד כמוני</button></span>`; }).join('');
   return `<div style="border:1.5px solid #534ab7;border-radius:10px;padding:8px;margin:0 0 8px;background:#f7f6ff">
     <b style="font-size:12.5px">🔎 זיהויים על התכנית — ${(D.items || []).length}${D.positions && D.positions.length ? ' · ' + D.positions.length + ' עמדות' : ''}</b>
     <div style="margin:4px 0">${chips || '<span class="muted" style="font-size:11px">אין עדיין — הוסף בלחיצה על התכנית</span>'}</div>
@@ -415,6 +416,32 @@ function fxDetPanelHTML() {
       <button style="font-size:11px;${A ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="fxDetAddMode()">${A ? '⏹ סיום הוספה' : '➕ הוסף בלחיצה'}</button>
     </div>
     <div style="display:flex;gap:6px;margin-top:6px"><button style="flex:2;background:#534ab7;color:#fff;font-weight:700" onclick="fxDetToTable()">➡ לטבלת הספירה ובחירת מוצרים</button><button style="flex:1;color:#c0392b" onclick="uiConfirm('למחוק את כל הזיהויים?').then(ok=>{if(ok){P.fxDet=null;window.__fxDetAdd=null;save();render()}})">🗑</button></div></div>`;
+}
+/* "חפש עוד כמוני": הסימונים של קבוצה (סוג+כיתוב) הם הדוגמאות; Claude מקבל את התמונה, חיתוך של דוגמה אחת ואת מיקומי הדוגמאות, ומחזיר את כל המופעים הנוספים */
+async function fxDetFindSimilar(type, model) {
+  const D = P.fxDet; if (!D || !P.bg) return;
+  const ex = D.items.filter(it => it.type === type && (it.model || '') === (model || '')); if (!ex.length) { uiToast('אין סימונים לדוגמה'); return; }
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
+  const rel = it => [+((it.x - L) / W).toFixed(3), +((it.y - T) / H).toFixed(3)];
+  const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = P.bg; });
+  /* חיתוך סביב הדוגמה הראשונה — 7% מרוחב התמונה, מוגדל */
+  const [ux, uy] = rel(ex[0]), bw = Math.round(im.width * 0.07), cv = document.createElement('canvas'); cv.width = 240; cv.height = 240;
+  cv.getContext('2d').drawImage(im, Math.max(0, ux * im.width - bw / 2), Math.max(0, uy * im.height - bw / 2), bw, bw, 0, 0, 240, 240);
+  const crop = cv.toDataURL('image/png').split(',')[1], mt = /^data:image\/png/i.test(P.bg) ? 'image/png' : 'image/jpeg';
+  const name = model || (FX_DET_TYPES.find(x => x[0] === type) || FX_DET_TYPES[4])[1].slice(2);
+  uiToast('🔎 מחפש עוד "' + name + '" בתמונה…', 6000);
+  let j; try {
+    j = await claudeMsg([{ role: 'user', content: [
+      { type: 'text', text: 'Image 1 is a lighting drawing or venue photo. Image 2 is a zoomed crop of ONE example of the object "' + name + '". In image 1 this same object is already marked at these relative positions (x,y; 0,0 = top-left, 1,1 = bottom-right): ' + JSON.stringify(ex.slice(0, 12).map(rel)) + '. Find ALL OTHER occurrences of the same kind of object in image 1 that are NOT within 0.02 of a listed position. Return ONLY JSON {"found":[{"x":0-1,"y":0-1,"confidence":0-1}],"notes":"short"}. Do not include the listed ones. If there are none, return an empty list.' },
+      { type: 'image', source: { type: 'base64', media_type: mt, data: P.bg.split(',')[1] } },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: crop } }] }], 3000);
+  } catch (e) { uiToast('החיפוש נכשל: ' + e.message, 6000); return; }
+  let d; try { d = claudeJson(j); } catch (e) { uiToast('תשובה לא תקינה'); return; }
+  let added = 0;
+  for (const f of d.found || []) { if (!(f.confidence >= 0.5)) continue; const x = L + (+f.x || 0) * W, y = T + (+f.y || 0) * H;
+    if (D.items.some(it => Math.hypot(it.x - x, it.y - y) < 0.02 * W)) continue;
+    D.items.push({ id: uid('fd'), x, y, type, model: model || '', pos: '', label: '' }); added++; }
+  save(); render(); uiToast(added ? '🔎 נוספו ' + added + ' "' + name + '" — בדוק את הסימונים, מחק מה שלא נכון' : 'לא נמצאו עוד' + (d.notes ? ' — ' + d.notes : ''), 7000);
 }
 function fxDetAddMode() {
   if (window.__fxDetAdd) { window.__fxDetAdd = null; document.body.style.cursor = ''; render(); return; }
