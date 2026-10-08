@@ -300,7 +300,7 @@ function fxInventoryDlg(d, front) {
     const keyOf = fx => (fx.model || fx.type || '').trim();
     const groups = {}; fixtures.forEach(fx => { const k = keyOf(fx); (groups[k] = groups[k] || { k, type: fx.type, n: 0 }).n++; });
     const gs = Object.values(groups).map(g => { const lg = legend.find(l => l.model && l.model.trim().toLowerCase() === g.k.toLowerCase()); const cnt = (d.counts || []).find(c => (c.model || '').trim().toLowerCase() === g.k.toLowerCase());
-      const f = fxMatch(g.k, g.type === 'other' ? '' : g.type), sug = fxSuggest(g.k, g.type === 'other' ? '' : g.type, 4); return { ...g, legendQty: lg ? +lg.qty || null : null, aiQty: cnt ? +cnt.qty || null : null, qty: g.n, sku: f ? f.sku : null, sug }; });
+      const chosen = fixtures.find(fx => keyOf(fx) === g.k && fx._sku && fxOf(fx._sku)), f = chosen ? fxOf(chosen._sku) : fxMatch(g.k, g.type === 'other' ? '' : g.type); let sug = fxSuggest(g.k, g.type === 'other' ? '' : g.type, 4); if (f && !sug.some(x => x.sku === f.sku)) sug = [f].concat(sug).slice(0, 4); return { ...g, legendQty: lg ? +lg.qty || null : null, aiQty: cnt ? +cnt.qty || null : null, qty: g.n, sku: f ? f.sku : null, sug }; });
     const ts = trusses.map(t => { const size = t.diameter_m ? 'Ø' + t.diameter_m : t.length_m ? t.length_m + ' מ׳' : (t.segments || []).map(sg => sg.qty + '×' + sg.length_m + 'מ׳').join(' + ') || '';
       const q = (t.shape === 'circle' ? 'טראס עגול ' : 'טראס ') + size, f = fxMatch(q, 'truss'); return { ...t, size, sku: f ? f.sku : null, qty: 1, sug: fxSuggest(q, 'truss', 4) }; });
     const price = sku => { const f = fxOf(sku); return f ? fxPrice(f) : 0; };
@@ -335,7 +335,7 @@ function fxInventoryToOffer(ok, placing) {
   for (const t of ok.trusses) { add(t.sku, t.qty, t.name, false); P.lightPos = P.lightPos || []; if (t.name && !P.lightPos.some(p => p.name === t.name)) P.lightPos.push({ name: t.name, shape: t.shape === 'circle' ? 'circle' : 'bar', size: t.diameter_m || t.length_m || undefined }); }
 }
 /* ---------- קריאת תכנית תאורה של מעצב (ראייה) ---------- */
-var FX_PLOT_PROMPT = `You are reading a stage/event lighting plot (a designer's drawing). Extract EVERY lighting fixture symbol you can see.
+var FX_PLOT_PROMPT = `You are reading a stage/event lighting plot (a designer's drawing) — or, if the image is a photograph/rendering of a venue, the actual lighting fixtures visible in it. Extract EVERY lighting fixture symbol/fixture you can see (in a photo: every fixture head, including those seen only as the origin of a light beam).
 Return ONLY JSON: {"fixtures":[{"x":0.0-1.0,"y":0.0-1.0,"type":"moving|static|effect|other","model":"text written for this fixture or its legend entry","label":"unit number/label if written","pos":"name of the truss/bar/position it hangs on, if written"}],
 "legend":[{"symbol":"short description of the symbol","model":"model/fixture name as written","qty":N}],
 "positions":[{"name":"truss/bar name as written","x1":0-1,"y1":0-1,"x2":0-1,"y2":0-1}],
@@ -395,9 +395,12 @@ function fxDetEdit(id) {
     <div class="fld" style="margin-top:8px"><label>סוג</label><select data-t>${FX_DET_TYPES.map(([v, l]) => `<option value="${v}" ${it.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="fld"><label>דגם / כיתוב בתכנית</label><input data-m value="${esc(it.model || '')}" placeholder="כמו שכתוב אצל המעצב"></div>
     <div class="fld"><label>עמדה (טראס / בר)</label><input data-p value="${esc(it.pos || '')}"></div>
+    <div class="fld"><label>מוצר מהקטלוג של KO (ERP)</label><div style="display:flex;gap:6px;align-items:center"><span data-sku style="flex:1;font-size:12px">${it.sku && fxOf(it.sku) ? esc(fxOf(it.sku).name.slice(0, 60)) : '<span class="muted">לא נבחר — ייבחר בטבלת הספירה</span>'}</span><button data-pick title="בחר דגם מהספרייה (1207 פריטים מהאתר)">📚 בחר</button></div></div>
     <div style="display:flex;gap:6px"><button class="primary" data-ok style="flex:2">שמור</button><button data-same style="flex:2" title="מחיל את הסוג והדגם על כל הזיהויים שיש להם אותו כיתוב">על כל הדומים</button><button data-del style="flex:1;color:#c0392b">🗑</button><button data-x style="flex:1">ביטול</button></div>`);
+  let sku = it.sku || null;
+  ov.querySelector('[data-pick]').onclick = () => fxPicker({ onPick: f => { if (!f) return; sku = f.sku; ov.querySelector('[data-sku]').textContent = f.name.slice(0, 60); const mi = ov.querySelector('[data-m]'); if (!mi.value.trim()) mi.value = f.name.slice(0, 40); const ts = ov.querySelector('[data-t]'); if (['moving', 'static', 'effect', 'truss'].includes(f.kind)) ts.value = f.kind; } });
   const apply = all => { const t = ov.querySelector('[data-t]').value, m = ov.querySelector('[data-m]').value.trim(), p = ov.querySelector('[data-p]').value.trim(), m0 = it.model;
-    (all ? D.items.filter(x => (x.model || '') === (m0 || '')) : [it]).forEach(x => { x.type = t; x.model = m; if (!all) x.pos = p; }); ov.remove(); save(); render(); };
+    (all ? D.items.filter(x => (x.model || '') === (m0 || '')) : [it]).forEach(x => { x.type = t; x.model = m; x.sku = sku; if (!all) x.pos = p; }); ov.remove(); save(); render(); };
   ov.querySelector('[data-ok]').onclick = () => apply(false); ov.querySelector('[data-same]').onclick = () => apply(true);
   ov.querySelector('[data-del]').onclick = () => { D.items = D.items.filter(x => x !== it); ov.remove(); save(); render(); };
   ov.querySelector('[data-x]').onclick = () => ov.remove();
@@ -426,26 +429,33 @@ async function fxDetFindSimilar(type, model) {
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
   const rel = it => [+((it.x - L) / W).toFixed(3), +((it.y - T) / H).toFixed(3)];
   const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = P.bg; });
-  /* חיתוך סביב הדוגמה הראשונה — 7% מרוחב התמונה, מוגדל */
-  const [ux, uy] = rel(ex[0]), bw = Math.round(im.width * 0.07), cv = document.createElement('canvas'); cv.width = 240; cv.height = 240;
-  cv.getContext('2d').drawImage(im, Math.max(0, ux * im.width - bw / 2), Math.max(0, uy * im.height - bw / 2), bw, bw, 0, 0, 240, 240);
-  const crop = cv.toDataURL('image/png').split(',')[1], mt = /^data:image\/png/i.test(P.bg) ? 'image/png' : 'image/jpeg';
   const name = model || (FX_DET_TYPES.find(x => x[0] === type) || FX_DET_TYPES[4])[1].slice(2);
-  uiToast('🔎 מחפש עוד "' + name + '" בתמונה…', 6000);
-  let j; try {
-    j = await claudeMsg([{ role: 'user', content: [
-      { type: 'text', text: 'Image 1 is a lighting drawing or venue photo. Image 2 is a zoomed crop of ONE example of the object "' + name + '". In image 1 this same object is already marked at these relative positions (x,y; 0,0 = top-left, 1,1 = bottom-right): ' + JSON.stringify(ex.slice(0, 12).map(rel)) + '. Find ALL OTHER occurrences of the same kind of object in image 1 that are NOT within 0.02 of a listed position. Return ONLY JSON {"found":[{"x":0-1,"y":0-1,"confidence":0-1}],"notes":"short"}. Do not include the listed ones. If there are none, return an empty list.' },
-      { type: 'image', source: { type: 'base64', media_type: mt, data: P.bg.split(',')[1] } },
-      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: crop } }] }], 3000);
-  } catch (e) { uiToast('החיפוש נכשל: ' + e.message, 6000); return; }
-  let d; try { d = claudeJson(j); } catch (e) { uiToast('תשובה לא תקינה'); return; }
-  let added = 0;
-  for (const f of d.found || []) { if (!(f.confidence >= 0.5)) continue; const x = L + (+f.x || 0) * W, y = T + (+f.y || 0) * H;
-    if (D.items.some(it => Math.hypot(it.x - x, it.y - y) < 0.02 * W)) continue;
-    D.items.push({ id: uid('fd'), x, y, type, model: model || '', pos: '', label: '' }); added++; }
-  save(); render(); uiToast(added ? '🔎 נוספו ' + added + ' "' + name + '" — בדוק את הסימונים, מחק מה שלא נכון' : 'לא נמצאו עוד' + (d.notes ? ' — ' + d.notes : ''), 7000);
+  /* דוגמאות: עד 3 חיתוכים מוגדלים (סימונים שונים) — ככל שסימנת יותר, הדוגמאות מגוונות יותר */
+  const crops = ex.filter((_, i) => i % Math.max(1, Math.floor(ex.length / 3)) === 0).slice(0, 3).map(it => { const [ux, uy] = rel(it), bw = Math.round(im.width * 0.06), cv = document.createElement('canvas'); cv.width = 220; cv.height = 220;
+    cv.getContext('2d').drawImage(im, Math.max(0, ux * im.width - bw / 2), Math.max(0, uy * im.height - bw / 2), bw, bw, 0, 0, 220, 220); return cv.toDataURL('image/png').split(',')[1]; });
+  /* אריחים: תמונה גדולה נסרקת ב-4 רבעים חופפים (10%) — פריטים קטנים נראים גדולים יותר; תמונה קטנה — שלם */
+  const tiles = im.width > 900 || im.height > 700 ? [[0, 0], [0.45, 0], [0, 0.45], [0.45, 0.45]].map(([tx, ty]) => ({ x0: tx, y0: ty, w: 0.55, h: 0.55 })) : [{ x0: 0, y0: 0, w: 1, h: 1 }];
+  uiToast('🔎 מחפש עוד "' + name + '" — ' + crops.length + ' דוגמאות · ' + tiles.length + ' אזורי סריקה…', 8000);
+  const all = D.items.slice(); let added = 0, calls = 0;
+  for (const tl of tiles) {
+    const cv = document.createElement('canvas'); const sw = Math.round(im.width * tl.w), sh = Math.round(im.height * tl.h), k = Math.min(1, 1600 / Math.max(sw, sh)); cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
+    cv.getContext('2d').drawImage(im, Math.round(im.width * tl.x0), Math.round(im.height * tl.y0), sw, sh, 0, 0, cv.width, cv.height);
+    const tileB64 = cv.toDataURL('image/jpeg', 0.85).split(',')[1];
+    const inTile = all.filter(it => { const [ux, uy] = rel(it); return ux >= tl.x0 && ux <= tl.x0 + tl.w && uy >= tl.y0 && uy <= tl.y0 + tl.h; }).map(it => { const [ux, uy] = rel(it); return [+((ux - tl.x0) / tl.w).toFixed(3), +((uy - tl.y0) / tl.h).toFixed(3)]; });
+    let j; try { calls++;
+      j = await claudeMsg([{ role: 'user', content: [
+        { type: 'text', text: 'Image 1 is part of a lighting drawing or a venue/stage photo. The next ' + crops.length + ' image(s) are zoomed crops of EXAMPLES of the object "' + name + '" (' + type + ' lighting fixture). In image 1 this object is already marked at these relative positions (x,y; 0,0 = top-left of image 1, 1,1 = bottom-right): ' + JSON.stringify(inTile) + '. Find ALL OTHER occurrences of the same kind of object in image 1 — including small, partially hidden, differently angled, or lit/unlit ones, and the fixture heads at the origin of light beams. Return ONLY JSON {"found":[{"x":0-1,"y":0-1,"confidence":0-1}],"notes":"short"}. Exclude anything within 0.03 of a listed position. Empty list if none.' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: tileB64 } },
+        ...crops.map(c => ({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: c } }))] }], 3000);
+    } catch (e) { uiToast('החיפוש נכשל: ' + e.message, 6000); return; }
+    let d; try { d = claudeJson(j); } catch (e) { continue; }
+    for (const f of d.found || []) { if (!(f.confidence >= 0.5)) continue; const x = L + (tl.x0 + (+f.x || 0) * tl.w) * W, y = T + (tl.y0 + (+f.y || 0) * tl.h) * H;
+      if (all.some(it => Math.hypot(it.x - x, it.y - y) < 0.025 * W)) continue;
+      const it = { id: uid('fd'), x, y, type, model: model || '', sku: ex[0].sku || null, pos: '', label: '' }; D.items.push(it); all.push(it); added++; }
+    render();
+  }
+  save(); render(); uiToast(added ? '🔎 נוספו ' + added + ' "' + name + '" (' + calls + ' סריקות) — בדוק את הסימונים, מחק מה שלא נכון' : 'לא נמצאו עוד "' + name + '" מעבר למסומנים', 7000);
 }
-/* ---------- טבלת הזיהויים כחלון צף (לא חוסם את התכנית — לוחצים על התכנית ועורכים בטבלה במקביל) ---------- */
 function fxDetWinOpen() {
   let ov = document.getElementById('fxDetWin');
   if (ov) { fxDetWinRender(); return; }
@@ -467,9 +477,10 @@ function fxDetWinRender() {
     return `<tr data-row="${it.id}" style="border-bottom:1px solid #eee;${D.sel === it.id ? 'background:#eef' : ''}">
       <td style="text-align:center"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${c};color:#fff;font-size:10px;font-weight:800;line-height:18px;text-align:center;cursor:pointer" title="הצג על התכנית" onclick="fxDetLocate('${it.id}')">${i + 1}</span></td>
       <td>${typeSel(it.type, `fxDetSet('${it.id}','type',this.value)`)}</td>
-      <td><input value="${esc(it.model || '')}" placeholder="כיתוב / דגם" style="width:100%;font-size:11px" onchange="fxDetSet('${it.id}','model',this.value)"></td>
+      <td><input value="${esc(it.model || '')}" placeholder="כיתוב / דגם" style="width:100%;font-size:11px" onchange="fxDetSet('${it.id}','model',this.value)">${it.sku && fxOf(it.sku) ? `<div style="font-size:10px;color:#0a7a4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px" title="${esc(fxOf(it.sku).name)}">📚 ${esc(fxOf(it.sku).name.slice(0, 40))}</div>` : ''}</td>
       <td><input value="${esc(it.pos || '')}" placeholder="עמדה" style="width:64px;font-size:11px" onchange="fxDetSet('${it.id}','pos',this.value)"></td>
-      <td style="white-space:nowrap"><button style="padding:1px 5px;font-size:10.5px" title="חפש בתמונה עוד כמו כל ה-${groups[k]} של הקבוצה הזו" onclick="fxDetFindSimilar('${esc(it.type)}','${jsq(it.model || '')}')">🔎</button>
+      <td style="white-space:nowrap"><button style="padding:1px 5px;font-size:10.5px" title="בחר מוצר מה-ERP לזיהוי הזה (≡ מחיל על הדומים)" onclick="fxPicker({onPick:f=>{if(!f)return;const it=P.fxDet.items.find(x=>x.id==='${it.id}');if(!it)return;it.sku=f.sku;if(!it.model)it.model=f.name.slice(0,40);if(['moving','static','effect','truss'].includes(f.kind))it.type=f.kind;save();render();}})">📚</button>
+        <button style="padding:1px 5px;font-size:10.5px" title="חפש בתמונה עוד כמו כל ה-${groups[k]} של הקבוצה הזו" onclick="fxDetFindSimilar('${esc(it.type)}','${jsq(it.model || '')}')">🔎</button>
         <button style="padding:1px 5px;font-size:10.5px" title="החל סוג+כיתוב על כל הדומים (אותו כיתוב)" onclick="fxDetSameAs('${it.id}')">≡</button>
         <button style="padding:1px 5px;font-size:10.5px;color:#c0392b" onclick="fxDetDel('${it.id}')">🗑</button></td></tr>`; }).join('');
   const chips = Object.entries(groups).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const [t, m] = k.split('|'); const Tt = T.find(x => x[0] === t) || T[4]; return `<span style="border:1px solid ${Tt[2]};color:${Tt[2]};border-radius:12px;padding:0 7px;font-size:10.5px">${n}× ${esc(m || Tt[1].slice(2))}</span>`; }).join(' ');
@@ -485,7 +496,7 @@ function fxDetWinRender() {
 }
 function fxDetSet(id, k, v) { const it = P.fxDet && P.fxDet.items.find(x => x.id === id); if (!it) return; it[k] = k === 'type' ? v : v.trim(); save(); render(); }
 function fxDetDel(id) { if (!P.fxDet) return; P.fxDet.items = P.fxDet.items.filter(x => x.id !== id); save(); render(); }
-function fxDetSameAs(id) { const it = P.fxDet && P.fxDet.items.find(x => x.id === id); if (!it) return; const m0 = it.model || ''; let n = 0; P.fxDet.items.forEach(x => { if ((x.model || '') === m0 && x !== it) { x.type = it.type; n++; } }); save(); render(); uiToast('≡ ' + n + ' דומים עודכנו'); }
+function fxDetSameAs(id) { const it = P.fxDet && P.fxDet.items.find(x => x.id === id); if (!it) return; const m0 = it.model || ''; let n = 0; P.fxDet.items.forEach(x => { if ((x.model || '') === m0 && x !== it) { x.type = it.type; x.sku = it.sku || x.sku; n++; } }); save(); render(); uiToast('≡ ' + n + ' דומים עודכנו (סוג' + (it.sku ? ' + מוצר' : '') + ')'); }
 function fxDetLocate(id) { if (!P.fxDet) return; P.fxDet.sel = id; render(); setTimeout(() => { const g = document.querySelector('[data-fxdet="' + id + '"]'); if (g && g.scrollIntoView) g.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); }, 50); }
 function fxDetAddMode() {
   if (window.__fxDetAdd) { window.__fxDetAdd = null; document.body.style.cursor = ''; render(); return; }
