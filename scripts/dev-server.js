@@ -315,6 +315,29 @@ createServer(async (req, res) => {
     });
     return;
   }
+  /* פרוקסי ל-Claude API (כמו src/routes/api/ai ב-SvelteKit): המפתח ב-.env בשרת, לעולם לא בדפדפן.
+     GET → { configured } · POST { messages, max_tokens, model? } → /v1/messages. בלי מפתח: 503 והלקוח נופל לבקשת מפתח אישי */
+  if (path === '/api/ai') {
+    const key = (process.env.ANTHROPIC_API_KEY || '').trim(), MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
+    if (req.method === 'GET') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify({ configured: !!key, model: MODEL })); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', async () => {
+      const out = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
+      if (!key) return out(503, { error: 'ANTHROPIC_API_KEY לא מוגדר ב-.env' });
+      let p; try { p = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return out(400, { error: 'גוף בקשה לא תקין' }); }
+      if (!Array.isArray(p.messages) || !p.messages.length) return out(400, { error: 'חסרות הודעות' });
+      try {
+        const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: p.model || MODEL, max_tokens: Math.min(Math.max(+p.max_tokens || 2000, 256), 8000), messages: p.messages }) });
+        const j = await r.json();
+        if (!r.ok || j.error) return out(r.ok ? 502 : r.status, { error: (j.error && j.error.message) || ('שגיאת API ' + r.status) });
+        out(200, j);
+      } catch (e) { out(502, { error: 'הקריאה ל-Anthropic נכשלה: ' + String(e.message) }); }
+    });
+    return;
+  }
   /* קציר נתונים מקישור שהודבק בכרטיס פריט במטריצה (scripts/harvest.js) */
   if (path === '/api/harvest' && req.method === 'POST') {
     if (!isOwner) { res.writeHead(403); res.end('owner only'); return; }
