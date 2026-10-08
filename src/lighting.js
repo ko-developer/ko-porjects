@@ -196,16 +196,46 @@ function fxPositions() {
   for (const n of fxNodes()) { const p = n.fx && n.fx.pos; if (p && !P.lightPos.some(q => q.name === p)) P.lightPos.push({ name: p }); }
   return P.lightPos;
 }
+/* ציור העמדה על תכנית התקרה כאובייקט שרטוט (נגרר, מסתובב, מידות במטרים): טראס ישר לפי אורך, עגול לפי קוטר */
+function fxPosObj(name) { return ((P.sketch && P.sketch.objs) || []).find(o => o.pos && o.pos === name) || null; }   /* השרטוט משותף לכל התכניות בפרויקט */
+function fxPosPlace(i) {
+  const p = (P.lightPos || [])[i]; if (!p || !p.name) { uiToast('תן שם לעמדה קודם'); return; }
+  if (!P.scale) { uiToast('כייל את התכנית קודם — מידות הטראס במטרים'); return; }
+  const pxm = 1 / P.scale, c = viewCenterPt(); P.sketch = P.sketch || { walls: [], objs: [] };
+  let o = fxPosObj(p.name);
+  const circle = p.shape === 'circle', size = +p.size || (circle ? 4 : 3);
+  if (!o) { o = { t: circle ? 'trussCircle' : 'truss', x: c.x, y: c.y, w: size * pxm, h: (circle ? size : 0.29) * pxm, r: 0, pos: p.name }; P.sketch.objs.push(o); }
+  else { o.t = circle ? 'trussCircle' : 'truss'; o.w = size * pxm; o.h = (circle ? size : 0.29) * pxm; }
+  sketchMode = { tool: 'select' }; sketchSel = P.sketch.objs.indexOf(o); if (typeof sketchBar === 'function') sketchBar();
+  save(); render(); uiToast('📍 ' + p.name + ' על התכנית — גרור למקום (למשל צמוד לקיר), סובב בידית ⟳; המידות במטרים בסרגל', 7000);
+}
+/* נקודות על העמדה: t ∈ [0,1] לאורך טראס ישר, או זווית על טראס עגול (אחיד, מתחיל מהחזית = למטה) */
+function fxPosPoint(o, t, idx, cnt) {
+  const a = (o.r || 0) * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a);
+  let lx, ly;
+  if (o.t === 'trussCircle') { const ang = Math.PI / 2 + (idx / Math.max(1, cnt)) * 2 * Math.PI; lx = (o.w / 2) * Math.cos(ang); ly = (o.h / 2) * Math.sin(ang); }
+  else { lx = (t - 0.5) * o.w; ly = 0; }
+  return { x: o.x + lx * cs - ly * sn, y: o.y + lx * sn + ly * cs };
+}
+/* פיזור N פנסים על עמדה מצוירת (בלי חזית): "טראס עגול Ø4 עם 8 פנסים" */
+function fxSpreadOnPos(i) {
+  const p = (P.lightPos || [])[i]; const o = p && fxPosObj(p.name);
+  if (!o) { uiToast('קודם 📍 הנח את העמדה על התכנית'); return; }
+  uiPrompt('כמה פנסים על ' + p.name + '?', '6').then(v => { const n = Math.max(1, Math.min(60, +v || 0)); if (!n) return;
+    fxPicker({ onPick: f => { if (!f) return; for (let k = 0; k < n; k++) { const pt = fxPosPoint(o, n > 1 ? k / (n - 1) : 0.5, k, n); fxAddNode(f.sku, pt, { pos: p.name, hgt: p.h }); } save(); render(); uiToast('🔆 ' + n + '× ' + f.name.slice(0, 30) + ' על ' + p.name); } }); });
+}
 function fxDepthHTML() {
   const pos = fxPositions(), sh = curSheet(P), front = sheetIsElevation();
   const row = (p, i) => `<div style="display:flex;gap:4px;align-items:center;margin:2px 0;font-size:11.5px">
       <input value="${esc(p.name || '')}" placeholder="שם עמדה (T1 / בר קדמי)" style="flex:1;min-width:0" onchange="P.lightPos[${i}].name=this.value;save()">
       <input type="number" step="0.1" value="${p.h ?? ''}" placeholder="גובה" title="גובה הטראס במטרים (trim)" style="width:58px" onchange="P.lightPos[${i}].h=this.value===''?undefined:+this.value;save()">
-      <input type="number" step="0.1" value="${p.d ?? ''}" placeholder="עומק" title="עומק במטרים מקדמת הבמה (קו הייחוס) ואחורה" style="width:58px" onchange="P.lightPos[${i}].d=this.value===''?undefined:+this.value;save()">
-      <span class="muted" style="font-size:10px;white-space:nowrap">${fxNodes().filter(n => n.fx && n.fx.pos === p.name).length} פנסים</span>
+      <select style="width:62px;font-size:10.5px" title="צורת הטראס" onchange="P.lightPos[${i}].shape=this.value;save();render()"><option value="bar" ${p.shape !== 'circle' ? 'selected' : ''}>ישר</option><option value="circle" ${p.shape === 'circle' ? 'selected' : ''}>עגול</option></select>
+      <input type="number" step="0.1" value="${p.size ?? ''}" placeholder="${p.shape === 'circle' ? 'קוטר' : 'אורך'}" title="${p.shape === 'circle' ? 'קוטר הטראס במטרים' : 'אורך הטראס במטרים'}" style="width:54px" onchange="P.lightPos[${i}].size=this.value===''?undefined:+this.value;save()">
+      ${front ? `<input type="number" step="0.1" value="${p.d ?? ''}" placeholder="עומק" title="עומק במטרים מקדמת הבמה — רק אם העמדה לא מצוירת על תכנית התקרה" style="width:52px" onchange="P.lightPos[${i}].d=this.value===''?undefined:+this.value;save()">` : `<button style="padding:1px 6px;font-size:11px;${fxPosObj(p.name) ? 'background:#eef7f1' : ''}" title="${fxPosObj(p.name) ? 'מצויר על התכנית — לחיצה מעדכנת מידות ובוחרת' : 'צייר את הטראס על התכנית במידות האלה, ואז גרור אותו למקום (צמוד לקיר וכד׳)'}" onclick="fxPosPlace(${i})">${fxPosObj(p.name) ? '✓ מצויר' : '📍 הנח'}</button><button style="padding:1px 6px;font-size:11px" title="פיזור N פנסים לאורך הטראס / סביב העיגול" onclick="fxSpreadOnPos(${i})">🔆</button>`}
+      <span class="muted" style="font-size:10px;white-space:nowrap">${fxNodes().filter(n => n.fx && n.fx.pos === p.name).length}</span>
       <button style="padding:1px 5px" onclick="P.lightPos.splice(${i},1);save();render()">✕</button></div>`;
   return `<details ${front ? 'open' : ''} style="margin:4px 0 8px"><summary style="cursor:pointer;font-size:12px;font-weight:700">📏 עמדות תלייה — גובה ועומק (${pos.length})</summary>
-    <p class="muted" style="font-size:10.5px;margin:3px 0">לכל טראס/בר: גובה במטרים ועומק מקדמת הבמה. זה "כיול העומק" של החזית — ממנו נקבע המיקום על תכנית התקרה.</p>
+    <p class="muted" style="font-size:10.5px;margin:3px 0">${front ? 'לכל טראס/בר: גובה, צורה ומידה. על תכנית התקרה מציירים אותו במקומו (📍) — ומשם "העתק" יודע איפה כל פנס. עומק במטרים רק כתחליף כשהטראס לא מצויר.' : 'כל טראס/בר: שם, גובה, צורה (ישר/עגול) ומידה במטרים → 📍 מצייר אותו על התכנית, גוררים למקום (למשל צמוד לקיר) → 🔆 מפזר פנסים עליו, או ⤵ מהחזית.'}</p>
     ${pos.map(row).join('')}
     <div style="display:flex;gap:4px;margin-top:4px"><button style="flex:1;font-size:11px" onclick="P.lightPos=P.lightPos||[];P.lightPos.push({name:'T'+(P.lightPos.length+1)});save();render()">➕ עמדה</button>
       <button style="flex:1;font-size:11px;${sh.fxRef ? 'background:#eef7f1' : ''}" onclick="fxRefSet()" title="${front ? 'קצוות הבמה בחזית — כדי לתרגם X לתכנית' : 'קדמת הבמה על תכנית התקרה — נקודת האפס של העומק'}">${sh.fxRef ? '✓ קו ייחוס (שנה)' : '📏 קו ייחוס — קצוות הבמה'}</button>
@@ -217,19 +247,25 @@ function fxCopyToPlan() {
   const targets = (P.sheets || []).filter(sh => sh.id !== src.id && !sh.view);
   if (!targets.length) { uiToast('אין תכנית תקרה/העמדה בפרויקט — הוסף תכנית (➕ תכנית) עם מבט מלמעלה וסמן עליה קו ייחוס', 7000); return; }
   const go = tgt => {
-    if (!tgt.fxRef) { uiToast('בתכנית "' + tgt.name + '" אין קו ייחוס — עבור אליה, 📏 קו ייחוס — קצוות הבמה, וחזור', 7000); return; }
+    const drawnAll = fxNodes().every(n => n.fx && n.fx.pos && fxPosObj(n.fx.pos));
+    if (!tgt.fxRef && !drawnAll) { uiToast('בתכנית "' + tgt.name + '" אין קו ייחוס ולא כל העמדות מצוירות — צייר את הטראסים (📍) או סמן קו ייחוס, וחזור', 8000); return; }
     if (!tgt.scale) { uiToast('תכנית "' + tgt.name + '" לא מכוילת — כייל אותה קודם', 6000); return; }
     const ns = fxNodes(); if (!ns.length) { uiToast('אין פנסים בחזית'); return; }
     /* X יחסי בחזית: לפי קו הייחוס של החזית, ואם אין — לפי הפריסה של הפנסים */
     const cx = n => 2200 - n.x - 20;
     let fl, fr; if (src.fxRef) { fl = Math.min(src.fxRef.x1, src.fxRef.x2); fr = Math.max(src.fxRef.x1, src.fxRef.x2); } else { const xs = ns.map(cx); fl = Math.min(...xs); fr = Math.max(...xs); }
     const span = Math.max(1, fr - fl);
-    const R = tgt.fxRef, dx = R.x2 - R.x1, dy = R.y2 - R.y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, nx = uy, ny = -ux;   /* נורמל: מהקו והלאה מהקהל (שמאל→ימין כפי שרואים מהקהל) */
+    const R = tgt.fxRef || { x1: 0, y1: 0, x2: 1, y2: 0 }, dx = R.x2 - R.x1, dy = R.y2 - R.y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, nx = uy, ny = -ux;   /* נורמל: מהקו והלאה מהקהל (שמאל→ימין כפי שרואים מהקהל) */
     const pxPerM = 1 / tgt.scale, pos = fxPositions();
     tgt.nodes = tgt.nodes || []; let made = 0;
     for (const n of ns) {
-      const t = (cx(n) - fl) / span, p = pos.find(q => q.name && n.fx && q.name === n.fx.pos), d = p && p.d != null ? p.d : (P.fxDefDepth || 0);
-      const X = R.x1 + ux * t * len + nx * d * pxPerM, Y = R.y1 + uy * t * len + ny * d * pxPerM;
+      const p = pos.find(q => q.name && n.fx && q.name === n.fx.pos), d = p && p.d != null ? p.d : (P.fxDefDepth || 0), o = p && fxPosObj(p.name);
+      let X, Y;
+      if (o) {   /* העמדה מצוירת על התקרה: לאורך הטראס לפי המיקום היחסי בחזית (בגבולות הטראס בחזית), או סביב העיגול */
+        const sib = ns.filter(q => q.fx && q.fx.pos === p.name), k = sib.indexOf(n);
+        const xl = p.x1 != null ? Math.min(p.x1, p.x2) : Math.min(...sib.map(cx)), xr = p.x1 != null ? Math.max(p.x1, p.x2) : Math.max(...sib.map(cx));
+        const tt = xr > xl ? (cx(n) - xl) / (xr - xl) : 0.5, pt = fxPosPoint(o, tt, k, sib.length); X = pt.x; Y = pt.y;
+      } else { const t = (cx(n) - fl) / span; X = R.x1 + ux * t * len + nx * d * pxPerM; Y = R.y1 + uy * t * len + ny * d * pxPerM; }
       const old = tgt.nodes.find(o => o.fx && o.fx.from === n.id);
       const c = old || { id: uid('n'), kind: 'point', ptype: 'light', mini: true, mount: 'טראס/הנפה' };
       Object.assign(c, { name: n.name, sub: n.sub, x: Math.max(0, Math.round(2200 - X - 20)), y: Math.max(0, Math.round(Y - 24)), hgt: n.hgt ?? (p && p.h) ?? c.hgt, srcIid: n.srcIid, fx: { ...(n.fx || {}), from: n.id, view: 'plan' } });

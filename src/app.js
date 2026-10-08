@@ -5333,7 +5333,7 @@ function renderWires() {
         (d.round ? `<ellipse cx="${o.x}" cy="${o.y}" rx="${o.w / 2}" ry="${o.h / 2}" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`
           : d.deco ? `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="transparent" stroke="${d.c}" stroke-width="${selO ? 2.5 : 0}" stroke-dasharray="6 5"/>` + skObjDeco(o, d)
           : `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`) +
-        `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${d.n}</text>` +
+        `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${o.pos ? esc(o.pos) + ' · ' : ''}${d.n}</text>` +
         (P.scale ? `<text x="${o.x}" y="${o.y + o.h / 2 + fs * 0.95}" text-anchor="middle" font-size="${(fs * 0.72).toFixed(1)}" fill="${d.c}" opacity="0.85" style="user-select:none">${(o.w * P.scale).toFixed(2)}×${(o.h * P.scale).toFixed(2)} מ׳</text>` : '') +
         (selO ? (() => { const z = getZ() || 1, hy = o.y - o.h / 2 - 26 / z; return `<line x1="${o.x}" y1="${o.y - o.h / 2}" x2="${o.x}" y2="${hy}" stroke="#c9502e" stroke-width="${1.5 / z}"/><g data-skrot="${oi}" style="cursor:grab;pointer-events:all"><title>גרור לסיבוב (הצמדה ל-15°, Shift = חופשי)</title><circle cx="${o.x}" cy="${hy}" r="${9 / z}" fill="#c9502e" stroke="#fff" stroke-width="${1.5 / z}"/><text x="${o.x}" y="${hy + 4 / z}" text-anchor="middle" font-size="${11 / z}" fill="#fff" style="user-select:none">⟳</text></g>`; })() : '') +
         `<title>${d.n}${P.scale ? ` · ${(o.w * P.scale).toFixed(1)}×${(o.h * P.scale).toFixed(1)} מ׳` : ''} — לחיצה פותחת את כלי השרטוט: גרירה מזיזה, ידית ⟳ מסובבת, ובסרגל: זווית, הגדלה/הקטנה ומידות במטרים</title></g>`;
@@ -9642,7 +9642,10 @@ const SK_OBJS = {
   kitchen: { n: 'מטבח', w: 4, h: 3, c: '#5d6b7a', deco: 'kitchen' },
   barStools: { n: 'בר + כסאות', w: 3, h: 1.4, c: '#8b5a2b', deco: 'barStools' },
   outKitchen: { n: 'מטבח חוץ', w: 3, h: 0.7, c: '#5d6b7a', deco: 'outKitchen' },
-  grass: { n: 'דשא', w: 6, h: 4, c: '#3f9b46', deco: 'grass' }
+  grass: { n: 'דשא', w: 6, h: 4, c: '#3f9b46', deco: 'grass' },
+  /* תאורה: עמדות תלייה — טראס ישר (אורך × 29 ס״מ) וטראס עגול (קוטר). o.pos = שם העמדה (T1 / טראס עגול) */
+  truss: { n: 'טראס', w: 3, h: 0.29, c: '#3a3f4a' },
+  trussCircle: { n: 'טראס עגול', w: 4, h: 4, c: '#3a3f4a', round: 1 }
 };
 /* ציור פנימי לאובייקטים מורכבים — בתוך המלבן של האובייקט (x,y = מרכז; w,h = גודל בפיקסלי קנבס) */
 function skObjDeco(o, d) {
