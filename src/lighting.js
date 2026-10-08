@@ -364,7 +364,7 @@ async function fxReadPlot() {
   } catch (e) { if (e.message === 'NOKEY') { uiToast('אין מפתח API — צריך ANTHROPIC_API_KEY בשרת'); return; } uiToast('הקריאה נכשלה: ' + e.message, 7000); return; }
   let d; try { d = claudeJson(j); } catch (e) { uiToast('תשובה לא תקינה מה-AI'); console.warn(j); return; }
   /* שלב 1: סימונים על התכנית — בודקים, מוסיפים/מתקנים, ורק אז ➡ לטבלת הספירה */
-  fxDetFromRaw(d, front); save(); render();
+  fxDetFromRaw(d, front); save(); render(); fxDetWinOpen();
   const n = (P.fxDet.items || []).length;
   uiToast(n ? '🔎 ' + n + ' זיהויים סומנו על התכנית — לחץ על סימון לתיקון, הוסף זיהויים בפאנל, ואז ➡ לטבלת הספירה' : 'לא זוהו גופים' + (d.notes ? ' — ' + d.notes : ''), 9000);
 }
@@ -381,7 +381,7 @@ function fxDetSVG() {
   const col = t => (FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[4])[2];
   let s = '';
   (D.positions || []).forEach(p => { s += `<line x1="${p.X1}" y1="${p.Y1}" x2="${p.X2}" y2="${p.Y2}" stroke="#3a3f4a" stroke-width="3" stroke-dasharray="10 6" opacity=".7"/><text x="${(p.X1 + p.X2) / 2}" y="${(p.Y1 + p.Y2) / 2 - 6}" text-anchor="middle" font-size="11" font-weight="700" fill="#3a3f4a">${esc(p.name || '')}</text>`; });
-  (D.items || []).forEach((it, i) => { const c = col(it.type); s += `<g data-fxdet="${it.id}" style="pointer-events:all;cursor:pointer"><title>${esc((it.model || it.type) + (it.pos ? ' · ' + it.pos : ''))} — לחיצה לתיקון/מחיקה</title><circle cx="${it.x}" cy="${it.y}" r="9" fill="${c}" fill-opacity=".85" stroke="#fff" stroke-width="1.5"/><text x="${it.x}" y="${it.y + 3.5}" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" style="pointer-events:none">${i + 1}</text></g>`; });
+  (D.items || []).forEach((it, i) => { const c = col(it.type); s += `<g data-fxdet="${it.id}" style="pointer-events:all;cursor:pointer"><title>${esc((it.model || it.type) + (it.pos ? ' · ' + it.pos : ''))} — לחיצה לתיקון/מחיקה</title><circle cx="${it.x}" cy="${it.y}" r="${D.sel === it.id ? 13 : 9}" fill="${c}" fill-opacity=".85" stroke="${D.sel === it.id ? '#ffd166' : '#fff'}" stroke-width="${D.sel === it.id ? 3 : 1.5}"/><text x="${it.x}" y="${it.y + 3.5}" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" style="pointer-events:none">${i + 1}</text></g>`; });
   return s;
 }
 function fxDetAddAt(pt) {
@@ -403,7 +403,9 @@ function fxDetEdit(id) {
   ov.querySelector('[data-x]').onclick = () => ov.remove();
 }
 function fxDetPanelHTML() {
-  const D = P.fxDet; if (!D || typeof FX_DET_TYPES === 'undefined') return '';
+  const D = P.fxDet; if (typeof FX_DET_TYPES === 'undefined') return '';
+  if (document.getElementById('fxDetWin')) setTimeout(fxDetWinRender, 0);   /* החלון הצף מתעדכן עם כל רינדור */
+  if (!D) return '';
   const A = window.__fxDetAdd, cnt = {}; (D.items || []).forEach(it => { const k = it.type + '|' + (it.model || ''); cnt[k] = (cnt[k] || 0) + 1; });
   const chips = Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const [t, m] = k.split('|'); const T = FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[4], c = T[2]; return `<span style="display:inline-flex;align-items:center;gap:4px;border:1px solid ${c};color:${c};border-radius:12px;padding:1px 4px 1px 8px;font-size:10.5px;margin:1px">${n}× ${esc(m || T[1].slice(2))}<button style="padding:0 5px;font-size:10px;border-radius:9px;border:1px solid ${c};background:#fff;color:${c}" title="חפש בתמונה עוד פריטים כמו אלה שסומנו" onclick="fxDetFindSimilar('${esc(t)}','${jsq(m)}')">🔎 עוד כמוני</button></span>`; }).join('');
   return `<div style="border:1.5px solid #534ab7;border-radius:10px;padding:8px;margin:0 0 8px;background:#f7f6ff">
@@ -415,7 +417,7 @@ function fxDetPanelHTML() {
       <input id="fxDetM" placeholder="דגם / כיתוב" value="${esc(A ? A.model || '' : '')}" style="flex:1;min-width:90px;font-size:11px">
       <button style="font-size:11px;${A ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="fxDetAddMode()">${A ? '⏹ סיום הוספה' : '➕ הוסף בלחיצה'}</button>
     </div>
-    <div style="display:flex;gap:6px;margin-top:6px"><button style="flex:2;background:#534ab7;color:#fff;font-weight:700" onclick="fxDetToTable()">➡ לטבלת הספירה ובחירת מוצרים</button><button style="flex:1;color:#c0392b" onclick="uiConfirm('למחוק את כל הזיהויים?').then(ok=>{if(ok){P.fxDet=null;window.__fxDetAdd=null;save();render()}})">🗑</button></div></div>`;
+    <div style="display:flex;gap:6px;margin-top:6px"><button style="flex:1" onclick="fxDetWinOpen()" title="טבלת הזיהויים כחלון צף — עריכה תוך כדי לחיצה על התכנית">🪟 טבלה צפה</button><button style="flex:2;background:#534ab7;color:#fff;font-weight:700" onclick="fxDetToTable()">➡ לטבלת הספירה ובחירת מוצרים</button><button style="flex:1;color:#c0392b" onclick="uiConfirm('למחוק את כל הזיהויים?').then(ok=>{if(ok){P.fxDet=null;window.__fxDetAdd=null;save();render()}})">🗑</button></div></div>`;
 }
 /* "חפש עוד כמוני": הסימונים של קבוצה (סוג+כיתוב) הם הדוגמאות; Claude מקבל את התמונה, חיתוך של דוגמה אחת ואת מיקומי הדוגמאות, ומחזיר את כל המופעים הנוספים */
 async function fxDetFindSimilar(type, model) {
@@ -443,11 +445,53 @@ async function fxDetFindSimilar(type, model) {
     D.items.push({ id: uid('fd'), x, y, type, model: model || '', pos: '', label: '' }); added++; }
   save(); render(); uiToast(added ? '🔎 נוספו ' + added + ' "' + name + '" — בדוק את הסימונים, מחק מה שלא נכון' : 'לא נמצאו עוד' + (d.notes ? ' — ' + d.notes : ''), 7000);
 }
+/* ---------- טבלת הזיהויים כחלון צף (לא חוסם את התכנית — לוחצים על התכנית ועורכים בטבלה במקביל) ---------- */
+function fxDetWinOpen() {
+  let ov = document.getElementById('fxDetWin');
+  if (ov) { fxDetWinRender(); return; }
+  ov = document.createElement('div'); ov.id = 'fxDetWin';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:' + (++FLOAT_Z) + ';pointer-events:none;display:flex;align-items:flex-start;justify-content:flex-start;padding:70px 0 0 16px;direction:rtl';
+  ov.innerHTML = '<div data-box style="pointer-events:auto;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);width:min(620px,94vw);max-height:80vh;display:flex;flex-direction:column;padding:10px 12px 10px 24px;border:1.5px solid #534ab7"></div>';
+  document.body.appendChild(ov);
+  fxDetWinRender();
+  if (typeof floatDialog === 'function') floatDialog(ov.querySelector('[data-box]'), 'fxDetWin');
+}
+function fxDetWinClose() { const ov = document.getElementById('fxDetWin'); if (ov) ov.remove(); if (typeof floatSync === 'function') floatSync(); }
+function fxDetWinRender() {
+  const ov = document.getElementById('fxDetWin'); if (!ov) return; const box = ov.querySelector('[data-box]'); if (!box) return;
+  if (!P.fxDet) P.fxDet = { front: sheetIsElevation(), legend: [], positions: [], trusses: [], items: [] };
+  const D = P.fxDet, A = window.__fxDetAdd, T = FX_DET_TYPES, scrollTop = (box.querySelector('[data-tbl]') || {}).scrollTop || 0;
+  const typeSel = (v, oc) => `<select style="font-size:11px" onchange="${oc}">${T.map(([k, l]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const groups = {}; D.items.forEach(it => { const k = it.type + '|' + (it.model || ''); groups[k] = (groups[k] || 0) + 1; });
+  const rows = D.items.map((it, i) => { const c = (T.find(x => x[0] === it.type) || T[4])[2], k = it.type + '|' + (it.model || '');
+    return `<tr data-row="${it.id}" style="border-bottom:1px solid #eee;${D.sel === it.id ? 'background:#eef' : ''}">
+      <td style="text-align:center"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${c};color:#fff;font-size:10px;font-weight:800;line-height:18px;text-align:center;cursor:pointer" title="הצג על התכנית" onclick="fxDetLocate('${it.id}')">${i + 1}</span></td>
+      <td>${typeSel(it.type, `fxDetSet('${it.id}','type',this.value)`)}</td>
+      <td><input value="${esc(it.model || '')}" placeholder="כיתוב / דגם" style="width:100%;font-size:11px" onchange="fxDetSet('${it.id}','model',this.value)"></td>
+      <td><input value="${esc(it.pos || '')}" placeholder="עמדה" style="width:64px;font-size:11px" onchange="fxDetSet('${it.id}','pos',this.value)"></td>
+      <td style="white-space:nowrap"><button style="padding:1px 5px;font-size:10.5px" title="חפש בתמונה עוד כמו כל ה-${groups[k]} של הקבוצה הזו" onclick="fxDetFindSimilar('${esc(it.type)}','${jsq(it.model || '')}')">🔎</button>
+        <button style="padding:1px 5px;font-size:10.5px" title="החל סוג+כיתוב על כל הדומים (אותו כיתוב)" onclick="fxDetSameAs('${it.id}')">≡</button>
+        <button style="padding:1px 5px;font-size:10.5px;color:#c0392b" onclick="fxDetDel('${it.id}')">🗑</button></td></tr>`; }).join('');
+  const chips = Object.entries(groups).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const [t, m] = k.split('|'); const Tt = T.find(x => x[0] === t) || T[4]; return `<span style="border:1px solid ${Tt[2]};color:${Tt[2]};border-radius:12px;padding:0 7px;font-size:10.5px">${n}× ${esc(m || Tt[1].slice(2))}</span>`; }).join(' ');
+  box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1;font-size:14px">🔎 זיהויים על התכנית — ${D.items.length}</b><button onclick="fxDetWinClose()" title="סגור (הזיהויים נשארים)">✕</button></div>
+    <div style="font-size:11px;margin-bottom:6px;line-height:1.9">${chips || '<span class="muted">אין עדיין — בחר סוג וכיתוב ולחץ על התכנית</span>'}</div>
+    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <select id="fxDetT" style="font-size:11px">${T.map(([v, l]) => `<option value="${v}" ${A && A.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <input id="fxDetM" placeholder="כיתוב / דגם" value="${esc(A ? A.model || '' : '')}" style="flex:1;min-width:90px;font-size:11px">
+      <button style="font-size:11px;${A ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="fxDetAddMode()">${A ? '⏹ סיום הוספה' : '➕ הוסף בלחיצה על התכנית'}</button></div>
+    <div data-tbl style="overflow:auto;flex:1;min-height:0;max-height:46vh"><table style="width:100%;font-size:11.5px;border-collapse:collapse"><thead><tr style="background:#f3f1ec;position:sticky;top:0"><th>#</th><th>סוג</th><th style="text-align:right">כיתוב / דגם</th><th>עמדה</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button style="flex:2;background:#534ab7;color:#fff;font-weight:700" onclick="fxDetWinClose();fxDetToTable()">➡ לטבלת הספירה ובחירת מוצרים</button><button style="flex:1;color:#c0392b" onclick="uiConfirm('למחוק את כל הזיהויים?').then(ok=>{if(ok){P.fxDet=null;window.__fxDetAdd=null;fxDetWinClose();save();render()}})">🗑 נקה</button></div>`;
+  const tbl = box.querySelector('[data-tbl]'); if (tbl) tbl.scrollTop = scrollTop;
+}
+function fxDetSet(id, k, v) { const it = P.fxDet && P.fxDet.items.find(x => x.id === id); if (!it) return; it[k] = k === 'type' ? v : v.trim(); save(); render(); }
+function fxDetDel(id) { if (!P.fxDet) return; P.fxDet.items = P.fxDet.items.filter(x => x.id !== id); save(); render(); }
+function fxDetSameAs(id) { const it = P.fxDet && P.fxDet.items.find(x => x.id === id); if (!it) return; const m0 = it.model || ''; let n = 0; P.fxDet.items.forEach(x => { if ((x.model || '') === m0 && x !== it) { x.type = it.type; n++; } }); save(); render(); uiToast('≡ ' + n + ' דומים עודכנו'); }
+function fxDetLocate(id) { if (!P.fxDet) return; P.fxDet.sel = id; render(); setTimeout(() => { const g = document.querySelector('[data-fxdet="' + id + '"]'); if (g && g.scrollIntoView) g.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); }, 50); }
 function fxDetAddMode() {
   if (window.__fxDetAdd) { window.__fxDetAdd = null; document.body.style.cursor = ''; render(); return; }
   if (!P.fxDet) P.fxDet = { front: sheetIsElevation(), legend: [], positions: [], trusses: [], items: [] };
   const t = (document.getElementById('fxDetT') || {}).value || 'static', m = (document.getElementById('fxDetM') || {}).value || '';
-  window.__fxDetAdd = { type: t, model: m.trim() }; document.body.style.cursor = 'crosshair'; render(); uiToast('לחץ על התכנית איפה שיש ' + (m || t) + ' — כל לחיצה מוסיפה סימון · Esc לסיום', 6000);
+  window.__fxDetAdd = { type: t, model: m.trim() }; document.body.style.cursor = 'crosshair'; render(); fxDetWinOpen(); uiToast('לחץ על התכנית איפה שיש ' + (m || t) + ' — כל לחיצה מוסיפה סימון · Esc לסיום', 6000);
 }
 /* הסימונים → נתוני ספירה (באותו מבנה של הקורא) → טבלה → הצבה והצעה */
 async function fxDetToTable() {
