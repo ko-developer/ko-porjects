@@ -381,7 +381,7 @@ function fxDetSVG() {
   const col = t => (FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[4])[2];
   let s = '';
   (D.positions || []).forEach(p => { s += `<line x1="${p.X1}" y1="${p.Y1}" x2="${p.X2}" y2="${p.Y2}" stroke="#3a3f4a" stroke-width="3" stroke-dasharray="10 6" opacity=".7"/><text x="${(p.X1 + p.X2) / 2}" y="${(p.Y1 + p.Y2) / 2 - 6}" text-anchor="middle" font-size="11" font-weight="700" fill="#3a3f4a">${esc(p.name || '')}</text>`; });
-  (D.items || []).forEach((it, i) => { const c = col(it.type); s += `<g data-fxdet="${it.id}" style="pointer-events:all;cursor:pointer"><title>${esc((it.model || it.type) + (it.pos ? ' · ' + it.pos : ''))} — לחיצה לתיקון/מחיקה</title><circle cx="${it.x}" cy="${it.y}" r="${D.sel === it.id ? 13 : 9}" fill="${c}" fill-opacity=".85" stroke="${D.sel === it.id ? '#ffd166' : '#fff'}" stroke-width="${D.sel === it.id ? 3 : 1.5}"/><text x="${it.x}" y="${it.y + 3.5}" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" style="pointer-events:none">${i + 1}</text></g>`; });
+  (D.items || []).forEach((it, i) => { const c = col(it.type), dim = D.hl && fxDetGroupKey(it) !== D.hl; s += `<g data-fxdet="${it.id}" style="pointer-events:all;cursor:pointer${dim ? ';opacity:.25' : ''}"><title>${esc((it.model || it.type) + (it.pos ? ' · ' + it.pos : ''))} — לחיצה לתיקון/מחיקה</title><circle cx="${it.x}" cy="${it.y}" r="${D.sel === it.id ? 13 : 9}" fill="${c}" fill-opacity=".85" stroke="${D.sel === it.id ? '#ffd166' : '#fff'}" stroke-width="${D.sel === it.id ? 3 : 1.5}"/><text x="${it.x}" y="${it.y + 3.5}" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" style="pointer-events:none">${i + 1}</text></g>`; });
   return s;
 }
 function fxDetAddAt(pt) {
@@ -456,6 +456,38 @@ async function fxDetFindSimilar(type, model) {
   }
   save(); render(); uiToast(added ? '🔎 נוספו ' + added + ' "' + name + '" (' + calls + ' סריקות) — בדוק את הסימונים, מחק מה שלא נכון' : 'לא נמצאו עוד "' + name + '" מעבר למסומנים', 7000);
 }
+/* קבוצות = סוג + כיתוב/דגם (+ מוצר שנבחר). שורה לכל קבוצה; "סמן" = לחיצות על התכנית מוסיפות לקבוצה הזו. קבוצות ריקות (שהוגדרו מראש) נשמרות ב-D.groups */
+function fxDetGroupKey(it) { return it.type + '|' + (it.model || '') + '|' + (it.sku || ''); }
+function fxDetGroups() {
+  const D = P.fxDet; if (!D) return [];
+  const map = new Map();
+  (D.groups || []).forEach(g => map.set(g.type + '|' + (g.model || '') + '|' + (g.sku || ''), { key: g.type + '|' + (g.model || '') + '|' + (g.sku || ''), type: g.type, model: g.model || '', sku: g.sku || null, n: 0, ids: [] }));
+  D.items.forEach(it => { const k = fxDetGroupKey(it); if (!map.has(k)) map.set(k, { key: k, type: it.type, model: it.model || '', sku: it.sku || null, n: 0, ids: [] }); const g = map.get(k); g.n++; g.ids.push(it.id); });
+  return [...map.values()];
+}
+function fxDetGroupSet(key, k, v) {
+  const D = P.fxDet; if (!D) return; const g = fxDetGroups().find(x => x.key === key); if (!g) return;
+  D.items.forEach(it => { if (fxDetGroupKey(it) === key) it[k] = v; });
+  D.groups = (D.groups || []).map(x => (x.type + '|' + (x.model || '') + '|' + (x.sku || '')) === key ? { ...x, [k]: v } : x);
+  if (window.__fxDetAdd && window.__fxDetAdd.gkey === key) { window.__fxDetAdd[k] = v; window.__fxDetAdd.gkey = window.__fxDetAdd.type + '|' + (window.__fxDetAdd.model || '') + '|' + (window.__fxDetAdd.sku || ''); }
+  save(); render();
+}
+function fxDetGroupMark(key) {
+  if (window.__fxDetAdd && window.__fxDetAdd.gkey === key) { window.__fxDetAdd = null; document.body.style.cursor = ''; render(); return; }
+  const g = fxDetGroups().find(x => x.key === key); if (!g) return;
+  window.__fxDetAdd = { type: g.type, model: g.model, sku: g.sku, gkey: key }; document.body.style.cursor = 'crosshair'; render();
+  uiToast('✏ לחץ על התכנית איפה שיש ' + (g.model || (fxOf(g.sku) || {}).name || g.type) + ' — כל לחיצה מוסיפה · Esc / ⏹ לסיום', 5000);
+}
+function fxDetGroupAdd() {
+  const D = P.fxDet || (P.fxDet = { front: sheetIsElevation(), legend: [], positions: [], trusses: [], items: [] });
+  const t = (document.getElementById('fxDetGT') || {}).value || 'static', m = ((document.getElementById('fxDetGM') || {}).value || '').trim();
+  D.groups = D.groups || []; const key = t + '|' + m + '|';
+  if (!fxDetGroups().some(g => g.key === key)) D.groups.push({ type: t, model: m, sku: null });
+  save(); render(); fxDetGroupMark(key);
+}
+function fxDetGroupDel(key) { const D = P.fxDet; if (!D) return; const g = fxDetGroups().find(x => x.key === key); if (!g) return;
+  const go = () => { D.items = D.items.filter(it => fxDetGroupKey(it) !== key); D.groups = (D.groups || []).filter(x => (x.type + '|' + (x.model || '') + '|' + (x.sku || '')) !== key); if (window.__fxDetAdd && window.__fxDetAdd.gkey === key) { window.__fxDetAdd = null; document.body.style.cursor = ''; } if (D.hl === key) D.hl = null; save(); render(); };
+  if (g.n) uiConfirm('למחוק את ' + g.n + ' הסימונים של "' + (g.model || g.type) + '"?').then(ok => { if (ok) go(); }); else go(); }
 function fxDetWinOpen() {
   let ov = document.getElementById('fxDetWin');
   if (ov) { fxDetWinRender(); return; }
@@ -472,6 +504,28 @@ function fxDetWinRender() {
   if (!P.fxDet) P.fxDet = { front: sheetIsElevation(), legend: [], positions: [], trusses: [], items: [] };
   const D = P.fxDet, A = window.__fxDetAdd, T = FX_DET_TYPES, scrollTop = (box.querySelector('[data-tbl]') || {}).scrollTop || 0;
   const typeSel = (v, oc) => `<select style="font-size:11px" onchange="${oc}">${T.map(([k, l]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const tab = D.winTab || 'groups';
+  if (tab === 'groups') {
+    const gs = fxDetGroups();
+    const grows = gs.map(g => { const Tt = T.find(x => x[0] === g.type) || T[4], c = Tt[2], marking = A && A.gkey === g.key, f = g.sku ? fxOf(g.sku) : null;
+      return `<tr style="border-bottom:1px solid #eee;${marking ? 'background:#fff1e6' : D.hl === g.key ? 'background:#eef' : ''}">
+        <td style="text-align:center"><button style="padding:2px 8px;font-size:11px;${marking ? 'background:#ff8a50;color:#1a1e28;font-weight:800' : ''}" title="${marking ? 'סיום הסימון' : 'סמן על התכנית: כל לחיצה מוסיפה פריט מהסוג הזה'}" onclick="fxDetGroupMark('${esc(g.key)}')">${marking ? '⏹' : '✏ סמן'}</button></td>
+        <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${c};vertical-align:middle"></span> ${typeSel(g.type, `fxDetGroupSet('${esc(g.key)}','type',this.value)`)}</td>
+        <td><input value="${esc(g.model)}" placeholder="כיתוב / דגם" style="width:100%;font-size:11px" onchange="fxDetGroupSet('${esc(g.key)}','model',this.value.trim())">${f ? `<div style="font-size:10px;color:#0a7a4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" title="${esc(f.name)}">📚 ${esc(f.name.slice(0, 36))}</div>` : ''}</td>
+        <td style="text-align:center;font-weight:800;font-size:13px">${g.n}</td>
+        <td style="white-space:nowrap"><button style="padding:1px 5px;font-size:10.5px" title="מוצר מה-ERP לקבוצה" onclick="fxPicker({onPick:f=>{if(f)fxDetGroupSet('${esc(g.key)}','sku',f.sku)}})">📚</button>
+          <button style="padding:1px 5px;font-size:10.5px" title="הדגש את הסימונים של הקבוצה על התכנית" onclick="P.fxDet.hl=P.fxDet.hl==='${esc(g.key)}'?null:'${esc(g.key)}';render()">👁</button>
+          <button style="padding:1px 5px;font-size:10.5px" title="חפש בתמונה עוד כמו אלה" ${g.n ? '' : 'disabled'} onclick="fxDetFindSimilar('${esc(g.type)}','${jsq(g.model)}')">🔎</button>
+          <button style="padding:1px 5px;font-size:10.5px;color:#c0392b" title="מחק את הקבוצה וכל הסימונים שלה" onclick="fxDetGroupDel('${esc(g.key)}')">🗑</button></td></tr>`; }).join('');
+    box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1;font-size:14px">🔎 פריטים לסימון — ${D.items.length} על התכנית</b>
+        <button style="font-size:11px;${tab === 'groups' ? 'font-weight:800' : ''}" onclick="P.fxDet.winTab='groups';fxDetWinRender()">לפי סוג</button><button style="font-size:11px" onclick="P.fxDet.winTab='items';fxDetWinRender()">כל הזיהויים</button><button onclick="fxDetWinClose()" title="סגור (הסימונים נשארים)">✕</button></div>
+      <p class="muted" style="font-size:10.5px;margin:0 0 6px">שורה לכל סוג. <b>✏ סמן</b> ואז לחיצות על התכנית מוסיפות פריטים מהסוג הזה · 📚 מוצר מה-ERP · 👁 הדגשה · 🔎 חיפוש אוטומטי של עוד כאלה.</p>
+      <div data-tbl style="overflow:auto;flex:1;min-height:0;max-height:46vh"><table style="width:100%;font-size:11.5px;border-collapse:collapse"><thead><tr style="background:#f3f1ec;position:sticky;top:0"><th></th><th>סוג</th><th style="text-align:right">כיתוב / דגם / מוצר</th><th>כמות</th><th></th></tr></thead><tbody>${grows || '<tr><td colspan="5" class="muted" style="padding:8px">אין עדיין סוגים — הוסף שורה למטה</td></tr>'}</tbody></table></div>
+      <div style="display:flex;gap:4px;align-items:center;margin-top:6px"><select id="fxDetGT" style="font-size:11px">${T.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select><input id="fxDetGM" placeholder="כיתוב / דגם (אפשר ריק)" style="flex:1;min-width:80px;font-size:11px"><button style="font-size:11px" onclick="fxDetGroupAdd()">➕ שורה וסמן</button></div>
+      <div style="display:flex;gap:6px;margin-top:8px"><button style="flex:2;background:#534ab7;color:#fff;font-weight:700" onclick="fxDetWinClose();fxDetToTable()">➡ לטבלת הספירה ובחירת מוצרים</button><button style="flex:1;color:#c0392b" onclick="uiConfirm('למחוק את כל הזיהויים?').then(ok=>{if(ok){P.fxDet=null;window.__fxDetAdd=null;fxDetWinClose();save();render()}})">🗑 נקה</button></div>`;
+    const tbl0 = box.querySelector('[data-tbl]'); if (tbl0) tbl0.scrollTop = scrollTop;
+    return;
+  }
   const groups = {}; D.items.forEach(it => { const k = it.type + '|' + (it.model || ''); groups[k] = (groups[k] || 0) + 1; });
   const rows = D.items.map((it, i) => { const c = (T.find(x => x[0] === it.type) || T[4])[2], k = it.type + '|' + (it.model || '');
     return `<tr data-row="${it.id}" style="border-bottom:1px solid #eee;${D.sel === it.id ? 'background:#eef' : ''}">
@@ -484,7 +538,7 @@ function fxDetWinRender() {
         <button style="padding:1px 5px;font-size:10.5px" title="החל סוג+כיתוב על כל הדומים (אותו כיתוב)" onclick="fxDetSameAs('${it.id}')">≡</button>
         <button style="padding:1px 5px;font-size:10.5px;color:#c0392b" onclick="fxDetDel('${it.id}')">🗑</button></td></tr>`; }).join('');
   const chips = Object.entries(groups).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const [t, m] = k.split('|'); const Tt = T.find(x => x[0] === t) || T[4]; return `<span style="border:1px solid ${Tt[2]};color:${Tt[2]};border-radius:12px;padding:0 7px;font-size:10.5px">${n}× ${esc(m || Tt[1].slice(2))}</span>`; }).join(' ');
-  box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1;font-size:14px">🔎 זיהויים על התכנית — ${D.items.length}</b><button onclick="fxDetWinClose()" title="סגור (הזיהויים נשארים)">✕</button></div>
+  box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1;font-size:14px">🔎 זיהויים על התכנית — ${D.items.length}</b><button style="font-size:11px" onclick="P.fxDet.winTab='groups';fxDetWinRender()">לפי סוג</button><button style="font-size:11px;font-weight:800" onclick="P.fxDet.winTab='items';fxDetWinRender()">כל הזיהויים</button><button onclick="fxDetWinClose()" title="סגור (הזיהויים נשארים)">✕</button></div>
     <div style="font-size:11px;margin-bottom:6px;line-height:1.9">${chips || '<span class="muted">אין עדיין — בחר סוג וכיתוב ולחץ על התכנית</span>'}</div>
     <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
       <select id="fxDetT" style="font-size:11px">${T.map(([v, l]) => `<option value="${v}" ${A && A.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
