@@ -13583,7 +13583,7 @@ function closeZonePoly() {
   if (typeof WIZ !== 'undefined' && WIZ) { WIZ.zid = z.id; setTimeout(() => wizRender(), 50); }
   render();
   /* אזור שסומן ידנית = דוגמה לאיך ממפים — שואלים אם לשמור אותו לאימון הזיהוי האוטומטי */
-  if (typeof ztSave === 'function' && P.bg) setTimeout(() => uiConfirm('לשמור את החלוקה הזו כדוגמת אימון — "ככה ממפים את התכנית הזו"?\n(נשמרת כל החלוקה שעל המסך; לחיצה חוזרת אחרי עריכה מחליפה אותה)', { okText: '🎓 שמור לאימון', cancelText: 'לא עכשיו' }).then(ok => { if (ok) ztSave(); }), 300);
+  if (typeof ztSave === 'function' && (P.hasBg || P.bg)) setTimeout(() => uiConfirm('לשמור את החלוקה הזו כדוגמת אימון — "ככה ממפים את התכנית הזו"?\n(נשמרת כל החלוקה שעל המסך; לחיצה חוזרת אחרי עריכה מחליפה אותה)', { okText: '🎓 שמור לאימון', cancelText: 'לא עכשיו' }).then(ok => { if (ok) ztSave(); }), 300);
 }
 document.addEventListener('dblclick', e => {
   if (zoneMode && zoneMode.poly && zoneMode.poly.length > 2) closeZonePoly();
