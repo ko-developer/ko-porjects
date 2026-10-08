@@ -4724,7 +4724,7 @@ document.addEventListener('keydown', e => {
   if (selHole || brushOn) { selHole = null; brushOn = false; render(); return; }
   if (sketchMode) { if (sketchMode.cur && sketchMode.cur.length) { sketchMode.cur = []; renderWires(); } else sketchEnd(); return; }
   if (conduitMode) { conduitPickEnd(); return; }
-  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd || window.__asPick || window.__riserPick) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; window.__asPick = null; window.__riserPick = null; render(); }
+  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd || window.__asPick || window.__riserPick) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; window.__asPick = null; window.__riserPick = null; window.__fxDetAdd = null; window.__pick2 = null; document.body.style.cursor = ''; render(); }
 });
 function connGlyph(conn) {
   const ct = CONNS[conn] || CONNS.empty, C = ct.c;
@@ -10538,6 +10538,9 @@ document.addEventListener('pointerdown', e => {
     if (sketchMode.tool === 'select') { sketchSel = null; if (!e.target.closest('[data-skwall]')) sketchWallSel = null; sketchBar(); renderWires(); }
     return;
   }
+  /* סימוני זיהוי של תאורה על התכנית: לחיצה על סימון = עריכה; במצב הוספה — כל לחיצה על התכנית מוסיפה סימון */
+  { const dm = e.target.closest('[data-fxdet]'); if (dm && typeof fxDetEdit === 'function') { fxDetEdit(dm.dataset.fxdet); return; } }
+  if (window.__fxDetAdd && e.target.closest('#canvasWrap') && typeof fxDetAddAt === 'function') { fxDetAddAt(canvasPt(e)); return; }
   /* בוחר שתי נקודות כללי (קו ייחוס לעומק בתאורה וכד׳): window.__pick2 = { pts: [], done(pts) } */
   if (window.__pick2 && e.target.closest('#canvasWrap')) {
     const pt = canvasPt(e); window.__pick2.pts.push({ x: pt.x, y: pt.y });
@@ -13570,6 +13573,7 @@ function renderZones() {
     svgp += z.poly ? `<polygon points="${z.poly.map(p => p.x + ',' + p.y).join(' ')}" fill="#ff8a0026" stroke="#ff8a00" stroke-width="4" stroke-dasharray="10 6"/>` : `<rect x="${b.L}" y="${b.T}" width="${b.W}" height="${b.H}" fill="#ff8a0026" stroke="#ff8a00" stroke-width="4" stroke-dasharray="10 6"/>`;
     svgp += `<rect x="${cx - 70}" y="${cy - 14}" width="140" height="28" rx="14" fill="#ff8a00"/><text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">💡 מוצע: ${esc(String(z.name).slice(0, 14))}</text>`; });
   if (typeof vwSvg === 'function') svgp += vwSvg();
+  if (typeof fxDetSVG === 'function') svgp += fxDetSVG();   /* סימוני זיהוי תאורה */
   if (svgp) host.innerHTML = `<svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">${svgp}</svg>`;
   zs.forEach(z => {
     const c = zColor(z);

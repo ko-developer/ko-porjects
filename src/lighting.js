@@ -98,8 +98,9 @@ function fxPanelHTML() {
   const univ = new Set(ns.filter(n => n.fx && n.fx.a).map(n => n.fx.u || 1)).size;
   return `<h3 class="sec">💡 תאורה מקצועית</h3>
     <p class="muted" style="font-size:11px;margin:-2px 0 6px">${ns.length} גופים בתכנית${W ? ' · ' + W.toLocaleString() + 'W' : ''}${univ ? ' · ' + univ + ' יוניברסים' : ''}${unk ? ' · <span style="color:#a32222">' + unk + ' בלי דגם</span>' : ''}${noAddr ? ' · ' + noAddr + ' בלי כתובת' : ''} · ספרייה: ${lib} פריטים מהאתר</p>
-    ${P.fxInventory ? `<button style="width:100%;margin-bottom:6px" onclick="fxInventoryDlg(P.fxInventory.raw, P.fxInventory.view==='front').then(ok=>{ if (ok) { fxInventoryToOffer(ok); save(); render(); } })" title="הספירה האחרונה מהתכנית — ${esc((P.fxInventory.at || '').slice(0, 16).replace('T', ' '))}">📋 הספירה האחרונה (${(P.fxInventory.raw.fixtures || []).length} פנסים · ${(P.fxInventory.raw.trusses || []).length} טראסים)</button>` : ''}
-    <button style="width:100%;margin-bottom:6px;background:#534ab7;color:#fff;font-weight:700" onclick="fxReadPlot()" title="תמונת תכנית תאורה של מעצב (סמלים, מקרא, טראסים) → הגופים על התכנית ושורות בהצעה">🪄 קרא תכנית תאורה מהתמונה</button>
+    ${P.fxInventory ? `<button style="width:100%;margin-bottom:6px" onclick="fxDetCommit(P.fxInventory.raw, P.fxInventory.view==='front')" title="הספירה האחרונה מהתכנית — ${esc((P.fxInventory.at || '').slice(0, 16).replace('T', ' '))}">📋 הספירה האחרונה (${(P.fxInventory.raw.fixtures || []).length} פנסים · ${(P.fxInventory.raw.trusses || []).length} טראסים)</button>` : ''}
+    <button style="width:100%;margin-bottom:6px;background:#534ab7;color:#fff;font-weight:700" onclick="fxReadPlot()" title="תמונת תכנית תאורה של מעצב (סמלים, מקרא, טראסים) → סימוני זיהוי על התכנית → טבלת ספירה ובחירת מוצרים → הצבה והצעה">🪄 זהה פריטים בתכנית (תמונה)</button>
+    ${fxDetPanelHTML()}${!P.fxDet ? '<button style="width:100%;margin-bottom:6px;font-size:11.5px" onclick="fxDetAddMode()" title="בלי קריאה אוטומטית: סמן בעצמך על התכנית מה יש ואיפה, ואז טבלת ספירה">✍ סמן זיהויים ידנית</button>' : ''}
     ${fxDepthHTML()}
     <div style="display:flex;gap:6px;margin-bottom:6px"><button style="flex:1" onclick="fxPicker({})">➕ גוף מהספרייה</button><button style="flex:1" onclick="fxAutoAddress()" title="כתובות DMX לפי עמדת תלייה ומיקום, יוניברס חדש כשנגמרים 512 ערוצים">⚡ מספור DMX</button><button style="flex:1" onclick="fxPatchTable()">📋 טבלת פאץ׳</button></div>`;
 }
@@ -322,7 +323,7 @@ function fxInventoryDlg(d, front) {
       const sel = tr.querySelector('[data-sel]'); sel.onchange = () => { o.sku = sel.value || null; tr.querySelector('[data-pr]').textContent = o.sku && price(o.sku) ? Math.round(price(o.sku)).toLocaleString() : ''; tot(); };
       tr.querySelector('[data-pick]').onclick = () => fxPicker({ kind: tb === 'tr' ? 'truss' : '', onPick: f => { if (!f) return; o.sku = f.sku; if (![...sel.options].some(op => op.value === f.sku)) { const op = document.createElement('option'); op.value = f.sku; op.textContent = f.name.slice(0, 46) + (fxPrice(f) ? ' · ₪' + Math.round(fxPrice(f)).toLocaleString() : ''); sel.appendChild(op); } sel.value = f.sku; tr.querySelector('[data-pr]').textContent = price(f.sku) ? Math.round(price(f.sku)).toLocaleString() : ''; tot(); } }); });
     const done = v => { ov.remove(); res(v); };
-    ov.querySelector('[data-ok]').onclick = () => { tot(); done({ groups: gs, trusses: ts, place: true }); };
+    ov.querySelector('[data-ok]').onclick = async () => { tot(); const miss = gs.filter(g => g.qty && !g.sku).length + ts.filter(t => t.qty && !t.sku).length; if (miss && !(await uiConfirm(miss + ' שורות בלי מוצר מהאתר — הן יוצבו על התכנית בלי מחיר ולא ייכנסו להצעה. להמשיך?'))) return; done({ groups: gs, trusses: ts, place: true }); };
     ov.querySelector('[data-offer]').onclick = () => { tot(); done({ groups: gs, trusses: ts, place: false }); };
     ov.querySelector('[data-x]').onclick = () => done(null);
   });
@@ -362,17 +363,90 @@ async function fxReadPlot() {
     j = await claudeMsg([{ role: 'user', content: [{ type: 'text', text: front ? FX_PLOT_PROMPT_FRONT : FX_PLOT_PROMPT }, { type: 'image', source: { type: 'base64', media_type: mt, data: P.bg.split(',')[1] } }, { type: 'text', text: 'Return the JSON only.' }] }], 8000);
   } catch (e) { if (e.message === 'NOKEY') { uiToast('אין מפתח API — צריך ANTHROPIC_API_KEY בשרת'); return; } uiToast('הקריאה נכשלה: ' + e.message, 7000); return; }
   let d; try { d = claudeJson(j); } catch (e) { uiToast('תשובה לא תקינה מה-AI'); console.warn(j); return; }
+  /* שלב 1: סימונים על התכנית — בודקים, מוסיפים/מתקנים, ורק אז ➡ לטבלת הספירה */
+  fxDetFromRaw(d, front); save(); render();
+  const n = (P.fxDet.items || []).length;
+  uiToast(n ? '🔎 ' + n + ' זיהויים סומנו על התכנית — לחץ על סימון לתיקון, הוסף זיהויים בפאנל, ואז ➡ לטבלת הספירה' : 'לא זוהו גופים' + (d.notes ? ' — ' + d.notes : ''), 9000);
+}
+/* ---------- סימוני זיהוי (לפני ההצבה) ---------- */
+var FX_DET_TYPES = [['moving', '🔦 פנס חכם', '#7a2a9b'], ['static', '💡 פנס סטטי', '#d9780f'], ['effect', '✨ אפקט', '#0f8a7a'], ['truss', '🏗 טראס', '#3a3f4a'], ['other', '📦 אחר', '#2a5db0']];
+function fxDetFromRaw(d, front) {
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
+  const items = (d.fixtures || []).map(fx => ({ id: uid('fd'), x: L + (+fx.x || 0) * W, y: T + (+fx.y || 0) * H, type: fx.type || 'other', model: fx.model || '', pos: fx.pos || '', label: fx.label || '' }));
+  P.fxDet = { front: !!front, legend: d.legend || [], positions: (d.positions || []).map(p => ({ ...p, X1: L + p.x1 * W, Y1: T + p.y1 * H, X2: L + p.x2 * W, Y2: T + p.y2 * H })), trusses: d.trusses || [], counts: d.counts || [], floor_y: d.floor_y, notes: d.notes || '', items };
+}
+function fxDetSVG() {
+  const D = P.fxDet; if (!D || P.layer !== 'light' && P.layer !== 'all') return '';
+  const col = t => (FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[4])[2];
+  let s = '';
+  (D.positions || []).forEach(p => { s += `<line x1="${p.X1}" y1="${p.Y1}" x2="${p.X2}" y2="${p.Y2}" stroke="#3a3f4a" stroke-width="3" stroke-dasharray="10 6" opacity=".7"/><text x="${(p.X1 + p.X2) / 2}" y="${(p.Y1 + p.Y2) / 2 - 6}" text-anchor="middle" font-size="11" font-weight="700" fill="#3a3f4a">${esc(p.name || '')}</text>`; });
+  (D.items || []).forEach((it, i) => { const c = col(it.type); s += `<g data-fxdet="${it.id}" style="pointer-events:all;cursor:pointer"><title>${esc((it.model || it.type) + (it.pos ? ' · ' + it.pos : ''))} — לחיצה לתיקון/מחיקה</title><circle cx="${it.x}" cy="${it.y}" r="9" fill="${c}" fill-opacity=".85" stroke="#fff" stroke-width="1.5"/><text x="${it.x}" y="${it.y + 3.5}" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" style="pointer-events:none">${i + 1}</text></g>`; });
+  return s;
+}
+function fxDetAddAt(pt) {
+  const A = window.__fxDetAdd; if (!A || !P.fxDet) return;
+  P.fxDet.items.push({ id: uid('fd'), x: pt.x, y: pt.y, type: A.type, model: A.model || '', sku: A.sku || null, pos: A.pos || '', label: '' });
+  save(); render(); uiToast('➕ ' + (A.model || A.type) + ' — ' + P.fxDet.items.length + ' זיהויים · Esc לסיום', 2500);
+}
+function fxDetEdit(id) {
+  const D = P.fxDet; const it = D && D.items.find(x => x.id === id); if (!it) return;
+  const ov = uiModal(`<b style="font-size:14px">🔎 זיהוי #${D.items.indexOf(it) + 1}</b>
+    <div class="fld" style="margin-top:8px"><label>סוג</label><select data-t>${FX_DET_TYPES.map(([v, l]) => `<option value="${v}" ${it.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="fld"><label>דגם / כיתוב בתכנית</label><input data-m value="${esc(it.model || '')}" placeholder="כמו שכתוב אצל המעצב"></div>
+    <div class="fld"><label>עמדה (טראס / בר)</label><input data-p value="${esc(it.pos || '')}"></div>
+    <div style="display:flex;gap:6px"><button class="primary" data-ok style="flex:2">שמור</button><button data-same style="flex:2" title="מחיל את הסוג והדגם על כל הזיהויים שיש להם אותו כיתוב">על כל הדומים</button><button data-del style="flex:1;color:#c0392b">🗑</button><button data-x style="flex:1">ביטול</button></div>`);
+  const apply = all => { const t = ov.querySelector('[data-t]').value, m = ov.querySelector('[data-m]').value.trim(), p = ov.querySelector('[data-p]').value.trim(), m0 = it.model;
+    (all ? D.items.filter(x => (x.model || '') === (m0 || '')) : [it]).forEach(x => { x.type = t; x.model = m; if (!all) x.pos = p; }); ov.remove(); save(); render(); };
+  ov.querySelector('[data-ok]').onclick = () => apply(false); ov.querySelector('[data-same]').onclick = () => apply(true);
+  ov.querySelector('[data-del]').onclick = () => { D.items = D.items.filter(x => x !== it); ov.remove(); save(); render(); };
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+}
+function fxDetPanelHTML() {
+  const D = P.fxDet; if (!D) return '';
+  const A = window.__fxDetAdd, cnt = {}; (D.items || []).forEach(it => { const k = it.type + '|' + (it.model || ''); cnt[k] = (cnt[k] || 0) + 1; });
+  const chips = Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const [t, m] = k.split('|'); const c = (FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[4])[2]; return `<span style="display:inline-block;border:1px solid ${c};color:${c};border-radius:12px;padding:1px 8px;font-size:10.5px;margin:1px">${n}× ${esc(m || t)}</span>`; }).join('');
+  return `<div style="border:1.5px solid #534ab7;border-radius:10px;padding:8px;margin:0 0 8px;background:#f7f6ff">
+    <b style="font-size:12.5px">🔎 זיהויים על התכנית — ${(D.items || []).length}${D.positions && D.positions.length ? ' · ' + D.positions.length + ' עמדות' : ''}</b>
+    <div style="margin:4px 0">${chips || '<span class="muted" style="font-size:11px">אין עדיין — הוסף בלחיצה על התכנית</span>'}</div>
+    <p class="muted" style="font-size:10.5px;margin:2px 0 6px">לחיצה על סימון = תיקון סוג/דגם או מחיקה. להוספה: בחר סוג וכיתוב ולחץ על התכנית איפה שהפריט (כמה פעמים). Esc מסיים.</p>
+    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+      <select id="fxDetT" style="font-size:11px">${FX_DET_TYPES.map(([v, l]) => `<option value="${v}" ${A && A.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <input id="fxDetM" placeholder="דגם / כיתוב" value="${esc(A ? A.model || '' : '')}" style="flex:1;min-width:90px;font-size:11px">
+      <button style="font-size:11px;${A ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="fxDetAddMode()">${A ? '⏹ סיום הוספה' : '➕ הוסף בלחיצה'}</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:6px"><button style="flex:2;background:#534ab7;color:#fff;font-weight:700" onclick="fxDetToTable()">➡ לטבלת הספירה ובחירת מוצרים</button><button style="flex:1;color:#c0392b" onclick="uiConfirm('למחוק את כל הזיהויים?').then(ok=>{if(ok){P.fxDet=null;window.__fxDetAdd=null;save();render()}})">🗑</button></div></div>`;
+}
+function fxDetAddMode() {
+  if (window.__fxDetAdd) { window.__fxDetAdd = null; document.body.style.cursor = ''; render(); return; }
+  if (!P.fxDet) P.fxDet = { front: sheetIsElevation(), legend: [], positions: [], trusses: [], items: [] };
+  const t = (document.getElementById('fxDetT') || {}).value || 'static', m = (document.getElementById('fxDetM') || {}).value || '';
+  window.__fxDetAdd = { type: t, model: m.trim() }; document.body.style.cursor = 'crosshair'; render(); uiToast('לחץ על התכנית איפה שיש ' + (m || t) + ' — כל לחיצה מוסיפה סימון · Esc לסיום', 6000);
+}
+/* הסימונים → נתוני ספירה (באותו מבנה של הקורא) → טבלה → הצבה והצעה */
+async function fxDetToTable() {
+  const D = P.fxDet; if (!D || !(D.items || []).length && !(D.trusses || []).length) { uiToast('אין זיהויים'); return; }
+  window.__fxDetAdd = null; document.body.style.cursor = '';
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
+  const fixtures = D.items.filter(it => it.type !== 'truss').map(it => ({ x: (it.x - L) / W, y: (it.y - T) / H, type: it.type, model: it.model || '', pos: it.pos || '', label: it.label || '', _sku: it.sku || undefined }));
+  const trusses = (D.trusses || []).slice(); D.items.filter(it => it.type === 'truss').forEach((it, i) => { const nm = it.model || it.pos || ('טראס ' + (i + 1)); if (!trusses.some(t => t.name === nm)) trusses.push({ name: nm, shape: /עגול|circle|Ø/i.test(nm) ? 'circle' : 'straight', length_m: null, diameter_m: null, segments: [] }); });
+  const counts = {}; fixtures.forEach(fx => { const k = (fx.model || fx.type).trim(); counts[k] = counts[k] || { model: k, type: fx.type, qty: 0 }; counts[k].qty++; });
+  const d = { fixtures, legend: D.legend || [], positions: (D.positions || []).map(p => ({ name: p.name, x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, height_m: p.height_m })), trusses, counts: Object.values(counts), floor_y: D.floor_y, notes: D.notes || '' };
+  P.fxInventory = { at: new Date().toISOString(), view: D.front ? 'front' : 'plan', raw: d };
+  const placed = await fxDetCommit(d, !!D.front);
+  if (placed) { P.fxDet = null; save(); render(); }
+}
+/* שלב 2: טבלת ספירה ובחירת מוצרים → הצבה על התכנית (או הצעה בלבד). מחזיר true אם הוצב/אושר */
+async function fxDetCommit(d, front) {
   const fixtures = d.fixtures || [], legend = d.legend || [], positions = d.positions || [];
-  if (!fixtures.length && !(d.trusses || []).length) { uiToast('לא זוהו גופי תאורה בתמונה' + (d.notes ? ' — ' + d.notes : ''), 7000); return; }
-  P.fxInventory = { at: new Date().toISOString(), view: front ? 'front' : 'plan', raw: d };
+  if (!fixtures.length && !(d.trusses || []).length) { uiToast('אין מה לספור'); return false; }
   const inv = await fxInventoryDlg(d, front);
-  if (!inv) { save(); return; }
+  if (!inv) { save(); return false; }
   /* כמויות שאושרו בטבלה: משלימים/מורידים כניסות לפי המודל כדי שמה שיוצב יתאים לספירה */
   for (const g of inv.groups) { const have = fixtures.filter(fx => (fx.model || fx.type || '').trim() === g.k); const want = g.qty;
     if (want < have.length) { let n = have.length - want; for (let i = fixtures.length - 1; i >= 0 && n > 0; i--) if ((fixtures[i].model || fixtures[i].type || '').trim() === g.k) { fixtures.splice(i, 1); n--; } }
     else for (let i = have.length; i < want; i++) { const b = have[have.length - 1] || { x: 0.5, y: 0.5, type: 'static' }; fixtures.push({ ...b, x: Math.min(0.98, (+b.x || 0.5) + 0.02 * (i - have.length + 1)), label: '' }); }
     if (g.sku) fixtures.forEach(fx => { if ((fx.model || fx.type || '').trim() === g.k) fx._sku = g.sku; }); }
-  if (!inv.place) { fxInventoryToOffer(inv); save(); render(); return; }
+  if (!inv.place) { fxInventoryToOffer(inv); save(); render(); return true; }
   fxInventoryToOffer(inv, true);
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
   /* התאמת דגמים — פעם אחת לכל כיתוב, בלי ניחוש */
@@ -400,4 +474,5 @@ async function fxReadPlot() {
     let it = impItems.find(x => x.key === f.sku && x.dest === 'point'); if (!it) { it = { on: true, qty: 0, name: f.name, key: f.sku, src: 'תאורה', dest: 'point', cat: 'lighting', u: 1, iid: uid('i'), placed: 0 }; if (typeof autoPrice === 'function') autoPrice(it); impItems.push(it); }
     ids.forEach(id => { const n = byId(id); if (!n) return; it.qty = (+it.qty || 0) + 1; it.placed = (it.placed || 0) + 1; n.srcIid = it.iid; n.fx = { ...(n.fx || {}), sku: f.sku, ch: f.spec && f.spec.dmx && f.spec.dmx.length ? f.spec.dmx[0] : 0, type: f.kind }; n.name = f.name.slice(0, 60); });
     b.parentElement.innerHTML = `<span style="flex:1;color:#0a7a4b">✓ ${ids.length}× ${esc(f.name.slice(0, 50))}</span>`; save(); render(); } }); });
+  return true;
 }
