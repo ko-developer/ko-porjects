@@ -26,6 +26,16 @@ function fxFind(q, kind) {
 }
 /* התאמת כיתוב מתכנית של מעצב ("Robe Pointe", "LED PAR 64", "wash 19x40") לגוף בספרייה: ניקוד לפי מילים משותפות,
    תווי דגם (מספרים/אותיות) שווים יותר ממילים כלליות; בלי התאמה — null (לא ממציאים דגם) */
+/* הצעות מהקטלוג לכיתוב מהתכנית: הכי דומים בשם, ואם אין דמיון — מוצרים מאותו סוג (פנס חכם / סטטי / טראס) לפי מלאי */
+function fxSuggest(model, type, n) {
+  const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9א-ת]+/g, ' ').trim();
+  const mt = norm(model).split(' ').filter(t => t.length > 1), GEN = new Set(['LED', 'MOVING', 'HEAD', 'LIGHT', 'FIXTURE', 'W', 'WATT', 'פנס', 'חכם', 'גוף', 'תאורה', 'טראס', 'TRUSS']);
+  const kinds = type === 'static' ? ['static', 'effect'] : type ? [type] : null;
+  const scored = fxLib().filter(f => !kinds || kinds.includes(f.kind)).map(f => { const ft = new Set(norm(f.name + ' ' + f.sku).split(' ')); let sc = 0; for (const t of mt) if (ft.has(t)) sc += GEN.has(t) ? 0.3 : /^\d+$/.test(t) ? 0.8 : /\d/.test(t) ? 2 : 1.2;   /* דגם עם אותיות+ספרות (F5, RX4508) שווה הכי הרבה; מספר לבד (300) פחות — הוא גם הספק */ return { f, sc }; });
+  const byName = scored.filter(x => x.sc >= 1).sort((a, b) => b.sc - a.sc || (fxStock(b.f) > 0) - (fxStock(a.f) > 0)).map(x => x.f);
+  const byKind = scored.filter(x => x.sc < 1).sort((a, b) => (fxStock(b.f) > 0) - (fxStock(a.f) > 0) || (b.f.pdf ? 1 : 0) - (a.f.pdf ? 1 : 0)).map(x => x.f);
+  return byName.concat(byKind).slice(0, n || 3);
+}
 function fxMatch(model, type) {
   const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9א-ת]+/g, ' ').trim();
   const mt = norm(model).split(' ').filter(t => t.length > 1); if (!mt.length) return null;
@@ -34,7 +44,7 @@ function fxMatch(model, type) {
   for (const f of fxLib()) {
     if (type && f.kind !== type && !(type === 'static' && f.kind === 'effect')) continue;
     const ft = new Set(norm(f.name + ' ' + f.sku).split(' '));
-    let sc = 0; for (const t of mt) if (ft.has(t)) sc += GEN.has(t) ? 0.3 : /\d/.test(t) ? 2 : 1;
+    let sc = 0; for (const t of mt) if (ft.has(t)) sc += GEN.has(t) ? 0.3 : /^\d+$/.test(t) ? 0.8 : /\d/.test(t) ? 2 : 1.2;   /* דגם עם אותיות+ספרות (F5, RX4508) שווה הכי הרבה; מספר לבד (300) פחות — הוא גם הספק */
     if (sc > bs) { bs = sc; best = f; }
   }
   return bs >= 2 ? best : null;
@@ -88,6 +98,7 @@ function fxPanelHTML() {
   const univ = new Set(ns.filter(n => n.fx && n.fx.a).map(n => n.fx.u || 1)).size;
   return `<h3 class="sec">💡 תאורה מקצועית</h3>
     <p class="muted" style="font-size:11px;margin:-2px 0 6px">${ns.length} גופים בתכנית${W ? ' · ' + W.toLocaleString() + 'W' : ''}${univ ? ' · ' + univ + ' יוניברסים' : ''}${unk ? ' · <span style="color:#a32222">' + unk + ' בלי דגם</span>' : ''}${noAddr ? ' · ' + noAddr + ' בלי כתובת' : ''} · ספרייה: ${lib} פריטים מהאתר</p>
+    ${P.fxInventory ? `<button style="width:100%;margin-bottom:6px" onclick="fxInventoryDlg(P.fxInventory.raw, P.fxInventory.view==='front').then(ok=>{ if (ok) { fxInventoryToOffer(ok); save(); render(); } })" title="הספירה האחרונה מהתכנית — ${esc((P.fxInventory.at || '').slice(0, 16).replace('T', ' '))}">📋 הספירה האחרונה (${(P.fxInventory.raw.fixtures || []).length} פנסים · ${(P.fxInventory.raw.trusses || []).length} טראסים)</button>` : ''}
     <button style="width:100%;margin-bottom:6px;background:#534ab7;color:#fff;font-weight:700" onclick="fxReadPlot()" title="תמונת תכנית תאורה של מעצב (סמלים, מקרא, טראסים) → הגופים על התכנית ושורות בהצעה">🪄 קרא תכנית תאורה מהתמונה</button>
     ${fxDepthHTML()}
     <div style="display:flex;gap:6px;margin-bottom:6px"><button style="flex:1" onclick="fxPicker({})">➕ גוף מהספרייה</button><button style="flex:1" onclick="fxAutoAddress()" title="כתובות DMX לפי עמדת תלייה ומיקום, יוניברס חדש כשנגמרים 512 ערוצים">⚡ מספור DMX</button><button style="flex:1" onclick="fxPatchTable()">📋 טבלת פאץ׳</button></div>`;
@@ -279,17 +290,66 @@ function fxCopyToPlan() {
   ov.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { ov.remove(); go(targets.find(t => t.id === b.dataset.t)); });
   ov.querySelector('[data-x]').onclick = () => ov.remove();
 }
+/* ---------- ספירת מלאי מהתכנית: מה נמצא, כמה, ומה זה בקטלוג ----------
+   הטבלה מוצגת לפני שמציבים משהו: לכל דגם — כמה סמלים נספרו, כמה כתוב במקרא (סתירה מודגשת), ההתאמה בקטלוג (ניתנת לשינוי),
+   מחיר ליחידה; לכל טראס — צורה, מידה, התאמה לפריט טראס. אורי מאשר/מתקן את הכמויות → הצבה על התכנית ושורות בהצעה (או רק הצעה). */
+function fxInventoryDlg(d, front) {
+  return new Promise(res => {
+    const fixtures = d.fixtures || [], legend = d.legend || [], trusses = d.trusses || [];
+    const keyOf = fx => (fx.model || fx.type || '').trim();
+    const groups = {}; fixtures.forEach(fx => { const k = keyOf(fx); (groups[k] = groups[k] || { k, type: fx.type, n: 0 }).n++; });
+    const gs = Object.values(groups).map(g => { const lg = legend.find(l => l.model && l.model.trim().toLowerCase() === g.k.toLowerCase()); const cnt = (d.counts || []).find(c => (c.model || '').trim().toLowerCase() === g.k.toLowerCase());
+      const f = fxMatch(g.k, g.type === 'other' ? '' : g.type), sug = fxSuggest(g.k, g.type === 'other' ? '' : g.type, 4); return { ...g, legendQty: lg ? +lg.qty || null : null, aiQty: cnt ? +cnt.qty || null : null, qty: g.n, sku: f ? f.sku : null, sug }; });
+    const ts = trusses.map(t => { const size = t.diameter_m ? 'Ø' + t.diameter_m : t.length_m ? t.length_m + ' מ׳' : (t.segments || []).map(sg => sg.qty + '×' + sg.length_m + 'מ׳').join(' + ') || '';
+      const q = (t.shape === 'circle' ? 'טראס עגול ' : 'טראס ') + size, f = fxMatch(q, 'truss'); return { ...t, size, sku: f ? f.sku : null, qty: 1, sug: fxSuggest(q, 'truss', 4) }; });
+    const price = sku => { const f = fxOf(sku); return f ? fxPrice(f) : 0; };
+    const ov = uiModal(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1;font-size:15px">📋 ספירה מ${front ? 'החזית' : 'תכנית התאורה'} — ${fixtures.length} פנסים · ${trusses.length} טראסים</b></div>
+      <p class="muted" style="font-size:11px;margin:0 0 8px">כמות = מה שנספר בציור; במקרא = מה שכתוב במקרא (סתירה באדום). תקן כמויות, שייך דגם מהקטלוג, ואשר.${d.notes ? '<br>הערות הקורא: ' + esc(d.notes) : ''}</p>
+      <div style="max-height:50vh;overflow:auto"><table style="width:100%;font-size:11.5px;border-collapse:collapse" data-t="fx"><thead><tr style="background:#f3f1ec"><th style="text-align:right">בציור</th><th>סוג</th><th>כמות</th><th>במקרא</th><th style="text-align:right">בקטלוג של KO</th><th>₪ ליח׳</th></tr></thead><tbody>
+      ${gs.map((g, i) => `<tr data-i="${i}" style="border-bottom:1px solid #eee"><td style="text-align:right"><b>${esc(g.k || 'ללא כיתוב')}</b></td><td>${{ moving: '🔦', static: '💡', effect: '✨' }[g.type] || '📦'}</td>
+        <td><input type="number" min="0" value="${g.qty}" data-q style="width:52px"></td><td style="color:${g.legendQty != null && g.legendQty !== g.n ? '#c0392b' : '#555'}">${g.legendQty != null ? g.legendQty : '—'}</td>
+        <td style="text-align:right">${(() => { const o = gs[i]; const opts = (o.sug || []).map(f => `<option value="${esc(f.sku)}" ${o.sku === f.sku ? 'selected' : ''}>${esc(f.name.slice(0, 46))}${fxPrice(f) ? ' · ₪' + Math.round(fxPrice(f)).toLocaleString() : ''}${fxStock(f) > 0 ? '' : ' · אזל'}</option>`).join(''); return `<select data-sel style="max-width:260px;font-size:11px"><option value="" ${o.sku ? '' : 'selected'}>— בחר מוצר —</option>${opts}</select>`; })()} <button data-pick style="padding:1px 6px;font-size:11px" title="חיפוש בכל הספרייה">🔍</button></td><td data-pr>${g.sku && price(g.sku) ? Math.round(price(g.sku)).toLocaleString() : ''}</td></tr>`).join('')}
+      </tbody></table>
+      ${ts.length ? `<h4 style="margin:8px 0 4px;font-size:12.5px">🏗 טראסים</h4><table style="width:100%;font-size:11.5px;border-collapse:collapse" data-t="tr"><thead><tr style="background:#f3f1ec"><th style="text-align:right">בציור</th><th>צורה</th><th>מידה</th><th>כמות</th><th style="text-align:right">בקטלוג</th><th>₪</th></tr></thead><tbody>
+      ${ts.map((t, i) => `<tr data-i="${i}" style="border-bottom:1px solid #eee"><td style="text-align:right"><b>${esc(t.name || '')}</b></td><td>${t.shape === 'circle' ? '⭕ עגול' : t.shape === 'corner' ? '∟ פינה' : '— ישר'}</td><td>${esc(t.size)}</td><td><input type="number" min="0" value="1" data-q style="width:48px"></td>
+        <td style="text-align:right">${(() => { const o = ts[i]; const opts = (o.sug || []).map(f => `<option value="${esc(f.sku)}" ${o.sku === f.sku ? 'selected' : ''}>${esc(f.name.slice(0, 46))}${fxPrice(f) ? ' · ₪' + Math.round(fxPrice(f)).toLocaleString() : ''}${fxStock(f) > 0 ? '' : ' · אזל'}</option>`).join(''); return `<select data-sel style="max-width:260px;font-size:11px"><option value="" ${o.sku ? '' : 'selected'}>— בחר מוצר —</option>${opts}</select>`; })()} <button data-pick style="padding:1px 6px;font-size:11px" title="חיפוש בכל הספרייה">🔍</button></td><td data-pr>${t.sku && price(t.sku) ? Math.round(price(t.sku)).toLocaleString() : ''}</td></tr>`).join('')}</tbody></table>` : ''}</div>
+      <p style="font-size:12px;margin:8px 0 4px"><b>סה״כ: <span data-tot></span></b></p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="primary" data-ok style="flex:2">✓ הצב על התכנית + הצעה</button><button data-offer style="flex:1">🧾 רק להצעה</button><button data-x style="flex:1">ביטול</button></div>`);
+    ov.firstElementChild.style.maxWidth = '820px'; ov.firstElementChild.style.width = '95%';
+    const tot = () => { let t = 0; ov.querySelectorAll('tr[data-i]').forEach(tr => { const tb = tr.closest('table').dataset.t, i = +tr.dataset.i, o = tb === 'fx' ? gs[i] : ts[i]; o.qty = +tr.querySelector('[data-q]').value || 0; t += o.qty * price(o.sku); }); ov.querySelector('[data-tot]').textContent = '₪' + Math.round(t).toLocaleString(); };
+    ov.querySelectorAll('[data-q]').forEach(inp => inp.oninput = tot); tot();
+    ov.querySelectorAll('tr[data-i]').forEach(tr => { const tb = tr.closest('table').dataset.t, i = +tr.dataset.i, o = tb === 'fx' ? gs[i] : ts[i];
+      const sel = tr.querySelector('[data-sel]'); sel.onchange = () => { o.sku = sel.value || null; tr.querySelector('[data-pr]').textContent = o.sku && price(o.sku) ? Math.round(price(o.sku)).toLocaleString() : ''; tot(); };
+      tr.querySelector('[data-pick]').onclick = () => fxPicker({ kind: tb === 'tr' ? 'truss' : '', onPick: f => { if (!f) return; o.sku = f.sku; if (![...sel.options].some(op => op.value === f.sku)) { const op = document.createElement('option'); op.value = f.sku; op.textContent = f.name.slice(0, 46) + (fxPrice(f) ? ' · ₪' + Math.round(fxPrice(f)).toLocaleString() : ''); sel.appendChild(op); } sel.value = f.sku; tr.querySelector('[data-pr]').textContent = price(f.sku) ? Math.round(price(f.sku)).toLocaleString() : ''; tot(); } }); });
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelector('[data-ok]').onclick = () => { tot(); done({ groups: gs, trusses: ts, place: true }); };
+    ov.querySelector('[data-offer]').onclick = () => { tot(); done({ groups: gs, trusses: ts, place: false }); };
+    ov.querySelector('[data-x]').onclick = () => done(null);
+  });
+}
+/* שורות בהצעה מהספירה: טראסים תמיד; פנסים — רק כש"רק להצעה" (בהצבה הפנסים נכנסים דרך fxAddNode) */
+function fxInventoryToOffer(ok, placing) {
+  const add = (sku, qty, name, placed) => { if (!sku || !qty) return; const f = fxOf(sku); let it = impItems.find(x => x.key === sku && x.dest === 'point'); if (!it) { it = { on: true, qty: 0, name: f ? f.name : name, key: sku, src: 'תכנית תאורה', dest: 'point', cat: 'lighting', u: 1, iid: uid('i'), placed: 0 }; if (typeof autoPrice === 'function') autoPrice(it); impItems.push(it); } it.qty = (+it.qty || 0) + qty; if (placed) it.placed = (it.placed || 0) + qty; };
+  if (!placing) for (const g of ok.groups) add(g.sku, g.qty, g.k, false);
+  for (const t of ok.trusses) { add(t.sku, t.qty, t.name, false); P.lightPos = P.lightPos || []; if (t.name && !P.lightPos.some(p => p.name === t.name)) P.lightPos.push({ name: t.name, shape: t.shape === 'circle' ? 'circle' : 'bar', size: t.diameter_m || t.length_m || undefined }); }
+}
 /* ---------- קריאת תכנית תאורה של מעצב (ראייה) ---------- */
 var FX_PLOT_PROMPT = `You are reading a stage/event lighting plot (a designer's drawing). Extract EVERY lighting fixture symbol you can see.
 Return ONLY JSON: {"fixtures":[{"x":0.0-1.0,"y":0.0-1.0,"type":"moving|static|effect|other","model":"text written for this fixture or its legend entry","label":"unit number/label if written","pos":"name of the truss/bar/position it hangs on, if written"}],
 "legend":[{"symbol":"short description of the symbol","model":"model/fixture name as written","qty":N}],
-"positions":[{"name":"truss/bar name as written","x1":0-1,"y1":0-1,"x2":0-1,"y2":0-1}],"notes":"anything unclear"}.
+"positions":[{"name":"truss/bar name as written","x1":0-1,"y1":0-1,"x2":0-1,"y2":0-1}],
+"trusses":[{"name":"truss/bar name as written","shape":"straight|circle|corner|other","length_m":number or null,"diameter_m":number or null,"segments":[{"length_m":number,"qty":N}],"notes":"as written"}],
+"counts":[{"model":"model/type name as in fixtures","type":"moving|static|effect|other","qty":N}],"notes":"anything unclear"}.
+counts = your own tally of the fixture entries per model (must equal the number of fixture entries with that model). trusses = every truss/bar as a physical object with its written size (e.g. "3m", "Ø4", "4× 2m segments"); do not invent sizes.
 x,y are relative to the whole image (0,0 = top-left, 1,1 = bottom-right), at the centre of each symbol. One entry per physical fixture (if a legend says 8× of a symbol, there should be 8 entries). Copy model names exactly as written (do not guess brands). type: moving = moving head/spot/beam/wash moving; static = PAR/wash/blinder/strobe/static LED bar; effect = haze/smoke/laser/mirror ball.`;
 var FX_PLOT_PROMPT_FRONT = `You are reading a FRONT ELEVATION lighting plot (stage seen from the audience): trusses/bars are drawn as horizontal members at their trim heights, fixtures hang below or sit on them, the stage floor is a horizontal line near the bottom. Extract EVERY fixture symbol.
 Return ONLY JSON: {"fixtures":[{"x":0.0-1.0,"y":0.0-1.0,"type":"moving|static|effect|other","model":"text written for this fixture or its legend entry","label":"unit number if written","pos":"name of the truss/bar it hangs on, if written"}],
 "legend":[{"symbol":"short description","model":"model name as written","qty":N}],
 "positions":[{"name":"truss/bar name as written","x1":0-1,"y1":0-1,"x2":0-1,"y2":0-1,"height_m":number or null if a trim height is written}],
-"floor_y":0.0-1.0 (relative y of the stage floor line, null if none),"notes":"anything unclear"}.
+"floor_y":0.0-1.0 (relative y of the stage floor line, null if none),
+"trusses":[{"name":"truss/bar name as written","shape":"straight|circle|corner|other","length_m":number or null,"diameter_m":number or null,"segments":[{"length_m":number,"qty":N}],"notes":"as written"}],
+"counts":[{"model":"model/type name as in fixtures","type":"moving|static|effect|other","qty":N}],"notes":"anything unclear"}.
+counts = your own tally of the fixture entries per model (must equal the number of fixture entries with that model). trusses = every truss/bar as a physical object with its written size (e.g. "3m", "Ø4", "4× 2m segments"); do not invent sizes.
 x,y are relative to the whole image (0,0 = top-left, 1,1 = bottom-right), at the centre of each symbol. One entry per physical fixture. Copy model names exactly as written (do not guess brands). type: moving = moving head/spot/beam/wash moving; static = PAR/wash/blinder/strobe/static bar; effect = haze/smoke/laser/mirror ball.`;
 async function fxReadPlot() {
   if (!P.bg) { uiToast('העלה קודם את תמונת תכנית התאורה כרקע (📁 תכנית)'); return; }
@@ -303,11 +363,21 @@ async function fxReadPlot() {
   } catch (e) { if (e.message === 'NOKEY') { uiToast('אין מפתח API — צריך ANTHROPIC_API_KEY בשרת'); return; } uiToast('הקריאה נכשלה: ' + e.message, 7000); return; }
   let d; try { d = claudeJson(j); } catch (e) { uiToast('תשובה לא תקינה מה-AI'); console.warn(j); return; }
   const fixtures = d.fixtures || [], legend = d.legend || [], positions = d.positions || [];
-  if (!fixtures.length) { uiToast('לא זוהו גופי תאורה בתמונה' + (d.notes ? ' — ' + d.notes : ''), 7000); return; }
+  if (!fixtures.length && !(d.trusses || []).length) { uiToast('לא זוהו גופי תאורה בתמונה' + (d.notes ? ' — ' + d.notes : ''), 7000); return; }
+  P.fxInventory = { at: new Date().toISOString(), view: front ? 'front' : 'plan', raw: d };
+  const inv = await fxInventoryDlg(d, front);
+  if (!inv) { save(); return; }
+  /* כמויות שאושרו בטבלה: משלימים/מורידים כניסות לפי המודל כדי שמה שיוצב יתאים לספירה */
+  for (const g of inv.groups) { const have = fixtures.filter(fx => (fx.model || fx.type || '').trim() === g.k); const want = g.qty;
+    if (want < have.length) { let n = have.length - want; for (let i = fixtures.length - 1; i >= 0 && n > 0; i--) if ((fixtures[i].model || fixtures[i].type || '').trim() === g.k) { fixtures.splice(i, 1); n--; } }
+    else for (let i = have.length; i < want; i++) { const b = have[have.length - 1] || { x: 0.5, y: 0.5, type: 'static' }; fixtures.push({ ...b, x: Math.min(0.98, (+b.x || 0.5) + 0.02 * (i - have.length + 1)), label: '' }); }
+    if (g.sku) fixtures.forEach(fx => { if ((fx.model || fx.type || '').trim() === g.k) fx._sku = g.sku; }); }
+  if (!inv.place) { fxInventoryToOffer(inv); save(); render(); return; }
+  fxInventoryToOffer(inv, true);
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
   /* התאמת דגמים — פעם אחת לכל כיתוב, בלי ניחוש */
   const matchOf = {}; const keyOf = fx => (fx.model || fx.type || '').trim();
-  for (const fx of fixtures) { const k = keyOf(fx); if (!(k in matchOf)) { const lg = legend.find(l => l.model && fx.model && l.model.toLowerCase() === fx.model.toLowerCase()); matchOf[k] = fxMatch(fx.model || (lg && lg.model), fx.type === 'other' ? '' : fx.type); } }
+  for (const fx of fixtures) { const k = keyOf(fx); if (!(k in matchOf)) { const lg = legend.find(l => l.model && fx.model && l.model.toLowerCase() === fx.model.toLowerCase()); matchOf[k] = fx._sku ? fxOf(fx._sku) : fxMatch(fx.model || (lg && lg.model), fx.type === 'other' ? '' : fx.type); } }
   P.sketch = P.sketch || { walls: [], objs: [] }; { const prevPos = P.lightPos || []; P.lightPos = positions.map(p => { const o = prevPos.find(q => q.name === p.name) || {}; return { ...o, name: p.name, x1: L + p.x1 * W, y1: T + p.y1 * H, x2: L + p.x2 * W, y2: T + p.y2 * H, h: p.height_m != null ? +p.height_m : o.h, view: front ? 'front' : 'plan' }; }); for (const o of prevPos) if (!P.lightPos.some(q => q.name === o.name)) P.lightPos.push(o); }
   /* חזית: הגובה של כל פנס מהמרחק מקו הרצפה (לפי הכיול), או מגובה הטראס אם כתוב */
   const floorY = front && d.floor_y != null ? T + (+d.floor_y) * H : null;
