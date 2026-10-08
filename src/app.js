@@ -10535,6 +10535,13 @@ document.addEventListener('pointerdown', e => {
     if (sketchMode.tool === 'select') { sketchSel = null; if (!e.target.closest('[data-skwall]')) sketchWallSel = null; sketchBar(); renderWires(); }
     return;
   }
+  /* בוחר שתי נקודות כללי (קו ייחוס לעומק בתאורה וכד׳): window.__pick2 = { pts: [], done(pts) } */
+  if (window.__pick2 && e.target.closest('#canvasWrap')) {
+    const pt = canvasPt(e); window.__pick2.pts.push({ x: pt.x, y: pt.y });
+    if (window.__pick2.pts.length >= 2) { const f = window.__pick2.done, pts = window.__pick2.pts; window.__pick2 = null; document.body.style.cursor = ''; try { f(pts); } catch (err) { console.warn(err); } }
+    else uiToast('נקודה ראשונה נקלטה — לחץ על הנקודה השנייה');
+    return;
+  }
   if (zoneMode && e.target.closest('#canvasWrap')) {
     const pt = canvasPt(e);
     zoneMode.poly = zoneMode.poly || [];

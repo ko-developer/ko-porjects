@@ -89,6 +89,7 @@ function fxPanelHTML() {
   return `<h3 class="sec">💡 תאורה מקצועית</h3>
     <p class="muted" style="font-size:11px;margin:-2px 0 6px">${ns.length} גופים בתכנית${W ? ' · ' + W.toLocaleString() + 'W' : ''}${univ ? ' · ' + univ + ' יוניברסים' : ''}${unk ? ' · <span style="color:#a32222">' + unk + ' בלי דגם</span>' : ''}${noAddr ? ' · ' + noAddr + ' בלי כתובת' : ''} · ספרייה: ${lib} פריטים מהאתר</p>
     <button style="width:100%;margin-bottom:6px;background:#534ab7;color:#fff;font-weight:700" onclick="fxReadPlot()" title="תמונת תכנית תאורה של מעצב (סמלים, מקרא, טראסים) → הגופים על התכנית ושורות בהצעה">🪄 קרא תכנית תאורה מהתמונה</button>
+    ${fxDepthHTML()}
     <div style="display:flex;gap:6px;margin-bottom:6px"><button style="flex:1" onclick="fxPicker({})">➕ גוף מהספרייה</button><button style="flex:1" onclick="fxAutoAddress()" title="כתובות DMX לפי עמדת תלייה ומיקום, יוניברס חדש כשנגמרים 512 ערוצים">⚡ מספור DMX</button><button style="flex:1" onclick="fxPatchTable()">📋 טבלת פאץ׳</button></div>`;
 }
 function discToggle() { setLayer(P.layer === 'light' ? 'audio' : 'light'); }
@@ -177,6 +178,71 @@ async function fxDetectView() {
     const d = claudeJson(j); return d && d.view ? d : null;
   } catch (e) { uiToast('הזיהוי נכשל: ' + e.message); return null; }
 }
+/* ---------- כיול עומק: חזית ↔ תכנית תקרה ----------
+   בחזית יש X וגובה בלבד. העומק ניתן לכל עמדה (טראס/בר) במטרים מקדמת הבמה, וקו ייחוס על תכנית התקרה
+   (קדמת הבמה, משמאל לימין כפי שרואים מהקהל) אומר איפה "0 עומק" ולאן העומק גדל. "העתק לתכנית התקרה" מציב כל פנס
+   על קו העמדה שלו: X לפי המיקום היחסי בחזית, עומק לפי העמדה, גובה נשמר. */
+function fxPick2(msg, done) { window.__pick2 = { pts: [], done }; document.body.style.cursor = 'crosshair'; uiToast('📏 ' + msg, 8000); }
+function fxRefSet() {
+  const sh = curSheet(P);
+  fxPick2(sheetIsElevation() ? 'לחץ על קצה הבמה השמאלי ואז על הימני (בחזית)' : 'לחץ על קצה הבמה השמאלי ואז על הימני — כפי שרואים מהקהל; העומק גדל מהקו והלאה מהקהל', pts => {
+    sh.fxRef = { x1: pts[0].x, y1: pts[0].y, x2: pts[1].x, y2: pts[1].y }; save(); render();
+    uiToast('✓ קו ייחוס נשמר' + (P.scale ? ' — אורך ' + (Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) * P.scale).toFixed(1) + ' מ׳' : ''));
+  });
+}
+function fxPositions() {
+  P.lightPos = P.lightPos || [];
+  /* עמדות שהפנסים מזכירים ואין להן רשומה */
+  for (const n of fxNodes()) { const p = n.fx && n.fx.pos; if (p && !P.lightPos.some(q => q.name === p)) P.lightPos.push({ name: p }); }
+  return P.lightPos;
+}
+function fxDepthHTML() {
+  const pos = fxPositions(), sh = curSheet(P), front = sheetIsElevation();
+  const row = (p, i) => `<div style="display:flex;gap:4px;align-items:center;margin:2px 0;font-size:11.5px">
+      <input value="${esc(p.name || '')}" placeholder="שם עמדה (T1 / בר קדמי)" style="flex:1;min-width:0" onchange="P.lightPos[${i}].name=this.value;save()">
+      <input type="number" step="0.1" value="${p.h ?? ''}" placeholder="גובה" title="גובה הטראס במטרים (trim)" style="width:58px" onchange="P.lightPos[${i}].h=this.value===''?undefined:+this.value;save()">
+      <input type="number" step="0.1" value="${p.d ?? ''}" placeholder="עומק" title="עומק במטרים מקדמת הבמה (קו הייחוס) ואחורה" style="width:58px" onchange="P.lightPos[${i}].d=this.value===''?undefined:+this.value;save()">
+      <span class="muted" style="font-size:10px;white-space:nowrap">${fxNodes().filter(n => n.fx && n.fx.pos === p.name).length} פנסים</span>
+      <button style="padding:1px 5px" onclick="P.lightPos.splice(${i},1);save();render()">✕</button></div>`;
+  return `<details ${front ? 'open' : ''} style="margin:4px 0 8px"><summary style="cursor:pointer;font-size:12px;font-weight:700">📏 עמדות תלייה — גובה ועומק (${pos.length})</summary>
+    <p class="muted" style="font-size:10.5px;margin:3px 0">לכל טראס/בר: גובה במטרים ועומק מקדמת הבמה. זה "כיול העומק" של החזית — ממנו נקבע המיקום על תכנית התקרה.</p>
+    ${pos.map(row).join('')}
+    <div style="display:flex;gap:4px;margin-top:4px"><button style="flex:1;font-size:11px" onclick="P.lightPos=P.lightPos||[];P.lightPos.push({name:'T'+(P.lightPos.length+1)});save();render()">➕ עמדה</button>
+      <button style="flex:1;font-size:11px;${sh.fxRef ? 'background:#eef7f1' : ''}" onclick="fxRefSet()" title="${front ? 'קצוות הבמה בחזית — כדי לתרגם X לתכנית' : 'קדמת הבמה על תכנית התקרה — נקודת האפס של העומק'}">${sh.fxRef ? '✓ קו ייחוס (שנה)' : '📏 קו ייחוס — קצוות הבמה'}</button>
+      ${front ? `<button style="flex:1;font-size:11px;background:#534ab7;color:#fff;font-weight:700" onclick="fxCopyToPlan()" title="מציב את הפנסים על תכנית התקרה לפי X מהחזית, עומק מהעמדה וגובה">⤵ העתק לתכנית התקרה</button>` : ''}</div>
+    <div class="fld" style="margin-top:4px"><label style="font-size:10.5px">עומק ברירת מחדל לפנס בלי עמדה (מ׳)</label><input type="number" step="0.1" value="${P.fxDefDepth ?? ''}" placeholder="0" onchange="P.fxDefDepth=+this.value;save()"></div></details>`;
+}
+function fxCopyToPlan() {
+  const src = curSheet(P); if (!src || !sheetIsElevation()) { uiToast('הפעולה מחזית בלבד'); return; }
+  const targets = (P.sheets || []).filter(sh => sh.id !== src.id && !sh.view);
+  if (!targets.length) { uiToast('אין תכנית תקרה/העמדה בפרויקט — הוסף תכנית (➕ תכנית) עם מבט מלמעלה וסמן עליה קו ייחוס', 7000); return; }
+  const go = tgt => {
+    if (!tgt.fxRef) { uiToast('בתכנית "' + tgt.name + '" אין קו ייחוס — עבור אליה, 📏 קו ייחוס — קצוות הבמה, וחזור', 7000); return; }
+    if (!tgt.scale) { uiToast('תכנית "' + tgt.name + '" לא מכוילת — כייל אותה קודם', 6000); return; }
+    const ns = fxNodes(); if (!ns.length) { uiToast('אין פנסים בחזית'); return; }
+    /* X יחסי בחזית: לפי קו הייחוס של החזית, ואם אין — לפי הפריסה של הפנסים */
+    const cx = n => 2200 - n.x - 20;
+    let fl, fr; if (src.fxRef) { fl = Math.min(src.fxRef.x1, src.fxRef.x2); fr = Math.max(src.fxRef.x1, src.fxRef.x2); } else { const xs = ns.map(cx); fl = Math.min(...xs); fr = Math.max(...xs); }
+    const span = Math.max(1, fr - fl);
+    const R = tgt.fxRef, dx = R.x2 - R.x1, dy = R.y2 - R.y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, nx = uy, ny = -ux;   /* נורמל: מהקו והלאה מהקהל (שמאל→ימין כפי שרואים מהקהל) */
+    const pxPerM = 1 / tgt.scale, pos = fxPositions();
+    tgt.nodes = tgt.nodes || []; let made = 0;
+    for (const n of ns) {
+      const t = (cx(n) - fl) / span, p = pos.find(q => q.name && n.fx && q.name === n.fx.pos), d = p && p.d != null ? p.d : (P.fxDefDepth || 0);
+      const X = R.x1 + ux * t * len + nx * d * pxPerM, Y = R.y1 + uy * t * len + ny * d * pxPerM;
+      const old = tgt.nodes.find(o => o.fx && o.fx.from === n.id);
+      const c = old || { id: uid('n'), kind: 'point', ptype: 'light', mini: true, mount: 'טראס/הנפה' };
+      Object.assign(c, { name: n.name, sub: n.sub, x: Math.max(0, Math.round(2200 - X - 20)), y: Math.max(0, Math.round(Y - 24)), hgt: n.hgt ?? (p && p.h) ?? c.hgt, srcIid: n.srcIid, fx: { ...(n.fx || {}), from: n.id, view: 'plan' } });
+      if (!old) tgt.nodes.push(c); n.fx = { ...(n.fx || {}), mirror: true }; n.srcIid = undefined;   /* הספירה בהצעה — לפי העותק שעל התכנית */
+      made++;
+    }
+    save(); uiToast('⤵ ' + made + ' פנסים הועתקו לתכנית "' + tgt.name + '" — X מהחזית, עומק מהעמדות, גובה נשמר', 7000); sheetGo(tgt.id);
+  };
+  if (targets.length === 1) { go(targets[0]); return; }
+  const ov = uiModal(`<b style="font-size:14px">⤵ לאיזו תכנית תקרה?</b><div style="display:grid;gap:6px;margin:10px 0">${targets.map(t => `<button data-t="${t.id}" style="text-align:right;padding:8px 12px">🗺 ${esc(t.name)}${t.fxRef ? ' <span class="muted">· יש קו ייחוס</span>' : ' <span style="color:#a32222">· אין קו ייחוס</span>'}</button>`).join('')}</div><button data-x style="width:100%">ביטול</button>`);
+  ov.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { ov.remove(); go(targets.find(t => t.id === b.dataset.t)); });
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+}
 /* ---------- קריאת תכנית תאורה של מעצב (ראייה) ---------- */
 var FX_PLOT_PROMPT = `You are reading a stage/event lighting plot (a designer's drawing). Extract EVERY lighting fixture symbol you can see.
 Return ONLY JSON: {"fixtures":[{"x":0.0-1.0,"y":0.0-1.0,"type":"moving|static|effect|other","model":"text written for this fixture or its legend entry","label":"unit number/label if written","pos":"name of the truss/bar/position it hangs on, if written"}],
@@ -206,7 +272,7 @@ async function fxReadPlot() {
   /* התאמת דגמים — פעם אחת לכל כיתוב, בלי ניחוש */
   const matchOf = {}; const keyOf = fx => (fx.model || fx.type || '').trim();
   for (const fx of fixtures) { const k = keyOf(fx); if (!(k in matchOf)) { const lg = legend.find(l => l.model && fx.model && l.model.toLowerCase() === fx.model.toLowerCase()); matchOf[k] = fxMatch(fx.model || (lg && lg.model), fx.type === 'other' ? '' : fx.type); } }
-  P.sketch = P.sketch || { walls: [], objs: [] }; P.lightPos = positions.map(p => ({ name: p.name, x1: L + p.x1 * W, y1: T + p.y1 * H, x2: L + p.x2 * W, y2: T + p.y2 * H, h: p.height_m != null ? +p.height_m : undefined, view: front ? 'front' : 'plan' }));
+  P.sketch = P.sketch || { walls: [], objs: [] }; { const prevPos = P.lightPos || []; P.lightPos = positions.map(p => { const o = prevPos.find(q => q.name === p.name) || {}; return { ...o, name: p.name, x1: L + p.x1 * W, y1: T + p.y1 * H, x2: L + p.x2 * W, y2: T + p.y2 * H, h: p.height_m != null ? +p.height_m : o.h, view: front ? 'front' : 'plan' }; }); for (const o of prevPos) if (!P.lightPos.some(q => q.name === o.name)) P.lightPos.push(o); }
   /* חזית: הגובה של כל פנס מהמרחק מקו הרצפה (לפי הכיול), או מגובה הטראס אם כתוב */
   const floorY = front && d.floor_y != null ? T + (+d.floor_y) * H : null;
   const hgtOf = fx => { const pos = positions.find(p => p.name && fx.pos && p.name.toLowerCase() === String(fx.pos).toLowerCase()); if (pos && pos.height_m != null) return +pos.height_m; if (floorY != null && P.scale) return +Math.max(0, (floorY - (T + (+fx.y || 0) * H)) * P.scale).toFixed(1); return undefined; };
