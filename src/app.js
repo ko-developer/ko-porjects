@@ -9475,6 +9475,7 @@ function renderPanel() {
     /* סוג המוקד — לא בהכרח רמקול */
     const PTYPES = [['speaker', '🔊 רמקול'], ['sub', '🔈 סאב'], ['amp', '🎚 מגבר'], ['proc', '🎛 פרוססור / DSP / מטריצה'], ['player', '💿 נגן / סטרימר / מחשב מוזיקה'], ['mic', '🎤 מיקרופון'], ['screen', '📺 מסך/מקרן'], ['light', '💡 גוף תאורה'], ['camera', '📷 מצלמה'], ['ap', '📶 נקודת רשת/AP'], ['device', '📦 מכשיר אחר'], ['other', '📍 נקודת קצה']];
     const dbT = dbSpkType(n.name);
+    if (!n.ptype && typeof fxIsLightItem === 'function' && (n.fx || (linkedIt && fxIsLightItem(linkedIt)) || fxIsLightItem({ name: n.name }))) { n.ptype = 'light'; if (!n.fx) fxInitNode(n, linkedIt || { name: n.name, key: null }); }   /* מוקד ישן שננקר מפריט תאורה — הופך לגוף תאורה */
     const autoT = dbT === 'סאב' ? 'sub' : /מגבר|amplifier/i.test(n.name) ? 'amp' : /פרוססור|processor|קרוסאובר|xover|מטריצ|\bDSP\b/i.test(n.name) ? 'proc' : /נגן|סטרימר|streamer|player|מחשב מוזיקה/i.test(n.name) ? 'player' : /סאב|\bsub\b/i.test(n.name) ? 'sub' : /רמקול|speaker|קולונה/i.test(n.name) ? 'speaker' : /מסך|מקרן|screen|projector|led/i.test(n.name) ? 'screen' : /תאורה|light|par|לד/i.test(n.name) ? 'light' : /מצלמה|camera/i.test(n.name) ? 'camera' : /מיקרופון|mic/i.test(n.name) ? 'mic' : null;
     const pt = n.ptype || autoT || 'speaker';
     const isSpk = pt === 'speaker' || pt === 'sub';
@@ -15466,7 +15467,9 @@ function dropImported(it, pt, nel, clientY) {
   const num = (it.qty > 1 || it.zpin) ? ` (${(it.placed || 0) + 1})` : '';   /* zpin = נעיצה מהאזור, הכמות גדלה בכל נקירה — ממספרים מהראשון */
   switch (it.dest) {
     case 'point':
-      P.nodes.push({ id: uid('n'), kind: 'point', name: it.name + num, sub: from, x: mx, y: my, srcIid: it.iid });
+      { const nd = { id: uid('n'), kind: 'point', name: it.name + num, sub: from, x: mx, y: my, srcIid: it.iid };
+        if (typeof fxIsLightItem === 'function' && fxIsLightItem(it)) fxInitNode(nd, it);   /* פריט תאורה מההצעה → גוף תאורה, לא רמקול */
+        P.nodes.push(nd); }
       bumpPlaced(it);
       break;
     case 'panelNode':

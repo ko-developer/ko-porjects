@@ -49,6 +49,18 @@ function fxMatch(model, type) {
   }
   return bs >= 2 ? best : null;
 }
+/* פריט מההצעה הוא גוף תאורה? לפי הספרייה (מק"ט), הקטגוריה, או השם */
+function fxIsLightItem(it) {
+  if (!it) return false; if (it.key && fxOf(it.key)) return !['truss', 'hoist', 'clamp', 'control', 'dmx', 'psu', 'dimmer', 'other'].includes(fxOf(it.key).kind);
+  if (it.cat === 'lighting') return true;
+  return /פנס|גוף תאורה|moving ?head|\bbeam\b|\bwash\b|\bpar\b|\bspot\b|strobe|סטרוב|blinder|בלינדר|haze|הייזר|עשן|לייזר|laser|\bled bar\b|פיקסל/i.test(it.name || '') && !/רמקול|speaker|סאב|מגבר|כבל|מחבר|קלמר|טראס/i.test(it.name || '');
+}
+function fxInitNode(n, it) {
+  const f = it && it.key ? fxOf(it.key) : null;
+  n.ptype = 'light'; n.mini = true; if (!n.mount || n.mount === 'קיר בלוק') n.mount = 'טראס/הנפה'; if (n.hgt == null || n.hgt === 2.6) n.hgt = 5;
+  n.fx = { ...(n.fx || {}), sku: f ? f.sku : (n.fx && n.fx.sku) || null, u: (n.fx && n.fx.u) || 1, a: (n.fx && n.fx.a) || 0, ch: (n.fx && n.fx.ch) || (f && f.spec && f.spec.dmx && f.spec.dmx.length ? f.spec.dmx[0] : 0), pos: (n.fx && n.fx.pos) || '', type: f ? f.kind : (n.fx && n.fx.type) || 'static' };
+  return n;
+}
 function fxNodes() { return (P.nodes || []).filter(n => n.kind === 'point' && n.ptype === 'light' && !n.hidden); }
 /* הוספת גוף לתכנית + שורה בהצעה (גופים מאותו דגם חולקים שורה אחת, הכמות עולה) */
 function fxAddNode(sku, pos, opts) {
