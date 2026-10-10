@@ -244,20 +244,82 @@ function fxPosPoint(o, t, idx, cnt) {
 /* פיזור N פנסים על עמדה מצוירת (בלי חזית): "טראס עגול Ø4 עם 8 פנסים" */
 function fxSpreadOnPos(i) {
   const p = (P.lightPos || [])[i]; const o = p && fxPosObj(p.name);
-  if (!o) { uiToast('קודם 📍 הנח את העמדה על התכנית'); return; }
+  if (!o && !(p && p.path)) { uiToast('קודם 📍 הנח את העמדה על התכנית (או 📐 צייר טראס מורכב)'); return; }
   uiPrompt('כמה פנסים על ' + p.name + '?', '6').then(v => { const n = Math.max(1, Math.min(60, +v || 0)); if (!n) return;
-    fxPicker({ onPick: f => { if (!f) return; for (let k = 0; k < n; k++) { const pt = fxPosPoint(o, n > 1 ? k / (n - 1) : 0.5, k, n); fxAddNode(f.sku, pt, { pos: p.name, hgt: p.h }); } save(); render(); uiToast('🔆 ' + n + '× ' + f.name.slice(0, 30) + ' על ' + p.name); } }); });
+    fxPicker({ onPick: f => { if (!f) return; for (let k = 0; k < n; k++) { const t = n > 1 ? (p.path ? (k + 0.5) / n : k / (n - 1)) : 0.5, pt = p.path ? fxPathPoint(p, t) : fxPosPoint(o, t, k, n); fxAddNode(f.sku, pt, { pos: p.name, hgt: p.h }); } save(); render(); uiToast('🔆 ' + n + '× ' + f.name.slice(0, 30) + ' על ' + p.name); } }); });
+}
+/* ---------- טראס מורכב: קטעים ישרים + קשתות, נמדד במטרים ----------
+   p.path.segs = [{t:'line', a:[x,y], b:[x,y]} | {t:'arc', a, via, b}] בקואורדינטות התכנית. מדידה: ישר = מרחק; קשת = מעגל דרך 3 נקודות → רדיוס וזווית.
+   ציור: לחיצות על התכנית; מצב "ישר" = נקודה לקטע; מצב "קשת" = שתי נקודות (דרך, סיום). */
+function fxArcGeo(a, via, b) {
+  const ax = a[0], ay = a[1], bx = via[0], by = via[1], cx = b[0], cy = b[1];
+  const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)); if (Math.abs(d) < 1e-6) return null;
+  const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+  const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+  const r = Math.hypot(ax - ux, ay - uy), a0 = Math.atan2(ay - uy, ax - ux), a1 = Math.atan2(cy - uy, cx - ux), av = Math.atan2(by - uy, bx - ux);
+  const norm = t => (t % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+  let sweep = norm(a1 - a0), sv = norm(av - a0), ccw = true;   /* ccw במובן של זוויות עולות */
+  if (sv > sweep) { sweep = 2 * Math.PI - sweep; ccw = false; }
+  return { cx: ux, cy: uy, r, a0, sweep, ccw, len: r * sweep };
+}
+function fxSegLen(sg) { if (sg.t === 'arc') { const g = fxArcGeo(sg.a, sg.via, sg.b); return g ? g.len : Math.hypot(sg.b[0] - sg.a[0], sg.b[1] - sg.a[1]); } return Math.hypot(sg.b[0] - sg.a[0], sg.b[1] - sg.a[1]); }
+function fxPathMeasure(p) {
+  const m = P.scale || 0, out = { line: 0, arc: 0, arcs: [], total: 0 };
+  for (const sg of ((p.path || {}).segs || [])) { const L = fxSegLen(sg) * m; if (sg.t === 'arc') { const g = fxArcGeo(sg.a, sg.via, sg.b); out.arc += L; out.arcs.push({ len: L, r: g ? g.r * m : 0, deg: g ? g.sweep * 180 / Math.PI : 0 }); } else out.line += L; out.total += L; }
+  return out;
+}
+function fxPathText(p) { const m = fxPathMeasure(p); if (!P.scale) return 'לא מכויל'; const parts = []; if (m.line) parts.push('ישר ' + m.line.toFixed(1) + ' מ׳'); if (m.arc) parts.push('קשתות ' + m.arc.toFixed(1) + ' מ׳ (' + m.arcs.map(a => 'R' + a.r.toFixed(1) + ' ' + Math.round(a.deg) + '°').join(', ') + ')'); return parts.join(' · ') + ' = ' + m.total.toFixed(1) + ' מ׳'; }
+/* נקודה על המסלול לפי t ∈ [0,1] מהאורך הכולל */
+function fxPathPoint(p, t) {
+  const segs = ((p.path || {}).segs || []); const lens = segs.map(fxSegLen), tot = lens.reduce((a, b) => a + b, 0) || 1; let d = Math.max(0, Math.min(1, t)) * tot;
+  for (let i = 0; i < segs.length; i++) { const sg = segs[i], L = lens[i]; if (d > L && i < segs.length - 1) { d -= L; continue; } const u = L ? d / L : 0;
+    if (sg.t === 'arc') { const g = fxArcGeo(sg.a, sg.via, sg.b); if (g) { const ang = g.a0 + (g.ccw ? 1 : -1) * g.sweep * u; return { x: g.cx + g.r * Math.cos(ang), y: g.cy + g.r * Math.sin(ang) }; } }
+    return { x: sg.a[0] + (sg.b[0] - sg.a[0]) * u, y: sg.a[1] + (sg.b[1] - sg.a[1]) * u }; }
+  return { x: 0, y: 0 };
+}
+function fxPathSVG(p, col, live) {
+  const segs = ((p.path || {}).segs || []); if (!segs.length) return '';
+  let d = ''; segs.forEach((sg, i) => { if (!i) d += 'M' + sg.a[0] + ' ' + sg.a[1]; if (sg.t === 'arc') { const g = fxArcGeo(sg.a, sg.via, sg.b); d += g ? ' A' + g.r + ' ' + g.r + ' 0 ' + (g.sweep > Math.PI ? 1 : 0) + ' ' + (g.ccw ? 1 : 0) + ' ' + sg.b[0] + ' ' + sg.b[1] : ' L' + sg.b[0] + ' ' + sg.b[1]; } else d += ' L' + sg.b[0] + ' ' + sg.b[1]; });
+  const last = segs[segs.length - 1].b;
+  return `<path d="${d}" fill="none" stroke="${col}" stroke-width="${live ? 3 : 5}" stroke-linecap="round" stroke-linejoin="round" ${live ? 'stroke-dasharray="8 5"' : 'opacity=".8"'}/>` + (live ? '' : `<text x="${last[0] + 8}" y="${last[1] - 8}" font-size="12" font-weight="700" fill="${col}">${esc(p.name || '')} · ${esc(fxPathText(p))}</text>`);
+}
+function fxPathStart(i) {
+  const p = (P.lightPos || [])[i]; if (!p) return; if (!P.scale) { uiToast('כייל את התכנית קודם — המדידה במטרים'); return; }
+  p.path = p.path || { segs: [] }; window.__fxPath = { i, mode: 'line', pending: null }; window.__fxDetAdd = null; document.body.style.cursor = 'crosshair';
+  render(); fxPathBar(); uiToast('📐 לחץ על נקודת ההתחלה, ואז נקודה לכל קטע. "קשת": לחיצה על נקודת ביניים ואז סיום. Esc מסיים.', 7000);
+}
+function fxPathBar() {
+  let bar = document.getElementById('fxPathBar'); const F = window.__fxPath; if (!F) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'fxPathBar'; bar.style.cssText = 'position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:150;background:#1f2430;color:#fff;border-radius:10px;padding:6px 10px;display:flex;gap:6px;align-items:center;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);direction:rtl'; document.body.appendChild(bar); }
+  const p = P.lightPos[F.i], btn = (lbl, on, oc, title) => `<button style="padding:3px 10px;border-radius:7px;border:none;cursor:pointer;font-weight:700;background:${on ? '#ffb347' : '#3a4152'};color:${on ? '#1a1e28' : '#fff'}" onclick="${oc}" title="${title || ''}">${lbl}</button>`;
+  bar.innerHTML = `<b>📐 ${esc(p.name || 'טראס')}</b><span style="opacity:.8">${esc(fxPathText(p))}</span>` + btn('— ישר', F.mode === 'line', "window.__fxPath.mode='line';window.__fxPath.pending=null;fxPathBar()", 'הנקודה הבאה סוגרת קטע ישר') + btn('◠ קשת', F.mode === 'arc', "window.__fxPath.mode='arc';window.__fxPath.pending=null;fxPathBar()", 'שתי לחיצות: נקודת ביניים על הקשת, ואז הסיום') + btn('↶', false, 'fxPathUndo()', 'מחק את הקטע האחרון') + btn('⭕ סגור', false, 'fxPathClose()', 'קטע ישר חזרה לנקודת ההתחלה') + btn('✓ סיום', true, 'fxPathEnd(true)');
+}
+function fxPathClick(pt) {
+  const F = window.__fxPath; if (!F) return; const p = P.lightPos[F.i]; if (!p) { fxPathEnd(false); return; }
+  const segs = p.path.segs, last = segs.length ? segs[segs.length - 1].b : (F.start || null), q = [Math.round(pt.x), Math.round(pt.y)];
+  if (!last) { F.start = q; uiToast('✓ התחלה — עכשיו נקודה לכל קטע'); fxPathBar(); render(); return; }
+  if (F.mode === 'arc') { if (!F.pending) { F.pending = q; uiToast('נקודת ביניים נקלטה — לחץ על סוף הקשת'); return; } segs.push({ t: 'arc', a: last, via: F.pending, b: q }); F.pending = null; }
+  else segs.push({ t: 'line', a: last, b: q });
+  save(); render(); fxPathBar();
+}
+function fxPathUndo() { const F = window.__fxPath; if (!F) return; const p = P.lightPos[F.i]; if (F.pending) { F.pending = null; return; } p.path.segs.pop(); save(); render(); fxPathBar(); }
+function fxPathClose() { const F = window.__fxPath; if (!F) return; const p = P.lightPos[F.i], segs = p.path.segs; if (segs.length < 1) return; const a = segs[segs.length - 1].b, b = segs[0].a; if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 1) segs.push({ t: 'line', a, b }); fxPathEnd(true); }
+function fxPathEnd(keep) {
+  const F = window.__fxPath; if (!F) return; const p = P.lightPos[F.i]; window.__fxPath = null; document.body.style.cursor = ''; fxPathBar();
+  if (p && (!p.path || !p.path.segs.length)) delete p.path; else if (p) { p.shape = 'path'; p.size = +fxPathMeasure(p).total.toFixed(2); }
+  save(); render(); if (keep && p && p.path) uiToast('📐 ' + p.name + ': ' + fxPathText(p), 7000);
 }
 function fxDepthHTML() {
   const pos = fxPositions(), sh = curSheet(P), front = sheetIsElevation();
   const row = (p, i) => `<div style="display:flex;gap:4px;align-items:center;margin:2px 0;font-size:11.5px">
       <input value="${esc(p.name || '')}" placeholder="שם עמדה (T1 / בר קדמי)" style="flex:1;min-width:0" onchange="P.lightPos[${i}].name=this.value;save()">
       <input type="number" step="0.1" value="${p.h ?? ''}" placeholder="גובה" title="גובה הטראס במטרים (trim)" style="width:58px" onchange="P.lightPos[${i}].h=this.value===''?undefined:+this.value;save()">
-      <select style="width:62px;font-size:10.5px" title="צורת הטראס" onchange="P.lightPos[${i}].shape=this.value;save();render()"><option value="bar" ${p.shape !== 'circle' ? 'selected' : ''}>ישר</option><option value="circle" ${p.shape === 'circle' ? 'selected' : ''}>עגול</option></select>
+      <select style="width:62px;font-size:10.5px" title="צורת הטראס" onchange="P.lightPos[${i}].shape=this.value;save();render()"><option value="bar" ${p.shape !== 'circle' && p.shape !== 'path' ? 'selected' : ''}>ישר</option><option value="circle" ${p.shape === 'circle' ? 'selected' : ''}>עגול</option><option value="path" ${p.shape === 'path' ? 'selected' : ''}>מורכב</option></select>
+      ${p.shape === 'path' ? `<button style="padding:1px 6px;font-size:11px;${p.path ? 'background:#eef7f1' : ''}" title="${p.path ? fxPathText(p) + ' — לחיצה: המשך ציור' : 'צייר על התכנית: קטעים ישרים וקשתות, נמדד במטרים'}" onclick="fxPathStart(${i})">📐 ${p.path ? 'מדוד/ערוך' : 'צייר'}</button>` : ''}
       <input type="number" step="0.1" value="${p.size ?? ''}" placeholder="${p.shape === 'circle' ? 'קוטר' : 'אורך'}" title="${p.shape === 'circle' ? 'קוטר הטראס במטרים' : 'אורך הטראס במטרים'}" style="width:54px" onchange="P.lightPos[${i}].size=this.value===''?undefined:+this.value;save()">
       ${front ? `<input type="number" step="0.1" value="${p.d ?? ''}" placeholder="עומק" title="עומק במטרים מקדמת הבמה — רק אם העמדה לא מצוירת על תכנית התקרה" style="width:52px" onchange="P.lightPos[${i}].d=this.value===''?undefined:+this.value;save()">` : `<button style="padding:1px 6px;font-size:11px;${fxPosObj(p.name) ? 'background:#eef7f1' : ''}" title="${fxPosObj(p.name) ? 'מצויר על התכנית — לחיצה מעדכנת מידות ובוחרת' : 'צייר את הטראס על התכנית במידות האלה, ואז גרור אותו למקום (צמוד לקיר וכד׳)'}" onclick="fxPosPlace(${i})">${fxPosObj(p.name) ? '✓ מצויר' : '📍 הנח'}</button><button style="padding:1px 6px;font-size:11px" title="פיזור N פנסים לאורך הטראס / סביב העיגול" onclick="fxSpreadOnPos(${i})">🔆</button>`}
       <span class="muted" style="font-size:10px;white-space:nowrap">${fxNodes().filter(n => n.fx && n.fx.pos === p.name).length}</span>
-      <button style="padding:1px 5px" onclick="P.lightPos.splice(${i},1);save();render()">✕</button></div>`;
+      <button style="padding:1px 5px" onclick="P.lightPos.splice(${i},1);save();render()">✕</button></div>${p.path ? `<div class="muted" style="font-size:10px;margin:-2px 0 4px 0;padding-right:4px">📐 ${esc(fxPathText(p))}</div>` : ''}`;
   return `<details ${front ? 'open' : ''} style="margin:4px 0 8px"><summary style="cursor:pointer;font-size:12px;font-weight:700">📏 עמדות תלייה — גובה ועומק (${pos.length})</summary>
     <p class="muted" style="font-size:10.5px;margin:3px 0">${front ? 'לכל טראס/בר: גובה, צורה ומידה. על תכנית התקרה מציירים אותו במקומו (📍) — ומשם "העתק" יודע איפה כל פנס. עומק במטרים רק כתחליף כשהטראס לא מצויר.' : 'כל טראס/בר: שם, גובה, צורה (ישר/עגול) ומידה במטרים → 📍 מצייר אותו על התכנית, גוררים למקום (למשל צמוד לקיר) → 🔆 מפזר פנסים עליו, או ⤵ מהחזית.'}</p>
     ${pos.map(row).join('')}
@@ -271,7 +333,7 @@ function fxCopyToPlan() {
   const targets = (P.sheets || []).filter(sh => sh.id !== src.id && !sh.view);
   if (!targets.length) { uiToast('אין תכנית תקרה/העמדה בפרויקט — הוסף תכנית (➕ תכנית) עם מבט מלמעלה וסמן עליה קו ייחוס', 7000); return; }
   const go = tgt => {
-    const drawnAll = fxNodes().every(n => n.fx && n.fx.pos && fxPosObj(n.fx.pos));
+    const drawnAll = fxNodes().every(n => n.fx && n.fx.pos && (fxPosObj(n.fx.pos) || (fxPositions().find(q => q.name === n.fx.pos) || {}).path));
     if (!tgt.fxRef && !drawnAll) { uiToast('בתכנית "' + tgt.name + '" אין קו ייחוס ולא כל העמדות מצוירות — צייר את הטראסים (📍) או סמן קו ייחוס, וחזור', 8000); return; }
     if (!tgt.scale) { uiToast('תכנית "' + tgt.name + '" לא מכוילת — כייל אותה קודם', 6000); return; }
     const ns = fxNodes(); if (!ns.length) { uiToast('אין פנסים בחזית'); return; }
@@ -285,10 +347,10 @@ function fxCopyToPlan() {
     for (const n of ns) {
       const p = pos.find(q => q.name && n.fx && q.name === n.fx.pos), d = p && p.d != null ? p.d : (P.fxDefDepth || 0), o = p && fxPosObj(p.name);
       let X, Y;
-      if (o) {   /* העמדה מצוירת על התקרה: לאורך הטראס לפי המיקום היחסי בחזית (בגבולות הטראס בחזית), או סביב העיגול */
+      if (o || (p && p.path)) {   /* העמדה מצוירת על התקרה: לאורך הטראס לפי המיקום היחסי בחזית (בגבולות הטראס בחזית), סביב העיגול, או לאורך מסלול מורכב */
         const sib = ns.filter(q => q.fx && q.fx.pos === p.name), k = sib.indexOf(n);
         const xl = p.x1 != null ? Math.min(p.x1, p.x2) : Math.min(...sib.map(cx)), xr = p.x1 != null ? Math.max(p.x1, p.x2) : Math.max(...sib.map(cx));
-        const tt = xr > xl ? (cx(n) - xl) / (xr - xl) : 0.5, pt = fxPosPoint(o, tt, k, sib.length); X = pt.x; Y = pt.y;
+        const tt = xr > xl ? (cx(n) - xl) / (xr - xl) : 0.5, pt = p.path ? fxPathPoint(p, tt) : fxPosPoint(o, tt, k, sib.length); X = pt.x; Y = pt.y;
       } else { const t = (cx(n) - fl) / span; X = R.x1 + ux * t * len + nx * d * pxPerM; Y = R.y1 + uy * t * len + ny * d * pxPerM; }
       const old = tgt.nodes.find(o => o.fx && o.fx.from === n.id);
       const c = old || { id: uid('n'), kind: 'point', ptype: 'light', mini: true, mount: 'טראס/הנפה' };
@@ -389,10 +451,14 @@ function fxDetFromRaw(d, front) {
 }
 function fxDetSVG() {
   if (typeof FX_DET_TYPES === 'undefined') return '';   /* הרינדור הראשון רץ לפני שהקובץ הזה הסתיים (var עוד לא הוצב) */
-  const D = P.fxDet; if (!D || P.layer !== 'light' && P.layer !== 'all') return '';
+  let s0 = '';
+  if (P.layer === 'light' || P.layer === 'all') { (P.lightPos || []).forEach(p => { if (p.path) s0 += fxPathSVG(p, '#3a3f4a'); });
+    const F = window.__fxPath; if (F && P.lightPos[F.i]) { const p = P.lightPos[F.i], segs = p.path.segs, last = segs.length ? segs[segs.length - 1].b : F.start; if (last) s0 += `<circle cx="${last[0]}" cy="${last[1]}" r="6" fill="#ffb347"/>`; if (F.pending) s0 += `<circle cx="${F.pending[0]}" cy="${F.pending[1]}" r="5" fill="none" stroke="#ffb347" stroke-width="2"/>`; } }
+  const D = P.fxDet; if (!D || P.layer !== 'light' && P.layer !== 'all') return s0;
   const col = t => (FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[4])[2];
   let s = '';
   (D.positions || []).forEach(p => { s += `<line x1="${p.X1}" y1="${p.Y1}" x2="${p.X2}" y2="${p.Y2}" stroke="#3a3f4a" stroke-width="3" stroke-dasharray="10 6" opacity=".7"/><text x="${(p.X1 + p.X2) / 2}" y="${(p.Y1 + p.Y2) / 2 - 6}" text-anchor="middle" font-size="11" font-weight="700" fill="#3a3f4a">${esc(p.name || '')}</text>`; });
+  s += s0;
   (D.items || []).forEach((it, i) => { const c = col(it.type), dim = D.hl && fxDetGroupKey(it) !== D.hl; s += `<g data-fxdet="${it.id}" style="pointer-events:all;cursor:pointer${dim ? ';opacity:.25' : ''}"><title>${esc((it.model || it.type) + (it.pos ? ' · ' + it.pos : ''))} — לחיצה לתיקון/מחיקה</title><circle cx="${it.x}" cy="${it.y}" r="${D.sel === it.id ? 13 : 9}" fill="${c}" fill-opacity=".85" stroke="${D.sel === it.id ? '#ffd166' : '#fff'}" stroke-width="${D.sel === it.id ? 3 : 1.5}"/><text x="${it.x}" y="${it.y + 3.5}" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" style="pointer-events:none">${i + 1}</text></g>`; });
   return s;
 }
