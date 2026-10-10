@@ -6,8 +6,10 @@
    "קרא תכנית תאורה": תמונת תכנית של מעצב (סמלים + מקרא) → Claude (ראייה) → גופים על התכנית + שורות בהצעה.
    =================================================================================== */
 function fxLib() { return (typeof LIGHT_FIXTURES !== 'undefined' && LIGHT_FIXTURES.items) || []; }
-function fxOf(sku) { return sku ? fxLib().find(f => f.sku === sku) || null : null; }
-var FX_KINDS = { moving: '🔦 פנס חכם / Moving head', static: '💡 פנס סטטי / ווש / פאר', effect: '✨ אפקטים / עשן / לייזר', control: '🎛 לוחות ופיקוד', dmx: '🔀 בוסטרים / מפצלי DMX', dimmer: '🎚 דימרים', psu: '🔌 ספקים / דרייברים', truss: '🏗 טראסים', hoist: '⛓ מנועים ומתקני הרמה', clamp: '🗜 קלמרות ואבטחה', strip: '〰 סטריפ / פיקסל', arch: '🏛 אדריכלי', lamp: '💡 נורות', other: '📦 אחר' };
+/* פריט מה-ERP שאינו בספריית התאורה (מסכים, מקרנים, וידאו) — עטוף כפריט ספרייה בסיסי */
+function fxErpItem(key) { const it = typeof ERP_ITEMS !== 'undefined' && key ? ERP_ITEMS.find(x => x[0] === key) : null; return it ? { sku: it[0], name: it[1] || it[0], cat: 'ERP', kind: 'erp', price: +it[2] || 0, img: typeof erpImg === 'function' ? erpImg(it[0]) : '', spec: {}, pdf: null } : null; }
+function fxOf(sku) { return sku ? fxLib().find(f => f.sku === sku) || fxErpItem(sku) : null; }
+var FX_KINDS = { erp: '🧾 מה-ERP (וידאו ואחר)', moving: '🔦 פנס חכם / Moving head', static: '💡 פנס סטטי / ווש / פאר', effect: '✨ אפקטים / עשן / לייזר', control: '🎛 לוחות ופיקוד', dmx: '🔀 בוסטרים / מפצלי DMX', dimmer: '🎚 דימרים', psu: '🔌 ספקים / דרייברים', truss: '🏗 טראסים', hoist: '⛓ מנועים ומתקני הרמה', clamp: '🗜 קלמרות ואבטחה', strip: '〰 סטריפ / פיקסל', arch: '🏛 אדריכלי', lamp: '💡 נורות', other: '📦 אחר' };
 /* שורת מפרט קצרה — רק מה שנמצא בדף הנתונים / בחנות */
 function fxSpecLine(f) {
   if (!f) return ''; const s = f.spec || {}, p = [];
@@ -22,7 +24,10 @@ function fxStock(f) { const i = typeof erpInfo === 'function' ? erpInfo(f.sku) :
 /* חיפוש: כל המילים חייבות להופיע בשם / מק"ט / קטגוריה */
 function fxFind(q, kind) {
   const toks = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
-  return fxLib().filter(f => (!kind || f.kind === kind) && toks.every(t => (f.name + ' ' + f.sku + ' ' + f.cat).toLowerCase().includes(t)));
+  const own = fxLib().filter(f => (!kind || f.kind === kind) && toks.every(t => (f.name + ' ' + f.sku + ' ' + f.cat).toLowerCase().includes(t)));
+  /* מסכים / וידאו / כל השאר — מכל קטלוג ה-ERP כשיש חיפוש ואין קטגוריית תאורה */
+  if ((!kind || kind === 'screen') && toks.length && typeof ERP_ITEMS !== 'undefined') { const seen = new Set(own.map(f => f.sku)); for (const it of ERP_ITEMS) { if (seen.has(it[0]) || !it[1]) continue; const l = (it[1] + ' ' + it[0]).toLowerCase(); if (toks.every(t => l.includes(t))) { own.push(fxErpItem(it[0])); if (own.length > 120) break; } } }
+  return own;
 }
 /* התאמת כיתוב מתכנית של מעצב ("Robe Pointe", "LED PAR 64", "wash 19x40") לגוף בספרייה: ניקוד לפי מילים משותפות,
    תווי דגם (מספרים/אותיות) שווים יותר ממילים כלליות; בלי התאמה — null (לא ממציאים דגם) */
@@ -30,6 +35,7 @@ function fxFind(q, kind) {
 function fxSuggest(model, type, n) {
   const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9א-ת]+/g, ' ').trim();
   const mt = norm(model).split(' ').filter(t => t.length > 1), GEN = new Set(['LED', 'MOVING', 'HEAD', 'LIGHT', 'FIXTURE', 'W', 'WATT', 'פנס', 'חכם', 'גוף', 'תאורה', 'טראס', 'TRUSS']);
+  if (type === 'screen') return fxFind(String(model || '').replace(/\d+(\.\d+)?[x×]\d+(\.\d+)? מ׳/, '').trim() || 'מסך', 'screen').slice(0, n || 3);
   const kinds = type === 'static' ? ['static', 'effect'] : type ? [type] : null;
   const scored = fxLib().filter(f => !kinds || kinds.includes(f.kind)).map(f => { const ft = new Set(norm(f.name + ' ' + f.sku).split(' ')); let sc = 0; for (const t of mt) if (ft.has(t)) sc += GEN.has(t) ? 0.3 : /^\d+$/.test(t) ? 0.8 : /\d/.test(t) ? 2 : 1.2;   /* דגם עם אותיות+ספרות (F5, RX4508) שווה הכי הרבה; מספר לבד (300) פחות — הוא גם הספק */ return { f, sc }; });
   const byName = scored.filter(x => x.sc >= 1).sort((a, b) => b.sc - a.sc || (fxStock(b.f) > 0) - (fxStock(a.f) > 0)).map(x => x.f);
@@ -111,7 +117,7 @@ function fxPanelHTML() {
   return `<h3 class="sec">💡 תאורה מקצועית</h3>
     <p class="muted" style="font-size:11px;margin:-2px 0 6px">${ns.length} גופים בתכנית${W ? ' · ' + W.toLocaleString() + 'W' : ''}${univ ? ' · ' + univ + ' יוניברסים' : ''}${unk ? ' · <span style="color:#a32222">' + unk + ' בלי דגם</span>' : ''}${noAddr ? ' · ' + noAddr + ' בלי כתובת' : ''} · ספרייה: ${lib} פריטים מהאתר</p>
     ${P.fxInventory ? `<button style="width:100%;margin-bottom:6px" onclick="fxDetCommit(P.fxInventory.raw, P.fxInventory.view==='front')" title="הספירה האחרונה מהתכנית — ${esc((P.fxInventory.at || '').slice(0, 16).replace('T', ' '))}">📋 הספירה האחרונה (${(P.fxInventory.raw.fixtures || []).length} פנסים · ${(P.fxInventory.raw.trusses || []).length} טראסים)</button>` : ''}
-    <button style="width:100%;margin-bottom:6px;background:#534ab7;color:#fff;font-weight:700" onclick="fxReadPlot()" title="תמונת תכנית תאורה של מעצב (סמלים, מקרא, טראסים) → סימוני זיהוי על התכנית → טבלת ספירה ובחירת מוצרים → הצבה והצעה">🪄 זהה פריטים בתכנית (תמונה)</button>
+    <button style="width:100%;margin-bottom:6px;background:#534ab7;color:#fff;font-weight:700" onclick="fxReadPlot()" title="תמונת תכנית תאורה של מעצב (סמלים, מקרא, טראסים) → סימוני זיהוי על התכנית → טבלת ספירה ובחירת מוצרים → הצבה והצעה">🔎 סרוק את התכנית — פנסים, טראסים, מסכים</button>
     ${fxDetPanelHTML()}${!P.fxDet ? '<button style="width:100%;margin-bottom:6px;font-size:11.5px" onclick="fxDetAddMode()" title="בלי קריאה אוטומטית: סמן בעצמך על התכנית מה יש ואיפה, ואז טבלת ספירה">✍ סמן זיהויים ידנית</button>' : ''}
     ${fxDepthHTML()}
     <div style="display:flex;gap:6px;margin-bottom:6px"><button style="flex:1" onclick="fxPicker({})">➕ גוף מהספרייה</button><button style="flex:1" onclick="fxAutoAddress()" title="כתובות DMX לפי עמדת תלייה ומיקום, יוניברס חדש כשנגמרים 512 ערוצים">⚡ מספור DMX</button><button style="flex:1" onclick="fxPatchTable()">📋 טבלת פאץ׳</button></div>`;
@@ -179,7 +185,7 @@ function sheetSetView(v) { const sh = curSheet(P); if (!sh) return; sh.view = v 
 function fxAfterUpload() {
   if (P.layer !== 'light') return;   /* בסאונד — תמיד תכנית */
   const ov = uiModal(`<b style="font-size:14px">💡 איזה מבט זה?</b>
-    <p class="muted" style="font-size:11.5px;margin:4px 0 10px">בתאורה השרטוט הוא לרוב חזית. בחזית ציר הגובה הוא למעלה-למטה, והפנסים נקראים לפי הטראס שהם תלויים עליו.</p>
+    <p class="muted" style="font-size:11.5px;margin:4px 0 10px">אחרי הבחירה התכנית נסרקת אוטומטית: כל מה שנראה כמוצר — פנסים, טראסים, מסכים — מסומן, ואתה משייך אחר כך. בחזית ציר הגובה הוא למעלה-למטה.</p>
     <div style="display:grid;gap:6px">
       <button data-v="front" style="text-align:right;padding:9px 12px"><b>🎭 חזית</b> — מבט מהקהל אל הבמה: טראסים בגובה, פנסים תלויים</button>
       <button data-v="plan" style="text-align:right;padding:9px 12px"><b>🗺 תכנית תקרה / העמדה</b> — מבט מלמעלה</button>
@@ -187,9 +193,9 @@ function fxAfterUpload() {
       <button data-v="auto" style="text-align:right;padding:9px 12px;background:#eef">🤖 זהה אוטומטית מהתמונה</button>
     </div>`);
   ov.querySelectorAll('[data-v]').forEach(b => b.onclick = async () => { ov.remove(); const v = b.dataset.v;
-    if (v !== 'auto') { sheetSetView(v); uiToast(v === 'front' ? '🎭 חזית — "קרא תכנית תאורה" יקרא טראסים בגובה ופנסים עליהם' : v === 'side' ? '↔ חתך' : '🗺 תכנית'); return; }
+    if (v !== 'auto') { sheetSetView(v); setTimeout(fxReadPlot, 200); return; }   /* ואז סריקה אוטומטית: כל מה שהוא מוצר מסומן, השיוך אחר כך */
     const d = await fxDetectView(); if (!d) return; sheetSetView(d.view);
-    uiToast('🤖 ' + (d.view === 'front' ? '🎭 חזית' : d.view === 'side' ? '↔ חתך' : '🗺 תכנית מלמעלה') + (d.why ? ' — ' + d.why : ''), 7000); });
+    uiToast('🤖 ' + (d.view === 'front' ? '🎭 חזית' : d.view === 'side' ? '↔ חתך' : '🗺 תכנית מלמעלה') + (d.why ? ' — ' + d.why : ''), 5000); setTimeout(fxReadPlot, 200); });
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
 async function fxDetectView() {
@@ -491,19 +497,23 @@ var FX_PLOT_PROMPT = `You are reading a stage/event lighting plot (a designer's 
 Return ONLY JSON: {"fixtures":[{"x":0.0-1.0,"y":0.0-1.0,"type":"moving|static|effect|other","model":"text written for this fixture or its legend entry","label":"unit number/label if written","pos":"name of the truss/bar/position it hangs on, if written"}],
 "legend":[{"symbol":"short description of the symbol","model":"model/fixture name as written","qty":N}],
 "positions":[{"name":"truss/bar name as written","x1":0-1,"y1":0-1,"x2":0-1,"y2":0-1}],
-"trusses":[{"name":"truss/bar name as written","shape":"straight|circle|corner|other","length_m":number or null,"diameter_m":number or null,"segments":[{"length_m":number,"qty":N}],"notes":"as written"}],
+"trusses":[{"name":"truss/bar name as written or a short description","shape":"straight|circle|corner|other","x":0-1,"y":0-1,"length_m":number or null,"diameter_m":number or null,"segments":[{"length_m":number,"qty":N}],"notes":"as written"}],
+"screens":[{"x":0-1,"y":0-1,"kind":"led wall|projector|tv|other","label":"text written or short description","w_m":number or null,"h_m":number or null}],
 "counts":[{"model":"model/type name as in fixtures","type":"moving|static|effect|other","qty":N}],"notes":"anything unclear"}.
 counts = your own tally of the fixture entries per model (must equal the number of fixture entries with that model). trusses = every truss/bar as a physical object with its written size (e.g. "3m", "Ø4", "4× 2m segments"); do not invent sizes.
-x,y are relative to the whole image (0,0 = top-left, 1,1 = bottom-right), at the centre of each symbol. One entry per physical fixture (if a legend says 8× of a symbol, there should be 8 entries). Copy model names exactly as written (do not guess brands). type: moving = moving head/spot/beam/wash moving; static = PAR/wash/blinder/strobe/static LED bar; effect = haze/smoke/laser/mirror ball.`;
+x,y are relative to the whole image (0,0 = top-left, 1,1 = bottom-right), at the centre of each symbol. One entry per physical fixture (if a legend says 8× of a symbol, there should be 8 entries). Copy model names exactly as written (do not guess brands). type: moving = moving head/spot/beam/wash moving; static = PAR/wash/blinder/strobe/static LED bar; effect = haze/smoke/laser/mirror ball.
+Also list EVERY truss / rigging structure (with its centre x,y) and EVERY LED screen / video wall / projector / TV as products. Mark everything that is a product someone would have to supply.`;
 var FX_PLOT_PROMPT_FRONT = `You are reading a FRONT ELEVATION lighting plot (stage seen from the audience): trusses/bars are drawn as horizontal members at their trim heights, fixtures hang below or sit on them, the stage floor is a horizontal line near the bottom. Extract EVERY fixture symbol.
 Return ONLY JSON: {"fixtures":[{"x":0.0-1.0,"y":0.0-1.0,"type":"moving|static|effect|other","model":"text written for this fixture or its legend entry","label":"unit number if written","pos":"name of the truss/bar it hangs on, if written"}],
 "legend":[{"symbol":"short description","model":"model name as written","qty":N}],
 "positions":[{"name":"truss/bar name as written","x1":0-1,"y1":0-1,"x2":0-1,"y2":0-1,"height_m":number or null if a trim height is written}],
 "floor_y":0.0-1.0 (relative y of the stage floor line, null if none),
-"trusses":[{"name":"truss/bar name as written","shape":"straight|circle|corner|other","length_m":number or null,"diameter_m":number or null,"segments":[{"length_m":number,"qty":N}],"notes":"as written"}],
+"trusses":[{"name":"truss/bar name as written or a short description","shape":"straight|circle|corner|other","x":0-1,"y":0-1,"length_m":number or null,"diameter_m":number or null,"segments":[{"length_m":number,"qty":N}],"notes":"as written"}],
+"screens":[{"x":0-1,"y":0-1,"kind":"led wall|projector|tv|other","label":"text written or short description","w_m":number or null,"h_m":number or null}],
 "counts":[{"model":"model/type name as in fixtures","type":"moving|static|effect|other","qty":N}],"notes":"anything unclear"}.
 counts = your own tally of the fixture entries per model (must equal the number of fixture entries with that model). trusses = every truss/bar as a physical object with its written size (e.g. "3m", "Ø4", "4× 2m segments"); do not invent sizes.
-x,y are relative to the whole image (0,0 = top-left, 1,1 = bottom-right), at the centre of each symbol. One entry per physical fixture. Copy model names exactly as written (do not guess brands). type: moving = moving head/spot/beam/wash moving; static = PAR/wash/blinder/strobe/static bar; effect = haze/smoke/laser/mirror ball.`;
+x,y are relative to the whole image (0,0 = top-left, 1,1 = bottom-right), at the centre of each symbol. One entry per physical fixture. Copy model names exactly as written (do not guess brands). type: moving = moving head/spot/beam/wash moving; static = PAR/wash/blinder/strobe/static bar; effect = haze/smoke/laser/mirror ball.
+Also list EVERY truss / rigging structure (with its centre x,y) and EVERY LED screen / video wall / projector / TV as products. Mark everything that is a product someone would have to supply.`;
 async function fxReadPlot() {
   if (!P.bg) { uiToast('העלה קודם את תמונת תכנית התאורה כרקע (📁 תכנית)'); return; }
   const front = sheetView() === 'front';
@@ -518,13 +528,16 @@ async function fxReadPlot() {
   /* שלב 1: סימונים על התכנית — בודקים, מוסיפים/מתקנים, ורק אז ➡ לטבלת הספירה */
   fxDetFromRaw(d, front); save(); render(); fxDetWinOpen();
   const n = (P.fxDet.items || []).length;
-  uiToast(n ? '🔎 ' + n + ' זיהויים סומנו על התכנית — לחץ על סימון לתיקון, הוסף זיהויים בפאנל, ואז ➡ לטבלת הספירה' : 'לא זוהו גופים' + (d.notes ? ' — ' + d.notes : ''), 9000);
+  const byT = {}; (P.fxDet.items || []).forEach(it => { byT[it.type] = (byT[it.type] || 0) + 1; });
+  uiToast(n ? '🔎 ' + n + ' מוצרים סומנו: ' + Object.entries(byT).map(([t, c]) => c + ' ' + ((FX_DET_TYPES.find(x => x[0] === t) || FX_DET_TYPES[FX_DET_TYPES.length - 1])[1].slice(2))).join(' · ') + ' — תקן/שייך בטבלה, ואז ➡ לספירה' : 'לא זוהו מוצרים' + (d.notes ? ' — ' + d.notes : ''), 9000);
 }
 /* ---------- סימוני זיהוי (לפני ההצבה) ---------- */
-var FX_DET_TYPES = [['moving', '🔦 פנס חכם', '#7a2a9b'], ['static', '💡 פנס סטטי', '#d9780f'], ['effect', '✨ אפקט', '#0f8a7a'], ['truss', '🏗 טראס', '#3a3f4a'], ['other', '📦 אחר', '#2a5db0']];
+var FX_DET_TYPES = [['moving', '🔦 פנס חכם', '#7a2a9b'], ['static', '💡 פנס סטטי', '#d9780f'], ['effect', '✨ אפקט', '#0f8a7a'], ['truss', '🏗 טראס', '#3a3f4a'], ['screen', '📺 מסך / מקרן', '#0b6e8a'], ['other', '📦 אחר', '#2a5db0']];
 function fxDetFromRaw(d, front) {
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
   const items = (d.fixtures || []).map(fx => ({ id: uid('fd'), x: L + (+fx.x || 0) * W, y: T + (+fx.y || 0) * H, type: fx.type || 'other', model: fx.model || '', pos: fx.pos || '', label: fx.label || '' }));
+  (d.trusses || []).forEach(t => { if (t.x == null || t.y == null) return; items.push({ id: uid('fd'), x: L + (+t.x) * W, y: T + (+t.y) * H, type: 'truss', model: (t.name || 'טראס') + (t.diameter_m ? ' Ø' + t.diameter_m : t.length_m ? ' ' + t.length_m + ' מ׳' : ''), pos: t.name || '', label: '' }); });
+  (d.screens || []).forEach(sc => { if (sc.x == null || sc.y == null) return; items.push({ id: uid('fd'), x: L + (+sc.x) * W, y: T + (+sc.y) * H, type: 'screen', model: (sc.label || sc.kind || 'מסך') + (sc.w_m && sc.h_m ? ' ' + sc.w_m + '×' + sc.h_m + ' מ׳' : ''), pos: '', label: '' }); });
   P.fxDet = { front: !!front, legend: d.legend || [], positions: (d.positions || []).map(p => ({ ...p, X1: L + p.x1 * W, Y1: T + p.y1 * H, X2: L + p.x2 * W, Y2: T + p.y2 * H })), trusses: d.trusses || [], counts: d.counts || [], floor_y: d.floor_y, notes: d.notes || '', items };
 }
 function fxDetSVG() {
