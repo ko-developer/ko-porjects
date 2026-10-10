@@ -309,6 +309,83 @@ function fxPathEnd(keep) {
   if (p && (!p.path || !p.path.segs.length)) delete p.path; else if (p) { p.shape = 'path'; p.size = +fxPathMeasure(p).total.toFixed(2); }
   save(); render(); if (keep && p && p.path) uiToast('📐 ' + p.name + ': ' + fxPathText(p), 7000);
 }
+/* ---------- פירוק טראס לחלקים: קטעים ישרים באורכים סטנדרטיים, פינות (קוביות), קטעי מעגל, סטי חיבור ----------
+   מהמסלול המצויר (או מצורה ישרה/עגולה): ריצות ישרות בין פינות → פירוק לאורכי הקטלוג (3/2.5/2/1.5/1/0.5…); צומת בין שני
+   קטעים ישרים בסטייה > 10° → פינה (90° = קוביה, אחרת זווית מתכווננת); קשת → קטעי רבע מעגל בקוטר הקרוב מהקטלוג; וסט חיבור לכל צומת. */
+var FX_TRUSS_FAM = { G34: { n: 'טראס 30 (G34)', rx: /G ?34|30\s*[x×]\s*30|טראס 30\b/i }, G14: { n: 'פיקולו 10 (G14)', rx: /G ?14|פיקולו|10\s*[x×]\s*10/i }, G44: { n: 'טראס 40 (G44)', rx: /G ?44|40\s*[x×]\s*40|טראס 40\b/i } };
+function fxTrussFind(part, fam, color) {
+  const F = FX_TRUSS_FAM[fam] || FX_TRUSS_FAM.G34, lib = fxLib().filter(f => f.kind === 'truss' || /טראס|truss|ביצה|SPIGOT/i.test(f.name));
+  const okColor = f => color === 'black' ? /שחור|BLACK/i.test(f.name) : !/שחור|BLACK/i.test(f.name);
+  const num = v => String(v).replace(/\.0$/, '').replace('.', '\\.');
+  let rx;
+  if (part.t === 'straight') rx = new RegExp('(?:באורך\\s*' + num(part.len) + '|(?:^|[^\\d.])' + num(part.len) + '\\s*(?:M\\b|מטר|מ\\b)|' + num(part.len) + '\\s*[x×]\\s*' + num(part.len) + ')', 'i');
+  /* משפחה: G14 = רק פיקולו; G34 (ברירת מחדל) = כל מה שאינו פיקולו/40 — כי קוביות ומעגלים לא תמיד מציינים G34 בשם */
+  const famOk = f => fam === 'G14' ? /פיקולו|10\s*[x×]\s*10|G ?14/i.test(f.name) : fam === 'G44' ? F.rx.test(f.name) : !/פיקולו|10\s*[x×]\s*10|G ?14|G ?44|40\s*[x×]\s*40|טראס 40\b/i.test(f.name);
+  const base = lib.filter(f => famOk(f) && !/סולם|ladder|שרוול|sleeve|בסיס|base|קלמר|סוויבל|מתקן תליה|ציר אחיזה|רגל תמיכה|טופ לאחיזת|ספייסר|spacer|עמוד/i.test(f.name));
+  let c = [];
+  if (part.t === 'straight') c = base.filter(f => rx.test(f.name) && !/עגול|circle|קוביה|פינה|עמוד/i.test(f.name));
+  else if (part.t === 'corner') c = base.filter(f => /קוביה|פינה|corner|זווית/i.test(f.name) && (part.deg === 90 ? !/מתכוונ|flexible/i.test(f.name) : true));
+  else if (part.t === 'circle') c = base.filter(f => /עגול|circle/i.test(f.name) && new RegExp('קוטר\\s*' + num(part.dia) + '\\s*(?:M|מטר|מ)|DIA\\.?-?' + num(part.dia) + 'M|\\b' + num(part.dia) + 'M\\b', 'i').test(f.name));
+  else if (part.t === 'conn') c = lib.filter(f => /ביצה.*פינ|half connector|SPIGOT/i.test(f.name) && !/קלמר|סוויבל|מתקן|פטיש|hammer/i.test(f.name) && (fam === 'G14' ? /פיקולו|10\s*[x×]/i.test(f.name) : !/פיקולו|10\s*[x×]\s*10/i.test(f.name)));
+  c.sort((a, b) => (okColor(b) - okColor(a)) || ((fxStock(b) > 0) - (fxStock(a) > 0)) || (fxPrice(a) - fxPrice(b)));
+  return c.slice(0, 5);
+}
+function fxTrussParts(p, fam) {
+  const m = P.scale || 0, LENS = fam === 'G14' ? [3, 2.5, 2, 1, 0.5, 0.2] : fam === 'G44' ? [3, 2, 1] : [3, 2.5, 2, 1.5, 1, 0.5, 0.2, 0.1], DIAS = fam === 'G14' ? [2] : [2, 3, 4];
+  const runs = [], corners = [], arcs = []; let joints = 0;
+  if (p.path && p.path.segs.length) {
+    const segs = p.path.segs, closed = segs.length > 1 && Math.hypot(segs[0].a[0] - segs[segs.length - 1].b[0], segs[0].a[1] - segs[segs.length - 1].b[1]) < 2;
+    let run = 0;
+    const dirOf = (sg, end) => { if (sg.t === 'arc') { const g = fxArcGeo(sg.a, sg.via, sg.b); if (g) { const ang = end ? Math.atan2(sg.b[1] - g.cy, sg.b[0] - g.cx) : Math.atan2(sg.a[1] - g.cy, sg.a[0] - g.cx), s = g.ccw ? 1 : -1; return [-Math.sin(ang) * s, Math.cos(ang) * s]; } } const d = [sg.b[0] - sg.a[0], sg.b[1] - sg.a[1]], L = Math.hypot(d[0], d[1]) || 1; return [d[0] / L, d[1] / L]; };
+    segs.forEach((sg, i) => {
+      if (sg.t === 'arc') { if (run > 0) { runs.push(run); run = 0; } const g = fxArcGeo(sg.a, sg.via, sg.b); if (g) arcs.push({ dia: +(2 * g.r * m).toFixed(2), deg: g.sweep * 180 / Math.PI }); }
+      else run += fxSegLen(sg) * m;
+      const nx = segs[i + 1] || (closed ? segs[0] : null);
+      if (nx) { const d1 = dirOf(sg, true), d2 = dirOf(nx, false), ang = Math.acos(Math.max(-1, Math.min(1, d1[0] * d2[0] + d1[1] * d2[1]))) * 180 / Math.PI;
+        if (sg.t === 'line' && nx.t === 'line' && ang > 10) { corners.push(Math.round(ang)); if (run > 0) { runs.push(run); run = 0; } } }
+    });
+    if (run > 0) runs.push(run);
+  } else if (p.shape === 'circle') arcs.push({ dia: +(+p.size || 4).toFixed(2), deg: 360 });
+  else if (p.size) runs.push(+p.size);
+  /* פירוק ריצה ישרה לאורכי הקטלוג — מהארוך לקצר; שארית קטנה מהחתיכה הקטנה ביותר מצוינת */
+  const pieces = {}; let rest = 0;
+  for (let L of runs) { let left = Math.round(L * 100) / 100; for (const l of LENS) { while (left >= l - 0.005) { pieces[l] = (pieces[l] || 0) + 1; left = Math.round((left - l) * 100) / 100; joints++; } } if (left > 0.02) rest += left; }
+  const circ = {}; const dias = []; for (const a of arcs) { const dia = DIAS.reduce((b, d) => Math.abs(d - a.dia) < Math.abs(b - a.dia) ? d : b, DIAS[0]); const q = Math.max(1, Math.ceil(a.deg / 90 - 0.02)); circ[dia] = (circ[dia] || 0) + q; joints += q; if (Math.abs(dia - a.dia) > 0.3) dias.push(a.dia); }
+  const cnr = {}; corners.forEach(d => { const k = Math.abs(d - 90) <= 12 ? 90 : d; cnr[k] = (cnr[k] || 0) + 1; joints++; });
+  const parts = [];
+  Object.entries(pieces).sort((a, b) => +b[0] - +a[0]).forEach(([l, q]) => parts.push({ t: 'straight', len: +l, qty: q, label: 'טראס ישר ' + l + ' מ׳' }));
+  Object.entries(cnr).forEach(([d, q]) => parts.push({ t: 'corner', deg: +d, qty: q, label: +d === 90 ? 'פינה 90° (קוביה)' : 'פינה ' + d + '° (זווית מתכווננת / קוביה)' }));
+  Object.entries(circ).forEach(([d, q]) => parts.push({ t: 'circle', dia: +d, qty: q, label: 'קטע מעגל Ø' + d + ' (רבע)' + (q % 4 === 0 ? ' = ' + (q / 4) + ' מעגל' : '') }));
+  if (joints) parts.push({ t: 'conn', qty: joints, label: 'סט חיבור (ביצים + פינים) לצומת', opt: true });
+  return { parts, rest: +rest.toFixed(2), runs, corners, arcs, nonStdDia: dias };
+}
+function fxTrussPartsDlg(i) {
+  const p = (P.lightPos || [])[i]; if (!p) return; if (!P.scale) { uiToast('כייל את התכנית קודם'); return; }
+  let fam = p.fam || 'G34', color = p.color || 'silver';
+  const ov = uiModal('<div data-b></div>'); ov.firstElementChild.style.maxWidth = '760px'; ov.firstElementChild.style.width = '95%';
+  const paint = () => {
+    const R = fxTrussParts(p, fam); const rows = R.parts.map(pt => ({ ...pt, cands: fxTrussFind(pt, fam, color) })); rows.forEach(r => { r.sku = r.cands[0] ? r.cands[0].sku : null; });
+    const tot = () => rows.reduce((s2, r) => s2 + (r.on === false ? 0 : (r.sku ? fxPrice(fxOf(r.sku)) : 0) * r.qty), 0);
+    ov.querySelector('[data-b]').innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1;font-size:15px">🧾 חלקי הטראס — ${esc(p.name || '')}</b>
+        <select data-fam style="font-size:11px">${Object.entries(FX_TRUSS_FAM).map(([k, v]) => `<option value="${k}" ${fam === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select>
+        <select data-col style="font-size:11px"><option value="silver" ${color === 'silver' ? 'selected' : ''}>כסף</option><option value="black" ${color === 'black' ? 'selected' : ''}>שחור</option></select><button data-x>✕</button></div>
+      <p class="muted" style="font-size:11px;margin:0 0 6px">${esc(p.path ? fxPathText(p) : (p.shape === 'circle' ? 'עגול Ø' + p.size : 'ישר ' + p.size + ' מ׳'))}${R.corners.length ? ' · פינות: ' + R.corners.map(d => d + '°').join(', ') : ''}${R.rest ? ' · <span style="color:#c96a13">שארית ' + R.rest + ' מ׳ שאין לה חתיכה — להאריך/לקצר או ספייסר</span>' : ''}${R.nonStdDia.length ? ' · <span style="color:#c96a13">קוטר לא סטנדרטי ' + R.nonStdDia.map(d => 'Ø' + d).join(', ') + ' — הוצע הקרוב</span>' : ''}</p>
+      <table style="width:100%;font-size:11.5px;border-collapse:collapse"><thead><tr style="background:#f3f1ec"><th></th><th style="text-align:right">חלק</th><th>כמות</th><th style="text-align:right">פריט מהאתר</th><th>₪</th></tr></thead><tbody>
+      ${rows.map((r, k) => `<tr data-k="${k}" style="border-bottom:1px solid #eee"><td><input type="checkbox" data-on ${r.opt ? '' : 'checked'} style="width:auto"></td><td style="text-align:right">${esc(r.label)}</td><td><input type="number" min="0" data-q value="${r.qty}" style="width:48px"></td>
+        <td style="text-align:right"><select data-sel style="max-width:300px;font-size:11px"><option value="">— אין התאמה / בחר —</option>${r.cands.map(f => `<option value="${esc(f.sku)}">${esc(f.name.slice(0, 60))} · ₪${Math.round(fxPrice(f)).toLocaleString()}${fxStock(f) > 0 ? '' : ' · אזל'}</option>`).join('')}</select> <button data-pick style="padding:1px 5px;font-size:11px">🔍</button></td><td data-pr>${r.sku ? Math.round(fxPrice(fxOf(r.sku)) * r.qty).toLocaleString() : ''}</td></tr>`).join('')}</tbody></table>
+      <p style="font-size:12.5px;margin:8px 0 4px"><b>סה״כ: ₪<span data-tot>${Math.round(tot()).toLocaleString()}</span></b></p>
+      <div style="display:flex;gap:6px"><button class="primary" data-add style="flex:2">➕ הוסף את החלקים להצעה</button><button data-x2 style="flex:1">סגור</button></div>`;
+    const B = ov.querySelector('[data-b]');
+    B.querySelector('[data-fam]').onchange = e => { fam = e.target.value; p.fam = fam; paint(); }; B.querySelector('[data-col]').onchange = e => { color = e.target.value; p.color = color; paint(); };
+    const upd = () => { B.querySelectorAll('tr[data-k]').forEach(tr => { const r = rows[+tr.dataset.k]; r.on = tr.querySelector('[data-on]').checked; r.qty = +tr.querySelector('[data-q]').value || 0; r.sku = tr.querySelector('[data-sel]').value || null; tr.querySelector('[data-pr]').textContent = r.sku ? Math.round(fxPrice(fxOf(r.sku)) * r.qty).toLocaleString() : ''; }); B.querySelector('[data-tot]').textContent = Math.round(tot()).toLocaleString(); };
+    B.querySelectorAll('tr[data-k]').forEach(tr => { const r = rows[+tr.dataset.k]; const sel = tr.querySelector('[data-sel]'); if (r.sku) sel.value = r.sku; sel.onchange = upd; tr.querySelector('[data-q]').oninput = upd; tr.querySelector('[data-on]').onchange = upd;
+      tr.querySelector('[data-pick]').onclick = () => fxPicker({ kind: 'truss', onPick: f => { if (!f) return; if (![...sel.options].some(o => o.value === f.sku)) { const o = document.createElement('option'); o.value = f.sku; o.textContent = f.name.slice(0, 60) + ' · ₪' + Math.round(fxPrice(f)).toLocaleString(); sel.appendChild(o); } sel.value = f.sku; upd(); } }); });
+    B.querySelector('[data-x]').onclick = B.querySelector('[data-x2]').onclick = () => ov.remove();
+    B.querySelector('[data-add]').onclick = () => { upd(); let n = 0; rows.forEach(r => { if (r.on === false || !r.sku || !r.qty) return; const f = fxOf(r.sku); let it = impItems.find(x => x.key === r.sku && x.src === 'טראס'); if (!it) { it = { on: true, qty: 0, name: f.name, key: f.sku, src: 'טראס', dest: 'acc', cat: 'lighting', u: 1, iid: uid('i') }; if (typeof autoPrice === 'function') autoPrice(it); impItems.push(it); } it.qty = (+it.qty || 0) + r.qty; n++; }); ov.remove(); save(); render(); uiToast('➕ ' + n + ' שורות טראס נוספו להצעה'); };
+  };
+  paint();
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
 function fxDepthHTML() {
   const pos = fxPositions(), sh = curSheet(P), front = sheetIsElevation();
   const row = (p, i) => `<div style="display:flex;gap:4px;align-items:center;margin:2px 0;font-size:11.5px">
@@ -318,6 +395,7 @@ function fxDepthHTML() {
       ${p.shape === 'path' ? `<button style="padding:1px 6px;font-size:11px;${p.path ? 'background:#eef7f1' : ''}" title="${p.path ? fxPathText(p) + ' — לחיצה: המשך ציור' : 'צייר על התכנית: קטעים ישרים וקשתות, נמדד במטרים'}" onclick="fxPathStart(${i})">📐 ${p.path ? 'מדוד/ערוך' : 'צייר'}</button>` : ''}
       <input type="number" step="0.1" value="${p.size ?? ''}" placeholder="${p.shape === 'circle' ? 'קוטר' : 'אורך'}" title="${p.shape === 'circle' ? 'קוטר הטראס במטרים' : 'אורך הטראס במטרים'}" style="width:54px" onchange="P.lightPos[${i}].size=this.value===''?undefined:+this.value;save()">
       ${front ? `<input type="number" step="0.1" value="${p.d ?? ''}" placeholder="עומק" title="עומק במטרים מקדמת הבמה — רק אם העמדה לא מצוירת על תכנית התקרה" style="width:52px" onchange="P.lightPos[${i}].d=this.value===''?undefined:+this.value;save()">` : `<button style="padding:1px 6px;font-size:11px;${fxPosObj(p.name) ? 'background:#eef7f1' : ''}" title="${fxPosObj(p.name) ? 'מצויר על התכנית — לחיצה מעדכנת מידות ובוחרת' : 'צייר את הטראס על התכנית במידות האלה, ואז גרור אותו למקום (צמוד לקיר וכד׳)'}" onclick="fxPosPlace(${i})">${fxPosObj(p.name) ? '✓ מצויר' : '📍 הנח'}</button><button style="padding:1px 6px;font-size:11px" title="פיזור N פנסים לאורך הטראס / סביב העיגול" onclick="fxSpreadOnPos(${i})">🔆</button>`}
+      ${(p.path || p.size) && P.scale ? `<button style="padding:1px 6px;font-size:11px" title="פירוק לחלקים: קטעים ישרים, פינות, קטעי מעגל, חיבורים — ופריטים מהאתר להצעה" onclick="fxTrussPartsDlg(${i})">🧾</button>` : ''}
       <span class="muted" style="font-size:10px;white-space:nowrap">${fxNodes().filter(n => n.fx && n.fx.pos === p.name).length}</span>
       <button style="padding:1px 5px" onclick="P.lightPos.splice(${i},1);save();render()">✕</button></div>${p.path ? `<div class="muted" style="font-size:10px;margin:-2px 0 4px 0;padding-right:4px">📐 ${esc(fxPathText(p))}</div>` : ''}`;
   return `<details ${front ? 'open' : ''} style="margin:4px 0 8px"><summary style="cursor:pointer;font-size:12px;font-weight:700">📏 עמדות תלייה — גובה ועומק (${pos.length})</summary>
