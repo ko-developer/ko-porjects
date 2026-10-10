@@ -10547,7 +10547,7 @@ document.addEventListener('pointerdown', e => {
     return;
   }
   /* סימוני זיהוי של תאורה על התכנית: לחיצה על סימון = עריכה; במצב הוספה — כל לחיצה על התכנית מוסיפה סימון */
-  { const dm = e.target.closest('[data-fxdet]'); if (dm && typeof fxDetEdit === 'function') { fxDetEdit(dm.dataset.fxdet); return; } }
+  { const dm = e.target.closest('[data-fxdet]'); if (dm && typeof fxDetPointer === 'function') { fxDetPointer(e, dm.dataset.fxdet); return; } }   /* גרירה = הזזת הסימון · לחיצה = עריכה */
   if (window.__fxDetAdd && e.target.closest('#canvasWrap') && typeof fxDetAddAt === 'function') { fxDetAddAt(canvasPt(e)); return; }
   if (window.__fxPath && e.target.closest('#canvasWrap') && typeof fxPathClick === 'function') { fxPathClick(canvasPt(e)); e.preventDefault(); return; }   /* ציור טראס מורכב (ישר + קשתות) */
   /* בוחר שתי נקודות כללי (קו ייחוס לעומק בתאורה וכד׳): window.__pick2 = { pts: [], done(pts) } */

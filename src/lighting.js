@@ -566,6 +566,15 @@ function fxDetAddAt(pt) {
   P.fxDet.items.push({ id: uid('fd'), x: pt.x, y: pt.y, type: A.type, model: A.model || '', sku: A.sku || null, pos: A.pos || '', label: '' });
   save(); render(); uiToast('➕ ' + (A.model || A.type) + ' — ' + P.fxDet.items.length + ' זיהויים · Esc לסיום', 2500);
 }
+/* לחיצה על סימון: גרירה מזיזה אותו (הסימון שנזרק לא במקום — גוררים למקום הנכון); שחרור בלי תזוזה = עריכה */
+function fxDetPointer(e, id) {
+  const D = P.fxDet, it = D && D.items.find(x => x.id === id); if (!it || e.button) return;
+  e.preventDefault(); e.stopPropagation();
+  const p0 = canvasPt(e), ox = it.x, oy = it.y, el = document.querySelector('[data-fxdet="' + id + '"]'); let moved = false;
+  const mv = ev => { const p = canvasPt(ev), dx = p.x - p0.x, dy = p.y - p0.y; if (!moved && Math.hypot(dx, dy) > 3) { moved = true; document.body.style.cursor = 'grabbing'; } if (moved) { it.x = Math.round(ox + dx); it.y = Math.round(oy + dy); if (el) el.setAttribute('transform', 'translate(' + (it.x - ox) + ' ' + (it.y - oy) + ')'); } };
+  const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); document.body.style.cursor = window.__fxDetAdd ? 'crosshair' : ''; if (moved) { save(); render(); } else fxDetEdit(id); };
+  document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+}
 function fxDetEdit(id) {
   const D = P.fxDet; const it = D && D.items.find(x => x.id === id); if (!it) return;
   const ov = uiModal(`<b style="font-size:14px">🔎 זיהוי #${D.items.indexOf(it) + 1}</b>
