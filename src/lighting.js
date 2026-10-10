@@ -110,7 +110,7 @@ function fxIcon(n, mc) {
 /* ---------- פאנל התאורה (הגדרות תכנית) ---------- */
 function fxPanelHTML() {
   const ns = fxNodes(), lib = fxLib().length;
-  if (P.layer !== 'light' && P.layer !== 'all' && !ns.length) return '';
+  if (P.layer !== 'light' && P.layer !== 'all' && !ns.length) return P.bg ? `<div style="display:flex;gap:6px;align-items:center;margin:0 0 8px;padding:6px 8px;border:1px dashed #d49a2a;border-radius:9px;background:#fffaf0"><span style="font-size:11.5px;flex:1">💡 זו תכנית תאורה?</span><button style="font-size:11.5px;background:#534ab7;color:#fff;font-weight:700" onclick="setLayer('light');setTimeout(fxReadPlot,300)" title="מעבר לשכבת תאורה וסריקה: פנסים, טראסים, מסכים">🔎 סרוק פריטים</button></div>` : '';
   const W = ns.reduce((s, n) => { const f = fxOf(n.fx && n.fx.sku); return s + (f && f.spec && f.spec.watt || 0); }, 0);
   const unk = ns.filter(n => !(n.fx && n.fx.sku)).length, noAddr = ns.filter(n => n.fx && n.fx.sku && !n.fx.a).length;
   const univ = new Set(ns.filter(n => n.fx && n.fx.a).map(n => n.fx.u || 1)).size;
@@ -183,7 +183,15 @@ function sheetView() { const sh = typeof curSheet === 'function' ? curSheet(P) :
 function sheetIsElevation() { return sheetView() === 'front' || sheetView() === 'side'; }
 function sheetSetView(v) { const sh = curSheet(P); if (!sh) return; sh.view = v && v !== 'plan' ? v : undefined; save(); render(); }
 function fxAfterUpload() {
-  if (P.layer !== 'light') return;   /* בסאונד — תמיד תכנית */
+  if (P.layer !== 'light') {   /* בשכבת סאונד: שאלה קצרה — אולי זו תכנית תאורה (חזית / צילום במה) שצריך לסרוק */
+    const ov = uiModal(`<b style="font-size:14px">מה הועלה?</b>
+      <div style="display:grid;gap:6px;margin:10px 0">
+        <button data-v="light" style="text-align:right;padding:9px 12px;background:#fff4e0"><b>💡 תכנית / צילום תאורה</b> — מעבר לשכבת תאורה, בחירת מבט וסריקה אוטומטית של פנסים, טראסים ומסכים</button>
+        <button data-v="audio" style="text-align:right;padding:9px 12px"><b>🔊 תכנית העמדה לסאונד</b> — כרגיל</button></div>`);
+    ov.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { ov.remove(); if (b.dataset.v === 'light') { setLayer('light'); setTimeout(fxAfterUpload, 150); } });
+    ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+    return;
+  }
   const ov = uiModal(`<b style="font-size:14px">💡 איזה מבט זה?</b>
     <p class="muted" style="font-size:11.5px;margin:4px 0 10px">אחרי הבחירה התכנית נסרקת אוטומטית: כל מה שנראה כמוצר — פנסים, טראסים, מסכים — מסומן, ואתה משייך אחר כך. בחזית ציר הגובה הוא למעלה-למטה.</p>
     <div style="display:grid;gap:6px">

@@ -2781,7 +2781,7 @@ function setLayer(l) { P.layer = l; if (l === 'light') P.disc = 'light'; else if
 function layerBarHTML() {
   const L = P.layer || 'audio', cnt = { audio: 0, light: 0, video: 0 };
   (P.nodes || []).forEach(n => { if (n.hidden) return; const l = nodeLayer(n); if (cnt[l] != null) cnt[l]++; });
-  return LAYERS.map(([k, lbl]) => `<button onclick="setLayer('${k}')" style="padding:4px 9px;border-radius:7px;font-size:12px;border:1px solid ${L === k ? '#ffb347' : '#3a4152'};background:${L === k ? '#ffb347' : '#2a303d'};color:${L === k ? '#1a1e28' : '#dfe3ea'};font-weight:${L === k ? 800 : 500}" title="${k === 'all' ? 'כל השכבות יחד' : 'שכבת ' + lbl.slice(2) + ' — רק המוקדים והכבלים שלה'}">${lbl}${cnt[k] ? ' <span style="opacity:.8;font-size:10.5px">' + cnt[k] + '</span>' : ''}</button>`).join('');
+  return (L === 'light' && P.bg && typeof fxReadPlot === 'function' ? `<button onclick="fxReadPlot()" style="padding:4px 9px;border-radius:7px;font-size:12px;border:1px solid #534ab7;background:#534ab7;color:#fff;font-weight:700" title="סריקת התכנית: פנסים, טראסים, מסכים — סימון על התכנית ואז שיוך">🔎 סרוק</button>` : '') + LAYERS.map(([k, lbl]) => `<button onclick="setLayer('${k}')" style="padding:4px 9px;border-radius:7px;font-size:12px;border:1px solid ${L === k ? '#ffb347' : '#3a4152'};background:${L === k ? '#ffb347' : '#2a303d'};color:${L === k ? '#1a1e28' : '#dfe3ea'};font-weight:${L === k ? 800 : 500}" title="${k === 'all' ? 'כל השכבות יחד' : 'שכבת ' + lbl.slice(2) + ' — רק המוקדים והכבלים שלה'}">${lbl}${cnt[k] ? ' <span style="opacity:.8;font-size:10.5px">' + cnt[k] + '</span>' : ''}</button>`).join('');
 }
 function cableVisible(c) {
   if (window.__rpOnly && !window.__rpOnly.has(c.id)) return false;
