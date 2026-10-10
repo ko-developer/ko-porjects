@@ -530,7 +530,7 @@ async function fxReadPlot() {
   let j;
   try {
     const mt = /^data:image\/png/i.test(P.bg) ? 'image/png' : 'image/jpeg';
-    j = await claudeMsg([{ role: 'user', content: [{ type: 'text', text: front ? FX_PLOT_PROMPT_FRONT : FX_PLOT_PROMPT }, { type: 'image', source: { type: 'base64', media_type: mt, data: P.bg.split(',')[1] } }, { type: 'text', text: 'Return the JSON only.' }] }], 8000);
+    j = await claudeMsg([{ role: 'user', content: [{ type: 'text', text: (front ? FX_PLOT_PROMPT_FRONT : FX_PLOT_PROMPT) + fxTrainHints(front) }, { type: 'image', source: { type: 'base64', media_type: mt, data: P.bg.split(',')[1] } }, { type: 'text', text: 'Return the JSON only.' }] }], 8000);
   } catch (e) { if (e.message === 'NOKEY') { uiToast('אין מפתח API — צריך ANTHROPIC_API_KEY בשרת'); return; } uiToast('הקריאה נכשלה: ' + e.message, 7000); return; }
   let d; try { d = claudeJson(j); } catch (e) { uiToast('תשובה לא תקינה מה-AI'); console.warn(j); return; }
   /* שלב 1: סימונים על התכנית — בודקים, מוסיפים/מתקנים, ורק אז ➡ לטבלת הספירה */
@@ -546,7 +546,8 @@ function fxDetFromRaw(d, front) {
   const items = (d.fixtures || []).map(fx => ({ id: uid('fd'), x: L + (+fx.x || 0) * W, y: T + (+fx.y || 0) * H, type: fx.type || 'other', model: fx.model || '', pos: fx.pos || '', label: fx.label || '' }));
   (d.trusses || []).forEach(t => { if (t.x == null || t.y == null) return; items.push({ id: uid('fd'), x: L + (+t.x) * W, y: T + (+t.y) * H, type: 'truss', model: (t.name || 'טראס') + (t.diameter_m ? ' Ø' + t.diameter_m : t.length_m ? ' ' + t.length_m + ' מ׳' : ''), pos: t.name || '', label: '' }); });
   (d.screens || []).forEach(sc => { if (sc.x == null || sc.y == null) return; items.push({ id: uid('fd'), x: L + (+sc.x) * W, y: T + (+sc.y) * H, type: 'screen', model: (sc.label || sc.kind || 'מסך') + (sc.w_m && sc.h_m ? ' ' + sc.w_m + '×' + sc.h_m + ' מ׳' : ''), pos: '', label: '' }); });
-  P.fxDet = { front: !!front, legend: d.legend || [], positions: (d.positions || []).map(p => ({ ...p, X1: L + p.x1 * W, Y1: T + p.y1 * H, X2: L + p.x2 * W, Y2: T + p.y2 * H })), trusses: d.trusses || [], counts: d.counts || [], floor_y: d.floor_y, notes: d.notes || '', items };
+  items.forEach(it => { it.src = 'ai'; });
+  P.fxDet = { ai: items.map(it => ({ x: +((it.x - L) / W).toFixed(4), y: +((it.y - T) / H).toFixed(4), type: it.type, model: it.model })), neg: [], front: !!front, legend: d.legend || [], positions: (d.positions || []).map(p => ({ ...p, X1: L + p.x1 * W, Y1: T + p.y1 * H, X2: L + p.x2 * W, Y2: T + p.y2 * H })), trusses: d.trusses || [], counts: d.counts || [], floor_y: d.floor_y, notes: d.notes || '', items };
 }
 function fxDetSVG() {
   if (typeof FX_DET_TYPES === 'undefined') return '';   /* הרינדור הראשון רץ לפני שהקובץ הזה הסתיים (var עוד לא הוצב) */
@@ -563,7 +564,7 @@ function fxDetSVG() {
 }
 function fxDetAddAt(pt) {
   const A = window.__fxDetAdd; if (!A || !P.fxDet) return;
-  P.fxDet.items.push({ id: uid('fd'), x: pt.x, y: pt.y, type: A.type, model: A.model || '', sku: A.sku || null, pos: A.pos || '', label: '' });
+  P.fxDet.items.push({ id: uid('fd'), x: pt.x, y: pt.y, type: A.type, model: A.model || '', sku: A.sku || null, pos: A.pos || '', label: '', src: 'me' });
   save(); render(); uiToast('➕ ' + (A.model || A.type) + ' — ' + P.fxDet.items.length + ' זיהויים · Esc לסיום', 2500);
 }
 /* לחיצה על סימון: גרירה מזיזה אותו (הסימון שנזרק לא במקום — גוררים למקום הנכון); שחרור בלי תזוזה = עריכה */
@@ -588,7 +589,7 @@ function fxDetEdit(id) {
   const apply = all => { const t = ov.querySelector('[data-t]').value, m = ov.querySelector('[data-m]').value.trim(), p = ov.querySelector('[data-p]').value.trim(), m0 = it.model;
     (all ? D.items.filter(x => (x.model || '') === (m0 || '')) : [it]).forEach(x => { x.type = t; x.model = m; x.sku = sku; if (!all) x.pos = p; }); ov.remove(); save(); render(); };
   ov.querySelector('[data-ok]').onclick = () => apply(false); ov.querySelector('[data-same]').onclick = () => apply(true);
-  ov.querySelector('[data-del]').onclick = () => { D.items = D.items.filter(x => x !== it); ov.remove(); save(); render(); };
+  ov.querySelector('[data-del]').onclick = () => { fxDetNeg(it); D.items = D.items.filter(x => x !== it); ov.remove(); save(); render(); };
   ov.querySelector('[data-x]').onclick = () => ov.remove();
 }
 function fxDetPanelHTML() {
@@ -630,14 +631,15 @@ async function fxDetFindSimilar(type, model) {
     const inTile = all.filter(it => { const [ux, uy] = rel(it); return ux >= tl.x0 && ux <= tl.x0 + tl.w && uy >= tl.y0 && uy <= tl.y0 + tl.h; }).map(it => { const [ux, uy] = rel(it); return [+((ux - tl.x0) / tl.w).toFixed(3), +((uy - tl.y0) / tl.h).toFixed(3)]; });
     let j; try { calls++;
       j = await claudeMsg([{ role: 'user', content: [
-        { type: 'text', text: 'Image 1 is part of a lighting drawing or a venue/stage photo. The next ' + crops.length + ' image(s) are zoomed crops of EXAMPLES of the object "' + name + '" (' + type + ' lighting fixture). In image 1 this object is already marked at these relative positions (x,y; 0,0 = top-left of image 1, 1,1 = bottom-right): ' + JSON.stringify(inTile) + '. Find ALL OTHER occurrences of the same kind of object in image 1 — including small, partially hidden, differently angled, or lit/unlit ones, and the fixture heads at the origin of light beams. Return ONLY JSON {"found":[{"x":0-1,"y":0-1,"confidence":0-1}],"notes":"short"}. Exclude anything within 0.03 of a listed position. Empty list if none.' },
+        { type: 'text', text: 'Image 1 is part of a lighting drawing or a venue/stage photo. The next ' + crops.length + ' image(s) are zoomed crops of EXAMPLES of the object "' + name + '" (' + type + ' lighting fixture). In image 1 this object is already marked at these relative positions (x,y; 0,0 = top-left of image 1, 1,1 = bottom-right): ' + JSON.stringify(inTile) + '. ' + ((D.neg || []).length ? 'The user REMOVED these positions as NOT being this product (do not return anything near them): ' + JSON.stringify((D.neg || []).filter(ng => ng.x >= tl.x0 && ng.x <= tl.x0 + tl.w && ng.y >= tl.y0 && ng.y <= tl.y0 + tl.h).map(ng => [+((ng.x - tl.x0) / tl.w).toFixed(3), +((ng.y - tl.y0) / tl.h).toFixed(3)])) + '. ' : '') + (store.fxTrainNotes ? 'User rules: ' + String(store.fxTrainNotes).replace(/\n+/g, ' ') + '. ' : '') + 'Find ALL OTHER occurrences of the same kind of object in image 1 — including small, partially hidden, differently angled, or lit/unlit ones, and the fixture heads at the origin of light beams. Return ONLY JSON {"found":[{"x":0-1,"y":0-1,"confidence":0-1}],"notes":"short"}. Exclude anything within 0.03 of a listed position. Empty list if none.' },
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: tileB64 } },
         ...crops.map(c => ({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: c } }))] }], 3000);
     } catch (e) { uiToast('החיפוש נכשל: ' + e.message, 6000); return; }
     let d; try { d = claudeJson(j); } catch (e) { continue; }
     for (const f of d.found || []) { if (!(f.confidence >= 0.5)) continue; const x = L + (tl.x0 + (+f.x || 0) * tl.w) * W, y = T + (tl.y0 + (+f.y || 0) * tl.h) * H;
       if (all.some(it => Math.hypot(it.x - x, it.y - y) < 0.025 * W)) continue;
-      const it = { id: uid('fd'), x, y, type, model: model || '', sku: ex[0].sku || null, pos: '', label: '' }; D.items.push(it); all.push(it); added++; }
+      if ((D.neg || []).some(ng => Math.hypot(L + ng.x * W - x, T + ng.y * H - y) < 0.025 * W)) continue;   /* מה שמחקת לא חוזר */
+      const it = { id: uid('fd'), x, y, type, model: model || '', sku: ex[0].sku || null, pos: '', label: '', src: 'sim' }; D.items.push(it); all.push(it); added++; }
     render();
   }
   save(); render(); uiToast(added ? '🔎 נוספו ' + added + ' "' + name + '" (' + calls + ' סריקות) — בדוק את הסימונים, מחק מה שלא נכון' : 'לא נמצאו עוד "' + name + '" מעבר למסומנים', 7000);
@@ -672,8 +674,44 @@ function fxDetGroupAdd() {
   save(); render(); fxDetGroupMark(key);
 }
 function fxDetGroupDel(key) { const D = P.fxDet; if (!D) return; const g = fxDetGroups().find(x => x.key === key); if (!g) return;
-  const go = () => { D.items = D.items.filter(it => fxDetGroupKey(it) !== key); D.groups = (D.groups || []).filter(x => (x.type + '|' + (x.model || '') + '|' + (x.sku || '')) !== key); if (window.__fxDetAdd && window.__fxDetAdd.gkey === key) { window.__fxDetAdd = null; document.body.style.cursor = ''; } if (D.hl === key) D.hl = null; save(); render(); };
+  const go = () => { D.items.filter(it => fxDetGroupKey(it) === key).forEach(fxDetNeg); D.items = D.items.filter(it => fxDetGroupKey(it) !== key); D.groups = (D.groups || []).filter(x => (x.type + '|' + (x.model || '') + '|' + (x.sku || '')) !== key); if (window.__fxDetAdd && window.__fxDetAdd.gkey === key) { window.__fxDetAdd = null; document.body.style.cursor = ''; } if (D.hl === key) D.hl = null; save(); render(); };
   if (g.n) uiConfirm('למחוק את ' + g.n + ' הסימונים של "' + (g.model || g.type) + '"?').then(ok => { if (ok) go(); }); else go(); }
+/* ---------- לימוד מהתיקונים ----------
+   D.ai = מה שהקורא סימן, D.items = אחרי התיקונים שלך, D.neg = מה שמחקת. דיוק = כמה מסימוני הקורא שרדו, כמה נמחקו, כמה הוספת.
+   "שמור ללימוד" מכניס את הדוגמה ל-store.fxTrain; הסריקות הבאות מקבלות את הלקחים: הערות שלך + סיכום הדוגמאות (מה נכון, מה היה מיותר, מה חסר). */
+function fxDetAccuracy() {
+  const D = P.fxDet; if (!D || !D.ai) return null;
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(), tol = 0.02;
+  const cur = D.items.map(it => ({ x: (it.x - L) / W, y: (it.y - T) / H, type: it.type, src: it.src }));
+  let kept = 0, retyped = 0; D.ai.forEach(a => { const m = cur.find(c => Math.hypot(c.x - a.x, c.y - a.y) < tol); if (m) { kept++; if (m.type !== a.type) retyped++; } });
+  const removed = D.ai.length - kept, added = cur.filter(c => c.src !== 'ai').length;
+  return { ai: D.ai.length, kept, removed, retyped, added, now: cur.length, precision: D.ai.length ? kept / D.ai.length : 0, recall: cur.length ? (cur.length - added) / cur.length : 0 };
+}
+function fxDetAccText() { const a = fxDetAccuracy(); if (!a) return ''; return 'הקורא סימן ' + a.ai + ' · נשארו ' + a.kept + (a.retyped ? ' (' + a.retyped + ' שינו סוג)' : '') + ' · נמחקו ' + a.removed + ' · הוספת ' + a.added + ' → דיוק ' + Math.round(a.precision * 100) + '% · כיסוי ' + Math.round(a.recall * 100) + '%'; }
+function fxTrainSave() {
+  const D = P.fxDet; if (!D || !D.items.length || !P.bg) { uiToast('אין זיהויים לשמור'); return; }
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(), sh = curSheet(P);
+  const img = new Image();
+  img.onload = () => {
+    const k = Math.min(1, 480 / img.width), cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    const by = {}; D.items.forEach(it => { const kk = (it.model || it.type).trim(); by[kk] = by[kk] || { type: it.type, model: it.model || '', sku: it.sku || null, n: 0 }; by[kk].n++; });
+    const ex = { id: uid('ft'), pid: P.id, sid: sh && sh.id, name: P.name + (sh && (P.sheets || []).length > 1 ? ' · ' + sh.name : ''), at: new Date().toISOString(), view: D.front ? 'front' : 'plan', thumb: cv.toDataURL('image/jpeg', 0.5),
+      items: D.items.map(it => ({ x: +((it.x - L) / W).toFixed(4), y: +((it.y - T) / H).toFixed(4), type: it.type, model: it.model || '', sku: it.sku || null })), neg: D.neg || [], ai: D.ai || [], groups: Object.values(by), acc: fxDetAccuracy(), note: '' };
+    store.fxTrain = (store.fxTrain || []).filter(e => !(e.pid === ex.pid && e.sid === ex.sid)); store.fxTrain.push(ex); while (store.fxTrain.length > 12) store.fxTrain.shift();
+    save(); render(); uiToast('🎓 נשמר ללימוד — ' + store.fxTrain.length + ' דוגמאות · הסריקות הבאות יקבלו את הלקחים', 6000);
+  };
+  img.src = P.bg;
+}
+/* הלקחים שנכנסים לכל סריקה: הערות שלך + סיכום הדוגמאות השמורות (לפי סוג מבט) */
+function fxTrainHints(front) {
+  const exs = (store.fxTrain || []).filter(e => (e.view === 'front') === !!front).slice(-4), notes = (store.fxTrainNotes || '').trim();
+  if (!exs.length && !notes) return '';
+  let t = '\n\nLESSONS FROM THE USER\'S PREVIOUS CORRECTIONS (follow them):';
+  if (notes) t += '\n- Rules from the user: ' + notes.replace(/\n+/g, ' ');
+  exs.forEach(e => { const a = e.acc || {}; const wrong = (e.neg || []).reduce((m, n) => (m[n.type] = (m[n.type] || 0) + 1, m), {});
+    t += '\n- Earlier ' + (e.view === 'front' ? 'front-view' : 'plan') + ' image "' + (e.name || '').slice(0, 30) + '": correct list = ' + e.groups.map(g => g.n + '× ' + (g.model || g.type)).join(', ') + '.' + (a.removed ? ' The detector had marked ' + a.removed + ' things that were NOT products (' + Object.entries(wrong).map(([k, v]) => v + ' ' + k).join(', ') + ') — e.g. light beams, reflections, decorations.' : '') + (a.added ? ' It missed ' + a.added + ' real products that the user had to add.' : '') + (e.note ? ' User note: ' + e.note : ''); });
+  return t;
+}
 function fxDetWinOpen() {
   let ov = document.getElementById('fxDetWin');
   if (ov) { fxDetWinRender(); return; }
@@ -708,7 +746,9 @@ function fxDetWinRender() {
       <p class="muted" style="font-size:10.5px;margin:0 0 6px">שורה לכל סוג. <b>✏ סמן</b> ואז לחיצות על התכנית מוסיפות פריטים מהסוג הזה · 📚 מוצר מה-ERP · 👁 הדגשה · 🔎 חיפוש אוטומטי של עוד כאלה.</p>
       <div data-tbl style="overflow:auto;flex:1;min-height:0;max-height:46vh"><table style="width:100%;font-size:11.5px;border-collapse:collapse"><thead><tr style="background:#f3f1ec;position:sticky;top:0"><th></th><th>סוג</th><th style="text-align:right">כיתוב / דגם / מוצר</th><th>כמות</th><th></th></tr></thead><tbody>${grows || '<tr><td colspan="5" class="muted" style="padding:8px">אין עדיין סוגים — הוסף שורה למטה</td></tr>'}</tbody></table></div>
       <div style="display:flex;gap:4px;align-items:center;margin-top:6px"><select id="fxDetGT" style="font-size:11px">${T.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select><input id="fxDetGM" placeholder="כיתוב / דגם (אפשר ריק)" style="flex:1;min-width:80px;font-size:11px"><button style="font-size:11px" onclick="fxDetGroupAdd()">➕ שורה וסמן</button></div>
-      <div style="display:flex;gap:6px;margin-top:8px"><button style="flex:2;background:#534ab7;color:#fff;font-weight:700" onclick="fxDetWinClose();fxDetToTable()">➡ לטבלת הספירה ובחירת מוצרים</button><button style="flex:1;color:#c0392b" onclick="uiConfirm('למחוק את כל הזיהויים?').then(ok=>{if(ok){P.fxDet=null;window.__fxDetAdd=null;fxDetWinClose();save();render()}})">🗑 נקה</button></div>`;
+      <div style="font-size:10.5px;color:#555;margin-top:6px">${esc(fxDetAccText())}</div>
+      <div style="display:flex;gap:6px;margin-top:6px"><button style="flex:2;background:#534ab7;color:#fff;font-weight:700" onclick="fxDetWinClose();fxDetToTable()">➡ לטבלת הספירה ובחירת מוצרים</button><button style="flex:1;background:#fff4e0;border-color:#d49a2a" title="התיקונים שלך (מה נכון, מה נמחק, מה הוספת) נשמרים כדוגמה — הסריקות הבאות מקבלות את הלקחים" onclick="fxTrainSave()">🎓 שמור ללימוד${(store.fxTrain || []).some(e => e.pid === P.id) ? ' ✓' : ''}</button><button style="flex:0;color:#c0392b" onclick="uiConfirm('למחוק את כל הזיהויים?').then(ok=>{if(ok){P.fxDet=null;window.__fxDetAdd=null;fxDetWinClose();save();render()}})">🗑</button></div>
+      <details style="margin-top:6px"><summary style="font-size:11px;cursor:pointer">📝 הערות לקורא (מה הוא תמיד מפספס / מסמן בטעות) · ${(store.fxTrain || []).length} דוגמאות שמורות</summary><textarea rows="2" style="width:100%;font-size:11px;margin-top:4px" placeholder="למשל: אלומות אור ורפלקסים אינם פנסים; כל בר LED לאורך הבמה הוא פנס סטטי; טראס = גם הטבעות" onchange="store.fxTrainNotes=this.value;save()">${esc(store.fxTrainNotes || '')}</textarea></details>`;
     const tbl0 = box.querySelector('[data-tbl]'); if (tbl0) tbl0.scrollTop = scrollTop;
     return;
   }
@@ -735,7 +775,8 @@ function fxDetWinRender() {
   const tbl = box.querySelector('[data-tbl]'); if (tbl) tbl.scrollTop = scrollTop;
 }
 function fxDetSet(id, k, v) { const it = P.fxDet && P.fxDet.items.find(x => x.id === id); if (!it) return; it[k] = k === 'type' ? v : v.trim(); save(); render(); }
-function fxDetDel(id) { if (!P.fxDet) return; P.fxDet.items = P.fxDet.items.filter(x => x.id !== id); save(); render(); }
+function fxDetNeg(it) { const D = P.fxDet; if (!D || it.src !== 'ai') return; const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(); (D.neg = D.neg || []).push({ x: +((it.x - L) / W).toFixed(4), y: +((it.y - T) / H).toFixed(4), type: it.type, model: it.model || '' }); }
+function fxDetDel(id) { if (!P.fxDet) return; const it = P.fxDet.items.find(x => x.id === id); if (it) fxDetNeg(it); P.fxDet.items = P.fxDet.items.filter(x => x.id !== id); save(); render(); }
 function fxDetSameAs(id) { const it = P.fxDet && P.fxDet.items.find(x => x.id === id); if (!it) return; const m0 = it.model || ''; let n = 0; P.fxDet.items.forEach(x => { if ((x.model || '') === m0 && x !== it) { x.type = it.type; x.sku = it.sku || x.sku; n++; } }); save(); render(); uiToast('≡ ' + n + ' דומים עודכנו (סוג' + (it.sku ? ' + מוצר' : '') + ')'); }
 function fxDetLocate(id) { if (!P.fxDet) return; P.fxDet.sel = id; render(); setTimeout(() => { const g = document.querySelector('[data-fxdet="' + id + '"]'); if (g && g.scrollIntoView) g.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); }, 50); }
 function fxDetAddMode() {
