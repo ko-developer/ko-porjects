@@ -2800,7 +2800,7 @@ function keypadRepairRacks() {
       /* שורת ההצעה של היחידה: לפי המזהה, ואם אין (הוצב מהאזור) — לפי השם */
       const it = (u.srcIid && (impItems || []).find(x => x.iid === u.srcIid)) || (impItems || []).find(x => isKeypadItem(x.name) && String(x.name || '').slice(0, 40) === u.name);
       if (it && (it.dest === 'unit' || it.dest === 'panelUnit')) it.dest = 'panelNode';
-      const nd = { id: uid('n'), kind: 'panel', name: u.name, sub: 'יצא מ"' + (rk.name || 'הארון') + '" — מוקד על התכנית', x: rk.x - 80 - i * 50, y: rk.y + 20 + i * 36, panel: { mode: 'matrix', rows: 1, holes: [{ conn: 'rj45' }] }, pmin: true, mount: 'קיר', srcIid: u.srcIid || (it && it.iid) };
+      const nd = { id: uid('n'), kind: 'panel', name: u.name, sub: 'יצא מ"' + (rk.name || 'הארון') + '" — מוקד על התכנית', x: rk.x - 80 - i * 50, y: rk.y + 20 + i * 36, panel: { mode: 'matrix', rows: 1, holes: [{ conn: 'rj45' }] }, pmin: true, mount: 'קיר בלוק', srcIid: u.srcIid || (it && it.iid) };
       P.nodes.push(nd);
       (P.cables || []).forEach(c => { if (c.from === rk.id && c.fromUnit === u.id) { c.from = nd.id; delete c.fromUnit; } if (c.to === rk.id && c.toUnit === u.id) { c.to = nd.id; delete c.toUnit; } });
       n++;
@@ -3531,7 +3531,9 @@ function nodeWallSnap(cx, cy, Z, R) {
   }
   return first ? { x, y, seg: first.sg, seg2: second ? second.sg : null } : null;
 }
-const isIconNode = nn => nn.kind === 'point' || nn.kind === 'panel' || nn.kind === 'rack';   /* פאנל הוא תמיד אייקון בתכנית — הקופסה הפתוחה שלו צפה לידו */
+const isIconNode = nn => nn.kind === 'point' || nn.kind === 'panel' || nn.kind === 'rack';
+/* קיפד / פנל חכם על הקיר: מוקד חופשי — לא נצמד לשום מוצר אחר ואף מוצר לא נצמד אליו; מונח בדיוק איפה שמשחררים */
+const isKeypadNode = nn => !!nn && nn.kind === 'panel' && typeof isKeypadItem === 'function' && isKeypadItem(nn.name);   /* פאנל הוא תמיד אייקון בתכנית — הקופסה הפתוחה שלו צפה לידו */
 function objAttachDrop(n) {
   const objs = (P.sketch && P.sketch.objs) || [];
   const cx = 2200 - n.x - 20, cy = n.y + 24, M = 12;
@@ -3560,10 +3562,11 @@ function objArrange(o) {
    בשחרור (wide=true) אייקון שנשאר מעל אייקון אחר עובר למשבצת הפנויה הקרובה, כדי שלא יישבו שניים באותה נקודה */
 function iconSlotFor(drag, wide, rawPos) {
   const Z = getZ() || 1, cvr = $('#canvas').getBoundingClientRect(), bx = el2 => { const r = el2.getBoundingClientRect(); return { cx: (r.left + r.width / 2 - cvr.left) / Z, cy: (r.top + r.height / 2 - cvr.top) / Z, W: r.width / Z, H: r.height / Z }; };
+  if (isKeypadNode(drag.n)) return null;
   const elD = document.getElementById('nd_' + drag.n.id), micD = elD && (elD.querySelector('.mic') || elD); if (!elD || !micD) return null;
   if (!drag.off) { const m0 = bx(micD), n0 = bx(elD); drag.off = { x: 2200 - drag.ox - m0.cx - (drag.n._fanX || 0), y: m0.cy - drag.oy - (drag.n._fanY || 0), dmy: m0.cy - n0.cy, W: m0.W, H: m0.H, nH: n0.H }; }
   const o = drag.off, rp = rawPos || { x: drag.n.x, y: drag.n.y }, raw = { cx: 2200 - rp.x - o.x, cy: rp.y + o.y };   /* rawPos — מיקום הסמן בלי ההצמדה שכבר הוחלה בזמן הגרירה */
-  const others = P.nodes.filter(nn => nn !== drag.n && isIconNode(nn) && !nn.hidden && !(drag.grp || (drag.grp = new Set(cplDesc(drag.n).map(q => q.id)))).has(nn.id)).map(nn => { const e2 = document.getElementById('nd_' + nn.id); if (!e2) return null; return { nn, m: bx(e2.querySelector('.mic') || e2), nb: bx(e2) }; }).filter(Boolean);
+  const others = P.nodes.filter(nn => nn !== drag.n && isIconNode(nn) && !isKeypadNode(nn) && !nn.hidden && !(drag.grp || (drag.grp = new Set(cplDesc(drag.n).map(q => q.id)))).has(nn.id)).map(nn => { const e2 = document.getElementById('nd_' + nn.id); if (!e2) return null; return { nn, m: bx(e2.querySelector('.mic') || e2), nb: bx(e2) }; }).filter(Boolean);
   const over = (cx, cy, q) => Math.abs(cx - q.m.cx) < (o.W + q.m.W) / 2 - 1 && Math.abs(cy - q.m.cy) < (o.H + q.m.H) / 2 - 1;
   const overlapping = others.some(q => over(raw.cx, raw.cy, q));
   if (wide && !overlapping) return null;
@@ -9598,6 +9601,16 @@ function renderPanel() {
   if (n.kind === 'rack' || n.kind === 'panel') {
     /* סינון חיבורים בתוך המוקד עצמו — בארון עמוס זה מה שמאפשר לראות קו בודד */
     const mine = (P.cables || []).filter(c => c.from === n.id || c.to === n.id);
+    if (isKeypadNode(n)) {   /* קיפד / פנל חכם: גובה ההתקנה ועל גבי מה — נכנס לתכנית הביצוע */
+      const KP_MOUNTS = ['קיר בלוק', 'קיר בטון', 'קיר גבס', 'קופסת חשמל 55 שקועה', 'על גבי ריהוט / בר', 'עמוד', 'בתוך ארון', 'אחר'];
+      const curM = !n.mount || n.mount === 'קיר' ? 'קיר בלוק' : KP_MOUNTS.includes(n.mount) ? n.mount : 'אחר';
+      html += `<div style="background:#f4f2ec;border-radius:8px;padding:7px;margin-bottom:6px">
+        <div style="font-weight:700;font-size:12px;margin-bottom:4px">🎛 קיפד / פנל חכם — מוקד חופשי על התכנית (לא נצמד למוצרים אחרים)</div>
+        <div class="fld"><label>גובה התקנה (מ׳ מהרצפה) — למתגים נהוג 1.2–1.5</label><input type="number" step="0.05" min="0" max="6" value="${n.hgt ?? ''}" placeholder="1.4" onchange="byId('${n.id}').hgt=this.value?+this.value:undefined;save();render()"></div>
+        <div class="fld"><label>התקנה על גבי</label><select onchange="byId('${n.id}').mount=this.value;save();render()">${KP_MOUNTS.map(m => `<option value="${m}" ${curM === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
+        ${curM === 'אחר' ? `<input value="${esc(n.mount === 'אחר' ? '' : (n.mount || ''))}" placeholder="פרט על גבי מה" style="margin-top:4px" onchange="byId('${n.id}').mount=this.value.trim()||'אחר';save()">` : ''}</div>
+      </div>`;
+    }
     if (mine.length > 0) {
       n.cabVis = n.cabVis || {};
       const cats = [['audio', '🔊 סאונד'], ['light', '💡 תאורה'], ['video', '📺 וידאו'], ['data', '🌐 רשת/אופטי'], ['power', '⚡ חשמל']];
@@ -11028,7 +11041,7 @@ document.addEventListener('pointermove', e => {
   window.__alignG = null;
   /* אייקונים (מוקד, פאנל מכווץ, ארון מכווץ) נצמדים זה לזה — כך אפשר להניח פאנל בדיוק על מוקד/פאנל אחר והם נפרשים במניפה כמו רמקולים */
   const isIcon = isIconNode;
-  if (isIcon(drag.n) && !P.snapOff && !e.altKey) {   /* הצמדה — אפשר לבטל בתפריט התצוגה, או זמנית עם Alt בזמן הגרירה */
+  if (isIcon(drag.n) && !P.snapOff && !e.altKey && !isKeypadNode(drag.n)) {   /* הצמדה — אפשר לבטל בתפריט התצוגה, או זמנית עם Alt בזמן הגרירה · קיפד תמיד חופשי */
     const TH = 8 / Z;
     let gx = null, gy = null;
     /* מרכז האייקון הנגרר (קנבס) וגודלו נמדדים מה-DOM בתחילת הגרירה; ושאר האייקונים — ליישור ולקווי העזר */
@@ -11036,7 +11049,7 @@ document.addEventListener('pointermove', e => {
       if (mEl) { const mr = mEl.getBoundingClientRect(); drag.micR = mr.width / Z / 2 + 2.5; drag.micDx = (mr.left + mr.width / 2 - cvr.left) / Z - (2200 - drag.ox); drag.micDy = (mr.top + mr.height / 2 - cvr.top) / Z - drag.oy; }
       else { drag.micR = 0; drag.micDx = -20; drag.micDy = 24; }
       const own = new Set(cplDesc(drag.n).map(q => q.id));
-      drag.oth = P.nodes.filter(nn => nn !== drag.n && isIcon(nn) && !nn.hidden && !own.has(nn.id) && !(nn.att && nn.att.cpl)).map(nn => nodeIconGeo(nn)); }
+      drag.oth = P.nodes.filter(nn => nn !== drag.n && isIcon(nn) && !isKeypadNode(nn) && !nn.hidden && !own.has(nn.id) && !(nn.att && nn.att.cpl)).map(nn => nodeIconGeo(nn)); }
     /* הצמדה לפי משבצות: לכל אייקון אחר ארבע משבצות צמודות (ימין/שמאל/מעל/מתחת). האייקון הנגרר נצמד למשבצת הפנויה הקרובה —
        וכשהוא משוחרר מעל אייקון אחר הוא עובר למשבצת הפנויה הקרובה ביותר (אף פעם לא לאותה נקודה, שגורמת לשניהם לזוז) */
     drag.att = null;
@@ -11209,8 +11222,8 @@ document.addEventListener('pointerup', e => {
     const movedFar = Math.abs(n.x - moved.ox) > 3 || Math.abs(n.y - moved.oy) > 3;
     document.querySelectorAll('.node.droptgt').forEach(el => el.classList.remove('droptgt'));
     /* שחרור אייקון על שולחן/בר משורטט — נצמד אליו ומסתדר בשורה לרוחבו יחד עם שאר האייקונים שעל אותו אובייקט */
-    if (movedFar && isIconNode(n) && !P.snapOff && !e.altKey && objAttachDrop(n)) { render(); save(); return; }
-    if (movedFar && isIconNode(n) && !P.snapOff && !e.altKey) { const Zd = getZ() || 1, rawPos = { x: Math.max(0, moved.ox - (e.clientX - moved.sx) / Zd), y: Math.max(0, moved.oy + (e.clientY - moved.sy) / Zd) };
+    if (movedFar && isIconNode(n) && !isKeypadNode(n) && !P.snapOff && !e.altKey && objAttachDrop(n)) { render(); save(); return; }
+    if (movedFar && isIconNode(n) && !isKeypadNode(n) && !P.snapOff && !e.altKey) { const Zd = getZ() || 1, rawPos = { x: Math.max(0, moved.ox - (e.clientX - moved.sx) / Zd), y: Math.max(0, moved.oy + (e.clientY - moved.sy) / Zd) };
       const sl = iconSlotFor(moved, true, rawPos);
       /* טופ על סאב (או סאב על טופ): לא מזיזים למשבצת שכנה — המיקום שסומן נשמר, והשאלה (Stack / תלוי) קובעת את הצימוד */
       const tq0 = moved.overId && byId(moved.overId), mixedPair = tq0 && cplSpkLike(n) && cplSpkLike(tq0) && cplIsSub(n) !== cplIsSub(tq0);
@@ -11398,7 +11411,7 @@ let impItems = [];
 /* פנלים חכמים / קיפדים / בקרי קיר — לא נכנסים לארון: ננעצים על התכנית כמו עמדת DJ */
 const KEYPAD_RE = /קיפד|keypad|key\s?pad|פא?נל\s?חכם|פא?נל\s?(מגע|שליטה|בקרה|קיר|עם\s?צג)|touch\s?panel|control\s?panel|wall\s?(controller|control|panel|plate)|בקר\s?קיר|מתג\s?קיר|שלט\s?קיר|לוח\s?בקרה|volume\s?control|בקר\s?עוצמה|וסת\s?עוצמה/i;
 function isKeypadItem(name) { return KEYPAD_RE.test(String(name || '')); }
-function keypadNodeExtra(it) { return isKeypadItem(it && it.name) ? { pmin: true, mount: 'קיר' } : {}; }
+function keypadNodeExtra(it) { return isKeypadItem(it && it.name) ? { pmin: true, mount: 'קיר בלוק', hgt: 1.4 } : {}; }
 const SPEC_DICT = [
   { re: KEYPAD_RE, dest: 'panelNode', cat: 'control' },
   { re: /(פרוססור|פרוסֵסור|processor|מעבד\s?אות|DSP|DIGISYNTHETIC|DPA\s?\d|DS\s?4\d\d|418E?|קרוסאובר|crossover|matrix\s?processor)/i, dest: 'unit', cat: 'audio', u: 1 },
@@ -14792,7 +14805,7 @@ function placeZoneRackItems(z) {
     if (it.dest !== 'unit' && it.dest !== 'panelUnit') continue;
     if (isKeypadItem(it.name)) {   /* פנל חכם / קיפד — מוקד על התכנית ליד הארון (גוררים למקום הנכון), לא יחידה בארון */
       it.dest = 'panelNode'; const rem = Math.max(0, (+it.qty || 1) - (it.placed || 0));
-      for (let k2 = 0; k2 < rem; k2++) { P.nodes.push({ id: uid('n'), kind: 'panel', name: it.name.slice(0, 40) + (rem > 1 ? ' (' + (k2 + 1) + ')' : ''), sub: 'מתוך: ' + (it.src || '') + ' · ' + z.name, x: rk.x - 80 - k2 * 50, y: rk.y + 20 + k2 * 36, panel: { mode: 'matrix', rows: 1, holes: [{ conn: 'rj45' }] }, pmin: true, mount: 'קיר', srcIid: it.iid }); n2++; }
+      for (let k2 = 0; k2 < rem; k2++) { P.nodes.push({ id: uid('n'), kind: 'panel', name: it.name.slice(0, 40) + (rem > 1 ? ' (' + (k2 + 1) + ')' : ''), sub: 'מתוך: ' + (it.src || '') + ' · ' + z.name, x: rk.x - 80 - k2 * 50, y: rk.y + 20 + k2 * 36, panel: { mode: 'matrix', rows: 1, holes: [{ conn: 'rj45' }] }, pmin: true, mount: 'קיר בלוק', srcIid: it.iid }); n2++; }
       if (rem) { it.placed = (it.placed || 0) + rem; it.added = true; }
       continue;
     }
