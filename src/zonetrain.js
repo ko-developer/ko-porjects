@@ -5,6 +5,10 @@
    אזורים חסרים / מיותרים / מפוצלים, וציון כולל. הדוגמאות נשארות כבדיקת רגרסיה לכל שינוי במנגנון.
    =================================================================================== */
 function ztList() { store.zoneTrain = store.zoneTrain || []; return store.zoneTrain; }
+/* דוגמת האימון השמורה של התכנית (הפרויקט + הגיליון) הנוכחית, אם יש */
+/* הדוגמה השמורה שונה מהחלוקה שעל המסך עכשיו (נקודות / שמות / תכליות) */
+function ztDirty() { const ex = ztCur(); if (!ex) return false; try { return JSON.stringify(ex.zones) !== JSON.stringify(ztZones()); } catch (e) { return false; } }
+function ztCur() { const sh = typeof curSheet === 'function' ? curSheet(P) : null; return ztList().find(e => e.pid === P.id && e.sid === (sh && sh.id)) || null; }
 function ztRel(pts) { const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(); return pts.map(p => [+((p.x - L) / W).toFixed(4), +((p.y - T) / H).toFixed(4)]); }
 function ztZones() { return (P.zones || []).map(z => ({ name: z.name, usage: z.usage || '', poly: ztRel(z.poly || zoneRectPts(z)) })); }
 /* שמירת החלוקה שעל המסך כ"אמת" לאימון (מחליפה דוגמה קודמת של אותה תכנית) */
@@ -17,8 +21,10 @@ function ztSave() {
     const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
     const ex = { id: prev ? prev.id : uid('zt'), pid: P.id, sid: sh && sh.id, name: P.name + ((P.sheets || []).length > 1 && sh ? ' · ' + sh.name : ''), at: new Date().toISOString(), scale: P.scale || 0, zones: ztZones(), note: prev ? prev.note : '', thumb: cv.toDataURL('image/jpeg', 0.55), last: null };
     if (prev) list[list.indexOf(prev)] = ex; else list.push(ex);
+    window.__ztDirty = false; window.__ztToasted = false;
     save(); render();
-    uiToast('🎓 נשמר כדוגמת אימון (' + ex.zones.length + ' אזורים) — ' + list.length + ' דוגמאות', 5000);
+    if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender();
+    uiToast((prev ? '🎓 דוגמת האימון עודכנה (' : '🎓 נשמר כדוגמת אימון (') + ex.zones.length + ' אזורים) — ' + list.length + ' דוגמאות', 5000);
   };
   img.onerror = () => uiToast('לא הצלחתי לקרוא את תמונת התכנית');
   img.src = P.bg;

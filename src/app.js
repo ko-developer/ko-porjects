@@ -5553,6 +5553,7 @@ function renderWires() {
     pp.forEach((p, i) => out += `<circle cx="${p.x}" cy="${p.y}" r="${i === 0 ? 8 : 5}" fill="${i === 0 ? '#fff' : '#c96f4a'}" stroke="#c96f4a" stroke-width="2.5"/>`);
     out += polyDimsSVG(pp);
     if (zoneMode.cur) out += polyLiveSVG(pp, zoneMode.cur, zoneMode.guides, zoneMode.straight);
+    out += zoneSnapSVG(zoneMode.snap);
   }
   /* תצוגה מקדימה של כיול מוצע — רואים על התכנית אם הרוחב הגיוני לפני שמאשרים */
   if (window.__calPrev > 0 && P.bgW) {
@@ -9784,7 +9785,7 @@ function vtxGuideSVG() {
     o += `<line x1="${q.x}" y1="${q.y}" x2="${p.x}" y2="${p.y}" stroke="${col}" stroke-width="${3 / z}"/>`;
     if (P.scale) o += `<text x="${(q.x + p.x) / 2}" y="${(q.y + p.y) / 2 - 8 / z}" text-anchor="middle" font-size="${fz}" fill="${col}" font-weight="800" paint-order="stroke" stroke="#fff" stroke-width="${4 / z}">${(Math.hypot(p.x - q.x, p.y - q.y) * P.scale).toFixed(2)} מ׳${straight ? ' ✓' : ' · אלכסון'}</text>`;
   }
-  return `<g pointer-events="none">${o}</g>`;
+  return `<g pointer-events="none">${o}</g>` + zoneSnapSVG(v.snap);
 }
 function polyDimsSVG(pts) {
   if (!P.scale || !pts || pts.length < 2) return '';
@@ -10613,8 +10614,9 @@ document.addEventListener('pointerdown', e => {
     if (zoneMode.poly.length > 2 && Math.hypot(pt.x - zoneMode.poly[0].x, pt.y - zoneMode.poly[0].y) < 15 / getZ()) {
       closeZonePoly();
     } else {
-      zoneMode.poly.push(polySnap(pt, zoneMode.poly).pt);   /* הנקודה ננעצת איפה שהקו החי הראה — מוצמדת לקו ישר */
-      zoneMode.cur = null; zoneMode.guides = null;
+      const sp = zoneVtxNear(pt);
+      zoneMode.poly.push(sp ? { x: sp.x, y: sp.y } : polySnap(pt, zoneMode.poly).pt);   /* הנקודה ננעצת איפה שהקו החי הראה — על נקודה קיימת או מוצמדת לקו ישר */
+      zoneMode.cur = null; zoneMode.guides = null; zoneMode.snap = null;
       renderWires();
     }
     e.preventDefault();
@@ -10892,6 +10894,7 @@ document.addEventListener('pointermove', e => {
     const pt = canvasPt(e), pl = v.z.poly, n = pl.length, prev = pl[(v.i - 1 + n) % n], next = pl[(v.i + 1) % n], TH = 9 / (getZ() || 1);
     let nx = Math.round(pt.x), ny = Math.round(pt.y);
     for (const q of [prev, next]) { if (Math.abs(nx - q.x) < TH) nx = q.x; if (Math.abs(ny - q.y) < TH) ny = q.y; }   /* הצמדה לקו ישר מול הנקודות השכנות */
+    const sp = zoneVtxNear(pt, v.z, v.i); v.snap = sp; if (sp) { nx = sp.x; ny = sp.y; }   /* מעל נקודה קיימת (שלו או של אזור אחר) — נצמד אליה, מסומן בירוק */
     pl[v.i] = { x: nx, y: ny }; zoneSyncBox(v.z); renderZones(); renderWires(); return;
   }
   if (sizeZ) {
@@ -10924,6 +10927,7 @@ document.addEventListener('pointermove', e => {
   }
   if (zoneMode && zoneMode.poly && zoneMode.poly.length) {
     const sn = polySnap(canvasPt(e), zoneMode.poly); zoneMode.cur = sn.pt; zoneMode.guides = sn.guides; zoneMode.straight = sn.straight;
+    const sp = zoneVtxNear(canvasPt(e)); zoneMode.snap = sp; if (sp) { zoneMode.cur = { x: sp.x, y: sp.y }; zoneMode.guides = []; }   /* מעל נקודה של אזור קיים — נצמד אליה */
     renderWires();
     return;
   }
@@ -11069,14 +11073,14 @@ document.addEventListener('pointerup', e => {
     /* לחיצה בלי גרירה = הנקודה "נדבקת" לעכבר עד הלחיצה הבאה (מונחת שם) · Esc / Delete / Backspace מחזירים אותה */
     if (!v.moved && !v.sticky) { v.sticky = true; uiToast('הנקודה נעה עם העכבר — לחיצה מניחה אותה במקום החדש · Esc / Delete מחזירים למקום הקודם', 4000); return; }
     if (v.sticky) return;                       /* ההנחה נעשית בלחיצה (pointerdown), לא בשחרור */
-    window.__vtxZ = null; zoneSyncBox(v.z); zoneAbsorb(v.z); save(); render(); return;
+    window.__vtxZ = null; zoneVtxMerge(v.z, v.i); zoneSyncBox(v.z); zoneAbsorb(v.z); save(); render(); ztEdited(); return;
   }
   if (dragZ || sizeZ) {
     const click = dragZ && dragZ.lbl && !dragZ.moved && dragZ.z;
     const zid = click ? dragZ.z.id : null;
     const edited = (dragZ && dragZ.moved && dragZ.z) || (sizeZ && sizeZ.z);
     dragZ = sizeZ = null;
-    if (edited) zoneAbsorb(edited);
+    if (edited) { zoneAbsorb(edited); ztEdited(); }
     render();
     if (zid) zonePlanBack(zid);
     return;
@@ -12346,7 +12350,11 @@ function erpLineToItem(x, src) {
   it.rack = guessRackFor(it);
   return it;
 }
-let erpQState = { q: '', all: false, quotes: null, sel: null, items: null, busy: false };
+let erpQState = { q: '', all: true, quotes: null, sel: null, items: null, busy: false };
+const ERP_ST = { pending_customer_confirmation: ['ממתינה לאישור לקוח', '#c96a13'], confirmed: ['מאושרת', '#0f6e56'], approved: ['מאושרת', '#0f6e56'], completed: ['הושלמה', '#555'], delivered: ['סופקה', '#555'], closed: ['סגורה', '#555'], cancelled: ['בוטלה', '#c1121f'], canceled: ['בוטלה', '#c1121f'], draft: ['טיוטה', '#888'], in_progress: ['בביצוע', '#2a5db0'] };
+/* שם ההצעה כפי שנרשם ב-ERP — כשלא ניתן שם, השדה מכיל את שם המסלול (אספקת סחורה / פרויקט ללקוח…) ואז הכותרת היא הלקוח */
+function erpQTitle(q) { return q.track && !/מסלול/.test(q.track) ? q.track : ''; }
+function erpStatus(q) { const s = ERP_ST[q.status] || [q.confirmed ? 'מאושרת' : (q.status || '—'), q.confirmed ? '#0f6e56' : '#888']; return s; }
 function erpQuotesDialog() {
   const ov = uiModal(`<div id="erpQBox"><b style="font-size:15px">🧾 הצעת מחיר מה-ERP → לתכנית</b>
     <p class="muted" style="font-size:12px;margin:6px 0 8px;line-height:1.5">בחר הצעת מחיר קיימת — הפריטים שלה נכנסים להצעה בפרויקט הזה, ומשם מציבים אותם על התכנית (גרירה או 📍).</p>
@@ -12389,7 +12397,7 @@ function erpQZone() {
 function erpQImport(ov, toZone) {
   const q = erpQState.sel, lines = (erpQState.items || []).filter(x => x.on);
   if (!q || !lines.length) return;
-  const src = 'ERP · ' + (q.name || q.code);
+  const src = 'ERP · ' + (erpQTitle(q) || q.code);
   const z = toZone ? erpQZone() : null;
   let n = 0, placed = 0, err = null;
   const items = [];
@@ -12437,7 +12445,7 @@ function erpQRender(ov) {
     const items = S.items;
     /* הצעה שטרם אושרה ע"י הלקוח — הכמויות עריכות לפני הטעינה; מאושרת = כמו שנמכרה */
     const editable = !S.sel.confirmed && !/^(confirmed|approved|closed|completed|done|invoiced|paid)$/i.test(S.sel.status || '');   /* 'pending_customer_confirmation' = טרם אושרה */
-    body.innerHTML = `<div style="background:#f7f5f0;border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:8px"><b>${esc(S.sel.name || S.sel.code)}</b> · ${esc(S.sel.account)} · ${esc(S.sel.date)} · ${money(S.sel.total)}${editable ? ' · <span style="color:#c96a13">טרם אושרה — הכמויות ניתנות לשינוי</span>' : ' · <span style="color:#0f6e56">מאושרת</span>'}<br>
+    body.innerHTML = `<div style="background:#f7f5f0;border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:8px"><b>${esc(erpQTitle(S.sel) || S.sel.account)}</b>${erpQTitle(S.sel) ? ' · ' + esc(S.sel.account) : ''}${S.sel.projectName ? ' · 🏗 ' + esc(S.sel.projectName) : ''} · ${esc(S.sel.code)} · ${esc(S.sel.date)} · ${money(S.sel.total)}${editable ? ' · <span style="color:#c96a13">טרם אושרה — הכמויות ניתנות לשינוי</span>' : ' · <span style="color:#0f6e56">מאושרת</span>'}<br>
       <a href="#" onclick="event.preventDefault();erpQState.sel=null;erpQState.items=null;erpQRender(this.closest('.uiDlgOv'))">← חזרה לרשימה</a></div>` +
       (S.busy ? '<p class="muted">טוען פריטים…</p>' : !items ? `<p style="color:#c1121f;font-size:12.5px">${esc(S.err || 'שגיאה')}</p>` :
       `<div style="max-height:300px;overflow:auto;border:1px solid #eee;border-radius:8px">${items.map((x, i) => `<label style="display:flex;gap:8px;align-items:center;padding:5px 8px;border-bottom:1px solid #f0ede6;font-size:12.5px;cursor:pointer">
@@ -12451,12 +12459,12 @@ function erpQRender(ov) {
   }
   body.innerHTML = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
       <input id="erpQIn" placeholder="חיפוש לפי שם הצעה, לקוח או קוד… (מחפש תוך כדי הקלדה)" value="${esc(S.q)}" style="flex:1;margin:0" autocomplete="off" oninput="erpQTyped(this)" onkeydown="if(event.key==='Enter'){clearTimeout(erpQState.t);erpQState.q=this.value;erpQLoad(this.closest('.uiDlgOv'))}">
-      <label style="font-size:11.5px;white-space:nowrap;display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" style="width:auto" ${S.all ? 'checked' : ''} onchange="erpQState.all=this.checked;erpQLoad(this.closest('.uiDlgOv'))"> כולל מאושרות</label></div>` +
+      <label style="font-size:11.5px;white-space:nowrap;display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" style="width:auto" ${S.all ? '' : 'checked'} onchange="erpQState.all=!this.checked;erpQLoad(this.closest('.uiDlgOv'))"> רק פתוחות (ממתינות לאישור)</label></div>` +
     (S.busy ? '<p class="muted">טוען הצעות מה-ERP…</p>' : !S.quotes ? `<p style="color:#c1121f;font-size:12.5px">${esc(S.err || 'שגיאה')}</p>` :
-    `<p class="muted" style="font-size:11.5px;margin:0 0 6px">${S.quotes.length} הצעות${S.all ? '' : ' פתוחות (ממתינות לאישור לקוח)'} — לחץ על הצעה כדי לראות את הפריטים</p>
-     <div style="max-height:320px;overflow:auto;border:1px solid #eee;border-radius:8px">${S.quotes.map(q => `<div class="crow" style="padding:7px 9px;border-bottom:1px solid #f0ede6;cursor:pointer" onclick="erpQPick(this.closest('.uiDlgOv'),'${q.id}')">
-        <span class="badge" style="background:${q.confirmed ? '#0f6e56' : '#c96a13'}">${q.items}</span>
-        <span class="txt"><b>${esc(q.name || q.code)}</b> · ${esc(q.account)}<br><span class="muted">${esc(q.date)} · ${esc(q.code)} · ${money(q.total)}${q.confirmed ? ' · מאושרת' : ''}</span></span></div>`).join('') || '<p class="muted" style="padding:8px">לא נמצאו הצעות</p>'}</div>`);
+    `<p class="muted" style="font-size:11.5px;margin:0 0 6px">${S.quotes.length} הצעות${S.all ? ' (כל הסטטוסים)' : ' פתוחות (ממתינות לאישור לקוח)'} — לחץ על הצעה כדי לראות את הפריטים · הכותרת = שם ההצעה כפי שנרשם ב-ERP; הצעה בלי שם מוצגת לפי הלקוח, הפרויקט והמסלול</p>
+     <div style="max-height:320px;overflow:auto;border:1px solid #eee;border-radius:8px">${S.quotes.map(q => { const st = erpStatus(q); return `<div class="crow" style="padding:7px 9px;border-bottom:1px solid #f0ede6;cursor:pointer" onclick="erpQPick(this.closest('.uiDlgOv'),'${q.id}')">
+        <span class="badge" style="background:${st[1]}" title="${q.items} פריטים">${q.items}</span>
+        <span class="txt"><b>${esc(erpQTitle(q) || q.account)}</b>${erpQTitle(q) ? ' · ' + esc(q.account) : ''}${q.projectName ? ' · 🏗 ' + esc(q.projectName) : ''}<br><span class="muted"><span style="font-family:monospace">${esc(q.code)}</span> · ${esc(q.date)} · ${money(q.total)} · ${q.items} פריטים · <span style="color:${st[1]};font-weight:700">${st[0]}</span>${q.track && !erpQTitle(q) ? ' · ' + esc(q.track) : ''}</span></span></div>`; }).join('') || '<p class="muted" style="padding:8px">לא נמצאו הצעות</p>'}</div>`);
 }
 window.erpQuotesDialog = erpQuotesDialog; window.erpQPick = erpQPick; window.erpQImport = erpQImport; window.erpQRender = erpQRender; window.erpQLoad = erpQLoad;
 function importItemsJSON(inp) {
@@ -13586,7 +13594,9 @@ function unplace(iid) {
 }
 let pinMode = null, calMode = null, zoneMode = null, selZone = null, dragZ = null, sizeZ = null, zoneNameNext = '';
 const ZUSE = { 'מוזיקת רקע': '#1D9E75', 'מוזיקה לבר': '#378ADD', 'מסעדה + DJ': '#C9502E', 'הופעות חיות': '#7F77DD', 'מוזיקת ריקודים': '#EF9F27', 'מועדון על מלא': '#E24B4A' };
-const zColor = z => ZUSE[z.usage] || '#888780';
+const ZPAL = ['#C9502E', '#378ADD', '#1D9E75', '#7F77DD', '#EF9F27', '#E24B4A', '#0f8a7a', '#b5417f', '#5b7c1f', '#8a5a2b', '#2a5db0', '#6d4c9f'];
+/* כל אזור בצבע משלו (גם כשהתכלית זהה) — לפי המקום ברשימה, או צבע שנבחר ידנית ב-z.color */
+const zColor = z => { if (!z) return '#888780'; if (z.color) return z.color; const i = (P.zones || []).findIndex(x => x.id === z.id); return ZPAL[(i < 0 ? 0 : i) % ZPAL.length]; };
 function zoneArea(z) {
   if (!z.poly) return z.w * z.h;
   let a = 0;
@@ -13636,6 +13646,31 @@ function renderZones() {
     svgp += `<rect x="${cx - 70}" y="${cy - 14}" width="140" height="28" rx="14" fill="#ff8a00"/><text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">💡 מוצע: ${esc(String(z.name).slice(0, 14))}</text>`; });
   if (typeof vwSvg === 'function') svgp += vwSvg();
   if (typeof fxDetSVG === 'function') svgp += fxDetSVG();   /* סימוני זיהוי תאורה */
+  /* מיקום התוויות: מעל הנקודה העליונה — ואם זה נופל על שטח של אזור אחר, מקום אחר (מרכז האזור, ליד קודקוד אחר) + חץ אל האזור */
+  const lblPos = {};
+  zs.forEach(z => {
+    if (!z.poly) return;
+    const txt = `🗺 ${z.name}${z.usage ? ' · ' + z.usage : ''}${P.scale ? ' · ' + (zoneArea(z) * P.scale * P.scale).toFixed(0) + ' מ"ר' : ''}`;
+    const LW = txt.length * 6.8 + 26, LH = 22, others = zs.filter(o => o !== z && !o.prop);
+    const bad = (x, y) => others.some(o => [[x + 2, y + 2], [x + LW - 2, y + 2], [x + 2, y + LH - 2], [x + LW - 2, y + LH - 2], [x + LW / 2, y + LH / 2]].some(([px, py]) => inZone(o, { x: px, y: py })));
+    const b = zoneBounds(z), topPt = z.poly.reduce((m, p) => p.y < m.y ? p : m, z.poly[0]), cx = b.L + b.W / 2, cy = b.T + b.H / 2;
+    const cands = [[topPt.x, topPt.y - 26, topPt]];
+    /* במרכז האזור — רק אם התווית כולה בתוך האזור שלו */
+    const mx = cx - LW / 2, my = cy - LH / 2;
+    if ([[mx, my], [mx + LW, my], [mx, my + LH], [mx + LW, my + LH]].every(([px, py]) => inZone(z, { x: px, y: py }))) cands.push([mx, my, null]);
+    /* ליד קודקוד, 40px החוצה מהאזור (בכיוון מהמרכז) — ואז חץ מהתווית אל הקודקוד */
+    z.poly.slice().sort((p, q) => p.y - q.y).forEach(p => { const d = Math.hypot(p.x - cx, p.y - cy) || 1, ux = (p.x - cx) / d, uy = (p.y - cy) / d, px2 = p.x + ux * 40, py2 = p.y + uy * 40;
+      cands.push([px2 - (ux < 0 ? LW : 0), py2 - (uy < 0 ? LH : 0), p]); });
+    const pick = cands.find(c => c[1] >= 0 && !bad(c[0], c[1])) || cands[0];
+    const pos = { x: pick[0], y: Math.max(0, pick[1]) }; lblPos[z.id] = pos;
+    const anchor = pick[2];
+    if (anchor) {   /* חץ מהפינה הקרובה של התווית אל הקודקוד — רק כשהתווית הוזזה מהמקום הרגיל */
+      const corners = [[pos.x, pos.y], [pos.x + LW, pos.y], [pos.x, pos.y + LH], [pos.x + LW, pos.y + LH]];
+      const c0 = corners.reduce((m, c) => Math.hypot(c[0] - anchor.x, c[1] - anchor.y) < Math.hypot(m[0] - anchor.x, m[1] - anchor.y) ? c : m, corners[0]);
+      if (Math.hypot(c0[0] - anchor.x, c0[1] - anchor.y) > 14) { const col = zColor(z), mid = 'zarr' + z.id.replace(/[^a-z0-9]/gi, '');
+        svgp += `<defs><marker id="${mid}" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 z" fill="${col}"/></marker></defs><line x1="${c0[0]}" y1="${c0[1]}" x2="${anchor.x}" y2="${anchor.y}" stroke="${col}" stroke-width="2.5" marker-end="url(#${mid})"/><circle cx="${anchor.x}" cy="${anchor.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.5"/>`; }
+    }
+  });
   if (svgp) host.innerHTML = `<svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">${svgp}</svg>`;
   zs.forEach(z => {
     const c = zColor(z);
@@ -13655,8 +13690,8 @@ function renderZones() {
       const lbl = document.createElement('span');
       lbl.className = 'zlbl';
       lbl.dataset.zdrag = z.id;
-      const topPt = z.poly.reduce((m, p) => p.y < m.y ? p : m, z.poly[0]);
-      lbl.style.cssText = `position:absolute;left:${topPt.x}px;top:${Math.max(0, topPt.y - 26)}px;background:${c};z-index:1`;
+      const lp = lblPos[z.id] || { x: z.poly[0].x, y: Math.max(0, z.poly[0].y - 26) };
+      lbl.style.cssText = `position:absolute;left:${lp.x}px;top:${lp.y}px;background:${c};z-index:1`;
       lbl.textContent = `🗺 ${z.name}${z.usage ? ' · ' + z.usage : ''}${dims}`;
       lbl.title = 'לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור';
       lbl.style.cursor = 'pointer';
@@ -13693,13 +13728,44 @@ function closeZonePoly() {
   if (typeof WIZ !== 'undefined' && WIZ) { WIZ.zid = z.id; setTimeout(() => wizRender(), 50); }
   render();
   /* אזור שסומן ידנית = דוגמה לאיך ממפים — שואלים אם לשמור אותו לאימון הזיהוי האוטומטי */
-  if (typeof ztSave === 'function' && (P.hasBg || P.bg)) setTimeout(() => uiConfirm('לשמור את החלוקה הזו כדוגמת אימון — "ככה ממפים את התכנית הזו"?\n(נשמרת כל החלוקה שעל המסך; לחיצה חוזרת אחרי עריכה מחליפה אותה)', { okText: '🎓 שמור לאימון', cancelText: 'לא עכשיו' }).then(ok => { if (ok) ztSave(); }), 300);
+  window.__ztDirty = true;
+  if (typeof ztSave === 'function' && (P.hasBg || P.bg)) { const ex = typeof ztCur === 'function' && ztCur(); setTimeout(() => uiConfirm(ex ? 'נוסף אזור — לעדכן את דוגמת האימון של התכנית הזו?\n(הדוגמה השמורה מוחלפת בחלוקה שעל המסך)' : 'לשמור את החלוקה הזו כדוגמת אימון — "ככה ממפים את התכנית הזו"?\n(נשמרת כל החלוקה שעל המסך; לחיצה חוזרת אחרי עריכה מחליפה אותה)', { okText: ex ? '🎓 עדכן אימון' : '🎓 שמור לאימון', cancelText: 'לא עכשיו' }).then(ok => { if (ok) ztSave(); }), 300); }
 }
 document.addEventListener('dblclick', e => {
   if (zoneMode && zoneMode.poly && zoneMode.poly.length > 2) closeZonePoly();
 });
 /* ---------- עריכת אזור לפי נקודות ---------- */
 function zoneRectPts(z) { const L = 2200 - z.x - z.w, R = 2200 - z.x, T = z.y, B = z.y + z.h; return [{ x: L, y: T }, { x: R, y: T }, { x: R, y: B }, { x: L, y: B }]; }
+function zoneRename(zid, name) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  name = String(name || '').trim(); if (!name || name === z.name) return;
+  const old = z.name;
+  (typeof impItems !== 'undefined' ? impItems : []).forEach(it => { if (it.zones && it.zones[old] != null) { it.zones[name] = (it.zones[name] || 0) + it.zones[old]; delete it.zones[old]; } });
+  (P.nodes || []).forEach(nd => { if (nd.sub && nd.sub.includes(old)) nd.sub = nd.sub.split(old).join(name); if (nd.kind === 'rack' && nd.name === 'ריכוז ' + old) nd.name = 'ריכוז ' + name; });
+  z.name = name; save(); render();
+  if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender();
+}
+/* נקודה קיימת (של כל אזור) בטווח ~7px מסך מהעכבר — להצמדה ולאיחוד נקודות */
+function zoneVtxNear(pt, skipZ, skipI) {
+  const TH = 7 / (getZ() || 1); let best = null, bd = TH;
+  for (const z of P.zones || []) { const pts = z.poly || zoneRectPts(z);
+    for (let i = 0; i < pts.length; i++) { if (z === skipZ && i === skipI) continue; const d = Math.hypot(pts[i].x - pt.x, pts[i].y - pt.y); if (d < bd) { bd = d; best = { x: pts[i].x, y: pts[i].y, z, i }; } } }
+  return best;
+}
+function zoneSnapSVG(sp) { if (!sp) return ''; const k = getZ() || 1; return `<g pointer-events="none"><circle cx="${sp.x}" cy="${sp.y}" r="${11 / k}" fill="#16a34a33" stroke="#16a34a" stroke-width="${2.5 / k}"/><circle cx="${sp.x}" cy="${sp.y}" r="${3 / k}" fill="#16a34a"/></g>`; }
+/* אחרי הנחה על נקודה קיימת: נקודה שכנה באותו פוליגון באותו מקום — מתאחדות לנקודה אחת */
+function zoneVtxMerge(z, i) {
+  const pl = z.poly; if (!pl || pl.length <= 3) return false;
+  const p = pl[i], n = pl.length;
+  for (const j of [(i + 1) % n, (i - 1 + n) % n]) { if (pl[j].x === p.x && pl[j].y === p.y) { pl.splice(j, 1); uiToast('🔗 הנקודות אוחדו לנקודה אחת'); return true; } }
+  return false;
+}
+/* החלוקה השתנתה אחרי שנשמרה לאימון — מסמנים, ומזכירים פעם אחת לעדכן */
+function ztEdited() {
+  if (typeof ztDirty !== 'function' || !ztDirty()) return;
+  if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender();
+  if (!window.__ztToasted) { window.__ztToasted = true; uiToast('🎓 החלוקה השתנתה מאז שנשמרה לאימון — לחץ "עדכן אימון" (באשף, מסך אזור)', 6000); }
+}
 function zoneSyncBox(z) {
   if (!z.poly) return;
   const xs = z.poly.map(p => p.x), ys = z.poly.map(p => p.y);
@@ -13731,14 +13797,14 @@ function zoneVtxDelete(zid, i) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   if (!z.poly) z.poly = zoneRectPts(z);
   if (z.poly.length <= 3) { uiToast('לאזור חייבות להישאר 3 נקודות'); return; }
-  z.poly.splice(i, 1); zoneSyncBox(z); save(); render();
+  z.poly.splice(i, 1); zoneSyncBox(z); save(); render(); ztEdited();
 }
 /* נקודה "דבוקה" לעכבר: הלחיצה הבאה מניחה אותה (נתפס לפני כל שאר המאזינים) */
 document.addEventListener('pointerdown', e => {
   const v = window.__vtxZ; if (!v || !v.sticky || e.button !== 0) return;
   e.preventDefault(); e.stopPropagation();
-  const pt = canvasPt(e); v.z.poly[v.i] = { x: Math.round(pt.x), y: Math.round(pt.y) };
-  window.__vtxZ = null; zoneSyncBox(v.z); zoneAbsorb(v.z); save(); render();
+  const pt = canvasPt(e), sp = zoneVtxNear(pt, v.z, v.i); v.z.poly[v.i] = sp ? { x: sp.x, y: sp.y } : { x: Math.round(pt.x), y: Math.round(pt.y) };
+  window.__vtxZ = null; zoneVtxMerge(v.z, v.i); zoneSyncBox(v.z); zoneAbsorb(v.z); save(); render(); ztEdited();
 }, true);
 /* Esc / Delete / Backspace בזמן עריכת נקודה — חזרה למקום הקודם (נקודה שנוספה מאמצע צלע נמחקת) */
 document.addEventListener('keydown', e => {
@@ -13941,6 +14007,7 @@ function autoZonesHint() {
   const c = ov.querySelector('[data-cancel]'); if (c) c.onclick = () => ov.remove();
 }
 /* עוצמת נגינה יעד (dB) לפי תכלית */
+const zoneSPL = z => (z && +z.spl) || (z && typeof USAGE_SPL !== 'undefined' && USAGE_SPL[z.usage]) || 0;
 const USAGE_SPL = { 'מוזיקת רקע': 72, 'בית קפה': 85, 'חדר כושר — חלל כללי': 80, 'מסעדה': 90, 'סטודיו בחדר כושר': 90, 'מוזיקה לבר': 95, 'מסעדה + DJ': 98, 'הופעות חיות': 100, 'סטודיו ספינינג': 100, 'מוזיקת ריקודים': 110, 'מועדון על מלא': 115 };
 /* המותגים העיקריים בסינון המוצרים באזור — [שם כמו ב-KIT_BRANDS, תווית] */
 const ZONE_BRANDS = [['KT / Unicorn', 'KT / Unicorn'], ['K&F', 'Kling & Freitag'], ['FUNKTION ONE', 'Funktion One']];
@@ -14000,7 +14067,7 @@ function brandSpeakers(brand) {
 }
 function zoneSystemBuilder(z) {
   const zid = z.id;
-  const tgt = z.usage ? USAGE_SPL[z.usage] : '';
+  const tgt = zoneSPL(z) || '';
   const q = (z._sq || '').trim();
   /* סינון מותג (סאונד): KT/Unicorn · K&F · Funktion One · אחר = כל השאר. חל על המוצרים וגם על הקיטים */
   const kb = z._kcat === 'audio' ? (z._kbrand || '') : '';
@@ -14011,10 +14078,13 @@ function zoneSystemBuilder(z) {
       <div style="display:flex;gap:4px;flex-wrap:wrap">
         ${[['live', '🎤 הופעה חיה'], ['club', '🪩 מועדון'], ['bar', '🍸 בר'], ['rest', '🍽 מסעדה'], ['cafe', '☕ בית קפה'], ['shop', '👕 חנות בגדים']].map(([v, l]) => `<button onclick="applyVenuePreset('${zid}','${v}')" style="padding:3px 10px;font-size:11px;${z._preset === v ? 'background:#c9502e;color:#fff;font-weight:700' : ''}">${l}</button>`).join('')}
       </div></div>
-    <div class="fld"><label>עוצמת נגינה / תכלית</label><select onchange="setZoneField('${zid}','usage',this.value)">
+    <div class="fld"><label>תכלית — מה עושים באזור</label><select onchange="setZoneField('${zid}','usage',this.value)">
       <option value="" ${!z.usage ? 'selected' : ''}>— בחר —</option>
       ${USAGES.map(u => `<option value="${u}" ${z.usage === u ? 'selected' : ''}>${u} · ${USAGE_SPL[u]}dB</option>`).join('')}
-    </select>${tgt ? `<span class="muted" style="font-size:11px"> SPL יעד: ${tgt} dB</span>` : ''}</div>
+      <option value="אחר" ${z.usage && !USAGES.includes(z.usage) ? 'selected' : ''}>אחר…</option>
+    </select>
+    ${z.usage && !USAGES.includes(z.usage) ? `<input value="${esc(z.usage === 'אחר' ? '' : z.usage)}" placeholder="תאר מה עושים באזור" style="margin-top:4px" onchange="setZoneField('${zid}','usage',this.value.trim()||'אחר')">` : ''}</div>
+    <div class="fld"><label>🔊 עוצמה יעד (dB) — מוצע לפי התכלית, ניתן לשינוי</label><input type="number" min="60" max="130" step="1" value="${tgt || ''}" placeholder="למשל 90" onchange="setZoneField('${zid}','spl',+this.value||0)"></div>
 
     <div class="fld"><label>סוג התקנה</label><select onchange="setZoneField('${zid}','_place',this.value)">
       ${placeOptsHTML(z._place)}
@@ -14145,7 +14215,10 @@ function setZoneWall(zid, s) {
 }
 function setZoneField(zid, key, val) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
-  z[key] = val; render(); save();
+  z[key] = val;
+  if (key === 'usage' && USAGE_SPL[val]) z.spl = USAGE_SPL[val];   /* תכלית חדשה → ה-dB המוצע שלה (ניתן לשינוי אחר כך) */
+  render(); save();
+  if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender();
   /* שדה החיפוש נבנה מחדש — מחזירים פוקוס וסמן לסוף כדי שאפשר להקליד ברצף */
   if (key === '_sq') { const el = document.getElementById('zsq'); if (el) { el.focus(); const L = el.value.length; el.setSelectionRange(L, L); } }
 }
@@ -14664,6 +14737,7 @@ function applyVenuePreset(zid, v) {
   else if (v === 'cafe') { z.usage = 'בית קפה'; z._place = 'ring'; z._dens = 'edge'; z._spread = 'surround'; }
   else if (v === 'shop') { z.usage = 'מוזיקת רקע'; z._place = 'ceiling'; z._dens = 'min'; z._spread = 'surround'; }
   else { z.usage = 'מסעדה'; z._place = 'ring'; z._dens = 'edge'; z._spread = 'surround'; }
+  z.spl = USAGE_SPL[z.usage] || z.spl;
   render(); save();
 }
 /* פריטי ראק של האזור שטרם הוצבו — נכנסים ישר לארון הריכוז שמוקם בשלב 2 */
@@ -14922,7 +14996,7 @@ var OFFER_BRANDS = [   /* סדר ההצגה: מהנגיש ליקר, לפי או�
   { label: 'Lambda Labs', rx: /LAMBDA|\bTX-?\d|\bCX-?\d|\bMF-?\d|\bQX-?\d/i, color: '#7a2a6b', blurb: 'אוסטריה — ליין ארז ופוינט סורס לאולמות', match: 3 },
 ];
 function zoneTierKits(z) {
-  const target = (typeof USAGE_SPL !== 'undefined' && z && USAGE_SPL[z.usage]) || 90;
+  const target = (typeof zoneSPL === 'function' && z && zoneSPL(z)) || 90;
   const need = target + 8;   /* מרווח לפסגות בלי קליפ */
   /* התאמה לתכלית: הופעות חיות → רק קיטים להופעות/במה/אולם (בית קפה, רקע, בר לא רלוונטיים); רקע/קפה → בלי קיטי הופעות */
   const usage = (z && z.usage) || '', isLive = /הופעות|LIVE/i.test(usage), isBg = /רקע|קפה|כושר/.test(usage);
@@ -14999,7 +15073,7 @@ function zoneSpkPicker(zid, tab) {
   const paint = () => {
     if (TAB === 'tiers') {
       const tiers = zoneTierKits(z);
-      const tgt = (typeof USAGE_SPL !== 'undefined' && USAGE_SPL[z.usage]) || 90;
+      const tgt = zoneSPL(z) || 90;
       body.innerHTML = `<p class="muted" style="font-size:11px;margin:0 0 8px">🎯 ${z.usage ? esc(z.usage) + ' · ' : ''}יעד ${tgt}dB — הצעה לכל מותג: הקיט הפסיבי הזול של המותג שעומד ביעד. שנה את תכלית האזור כדי לקבל הצעות אחרות.</p>` + tiers.map(t => `
         <div style="border:2px solid ${t.color};border-radius:14px;padding:10px;margin-bottom:10px">
           <div style="display:flex;gap:8px;align-items:baseline"><b style="color:${t.color};font-size:14px">${t.label}</b>
@@ -15281,7 +15355,7 @@ async function autoLayoutAI(zid) {
   const spk = z._spk || 'רמקול התקנה', disp = guessDisp(spk);
   const areaM = zoneAreaM(z).toFixed(0), ceil = z.ceil ?? P.room?.ceil ?? 3;
   const spread = z._spread || 'surround';
-  const tgt = z.usage ? USAGE_SPL[z.usage] : 88;
+  const tgt = zoneSPL(z) || 88;
   alert('שולח את התכנית לניתוח… (~20 שניות). לחץ OK והמתן.');
   try {
     const j = await claudeMsg([{ role: 'user', content: [
@@ -15361,7 +15435,7 @@ function wallHard(mat) { return /בטון|בלוק|זכוכית/.test(mat || '')
 function delZone(id) {
   P.zones = (P.zones || []).filter(z => z.id !== id);
   if (selZone === id) selZone = null;
-  render();
+  render(); ztEdited();
 }
 /* 📌 נעיצת הרמקול/הסאב הנבחר של האזור: שורת הצעה אחת לדגם (לפי מק״ט/שם), כל נקירה = +1 בהצעה */
 function zoneSpkItem(z, isSub, mk) {

@@ -10,14 +10,14 @@
       על דגימות בתוך האזור; נבחרת התבנית עם הפער הקטן ביותר בין הנקודה החזקה לחלשה.
    מה שלא ידוע נאמר: SPL שאין לו מקור מאומת מסומן "משוער" בהודעת הבנייה.
    =================================================================================== */
-function sdGain(z) { const t = USAGE_SPL[z.usage] || 90; return t <= 85 ? 0 : t <= 95 ? 3 : t <= 100 ? 6 : t <= 110 ? 8 : 10; }
+function sdGain(z) { const t = (typeof zoneSPL === 'function' ? zoneSPL(z) : USAGE_SPL[z.usage]) || 90; return t <= 85 ? 0 : t <= 95 ? 3 : t <= 100 ? 6 : t <= 110 ? 8 : 10; }
 function sdSpl(name) { const d = spkData(name); return d && d.max ? { spl: d.max, known: true } : { spl: guessSpl(name), known: false }; }
 /* מרווח בין טופים לפי כיסוי. mode: 'ring' | 'wall' | 'ceiling' */
 function sdSpacing(z, spk, mode) {
   const ceil = z.ceil ?? P.room?.ceil ?? 3, ear = 1.2;
   const disp = Math.min(guessDisp(spk), 150);
   const factor = { edge: 1.0, min: 0.7, full: 0.5, sparse: 1.35 }[z._dens || 'edge'] || 1.0;
-  const target = USAGE_SPL[z.usage] || 90, top = sdSpl(spk);
+  const target = (typeof zoneSPL === 'function' ? zoneSPL(z) : USAGE_SPL[z.usage]) || 90, top = sdSpl(spk);
   /* המרחק המרבי שבו שיאי המוזיקה (יעד+10 dB) עוד נשמרים; +3 dB החזר חדר — אותו חשבון כמו בניתוח שבמטריצה */
   const reach = Math.pow(10, (top.spl + 3 - (target + 10)) / 20);
   let mount, covR, why, splLimited = false;

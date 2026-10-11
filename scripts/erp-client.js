@@ -55,15 +55,28 @@ export async function erpCall(name, args) {
   }
 }
 /* הצעות מחיר: כברירת מחדל רק מה שממתין לאישור לקוח (= הצעת מחיר פתוחה) */
-export async function erpQuotes({ q = '', all = false, limit = 100 } = {}) {
+/* שמות פרויקטים לפי מזהה — נטענים פעם בשעה (list_projects), כדי להציג לאיזה פרויקט שייכת כל הצעה */
+let prjNames = { at: 0, map: new Map() };
+async function projectNames() {
+  if (Date.now() - prjNames.at < 3_600_000 && prjNames.map.size) return prjNames.map;
+  try {
+    const r = await erpCall('list_projects', { limit: 500 }); const rows = r?.projects || r?.rows || (Array.isArray(r) ? r : []);
+    const m = new Map(); for (const p of rows) { const id = p.id || p.project_id || p.uuid; if (id) m.set(id, (p.name || p.project_name || '').trim()); }
+    prjNames = { at: Date.now(), map: m };
+  } catch { prjNames.at = Date.now(); }
+  return prjNames.map;
+}
+export async function erpQuotes({ q = '', all = false, limit = 200 } = {}) {
   const args = { limit };
   if (q) args.search = q;
   if (!all) args.status = 'pending_customer_confirmation';
   const r = await erpCall('list_orders', args);
+  const pn = await projectNames();
+  /* ב-ERP אין להצעה כותרת: offer_name הוא שם המסלול (אספקת סחורה / פרויקט ללקוח…) — מוחזר כ-track */
   return (r.orders || []).map(o => ({
-    id: o.id, code: o.order_code, name: o.offer_name || '', account: o.account_name || o.account_key || '', accountKey: o.account_key || '',
+    id: o.id, code: o.order_code, name: '', track: o.offer_name || '', account: o.account_name || o.account_key || '', accountKey: o.account_key || '',
     status: o.status, confirmed: !!o.customer_confirmed, total: o.total_amount || 0, subtotal: o.subtotal_amount || 0, items: o.items_count || 0,
-    date: (o.created_at || '').slice(0, 10), project: o.project_id || null,
+    date: (o.created_at || '').slice(0, 10), project: o.project_id || null, projectName: (o.project_id && pn.get(o.project_id)) || '',
   }));
 }
 export async function erpQuoteItems(orderId) {

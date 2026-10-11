@@ -157,19 +157,25 @@ function wizStepHTML(s) {
       ${!P.calOk ? `<p class="hint">📏 קו הייחוס הסגול מוצג על התכנית ברוחב המלא + סרגל 5 מ׳. השווה מול שולחן (~0.8 מ׳), דלת (~0.9 מ׳) או מידה מודפסת — ורק אז אשר.</p>
         <button class="big" style="background:#0f6e56" onclick="wizCalConfirm()">✓ הכיול נכון — אשר והמשך</button>` : ''}`
       : `<p class="hint">כייל בשתי לחיצות על מידה ידועה בתכנית — קיר, פתח או מידה מודפסת (מידות בתכנית בנייה בד"כ במ״מ: 23700 = 23.7 מ׳).</p>`}
-    <button class="big" onclick="calMode={pts:[]};render()">📏 כיול מדויק — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
+    <button class="big" onclick="calMode={pts:[]};render()">📏 בצע כיול ידני — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
   }
   if (k === 'zone') {
     const usages2 = typeof USAGES !== 'undefined' ? USAGES : [];
     return `
     <h4>סימון אזור סאונד</h4>
-    ${(P.zones || []).map(zz => `<button class="sec ${zz.id === (WIZ.zid || (P.zones[0] || {}).id) ? 'done' : ''}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">🗺 ${esc(zz.name)} · ${zoneAreaM(zz).toFixed(0)} מ"ר${zz.usage ? ' · ' + esc(zz.usage) : ''}</button>`).join('')}
-    <input id="wizZName" placeholder="שם האזור (למשל: מסעדה / רחבה)">
+    ${(P.zones || []).map(zz => `<button class="sec ${zz.id === (WIZ.zid || (P.zones[0] || {}).id) ? 'done' : ''}" style="border-inline-start:6px solid ${zColor(zz)}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">🗺 ${esc(zz.name)} · ${zoneAreaM(zz).toFixed(0)} מ"ר${zz.usage ? ' · ' + esc(zz.usage) : ''}${typeof zoneSPL === 'function' && zoneSPL(zz) ? ' · ' + zoneSPL(zz) + 'dB' : ''}</button>`).join('')}
+    ${typeof ztCur === 'function' && (P.hasBg || P.bg) && (P.zones || []).length ? (() => { const ex = ztCur(), dirty = typeof ztDirty === 'function' && ztDirty(); return `<button class="sec" style="${dirty ? 'background:#c9502e;color:#fff;font-weight:800;border-color:#c9502e' : ex ? 'color:#0f6e56' : ''}" onclick="ztSave()" title="החלוקה שעל המסך נשמרת כדוגמה לאימון הזיהוי האוטומטי">${ex ? (dirty ? '🎓 עדכן אימון — החלוקה השתנתה מאז השמירה' : '✓ נשמר לאימון · לחץ לעדכון') : '🎓 שמור חלוקה זו לאימון'}</button>`; })() : ''}
+    ${z ? `<label style="font-size:12px;font-weight:700;display:block;margin:6px 0 2px">✏ שם האזור הנבחר</label>
+    <input id="wizZName" value="${esc(z.name)}" placeholder="שם האזור (למשל: מסעדה / רחבה)" onchange="zoneRename('${z.id}',this.value)" onkeydown="if(event.key==='Enter'){this.blur()}" title="השם מתעדכן ברשימה, בתווית שעל התכנית, בהצעה ובארון הריכוז">` : `<input id="wizZName" placeholder="שם האזור הבא (למשל: מסעדה / רחבה)">`}
     ${z ? `<label style="font-size:12px;font-weight:700;display:block;margin:6px 0 2px">🎯 מה עושים ב"${esc(z.name)}"? <span style="color:#c1121f">(חובה)</span></label>
     <select id="wizUse" style="${z.usage ? '' : 'border:1.5px solid #c1121f'}" onchange="setZoneField('${z.id}','usage',this.value);wizRender()">
-      <option value="">— תכלית / עוצמה —</option>
-      ${usages2.map(u => `<option ${z.usage === u ? 'selected' : ''} value="${u}">${u}${typeof USAGE_SPL !== 'undefined' && USAGE_SPL[u] ? ' · יעד ' + USAGE_SPL[u] + 'dB' : ''}</option>`).join('')}
-    </select>` : ''}
+      <option value="">— תכלית —</option>
+      ${usages2.map(u => `<option ${z.usage === u ? 'selected' : ''} value="${u}">${u}${typeof USAGE_SPL !== 'undefined' && USAGE_SPL[u] ? ' · מוצע ' + USAGE_SPL[u] + 'dB' : ''}</option>`).join('')}
+      <option value="אחר" ${z.usage && !usages2.includes(z.usage) ? 'selected' : ''}>אחר…</option>
+    </select>
+    ${z.usage && !usages2.includes(z.usage) ? `<input value="${esc(z.usage === 'אחר' ? '' : z.usage)}" placeholder="תאר מה עושים באזור (למשל: אולם אירועים)" onchange="setZoneField('${z.id}','usage',this.value.trim()||'אחר');wizRender()">` : ''}
+    <label style="font-size:12px;font-weight:700;display:block;margin:6px 0 2px">🔊 עוצמה יעד (dB) — מוצע לפי התכלית, אפשר לשנות</label>
+    <input type="number" min="60" max="130" step="1" value="${typeof zoneSPL === 'function' && zoneSPL(z) ? zoneSPL(z) : ''}" placeholder="למשל 90" onchange="setZoneField('${z.id}','spl',+this.value||0);wizRender()">` : ''}
     ${z ? `<label style="font-size:12px;font-weight:700;display:block;margin:8px 0 3px">🎚 מה מנגן באזור? <span style="color:#c1121f">(חובה)</span> — קובע מיקסר / כרטיס קול / פרוססור</label>
     ${(() => { const others = wizSrcZones(z); if (!others.length) return ''; wizSyncSources(z); const from = wizSharedFrom(z); const lbl = k => (SOURCES.find(s => s[0] === k) || [k, k])[1].replace(/^\S+\s/, '');
       return `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px">
@@ -565,7 +571,8 @@ function wizUploadBg(inp) {
 }
 function wizNewProject() { newProj(); WIZ.step = WS('plan'); wizRender(); }
 function wizDrawZone() {
-  const nm = document.getElementById('wizZName').value.trim();
+  const el = document.getElementById('wizZName');
+  const nm = el && !wizZone() ? el.value.trim() : '';   /* כשיש אזור נבחר השדה הוא השם שלו — האזור החדש מקבל שם ברירת מחדל ומשנים אחר כך */
   zoneNameNext = nm || 'אזור ' + ((P.zones || []).length + 1);
   zoneMode = { poly: [] }; render();
   uiToast('נקר נקודות סביב האזור על התכנית · לחיצה על הנקודה הראשונה סוגרת');
