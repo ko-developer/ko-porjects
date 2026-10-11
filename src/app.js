@@ -13341,6 +13341,8 @@ function impModeHTML() {
     ${split ? '<span class="muted" style="font-size:11px;white-space:nowrap">' + P.sheets.filter(sh => sh !== cur).map(sh => esc(sh.name) + ': ' + n(sh)).join(' · ') + '</span>' : ''}</div>`;
 }
 window.offerModeSet = offerModeSet; window.impModeHTML = impModeHTML;
+/* מי מתקין כל פריט בהצעה — עמודה "התקנה באחריות" (it.inst) */
+const INST_OPTS = [['', '—'], ['ko', '🔧 טכנאי KO'], ['ext', '🤝 מתקין KO חיצוני'], ['client', '👤 באחריות לקוח']];
 function renderImp() {
   dockOpen = true;
   const dk = $('#dock');
@@ -13393,6 +13395,7 @@ function renderImp() {
         <td><select ${it.added ? 'disabled' : `onchange="impItems[${i}].dest=this.value"`}>${destOpts(it)}</select></td>
         <td><select ${it.added ? 'disabled' : `onchange="impItems[${i}].rack=this.value"`}>${racks.map(r => `<option value="${r.id}" ${it.rack === r.id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>
         <td style="font-size:11px;white-space:nowrap">${it.added ? (stockUsage(it) || 'בתכנית') : (it.placed ? it.placed + '/' + it.qty : '—')}</td>
+        <td><select style="font-size:10.5px;padding:1px 3px;max-width:118px;${it.inst === 'client' ? 'background:#fff3cd' : it.inst === 'ext' ? 'background:#e8f0fe' : it.inst === 'ko' ? 'background:#eef7f1' : ''}" title="מי מתקין את הפריט" onchange="impItems[${i}].inst=this.value||undefined;renderImp();save()">${INST_OPTS.map(([v, l]) => `<option value="${v}" ${(it.inst || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
         <td style="font-size:10px;max-width:70px;overflow:hidden">${esc(it.src)}</td>
         <td><button style="padding:1px 7px" onclick="impItems.splice(${i},1);renderImp();save()">✕</button></td></tr>`;
   };
@@ -13416,7 +13419,7 @@ function renderImp() {
   }
   const body = impItems.length
     ? `<p class="muted" style="margin-bottom:8px">✓ = בתכנית (עם ניצול מלאי) · <b>גרור ⠿ ישר לתכנית</b> — מוצר למיקום/לארון, כבל מפעיל חיבור בלחיצה עם הפרטים שלו.</p>
-      <div style="overflow-x:auto"><table class="cablelist"><tr><th></th><th></th><th>כמות</th><th>בתכנית</th><th>אזור</th><th>שם פריט</th><th>מק"ט</th><th>מחיר ₪</th><th>סה"כ</th><th>הערה</th><th>יעד בתכנית</th><th>ארון</th><th>סטטוס</th><th>מקור</th><th></th></tr>` +
+      <div style="overflow-x:auto"><table class="cablelist"><tr><th></th><th></th><th>כמות</th><th>בתכנית</th><th>אזור</th><th>שם פריט</th><th>מק"ט</th><th>מחיר ₪</th><th>סה"כ</th><th>הערה</th><th>יעד בתכנית</th><th>ארון</th><th>סטטוס</th><th title="מי מתקין את הפריט: טכנאי KO · מתקין KO חיצוני · באחריות הלקוח">התקנה באחריות<br><select style="font-size:10px;padding:0 2px" title="קבע לכל השורות" onchange="if(this.value!=='_'){impItems.forEach(x=>{x.inst=this.value||undefined});renderImp();save()}"><option value="_">לכולם…</option>${INST_OPTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></th><th>מקור</th><th></th></tr>` +
       rowsHtml + '</table></div>' +
       `<div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px;background:#f4f2ec;border-radius:8px">
         <b style="flex:1">סה"כ הצעת מחיר:</b><b style="font-size:16px;color:#c96f4a">₪${quoteTotal().toLocaleString()}</b>
