@@ -13438,7 +13438,7 @@ function renderImp() {
     return;
   }
   dk.style.width = dockWide ? 'calc(100vw - 60px)' : '480px';
-  impItems.forEach(autoPrice);
+  impItems.forEach(it => { autoPrice(it); clampItemZones(it); });
   const racks = P.nodes.filter(n => n.kind === 'rack');
   const destOpts = it => ['unit|יחידה בארון', 'panelUnit|פאנל בארון', 'point|מוקד/רמקול', 'panelNode|קופסאת מולטי', 'rack|ארון מסד חדש', 'cable|כבל מוכן (מלאי)', 'reel|גליל כבל (מלאי)', 'conn|מחבר (מלאי)', 'ignore|התעלם']
     .map(o => { const [v, l] = o.split('|'); return `<option value="${v}" ${it.dest === v ? 'selected' : ''}>${l}</option>`; }).join('');
@@ -13547,6 +13547,15 @@ function renderImp() {
 }
 function openImported() { dockOpen = true; dockMin = false; renderImp(); }
 function itemZones(it) { return it.zones ? Object.entries(it.zones).filter(([z, n]) => n > 0) : []; }
+/* הכמות לאזורים לא יכולה לעלות על כמות הפריט (ייבוא ואז הצבה רשמו פעמיים) — אזור יחיד = הכמות; כמה אזורים = מקוצצים יחסית */
+function clampItemZones(it) {
+  if (!it || !it.zones) return false;
+  const q = +it.qty || 0, ks = Object.keys(it.zones), sum = ks.reduce((a, k) => a + (+it.zones[k] || 0), 0);
+  if (!q || sum <= q) return false;
+  if (ks.length === 1) it.zones[ks[0]] = q;
+  else { let left = q; ks.forEach((k, i) => { const v = i === ks.length - 1 ? left : Math.min(left, Math.round((+it.zones[k] || 0) * q / sum)); it.zones[k] = v; left -= v; }); }
+  return true;
+}
 /* שינוי כמות בכל שלב — כולל אחרי הצבה: עודף מוקדים על התכנית מוסר, וחוסר נפתח להצבה */
 function setItemQty(i, val) {
   const it = impItems[i]; if (!it) return;
@@ -14515,7 +14524,10 @@ function buildZoneFromItems(zid) {
       const nd = { id: uid('n'), kind: 'point', name: it.name.slice(0, 40) + ' (' + (p.lbl || (k + 1)) + ')', sub: (live ? 'מיין במה · ' : 'היקפי · ') + z.name, x: 2200 - p.cx - 20, y: p.cy - 24, srcIid: it.iid, mini: true, mount: live ? 'טראס/הנפה' : 'קיר בלוק', hgt: live ? 3.5 : 2.6, aim: p.aim, spl: (guessSpl(it.name) || 120) - 20 };
       P.nodes.push(nd); created.push(nd.id); nS++;
     }
-    it.placed = (it.placed || 0) + q; it.zones[z.name] = (it.zones[z.name] || 0) + q; it.added = true;
+    it.placed = (it.placed || 0) + q; it.added = true;
+    /* הכמות לאזור = מה שהוצב בו בפועל (ולא פחות ממה ששויך מראש, עד הכמות בהצעה) — לא מצטבר על שיוך הייבוא */
+    const inZ = P.nodes.filter(n => n.srcIid === it.iid && nodeInZone(n, z)).length;
+    it.zones[z.name] = Math.max(inZ, Math.min(it.zones[z.name] || 0, +it.qty || 0));
   }
   /* סאבים — בפינות (צימוד פינה מגביר בס) */
   const inM = P.scale ? 0.6 / P.scale : 24;
