@@ -3607,7 +3607,7 @@ function spkAimIcon(n, mc) {
    line  = אחד מתחת לשני (ליין אראיי): אותו פיזור אופקי, סכימה קוהרנטית על הציר → +20·log10(N) dB
    stack = טופ יושב על הסאב · fly = טופ תלוי מעל הסאב באותה נקודה (תצוגה בלבד)
    סאבים מצומדים (צד לצד או בערימה) מסתכמים קוהרנטית בשני המצבים */
-const cplIsSub = q => !!q && (q.ptype === 'sub' || (q.kind === 'point' && !q.ptype && /סאב|\bsub\b|וופר/i.test(q.name || '')));
+const cplIsSub = q => !!q && (q.ptype === 'sub' || (q.kind === 'point' && !q.ptype && /סאב|\bsub-?\w*|וופר|\bbass\b|\bSB-?\d|\bBR-?\d{2,3}\b|\binfra/i.test(q.name || '')));   /* גם SB12 / BR118 / "Small Bass" */
 const cplSpkLike = q => !!q && q.kind === 'point' && (q.ptype === 'speaker' || q.ptype === 'sub' || (!q.ptype && /רמקול|סאב|speaker|\bsub\b|קולונ|וופר/i.test(q.name || '') && !/מגבר|פרוססור/.test(q.name || '')));
 /* שורש המערך המצומד (עולים בשרשרת הצימוד) וכל הצאצאים שלו — המערך נגרר כגוף אחד */
 function cplRoot(n) { let q = n; for (let g = 0; g < 20 && q.att && q.att.cpl; g++) { const a = byId(q.att.id); if (!a || a.hidden) break; q = a; } return q; }
@@ -3683,7 +3683,7 @@ function cplAsk(nid, tid) {
     ? [['stack', '▂ Stack', 'הטופ יושב על הסאב'], ['fly', '⇡ תלוי מעל הסאב', 'הטופ תלוי באותה נקודה, מעל הסאב']]
     : subs
     ? [['side', '↔ צד לצד', 'סאבים צמודים — העוצמה מסתכמת'], ['line', '↕ ערימה', 'סאב על סאב — העוצמה מסתכמת']]
-    : [['side', '↔ צד לצד', 'פיזור אופקי רחב יותר, אותה עוצמה'], ['line', '↕ אחד מתחת לשני', 'ליין אראיי — אותו פיזור, עוצמה גבוהה יותר']];
+    : [['side', '↔ צד לצד', 'פיזור אופקי רחב יותר, אותה עוצמה'], ['line', '↕ אחד מתחת לשני', 'ליין אראיי — אותו פיזור, עוצמה גבוהה יותר'], ['stack', '▂ Stack — זה יושב על זה', 'הרמקול שגררת יושב על זה שמתחתיו (טופ על סאב / רמקול על רמקול)'], ['fly', '⇡ תלוי מעל', 'הרמקול שגררת תלוי באותה נקודה, מעל התחתון']];
   const el = document.getElementById('nd_' + n.id), r = el ? el.getBoundingClientRect() : { left: innerWidth / 2, bottom: innerHeight / 2, width: 0 };
   const d = document.createElement('div'); d.id = 'cplAsk';
   d.style.cssText = 'position:fixed;z-index:140;background:#fff;border:1px solid #cfd3dc;border-radius:11px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:9px;direction:rtl;font-size:12px;width:250px;left:' + Math.max(8, Math.min(innerWidth - 262, r.left + r.width / 2 - 125)) + 'px;top:' + Math.min(innerHeight - 190, r.bottom + 10) + 'px';
