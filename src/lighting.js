@@ -57,7 +57,10 @@ function fxMatch(model, type) {
 }
 /* פריט מההצעה הוא גוף תאורה? לפי הספרייה (מק"ט), הקטגוריה, או השם */
 function fxIsLightItem(it) {
-  if (!it) return false; if (it.key && fxOf(it.key)) return !['truss', 'hoist', 'clamp', 'control', 'dmx', 'psu', 'dimmer', 'other'].includes(fxOf(it.key).kind);
+  if (!it) return false;
+  const lf = it.key ? fxLib().find(f => f.sku === it.key) : null;   /* רק ספריית התאורה של האתר — לא כל פריט ERP (רמקול/סאב אינם פנס) */
+  if (lf) return !['truss', 'hoist', 'clamp', 'control', 'dmx', 'psu', 'dimmer', 'other', 'erp', 'lamp', 'arch', 'strip'].includes(lf.kind);
+  if (/רמקול|speaker|סאב|\bsub\b|מגבר|פרוססור|כבל|מחבר|קלמר|טראס/i.test(it.name || '')) return false;
   if (it.cat === 'lighting') return true;
   return /פנס|גוף תאורה|moving ?head|\bbeam\b|\bwash\b|\bpar\b|\bspot\b|strobe|סטרוב|blinder|בלינדר|haze|הייזר|עשן|לייזר|laser|\bled bar\b|פיקסל/i.test(it.name || '') && !/רמקול|speaker|סאב|מגבר|כבל|מחבר|קלמר|טראס/i.test(it.name || '');
 }
@@ -65,6 +68,15 @@ function fxInitNode(n, it) {
   const f = it && it.key ? fxOf(it.key) : null;
   n.ptype = 'light'; n.mini = true; if (!n.mount || n.mount === 'קיר בלוק') n.mount = 'טראס/הנפה'; if (n.hgt == null || n.hgt === 2.6) n.hgt = 5;
   n.fx = { ...(n.fx || {}), sku: f ? f.sku : (n.fx && n.fx.sku) || null, u: (n.fx && n.fx.u) || 1, a: (n.fx && n.fx.a) || 0, ch: (n.fx && n.fx.ch) || (f && f.spec && f.spec.dmx && f.spec.dmx.length ? f.spec.dmx[0] : 0), pos: (n.fx && n.fx.pos) || '', type: f ? f.kind : (n.fx && n.fx.type) || 'static' };
+  return n;
+}
+/* תיקון חד-פעמי: מוקדים שהומרו בטעות ל"גוף תאורה" (רמקולים/סאבים מההצעה) חוזרים להיות מוקדי סאונד */
+function fxRepairNodes() {
+  let n = 0;
+  for (const nd of (P.nodes || [])) { if (nd.kind !== 'point' || nd.ptype !== 'light') continue; const it = nd.srcIid ? impItems.find(x => x.iid === nd.srcIid) : null; const nm = nodeFullName(nd);
+    const inLib = nd.fx && nd.fx.sku && fxLib().some(f => f.sku === nd.fx.sku);
+    if (!inLib && !fxIsLightItem(it || { name: nm, key: nd.fx && nd.fx.sku }) && /רמקול|speaker|סאב|\bsub\b|מגבר|פרוססור/i.test(nm)) { delete nd.ptype; delete nd.fx; if (nd.mount === 'טראס/הנפה') nd.mount = /סאב|\bsub\b/i.test(nm) ? 'רצפה' : 'קיר בלוק'; if (nd.hgt === 5) nd.hgt = /סאב|\bsub\b/i.test(nm) ? 0 : 2.6; n++; } }
+  if (n) { save(); uiToast('🔧 ' + n + ' רמקולים/סאבים שסומנו בטעות כגופי תאורה חזרו לשכבת הסאונד', 6000); }
   return n;
 }
 function fxNodes() { return (P.nodes || []).filter(n => n.kind === 'point' && n.ptype === 'light' && !n.hidden); }
