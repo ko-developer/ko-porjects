@@ -2788,8 +2788,30 @@ function layerHas(n) { const L = P.layer || 'audio'; if (L === 'all') return tru
 function cableLayer(c) { const g = cabGroup(c); return g === 'light' ? 'light' : g === 'video' ? 'video' : g === 'audio' ? 'audio' : 'all'; }
 function layerHasCable(c) { const L = P.layer || 'audio'; if (L === 'all') return true; const cl = cableLayer(c); if (cl === 'all') { const a = byId(c.from), b = byId(c.to); return layerHas(a || {}) && layerHas(b || {}); } return cl === L; }
 function setLayer(l) { P.layer = l; if (l === 'light') P.disc = 'light'; else if (l === 'audio') P.disc = 'audio'; if (sel && byId(sel) && !layerHas(byId(sel))) sel = null; if (selCable && cById(selCable) && !layerHasCable(cById(selCable))) selCable = null; save(); render(); }
+/* פנלים חכמים / קיפדים שנכנסו לארון — יוצאים ממנו ונעשים מוקד על התכנית ליד הארון (כמו עמדת DJ); הכבלים שלהם עוברים למוקד החדש */
+function keypadRepairRacks() {
+  let n = 0;
+  for (const rk of (P.nodes || []).slice()) {
+    if (rk.kind !== 'rack' || !(rk.units || []).length) continue;
+    const bad = rk.units.filter(u => isKeypadItem(u.name)); if (!bad.length) continue;
+    rk.units = rk.units.filter(u => !bad.includes(u));
+    try { rackArrange(rk); } catch (e) {}
+    bad.forEach((u, i) => {
+      /* שורת ההצעה של היחידה: לפי המזהה, ואם אין (הוצב מהאזור) — לפי השם */
+      const it = (u.srcIid && (impItems || []).find(x => x.iid === u.srcIid)) || (impItems || []).find(x => isKeypadItem(x.name) && String(x.name || '').slice(0, 40) === u.name);
+      if (it && (it.dest === 'unit' || it.dest === 'panelUnit')) it.dest = 'panelNode';
+      const nd = { id: uid('n'), kind: 'panel', name: u.name, sub: 'יצא מ"' + (rk.name || 'הארון') + '" — מוקד על התכנית', x: rk.x - 80 - i * 50, y: rk.y + 20 + i * 36, panel: { mode: 'matrix', rows: 1, holes: [{ conn: 'rj45' }] }, pmin: true, mount: 'קיר', srcIid: u.srcIid || (it && it.iid) };
+      P.nodes.push(nd);
+      (P.cables || []).forEach(c => { if (c.from === rk.id && c.fromUnit === u.id) { c.from = nd.id; delete c.fromUnit; } if (c.to === rk.id && c.toUnit === u.id) { c.to = nd.id; delete c.toUnit; } });
+      n++;
+    });
+  }
+  if (n) { save(); uiToast('🎛 ' + n + ' פנלים / קיפדים יצאו מהארון — הם מוקדים על התכנית (ליד הארון, גרור למקום הנכון)', 7000); }
+  return n;
+}
 function layerBarHTML() {
-  if (typeof fxRepairNodes === 'function') { try { fxRepairNodes(); } catch (e) { console.warn(e); } }   /* בכל רינדור (זול; שומר רק כשתיקן) — גם אחרי שה-store מגיע מהשרת ומחליף את הנתונים */
+  if (typeof fxRepairNodes === 'function') { try { fxRepairNodes(); } catch (e) { console.warn(e); } }
+  try { keypadRepairRacks(); } catch (e) { console.warn(e); }   /* בכל רינדור (זול; שומר רק כשתיקן) — גם אחרי שה-store מגיע מהשרת ומחליף את הנתונים */
   const L = P.layer || 'audio', cnt = { audio: 0, light: 0, video: 0 };
   (P.nodes || []).forEach(n => { if (n.hidden) return; const l = nodeLayer(n); if (cnt[l] != null) cnt[l]++; });
   return (L === 'light' && P.bg && typeof fxReadPlot === 'function' ? `<button onclick="fxReadPlot()" style="padding:4px 9px;border-radius:7px;font-size:12px;border:1px solid #534ab7;background:#534ab7;color:#fff;font-weight:700" title="סריקת התכנית: פנסים, טראסים, מסכים — סימון על התכנית ואז שיוך">🔎 סרוק</button>` : '') + LAYERS.map(([k, lbl]) => `<button onclick="setLayer('${k}')" style="padding:4px 9px;border-radius:7px;font-size:12px;border:1px solid ${L === k ? '#ffb347' : '#3a4152'};background:${L === k ? '#ffb347' : '#2a303d'};color:${L === k ? '#1a1e28' : '#dfe3ea'};font-weight:${L === k ? 800 : 500}" title="${k === 'all' ? 'כל השכבות יחד' : 'שכבת ' + lbl.slice(2) + ' — רק המוקדים והכבלים שלה'}">${lbl}${cnt[k] ? ' <span style="opacity:.8;font-size:10.5px">' + cnt[k] + '</span>' : ''}</button>`).join('');
@@ -11373,7 +11395,12 @@ function jsq(s) { return esc(String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g
 
 /* ---- ייבוא מפרט / הצעת מחיר ---- */
 let impItems = [];
+/* פנלים חכמים / קיפדים / בקרי קיר — לא נכנסים לארון: ננעצים על התכנית כמו עמדת DJ */
+const KEYPAD_RE = /קיפד|keypad|key\s?pad|פא?נל\s?חכם|פא?נל\s?(מגע|שליטה|בקרה|קיר|עם\s?צג)|touch\s?panel|control\s?panel|wall\s?(controller|control|panel|plate)|בקר\s?קיר|מתג\s?קיר|שלט\s?קיר|לוח\s?בקרה|volume\s?control|בקר\s?עוצמה|וסת\s?עוצמה/i;
+function isKeypadItem(name) { return KEYPAD_RE.test(String(name || '')); }
+function keypadNodeExtra(it) { return isKeypadItem(it && it.name) ? { pmin: true, mount: 'קיר' } : {}; }
 const SPEC_DICT = [
+  { re: KEYPAD_RE, dest: 'panelNode', cat: 'control' },
   { re: /(פרוססור|פרוסֵסור|processor|מעבד\s?אות|DSP|DIGISYNTHETIC|DPA\s?\d|DS\s?4\d\d|418E?|קרוסאובר|crossover|matrix\s?processor)/i, dest: 'unit', cat: 'audio', u: 1 },
   { re: /(IPX|IX\s?\d0|PLM|D\s?series|מגבר|amplif)/i, dest: 'unit', cat: 'amp', u: 2 },
   { re: /(SPECTRA|GRAVIS|NOMOS|CA\s?-?106|PASSIO|SEQUENZA|רמקול|סאב|סב-?וופר|subwoofer|\bsub\b|speaker|מוניטור|line\s?array|קולונ|column)/i, dest: 'point' },
@@ -11421,6 +11448,7 @@ function holesFromName(name) {
   return { holes: num, connKind: connKindOf(kw) };
 }
 function panelFromItem(it, rows) {
+  if (isKeypadItem(it && it.name)) return { mode: 'matrix', rows: 1, holes: [{ conn: 'rj45' }] };   /* קיפד = חיבור רשת/בקרה אחד */
   const h = holesFromName(it.name);
   if (h) return { mode: 'matrix', rows: rows || (h.holes > 12 ? 2 : 1), holes: Array.from({ length: h.holes }, () => ({ conn: h.connKind })) };
   return defPanel(it.dest === 'panelUnit' ? 8 : 16, rows || (it.dest === 'panelUnit' ? 1 : 2));
@@ -12341,6 +12369,7 @@ function erpLineToItem(x, src) {
     const FIXTURE_RE = /גוף\s?תאורה|גופי|נורת|נורה|סטריפ|strip|\bLED\b|\bלד\b|פרופיל|ספוט|spot|פנס|מנורה|צילינדר|שקוע|downlight|track|פס\s?צביר/i, LIGHT_RACK_RE = /דימר|dimmer|ספליטר|splitter|\bnode\b|בקר|controller|ספק\s?כח|power\s?supply|driver/i;
     let dest = d ? d.dest : isSvc ? 'ignore' : isAccessory(name) ? 'acc' : isSpeakerItem(name) ? 'point' : RACK_RE.test(name) ? 'unit' : 'point';
     if ((dest === 'unit' || dest === 'panelUnit') && isSpeakerItem(name)) dest = 'point';   /* רמקול/סאב לעולם לא נכנס לארון — גם אם מילון המפרט אומר אחרת */
+    if ((dest === 'unit' || dest === 'panelUnit') && isKeypadItem(name)) dest = 'panelNode';   /* פנל חכם / קיפד — מוקד על התכנית */
     if (dest === 'point' && isAccessory(name)) dest = 'acc';   /* בורג/טבעת/מתקן — אביזר משויך למוצר, לא מוקד */
     if (d && d.cat === 'light' && FIXTURE_RE.test(name) && !LIGHT_RACK_RE.test(name)) dest = 'point';
     it = { on: dest !== 'ignore', qty: +x.qty || 1, name, dest, cat: d?.cat || 'other', u: d?.u || 1, src };
@@ -12494,6 +12523,7 @@ function importItemsJSON(inp) {
             const d = SPEC_DICT.find(d => d.re.test(name));
             dest = d ? d.dest : isSpeakerItem(name) ? 'point' : 'unit';
             if ((dest === 'unit' || dest === 'panelUnit') && isSpeakerItem(name)) dest = 'point';
+            if ((dest === 'unit' || dest === 'panelUnit') && isKeypadItem(name)) dest = 'panelNode';
             cat = cat || d?.cat || 'other';
             u = u || d?.u || 1;
           }
@@ -14748,6 +14778,12 @@ function placeZoneRackItems(z) {
   for (const it of impItems) {
     if (!it.zones || !it.zones[z.name]) continue;
     if (it.dest !== 'unit' && it.dest !== 'panelUnit') continue;
+    if (isKeypadItem(it.name)) {   /* פנל חכם / קיפד — מוקד על התכנית ליד הארון (גוררים למקום הנכון), לא יחידה בארון */
+      it.dest = 'panelNode'; const rem = Math.max(0, (+it.qty || 1) - (it.placed || 0));
+      for (let k2 = 0; k2 < rem; k2++) { P.nodes.push({ id: uid('n'), kind: 'panel', name: it.name.slice(0, 40) + (rem > 1 ? ' (' + (k2 + 1) + ')' : ''), sub: 'מתוך: ' + (it.src || '') + ' · ' + z.name, x: rk.x - 80 - k2 * 50, y: rk.y + 20 + k2 * 36, panel: { mode: 'matrix', rows: 1, holes: [{ conn: 'rj45' }] }, pmin: true, mount: 'קיר', srcIid: it.iid }); n2++; }
+      if (rem) { it.placed = (it.placed || 0) + rem; it.added = true; }
+      continue;
+    }
     const rem = Math.max(0, (+it.qty || 1) - (it.placed || 0));
     for (let k2 = 0; k2 < rem; k2++) {
       const uH = it.u || 1;
@@ -15637,7 +15673,7 @@ function dropImported(it, pt, nel, clientY) {
       bumpPlaced(it);
       break;
     case 'panelNode':
-      P.nodes.push({ id: uid('n'), kind: 'panel', name: it.name + num, sub: from, x, y, panel: panelFromItem(it), srcIid: it.iid });
+      P.nodes.push({ id: uid('n'), kind: 'panel', name: it.name + num, sub: from, x, y, panel: panelFromItem(it), srcIid: it.iid, ...keypadNodeExtra(it) });
       bumpPlaced(it);
       break;
     case 'rack':
@@ -15722,7 +15758,7 @@ function addImported() {
       }
     } else if (it.dest === 'panelNode') {
       for (let k = 0; k < it.qty; k++) {
-        P.nodes.push({ id: uid('n'), kind: 'panel', name: it.name + (it.qty > 1 ? ` (${k + 1})` : ''), sub: 'מתוך: ' + it.src, x: px, y: py, panel: panelFromItem(it), srcIid: it.iid });
+        P.nodes.push({ id: uid('n'), kind: 'panel', name: it.name + (it.qty > 1 ? ` (${k + 1})` : ''), sub: 'מתוך: ' + it.src, x: px, y: py, panel: panelFromItem(it), srcIid: it.iid, ...keypadNodeExtra(it) });
         px += 270; if (px > 1500) { px = 150; py += 170; }
         it.placed = (it.placed || 0) + 1;
       }
