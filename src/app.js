@@ -13690,6 +13690,9 @@ function zoneArea(z) {
   }
   return Math.abs(a / 2);
 }
+/* רוחב תווית אזור לפי מדידת הטקסט בגופן של הדף (+ ריפוד) — בלי לנחש לפי מספר תווים */
+let _zlblCtx = null;
+function zlblMeasure(t, font) { if (!_zlblCtx) _zlblCtx = document.createElement('canvas').getContext('2d'); _zlblCtx.font = font + ' ' + (getComputedStyle(document.body).fontFamily || 'sans-serif'); return Math.ceil(_zlblCtx.measureText(t || '').width) + 24; }
 function renderZones() {
   const host = $('#zonesc');
   host.innerHTML = '';
@@ -13733,18 +13736,32 @@ function renderZones() {
   const lblPos = {};
   zs.forEach(z => {
     if (!z.poly) return;
-    const txt = `🗺 ${z.name}${z.usage ? ' · ' + z.usage : ''}${P.scale ? ' · ' + (zoneArea(z) * P.scale * P.scale).toFixed(0) + ' מ"ר' : ''}`;
-    const LW = txt.length * 6.8 + 26, LH = 22, others = zs.filter(o => o !== z && !o.prop);
-    const bad = (x, y) => others.some(o => [[x + 2, y + 2], [x + LW - 2, y + 2], [x + 2, y + LH - 2], [x + LW - 2, y + LH - 2], [x + LW / 2, y + LH / 2]].some(([px, py]) => inZone(o, { x: px, y: py })));
+    const name = `🗺 ${z.name}`, sub = [z.usage || '', P.scale ? (zoneArea(z) * P.scale * P.scale).toFixed(0) + ' מ"ר' : ''].filter(Boolean).join(' · ');
+    const W1 = zlblMeasure(name + (sub ? ' · ' + sub : ''), '700 12px'), W2 = Math.max(zlblMeasure(name, '700 12px'), zlblMeasure(sub, '600 10px'));   /* רוחב אמיתי של הטקסט: שורה אחת / שתי שורות */
+    const others = zs.filter(o => o !== z && !o.prop), placed = Object.values(lblPos);
+    const bad = (x, y, LW, LH) => others.some(o => [[x + 2, y + 2], [x + LW - 2, y + 2], [x + 2, y + LH - 2], [x + LW - 2, y + LH - 2], [x + LW / 2, y + LH / 2]].some(([px, py]) => inZone(o, { x: px, y: py })))
+      || placed.some(q => x < q.x + q.w + 4 && x + LW + 4 > q.x && y < q.y + q.h + 4 && y + LH + 4 > q.y);
+    const inside = (x, y, LW, LH) => [[x + 1, y + 1], [x + LW - 1, y + 1], [x + 1, y + LH - 1], [x + LW - 1, y + LH - 1]].every(([px, py]) => inZone(z, { x: px, y: py }));
     const b = zoneBounds(z), topPt = z.poly.reduce((m, p) => p.y < m.y ? p : m, z.poly[0]), cx = b.L + b.W / 2, cy = b.T + b.H / 2;
-    const cands = [[topPt.x, topPt.y - 26, topPt]];
-    /* במרכז האזור — רק אם התווית כולה בתוך האזור שלו */
-    const mx = cx - LW / 2, my = cy - LH / 2;
-    if ([[mx, my], [mx + LW, my], [mx, my + LH], [mx + LW, my + LH]].every(([px, py]) => inZone(z, { x: px, y: py }))) cands.push([mx, my, null]);
-    /* צמוד לאזור: על כל קודקוד (מהעליון למטה) — מעל / מתחת, ימינה / שמאלה מהקודקוד; התווית תמיד נוגעת באזור שלה, בלי חץ */
-    z.poly.slice().sort((p, q) => p.y - q.y).forEach(p => { cands.push([p.x, p.y - 26, p], [p.x - LW, p.y - 26, p], [p.x, p.y + 4, p], [p.x - LW, p.y + 4, p]); });
-    const pick = cands.find(c => c[1] >= 0 && !bad(c[0], c[1])) || cands[0];
-    lblPos[z.id] = { x: pick[0], y: Math.max(0, pick[1]) };
+    /* בתוך האזור, ממורכז על הרצועה האופקית הרחבה הקרובה ביותר לחלק העליון — כמו כותרת של חדר. קודם בשורה אחת, ואם האזור צר — בשתי שורות */
+    const findInside = (LW, LH) => {
+      for (let yy = b.T + LH / 2 + 8; yy <= b.T + b.H * 0.8; yy += 6) {
+        const xs = []; for (let i = 0; i < z.poly.length; i++) { const p = z.poly[i], q = z.poly[(i + 1) % z.poly.length]; if ((p.y > yy) !== (q.y > yy)) xs.push(p.x + (yy - p.y) / (q.y - p.y) * (q.x - p.x)); }
+        xs.sort((a1, b1) => a1 - b1);
+        for (let k = 0; k + 1 < xs.length; k += 2) { const x1 = xs[k], x2 = xs[k + 1]; if (x2 - x1 < LW + 10) continue; const lx = (x1 + x2) / 2 - LW / 2, ly = yy - LH / 2; if (inside(lx, ly, LW, LH) && !bad(lx, ly, LW, LH)) return { x: lx, y: ly, w: LW, h: LH }; }
+      }
+      return null;
+    };
+    /* שורה אחת או שתיים — מה שיושב גבוה יותר באזור (כותרת צריכה להיות קרוב לחלק העליון) */
+    const p1 = findInside(W1, 22), p2 = sub ? findInside(W2, 36) : null;
+    let pos = p1 && p2 ? (p2.y + 12 < p1.y ? p2 : p1) : (p1 || p2); let two = !!(pos && pos.h === 36);
+    if (!pos) {   /* לא נכנס — מעל הנקודה העליונה (ממורכז עליה), ואם זה על אזור אחר — ליד קודקוד אחר של האזור */
+      const LW = W1, LH = 22, cands = [[topPt.x - LW / 2, topPt.y - 26], [topPt.x, topPt.y - 26], [topPt.x - LW, topPt.y - 26]];
+      z.poly.slice().sort((p, q) => p.y - q.y).forEach(p => { cands.push([p.x, p.y - 26], [p.x - LW, p.y - 26], [p.x, p.y + 4], [p.x - LW, p.y + 4]); });
+      const pick = cands.find(c => c[1] >= 0 && !bad(c[0], c[1], LW, LH)) || cands[0];
+      pos = { x: pick[0], y: Math.max(0, pick[1]), w: LW, h: LH }; two = false;
+    }
+    lblPos[z.id] = { ...pos, two, name, sub };
   });
   if (svgp) host.innerHTML = `<svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">${svgp}</svg>`;
   zs.forEach(z => {
@@ -13766,8 +13783,9 @@ function renderZones() {
       lbl.className = 'zlbl';
       lbl.dataset.zdrag = z.id;
       const lp = lblPos[z.id] || { x: z.poly[0].x, y: Math.max(0, z.poly[0].y - 26) };
-      lbl.style.cssText = `position:absolute;left:${lp.x}px;top:${lp.y}px;background:${c};z-index:1`;
-      lbl.textContent = `🗺 ${z.name}${z.usage ? ' · ' + z.usage : ''}${dims}`;
+      lbl.style.cssText = `position:absolute;left:${lp.x}px;top:${lp.y}px;background:${c};z-index:1${lp.two ? ';text-align:center;line-height:1.25;padding:3px 10px' : ''}`;
+      if (lp.two) lbl.innerHTML = `<div>${esc(lp.name)}</div><div style="font-size:10px;font-weight:600;opacity:.95">${esc(lp.sub)}</div>`;
+      else lbl.textContent = `🗺 ${z.name}${z.usage ? ' · ' + z.usage : ''}${dims}`;
       lbl.title = 'לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור';
       lbl.style.cursor = 'pointer';
       lbl.addEventListener('pointerdown', e => { if (zoneMode) return; });
