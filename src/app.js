@@ -5973,9 +5973,46 @@ function showMultiBar() {
   bar.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:70;background:#1a1e28;color:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 6px 24px rgba(0,0,0,.4);display:flex;gap:10px;align-items:center;direction:rtl';
   bar.innerHTML = `<b style="font-size:13px">${selMulti.size} מסומנים</b>
     ${spk.length >= 2 ? `<button style="background:#0f6e56;color:#fff;font-weight:700;padding:6px 12px;border-radius:8px" onclick="chainSelectedToAmp()">🔗 שרשר ${spk.length} רמקולים למגבר</button>` : ''}
+    <button style="background:#534ab7;color:#fff;font-weight:700;padding:6px 12px;border-radius:8px" onclick="multiWinOpen()" title="טבלת המסומנים — גובה, פיזור, רגישות, הספק, אימפדנס לכולם">📋 טבלה</button>
     <button style="background:#f3d9d2;color:#8c2f16;padding:6px 12px;border-radius:8px" onclick="delNodes([...selMulti])">🗑 מחק</button>
-    <button style="background:#3a4152;color:#fff;padding:6px 10px;border-radius:8px" onclick="selMulti.clear();render();document.getElementById('multiBar').remove()">✕</button>`;
+    <button style="background:#3a4152;color:#fff;padding:6px 10px;border-radius:8px" onclick="selMulti.clear();render();document.getElementById('multiBar').remove();multiWinClose()">✕</button>`;
   document.body.appendChild(bar);
+}
+/* ---------- טבלת המסומנים (חלון צף): הרמקולים שסומנו בריבוע — שורה לכל אחד, ושורת "לכולם" ----------
+   שדות: גובה, התקנה על גבי, פיזור H/V, רגישות, הספק, אימפדנס. ערך ריק = לא משנים. */
+function multiWinClose() { const w = document.getElementById('multiWin'); if (w) w.remove(); if (typeof floatSync === 'function') floatSync(); }
+function multiSet(id, k, v) { const n = byId(id); if (!n) return; if (v === '' || v == null) delete n[k]; else n[k] = isNaN(+v) || k === 'mount' ? v : +v; save(); render(); multiWinRender(); }
+function multiSetAll(k, v) { if (v === '' || v == null) return; [...selMulti].forEach(id => { const n = byId(id); if (n && n.kind === 'point') n[k] = isNaN(+v) || k === 'mount' ? v : +v; }); save(); render(); multiWinRender(); uiToast('✓ ' + selMulti.size + ' מוקדים עודכנו'); }
+function multiWinOpen() {
+  if (!selMulti.size) return;
+  let ov = document.getElementById('multiWin');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'multiWin'; ov.dataset.nonmodal = '1';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:' + (++FLOAT_Z) + ';pointer-events:none;display:flex;align-items:flex-start;justify-content:flex-start;padding:70px 0 0 16px;direction:rtl';
+    ov.innerHTML = '<div data-box style="pointer-events:auto;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);width:min(820px,96vw);max-height:80vh;display:flex;flex-direction:column;padding:10px 12px 10px 24px;border:1.5px solid #c9502e"></div>';
+    document.body.appendChild(ov); multiWinRender(); if (typeof floatDialog === 'function') floatDialog(ov.querySelector('[data-box]'), 'multiWin'); }
+  else multiWinRender();
+}
+function multiWinRender() {
+  const ov = document.getElementById('multiWin'); if (!ov) return; const box = ov.querySelector('[data-box]');
+  const ns = [...selMulti].map(byId).filter(n => n && n.kind === 'point'); if (!ns.length) { multiWinClose(); return; }
+  const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'טראס/הנפה', 'רצפה', 'סטאק', 'בתוך ארון', 'אחר'];
+  const num = (id, k, v, w, ph) => `<input type="number" step="any" value="${v ?? ''}" placeholder="${ph || ''}" style="width:${w || 56}px;font-size:11px;padding:2px 3px" onchange="multiSet('${id}','${k}',this.value)">`;
+  const mountSel = (id, v) => `<select style="font-size:11px;padding:1px 2px" onchange="multiSet('${id}','mount',this.value)">${MOUNTS.map(m => `<option ${v === m ? 'selected' : ''}>${m}</option>`).join('')}</select>`;
+  const rows = ns.map((n, i) => { const d = typeof spkDataN === 'function' ? (spkDataN(n) || {}) : {}, gd = typeof guessDisp === 'function' ? guessDisp(n.name) : null;
+    return `<tr style="border-bottom:1px solid #eee"><td style="text-align:center"><span style="display:inline-block;min-width:18px;height:18px;border-radius:50%;background:#c9502e;color:#fff;font-size:10px;font-weight:800;line-height:18px;text-align:center;cursor:pointer;padding:0 3px" onclick="jumpToNode('${n.id}')">${i + 1}</span></td>
+      <td style="text-align:right;font-size:11px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(nodeFullName(n))}">${esc(nodeFullName(n).slice(0, 34))}</td>
+      <td>${num(n.id, 'hgt', n.hgt, 50, '2.6')}</td><td>${mountSel(n.id, n.mount || 'קיר בלוק')}</td>
+      <td>${num(n.id, 'disp', n.disp, 50, gd != null ? gd : '')}</td><td>${num(n.id, 'vdisp', n.vdisp, 50, '')}</td>
+      <td>${num(n.id, 'sens', n.sens, 56, d.sens != null ? d.sens : '')}</td><td>${num(n.id, 'pow', n.pow, 56, d.w != null ? d.w : '')}</td><td>${num(n.id, 'ohm', n.ohm, 46, d.o != null ? d.o : '8')}</td>
+      <td><button style="padding:1px 5px;font-size:10.5px" title="הוצא מהבחירה" onclick="selMulti.delete('${n.id}');render();showMultiBar();multiWinRender()">✕</button></td></tr>`; }).join('');
+  const allNum = (k, w, ph) => `<input type="number" step="any" data-all="${k}" placeholder="${ph || 'לכולם'}" style="width:${w || 56}px;font-size:11px;padding:2px 3px;background:#fff8f0" onchange="multiSetAll('${k}',this.value);this.value=''">`;
+  box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1;font-size:14px">📋 ${ns.length} מוקדים מסומנים</b>
+      ${ns.filter(n => !/סאב|\bsub\b/i.test(n.name)).length >= 2 ? '<button style="background:#0f6e56;color:#fff;font-weight:700" onclick="chainSelectedToAmp()">🔗 שרשר למגבר</button>' : ''}
+      <button style="color:#c0392b" onclick="delNodes([...selMulti]).then(()=>multiWinClose())">🗑 מחק</button><button onclick="multiWinClose()">✕</button></div>
+    <p class="muted" style="font-size:10.5px;margin:0 0 6px">שורה לכל מוקד; השורה הכתומה למעלה מחילה ערך על כולם. ערך ריק = ברירת המחדל מטבלת הנתונים (מוצג באפור). לחיצה על המספר ממרכזת את התכנית.</p>
+    <div style="overflow:auto;max-height:52vh"><table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="background:#f3f1ec;position:sticky;top:0"><th>#</th><th style="text-align:right">מוקד</th><th>גובה מ׳</th><th>על גבי</th><th>פיזור H°</th><th>פיזור V°</th><th>רגישות dB</th><th>הספק W</th><th>Ω</th><th></th></tr>
+      <tr style="background:#fff3e8"><td></td><td style="text-align:right;font-weight:700">לכולם ⤵</td><td>${allNum('hgt', 50)}</td><td><select style="font-size:11px;padding:1px 2px;background:#fff8f0" onchange="if(this.value)multiSetAll('mount',this.value);this.value=''"><option value="">לכולם…</option>${MOUNTS.map(m => `<option>${m}</option>`).join('')}</select></td><td>${allNum('disp', 50)}</td><td>${allNum('vdisp', 50)}</td><td>${allNum('sens', 56)}</td><td>${allNum('pow', 56)}</td><td>${allNum('ohm', 46)}</td><td></td></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
 }
 /* שרשור הרמקולים המסומנים (בחירת ריבוע) לערוצי מגבר */
 async function chainSelectedToAmp(forceAmp) {
@@ -11024,7 +11061,7 @@ document.addEventListener('pointerup', e => {
     const m = document.getElementById('marqBox'); if (m) m.remove();
     const had = marq.moved && selMulti.size;
     marq = null;
-    if (had) { sel = null; selCable = null; render(); showMultiBar(); }
+    if (had) { sel = null; selCable = null; render(); showMultiBar(); multiWinOpen(); }   /* בחירת ריבוע פותחת את טבלת המסומנים */
     return;
   }
   if (window.__vtxZ) {
