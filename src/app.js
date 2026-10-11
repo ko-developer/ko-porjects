@@ -1801,6 +1801,11 @@ function addNode(kind, rtype) {
     ? { id, kind: 'panel', name:'הכנת חשמל', sub:'שקעים / סיקונים', x, y, ptype: 'power', panel: defPanel(4, 1, 'si16') }
     : (P.layer === 'light' && typeof fxAddNode === 'function') ? null : P.layer === 'video' ? { id, kind, name: 'מסך / מקרן חדש', sub: '', x, y, ptype: 'screen' } : { id, kind, name:'מוקד חדש', sub:'', x, y });
   if (kind === 'point' && P.layer === 'light' && typeof fxAddNode === 'function') { P.nodes = P.nodes.filter(Boolean); fxPicker({}); return; }
+  /* מוקד חדש = שורה חדשה בהצעה: פריט כללי עם שם ומחיר לעריכה (השם נערך בכרטיס המוקד, המחיר בטבלת ההצעה) */
+  if (kind === 'point') { const nd = P.nodes[P.nodes.length - 1]; if (nd && nd.id === id && typeof impItems !== 'undefined') {
+    const gen = typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS.find(x => x[0] === '1') : null;
+    const it = { on: true, qty: 1, name: nd.name, key: gen ? gen[0] : undefined, src: 'מוקד בתכנית', dest: 'point', cat: 'other', u: 1, iid: uid('i'), placed: 1, added: true, price: 0 };
+    impItems.push(it); nd.srcIid = it.iid; } }
   sel = id; ui.tab = 'node'; render();
   uiToast((kind === 'rack' ? '🗄 ארון חדש' : kind === 'panel' ? '🧩 פאנל חדש' : kind === 'power' ? '⚡ הכנת חשמל — בחר סוג שקע/סיקון ולחץ על החורים' : '📍 מוקד חדש') + ' נוסף במרכז המסך — גרור אותו למקום');
 }
@@ -2580,13 +2585,14 @@ async function bugRecord() {
 function bugDialog(tab) {
   BUG.atts = []; BUG.tab = tab || 'new';
   const ov = uiModal(`<div id="bugBox"><div style="display:flex;gap:6px;align-items:center;margin-bottom:8px"><b style="font-size:15px;flex:1">🐞 באגים</b>
-      <button type="button" id="bugTabNew" style="${BUG.tab === 'new' ? 'background:#1a1e28;color:#fff' : ''}">דיווח חדש</button><button type="button" id="bugTabMine" style="${BUG.tab === 'mine' ? 'background:#1a1e28;color:#fff' : ''}">הבאגים שלי</button></div>
+      <button type="button" id="bugTabNew" style="${BUG.tab === 'new' ? 'background:#1a1e28;color:#fff' : ''}">דיווח חדש</button>${window.__AUTH && window.__AUTH.owner ? `<button type="button" id="bugTabAll" style="${BUG.tab === 'all' ? 'background:#1a1e28;color:#fff' : ''}">כל הבאגים</button>` : ''}<button type="button" id="bugTabMine" style="${BUG.tab === 'mine' ? 'background:#1a1e28;color:#fff' : ''}">הבאגים שלי</button></div>
     <div id="bugBody"></div>
     <div style="display:flex;gap:6px;margin-top:8px"><button type="button" id="bugX" style="flex:1">סגור</button></div></div>`);
   ov.querySelector('div').style.maxWidth = '540px';
   ov.querySelector('#bugX').onclick = () => { if (BUG.rec) BUG.rec.stop(); ov.remove(); };
   ov.querySelector('#bugTabNew').onclick = () => { BUG.tab = 'new'; bugRenderBody(ov); };
   ov.querySelector('#bugTabMine').onclick = () => { BUG.tab = 'mine'; bugRenderBody(ov); };
+  { const ta = ov.querySelector('#bugTabAll'); if (ta) ta.onclick = () => { BUG.tab = 'all'; bugRenderBody(ov); }; }
   ov.addEventListener('paste', e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); bugAddFiles(fs); } });
   bugRenderBody(ov);
 }
@@ -2594,6 +2600,7 @@ function bugRenderBody(ov) {
   const body = ov.querySelector('#bugBody');
   ov.querySelector('#bugTabNew').style.cssText = BUG.tab === 'new' ? 'background:#1a1e28;color:#fff' : '';
   ov.querySelector('#bugTabMine').style.cssText = BUG.tab === 'mine' ? 'background:#1a1e28;color:#fff' : '';
+  { const ta = ov.querySelector('#bugTabAll'); if (ta) ta.style.cssText = BUG.tab === 'all' ? 'background:#1a1e28;color:#fff' : ''; }
   if (BUG.tab === 'new') {
     body.innerHTML = `<div class="fld"><label>מה קרה? (כותרת קצרה)</label><input id="bugTitle" placeholder="למשל: הכיול קופץ אחרי העלאת PDF" maxlength="140"></div>
       <div class="fld"><label>תיאור — מה עשית, מה קרה, מה היה צריך לקרות</label><textarea id="bugDesc" rows="4" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:13px;padding:7px;border:1px solid #ddd;border-radius:8px"></textarea></div>
@@ -2618,11 +2625,12 @@ function bugRenderBody(ov) {
   }
   body.innerHTML = '<p class="muted">טוען…</p>';
   fetch('/api/bugs').then(r => r.json()).then(d => {
-    const HE = d.statusHe || {}, mine = (d.bugs || []).filter(b => b.mine || !d.owner);
+    const HE = d.statusHe || {}, all = BUG.tab === 'all' && d.owner, mine = all ? (d.bugs || []) : (d.bugs || []).filter(b => b.mine || !d.owner);
+    const stSel = b => all ? `<select style="font-size:11px;padding:1px 4px" title="סטטוס" onchange="bugStatus('${b.id}',this.value,this.closest('.uiDlgOv'))">${(d.statuses || []).map(s => `<option value="${s}" ${b.status === s ? 'selected' : ''}>${esc(HE[s] || s)}</option>`).join('')}</select><button type="button" style="padding:1px 6px;font-size:11px;color:#c1121f" title="מחק" onclick="bugDelete('${b.id}',this.closest('.uiDlgOv'))">🗑</button>` : '';
     const att = a => /^image\//.test(a.type) ? `<a href="/api/bugs/file/${a.id}" target="_blank"><img src="/api/bugs/file/${a.id}" style="height:56px;border-radius:6px;border:1px solid #ddd"></a>` : /^video\//.test(a.type) ? `<video src="/api/bugs/file/${a.id}" controls style="height:90px;border-radius:6px"></video>` : `<a href="/api/bugs/file/${a.id}" target="_blank" style="font-size:11px">📎 ${esc(a.name)}</a>`;
-    body.innerHTML = (d.owner ? `<p class="muted" style="font-size:12px">אתה הבעלים — הניהול המלא ב-<a href="/bugs">/bugs</a>. כאן: הדיווחים שפתחת בעצמך.</p>` : '') +
+    body.innerHTML = (d.owner && !all ? `<p class="muted" style="font-size:12px">אתה הבעלים — כל הדיווחים של כולם בלשונית "כל הבאגים" (וגם ב-<a href="/bugs">/bugs</a>). כאן: הדיווחים שפתחת בעצמך.</p>` : all ? `<p class="muted" style="font-size:12px">${mine.length} דיווחים מכל המשתמשים · ${mine.filter(b => b.status === 'new').length} חדשים — שנה סטטוס, ענה, או מחק.</p>` : '') +
       (mine.length ? mine.map(b => `<div style="border:1px solid #eee;border-radius:9px;padding:8px 10px;margin-bottom:8px">
-        <div style="display:flex;gap:6px;align-items:center"><span style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:${b.status === 'fixed' ? '#eef7f1' : b.status === 'new' ? '#fdeee8' : '#fff3cd'}">${esc(HE[b.status] || b.status)}</span><b style="flex:1;font-size:13px">${esc(b.title)}</b><small class="muted">${new Date(b.createdAt).toLocaleDateString('he-IL')}</small></div>
+        <div style="display:flex;gap:6px;align-items:center">${stSel(b)}${all && b.by ? `<span class="muted" style="font-size:11px">${esc(b.by.name || b.by.email || '')}</span>` : ''}<span style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:${b.status === 'fixed' ? '#eef7f1' : b.status === 'new' ? '#fdeee8' : '#fff3cd'}">${esc(HE[b.status] || b.status)}</span><b style="flex:1;font-size:13px">${esc(b.title)}</b><small class="muted">${new Date(b.createdAt).toLocaleDateString('he-IL')}</small></div>
         ${b.desc ? `<div style="font-size:12px;white-space:pre-wrap;margin:4px 0">${esc(b.desc)}</div>` : ''}
         ${(b.attachments || []).length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${b.attachments.map(att).join('')}</div>` : ''}
         ${(b.comments || []).map(c => `<div style="border-right:3px solid ${c.owner ? '#0f6e56' : '#ddd'};background:${c.owner ? '#eef7f1' : '#faf8f4'};padding:5px 8px;margin:5px 0;border-radius:0 6px 6px 0;font-size:12px"><b>${esc(c.name)}${c.owner ? ' (בעל המערכת)' : ''}</b> <small class="muted">${new Date(c.at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}</small><div style="white-space:pre-wrap">${esc(c.text)}</div>${(c.attachments || []).length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${c.attachments.map(att).join('')}</div>` : ''}</div>`).join('')}
@@ -2632,6 +2640,8 @@ function bugRenderBody(ov) {
     setTimeout(bugBadge, 500);
   }).catch(e => { body.innerHTML = `<p style="color:#c1121f;font-size:12px">${esc(String(e))}</p>`; });
 }
+async function bugStatus(id, status, ov) { await fetch('/api/bugs/' + id + '/status', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status }) }); if (ov) bugRenderBody(ov); bugBadge(); }
+async function bugDelete(id, ov) { if (!(await uiConfirm('למחוק את הדיווח?'))) return; await fetch('/api/bugs/' + id + '/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); if (ov) bugRenderBody(ov); bugBadge(); }
 async function bugReply(id, text, ov) {
   await fetch('/api/bugs/' + id + '/comment', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
   if (ov) bugRenderBody(ov);
