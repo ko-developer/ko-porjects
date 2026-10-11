@@ -10575,9 +10575,14 @@ function showCalDialog(px, p1, p2) {
 }
 document.addEventListener('pointerdown', e => {
   /* גרירת/שינוי גודל אזור סאונד */
+  { const pb = e.target.closest('[data-zlblpin]');   /* 📌 / ✥ — כותרת צפה או חזרה לאוטומטי */
+    if (pb) { const z = (P.zones || []).find(z => z.id === pb.dataset.zlblpin); e.preventDefault(); e.stopPropagation();
+      if (z) { if (z.lblOff) { delete z.lblOff; uiToast('הכותרת חזרה למיקום אוטומטי'); } else { const el = pb.closest('.zlbl'), b = zoneBounds(z); z.lblOff = { dx: Math.round(parseFloat(el.style.left) - b.L), dy: Math.round(parseFloat(el.style.top) - b.T) }; uiToast('📌 כותרת צפה — גרור אותה לאן שתרצה (היא זזה יחד עם האזור)'); } save(); render(); }
+      return; } }
   const zd = e.target.closest('[data-zdrag]');
   if (zd) {
     const z = (P.zones || []).find(z => z.id === zd.dataset.zdrag);
+    if (z && z.lblOff && e.target.closest('.zlbl')) { selZone = z.id; window.__lblDrag = { z, sx: e.clientX, sy: e.clientY, ox: z.lblOff.dx, oy: z.lblOff.dy, moved: false }; e.preventDefault(); return; }   /* גרירת הכותרת בלבד */
     if (z) { selZone = z.id; dragZ = { z, sx: e.clientX, sy: e.clientY, ox: z.x, oy: z.y, opoly: z.poly ? z.poly.map(p => ({ ...p })) : null, moved: false, lbl: !!e.target.closest('.zlbl') }; e.preventDefault(); return; }
   }
   const zs = e.target.closest('[data-zsize]');
@@ -10913,6 +10918,10 @@ document.addEventListener('pointerdown', e => {
 });
 document.addEventListener('pointermove', e => {
   const Z = getZ();
+  if (window.__lblDrag) {
+    const d = window.__lblDrag; if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 3) d.moved = true;
+    d.z.lblOff = { dx: Math.round(d.ox + (e.clientX - d.sx) / Z), dy: Math.round(d.oy + (e.clientY - d.sy) / Z) }; renderZones(); return;
+  }
   if (dragZ) {
     if (Math.hypot(e.clientX - dragZ.sx, e.clientY - dragZ.sy) > 3) dragZ.moved = true;
     const dx = (e.clientX - dragZ.sx) / Z, dy = (e.clientY - dragZ.sy) / Z;
@@ -11110,6 +11119,7 @@ document.addEventListener('pointerup', e => {
     if (v.sticky) return;                       /* ההנחה נעשית בלחיצה (pointerdown), לא בשחרור */
     window.__vtxZ = null; zoneVtxMerge(v.z, v.i); zoneSyncBox(v.z); zoneAbsorb(v.z); save(); render(); ztEdited(); return;
   }
+  if (window.__lblDrag) { const d = window.__lblDrag; window.__lblDrag = null; save(); render(); if (!d.moved) zonePlanBack(d.z.id); return; }
   if (dragZ || sizeZ) {
     const click = dragZ && dragZ.lbl && !dragZ.moved && dragZ.z;
     const zid = click ? dragZ.z.id : null;
@@ -13743,6 +13753,7 @@ function renderZones() {
       || placed.some(q => x < q.x + q.w + 4 && x + LW + 4 > q.x && y < q.y + q.h + 4 && y + LH + 4 > q.y);
     const inside = (x, y, LW, LH) => [[x + 1, y + 1], [x + LW - 1, y + 1], [x + 1, y + LH - 1], [x + LW - 1, y + LH - 1]].every(([px, py]) => inZone(z, { x: px, y: py }));
     const b = zoneBounds(z), topPt = z.poly.reduce((m, p) => p.y < m.y ? p : m, z.poly[0]), cx = b.L + b.W / 2, cy = b.T + b.H / 2;
+    if (z.lblOff) { lblPos[z.id] = { x: b.L + (+z.lblOff.dx || 0), y: Math.max(0, b.T + (+z.lblOff.dy || 0)), w: W1, h: 18, two: false, name, sub, free: true }; return; }   /* 📌 כותרת צפה — איפה שהמשתמש שם אותה */
     /* בתוך האזור, ממורכז על הרצועה האופקית הרחבה הקרובה ביותר לחלק העליון — כמו כותרת של חדר. קודם בשורה אחת, ואם האזור צר — בשתי שורות */
     const findInside = (LW, LH) => {
       for (let yy = b.T + LH / 2 + 8; yy <= b.T + b.H * 0.8; yy += 6) {
@@ -13784,10 +13795,11 @@ function renderZones() {
       lbl.dataset.zdrag = z.id;
       const lp = lblPos[z.id] || { x: z.poly[0].x, y: Math.max(0, z.poly[0].y - 22) };
       lbl.style.cssText = `position:absolute;left:${lp.x}px;top:${lp.y}px;background:${c};z-index:1${lp.two ? ';text-align:center;line-height:1.2;padding:2px 7px' : ''}`;
-      if (lp.two) lbl.innerHTML = `<div>${esc(lp.name)}</div><div style="font-size:9px;font-weight:600;opacity:.95">${esc(lp.sub)}</div>`;
-      else lbl.textContent = `🗺 ${z.name}${z.usage ? ' · ' + z.usage : ''}${dims}`;
-      lbl.title = 'לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור';
-      lbl.style.cursor = 'pointer';
+      const pin = `<span data-zlblpin="${z.id}" title="${lp.free ? 'כותרת צפה — גרור אותה לאן שתרצה · לחץ להחזרה למיקום אוטומטי' : 'הפוך לכותרת צפה — אפשר לגרור אותה לכל מקום בלי להזיז את האזור'}" style="display:inline-block;margin-inline-start:6px;padding:0 4px;border-radius:4px;background:rgba(255,255,255,${lp.free ? '.9' : '.25'});color:${lp.free ? c : '#fff'};font-size:9px;cursor:pointer;vertical-align:middle;line-height:14px">${lp.free ? '📌' : '✥'}</span>`;
+      if (lp.two) lbl.innerHTML = `<div>${esc(lp.name)}${pin}</div><div style="font-size:9px;font-weight:600;opacity:.95">${esc(lp.sub)}</div>`;
+      else lbl.innerHTML = `🗺 ${esc(z.name)}${z.usage ? ' · ' + esc(z.usage) : ''}${esc(dims)}${pin}`;
+      lbl.title = lp.free ? 'גרירה — הזזת הכותרת בלבד · לחיצה — חזרה לתכנון האזור' : 'לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור';
+      lbl.style.cursor = lp.free ? 'move' : 'pointer';
       lbl.addEventListener('pointerdown', e => { if (zoneMode) return; });
       host.appendChild(lbl);
       return;
