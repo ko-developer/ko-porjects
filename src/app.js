@@ -15466,11 +15466,35 @@ async function rackTrimSurplus(nid, name) {
   uiToast('🗑 הוסרו ' + cand.length + ' × ' + (shortModel(name) || name.slice(0, 24)) + ' מהארון' + (wired ? ' · נמחקו ' + wired + ' כבלים' : ''));
 }
 window.rackTrimSurplus = rackTrimSurplus;
-function delUnit(nid, idx) {
-  const u = byId(nid).units[idx];
-  if (u && u.srcIid) unplace(u.srcIid);
-  byId(nid).units.splice(idx, 1);
-  render();
+/* מחיקת יחידה מהארון (פרוססור / מגבר / כל מוצר) — אותה שאלה כמו במוקדים: מה בדיוק למחוק */
+async function delUnit(nid, idx) {
+  const rk = byId(nid); const u = rk && rk.units[idx]; if (!u) return;
+  const cabs = (P.cables || []).filter(c => (c.from === rk.id && c.fromUnit === u.id) || (c.to === rk.id && c.toUnit === u.id) || (c.bands || []).some(bd => bd.unitId === u.id));
+  const it = u.srcIid ? impItems.find(x => x.iid === u.srcIid) : null;
+  const nm = (u.name || 'היחידה').slice(0, 56);
+  const mode = await new Promise(res => {
+    const ov = uiModal(`
+      <p style="font-size:14px;font-weight:800;margin:0 0 4px">מחיקת "${esc(nm)}"</p>
+      <p class="muted" style="font-size:12px;margin:0 0 12px">${esc(rk.name)}${cabs.length ? ' · מחוברים ' + cabs.length + ' כבלים בטבלת החיווט' : ' · אין כבלים מחוברים'}${it ? ' · בהצעת המחיר (' + (it.qty || 1) + ')' : ' · לא בהצעת המחיר'}</p>
+      <button data-m="rack" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🗄 מהארון בלבד</b><br><span class="muted" style="font-size:11.5px">יוצא מהארון; ${it ? 'נשאר בהצעת המחיר כ"לא הוצב"' : 'לא בהצעה'}${cabs.length ? ' · הכבלים נשארים על הארון' : ''}</span></button>
+      ${it ? `<button data-m="offer" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🧾 מהצעת המחיר בלבד</b><br><span class="muted" style="font-size:11.5px">הכמות בהצעה יורדת ב-1; היחידה נשארת בארון כשרטוט בלבד</span></button>
+      <button data-m="both" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🗄🧾 מהארון ומהצעת המחיר</b><br><span class="muted" style="font-size:11.5px">${cabs.length ? 'הכבלים נשארים בטבלת החיווט (על הארון)' : ''}</span></button>` : ''}
+      <button class="primary" data-m="all" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4;background:#c1121f"><b>🗑 מהארון${it ? ', מההצעה' : ''} ומטבלת החיווט</b><br><span style="font-size:11.5px;opacity:.9">${cabs.length ? cabs.length + ' כבלים נמחקים' : 'אין כבלים למחוק'}</span></button>
+      <button data-m="" style="width:100%">ביטול</button>`);
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelectorAll('[data-m]').forEach(bt => bt.onclick = () => done(bt.dataset.m));
+    ov.addEventListener('click', e => { if (e.target === ov) done(''); });
+  });
+  if (!mode) return;
+  const offerDec = () => { if (!it) return; it.qty = Math.max(0, (+it.qty || 1) - 1); it.placed = Math.max(0, (it.placed || 1) - 1); if (!it.qty) impItems = impItems.filter(x => x !== it); else if (it.placed < it.qty) it.added = false; };
+  if (mode === 'offer') { offerDec(); u.srcIid = undefined; }
+  else {
+    if (mode === 'rack') { if (u.srcIid) unplace(u.srcIid); } else offerDec();
+    if (mode === 'all') { const del = new Set(cabs.map(c => c.id)); P.cables = P.cables.filter(c => !del.has(c.id)); }
+    rk.units.splice(idx, 1); try { rackArrange(rk); } catch (e) {}
+  }
+  save(); render();
+  uiToast({ rack: '🗄 "' + nm + '" הוסר מהארון — נשאר בהצעה', offer: '🧾 "' + nm + '" הורד מהצעת המחיר — נשאר בארון', both: '🗄🧾 "' + nm + '" הוסר מהארון ומהצעת המחיר', all: '🗑 "' + nm + '" נמחק מהארון, מההצעה ומטבלת החיווט' + (cabs.length ? ' (' + cabs.length + ' כבלים)' : '') }[mode], 5000);
 }
 /* כבל אחד שנכנס לשתי כניסות (מולטי L+R: pIn = "IN 1+2") — רשימת הכניסות שהוא תופס */
 function cablePIns(c) {
