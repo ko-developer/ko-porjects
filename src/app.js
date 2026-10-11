@@ -13741,18 +13741,10 @@ function renderZones() {
     /* במרכז האזור — רק אם התווית כולה בתוך האזור שלו */
     const mx = cx - LW / 2, my = cy - LH / 2;
     if ([[mx, my], [mx + LW, my], [mx, my + LH], [mx + LW, my + LH]].every(([px, py]) => inZone(z, { x: px, y: py }))) cands.push([mx, my, null]);
-    /* ליד קודקוד, 40px החוצה מהאזור (בכיוון מהמרכז) — ואז חץ מהתווית אל הקודקוד */
-    z.poly.slice().sort((p, q) => p.y - q.y).forEach(p => { const d = Math.hypot(p.x - cx, p.y - cy) || 1, ux = (p.x - cx) / d, uy = (p.y - cy) / d, px2 = p.x + ux * 40, py2 = p.y + uy * 40;
-      cands.push([px2 - (ux < 0 ? LW : 0), py2 - (uy < 0 ? LH : 0), p]); });
+    /* צמוד לאזור: על כל קודקוד (מהעליון למטה) — מעל / מתחת, ימינה / שמאלה מהקודקוד; התווית תמיד נוגעת באזור שלה, בלי חץ */
+    z.poly.slice().sort((p, q) => p.y - q.y).forEach(p => { cands.push([p.x, p.y - 26, p], [p.x - LW, p.y - 26, p], [p.x, p.y + 4, p], [p.x - LW, p.y + 4, p]); });
     const pick = cands.find(c => c[1] >= 0 && !bad(c[0], c[1])) || cands[0];
-    const pos = { x: pick[0], y: Math.max(0, pick[1]) }; lblPos[z.id] = pos;
-    const anchor = pick[2];
-    if (anchor) {   /* חץ מהפינה הקרובה של התווית אל הקודקוד — רק כשהתווית הוזזה מהמקום הרגיל */
-      const corners = [[pos.x, pos.y], [pos.x + LW, pos.y], [pos.x, pos.y + LH], [pos.x + LW, pos.y + LH]];
-      const c0 = corners.reduce((m, c) => Math.hypot(c[0] - anchor.x, c[1] - anchor.y) < Math.hypot(m[0] - anchor.x, m[1] - anchor.y) ? c : m, corners[0]);
-      if (Math.hypot(c0[0] - anchor.x, c0[1] - anchor.y) > 14) { const col = zColor(z), mid = 'zarr' + z.id.replace(/[^a-z0-9]/gi, '');
-        svgp += `<defs><marker id="${mid}" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 z" fill="${col}"/></marker></defs><line x1="${c0[0]}" y1="${c0[1]}" x2="${anchor.x}" y2="${anchor.y}" stroke="${col}" stroke-width="2.5" marker-end="url(#${mid})"/><circle cx="${anchor.x}" cy="${anchor.y}" r="4" fill="${col}" stroke="#fff" stroke-width="1.5"/>`; }
-    }
+    lblPos[z.id] = { x: pick[0], y: Math.max(0, pick[1]) };
   });
   if (svgp) host.innerHTML = `<svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible">${svgp}</svg>`;
   zs.forEach(z => {
