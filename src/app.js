@@ -9966,8 +9966,9 @@ function floatSync() {
   const multi = live.length > 1;
   live.forEach(o => {
     if (multi && o.dataset.fbg == null) o.dataset.fbg = o.style.background || '';
-    o.style.pointerEvents = multi ? 'none' : '';
-    o.style.background = multi ? 'transparent' : (o.dataset.fbg != null ? o.dataset.fbg : o.style.background);
+    const nm = multi || o.dataset.nonmodal === '1';   /* חלון לא-מודאלי (למשל הקיט): הרקע אף פעם לא חוסם */
+    o.style.pointerEvents = nm ? 'none' : '';
+    o.style.background = nm ? 'transparent' : (o.dataset.fbg != null ? o.dataset.fbg : o.style.background);
     const box = o.firstElementChild;
     if (box && box.nodeType === 1) box.style.pointerEvents = 'auto';
     if (!multi) delete o.dataset.fbg;
@@ -14686,6 +14687,8 @@ function zoneKitConfirm(zname, idx, opt) {
   if (swBtn) swBtn.onclick = () => openSrcWire(z.id);
   const rowsEl = ov.querySelector('[data-kitrows]');
   let swapIdx = null, swapQ = '';
+  /* תוצאות ההחלפה: כל הווריאנטים (צבעים/גדלים), הכי הרבה מלאי למעלה, עד 30 */
+  const swapRes = q => dockSearchResults(q).filter(r => r.type === 'item').sort((a, b) => { const qa = (erpInfo(a.key) || {}).qty || 0, qb = (erpInfo(b.key) || {}).qty || 0; return qb - qa || String(a.name).localeCompare(String(b.name), 'he'); }).slice(0, 30);
   const renderRows = () => {
     rowsEl.innerHTML = cur.map((x, i) => `<div style="border-bottom:1px solid #f0ede8;padding:3px 0">
       <div style="display:flex;gap:6px;align-items:center">
@@ -14697,7 +14700,7 @@ function zoneKitConfirm(zname, idx, opt) {
       </div>
       ${swapIdx === i ? `<div style="margin:4px 0 2px">
         <input data-swapq placeholder="🔍 חפש פריט חלופי בקטלוג…" value="${esc(swapQ)}" style="width:100%;font-size:12px;padding:3px 6px">
-        <div>${swapQ.trim() ? (dockSearchResults(swapQ).filter(r => r.type === 'item').slice(0, 6).map((r, ri2) => `<button data-pick="${ri2}" style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;font-size:11px;padding:3px 6px;margin-top:2px;border:1px solid #eee;border-radius:6px;background:#faf8f4;cursor:pointer"><span style="flex:1;text-align:right">${esc(r.name.slice(0, 46))}${r.key ? ' · ' + esc(String(r.key)) : ''}</span>${stockTag(r.key)}</button>`).join('') || '<small class="muted">אין תוצאות</small>') : ''}
+        <div style="max-height:260px;overflow-y:auto">${swapQ.trim() ? (swapRes(swapQ).map((r, ri2) => `<button data-pick="${ri2}" style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;font-size:11px;padding:3px 6px;margin-top:2px;border:1px solid #eee;border-radius:6px;background:#faf8f4;cursor:pointer">${imgCell(r.key, 30, r.name)}<span style="flex:1;text-align:right;white-space:normal;line-height:1.3">${esc(r.name)}${r.key ? ' <span class="muted">· ' + esc(String(r.key)) + '</span>' : ''}</span>${stockTag(r.key)}</button>`).join('') || '<small class="muted">אין תוצאות</small>') : ''}
       </div>` : ''}
     </div>`).join('');
     /* שינוי כמות מעדכן מיד את סכום השורה ואת סה"כ הקיט */
@@ -14710,7 +14713,7 @@ function zoneKitConfirm(zname, idx, opt) {
     if (sq) sq.oninput = () => { swapQ = sq.value; renderRows(); const s3 = rowsEl.querySelector('[data-swapq]'); if (s3) { s3.focus(); s3.setSelectionRange(s3.value.length, s3.value.length); } };
     rowsEl.querySelectorAll('[data-pick]').forEach(b => {
       b.onclick = () => {
-        const r = dockSearchResults(swapQ).filter(x2 => x2.type === 'item')[+b.dataset.pick];
+        const r = swapRes(swapQ)[+b.dataset.pick];
         if (r && swapIdx != null) { cur[swapIdx].name = r.name; cur[swapIdx].key = r.key || undefined; }
         swapIdx = null; swapQ = ''; renderRows();
       };
@@ -14822,7 +14825,17 @@ function zoneKitConfirm(zname, idx, opt) {
   const instBtn = ov.querySelector('[data-inst]');
   if (instBtn) instBtn.onclick = () => installManager({ name: k.name, items: edited() });
   ov.querySelector('[data-cancel]').onclick = done;
-  ov.addEventListener('click', e => { if (e.target === ov) done(); });
+  /* חלון צף שלא נסגר בלחיצה מסביב (השינויים נשארים): הרקע לא חוסם, יש כפתור כיווץ, וסוגרים רק ב"ביטול"/✕ */
+  { const box = ov.firstElementChild; ov.dataset.nonmodal = '1'; ov.style.background = 'transparent'; ov.style.pointerEvents = 'none'; box.style.pointerEvents = 'auto'; box.style.position = 'relative';
+    const hd = document.createElement('div'); hd.style.cssText = 'position:absolute;top:6px;right:8px;display:flex;gap:4px;z-index:5';
+    hd.innerHTML = '<button data-min title="כיווץ — החלון נשאר פתוח כפס קטן" style="padding:1px 7px;font-size:12px">▁</button><button data-x title="סגור (בלי להוסיף)" style="padding:1px 7px;font-size:12px">✕</button>';
+    box.appendChild(hd);
+    const title = box.querySelector('b');
+    hd.querySelector('[data-x]').onclick = done;
+    hd.querySelector('[data-min]').onclick = () => { const min = box.dataset.min === '1'; box.dataset.min = min ? '' : '1';
+      [...box.children].forEach(ch => { if (ch === hd || ch === title) return; ch.style.display = min ? '' : 'none'; });
+      hd.querySelector('[data-min]').textContent = min ? '▁' : '▲'; hd.querySelector('[data-min]').title = min ? 'כיווץ' : 'הרחב'; if (title) title.style.paddingLeft = min ? '' : '70px'; };
+    if (typeof floatDialog === 'function') floatDialog(box, 'zoneKit'); }
 }
 /* בחירת רמקול אמיתי מהקטלוג לבניית מערכת — במקום "רמקול התקנה" גנרי.
    מציג רק מוצרי ERP שמזוהים בבסיס הנתונים האקוסטי (פיזור/SPL ידועים). */
