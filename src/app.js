@@ -4731,7 +4731,7 @@ document.addEventListener('keydown', e => {
   if (selHole || brushOn) { selHole = null; brushOn = false; render(); return; }
   if (sketchMode) { if (sketchMode.cur && sketchMode.cur.length) { sketchMode.cur = []; renderWires(); } else sketchEnd(); return; }
   if (conduitMode) { conduitPickEnd(); return; }
-  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd || window.__asPick || window.__riserPick) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; window.__asPick = null; window.__riserPick = null; window.__fxDetAdd = null; window.__pick2 = null; if (window.__fxPath && typeof fxPathEnd === 'function') fxPathEnd(false); document.body.style.cursor = ''; render(); }
+  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd || window.__asPick || window.__riserPick) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; window.__asPick = null; window.__riserPick = null; window.__fxDetAdd = null; window.__pick2 = null; window.__fxSel = null; if (P.fxDet && P.fxDet.selSet) P.fxDet.selSet = null; if (window.__fxPath && typeof fxPathEnd === 'function') fxPathEnd(false); document.body.style.cursor = ''; render(); }
 });
 function connGlyph(conn) {
   const ct = CONNS[conn] || CONNS.empty, C = ct.c;
@@ -10549,6 +10549,7 @@ document.addEventListener('pointerdown', e => {
   /* סימוני זיהוי של תאורה על התכנית: לחיצה על סימון = עריכה; במצב הוספה — כל לחיצה על התכנית מוסיפה סימון */
   { const dm = e.target.closest('[data-fxdet]'); if (dm && typeof fxDetPointer === 'function') { fxDetPointer(e, dm.dataset.fxdet); return; } }   /* גרירה = הזזת הסימון · לחיצה = עריכה */
   if (window.__fxDetAdd && e.target.closest('#canvasWrap') && typeof fxDetAddAt === 'function') { fxDetAddAt(canvasPt(e)); return; }
+  if (window.__fxSel && e.target.closest('#canvasWrap') && typeof fxSelBand === 'function') { fxSelBand(e); return; }   /* בחירה מרובה של סימוני זיהוי — מלבן גרירה */
   if (window.__fxPath && e.target.closest('#canvasWrap') && typeof fxPathClick === 'function') { fxPathClick(canvasPt(e)); e.preventDefault(); return; }   /* ציור טראס מורכב (ישר + קשתות) */
   /* בוחר שתי נקודות כללי (קו ייחוס לעומק בתאורה וכד׳): window.__pick2 = { pts: [], done(pts) } */
   if (window.__pick2 && e.target.closest('#canvasWrap')) {
