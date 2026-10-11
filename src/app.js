@@ -13692,7 +13692,7 @@ function zoneArea(z) {
 }
 /* רוחב תווית אזור לפי מדידת הטקסט בגופן של הדף (+ ריפוד) — בלי לנחש לפי מספר תווים */
 let _zlblCtx = null;
-function zlblMeasure(t, font) { if (!_zlblCtx) _zlblCtx = document.createElement('canvas').getContext('2d'); _zlblCtx.font = font + ' ' + (getComputedStyle(document.body).fontFamily || 'sans-serif'); return Math.ceil(_zlblCtx.measureText(t || '').width) + 24; }
+function zlblMeasure(t, font) { if (!_zlblCtx) _zlblCtx = document.createElement('canvas').getContext('2d'); _zlblCtx.font = font + ' ' + (getComputedStyle(document.body).fontFamily || 'sans-serif'); return Math.ceil(_zlblCtx.measureText(t || '').width) + 18; }
 function renderZones() {
   const host = $('#zonesc');
   host.innerHTML = '';
@@ -13737,7 +13737,7 @@ function renderZones() {
   zs.forEach(z => {
     if (!z.poly) return;
     const name = `🗺 ${z.name}`, sub = [z.usage || '', P.scale ? (zoneArea(z) * P.scale * P.scale).toFixed(0) + ' מ"ר' : ''].filter(Boolean).join(' · ');
-    const W1 = zlblMeasure(name + (sub ? ' · ' + sub : ''), '700 12px'), W2 = Math.max(zlblMeasure(name, '700 12px'), zlblMeasure(sub, '600 10px'));   /* רוחב אמיתי של הטקסט: שורה אחת / שתי שורות */
+    const W1 = zlblMeasure(name + (sub ? ' · ' + sub : ''), '700 10.5px'), W2 = Math.max(zlblMeasure(name, '700 10.5px'), zlblMeasure(sub, '600 9px'));   /* רוחב אמיתי של הטקסט: שורה אחת / שתי שורות */
     const others = zs.filter(o => o !== z && !o.prop), placed = Object.values(lblPos);
     const bad = (x, y, LW, LH) => others.some(o => [[x + 2, y + 2], [x + LW - 2, y + 2], [x + 2, y + LH - 2], [x + LW - 2, y + LH - 2], [x + LW / 2, y + LH / 2]].some(([px, py]) => inZone(o, { x: px, y: py })))
       || placed.some(q => x < q.x + q.w + 4 && x + LW + 4 > q.x && y < q.y + q.h + 4 && y + LH + 4 > q.y);
@@ -13753,11 +13753,11 @@ function renderZones() {
       return null;
     };
     /* שורה אחת או שתיים — מה שיושב גבוה יותר באזור (כותרת צריכה להיות קרוב לחלק העליון) */
-    const p1 = findInside(W1, 22), p2 = sub ? findInside(W2, 36) : null;
-    let pos = p1 && p2 ? (p2.y + 12 < p1.y ? p2 : p1) : (p1 || p2); let two = !!(pos && pos.h === 36);
+    const p1 = findInside(W1, 18), p2 = sub ? findInside(W2, 30) : null;
+    let pos = p1 && p2 ? (p1.y - b.T <= b.H * 0.25 || p2.y + 10 >= p1.y ? p1 : p2) : (p1 || p2); let two = !!(pos && pos.h === 30);   /* שורה אחת כשהיא ברבע העליון; אחרת מה שגבוה יותר */
     if (!pos) {   /* לא נכנס — מעל הנקודה העליונה (ממורכז עליה), ואם זה על אזור אחר — ליד קודקוד אחר של האזור */
-      const LW = W1, LH = 22, cands = [[topPt.x - LW / 2, topPt.y - 26], [topPt.x, topPt.y - 26], [topPt.x - LW, topPt.y - 26]];
-      z.poly.slice().sort((p, q) => p.y - q.y).forEach(p => { cands.push([p.x, p.y - 26], [p.x - LW, p.y - 26], [p.x, p.y + 4], [p.x - LW, p.y + 4]); });
+      const LW = W1, LH = 18, cands = [[topPt.x - LW / 2, topPt.y - 22], [topPt.x, topPt.y - 22], [topPt.x - LW, topPt.y - 22]];
+      z.poly.slice().sort((p, q) => p.y - q.y).forEach(p => { cands.push([p.x, p.y - 22], [p.x - LW, p.y - 22], [p.x, p.y + 4], [p.x - LW, p.y + 4]); });
       const pick = cands.find(c => c[1] >= 0 && !bad(c[0], c[1], LW, LH)) || cands[0];
       pos = { x: pick[0], y: Math.max(0, pick[1]), w: LW, h: LH }; two = false;
     }
@@ -13782,9 +13782,9 @@ function renderZones() {
       const lbl = document.createElement('span');
       lbl.className = 'zlbl';
       lbl.dataset.zdrag = z.id;
-      const lp = lblPos[z.id] || { x: z.poly[0].x, y: Math.max(0, z.poly[0].y - 26) };
-      lbl.style.cssText = `position:absolute;left:${lp.x}px;top:${lp.y}px;background:${c};z-index:1${lp.two ? ';text-align:center;line-height:1.25;padding:3px 10px' : ''}`;
-      if (lp.two) lbl.innerHTML = `<div>${esc(lp.name)}</div><div style="font-size:10px;font-weight:600;opacity:.95">${esc(lp.sub)}</div>`;
+      const lp = lblPos[z.id] || { x: z.poly[0].x, y: Math.max(0, z.poly[0].y - 22) };
+      lbl.style.cssText = `position:absolute;left:${lp.x}px;top:${lp.y}px;background:${c};z-index:1${lp.two ? ';text-align:center;line-height:1.2;padding:2px 7px' : ''}`;
+      if (lp.two) lbl.innerHTML = `<div>${esc(lp.name)}</div><div style="font-size:9px;font-weight:600;opacity:.95">${esc(lp.sub)}</div>`;
       else lbl.textContent = `🗺 ${z.name}${z.usage ? ' · ' + z.usage : ''}${dims}`;
       lbl.title = 'לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור';
       lbl.style.cursor = 'pointer';
