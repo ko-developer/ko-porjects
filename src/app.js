@@ -13451,6 +13451,7 @@ function renderImp() {
     return;
   }
   dk.style.width = dockWide ? 'calc(100vw - 60px)' : '480px';
+  try { syncItemZonesFromNodes(); } catch (e) { console.warn(e); }
   impItems.forEach(it => { autoPrice(it); clampItemZones(it); });
   const racks = P.nodes.filter(n => n.kind === 'rack');
   const destOpts = it => ['unit|יחידה בארון', 'panelUnit|פאנל בארון', 'point|מוקד/רמקול', 'panelNode|קופסאת מולטי', 'rack|ארון מסד חדש', 'cable|כבל מוכן (מלאי)', 'reel|גליל כבל (מלאי)', 'conn|מחבר (מלאי)', 'ignore|התעלם']
@@ -13561,6 +13562,36 @@ function renderImp() {
 function openImported() { dockOpen = true; dockMin = false; renderImp(); }
 function itemZones(it) { return it.zones ? Object.entries(it.zones).filter(([z, n]) => n > 0) : []; }
 /* הכמות לאזורים לא יכולה לעלות על כמות הפריט (ייבוא ואז הצבה רשמו פעמיים) — אזור יחיד = הכמות; כמה אזורים = מקוצצים יחסית */
+/* האזור של מוקד לפי מיקומו בפועל (הקטן מבין האזורים שמכילים אותו), או null */
+function nodeZoneGeo(n) {
+  const c = { x: 2200 - n.x - 20, y: n.y + 24 }; let best = null;
+  for (const z of P.zones || []) { if (z.prop || !inZone(z, c)) continue; if (!best || zoneArea(z) < zoneArea(best)) best = z; }
+  if (best) return best;
+  /* מוקד על הקיר של האזור (מרכז האייקון מעט מחוץ לפוליגון) — האזור הקרוב ביותר עד ~1.5 מ׳ */
+  const segD = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2)); return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy); };
+  let bd = P.scale ? 1.5 / P.scale : 60;
+  for (const z of P.zones || []) { if (z.prop) continue; const pts = z.poly || zoneRectPts(z); for (let i = 0; i < pts.length; i++) { const d = segD(c, pts[i], pts[(i + 1) % pts.length]); if (d < bd) { bd = d; best = z; } } }
+  return best;
+}
+/* השיוך לאזורים של פריט = איפה המוקדים שלו עומדים בפועל: רמקולים מהצעה שהוזזו לאזור אחר נספרים שם.
+   מה שטרם הוצב נשאר על האזור המקורי; תווית מוקד שמזכירה אזור אחר מתעדכנת לאזור שבו הוא נמצא */
+function syncItemZonesFromNodes() {
+  const zs = (P.zones || []).filter(z => !z.prop && z.name); if (!zs.length) return false;
+  let changed = false; const byIid = new Map();
+  for (const n of P.nodes || []) {
+    if (n.hidden || !n.srcIid || !isIconNode(n) || n.kind === 'rack') continue;
+    const z = nodeZoneGeo(n); if (!z) continue;
+    if (n.sub && !n.sub.includes(z.name)) { const o = zs.find(o => o !== z && n.sub.includes(o.name)); if (o) { n.sub = n.sub.split(o.name).join(z.name); changed = true; } }
+    const m = byIid.get(n.srcIid) || new Map(); m.set(z.name, (m.get(z.name) || 0) + 1); byIid.set(n.srcIid, m);
+  }
+  for (const it of impItems) {
+    const m = byIid.get(it.iid); if (!m) continue;
+    const old = it.zones || {}, prim = Object.keys(old)[0], nz = {}; m.forEach((v, k) => nz[k] = v);
+    const left = Math.max(0, (+it.qty || 0) - (it.placed || 0)); if (left && prim) nz[prim] = (nz[prim] || 0) + left;
+    if (JSON.stringify(nz) !== JSON.stringify(old)) { it.zones = nz; changed = true; }
+  }
+  return changed;
+}
 function clampItemZones(it) {
   if (!it || !it.zones) return false;
   const q = +it.qty || 0, ks = Object.keys(it.zones), sum = ks.reduce((a, k) => a + (+it.zones[k] || 0), 0);
