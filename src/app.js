@@ -3568,7 +3568,7 @@ function iconSlotFor(drag, wide, rawPos) {
   const overlapping = others.some(q => over(raw.cx, raw.cy, q));
   if (wide && !overlapping) return null;
   if (wide) {   /* טופ ששוחרר על סאב יושב מעליו (כמו בשטח); סאב ששוחרר על טופ — מתחתיו */
-    const isSubN = q2 => (q2.ptype === 'sub') || (q2.kind === 'point' && !q2.ptype && /סאב|\bsub\b|וופר/i.test(q2.name || ''));
+    const isSubN = cplIsSub;   /* אותו זיהוי סאב כמו בדיאלוג הצימוד (גם SB12 / BR / Bass) */
     drag.overId = null;
     const tgt = others.filter(q => over(raw.cx, raw.cy, q)).sort((a2, b2) => Math.hypot(a2.m.cx - raw.cx, a2.m.cy - raw.cy) - Math.hypot(b2.m.cx - raw.cx, b2.m.cy - raw.cy))[0];
     if (tgt) drag.overId = tgt.nn.id;
@@ -3647,7 +3647,7 @@ function nodeCabChipHTML(n, side) {
 }
 function cplBadgeHTML(n, mc) {
   const c = n.att && n.att.cpl; if (!c || !byId(n.att.id)) return '';
-  const sym = { side: '↔', line: '↕', stack: '▂', fly: '⇡' }[c], ttl = { side: 'צד לצד — פיזור אופקי רחב', line: 'ליין אראיי — אחד מתחת לשני', stack: 'Stack — יושב על הסאב', fly: 'תלוי מעל הסאב' }[c];
+  const sym = { side: '↔', line: '↕', stack: '▂', fly: '⇡' }[c], ttl = { side: 'צד לצד — פיזור אופקי רחב', line: 'ליין אראיי — אחד מתחת לשני', stack: 'Stack — יושב על הסאב', fly: 'על הקיר מעל הסאב' }[c];
   /* "תלוי מעל": קו מקווקו מהטופ אל הסאב שמתחתיו (או מהסאב אל הטופ שמעליו) */
   const link = false ? `<div style="position:absolute;left:50%;${n.att.sy < 0 ? 'top:100%' : 'bottom:100%'};height:11px;border-left:2px dashed ${mc};transform:translateX(-1px);pointer-events:none"></div>` : '';
   return link + `<div title="${ttl} — לחץ לשינוי או להפרדה" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();cplAsk('${n.id}','${n.att.id}')" style="position:absolute;right:-10px;top:-10px;min-width:19px;height:19px;border-radius:10px;background:#fff;border:1.5px solid ${mc};color:${mc};font-size:12px;font-weight:800;line-height:16px;text-align:center;z-index:6;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)">${sym}</div>`;
@@ -3673,17 +3673,17 @@ function cplApply(nid, tid, mode) {
   if (mode === 'line' || mode === 'side') { const rt = cplRoot(n); if (rt !== n && rt.aim != null) n.aim = rt.aim; }   /* מצטרף למערך — מקבל את הכיוון שלו */
   if (sx === 0 && sy === 0) { n.x = t.x; n.y = t.y; }   /* אותה נקודה — הטופ נשמר במיקום הסאב, התצוגה מרימה אותו */
   save(); render();
-  uiToast({ side: '↔ צימוד צד לצד — הפיזור האופקי של המערך התרחב', line: '↕ ליין אראיי — אותו פיזור, עוצמה גבוהה יותר על הציר', stack: '▂ Stack — הטופ יושב על הסאב', fly: '⇡ הטופ תלוי מעל הסאב' }[mode]);
+  uiToast({ side: '↔ צימוד צד לצד — הפיזור האופקי של המערך התרחב', line: '↕ ליין אראיי — אותו פיזור, עוצמה גבוהה יותר על הציר', stack: '▂ Stack — הטופ יושב על הסאב', fly: '⇡ הטופ תלוי על הקיר מעל הסאב' }[mode]);
 }
 function cplAsk(nid, tid) {
   const n = byId(nid), t = byId(tid); if (!n || !t) return;
   document.getElementById('cplAsk')?.remove();
   const mixed = cplIsSub(n) !== cplIsSub(t), subs = cplIsSub(n) && cplIsSub(t);
   const opts = mixed
-    ? [['stack', '▂ Stack', 'הטופ יושב על הסאב'], ['fly', '⇡ תלוי מעל הסאב', 'הטופ תלוי באותה נקודה, מעל הסאב']]
+    ? [['stack', '▂ Stack', 'הטופ יושב על הסאב'], ['fly', '⇡ על הקיר מעל הסאב', 'הסאב על הרצפה, הטופ תלוי על הקיר מעליו — אותה נקודה בתכנית']]
     : subs
     ? [['side', '↔ צד לצד', 'סאבים צמודים — העוצמה מסתכמת'], ['line', '↕ ערימה', 'סאב על סאב — העוצמה מסתכמת']]
-    : [['side', '↔ צד לצד', 'פיזור אופקי רחב יותר, אותה עוצמה'], ['line', '↕ אחד מתחת לשני', 'ליין אראיי — אותו פיזור, עוצמה גבוהה יותר'], ['stack', '▂ Stack — זה יושב על זה', 'הרמקול שגררת יושב על זה שמתחתיו (טופ על סאב / רמקול על רמקול)'], ['fly', '⇡ תלוי מעל', 'הרמקול שגררת תלוי באותה נקודה, מעל התחתון']];
+    : [['side', '↔ צד לצד', 'פיזור אופקי רחב יותר, אותה עוצמה'], ['line', '↕ אחד מתחת לשני', 'ליין אראיי — אותו פיזור, עוצמה גבוהה יותר'], ['stack', '▂ Stack — זה יושב על זה', 'הרמקול שגררת יושב על זה שמתחתיו (טופ על סאב / רמקול על רמקול)'], ['fly', '⇡ על הקיר מעל', 'התחתון על הרצפה, הרמקול שגררת תלוי על הקיר מעליו — אותה נקודה']];
   const el = document.getElementById('nd_' + n.id), r = el ? el.getBoundingClientRect() : { left: innerWidth / 2, bottom: innerHeight / 2, width: 0 };
   const d = document.createElement('div'); d.id = 'cplAsk';
   d.style.cssText = 'position:fixed;z-index:140;background:#fff;border:1px solid #cfd3dc;border-radius:11px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:9px;direction:rtl;font-size:12px;width:250px;left:' + Math.max(8, Math.min(innerWidth - 262, r.left + r.width / 2 - 125)) + 'px;top:' + Math.min(innerHeight - 190, r.bottom + 10) + 'px';
@@ -9589,7 +9589,7 @@ function renderPanel() {
     <p class="muted" style="font-size:10px;margin:-2px 0 4px">SPL אפקטיבי בשימוש: <b>${effSpl(n).toFixed(0)} dB</b> ${(n.sens ?? guessSens(n.name)) != null && n.pow ? '(רגישות + 10·log₁₀·הספק)' : '(Max SPL)'}</p>
     <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;margin-bottom:4px"><input type="checkbox" style="width:auto" ${!n.noCov ? 'checked' : ''} onchange="byId('${n.id}').noCov=!this.checked;render();save()"> הצג פיזור לרמקול זה</label>
     ${(() => { const fol = n.att && n.att.cpl && byId(n.att.id) ? n : P.nodes.find(o => !o.hidden && o.att && o.att.cpl && o.att.id === n.id); if (!fol) return '';
-      const oth = fol === n ? byId(fol.att.id) : fol, lbl = { side: '↔ צד לצד', line: '↕ ליין אראיי', stack: '▂ Stack', fly: '⇡ תלוי מעל הסאב' }[fol.att.cpl];
+      const oth = fol === n ? byId(fol.att.id) : fol, lbl = { side: '↔ צד לצד', line: '↕ ליין אראיי', stack: '▂ Stack', fly: '⇡ על הקיר מעל הסאב' }[fol.att.cpl];
       return '<div class="fld" style="background:#f4f1fb;border-radius:8px;padding:6px 8px"><label>🔗 מצומד — ' + lbl + '</label><div style="font-size:11.5px;margin-bottom:5px">עם: ' + esc(shortModel(oth.name) || oth.name.slice(0, 30)) + '</div><div style="display:flex;gap:6px"><button style="flex:1" onclick="cplAsk(\'' + fol.id + '\',\'' + fol.att.id + '\')">שנה סוג</button><button style="flex:1;background:#fdf0f0;color:#c1121f;font-weight:700" onclick="cplApply(\'' + fol.id + '\',\'' + fol.att.id + '\',\'detach\')">✂ הפרד</button></div></div>'; })()}
     <div class="fld"><label>כיוון הרמקול (${n.aim ?? 0}° · 0=ימין, 90=מטה)</label>
       <input type="range" min="0" max="359" value="${n.aim ?? 0}" oninput="byId('${n.id}').aim=+this.value;cplAimSync(byId('${n.id}'));renderCoverage();const g=document.querySelector('#nd_${n.id} .mic g[transform^=rotate]');if(g)g.setAttribute('transform','rotate('+this.value+' 12 12)')" onchange="save();render()"></div>
