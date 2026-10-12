@@ -1574,7 +1574,7 @@ function projManager() {
 let PM_USERS = null, pmUser = '*mine';
 /* מי אני ברשימה: הבעלים (מקומי) = 'owner'; פרויקט בלי by = של הבעלים */
 const pmMeId = () => (window.__AUTH && window.__AUTH.user && window.__AUTH.user.id) || 'owner';
-const pmIsAdmin = () => { const u = window.__AUTH && window.__AUTH.user; return !u || u.role === 'owner' || u.role === 'admin'; };
+const pmIsAdmin = () => { const u = window.__AUTH && window.__AUTH.user; return !u || u.role === 'owner' || u.role === 'admin' || u.role === 'pm'; };
 const pmMine = p => (p.by || 'owner') === pmMeId();
 async function pmLoadUsers() {
   if (!pmIsAdmin()) return;
@@ -2458,7 +2458,7 @@ if (AUTH && AUTH.storage && AUTH.storage.warn) document.addEventListener('DOMCon
 function authBoxHTML() {
   if (!AUTH || !AUTH.enabled || !AUTH.user) return '';
   const u = AUTH.user;
-  if (u.role === 'owner' || u.role === 'admin') return `<button onclick="shareDialog()" title="יצירת קישור שיתוף — המוזמן נרשם עם מייל וסיסמה, ואפשר לחסום אותו בכל רגע" style="background:#0f6e56;color:#fff;font-weight:700">🔗 שתף</button>
+  if (u.role === 'owner' || u.role === 'admin' || u.role === 'pm') return `<button onclick="shareDialog()" title="יצירת קישור שיתוף — המוזמן נרשם עם מייל וסיסמה, ואפשר לחסום אותו בכל רגע" style="background:#0f6e56;color:#fff;font-weight:700">🔗 שתף</button>
     <button onclick="location.href='/admin'" title="משתמשים, הרשאות, חסימה וקישורי שיתוף">👥</button>${u.local ? '' : `<button onclick="authLogout()" title="${esc(u.email)} · יציאה">👤 ${esc(u.name || '')}</button>`}`;
   const perm = (P && P._perm) === 'view' ? ' <small style="opacity:.8">· צפייה בלבד</small>' : '';
   return `<button onclick="authLogout()" title="${esc(u.email)} · יציאה" style="background:#efecfd;color:#4b3fb8">👤 ${esc(u.name || '')}${perm}</button>`;
@@ -2470,7 +2470,11 @@ function shareDialog() {
     <p class="muted" style="font-size:12px;margin:6px 0 8px;line-height:1.5">המוזמן מקבל קישור חד-פעמי (תקף 14 יום), נרשם עם מייל וסיסמה ורואה רק את הפרויקטים שסימנת. אפשר לחסום אותו בכל רגע ב-👥.</p>
     <div style="max-height:180px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:6px 8px;margin-bottom:8px">${rows}</div>
     <div class="fld"><label>עם מי לשתף</label><select id="shUser"><option value="">➕ משתמש חדש — יצירת קישור הזמנה</option></select></div>
-    <div class="row2"><div class="fld"><label>הרשאה</label><select id="shPerm"><option value="edit">עריכה</option><option value="view">צפייה בלבד</option></select></div>
+    <div class="fld" id="shRoleF"><label>תפקיד המשתמש החדש</label><select id="shRole" onchange="const a=this.value==='admin';document.getElementById('shPermF').style.opacity=a?'.45':'';document.getElementById('shPermF').title=a?'אדמין עורך הכול — ההרשאה לפרויקטים לא רלוונטית':''">
+      <option value="user">👤 משתמש חיצוני — רואה ועורך רק את הפרויקטים שלו ומה ששותף איתו</option>
+      ${(AUTH && AUTH.user && AUTH.user.role === 'pm') ? '' : '<option value="pm">🛠 מנהל פרויקטים KO — רואה את כל הפרויקטים, עורך את שלו ומה שהוענק לו</option><option value="admin">🛡 אדמין — צופה ועורך הכול</option>'}
+    </select></div>
+    <div class="row2"><div class="fld" id="shPermF"><label>הרשאה לפרויקטים שסומנו</label><select id="shPerm"><option value="edit">עריכה</option><option value="view">צפייה בלבד</option></select></div>
       <div class="fld" id="shLabelF"><label>למי (שם / הערה)</label><input id="shLabel" placeholder="למשל: יוסי — חשמלאי"></div></div>
     <div class="fld" id="shEmailF"><label>מייל המוזמן (לא חובה — אם מוזן, הקישור יעבוד רק לכתובת הזו)</label><input id="shEmail" type="email" placeholder="name@example.com"></div>
     <div id="shOut"></div>
@@ -2490,7 +2494,7 @@ function shareDialog() {
   const shUserSel = ov.querySelector('#shUser');
   const shSync = () => {
     const u = SH_USERS.find(x => x.id === shUserSel.value);
-    ov.querySelector('#shLabelF').style.display = u ? 'none' : ''; ov.querySelector('#shEmailF').style.display = u ? 'none' : '';
+    ov.querySelector('#shLabelF').style.display = u ? 'none' : ''; ov.querySelector('#shEmailF').style.display = u ? 'none' : ''; ov.querySelector('#shRoleF').style.display = u ? 'none' : '';
     ov.querySelector('#shGo').textContent = u ? '👤 שתף עם ' + (u.name || u.email) : 'צור קישור';
     /* פרויקטים שכבר משותפים איתו — מסומנים */
     if (u) ov.querySelectorAll('.shP').forEach(c => { const g = (u.projects || []).find(p => p.id === c.value); if (g && !g.created) c.checked = true; });
@@ -2519,7 +2523,8 @@ function shareDialog() {
     const perm = ov.querySelector('#shPerm').value, label = ov.querySelector('#shLabel').value, email = ov.querySelector('#shEmail').value.trim();
     const out = ov.querySelector('#shOut');
     try {
-      const r = await fetch('/api/share', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ projects, perm, label, email }) });
+      const role = (ov.querySelector('#shRole') || {}).value || 'user';
+      const r = await fetch('/api/share', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ projects, perm, label, email, role }) });
       const j = await r.json();
       if (j.error) { out.innerHTML = `<p style="color:#c1121f;font-size:12.5px">${esc(j.error)}</p>`; return; }
       const names = store.projects.filter(p => projects.includes(p.id)).map(p => p.name).join(', ');

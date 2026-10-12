@@ -148,13 +148,19 @@ export function publicUser(u) {
   return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local } : null;
 }
 /* store מסונן למשתמש מוזמן: רק הפרויקטים שהוענקו לו (עם דגל הרשאה בכל פרויקט) */
-/* תפקידים: owner = הגישה המקומית (הכול) · admin = משתמש רשום שרואה ופותח כל פרויקט · user = רק מה שהוענק לו + מה שיצר */
+/* תפקידים: owner = הגישה המקומית (הכול) · admin = צופה ועורך הכול · pm = מנהל פרויקטים KO: רואה הכול, עורך את שלו ומה שהוענק לו
+   · user = משתמש חיצוני: רק מה שיצר ומה ששותף איתו (צפייה / עריכה) */
+export const ROLES = ['admin', 'pm', 'user'];
+export const ROLE_HE = { owner: 'בעלים', admin: 'אדמין — צופה ועורך הכול', pm: 'מנהל פרויקטים KO — רואה הכול, עורך את שלו', user: 'משתמש חיצוני — רק מה ששותף איתו' };
 export const isAdmin = u => !!u && (u.role === 'owner' || u.role === 'admin');
+export const isStaff = u => !!u && (u.role === 'owner' || u.role === 'admin' || u.role === 'pm');
 export function filterStore(store, user) {
   if (!user || user.role === 'owner') return store;
-  if (user.role === 'admin') {   /* רואה הכול — אבל הפרויקט הפתוח הוא שלו, לא של הבעלים */
-    const want = user.cur, projects = store.projects || [];
-    return { ...store, cur: want && projects.some(p => p.id === want) ? want : (projects.find(p => p.by === user.id) || projects[0] || {}).id || store.cur, _admin: true };
+  if (user.role === 'admin' || user.role === 'pm') {   /* רואה הכול — אבל הפרויקט הפתוח הוא שלו, לא של הבעלים; למנהל פרויקטים: עריכה רק בשלו ובמה שהוענק */
+    const g = user.grants || {}, all = store.projects || [];
+    const projects = user.role === 'pm' ? all.map(p => ({ ...p, _perm: p.by === user.id || g[p.id] === 'edit' ? 'edit' : 'view' })) : all;
+    const want = user.cur;
+    return { ...store, projects, cur: want && projects.some(p => p.id === want) ? want : (projects.find(p => p.by === user.id) || projects[0] || {}).id || store.cur, _admin: user.role === 'admin', _staff: true };
   }
   const g = user.grants || {};
   const projects = (store.projects || []).filter(p => g[p.id]).map(p => ({ ...p, _perm: g[p.id] }));
@@ -166,6 +172,14 @@ export function filterStore(store, user) {
 /* שמירה ממשתמש מוזמן: רק פרויקטים בהרשאת עריכה מוחלפים ב-store המלא; השאר לא נגעו */
 export function mergeStore(full, posted, user) {
   if (!user || user.role === 'owner') return posted;
+  if (user.role === 'pm') {   /* מנהל פרויקטים: נכתבים רק הפרויקטים שלו ומה שהוענק לו בעריכה; פרויקט חדש נרשם על שמו */
+    const g = user.grants || {}, byId = new Map((full.projects || []).map(p => [p.id, p]));
+    for (const p of (posted.projects || [])) { const { _perm, ...clean } = p; const o = byId.get(p.id);
+      if (o && (o.by === user.id || g[p.id] === 'edit')) { clean.by = clean.by || o.by; byId.set(p.id, clean); }
+      else if (!o && !p._lite && p.id) { clean.by = clean.by || user.id; byId.set(p.id, clean); } }
+    if (posted.cur && user.cur !== posted.cur) { user.cur = posted.cur; persist(); }
+    return { ...full, projects: [...byId.values()] };
+  }
   if (user.role === 'admin') {   /* כמו הבעלים — אבל "הפרויקט הפתוח" של הבעלים לא משתנה, ופרויקט חדש נרשם על שמו */
     const had = new Set((full.projects || []).map(p => p.id));
     (posted.projects || []).forEach(p => { if (!had.has(p.id) && !p.by) p.by = user.id; });
@@ -218,7 +232,7 @@ export async function handleAuth(req, res, path, store) {
       if (!validEmail(email)) return json(res, 400, { error: 'כתובת מייל לא תקינה' }), true;
       if (pw.length < 8) return json(res, 400, { error: 'סיסמה — לפחות 8 תווים' }), true;
       if (db.users.some(u => u.email === email)) return json(res, 409, { error: 'המייל הזה כבר רשום — עבור ללשונית "כניסה" והתחבר עם הסיסמה שלך (ההרשאות מהקישור יתווספו בכניסה)' }), true;
-      let role = 'user', grants = {};
+      let role = 'user', grants = {};   /* התפקיד נקבע בהזמנה (admin / pm / user) */
       /* הרשמה רק דרך קישור הזמנה — הבעלים לא נרשם */
       const inv = db.invites.find(i => i.token === b.token);
       if (!inv) return json(res, 403, { error: b.token ? 'קישור ההזמנה לא נמצא — בקש קישור חדש מבעל המערכת' : 'הרשמה רק דרך קישור הזמנה — פתח את הקישור שקיבלת מבעל המערכת' }), true;
@@ -227,6 +241,7 @@ export async function handleAuth(req, res, path, store) {
       if (inv.email && inv.email !== email) return json(res, 403, { error: 'הקישור הזה יועד לכתובת מייל אחרת' }), true;
       if (inv.email && inv.usedBy) return json(res, 403, { error: 'הקישור הזה כבר נוצל — התחבר עם הסיסמה שלך' }), true;
       inv.projects.forEach(pid => { grants[pid] = inv.perm; });
+      if (ROLES.includes(inv.role)) role = inv.role;
       const salt = randomBytes(16).toString('hex');
       const u = { id: uid('u'), email, name: name || email.split('@')[0], role, salt, hash: hashPw(pw, salt), grants, blocked: false, createdAt: new Date().toISOString(), invitedBy: inv ? inv.by : null };
       db.users.push(u);
@@ -258,17 +273,20 @@ export async function handleAuth(req, res, path, store) {
     /* --- פעולות בעלים --- */
     const isOwner = me && me.role === 'owner', isAdm = isAdmin(me);
     if (path === '/api/share' && method === 'POST') {
-      if (!isAdm) return json(res, 403, { error: 'רק בעל המערכת או מנהל יכולים לשתף' }), true;
+      if (!isStaff(me)) return json(res, 403, { error: 'רק בעל המערכת, אדמין או מנהל פרויקטים יכולים לשתף' }), true;
       const b = await body(req);
-      const projects = (b.projects || []).filter(id => (store.projects || []).some(p => p.id === id));
+      /* מנהל פרויקטים משתף רק את הפרויקטים שלו / שהוענקו לו בעריכה, ורק למשתמשים חיצוניים */
+      const canShare = p => isAdm || p.by === me.id || (me.grants || {})[p.id] === 'edit';
+      const projects = (b.projects || []).filter(id => (store.projects || []).some(p => p.id === id && canShare(p)));
+      const role = ROLES.includes(b.role) && (isAdm || b.role === 'user') ? b.role : 'user';
       if (!projects.length) return json(res, 400, { error: 'בחר לפחות פרויקט אחד' }), true;
-      const inv = { token: token(), projects, perm: b.perm === 'view' ? 'view' : 'edit', email: normEmail(b.email) || '', label: String(b.label || '').slice(0, 60), by: me.id, createdAt: new Date().toISOString(), exp: now() + INVITE_DAYS * 864e5, usedBy: null };
+      const inv = { token: token(), projects, role, perm: b.perm === 'view' ? 'view' : 'edit', email: normEmail(b.email) || '', label: String(b.label || '').slice(0, 60), by: me.id, createdAt: new Date().toISOString(), exp: now() + INVITE_DAYS * 864e5, usedBy: null };
       db.invites.push(inv); await persist();
       const url = origin(req) + '/join/' + inv.token;
       return json(res, 200, { ok: true, url, exp: inv.exp, invite: inv, localOnly: isLocalUrl(url) }), true;
     }
     if (path === '/api/admin/users' && method === 'GET') {
-      if (!isAdm) return json(res, 403, { error: 'forbidden' }), true;
+      if (!isStaff(me)) return json(res, 403, { error: 'forbidden' }), true;
       const pn = Object.fromEntries((store.projects || []).map(p => [p.id, p.name])), pById = new Map((store.projects || []).map(p => [p.id, p]));
       /* לכל משתמש: פרויקטים ששותפו איתו + פרויקטים שהוא יצר (by), עם זמן עריכה אחרון — כדי לפתוח אותם מהאפליקציה */
       const projOf = u => { const g = { ...(u.grants || {}) }; for (const p of store.projects || []) if (p.by === u.id && !g[p.id]) g[p.id] = 'edit';
@@ -287,7 +305,7 @@ export async function handleAuth(req, res, path, store) {
       if (b.action === 'block') { u.blocked = true; dropSessions(); }
       else if (b.action === 'unblock') u.blocked = false;
       else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); db.deleted.users.push(u.id); dropSessions(); }
-      else if (b.action === 'role') { u.role = b.role === 'admin' ? 'admin' : 'user'; dropSessions(); }   /* admin רואה את כל הפרויקטים; הסשן מתחדש כדי שהתפקיד ייכנס לתוקף */
+      else if (b.action === 'role') { u.role = ROLES.includes(b.role) ? b.role : 'user'; dropSessions(); }   /* admin רואה את כל הפרויקטים; הסשן מתחדש כדי שהתפקיד ייכנס לתוקף */
       else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') { delete u.grants[b.project]; if (u.cur === b.project) delete u.cur; } else { u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; u.cur = b.project; /* ייפתח אצלו בכניסה הבאה */ } }
       else return json(res, 400, { error: 'unknown action' }), true;
       await persist();
