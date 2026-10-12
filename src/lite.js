@@ -2353,6 +2353,8 @@ function shareReport() {
   const p = buildProposal(tier);
   const txt = `תכנון סאונד — ${S.name || 'הפרויקט שלי'}\n${S.zones.length} אזורים · ${p.totalSpk} רמקולים${p.totalSub ? ' + ' + p.totalSub + ' סאבים' : ''}\nרמת ציוד: ${tier.name} (${tier.brand})\nסה"כ: ${ils(p.total)} לפני מע"מ`;
   if (navigator.share) { navigator.share({ title: 'KO Studio', text: txt }).catch(() => {}); return; }
+  /* במחשב — אפליקציית WhatsApp, לא וואטסאפ ווב (חסום בדפדפן המשובץ) */
+  if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) { try { const a = document.createElement('a'); a.href = 'whatsapp://send?text=' + encodeURIComponent(txt); a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove(); return; } catch (e) {} }
   window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener');
 }
 /* דיאלוג אישור פנימי — דיאלוג מערכת חסום בדפדפנים משובצים */

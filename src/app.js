@@ -2501,7 +2501,7 @@ function shareDialog() {
         out.innerHTML = '<div style="background:#eef7f1;border:1px solid #bfe0cd;border-radius:8px;padding:8px;margin-top:6px;font-size:12.5px;line-height:1.5">✓ ' + esc(names) + ' שותפו עם <b>' + esc(shU.name || shU.email) + '</b> (' + (perm === 'view' ? 'צפייה בלבד' : 'עריכה') + ') — יופיעו אצלו בכניסה הבאה, בלי קישור.' +
           '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" id="shMail2">✉️ הודע במייל</button><button type="button" id="shWa2">💬 הודע בוואטסאפ</button></div></div>';
         out.querySelector('#shMail2').onclick = () => { window.open('mailto:' + encodeURIComponent(shU.email) + '?subject=' + encodeURIComponent('שיתוף פרויקט — KO Projects') + '&body=' + encodeURIComponent(msg), '_self'); };
-        out.querySelector('#shWa2').onclick = () => { window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank'); };
+        out.querySelector('#shWa2').onclick = () => waShare(msg);
         if (typeof pmLoadUsers === 'function') pmLoadUsers();
       } catch (e) { out.innerHTML = '<p style="color:#c1121f;font-size:12.5px">' + esc(e.message || String(e)) + '</p>'; }
       return;
@@ -2529,7 +2529,7 @@ function shareDialog() {
         this.textContent = 'הועתק ✓';
       };
       out.querySelector('#shMail').onclick = () => { window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent('שיתוף פרויקט — KO Projects') + '&body=' + encodeURIComponent(msg), '_self'); };
-      out.querySelector('#shWa').onclick = () => { window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank'); };
+      out.querySelector('#shWa').onclick = () => waShare(msg);
       urlIn.onclick = () => urlIn.select();
       ov.querySelector('#shGo').textContent = 'צור קישור נוסף';
     } catch (e) { out.innerHTML = `<p style="color:#c1121f;font-size:12.5px">${esc(String(e))}</p>`; }
@@ -10019,6 +10019,20 @@ document.addEventListener('mouseover', e => {
   const t = (b.textContent || '').trim();
   if (ICON_TIPS[t]) b.title = ICON_TIPS[t];
 }, true);
+/* שיתוף בוואטסאפ: במחשב נפתחת אפליקציית WhatsApp (whatsapp://) — לא וואטסאפ ווב, שחסום בדפדפן המשובץ; בנייד wa.me פותח את האפליקציה.
+   לא נפתח (אין אפליקציה)? הטוסט מציע לפתוח ב-WhatsApp Web */
+function waShare(text) {
+  const enc = encodeURIComponent(String(text || '')), mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (mobile) { window.open('https://wa.me/?text=' + enc, '_blank', 'noopener'); return; }
+  try { const a = document.createElement('a'); a.href = 'whatsapp://send?text=' + enc; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove(); } catch (e) {}
+  uiToast('📲 נפתח ב-WhatsApp במחשב — ההודעה מוכנה, בחר למי לשלוח');
+  const host = document.getElementById('toastHost'); if (!host) return;
+  const t = document.createElement('div');
+  t.style.cssText = 'background:#25D366;color:#fff;padding:8px 14px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.35);font-size:12.5px;cursor:pointer;font-weight:700';
+  t.textContent = 'לא נפתח? לחץ כאן לפתיחה ב-WhatsApp Web';
+  t.onclick = () => { window.open('https://wa.me/?text=' + enc, '_blank', 'noopener'); t.remove(); };
+  host.appendChild(t); setTimeout(() => { if (t.isConnected) t.remove(); }, 12000);
+}
 function uiToast(msg) {
   let host = document.getElementById('toastHost');
   if (!host) {
@@ -13301,17 +13315,18 @@ function sendOffer() {
         const code = res.order_code || res.code || res.order?.code || '';
         const confirmUrl = res.confirmation_url || res.customer_confirmation_url || res.order?.confirmation_url || '';
         const projUrl = j.project_web_url || '';
-        const wa = confirmUrl ? 'https://wa.me/?text=' + encodeURIComponent(
+        const wa = confirmUrl ? (
           'שלום! הצעת המחיר של KO מוכנה' + (code ? ' (הזמנה ' + code + ')' : '') +
           '\nסה"כ: ₪' + Math.round(total).toLocaleString() + ' לפני מע"מ' +
           '\nלצפייה ואישור: ' + confirmUrl) : '';
+        window.__waTxt = wa;
         out.innerHTML = `<div style="background:#eef7f1;border:2px solid #0f6e56;border-radius:12px;padding:14px;margin-top:4px">
           <div style="font-size:17px;font-weight:800;color:#0f6e56;margin-bottom:6px">✅ ההצעה נוצרה ב-ERP</div>
           ${code ? '<div style="font-size:15px;margin-bottom:8px">הזמנה <b style="font-size:18px;letter-spacing:.5px">' + esc(code) + '</b></div>' : ''}
           ${j.note ? '<div style="color:#b7761f;font-size:12px;margin-bottom:8px">ℹ ' + esc(j.note) + '</div>' : ''}
           ${j.skipped_without_key && j.skipped_without_key.length ? '<div style="color:#c1121f;font-size:12px;margin-bottom:8px">⚠️ ' + j.skipped_without_key.length + ' פריטים ללא מק"ט לא נכללו</div>' : ''}
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            ${wa ? '<a href="' + esc(wa) + '" target="_blank" rel="noopener" style="flex:1;min-width:150px;text-align:center;background:#25D366;color:#fff;font-weight:800;font-size:14px;padding:11px;border-radius:10px;text-decoration:none">📲 שלח בוואטסאפ</a>' : ''}
+            ${wa ? '<a href="#" onclick="event.preventDefault();waShare(window.__waTxt)" style="flex:1;min-width:150px;text-align:center;background:#25D366;color:#fff;font-weight:800;font-size:14px;padding:11px;border-radius:10px;text-decoration:none">📲 שלח בוואטסאפ</a>' : ''}
             ${confirmUrl ? '<button onclick="navigator.clipboard.writeText(\'' + esc(confirmUrl) + '\');uiToast(\'📋 קישור האישור הועתק\')" style="flex:1;min-width:120px;background:#fff;border:1px solid #bfe0cd;color:#0f6e56;font-weight:700;font-size:13px;padding:11px;border-radius:10px;cursor:pointer">📋 העתק קישור</button>' : ''}
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
@@ -16752,7 +16767,7 @@ function reportPreview() {
   ov.querySelector('#rpShare').onclick = async () => {
     const txt = 'דוח פרויקט KO — ' + P.name + '\n' + (P.zones || []).length + ' אזורים · ' + P.cables.length + ' כבלים · ' + impItems.length + ' פריטים';
     if (navigator.share) { try { await navigator.share({ title: 'KO Projects — ' + P.name, text: txt }); return; } catch (e) {} }
-    window.open('https://wa.me/?text=' + encodeURIComponent(txt + '\n(הדוח המלא מצורף כ-PDF — הדפס ושמור קודם)'), '_blank', 'noopener');
+    waShare(txt + '\n(הדוח המלא מצורף כ-PDF — הדפס ושמור קודם)');
     uiToast('📲 נפתח וואטסאפ — צרף את ה-PDF ששמרת');
   };
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
