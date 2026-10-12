@@ -20,6 +20,7 @@ function normalize(j) {
   const db = j && typeof j === 'object' ? j : { users: [], invites: [], sessions: {} };
   db.users = db.users || []; db.invites = db.invites || []; db.sessions = db.sessions || {};
   db.config = db.config || {};
+  db.deleted = db.deleted || { users: [], invites: [], sessions: [] };   /* מה שנמחק כאן — לא חוזר מהעותק של הצד השני */
   return db;
 }
 /* חובה לפני כל שימוש: טוען users.json מהאחסון (ויוצר מפתח בעלים בפעם הראשונה) */
@@ -47,7 +48,24 @@ let chain = Promise.resolve();
 function persist() {
   chain = chain.then(async () => {
     const mem = load(), t = Date.now();
+    /* מיזוג עם הקובץ שבאחסון לפני הכתיבה: משתמש שנרשם / התחבר בצד השני (ענן ↔ מחשב) בין הרענון לכתיבה לא נמחק בדריסה */
+    let fresh = null; try { fresh = normalize(await ST.readJson(FILE, null)); } catch (e) {}
+    if (fresh) {
+      const delU = new Set(mem.deleted.users), delI = new Set(mem.deleted.invites), delS = new Set(mem.deleted.sessions);
+      const ids = new Set(mem.users.map(u => u.id)), mails = new Set(mem.users.map(u => u.email));
+      for (const u of fresh.users) {
+        if (delU.has(u.id)) continue;
+        const m = mem.users.find(x => x.id === u.id);
+        if (!m) { if (!mails.has(u.email)) { mem.users.push(u); ids.add(u.id); mails.add(u.email); } continue; }   /* נרשם בצד השני */
+        if (u.lastLogin && (!m.lastLogin || u.lastLogin > m.lastLogin)) m.lastLogin = u.lastLogin;
+        if (u.cur && !m.cur) m.cur = u.cur;
+      }
+      const toks = new Set(mem.invites.map(i => i.token));
+      for (const i of fresh.invites) { if (delI.has(i.token)) continue; const m = mem.invites.find(x => x.token === i.token); if (!m) mem.invites.push(i); else if ((i.uses || []).length > (m.uses || []).length) { m.uses = i.uses; m.usedBy = m.usedBy || i.usedBy; m.usedAt = m.usedAt || i.usedAt; } }
+      for (const [sid, sess] of Object.entries(fresh.sessions)) { if (mem.sessions[sid] || delS.has(sid) || sess.exp < t) continue; const u = mem.users.find(x => x.id === sess.uid); if (u && !u.blocked) mem.sessions[sid] = sess; }   /* התחבר בצד השני */
+    }
     for (const [sid, sess] of Object.entries(mem.sessions)) if (sess.exp < t) delete mem.sessions[sid];
+    if (mem.deleted.sessions.length > 500) mem.deleted.sessions = mem.deleted.sessions.slice(-200);
     await ST.writeJson(FILE, mem); loadedAt = Date.now();
   }).catch(e => console.warn('users.json persist failed:', e.message));
   return chain;
@@ -121,7 +139,7 @@ async function setSession(res, user, req) {
 }
 async function clearSession(req, res) {
   const db = load(), sid = cookies(req).ko_sid;
-  if (sid) { delete db.sessions[sid]; await persist(); }
+  if (sid) { delete db.sessions[sid]; db.deleted.sessions.push(sid); await persist(); }
   res.setHeader('set-cookie', 'ko_sid=; Path=/; HttpOnly; Max-Age=0');
 }
 
@@ -265,10 +283,10 @@ export async function handleAuth(req, res, path, store) {
       const b = await body(req); const u = db.users.find(x => x.id === b.id);
       if (!u) return json(res, 404, { error: 'משתמש לא נמצא' }), true;
       if (u.role === 'owner') return json(res, 400, { error: 'הבעלים הוא הגישה המקומית — אין מה לחסום' }), true;
-      const dropSessions = () => Object.keys(db.sessions).forEach(s => { if (db.sessions[s].uid === u.id) delete db.sessions[s]; });
+      const dropSessions = () => Object.keys(db.sessions).forEach(s => { if (db.sessions[s].uid === u.id) { delete db.sessions[s]; db.deleted.sessions.push(s); } });
       if (b.action === 'block') { u.blocked = true; dropSessions(); }
       else if (b.action === 'unblock') u.blocked = false;
-      else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); dropSessions(); }
+      else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); db.deleted.users.push(u.id); dropSessions(); }
       else if (b.action === 'role') { u.role = b.role === 'admin' ? 'admin' : 'user'; dropSessions(); }   /* admin רואה את כל הפרויקטים; הסשן מתחדש כדי שהתפקיד ייכנס לתוקף */
       else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') { delete u.grants[b.project]; if (u.cur === b.project) delete u.cur; } else { u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; u.cur = b.project; /* ייפתח אצלו בכניסה הבאה */ } }
       else return json(res, 400, { error: 'unknown action' }), true;
@@ -292,7 +310,7 @@ export async function handleAuth(req, res, path, store) {
       const b = await body(req); const inv = db.invites.find(i => i.token === b.token);
       if (!inv) return json(res, 404, { error: 'הזמנה לא נמצאה' }), true;
       if (b.action === 'revoke') inv.revoked = true;
-      else if (b.action === 'delete') db.invites = db.invites.filter(i => i !== inv);
+      else if (b.action === 'delete') { db.invites = db.invites.filter(i => i !== inv); db.deleted.invites.push(inv.token); }
       await persist();
       return json(res, 200, { ok: true }), true;
     }
