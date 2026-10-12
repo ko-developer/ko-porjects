@@ -634,12 +634,14 @@ function fxDetEdit(id) {
     <div class="fld"><label>דגם / כיתוב בתכנית</label><input data-m value="${esc(it.model || '')}" placeholder="כמו שכתוב אצל המעצב"></div>
     <div class="fld"><label>עמדה (טראס / בר)</label><input data-p value="${esc(it.pos || '')}"></div>
     <div class="fld"><label>מוצר מהקטלוג של KO (ERP)</label><div style="display:flex;gap:6px;align-items:center"><span data-sku style="flex:1;font-size:12px">${it.sku && fxOf(it.sku) ? esc(fxOf(it.sku).name.slice(0, 60)) : '<span class="muted">לא נבחר — ייבחר בטבלת הספירה</span>'}</span><button data-pick title="בחר דגם מהספרייה (1207 פריטים מהאתר)">📚 בחר</button></div></div>
+    <div style="display:flex;gap:6px;margin-bottom:6px"><button data-sim style="flex:1;background:#0f6e56;color:#fff;font-weight:700" title="שומר את הסוג והדגם של הסימון הזה, ואז מחפש בתמונה את כל הפנסים שנראים כמוהו ומסמן אותם">🔍 חפש עוד כמוני — סמן את כל הדומים לו בתמונה</button></div>
     <div style="display:flex;gap:6px"><button class="primary" data-ok style="flex:2">שמור</button><button data-same style="flex:2" title="מחיל את הסוג והדגם על כל הזיהויים שיש להם אותו כיתוב">על כל הדומים</button><button data-del style="flex:1;color:#c0392b">🗑</button><button data-x style="flex:1">ביטול</button></div>`);
   let sku = it.sku || null;
   ov.querySelector('[data-pick]').onclick = () => fxPicker({ onPick: f => { if (!f) return; sku = f.sku; ov.querySelector('[data-sku]').textContent = f.name.slice(0, 60); const mi = ov.querySelector('[data-m]'); if (!mi.value.trim()) mi.value = f.name.slice(0, 40); const ts = ov.querySelector('[data-t]'); if (['moving', 'static', 'effect', 'truss'].includes(f.kind)) ts.value = f.kind; } });
   const apply = all => { const t = ov.querySelector('[data-t]').value, m = ov.querySelector('[data-m]').value.trim(), p = ov.querySelector('[data-p]').value.trim(), m0 = it.model;
     (all ? D.items.filter(x => (x.model || '') === (m0 || '')) : [it]).forEach(x => { x.type = t; x.model = m; x.sku = sku; if (!all) x.pos = p; }); ov.remove(); save(); render(); };
   ov.querySelector('[data-ok]').onclick = () => apply(false); ov.querySelector('[data-same]').onclick = () => apply(true);
+  ov.querySelector('[data-sim]').onclick = () => { const t = ov.querySelector('[data-t]').value, m = ov.querySelector('[data-m]').value.trim(); apply(false); setTimeout(() => fxDetFindSimilar(t, m), 50); };   /* הסימון הזה הוא הדוגמה */
   ov.querySelector('[data-del]').onclick = () => { fxDetNeg(it); D.items = D.items.filter(x => x !== it); ov.remove(); save(); render(); };
   ov.querySelector('[data-x]').onclick = () => ov.remove();
 }

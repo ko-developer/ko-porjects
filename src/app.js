@@ -11170,8 +11170,16 @@ document.addEventListener('pointerup', e => {
   if (marq) {
     const m = document.getElementById('marqBox'); if (m) m.remove();
     const had = marq.moved && selMulti.size;
+    /* ריבוע בחירה רגיל שתופס סימוני זיהוי (תאורה): הם נבחרים והרשימה המלאה לעריכה נפתחת — בלי להפעיל מצב ⬚ */
+    let fxN = 0;
+    if (marq.moved && P.fxDet && (P.fxDet.items || []).length && typeof fxDetWinOpen === 'function') {
+      const x0 = Math.min(marq.x0, marq.x1), x1 = Math.max(marq.x0, marq.x1), y0 = Math.min(marq.y0, marq.y1), y1 = Math.max(marq.y0, marq.y1);
+      const S = new Set(e.shiftKey ? (P.fxDet.selSet || []) : []); P.fxDet.items.forEach(it => { if (it.x >= x0 && it.x <= x1 && it.y >= y0 && it.y <= y1) S.add(it.id); });
+      if (S.size) { P.fxDet.selSet = [...S]; P.fxDet.winTab = 'sel'; fxN = S.size; }
+    }
     marq = null;
     if (had) { sel = null; selCable = null; render(); showMultiBar(); multiWinOpen(); }   /* בחירת ריבוע פותחת את טבלת המסומנים */
+    else if (fxN) { render(); fxDetWinOpen(); uiToast('⬚ ' + fxN + ' סימונים נבחרו — הרשימה לעריכה נפתחה (סוג, דגם, מוצר, מחיקה לכולם)'); }
     return;
   }
   if (window.__vtxZ) {
