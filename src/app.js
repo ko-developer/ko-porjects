@@ -1582,6 +1582,28 @@ async function pmLoadUsers() {
   catch (e) { return; }
   pmRender(window.__pmQ || '');
 }
+/* 👑 העברת בעלות: הפרויקט נרשם על שם משתמש אחר (by) ומקבל אצלו הרשאת עריכה — מופיע אצלו ב"שלי"; אפשר גם לקחת בחזרה לבעלים */
+function pmTransfer(pid) {
+  const p = store.projects.find(x => x.id === pid); if (!p) return;
+  const me = pmMeId(), curBy = p.by || 'owner';
+  const opts = [['owner', '🏠 הבעלים (אורי)']].concat((PM_USERS || []).filter(u => !u.blocked).map(u => [u.id, (u.role === 'admin' ? '🛡 ' : u.role === 'pm' ? '🛠 ' : '👤 ') + (u.name || u.email) + ' (' + u.email + ')']));
+  const ov = uiModal(`<b style="font-size:15px">👑 העברת בעלות — ${esc(p.name)}</b>
+    <p class="muted" style="font-size:12px;margin:6px 0 8px;line-height:1.5">הבעלים הנוכחי: <b>${esc((opts.find(o => o[0] === curBy) || ['', curBy])[1])}</b>. אחרי ההעברה הפרויקט יופיע אצל המשתמש החדש תחת "שלי" עם הרשאת עריכה, ואצלך תחת "של משתמשים אחרים". השיתופים הקיימים נשארים.</p>
+    <div class="fld"><label>להעביר ל</label><select id="pmTrTo">${opts.map(o => `<option value="${o[0]}" ${o[0] === curBy ? 'disabled' : ''}>${esc(o[1])}${o[0] === curBy ? ' — הבעלים הנוכחי' : ''}</option>`).join('')}</select></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button class="primary" id="pmTrGo" style="flex:1">👑 העבר בעלות</button><button id="pmTrX" style="flex:1">ביטול</button></div>`);
+  ov.querySelector('#pmTrX').onclick = () => ov.remove();
+  const sel = ov.querySelector('#pmTrTo'); const first = [...sel.options].find(o => !o.disabled); if (first) sel.value = first.value;
+  ov.querySelector('#pmTrGo').onclick = async () => {
+    const to = sel.value; if (!to || to === curBy) return;
+    try {
+      if (to !== 'owner') { const r = await fetch('/api/admin/user', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: to, action: 'grant', project: pid, perm: 'edit' }) }); const j = await r.json(); if (j.error) throw new Error(j.error); }
+      if (to === 'owner') delete p.by; else p.by = to;
+      p.upd = Date.now(); save(); await (typeof pushSrvNow === 'function' ? pushSrvNow() : Promise.resolve());
+      ov.remove(); uiToast('👑 הבעלות על "' + p.name + '" הועברה ל' + (opts.find(o => o[0] === to) || ['', to])[1]);
+      if (typeof pmLoadUsers === 'function') pmLoadUsers(); else pmRender(window.__pmQ || '');
+    } catch (e) { uiToast('⚠ ההעברה נכשלה: ' + (e.message || e)); }
+  };
+}
 function pmUsersOf(pid) { return (PM_USERS || []).map(u => ({ u, p: (u.projects || []).find(x => x.id === pid) })).filter(x => x.p); }
 function pmUsersBar() {
   const mine = store.projects.filter(pmMine).length, shared = store.projects.filter(p => !pmMine(p)).length;
@@ -1619,6 +1641,7 @@ function pmRender(q) {
       <span class="muted" style="font-size:11px;white-space:nowrap">👤 ${esc(p.accountName || p.customer || '—')}${p.accountKey ? ' · ' + esc(p.accountKey) : ''}</span>
       <span class="muted" style="font-size:10px;white-space:nowrap">${(p.nodes || []).length} מוקדים</span>
       ${p.offerSent ? '<span title="נשלחה הצעה ל-ERP" style="font-size:12px">📤</span>' : ''}
+      ${pmIsAdmin() && PM_USERS && PM_USERS.length ? `<button onclick="pmTransfer('${p.id}')" title="העברת בעלות — הפרויקט יירשם על שם משתמש אחר (יופיע אצלו ב'שלי' עם הרשאת עריכה)" style="padding:2px 7px;font-size:11px">👑</button>` : ''}
     </div>${(() => { const us = pmUsersOf(p.id); return us.length ? `<div style="margin:-3px 0 5px;padding:0 34px 0 8px;font-size:10.5px;display:flex;gap:4px;flex-wrap:wrap">${us.map(({ u, p: g }) => `<span style="background:${g.created ? '#efecfd' : '#f4f2ec'};color:${g.created ? '#4b3fb8' : '#556'};border-radius:999px;padding:1px 8px" title="${esc(u.email)}">${g.created ? '✏️ נוצר ע״י' : '🔗 משותף עם'} ${esc(u.name || u.email)} · ${g.perm === 'view' ? 'צפייה' : 'עריכה'}</span>`).join('')}${+p.upd > 1e12 ? `<span class="muted">עודכן ${fmtT(+p.upd)}</span>` : ''}</div>` : ''; })()}`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
   pmThumbsWatch(el);
 }
