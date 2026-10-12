@@ -130,8 +130,14 @@ export function publicUser(u) {
   return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local } : null;
 }
 /* store מסונן למשתמש מוזמן: רק הפרויקטים שהוענקו לו (עם דגל הרשאה בכל פרויקט) */
+/* תפקידים: owner = הגישה המקומית (הכול) · admin = משתמש רשום שרואה ופותח כל פרויקט · user = רק מה שהוענק לו + מה שיצר */
+export const isAdmin = u => !!u && (u.role === 'owner' || u.role === 'admin');
 export function filterStore(store, user) {
   if (!user || user.role === 'owner') return store;
+  if (user.role === 'admin') {   /* רואה הכול — אבל הפרויקט הפתוח הוא שלו, לא של הבעלים */
+    const want = user.cur, projects = store.projects || [];
+    return { ...store, cur: want && projects.some(p => p.id === want) ? want : (projects.find(p => p.by === user.id) || projects[0] || {}).id || store.cur, _admin: true };
+  }
   const g = user.grants || {};
   const projects = (store.projects || []).filter(p => g[p.id]).map(p => ({ ...p, _perm: g[p.id] }));
   /* הפרויקט הפתוח נשמר לכל מוזמן בנפרד — אחרת ריענון מחזיר אותו לפרויקט הראשון (או לזה שהבעלים פתח) */
@@ -142,6 +148,12 @@ export function filterStore(store, user) {
 /* שמירה ממשתמש מוזמן: רק פרויקטים בהרשאת עריכה מוחלפים ב-store המלא; השאר לא נגעו */
 export function mergeStore(full, posted, user) {
   if (!user || user.role === 'owner') return posted;
+  if (user.role === 'admin') {   /* כמו הבעלים — אבל "הפרויקט הפתוח" של הבעלים לא משתנה, ופרויקט חדש נרשם על שמו */
+    const had = new Set((full.projects || []).map(p => p.id));
+    (posted.projects || []).forEach(p => { if (!had.has(p.id) && !p.by) p.by = user.id; });
+    if (posted.cur && user.cur !== posted.cur) { user.cur = posted.cur; persist(); }
+    return { ...posted, cur: full.cur };
+  }
   const g = user.grants || {};
   const byId = new Map((full.projects || []).map(p => [p.id, p]));
   let dirty = false;
@@ -226,9 +238,9 @@ export async function handleAuth(req, res, path, store) {
       return json(res, 200, { ok: inviteValid(inv), used: !!(inv.email && inv.usedBy), uses: (inv.uses || []).length, expired: inv.exp < now(), revoked: !!inv.revoked, projects: names, perm: inv.perm, by: by ? by.name : '', email: inv.email || '' }), true;
     }
     /* --- פעולות בעלים --- */
-    const isOwner = me && me.role === 'owner';
+    const isOwner = me && me.role === 'owner', isAdm = isAdmin(me);
     if (path === '/api/share' && method === 'POST') {
-      if (!isOwner) return json(res, 403, { error: 'רק בעל המערכת יכול לשתף' }), true;
+      if (!isAdm) return json(res, 403, { error: 'רק בעל המערכת או מנהל יכולים לשתף' }), true;
       const b = await body(req);
       const projects = (b.projects || []).filter(id => (store.projects || []).some(p => p.id === id));
       if (!projects.length) return json(res, 400, { error: 'בחר לפחות פרויקט אחד' }), true;
@@ -238,7 +250,7 @@ export async function handleAuth(req, res, path, store) {
       return json(res, 200, { ok: true, url, exp: inv.exp, invite: inv, localOnly: isLocalUrl(url) }), true;
     }
     if (path === '/api/admin/users' && method === 'GET') {
-      if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
+      if (!isAdm) return json(res, 403, { error: 'forbidden' }), true;
       const pn = Object.fromEntries((store.projects || []).map(p => [p.id, p.name])), pById = new Map((store.projects || []).map(p => [p.id, p]));
       /* לכל משתמש: פרויקטים ששותפו איתו + פרויקטים שהוא יצר (by), עם זמן עריכה אחרון — כדי לפתוח אותם מהאפליקציה */
       const projOf = u => { const g = { ...(u.grants || {}) }; for (const p of store.projects || []) if (p.by === u.id && !g[p.id]) g[p.id] = 'edit';
@@ -257,6 +269,7 @@ export async function handleAuth(req, res, path, store) {
       if (b.action === 'block') { u.blocked = true; dropSessions(); }
       else if (b.action === 'unblock') u.blocked = false;
       else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); dropSessions(); }
+      else if (b.action === 'role') { u.role = b.role === 'admin' ? 'admin' : 'user'; dropSessions(); }   /* admin רואה את כל הפרויקטים; הסשן מתחדש כדי שהתפקיד ייכנס לתוקף */
       else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') { delete u.grants[b.project]; if (u.cur === b.project) delete u.cur; } else { u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; u.cur = b.project; /* ייפתח אצלו בכניסה הבאה */ } }
       else return json(res, 400, { error: 'unknown action' }), true;
       await persist();

@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
-import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh } from './auth.js';
+import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin } from './auth.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
 import { handleBugs, initBugs } from './bugs.js';
@@ -131,7 +131,7 @@ createServer(async (req, res) => {
   if (handleOwnerLink(req, res, path0)) return;
   if (path0 === '/admin') {
     const u = requestUser(req);
-    if (!u || u.role !== 'owner') { res.writeHead(302, { location: '/login' }); res.end(); return; }
+    if (!isAdmin(u)) { res.writeHead(302, { location: '/login' }); res.end(); return; }
     sendPage(res, AUTH_PAGES['/admin']); return;
   }
   /* מקומי = הבעלים, בלי כניסה. מבחוץ — חייב סשן של מוזמן (בדיקה מקומית: סשן גובר) */
@@ -210,7 +210,7 @@ createServer(async (req, res) => {
              ופרויקט שחסר ברשימה שנשלחה (נוצר ע"י מוזמן אחרי שהלשונית נטענה) נשמר — נמחק רק מה שב-_del */
           { const srv = new Map((fullSt.projects || []).map(p => [p.id, p])), del = new Set(raw._del || []), seen = new Set();
             posted.projects = (posted.projects || []).map(p => { seen.add(p.id); const o = srv.get(p.id); return o && (+o.upd || 0) > (+p.upd || 0) ? o : p; });
-            if (me.role === 'owner') for (const o of fullSt.projects || []) if (!seen.has(o.id) && !del.has(o.id)) posted.projects.push(o);
+            if (isAdmin(me)) for (const o of fullSt.projects || []) if (!seen.has(o.id) && !del.has(o.id)) posted.projects.push(o);
             posted._del = [...del]; }   /* מועבר ל-writeStore: מחיקה מפורשת בלבד */
           /* מוזמן: רק הפרויקטים שלו בהרשאת עריכה נכתבים; השאר של הבעלים לא נגעו */
           const merged = me.role !== 'owner' ? mergeStore(fullSt, posted, me) : posted;

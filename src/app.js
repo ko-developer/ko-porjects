@@ -1571,26 +1571,35 @@ function projManager() {
   setTimeout(() => { const q = document.getElementById('pmQ'); if (q) q.focus(); }, 50);
 }
 /* 👥 משתמשים חיצוניים (בעלים בלבד): מי עובד על איזה פרויקט — מ-/api/admin/users */
-let PM_USERS = null, pmUser = '';
+let PM_USERS = null, pmUser = '*mine';
+/* מי אני ברשימה: הבעלים (מקומי) = 'owner'; פרויקט בלי by = של הבעלים */
+const pmMeId = () => (window.__AUTH && window.__AUTH.user && window.__AUTH.user.id) || 'owner';
+const pmIsAdmin = () => { const u = window.__AUTH && window.__AUTH.user; return !u || u.role === 'owner' || u.role === 'admin'; };
+const pmMine = p => (p.by || 'owner') === pmMeId();
 async function pmLoadUsers() {
-  try { const r = await fetch('/api/admin/users', { cache: 'no-store' }); if (!r.ok) return; PM_USERS = (await r.json()).users.filter(u => u.role !== 'owner'); }
+  if (!pmIsAdmin()) return;
+  try { const r = await fetch('/api/admin/users', { cache: 'no-store' }); if (!r.ok) return; PM_USERS = (await r.json()).users.filter(u => u.role !== 'owner' && u.id !== pmMeId()); }
   catch (e) { return; }
   pmRender(window.__pmQ || '');
 }
 function pmUsersOf(pid) { return (PM_USERS || []).map(u => ({ u, p: (u.projects || []).find(x => x.id === pid) })).filter(x => x.p); }
 function pmUsersBar() {
-  if (!PM_USERS || !PM_USERS.length) return '';
-  const ext = new Set(); PM_USERS.forEach(u => (u.projects || []).forEach(p => ext.add(p.id)));
+  const mine = store.projects.filter(pmMine).length, shared = store.projects.filter(p => !pmMine(p)).length;
+  if (!mine && pmUser === '*mine') pmUser = '';   /* אין לי פרויקטים משלי — מציגים הכול */
   const chip = (v, lbl, n) => `<button onclick="pmUser='${v}';pmRender(window.__pmQ||'')" style="padding:3px 9px;font-size:11.5px;${pmUser === v ? 'background:#534ab7;color:#fff' : ''}">${lbl} <b>${n}</b></button>`;
+  const ext = new Set(); (PM_USERS || []).forEach(u => (u.projects || []).forEach(p => ext.add(p.id)));
+  /* ברירת המחדל לכולם: הפרויקטים שלי. בעלים / admin יכולים לעבור להכול, לפרויקטים של משתמשים חיצוניים, או למשתמש מסוים */
   return `<div style="background:#f4f2fb;border-radius:9px;padding:7px 8px;margin-bottom:8px">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><b style="font-size:12px;flex:1">👥 משתמשים חיצוניים</b><a href="/admin" target="_blank" style="font-size:11px;color:#534ab7">ניהול הרשאות ←</a></div>
-    <div style="display:flex;gap:4px;flex-wrap:wrap">${chip('', 'כל הפרויקטים', store.projects.length)}${chip('*ext', 'של משתמשים חיצוניים', ext.size)}${PM_USERS.map(u => chip(u.id, (u.blocked ? '🚫 ' : '👤 ') + esc(u.name || u.email), (u.projects || []).length)).join('')}</div></div>`;
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><b style="font-size:12px;flex:1">👥 ${pmIsAdmin() ? 'הפרויקטים לפי משתמש' : 'הפרויקטים שלי ומה ששותף איתי'}</b>${pmIsAdmin() ? '<a href="/admin" target="_blank" style="font-size:11px;color:#534ab7">ניהול משתמשים והרשאות ←</a>' : ''}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">${chip('*mine', '🙋 שלי', mine)}${pmIsAdmin() ? chip('', 'כל הפרויקטים', store.projects.length) + (PM_USERS && PM_USERS.length ? chip('*ext', 'של משתמשים אחרים', ext.size) + PM_USERS.map(u => chip(u.id, (u.blocked ? '🚫 ' : u.role === 'admin' ? '🛡 ' : '👤 ') + esc(u.name || u.email), (u.projects || []).length)).join('') : '') : chip('*shared', '🔗 שותפו איתי', shared) + chip('', 'הכול', store.projects.length)}</div></div>`;
 }
 function pmFiltered(q) {
   const toks = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
   const byU = pmUser === '*ext' ? new Set((PM_USERS || []).flatMap(u => (u.projects || []).map(p => p.id)))
-    : pmUser ? new Set((((PM_USERS || []).find(u => u.id === pmUser) || {}).projects || []).map(p => p.id)) : null;
+    : pmUser && pmUser[0] !== '*' ? new Set((((PM_USERS || []).find(u => u.id === pmUser) || {}).projects || []).map(p => p.id)) : null;
   return store.projects.filter(p => {
+    if (pmUser === '*mine' && !pmMine(p)) return false;
+    if (pmUser === '*shared' && pmMine(p)) return false;
     if (byU && !byU.has(p.id)) return false;
     const s = (p.name + ' ' + (p.accountName || '') + ' ' + (p.accountKey || '') + ' ' + (p.customer || '')).toLowerCase();
     return toks.every(t => s.includes(t));
@@ -2449,7 +2458,7 @@ if (AUTH && AUTH.storage && AUTH.storage.warn) document.addEventListener('DOMCon
 function authBoxHTML() {
   if (!AUTH || !AUTH.enabled || !AUTH.user) return '';
   const u = AUTH.user;
-  if (u.role === 'owner') return `<button onclick="shareDialog()" title="יצירת קישור שיתוף — המוזמן נרשם עם מייל וסיסמה, ואפשר לחסום אותו בכל רגע" style="background:#0f6e56;color:#fff;font-weight:700">🔗 שתף</button>
+  if (u.role === 'owner' || u.role === 'admin') return `<button onclick="shareDialog()" title="יצירת קישור שיתוף — המוזמן נרשם עם מייל וסיסמה, ואפשר לחסום אותו בכל רגע" style="background:#0f6e56;color:#fff;font-weight:700">🔗 שתף</button>
     <button onclick="location.href='/admin'" title="משתמשים, הרשאות, חסימה וקישורי שיתוף">👥</button>${u.local ? '' : `<button onclick="authLogout()" title="${esc(u.email)} · יציאה">👤 ${esc(u.name || '')}</button>`}`;
   const perm = (P && P._perm) === 'view' ? ' <small style="opacity:.8">· צפייה בלבד</small>' : '';
   return `<button onclick="authLogout()" title="${esc(u.email)} · יציאה" style="background:#efecfd;color:#4b3fb8">👤 ${esc(u.name || '')}${perm}</button>`;
