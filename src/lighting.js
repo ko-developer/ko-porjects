@@ -579,7 +579,19 @@ function fxDetSVG() {
 function fxDetAddAt(pt) {
   const A = window.__fxDetAdd; if (!A || !P.fxDet) return;
   P.fxDet.items.push({ id: uid('fd'), x: pt.x, y: pt.y, type: A.type, model: A.model || '', sku: A.sku || null, pos: A.pos || '', label: '', src: 'me' });
-  save(); render(); uiToast('➕ ' + (A.model || A.type) + ' — ' + P.fxDet.items.length + ' זיהויים · Esc לסיום', 2500);
+  save(); render(); fxDetSimToast(A.type, A.model || '');
+}
+/* אחרי סימון ידני: כפתור צף "מצא את כל הדומים" — סימון אחד שלך הוא הדוגמה, והחיפוש רץ על כל התמונה (4 סריקות לתמונה גדולה) */
+function fxDetSimToast(type, model) {
+  const n = (P.fxDet.items || []).filter(it => it.type === type && (it.model || '') === (model || '')).length, name = model || (FX_DET_TYPES.find(x => x[0] === type) || FX_DET_TYPES[5])[1].replace(/^\S+\s/, '');
+  uiToast('➕ ' + name + ' — ' + n + ' מסומנים · המשך ללחוץ, או Esc לסיום');
+  const host = document.getElementById('toastHost'); if (!host) return;
+  const old = document.getElementById('fxSimToast'); if (old) old.remove();
+  const t = document.createElement('div'); t.id = 'fxSimToast';
+  t.style.cssText = 'background:#0f6e56;color:#fff;padding:9px 14px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.35);font-size:13px;font-weight:700;cursor:pointer;display:flex;gap:8px;align-items:center';
+  t.innerHTML = '<span style="flex:1">🔍 מצא את כל ה"' + esc(name) + '" הדומים ל' + (n > 1 ? '-' + n + ' שסימנת' : 'סימון שלך') + ' בתמונה</span><span style="font-size:11px;opacity:.85">' + n + ' דוגמ' + (n > 1 ? 'אות' : 'ה') + '</span>';
+  t.onclick = () => { t.remove(); window.__fxDetAdd = null; document.body.style.cursor = ''; render(); fxDetFindSimilar(type, model); };
+  host.appendChild(t); setTimeout(() => { if (t.isConnected) t.remove(); }, 20000);
 }
 /* לחיצה על סימון: גרירה מזיזה אותו (הסימון שנזרק לא במקום — גוררים למקום הנכון); שחרור בלי תזוזה = עריכה */
 function fxDetPointer(e, id) {
@@ -660,6 +672,7 @@ function fxDetPanelHTML() {
       <select id="fxDetT" style="font-size:11px">${FX_DET_TYPES.map(([v, l]) => `<option value="${v}" ${A && A.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <input id="fxDetM" placeholder="דגם / כיתוב" value="${esc(A ? A.model || '' : '')}" style="flex:1;min-width:90px;font-size:11px">
       <button style="font-size:11px;${A ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="fxDetAddMode()">${A ? '⏹ סיום הוספה' : '➕ הוסף בלחיצה'}</button>
+      <button style="font-size:11px;background:#0f6e56;color:#fff;font-weight:700" title="הסימונים של הסוג+הכיתוב שבשדות הם הדוגמאות — מחפש את כל הדומים להם בכל התמונה" onclick="const t=document.getElementById('fxDetT').value,m=document.getElementById('fxDetM').value.trim();window.__fxDetAdd=null;document.body.style.cursor='';fxDetFindSimilar(t,m)">🔍 עוד כמוני</button>
     </div>
     <button style="width:100%;margin-top:6px;background:#0f6e56;color:#fff;font-weight:700" onclick="fxScanAll()" title="לכל קבוצה (סוג + דגם) מחפש את כל הדומים על כל התמונה — עד שהכול מסומן; אחר כך ➡ לספירה הופך את הסימונים לפריטים אמיתיים">🚀 סריקה מלאה — סמן את כל מה שיש בתמונה</button>
     <div style="display:flex;gap:6px;margin-top:6px"><button style="flex:1" onclick="fxDetWinOpen()" title="טבלת הזיהויים כחלון צף — עריכה תוך כדי לחיצה על התכנית">🪟 טבלה צפה</button><button style="flex:1;${window.__fxSel ? 'background:#534ab7;color:#fff' : ''}" onclick="fxSelMode()" title="בחירת כמה סימונים במלבן ומחיקה">⬚ בחר</button><button style="flex:2;background:#534ab7;color:#fff;font-weight:700" onclick="fxDetToTable()">➡ לטבלת הספירה ובחירת מוצרים</button><button style="flex:1;color:#c0392b" onclick="uiConfirm('למחוק את כל הזיהויים?').then(ok=>{if(ok){P.fxDet=null;window.__fxDetAdd=null;save();render()}})">🗑</button></div></div>`;
