@@ -2499,7 +2499,8 @@ function shareDialog() {
         const link = SH_URL || location.origin;
         const msg = 'שלום ' + (shU.name || '') + ',\nשיתפתי איתך ב-KO Projects את: ' + names + ' (' + (perm === 'view' ? 'צפייה' : 'עריכה') + ').\nהיכנס עם המשתמש שלך:\n' + link;
         out.innerHTML = '<div style="background:#eef7f1;border:1px solid #bfe0cd;border-radius:8px;padding:8px;margin-top:6px;font-size:12.5px;line-height:1.5">✓ ' + esc(names) + ' שותפו עם <b>' + esc(shU.name || shU.email) + '</b> (' + (perm === 'view' ? 'צפייה בלבד' : 'עריכה') + ') — יופיעו אצלו בכניסה הבאה, בלי קישור.' +
-          '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" id="shMail2">✉️ הודע במייל</button><button type="button" id="shWa2">💬 הודע בוואטסאפ</button></div></div>';
+          '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" id="shMail2">✉️ הודע במייל</button><button type="button" id="shWa2">💬 הודע בוואטסאפ</button><button type="button" id="shCopy2" title="מעתיק את הודעת ההזמנה — להדבקה בכל מקום">📋 העתק הודעה</button></div></div>';
+        out.querySelector('#shCopy2').onclick = async function () { await copyMsg(msg); this.textContent = 'הועתק ✓'; };
         out.querySelector('#shMail2').onclick = () => { window.open('mailto:' + encodeURIComponent(shU.email) + '?subject=' + encodeURIComponent('שיתוף פרויקט — KO Projects') + '&body=' + encodeURIComponent(msg), '_self'); };
         out.querySelector('#shWa2').onclick = () => waShare(msg);
         if (typeof pmLoadUsers === 'function') pmLoadUsers();
@@ -2521,7 +2522,9 @@ function shareDialog() {
           <button type="button" id="shCopy">📋 העתק קישור</button>
           <button type="button" id="shMail">✉️ שלח במייל</button>
           <button type="button" id="shWa">💬 שלח בוואטסאפ</button>
+          <button type="button" id="shMsgCopy" title="מעתיק את הודעת ההזמנה עם הקישור — להדבקה בכל מקום">📋 העתק הודעה</button>
         </div></div>`;
+      out.querySelector('#shMsgCopy').onclick = async function () { await copyMsg(msg); this.textContent = 'הועתק ✓'; };
       /* ההנדלרים בקוד, לא במאפייני HTML — הקישור וההודעה מכילים מרכאות ושורות */
       const urlIn = out.querySelector('#shUrl');
       out.querySelector('#shCopy').onclick = async function () {
@@ -10021,6 +10024,12 @@ document.addEventListener('mouseover', e => {
 }, true);
 /* שיתוף בוואטסאפ: במחשב נפתחת אפליקציית WhatsApp (whatsapp://) — לא וואטסאפ ווב, שחסום בדפדפן המשובץ; בנייד wa.me פותח את האפליקציה.
    לא נפתח (אין אפליקציה)? הטוסט מציע לפתוח ב-WhatsApp Web */
+/* העתקה ללוח עם נפילה ל-textarea (דפדפן משובץ בלי clipboard API) */
+async function copyMsg(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e2) {} ta.remove(); }
+  uiToast('📋 ההודעה הועתקה — הדבק בכל מקום');
+}
 function waShare(text) {
   const enc = encodeURIComponent(String(text || '')), mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (mobile) { window.open('https://wa.me/?text=' + enc, '_blank', 'noopener'); return; }
