@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "node scripts/check-env.js",
     "dev": "vite dev --port 4177",
-    "dev:legacy": "node scripts/dev-server.js",
+    "dev:legacy": "sh scripts/dev-loop.sh",
     "build": "node scripts/build.js",
     "prebuild:kit": "node scripts/check-env.js",
     "build:kit": "vite build",

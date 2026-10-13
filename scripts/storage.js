@@ -16,7 +16,7 @@ import { request as httpsRequest, Agent } from 'node:https';
 
 /* HTTP עם חיבור חי (keep-alive): ה-fetch המובנה פותח TLS חדש לכל בקשה (~3 שניות ממחשב רחוק);
    עם חיבור חי כל קריאה = סיבוב אחד לשרת (~0.4 שניות מהמחשב, מילישניות בענן) */
-const agent = new Agent({ keepAlive: true, keepAliveMsecs: 30e3, maxSockets: 24, timeout: 60e3 });
+const agent = new Agent({ keepAlive: true, keepAliveMsecs: 30e3, maxSockets: 24, timeout: 60e3, scheduling: 'lifo' });
 /* timeout קצר לקריאות/רשימות (חיבור תקוע לא עוצר את הדף לדקה), ארוך להעלאות של פרויקטים גדולים */
 function http(url, { method = 'GET', headers = {}, body, timeout, fresh } = {}) {
   const tmo = timeout || (body && body.length > 65536 ? 120e3 : 15e3);
@@ -29,6 +29,9 @@ function http(url, { method = 'GET', headers = {}, body, timeout, fresh } = {}) 
     });
     r.on('error', reject);
     r.setTimeout(tmo, () => r.destroy(new Error('GCS: timeout after ' + tmo / 1000 + 's')));
+    /* deadline כולל: בקשה שממתינה בתור ל-socket (כל 24 החיבורים תקועים אחרי שינה) לא מקבלת setTimeout — וחיכתה לנצח */
+    const dead = setTimeout(() => r.destroy(new Error('GCS: no socket / stalled after ' + ((tmo + 5e3) / 1000) + 's')), tmo + 5e3);
+    r.on('close', () => clearTimeout(dead));
     if (body) r.write(body);
     r.end();
   });

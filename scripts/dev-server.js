@@ -1,6 +1,6 @@
 // Minimal dev server: rebuilds on each request so the page is always current.
 // + API של פרויקטים מעל data/projects.sqlite — האפליקציה נטענת ונשמרת מה-DB כשהשרת רץ.
-import { createServer } from 'node:http';
+import { createServer, get as httpGet } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
@@ -118,7 +118,21 @@ const AUTH_PAGES = { '/login': 'src/pages/auth.html', '/admin': 'src/pages/admin
 const sendPage = (res, file, code = 200) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(readFileSync(file)); };
 const window_store = { v: null, t: 0 };   /* מטמון ה-store לקריאות חוזרות */
 const readState = async k => { const b = await readCurated(`page_state/${k}.json`, `data/page_state/${k}.json`); return b ? b.toString('utf8') : '{}'; };
-createServer(async (req, res) => {
+/* שומר-סף: בקשה שלא נענתה תוך 40 שניות מקבלת 503 (הדף לא נתקע), ובקשה איטית מ-3 שניות נרשמת בלוג עם הנתיב — כדי שנראה מה תוקע */
+const guard = handle => (req, res) => {
+  const t0 = Date.now(), path0 = (req.url || '').split('?')[0];
+  const wd = setTimeout(() => { if (!res.headersSent) { console.warn('[watchdog] ' + path0 + ' — אין תשובה אחרי 40s, מחזיר 503'); try { res.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end('{"error":"השרת עסוק — נסה שוב בעוד רגע"}'); } catch {} } }, 40e3);
+  res.on('finish', () => { clearTimeout(wd); const ms = Date.now() - t0; if (ms > 3000) console.warn('[slow] ' + path0 + ' ' + (ms / 1000).toFixed(1) + 's'); });
+  res.on('close', () => clearTimeout(wd));
+  Promise.resolve().then(() => handle(req, res)).catch(e => { console.error('[request error] ' + path0, e); if (!res.headersSent) { try { res.writeHead(500); res.end(String(e && e.message || e)); } catch {} } });
+};
+/* בדיקה עצמית: כל 30 שניות /health מקומי; שני כשלונות רצופים = השרת תקוע → יציאה (לולאת ההפעלה / Cloud Run מרימים אותו מחדש) */
+let selfFails = 0;
+setInterval(() => {
+  const r = httpGet({ host: '127.0.0.1', port: PORT, path: '/health', timeout: 15e3 }, res => { res.resume(); selfFails = 0; });
+  r.on('timeout', () => r.destroy(new Error('timeout'))); r.on('error', () => { if (++selfFails >= 2) { console.error('[watchdog] השרת לא עונה ל-/health פעמיים ברצף — מאתחל'); process.exit(3); } });
+}, 30e3).unref();
+const handleReq = async (req, res) => {
   const path0 = (req.url || '').split('?')[0].replace(/\/$/, '') || '/';
   await authRefresh();   /* סשנים/הזמנות שנוצרו בצד השני (מחשב↔ענן) — עד 10 שניות */
   if (path0 === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, storage: storage.kind, label: storage.label, warn: storageWarn || undefined, prebuilt: !!process.env.PREBUILT })); return; }
@@ -411,4 +425,5 @@ createServer(async (req, res) => {
     res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('build failed:\n' + e.message);
   }
-}).listen(PORT, () => console.log(`${process.env.PREBUILT ? 'server' : 'dev server'}: http://localhost:${PORT} · data: ${storage.label} (${storage.kind})${process.env.PUBLIC_URL ? ' · public: ' + process.env.PUBLIC_URL : ''}`));
+};
+createServer(guard(handleReq)).listen(PORT, () => console.log(`${process.env.PREBUILT ? 'server' : 'dev server'}: http://localhost:${PORT} · data: ${storage.label} (${storage.kind})${process.env.PUBLIC_URL ? ' · public: ' + process.env.PUBLIC_URL : ''}`));
