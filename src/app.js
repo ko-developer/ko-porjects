@@ -11917,6 +11917,7 @@ function kitPrev(gi) {
     ${kitCableNeeds(k).length ? '<div style="border:1.5px solid #e9b4b4;border-radius:9px;margin:6px 0 10px;overflow:hidden"><div style="background:#fdf0f0;padding:6px 8px;font-weight:700;color:#c1121f;font-size:12.5px">🔌 חסרים כבלים בקיט — שורות מוצעות לאישור</div>' + kitCabRowsHTML(k, gi) + '<button style="width:100%;background:#eef7f1;color:#0f6e56;font-weight:700;border-radius:0" onclick="kitCabApply(' + gi + ')">✓ אשר והוסף את המסומנים לקיט</button></div>' : ''}
     <button class="primary" style="width:100%" onclick="pickKit(${gi})">➕ הוסף את הקיט לרשימת הפריטים</button>
     <button style="width:100%;margin-top:6px;background:#eef7f1;color:#0f6e56;font-weight:700" onclick="kitEdit(${gi})">✎ ערוך את הקיט — השינוי נשמר לתמיד${isUser ? '' : ' (מחליף את קיט ה-ERP)'}</button>
+    <button style="width:100%;margin-top:6px;background:#efecfd;color:#4b3fb8;font-weight:700" onclick="kitDup(${gi})" title="פותח עותק של הקיט בבונה הקיטים — שנה פריטים וכמויות ושמור בשם אחר; הקיט המקורי לא משתנה">📋 שכפל את הקיט — שנה פריטים ושמור בשם אחר</button>
     <button style="width:100%;margin-top:6px" onclick="kitToggleHide(${gi})">${kitHidden(k.name) ? '↺ החזר את הקיט לרשימה' : '✕ הסתר — הקיט לא רלוונטי'}</button>
     ${isUser ? `<button style="width:100%;margin-top:6px;background:#f3d9d2" onclick="kitDelete(${gi})">🗑 ${(typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim()) ? 'בטל את העריכה — חזרה לקיט ה-ERP המקורי' : 'מחק קיט'}</button>` : ''}`;
 }
@@ -11946,6 +11947,14 @@ function kitEdit(gi) {
   /* קיט ERP נערך תחת אותו שם — הגרסה הערוכה מחליפה אותו בכל האפליקציה */
   nkDraft = { name: k.name, items: JSON.parse(JSON.stringify(k.items)), q: '', editIdx: ui2 >= 0 ? ui2 : null, cat: k.cat, sys: k.sys, fromErp: ui2 < 0, replaces: ui2 >= 0 ? k.replaces : k.name };
   renderKitNew();
+}
+/* שכפול קיט: עותק נפתח בבונה הקיטים בשם חדש (קיט שלי), בלי קשר למקור — המקור נשאר כמו שהוא */
+function kitDup(gi) {
+  const k = allKits()[gi]; if (!k) return;
+  nkDraft = { name: (k.name || '').trim() + ' (עותק)', items: JSON.parse(JSON.stringify(k.items || [])), q: '', editIdx: null, cat: k.cat || 'audio', sys: 'קיט שלי', fromErp: false, dupOf: k.name };
+  renderKitNew();
+  setTimeout(() => { const e = document.getElementById('nkName'); if (e) { e.focus(); e.select(); } }, 50);
+  uiToast('📋 עותק של "' + (k.name || '').slice(0, 40) + '" — שנה את השם ואת הפריטים ושמור; המקור לא משתנה', 6000);
 }
 /* מחיקת קיט שלי — אם הוא היה עריכה של קיט ERP, המקורי חוזר לרשימה */
 async function kitDelete(gi) {
