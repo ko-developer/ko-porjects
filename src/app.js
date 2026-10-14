@@ -6820,7 +6820,7 @@ function patchRender() {
       const wTxt = w ? ` · <b style="color:${rc}" title="${rTip}">🎚${w}W${ratio ? ' (×' + ratio.toFixed(1) + ')' : ''}</b>` : '';
       const zTxt = ids.length ? (bad ? '⚠ ' : tight ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
-        <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? 'ערוץ מחווט — כל שינוי כאן יחליף את הקווים הקיימים בעת החיבור' : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? '🔌 ' : ''}OUT ${a.bridge ? ch + '+' + (ch + 1) + ' 🌉' : ch}
+        <span class="pchOut" title="${PATCH.orig && PATCH.orig[key] != null ? (PATCH.orig[key] === ids.join(',') ? 'ערוץ מחווט — לא נגעת בו, "חבר" לא ישנה אותו' : 'ערוץ מחווט ששונה — "חבר" יחליף את הקווים הקיימים שלו') : 'ערוץ פנוי'}">${PATCH.orig && PATCH.orig[key] != null ? (PATCH.orig[key] === ids.join(',') ? '<b style="font-size:9px;background:#eef7f1;color:#0f6e56;border-radius:4px;padding:0 4px;margin-inline-end:3px" title="נשמר כמו שהוא">🔒 מחווט</b>' : '<b style="font-size:9px;background:#fff3e6;color:#c96a13;border-radius:4px;padding:0 4px;margin-inline-end:3px" title="שונה — יחווט מחדש בחיבור">✏ שונה</b>') : ''}OUT ${a.bridge ? ch + '+' + (ch + 1) + ' 🌉' : ch}
           ${ids.length > 1 && !fo ? `<button onclick="patchTopoToggle('${key}')" title="${patchTopo(key) === 'direct' ? 'כל רמקול בכבל נפרד ישירות מהריכוז — לחץ לשרשור כולם · אפשר גם לשרשר זוגות עם ה-🔗 שבין הרמקולים' : 'לחץ להחזרת כולם לקווים ישירים'}" style="border:1px solid ${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};background:${patchTopo(key) === 'direct' ? '#eef7f1' : '#fdf3e6'};color:${patchTopo(key) === 'direct' ? '#0f6e56' : '#c96a13'};border-radius:6px;cursor:pointer;font-size:9.5px;padding:1px 6px;font-weight:800">${patchTopo(key) === 'direct' ? '⫘ ישיר' : patchTopo(key) === 'chain' ? '🔗 שרשור' : '⛓ מעורב'}</button>` : ''}
           ${ids.length && !fo ? `<button onclick="patchSolo('${key}')" title="הצג רק את הקו הזה על התכנית" style="border:none;background:${PATCH.solo === key ? '#c9502e' : 'transparent'};color:${PATCH.solo === key ? '#fff' : '#8a8377'};border-radius:6px;cursor:pointer;font-size:12px;padding:1px 5px">${PATCH.solo === key ? '👁 רק זה' : '👁'}</button>` : ''}</span>
         <div class="pchChips">${fo ? `<small style="color:#8c6a1a;font-size:10px;margin-inline-end:4px" title="מחווט מתכנית אחרת — לעריכה עבור לשם">🔒 ${esc(fo.sheet)}</small>` : ''}${ids.map((id2, i2) => patchChip(id2, !!fo, fo ? nodeOf(id2) : null) + (!fo && i2 < ids.length - 1 ? chLinkBtn(key, ids[i2], ids[i2 + 1]) : '')).join('') || (locked ? `<small style="color:#8c6a1a;font-size:10.5px">תפוס — ${fo.names.length} רמקולים ב"${esc(fo.sheet)}"</small>` : '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>')}</div>
@@ -7537,6 +7537,9 @@ function patchCableOpts() {
 /* יצירת הכבלים בפועל מהמטריצה — כולל צריכת המחברים הדרושים לכל קצה */
 async function patchApply() {
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  /* ערוצים שלא נגעת בהם נשארים בדיוק כמו שהם — נספרים לסיכום */
+  const keptCh = Object.entries(PATCH.slots || {}).filter(([k, ids]) => PATCH.orig && PATCH.orig[k] != null && PATCH.orig[k] === ids.join(',')).length;
+  const changedCh = Object.entries(PATCH.slots || {}).filter(([k, ids]) => PATCH.orig && PATCH.orig[k] != null && PATCH.orig[k] !== ids.join(',')).length;
   const zid0 = PATCH.zid;
   const made = [];
   const zA = (P.zones || []).find(x => x.id === zid0);
@@ -7747,7 +7750,7 @@ async function patchApply() {
   for (const c of made) { try { if (c.internal) usePatchCable(c); else await autoConnectors(c); } catch (e) {} }
   const addedConn = impItems.filter(it => it.dest === 'conn').reduce((s2, it) => s2 + (+it.qty || 0), 0) - beforeConn;
   render(); save();
-  uiToast('✓ חוברו ' + n2 + ' כבלים' + (addedConn > 0 ? ' · נוספו ' + addedConn + ' מחברים להצעה' : '') + (left ? ' · ⚠ ' + left + ' רמקולים ללא ערוץ' : ''));
+  uiToast('✓ חוברו ' + n2 + ' כבלים' + (keptCh ? ' · 🔒 ' + keptCh + ' ערוצים מחווטים נשארו כמו שהיו' : '') + (changedCh ? ' · ✏ ' + changedCh + ' ערוצים חווטו מחדש' : '') + (addedConn > 0 ? ' · נוספו ' + addedConn + ' מחברים להצעה' : '') + (left ? ' · ⚠ ' + left + ' רמקולים ללא ערוץ' : ''), 7000);
   if (window.__patchDone) { const cb9 = window.__patchDone; window.__patchDone = null; cb9(); }
   /* הצעת קיטי התקנה/אביזרים לפרויקט — סוגרים את הפרויקט בקנייה אחת */
   if (typeof WIZ === 'undefined' || !WIZ) setTimeout(() => patchOfferKits(zid0), 400);
