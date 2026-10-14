@@ -14894,6 +14894,7 @@ function installTbl() {
   const el = document.getElementById('instTbl'); if (!el) return;
   const rates = installRates(), cnt = installCounts();
   let tMin = 0, tPrice = 0;
+  const crewRate = +(store.installCrewRate ?? 650);   /* ₪ לשעת צוות — ממנו נגזר המחיר ליחידה מהדקות */
   const rows = rates.map((r, i) => {
     const qty = r.qty != null ? r.qty : (cnt[r.auto] ?? 0);
     const on = !r.off;
@@ -14904,8 +14905,8 @@ function installTbl() {
       <td><input style="width:100%;font-size:11.5px;border:none;background:transparent" value="${esc(r.label)}" title="${r.kit ? 'סעיף מהקיט: ' + esc(r.kit) : 'סעיף קבוע'}" onchange="installRates()[${i}].label=this.value;save()">${r.kit ? '<span style="font-size:9.5px;color:#0f6e56">🧰 ' + esc(r.kit) + '</span>' : ''}</td>
       <td style="text-align:center;font-size:10.5px">${esc(r.unit)}</td>
       <td><input type="number" style="width:52px" value="${qty}" onchange="installRates()[${i}].qty=+this.value;save();installTbl()" title="כמות (אוטומטי מהתכנית — עריכה דורסת)"></td>
-      <td><input type="number" style="width:52px" value="${r.min}" onchange="installRates()[${i}].min=+this.value;save();installTbl()"></td>
-      <td><input type="number" style="width:64px" value="${r.price}" onchange="installRates()[${i}].price=+this.value;save();installTbl()"></td>
+      <td><input type="number" style="width:52px" value="${r.min}" title="דקות ליחידה — המחיר ליחידה מחושב מחדש לפי שעת צוות ₪${crewRate}" onchange="const r=installRates()[${i}];r.min=+this.value;r.price=Math.round((+this.value||0)/60*${crewRate});r.priceM=undefined;save();installTbl()"></td>
+      <td><input type="number" style="width:64px;${r.priceM ? 'color:#9a3412;font-weight:700' : ''}" value="${r.price}" title="${r.priceM ? 'מחיר ידני (לא לפי הדקות)' : 'לפי ' + (r.min || 0) + ' דק׳ × ₪' + crewRate + '/שעה — עריכה הופכת לידני'}" onchange="const r=installRates()[${i}];r.price=+this.value;r.priceM=1;save();installTbl()"></td>
       <td style="text-align:left;white-space:nowrap;font-weight:600">${on ? '₪' + Math.round(line).toLocaleString() : '—'}</td>
       <td><button style="padding:0 6px" onclick="installRates().splice(${i},1);save();installTbl()">✕</button></td></tr>`;
   }).join('');
@@ -14919,6 +14920,9 @@ function installTbl() {
     <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin-top:8px;background:#faf8f4;border-radius:8px;padding:6px 8px">
       <input type="checkbox" style="width:auto" ${dayMode ? 'checked' : ''} onchange="store.installDayMode=this.checked;save();installTbl()">
       תמחור לפי ימי טכנאי שלמים · <input type="number" value="${dayRate}" style="width:64px;font-size:11.5px" onchange="store.installDayRate=+this.value||1500;save();installTbl()"> ₪ ליום · אין חצאי ימים — עיגול מעלה
+    </label>
+    <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin-top:4px;background:#faf8f4;border-radius:8px;padding:6px 8px" title="שינוי הדקות בשורה מחשב מחדש את ₪/יח׳ לפי התעריף הזה; מחיר שנערך ידנית (כתום) לא מושפע">
+      שעת צוות <input type="number" value="${crewRate}" style="width:64px;font-size:11.5px" onchange="store.installCrewRate=+this.value||650;save();installTbl()"> ₪ · <button style="font-size:11px;padding:2px 8px" onclick="installRates().forEach(r=>{if(!r.priceM)r.price=Math.round((+r.min||0)/60*(+(store.installCrewRate??650)))});save();installTbl()" title="מחשב מחדש את ₪/יח׳ בכל השורות שאינן ידניות לפי הדקות והתעריף">↻ חשב מחירים מהדקות</button>
     </label>
     <div style="display:flex;gap:6px;margin-top:6px">
       <div onclick="store.installDayMode=true;save();installTbl()" title="לחץ לבחירת תמחור לפי ימי טכנאי" style="cursor:pointer;flex:1;background:${dayMode ? '#eef7f1' : '#f7f5f0'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'outline:2px solid #0f6e56' : 'opacity:.75'}"><b style="font-size:17px">${dayMode ? '✓ ' : ''}₪${dayTotal.toLocaleString()}</b><br><small class="muted">${days} ימי טכנאי × ₪${dayRate.toLocaleString()}</small></div>
