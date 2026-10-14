@@ -14,3 +14,4 @@ data/users.json
 data/bugs.json
 data/bug_files/
 data/.cache-gcs/
+data/fallback-*.json

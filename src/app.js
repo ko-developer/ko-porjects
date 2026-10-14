@@ -183,13 +183,13 @@ normalizeAll();
 /* ===== מצב שרת (dev) — DB אמיתי ב-data/projects.sqlite =====
    כשהשרת רץ (localhost) ה-store נטען מ-/api/store ונשמר אליו אוטומטית;
    בפריסה סטטית (Netlify) ה-fetch נכשל וממשיכים עם localStorage כרגיל. */
-let SRV = false, srvT = null;
+let SRV = false, srvT = null, SRV_STORE = '';   /* SRV_STORE: מאיפה השרת הגיש את ה-store (דלי / מקומי) — נשלח חזרה בכל שמירה */
 (async () => {
   try {
     const r = await fetch('/api/store', { cache: 'no-store' });
     if (!r.ok) return;
     const s = await r.json();
-    SRV = true;
+    SRV = true; SRV_STORE = r.headers.get('x-ko-store') || '';
     if (s && Array.isArray(s.projects) && s.projects.length) {
       store = s; liteWire(store); sheetsBindAll(store);
       P = store.projects.find(p => p.id === store.cur) || store.projects[0];
@@ -233,10 +233,17 @@ function pushSrvNow() {
   clearTimeout(srvT); srvT = null;
   const body = JSON.stringify(store);
   srvDirty = true;
-  const p = srvInFlight = fetch('/api/store', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: body.length < 60000 })
-    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; } if (!r.ok) console.warn('שמירה לשרת נכשלה', r.status); })
+  const p = srvInFlight = fetch('/api/store', { method: 'POST', headers: { 'content-type': 'application/json', 'x-ko-store': SRV_STORE }, body, keepalive: body.length < 60000 })
+    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; } if (r.status === 409) srvStale(); else if (!r.ok) console.warn('שמירה לשרת נכשלה', r.status); })
     .catch(() => {});
   return p;
+}
+/* השרת עבר למקור נתונים אחר (חזר לדלי אחרי ניתוק) — הלשונית הזו מציגה נתונים ישנים ואסור שתדרוס; טוענים מחדש */
+let srvStaleOnce = false;
+function srvStale() {
+  if (srvStaleOnce) return; srvStaleOnce = true; srvDirty = false;
+  alert('השרת התחבר מחדש לנתונים בענן, והלשונית הזו מציגה נתונים ישנים — לכן השמירה נחסמה.\nהדף ייטען מחדש עם הנתונים העדכניים.');
+  location.reload();
 }
 function pushSrv() {
   if (!SRV) return;
@@ -2475,7 +2482,11 @@ const AUTH = window.__AUTH || null;
 if (AUTH && AUTH.storage && AUTH.storage.warn) document.addEventListener('DOMContentLoaded', () => {
   const b = document.createElement('div');
   b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#c1121f;color:#fff;font-size:12.5px;font-weight:700;padding:5px 12px;text-align:center;direction:rtl';
-  b.innerHTML = '⚠ ' + esc(AUTH.storage.warn.split(' — ')[0]) + ' — הנתונים כאן לא מסונכרנים עם השרת בענן. בטרמינל: <code style="direction:ltr;background:#fff2;padding:0 4px;border-radius:3px">gcloud auth login</code> ואז הפעל את השרת מחדש. <a href="#" style="color:#fff" onclick="this.parentNode.remove();return false">✕</a>';
+  const why = AUTH.storage.warn.split(' — ').slice(1).join(' — ').replace(/^עובדים על נתונים מקומיים[^.]*\.\s*/, '');
+  b.title = why;
+  b.innerHTML = '⚠ ' + esc(AUTH.storage.warn.split(' — ')[0]) + ' — הנתונים כאן מקומיים ולא מסונכרנים עם הענן. השרת מנסה להתחבר מחדש כל 30 שניות ויטען את הדף מחדש כשהחיבור יחזור.'
+    + (/gcloud/.test(why) ? ' (אין קובץ מפתח — בטרמינל: <code style="direction:ltr;background:#fff2;padding:0 4px;border-radius:3px">gcloud auth login</code>)' : '')
+    + ' <a href="#" style="color:#fff" onclick="this.parentNode.remove();return false">✕</a>';
   document.body.appendChild(b);
 });
 function authBoxHTML() {

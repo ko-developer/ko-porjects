@@ -17,15 +17,34 @@ import { handleBugs, initBugs } from './bugs.js';
 try { for (const line of readFileSync('.env', 'utf8').split('\n')) { const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim(); } } catch {}
 const PORT = process.env.PORT || 4177;
 /* שכבת האחסון: DATA_BUCKET → דלי הענן (מקומי והענן על אותם נתונים); בלעדיו — data/ מקומית */
-let storage = makeStorage(), storageWarn = '';
-try { await storage.check(); }
+let storage = makeStorage(), storageWarn = '', fallbackSince = 0, fallbackWrites = 0;
+/* בדיקת הדלי בעלייה — עד 6 ניסיונות (כחצי דקה): כשל רגעי (רשת, מחשב עמוס) לא מפיל אותנו לנתונים מקומיים */
+const checkStorage = async tries => { let last; for (let i = 0; i < tries; i++) { try { await storage.check(); return; } catch (e) { last = e; console.warn('[storage] ניסיון ' + (i + 1) + '/' + tries + ' נכשל: ' + (e.message || e)); if (i < tries - 1) await new Promise(r => setTimeout(r, 5000)); } } throw last; };
+try { await checkStorage(process.env.K_SERVICE ? 1 : 6); }
 catch (e) {
-  /* הדלי לא זמין (בדרך כלל: הכניסה ל-gcloud פגה) — לא נופלים: עובדים על data/ מקומית עם אזהרה בולטת בטרמינל ובאפליקציה */
+  /* הדלי לא זמין — לא נופלים: עובדים על data/ מקומית עם אזהרה בולטת בטרמינל ובאפליקציה,
+     ומנסים להתחבר מחדש ברקע כל 30 שניות; כשהחיבור חוזר השרת מתאתחל לבד (לולאת ההפעלה מרימה אותו על הדלי) */
   const why = String(e.message || e);
   if (process.env.K_SERVICE || process.env.DATA_FALLBACK === 'off') { console.error('\n❌ אחסון לא זמין (' + storage.label + '): ' + why + '\n'); process.exit(1); }
   storageWarn = 'הדלי בענן לא זמין — עובדים על נתונים מקומיים (לא מסונכרן עם השרת!). ' + why;
-  console.error('\n⚠  ' + storageWarn + '\n   תיקון: gcloud auth login   (או: scripts/deploy-gcp.sh devkey — מפתח קבוע שלא פג)\n');
+  console.error('\n⚠  ' + storageWarn + '\n   השרת ינסה להתחבר מחדש כל 30 שניות ויתאתחל לבד כשהדלי יחזור' + (/gcloud/.test(why) ? '   (תיקון ידני: gcloud auth login)' : '') + '\n');
+  const cloud = storage; fallbackSince = Date.now();
   delete process.env.DATA_BUCKET; storage = makeStorage();
+  setInterval(async () => {
+    try { await cloud.check(); } catch { return; }
+    /* שמירות שנעשו בינתיים על הנתונים המקומיים — נשמרות לקובץ לפני האתחול, כדי שלא יאבדו */
+    if (fallbackWrites) {
+      try {
+        const st = await readStore(db), { projects = [], cur, ...extra } = st;
+        const changed = projects.filter(p => (+p.upd || 0) >= fallbackSince);
+        const f = 'data/fallback-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json';
+        writeFileSync(f, JSON.stringify({ cur, extra, projects: changed }));
+        console.error('[storage] ' + changed.length + ' פרויקטים נשמרו מקומית בזמן הניתוק — עותק ב-' + f);
+      } catch (e2) { console.error('[storage] שמירת הגיבוי המקומי נכשלה:', e2.message); }
+    }
+    console.error('[storage] הדלי חזר להיות זמין — מאתחל את השרת כדי לעבוד עליו');
+    process.exit(3);
+  }, 30e3).unref();
 }
 /* מטמון קצר לקבצים שנקראים בכל בקשה (פריסות/תמונות גב, מצב טבלאות) — קריאה לדלי פעם ב-15 שניות, לא בכל טעינת דף */
 const CUR_TTL = 15e3, curCache = new Map(), curInflight = new Map();
@@ -230,7 +249,7 @@ const handleReq = async (req, res) => {
         const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v);
         const full = /[?&]full=1/.test(req.url || '');   /* גיבוי מלא — לפי בקשה מפורשת בלבד */
         const vis = filterStore(st, me);
-        sendText(req, res, 200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }, JSON.stringify(full ? vis : liteStore(vis, vis.cur)));
+        sendText(req, res, 200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-ko-store': storage.label }, JSON.stringify(full ? vis : liteStore(vis, vis.cur)));
       } catch (e) { res.writeHead(500); res.end(String(e.message)); }
       return;
     }
@@ -238,6 +257,12 @@ const handleReq = async (req, res) => {
       const chunks = [];
       req.on('data', c => chunks.push(c));
       req.on('end', async () => {
+        /* מקומית: לשונית שה-store שלה נטען ממקור אחסון אחר (נתונים מקומיים בזמן ניתוק מהדלי, או להפך) לא דורסת —
+           מקבלת 409 והדף נטען מחדש מהמקור הנוכחי */
+        if (!process.env.K_SERVICE && (req.headers['x-ko-store'] || '') !== storage.label) {
+          console.warn('[store] שמירה נדחתה: הלשונית נטענה מ-"' + (req.headers['x-ko-store'] || '?') + '" והשרת עובד על "' + storage.label + '"');
+          res.writeHead(409, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: 'stale-store', label: storage.label })); return;
+        }
         try {
           const raw = JSON.parse(Buffer.concat(chunks).toString('utf8'));
           const fullSt = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : await readStore(db);
@@ -251,6 +276,7 @@ const handleReq = async (req, res) => {
           /* מוזמן: רק הפרויקטים שלו בהרשאת עריכה נכתבים; השאר של הבעלים לא נגעו */
           const merged = me.role !== 'owner' ? mergeStore(fullSt, posted, me) : posted;
           const n = await writeStore(db, merged);
+          if (storageWarn) fallbackWrites++;
           window_store.v = merged; window_store.t = Date.now();
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(JSON.stringify({ ok: true, projects: n }));

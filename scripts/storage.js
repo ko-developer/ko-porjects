@@ -160,6 +160,7 @@ async function fetchToken() {
   }
   /* קובץ ADC — משתמש (gcloud auth application-default login) או חשבון שירות */
   const adc = process.env.GOOGLE_APPLICATION_CREDENTIALS || join(homedir(), '.config/gcloud/application_default_credentials.json');
+  let adcErr = '';
   if (existsSync(adc)) {
     try {
       const c = JSON.parse(readFileSync(adc, 'utf8'));
@@ -173,9 +174,12 @@ async function fetchToken() {
         const sig = createSign('RSA-SHA256').update(unsigned).sign(c.private_key, 'base64url');
         const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: unsigned + '.' + sig }) });
         if (r.ok) { const j = await r.json(); return { v: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1e3 }; }
+        adcErr = 'HTTP ' + r.status + ' ' + (await r.text()).slice(0, 120);
       }
-    } catch (e) { console.warn('ADC token failed:', e.message); }
+    } catch (e) { console.warn('ADC token failed:', e.message); adcErr = e.message; }
   }
+  /* יש קובץ מפתח של חשבון שירות (לא פג) — הכשל הוא ברשת/בשירות האסימונים, לא בכניסה */
+  if (adcErr && process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('בקשת אסימון גישה ל-Cloud Storage נכשלה (' + adcErr + ') — קובץ המפתח קיים; כנראה תקלת רשת רגעית');
   /* gcloud CLI — הכניסה של המשתמש במחשב */
   const bins = [process.env.GCLOUD_BIN, 'gcloud', join(homedir(), '.local/google-cloud-sdk/bin/gcloud')].filter(Boolean);
   const env = { ...process.env };
