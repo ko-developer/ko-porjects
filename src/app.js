@@ -6341,6 +6341,26 @@ async function patchCloseAsk() {
   if (patchDirty() && !(await uiConfirm('הניתוב שמוצג בטבלה עדיין לא חובר — לסגור בלי "חבר"? מה שסידרת כאן לא יישמר.', { okText: 'סגור בלי לשמור', cancelText: '↩ חזרה לטבלה' }))) return;
   patchClose();
 }
+/* ▲▼ מיקום המגבר בארון מטבלת החיווט: החלפת מקום עם היחידה השכנה (באותה קבוצה בארון), וסדר המגברים בטבלה עוקב אחרי הארון */
+function patchAmpMove(ai, dir) {
+  const a = PATCH && PATCH.amps[ai]; if (!a) return;
+  const rk = a.rk, list = (rk.units || []).slice().sort((x, y) => (unitRank(x) - unitRank(y)) || ((x.pos || 0) - (y.pos || 0)));
+  const i = list.indexOf(a.u), j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) { uiToast(dir < 0 ? 'המגבר כבר בראש הארון' : 'המגבר כבר בתחתית הארון'); return; }
+  const o = list[j];
+  if (unitRank(o) !== unitRank(a.u)) { uiToast('היחידה השכנה היא מקבוצה אחרת בארון (' + o.name.slice(0, 24) + ') — הסדר בין קבוצות קבוע: פרוססורים, מגברים, רשת'); return; }
+  const p = a.u.pos; a.u.pos = o.pos; o.pos = p; rackArrange(rk);
+  /* סדר המגברים בטבלה עוקב אחרי הארון; כל המפות שמפתחן "מגבר|ערוץ" (ניתוב, כבלים, מקור, טופולוגיה…) ממופות לאינדקסים החדשים */
+  const old = PATCH.amps.slice();
+  PATCH.amps.sort((x, y) => (x.rk === y.rk ? (x.u.pos || 0) - (y.u.pos || 0) : 0));
+  const idx = {}; old.forEach((x, i) => { idx[i] = PATCH.amps.indexOf(x); });
+  const rk2 = k => { const m = /^(\d+)\|(.*)$/.exec(k); return m && idx[+m[1]] != null ? idx[+m[1]] + '|' + m[2] : k; };
+  for (const prop of Object.keys(PATCH)) { const v = PATCH[prop];
+    if (typeof v === 'string' && /^\d+\|/.test(v)) PATCH[prop] = rk2(v);
+    else if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Set) && Object.keys(v).length && Object.keys(v).every(k => /^\d+\|/.test(k))) { const nv = {}; for (const [k, val] of Object.entries(v)) nv[rk2(k)] = val; PATCH[prop] = nv; } }
+  save(); render(); patchRender();
+  uiToast('🗄 ' + modelOf(a.u.name) + ' הוזז ' + (dir < 0 ? 'למעלה' : 'למטה') + ' בארון');
+}
 function patchClose() {
   const after = PATCH && PATCH.onClose;   /* המשך זרימה שממתין לסגירת הטבלה (למשל הוספת קיט) */
   if (PATCH) PATCH.solo = null; PATCH = null; patchHiClear();
@@ -6814,6 +6834,7 @@ function patchRender() {
           ${esc(a.rk.name.slice(0, 14))} ·
           <button onclick="patchBridge(${ai})" title="Bridge — גישור כל זוג ערוצים ליציאה אחת: הספק ×2, אום מינימלי ×2 (${a.minOhm * 2}Ω)" style="font-size:10.5px;padding:1px 7px;border-radius:7px;border:1px solid ${a.bridge ? '#6c5ce7' : '#ddd'};background:${a.bridge ? '#6c5ce7' : '#fff'};color:${a.bridge ? '#fff' : '#666'};cursor:pointer;font-weight:700">🌉 Bridge${a.bridge ? ' ✓' : ''}</button>
           ${a.u.rearHide ? `<button onclick="patchAmpRearShow(${ai})" title="המגבר מוסתר בתצוגת גב הארון — החזר" style="font-size:10.5px;padding:1px 7px;border-radius:7px;border:1px solid #c96a13;background:#fff3e6;color:#8a4b00;cursor:pointer">👁 מוסתר בגב — החזר</button>` : ''}
+          <button onclick="patchAmpMove(${ai},-1)" title="הזז את המגבר למעלה בארון (ובטבלה)" style="font-size:10.5px;padding:1px 6px;border-radius:7px;border:1px solid #ddd;background:#fff;color:#555;cursor:pointer">▲</button><button onclick="patchAmpMove(${ai},1)" title="הזז את המגבר למטה בארון (ובטבלה)" style="font-size:10.5px;padding:1px 6px;border-radius:7px;border:1px solid #ddd;background:#fff;color:#555;cursor:pointer">▼</button>
           <button onclick="patchDelAmp(${ai})" title="מחק את המגבר — מהארון, מתצוגת הגב בלבד, או גם מהצעת המחיר" style="font-size:10.5px;padding:1px 7px;border-radius:7px;border:1px solid #e3b0b0;background:#fdf0f0;color:#c1121f;cursor:pointer">🗑</button></small></div>${chs.join('')}</div>`;
   }).join('');
   /* אומדן מחברים: כל קו = 2 קצוות (ספיקון / XLR-RCA לסאב אקטיבי) — מאושר כאן לפני החיבור */
