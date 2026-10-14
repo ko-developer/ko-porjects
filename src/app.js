@@ -6300,14 +6300,14 @@ function patchOpen(z, amps, lines, leftover) {
         <button onclick="patchShowRear()" title="פותח את גב הארון בגדול מאחורי החלון הזה — הטבלה נשארת פתוחה וממשיכים לנתב ממנה (אפשר לגרור את החלון הצידה)" style="font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.18);color:#fff;cursor:pointer;white-space:nowrap">🗄 גב הארון</button>
         <button id="patchModeBtn" onclick="PATCH.mode=PATCH.mode==='in'?'out':'in';patchRender()" title="מעבר בין ניתוב הרמקולים למגברים לבין ניתוב מקורות השמע אל הכניסות" style="font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.18);color:#fff;cursor:pointer;white-space:nowrap"></button>
         <button id="patchAllBtn" onclick="PATCH.showAll=PATCH.showAll===false;patchRender()" style="display:none;font-size:11px;padding:2px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;cursor:pointer"></button>
-        <button onclick="patchClose()" style="background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button></div>
+        <button onclick="patchCloseAsk()" style="background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button></div>
       <div class="pb" id="patchBody"></div>
       <div id="pchCableRow" style="display:flex;gap:6px;align-items:center;padding:6px 12px;border-top:1px solid #eee;font-size:12px;background:#faf8f4">
         🧵 <span style="white-space:nowrap">כבל הרמקולים ייחתך מ:</span>
         <select id="pchCableSrc" title="הקווים שייווצרו ישויכו למוצר הכבל הזה — המטרים נצרכים ממנו" style="flex:1;font-size:12px;padding:3px 6px;border:1px solid #ddd;border-radius:7px">${patchCableOpts()}</select>
       </div>
       <div class="pf">
-        <button onclick="patchClose()">ביטול</button>
+        <button onclick="patchCloseAsk()">ביטול</button>
         <button onclick="patchAutoFill()">⚡ סדר אוטומטית</button>
         <button id="pchAddProc" onclick="patchProcPicker()" style="${(PATCH.srcPool || []).length || !PATCH.ins.length ? '' : 'display:none'}">➕ הוסף פרוססור</button>
         <button onclick="patchAmpPicker()">➕ הוסף מגבר</button>
@@ -6334,6 +6334,12 @@ function patchOpen(z, amps, lines, leftover) {
     e.preventDefault();
   });
   patchRender();
+}
+/* ניתוב שסודר בטבלה ולא חובר — שאלה לפני סגירה, כדי שהחיווט לא "ייעלם" */
+function patchDirty() { if (!PATCH) return false; return Object.entries(PATCH.slots || {}).some(([k, ids]) => (ids || []).join(',') !== ((PATCH.orig || {})[k] || '')); }
+async function patchCloseAsk() {
+  if (patchDirty() && !(await uiConfirm('הניתוב שמוצג בטבלה עדיין לא חובר — לסגור בלי "חבר"? מה שסידרת כאן לא יישמר.', { okText: 'סגור בלי לשמור', cancelText: '↩ חזרה לטבלה' }))) return;
+  patchClose();
 }
 function patchClose() {
   const after = PATCH && PATCH.onClose;   /* המשך זרימה שממתין לסגירת הטבלה (למשל הוספת קיט) */
@@ -6642,8 +6648,9 @@ function patchBundleOf(key, ids) {
 function patchChip(id, ro, nObj) {
   const n = nObj || byId(id); if (!n) return '';
   const full = nodeFullName(n);
+  const zn = (P.zones || []).find(z => nodeInZone(n, z)), zTag = zn && zn.id !== PATCH.zid ? ` <small style="background:#fff3cd;color:#8c6a1a;border-radius:4px;padding:0 4px;font-size:9.5px" title="רמקול של אזור אחר">${esc(zn.name)}</small>` : '';
   return `<span class="pchip ${patchKind(n)} ${PATCH.sel === id ? 'sel' : ''}" ${ro ? `data-chipro="${id}" style="opacity:.85"` : `draggable="true" data-chip="${id}"`}
-     title="${esc(full)} · ${spkOhm(n)}Ω · ${esc(n.sub || '')}${n.band ? ' · פס ' + BAND_LBL[n.band] : ''}"><b>${patchNum(n)}</b>${esc(shortModel(full))}${n.band ? ` <b style="font-size:9.5px;background:rgba(0,0,0,.12);border-radius:4px;padding:0 4px">${BAND_LBL[n.band]}</b>` : ''} <small style="opacity:.7">${spkOhm(n)}Ω</small></span>`;
+     title="${esc(full)} · ${spkOhm(n)}Ω · ${esc(n.sub || '')}${n.band ? ' · פס ' + BAND_LBL[n.band] : ''}"><b>${patchNum(n)}</b>${esc(shortModel(full))}${n.band ? ` <b style="font-size:9.5px;background:rgba(0,0,0,.12);border-radius:4px;padding:0 4px">${BAND_LBL[n.band]}</b>` : ''} <small style="opacity:.7">${spkOhm(n)}Ω</small>${zTag}</span>`;
 }
 /* 🌉 Bridge — גישור זוג ערוצים ליציאה אחת חזקה: הספק ≈ ×2 מהערוץ בחצי העומס,
    אום מינימלי ×2. תואם לנתונים הרשמיים (DYNAMIQ 450: ‏2×450W@4Ω → ‏900W@8Ω גשר). */
@@ -8152,7 +8159,7 @@ async function smartWire(zid) {
       for (const c of sh.cables || []) { if (!ids.has(c.from) || c.fromUnit !== a.u.id || !c.pOut) continue; const m = c.pOut.match(/OUT (\d+)/); if (!m) continue; const ch = +m[1];
         const to = (sh.nodes || []).find(n => n.id === c.to); a.used.add(ch); const F = (a.foreign[ch] = a.foreign[ch] || { sheet: sh.name, names: [], nodes: [] }); F.names.push(to ? to.name : '?'); if (to && !F.nodes.includes(to)) F.nodes.push(to); } } });
   /* רמקולים בתכנית שאינם באזור (ננעצו מחוץ לו) — מצטרפים למאגר, לא מוקצים אוטומטית */
-  const others = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && !inZone(n) && !fed.has(n.id) && !/עמדת נגינה|מיקרופון/.test(n.name) && !(P.zones || []).some(z2 => z2 !== z && nodeInZone(n, z2)));
+  const others = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && !inZone(n) && !fed.has(n.id) && !/עמדת נגינה|מיקרופון/.test(n.name));   /* גם רמקולים של אזורים אחרים שעוד לא חווטו — הארון משותף, רואים את כולם */
   if (noNew && !others.length && !amps.some(a => a.used.size)) { alert('אין רמקולים באזור.'); return; }
   if (noNew && window.__autoFlow) return;
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -9242,6 +9249,8 @@ function zoneClipPolys(z) {
   }
   return polys;
 }
+/* הפיזור האופקי בפועל: ברמקול מאונך (מסובב 90°) הזווית האנכית של היצרן היא זו שלרוחב */
+function dispEff(n) { const h = n.disp ?? guessDisp(n.name); if (n.orient !== 'v') return h; const v = n.vdisp ?? (typeof guessVdisp === 'function' ? guessVdisp(nodeFullName(n)) : null); return v != null && v > 0 ? v : h; }
 function renderCoverage() {
   const svg = $('#coverage'), bar = $('#covbar');
   if (!svg) return;
@@ -9259,7 +9268,7 @@ function renderCoverage() {
     /* רק רמקול/סאב מקרינים כיסוי — מסך/תאורה/מצלמה/מגבר/פרוססור לא */
     if (n.ptype && n.ptype !== 'speaker' && n.ptype !== 'sub') return false;
     if (!n.ptype && /מגבר|פרוססור|amplifier|processor|קרוסאובר|xover/i.test(n.name)) return false;
-    const isSub = (n.disp ?? guessDisp(n.name)) >= 300;
+    const isSub = dispEff(n) >= 300;
     if (isSub && P.covSub === false) return false;
     if (!isSub && P.covSpk === false) return false;
     return true;
@@ -9607,6 +9616,8 @@ function renderPanel() {
     <div class="row2">
       <div class="fld"><label>גובה (מ׳)</label><input type="number" step="0.1" min="0" value="${n.hgt ?? (isSub ? 0 : 2.6)}" onchange="byId('${n.id}').hgt=+this.value;save()"></div>
       <div class="fld"><label>התקנה על גבי</label><select onchange="byId('${n.id}').mount=this.value;save()">${MOUNTS.map(m => `<option value="${m}" ${curM === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+      ${isSpk ? `<div class="fld"><label>כיוון ההתקנה (שופר)</label><select onchange="byId('${n.id}').orient=this.value;save();render()"><option value="h" ${(n.orient || 'h') === 'h' ? 'selected' : ''}>↔ מאוזן — הפיזור האופקי (H) לרוחב</option><option value="v" ${n.orient === 'v' ? 'selected' : ''}>↕ מאונך — מסובב 90°, הפיזור האנכי (V) לרוחב</option></select>
+        ${n.orient === 'v' ? '<p style="font-size:10.5px;margin:3px 0 0;color:#9a3412">🔁 התקנה מאונכת: יש לסובב את השופר — מופיע בדוח ההתקנה; הכיסוי מחושב לפי V לרוחב</p>' : ''}</div>` : ''}
     </div>
     ${pt === 'light' && typeof fxNodeHTML === 'function' ? fxNodeHTML(n) : ''}
     ${!isSpk ? `<p class="muted" style="font-size:11px">מוקד מסוג ${PTYPES.find(x => x[0] === pt)[1]} — ללא כיסוי אקוסטי.</p>
@@ -10399,7 +10410,7 @@ function mountProductFor(n, kind) {
 function mountRows() {
   return P.nodes.filter(n => n.kind === 'point' && !n.hidden && (n.srcIid ? isSpeakerItem(nodeFullName(n)) : /רמקול|סאב|speaker|sub/i.test(n.name || '')) && (n.ptype == null || n.ptype === 'speaker' || n.ptype === 'sub')).map(n => { const kind = hangKindOf(n); return { n, kind, pr: mountProductFor(n, kind) }; });
 }
-function mountSet(id, f, v) { const n = byId(id); if (!n) return; if (f === 'hang') { if (v === 'auto') delete n.hang; else n.hang = v; } else if (f === 'straight') n.straight = !!v; else if (f === 'mount') n.mount = v; save(); mountManager(); }
+function mountSet(id, f, v) { const n = byId(id); if (!n) return; if (f === 'hang') { if (v === 'auto') delete n.hang; else n.hang = v; } else if (f === 'straight') n.straight = !!v; else if (f === 'mount') n.mount = v; else if (f === 'orient') n.orient = v; save(); mountManager(); }
 function mountAddAll(onlyId) {
   const rows = mountRows().filter(r => r.pr && r.pr.key && (!onlyId || r.n.id === onlyId)); let added = 0, qty = 0;
   const need = {}; rows.forEach(r => { const e = need[r.pr.key] = need[r.pr.key] || { pr: r.pr, qty: 0, parents: new Set() }; e.qty += r.pr.qty; if (r.n.srcIid) e.parents.add(r.n.srcIid); });
@@ -10419,6 +10430,7 @@ function mountManager() {
     <td><b>${esc(shortModel(nm))}</b><br><small class="muted">${esc(nm.slice(0, 44))}</small></td>
     <td><select onchange="mountSet('${n.id}','mount',this.value)"><option value="">—</option>${MOUNTS.map(m => `<option ${n.mount === m ? 'selected' : ''}>${m}</option>`).join('')}</select></td>
     <td style="text-align:center"><input type="checkbox" style="width:auto" ${n.straight ? 'checked' : ''} title="רמקול ישר בלי צידוד — אז מותר מתקן ח" onchange="mountSet('${n.id}','straight',this.checked)"></td>
+    <td><select onchange="mountSet('${n.id}','orient',this.value)" style="${n.orient === 'v' ? 'color:#9a3412;font-weight:700' : ''}"><option value="h" ${(n.orient || 'h') === 'h' ? 'selected' : ''}>↔ מאוזן</option><option value="v" ${n.orient === 'v' ? 'selected' : ''}>↕ מאונך · סובב שופר</option></select></td>
     <td><select onchange="mountSet('${n.id}','hang',this.value)"><option value="auto" ${!n.hang ? 'selected' : ''}>אוטו · ${HANG_HE[kind]}</option>${Object.entries(HANG_HE).map(([k, t]) => `<option value="${k}" ${n.hang === k ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
     <td style="font-size:11.5px">${pr ? `${pr.key ? imgCell(pr.key, 30, pr.name) : ''} ${esc(pr.name.slice(0, 52))}<br><small class="muted">${esc(pr.why)}</small>` : '<span class="muted">—</span>'}</td>
     <td style="text-align:center;font-weight:700">${pr ? '× ' + pr.qty : ''}</td>
@@ -10426,7 +10438,7 @@ function mountManager() {
   const tot = {}; rows.forEach(r => { if (r.pr && r.pr.key) { const e = tot[r.pr.key] = tot[r.pr.key] || { name: r.pr.name, qty: 0 }; e.qty += r.pr.qty; } });
   const ov = uiModal(`<div id="mountOv"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:15px;flex:1">🪝 אביזרי תלייה לפי הרמקולים</b><button data-x>✕</button></div>
     <p class="muted" style="font-size:11.5px;margin:0 0 8px">כללי הבית: תלייה מהתקרה = <b>3 טבעות</b> (בורג עין) לכל רמקול · <b>מתקן ח</b> (YOKE) לתקרה במוט הברגה או ישירות — רק כשהרמקול ישר בלי צידוד · אחרת <b>מתקן מתכוונן</b>: Unicorn/KT → GU40, שאר המותגים → המתקן המתכוונן של היצרן · רצפה / סטאק / בארון = בלי אביזר.</p>
-    <div style="max-height:52vh;overflow-y:auto"><table class="cablelist" style="width:100%"><tr><th>רמקול</th><th>מותקן על</th><th title="ישר בלי צידוד">ישר</th><th>אופן התלייה</th><th>אביזר מהקטלוג</th><th>כמות</th><th></th></tr>${tr || '<tr><td colspan="7" class="muted">אין רמקולים בתכנית</td></tr>'}</table></div>
+    <div style="max-height:52vh;overflow-y:auto"><table class="cablelist" style="width:100%"><tr><th>רמקול</th><th>מותקן על</th><th title="ישר בלי צידוד">ישר</th><th title="מאונך = מסובב 90° — יש לסובב את השופר בהתקנה">כיוון</th><th>אופן התלייה</th><th>אביזר מהקטלוג</th><th>כמות</th><th></th></tr>${tr || '<tr><td colspan="7" class="muted">אין רמקולים בתכנית</td></tr>'}</table></div>
     <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><span style="flex:1;font-size:12px">סה״כ: ${Object.values(tot).map(e => e.qty + '× ' + esc(e.name.slice(0, 30))).join(' · ') || '—'}</span><button style="background:#0f6e56;color:#fff;font-weight:700" onclick="mountAddAll()">➕ הוסף את כל האביזרים להצעה</button></div></div>`);
   ov.querySelector('div').style.maxWidth = '960px'; ov.querySelector('div').style.width = '96vw';
   ov.querySelector('[data-x]').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
