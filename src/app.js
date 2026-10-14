@@ -8132,8 +8132,31 @@ function gapAddReel(n) {
 }
 /* פתיחת חיפוש הקטלוג עם שאילתה מוכנה — לבחירת פריט משלים */
 function gapSearch(q) {
-  dockOpen = true; dockMin = false; dockQ = q; renderImp();
-  uiToast('🔍 בחר מהתוצאות — לחיצה מוסיפה להצעה');
+  /* חלון חיפוש מעל בדיקת השלמות: תוצאות מהקטלוג (פריטים וקיטים), לחיצה מוסיפה להצעה וחוזרת לבדיקה */
+  const ov = uiModal(`<b style="font-size:14px">🔍 חיפוש בקטלוג והוספה להצעה</b>
+    <input id="gapQ" value="${esc(q || '')}" placeholder="חפש מוצר / קיט…" style="width:100%;margin:8px 0 6px;box-sizing:border-box" autocomplete="off">
+    <div id="gapRes" style="max-height:52vh;overflow:auto;border:1px solid #eee;border-radius:8px"></div>
+    <p class="muted" style="font-size:11px;margin:6px 0 0">לחיצה על פריט מוסיפה אותו להצעה (ופותחת נקירה על התכנית / הכנסה לארון לפי הסוג). קיט מוסיף את כל הפריטים שלו.</p>
+    <div style="display:flex;gap:6px;margin-top:8px"><button data-x style="flex:1">סגור</button></div>`);
+  ov.firstElementChild.style.maxWidth = '640px';
+  const inp = ov.querySelector('#gapQ'), box = ov.querySelector('#gapRes');
+  const draw = () => {
+    const res = dockSearchResults(inp.value.trim()).slice(0, 60);
+    box.innerHTML = res.length ? res.map(r => r.type === 'kit'
+      ? `<div class="crow" data-kit="${r.i}" style="cursor:pointer"><span class="badge" style="background:#534ab7">${r.n}</span><span class="txt"><b>🧰 ${esc(r.name)}</b> · קיט מלא</span></div>`
+      : `<div class="crow" data-name="${jsq(r.name)}" data-key="${esc(r.key || '')}" style="cursor:pointer"><span class="badge" style="background:#0f6e56">➕</span>${imgCell(r.key, 28)}<span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`).join('')
+      : '<p class="muted" style="padding:10px;font-size:12px">' + (inp.value.trim() ? 'לא נמצא — נסה מילה אחרת (למשל שם הדגם)' : 'הקלד כדי לחפש') + '</p>';
+  };
+  inp.oninput = draw; draw();
+  setTimeout(() => { inp.focus(); inp.select(); }, 50);
+  box.onclick = e => {
+    const row = e.target.closest('.crow'); if (!row) return;
+    ov.remove();
+    if (row.dataset.kit != null) { pickKitInline(+row.dataset.kit); gapBack(); return; }
+    pickSearchItem(row.dataset.name.replace(/\\'/g, "'"), row.dataset.key || '');
+    if (pinMode || connPin || wireMode) uiToast('✓ נוסף להצעה — עכשיו הצב אותו (לחיצה על התכנית / הארון) · Esc מסיים; בדיקת השלמות זמינה שוב מכפתור 🤔', 6000); else gapBack();
+  };
+  ov.querySelector('[data-x]').onclick = () => { ov.remove(); gapBack(); };
 }
 /* קיטי ההתקנה האמיתיים — Project Accessories Kit עם "התקנה" בשם (עמדה/ארון/סטנדרט) + קיטים אישיים */
 function installKitList() {
