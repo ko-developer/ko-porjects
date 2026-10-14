@@ -2764,6 +2764,7 @@ function viewMenuHTML() {
     </div>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="מפת ה-SPL, קונוסי הכיסוי וההחזרות מהקירות">
       <input type="checkbox" style="width:auto" ${P.showCoverage ? 'checked' : ''} onchange="P.showCoverage=this.checked;render();save()"><span style="flex:1">🔊 פיזור אקוסטי (מפת SPL וקונוסי כיסוי)</span></label>
+    ${P.showCoverage ? `<div onclick="event.stopPropagation()" style="display:flex;gap:8px;align-items:center;color:#fff;font-size:11px;padding:2px 10px 6px 6px;margin:-4px 0 4px" title="שקיפות מפת ה-SPL — כדי לראות את התכנית מתחת"><span style="white-space:nowrap">שקיפות הפיזור</span><input type="range" min="10" max="100" value="${Math.round((P.covAlpha ?? 1) * 100)}" style="flex:1;margin:0" oninput="P.covAlpha=+this.value/100;const c=document.getElementById('coverage');if(c)c.style.opacity=P.covAlpha;this.nextElementSibling.textContent=this.value+'%'" onchange="save()"><span style="width:34px;text-align:left">${Math.round((P.covAlpha ?? 1) * 100)}%</span></div>` : ''}
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="בגרירה: יישור לאייקונים אחרים והצמדה לשולחן/ריהוט. כבוי = מיקום חופשי לגמרי. Alt בזמן הגרירה מבטל זמנית">
       <input type="checkbox" style="width:auto" ${P.snapOff ? '' : 'checked'} onchange="P.snapOff=!this.checked;save()"><span style="flex:1">🧲 הצמדה ויישור בגרירה (Alt = מיקום חופשי)</span></label>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="הילות ותגי הצינורות/התעלות על הקווים">
@@ -9245,6 +9246,7 @@ function renderCoverage() {
   const svg = $('#coverage'), bar = $('#covbar');
   if (!svg) return;
   if (!P.showCoverage) { svg.innerHTML = ''; if (bar) bar.style.display = 'none'; return; }
+  svg.style.opacity = P.covAlpha ?? 1;   /* שקיפות מפת הפיזור (תצוגה ▾) */
   [COV_FLOOR, COV_TOP] = covRange();
   if (bar) renderCovBar(bar);
   const mPerPx = P.scale || (1 / 40);

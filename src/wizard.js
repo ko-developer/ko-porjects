@@ -211,7 +211,7 @@ function wizStepHTML(s) {
     <button class="big" style="background:#534ab7" onclick="zoneSpkPicker('${z.id}')">🎛 בחר מערכת — הצעות לפי מותג · קיטים · מוצרים</button>
     <input id="wizKitQ" placeholder="🔍 או חפש ישר קיט / רמקול…" oninput="wizKitSearch(this.value)">
     <div id="wizKitRes" style="max-height:150px;overflow-y:auto"></div>
-    <p class="hint" style="margin-top:4px">${z._spk ? '🔊 ' + esc(z._spk.slice(0, 42)) : 'לא נבחר רמקול — "בנה הכל" יפתח את הבורר'}</p>
+    ${z._spk ? `<div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap"><span class="hint" style="flex:1;margin:0">🔊 ${esc(z._spk.slice(0, 42))}</span><button class="sec" style="width:auto;flex:0 0 auto;margin:0;padding:5px 10px;font-size:11.5px;background:#fdf0e8;border-color:#c9502e;color:#9a3412;font-weight:700" onclick="wizPinSpk('${z.id}', false)" title="נקירה ידנית: כל לחיצה על התכנית מציבה רמקול כזה ומוסיפה 1 להצעה · Esc מסיים">📍 נקר רמקול על התכנית</button>${z._sub ? `<button class="sec" style="width:auto;flex:0 0 auto;margin:0;padding:5px 10px;font-size:11.5px" onclick="wizPinSpk('${z.id}', true)" title="כל לחיצה מציבה סאב ומוסיפה 1 להצעה">📍 סאב</button>` : ''}</div>` : '<p class="hint" style="margin-top:4px">לא נבחר רמקול — "בנה הכל" יפתח את הבורר</p>'}
     ${typeof erpQuotesDialog === 'function' && !(window.__AUTH && window.__AUTH.user && window.__AUTH.user.role !== 'owner') ? `<button class="sec" style="background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="erpQuotesDialog()" title="הפריטים של הצעה קיימת ב-ERP נכנסים להצעה בפרויקט — ומשם מציבים אותם על התכנית">🧾 משוך הצעת מחיר מה-ERP — פריטים להצבה בתכנית</button>` : ''}
     <button class="big" onclick="wizBuildAll()">${z._built ? '🔌 המשך — טבלת החיווט (המערכת כבר בנויה)' : '🚀 בנה הכל — מערכת + ארון + עמדה/קופסת במה + חיווט'}</button>
     ${z._built ? `<button class="sec" onclick="wizBuildAll(true)">🔄 בנה מחדש מאפס — מחליף את המערכת הקיימת</button>` : ''}
@@ -568,6 +568,14 @@ function wizUploadBg(inp) {
     save(); WIZ.step = WS('cal'); wizRender();
     uiToast('✓ התכנית נטענה — עכשיו כיול');
   });
+}
+/* 📍 נקירה ידנית מהאשף: הרמקול/הסאב שנבחר לאזור — כל לחיצה על התכנית מציבה אחד ומוסיפה 1 לשורת ההצעה (zoneSpkItem) */
+function wizPinSpk(zid, isSub) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  const it = zoneSpkItem(z, !!isSub, true); if (!it) { uiToast('לא נבחר ' + (isSub ? 'סאב' : 'רמקול') + ' לאזור'); return; }
+  selZone = z.id; pinMode = { iid: it.iid }; wireMode = null; wireStock = null; connPin = null; window.__fxDetAdd = null;
+  document.body.style.cursor = 'crosshair'; render();
+  uiToast('📍 לחץ על התכנית איפה שה' + (isSub ? 'סאב' : 'רמקול') + ' — כל לחיצה מציבה אחד ומוסיפה 1 להצעה · Esc מסיים', 6000);
 }
 function wizNewProject() { newProj(); WIZ.step = WS('plan'); wizRender(); }
 function wizDrawZone() {
