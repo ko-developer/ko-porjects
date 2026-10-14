@@ -3,7 +3,9 @@
 import { createServer, get as httpGet } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { gzipSync } from 'node:zlib';
+import { gzipSync, gzip } from 'node:zlib';
+import { execFile } from 'node:child_process';
+import { stat, readdir, readFile, writeFile } from 'node:fs/promises';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
 import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin } from './auth.js';
@@ -34,7 +36,7 @@ const readCached = (key, fn, ttl = CUR_TTL) => {
   const c = curCache.get(key);
   const refresh = () => {
     if (curInflight.has(key)) return curInflight.get(key);
-    const p = fn().then(v => { curCache.set(key, { t: Date.now(), v }); if (CUR_DISK && v) { try { mkdirSync(CUR_DISK, { recursive: true }); writeFileSync(curDisk(key), v); } catch {} } return v; })
+    const p = fn().then(v => { curCache.set(key, { t: Date.now(), v }); if (CUR_DISK && v) { try { mkdirSync(CUR_DISK, { recursive: true }); writeFile(curDisk(key), v).catch(() => {}); } catch {} } return v; })
       .catch(e => { console.warn('refresh ' + key + ' failed:', e.message); return c ? c.v : null; })
       .finally(() => curInflight.delete(key));
     curInflight.set(key, p); return p;
@@ -49,8 +51,28 @@ const db = openStore(storage);
 /* תשובות טקסט גדולות (הדף, ה-store) נדחסות gzip כשהדפדפן תומך — 2.4MB HTML → ~0.5MB */
 function sendText(req, res, code, headers, body) {
   const buf = Buffer.isBuffer(body) ? body : Buffer.from(body, 'utf8');
-  if (buf.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) { res.writeHead(code, { ...headers, 'content-encoding': 'gzip', vary: 'accept-encoding' }); res.end(gzipSync(buf, { level: 6 })); }
-  else { res.writeHead(code, headers); res.end(buf); }
+  if (buf.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+    gzip(buf, { level: 6 }, (e, out) => { if (e) { res.writeHead(code, headers); res.end(buf); return; } res.writeHead(code, { ...headers, 'content-encoding': 'gzip', vary: 'accept-encoding' }); res.end(out); });
+  } else { res.writeHead(code, headers); res.end(buf); }
+}
+/* בנייה מקומית של הדף: רק כשקובץ מקור (src/, data/*.json, scripts/assemble.js) חדש מהבנייה האחרונה — ברקע, לא חוסמת,
+   ובקשות מקבילות ממתינות לאותה בנייה. בעבר רצה בנייה מלאה סינכרונית (כולל 74 תמונות) בכל טעינת דף — וחסמה את כל השרת */
+const SRC_WATCH = ['src', 'data', 'scripts/assemble.js', 'scripts/build.js', 'scripts/build-lite.js'];
+let buildP = null; const builtStamp = {};
+async function srcStamp() {
+  let m = 0;
+  for (const d of SRC_WATCH) { try { const st0 = await stat(d); if (!st0.isDirectory()) { if (st0.mtimeMs > m) m = st0.mtimeMs; continue; }
+    for (const f of await readdir(d)) { if (f.startsWith('.')) continue; try { const st1 = await stat(d + '/' + f); if (st1.isFile() && st1.mtimeMs > m) m = st1.mtimeMs; } catch {} } } catch {} }
+  return m;
+}
+async function ensureBuilt(isStudio) {
+  if (process.env.PREBUILT) return;
+  const key = isStudio ? 'studio' : 'app', out = isStudio ? 'dist/studio.html' : 'dist/index.html';
+  const stamp = await srcStamp();
+  if ((builtStamp[key] || 0) >= stamp && existsSync(out)) return;
+  if (!buildP) buildP = new Promise((res, rej) => execFile(process.execPath, [isStudio ? 'scripts/build-lite.js' : 'scripts/build.js'], { maxBuffer: 16e6 }, (e, so, se) => e ? rej(new Error(String(se || e.message))) : res()))
+    .then(() => { builtStamp[key] = stamp; }).finally(() => { buildP = null; });
+  await buildP;
 }
 /* store "קל" לדפדפן: הכבדים (תמונת רקע, PDF מקורי, היסטוריית גרסאות = ~40MB על 113 פרויקטים) לא נשלחים —
    רק הפרויקט הפתוח מקבל את תמונת הרקע שלו; השאר מסומנים hasBg/hasPdf/versN ונטענים לפי דרישה מ-/api/project/<id>.
@@ -413,8 +435,8 @@ const handleReq = async (req, res) => {
   const isStudio = path === '/studio';
   try {
     /* בענן (PREBUILT=1) ה-dist נבנה פעם אחת בבניית התמונה; מקומית — נבנה מחדש בכל בקשה כדי שהדף תמיד עדכני */
-    if (!process.env.PREBUILT) execFileSync(process.execPath, [isStudio ? 'scripts/build-lite.js' : 'scripts/build.js'], { stdio: 'pipe' });
-    let html = readFileSync(isStudio ? 'dist/studio.html' : 'dist/index.html', 'utf8');
+    await ensureBuilt(isStudio);
+    let html = await readFile(isStudio ? 'dist/studio.html' : 'dist/index.html', 'utf8');
     /* נתונים שנערכים באפליקציה (פריסות/תמונות גב) — הגרסה העדכנית מהאחסון במקום זו שנאפתה בבנייה */
     if (!isStudio) for (const [name, key] of [['REAR_LAYOUTS', 'rear_layouts.json'], ['REAR_IMAGES', 'rear_images.json']]) { const j = await readCached(key, () => storage.read(key)); if (j) html = injectData(html, name, j.toString('utf8')); }
     /* מצב המשתמש מוזרק לדף — הכותרת מציגה שיתוף/ניהול לבעלים, שם ויציאה למוזמן */
