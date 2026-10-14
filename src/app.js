@@ -7966,7 +7966,9 @@ function projGapCheck() {
           <span style="font-size:16px;line-height:1.5">${f.i}</span>
           <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;${f.ack ? 'text-decoration:line-through;color:#6b7d73' : ''}">${f.t}</span>
           <span style="flex:none;width:150px;display:flex;flex-direction:column;gap:4px">
-            <button style="font-size:11.5px;background:${f.ack ? '#8aa79a' : '#0f6e56'};color:#fff;border:none;border-radius:7px;padding:6px 8px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>
+            ${(() => { const m = /^(\w+)\((\d+)\)$/.exec(f.fn || ''); if (!m) return `<button style="font-size:11.5px;background:${f.ack ? '#8aa79a' : '#0f6e56'};color:#fff;border:none;border-radius:7px;padding:6px 8px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.fn}">${f.b}</button>`;
+              /* תיקון עם כמות: הכמות ניתנת לשינוי — לפעמים רוצים להוסיף רק חלק */
+              return `<div style="display:flex;gap:4px;align-items:center"><input type="number" min="1" max="999" value="${m[2]}" title="כמה להוסיף (מוצע: ${m[2]})" style="width:54px;margin:0;padding:4px 4px;font-size:12px;text-align:center;font-weight:700" onclick="event.stopPropagation()"><button style="font-size:11.5px;background:${f.ack ? '#8aa79a' : '#0f6e56'};color:#fff;border:none;border-radius:7px;padding:6px 8px;cursor:pointer;flex:1" onclick="const q=Math.max(1,+this.previousElementSibling.value||1);window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${m[1]}(q)">${f.b.replace(/\s*\d+\s*/, ' ')}</button></div>`; })()}
             ${f.alt ? `<button style="font-size:11px;background:#f0ede8;border:1px solid #ddd;border-radius:7px;padding:5px 8px;cursor:pointer" onclick="window.__gapReopen=1;document.querySelector('.uiDlgOv')?.remove();${f.alt.fn}">${f.alt.b}</button>` : ''}
           </span>
         </div>`).join('')}</div>
