@@ -1545,7 +1545,35 @@ function importStudioProject(d) {
   uiToast('🎧 יובא מ-KO Studio: תכנית, ' + p.zones.length + ' אזורים, ' + p.nodes.length + ' נקודות ורשימת ציוד מלאה');
 }
 function newProj() { const p = { id: uid('p'), name: 'פרויקט חדש', nodes: [], cables: [], route: 'ortho' }; ensureStock(p); sheetsInit(p); store.projects.push(p); P = p; sel = selCable = null; impItems = []; render(); }
-function dupProj() { const p = JSON.parse(JSON.stringify(P)); p.id = uid('p'); p.name = P.name + ' (עותק)'; store.projects.push(p); P = p; sel = selCable = null; render(); }
+/* שכפול פרויקט — עד איזה שלב: הכול · עד סימון האזורים (תכניות, כיול, אזורים — בלי מערכת) · תכנית וכיול בלבד */
+async function dupProj() {
+  const nZ = (P.sheets || []).reduce((s, sh) => s + (sh.zones || []).length, 0), nN = (P.sheets || []).reduce((s, sh) => s + (sh.nodes || []).filter(n => !n.hidden).length, 0), nI = (P.impSaved || []).length;
+  const mode = await new Promise(res => {
+    const ov = uiModal(`
+      <p style="font-size:14px;font-weight:800;margin:0 0 4px">📄 שכפול "${esc(P.name)}" — עד איזה שלב?</p>
+      <p class="muted" style="font-size:12px;margin:0 0 12px">${(P.sheets || []).length} תכניות · ${nZ} אזורים · ${nN} מוקדים · ${nI} פריטים בהצעה</p>
+      <button data-m="plan" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🖼 תכנית וכיול בלבד</b><br><span class="muted" style="font-size:11.5px">הרקעים, קנה המידה והטקסט מהשרטוט. בלי אזורים, מוקדים, כבלים והצעה — מתחילים מסימון האזורים.</span></button>
+      <button data-m="zones" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🗺 עד סימון האזורים</b><br><span class="muted" style="font-size:11.5px">תכנית, כיול ו-${nZ} האזורים (שם, שימוש, dB). בלי מוקדים, כבלים, ארונות והצעה — מתחילים מהגדרת המערכת.</span></button>
+      <button class="primary" data-m="all" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>📋 עותק מלא</b><br><span style="font-size:11.5px;opacity:.9">הכול כולל מוקדים, חיווט, הצעת המחיר והיסטוריית הגרסאות.</span></button>
+      <button data-m="" style="width:100%">ביטול</button>`);
+    const done = v => { ov.remove(); res(v); };
+    ov.querySelectorAll('[data-m]').forEach(bt => bt.onclick = () => done(bt.dataset.m));
+    ov.addEventListener('click', e => { if (e.target === ov) done(''); });
+  });
+  if (!mode) return;
+  const p = JSON.parse(JSON.stringify(P)); p.id = uid('p'); p.name = P.name + ' (עותק)';
+  if (mode !== 'all') {
+    for (const k of ['vers', 'impSaved', 'stock', 'xlinks', 'cabVis', '_gapAck', '_gapOk', '_instKit', 'erpOfferCode', 'erpQuoteFrom', 'thumb', 'thumbSig', 'sketch']) delete p[k];
+    for (const sh of p.sheets || []) {
+      sh.nodes = []; sh.cables = []; sh.conduits = [];
+      /* אזור בלי שאריות המערכת (ארון, DJ, רמקול שנבחר, תכנון) — רק הגאומטריה, השם, השימוש וה-dB */
+      sh.zones = mode === 'plan' ? [] : (sh.zones || []).map(z => Object.fromEntries(Object.entries(z).filter(([k]) => !k.startsWith('_'))));
+    }
+  }
+  p.upd = Date.now();
+  store.projects.push(p); switchProj(p.id); save();
+  uiToast('📄 נוצר "' + p.name + '" — ' + (mode === 'all' ? 'עותק מלא' : mode === 'zones' ? 'תכנית, כיול ואזורים (בלי מערכת)' : 'תכנית וכיול בלבד'), 5000);
+}
 async function delProj() {
   if (store.projects.length === 1) { alert('חייב להישאר לפחות פרויקט אחד'); return; }
   if (!(await uiConfirm('למחוק את הפרויקט "' + P.name + '"?'))) return;
@@ -6720,7 +6748,7 @@ async function patchDelAmp(ai) {
       <p class="muted" style="font-size:12px;margin:0 0 12px">${esc(rk.name)}${nSpk ? ' · מחוברים אליו ' + nSpk + ' קווי רמקול' : ' · אין קווי רמקול מחוברים'}${it ? ' · בהצעת המחיר: ' + (+it.qty || 1) + ' יח׳' : ' · לא נמצא בהצעת המחיר'}</p>
       <button data-m="rear" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🙈 רק מתצוגת גב הארון</b><br><span class="muted" style="font-size:11.5px">המגבר נשאר בארון, בחיווט ובהצעה — רק לא מוצג בגב הארון.</span></button>
       <button data-m="rack" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4"><b>🗄 מהארון בלבד</b><br><span class="muted" style="font-size:11.5px">יוצא מהארון${nSpk ? ', ' + nSpk + ' קווי הרמקול שלו חוזרים ל"ממתינים"' : ''}. נשאר בהצעת המחיר (להצבה מחדש).</span></button>
-      ${it ? `<button class="primary" data-m="offer" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4;background:#c1121f"><b>🗑 מהארון וגם מהצעת המחיר</b><br><span style="font-size:11.5px;opacity:.9">יוצא מהארון${nSpk ? ', הקווים חוזרים ל"ממתינים"' : ''}, והכמות בהצעה יורדת ב-1.</span></button>` : ''}
+      <button class="primary" data-m="offer" style="width:100%;margin-bottom:6px;text-align:right;line-height:1.4;background:#c1121f"><b>🗑 מהארון, מהחיווט וגם מהצעת המחיר</b><br><span style="font-size:11.5px;opacity:.9">יוצא מהארון ומטבלת החיווט${nSpk ? ', הקווים חוזרים ל"ממתינים"' : ''}${it ? ', והכמות בהצעה יורדת ב-1.' : '. בהצעה לא נמצאה שורה בשם הזה — אם הוא רשום שם בשם אחר, הורד את הכמות ידנית.'}</span></button>
       <button data-m="" style="width:100%">ביטול</button>`);
     const done = v => { ov.remove(); res(v); };
     ov.querySelectorAll('[data-m]').forEach(bt => bt.onclick = () => done(bt.dataset.m));
