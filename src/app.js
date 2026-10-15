@@ -12044,6 +12044,18 @@ function kitPrev(gi) {
     ${isUser ? `<button style="width:100%;margin-top:6px;background:#f3d9d2" onclick="kitDelete(${gi})">🗑 ${(typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim()) ? 'בטל את העריכה — חזרה לקיט ה-ERP המקורי' : 'מחק קיט'}</button>` : ''}`;
 }
 /* שמירת הקיט — בלי חלון שאלה: כשיש שורות חסרות מוצגים שני כפתורי שמירה (עם / בלי ההוספה). withMissing=true מוסיף אותן קודם */
+/* שמירה כקיט חדש: שם אחר, בלי להחליף את המקור (קיט ERP או קיט שלי) */
+async function saveKitDraftAs() {
+  if (!nkDraft) return;
+  const base = (nkDraft.name || '').trim();
+  const nm = await uiPrompt('שם הקיט החדש:', base ? base + ' (גרסה)' : '');
+  if (!nm || !nm.trim()) return;
+  const name = nm.trim();
+  if (allKits(true).some(k => (k.name || '').trim() === name)) { uiToast('⚠ כבר יש קיט בשם "' + name.slice(0, 40) + '" — בחר שם אחר'); return; }
+  nkDraft.name = name; nkDraft.editIdx = null; nkDraft.replaces = null; nkDraft.fromErp = false;
+  saveKitDraft(false);
+}
+window.saveKitDraftAs = saveKitDraftAs;
 function saveKitDraft(withMissing) {
   try { return saveKitDraft0(withMissing); } catch (e) { console.error(e); uiToast('⚠ השמירה נכשלה: ' + e.message); }
 }
@@ -12301,7 +12313,8 @@ function renderKitNew() {
     ${d.items.length ? `<p style="text-align:left;font-weight:800;margin:8px 6px 0">סה"כ הקיט: ₪${d.items.reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * (x.qty || 1); }, 0).toLocaleString()}</p>
     ${(() => { const nM = nkMissing().length; return nM
       ? '<button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft(true)">💾 הוסף את ' + nM + ' השורות החסרות ושמור</button><button style="width:100%;margin-top:6px" onclick="saveKitDraft()">💾 שמור בלי להוסיף</button>'
-      : '<button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>'; })()}` : ''}`;
+      : '<button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>'; })()}
+    <button style="width:100%;margin-top:6px;background:#efecfd;color:#4b3fb8;border:1px solid #c9c0f5;font-weight:700" onclick="saveKitDraftAs()" title="הקיט המקורי נשאר כמו שהוא; השינויים נשמרים כקיט שלי בשם חדש">📑 שמור את השינויים כקיט חדש (בשם אחר)</button>` : ''}`;
 }
 /* יצירת קיט חדש מהשורות המסומנות ✓ בהצעת המחיר */
 async function kitFromOffer() {
@@ -15145,10 +15158,10 @@ function zoneKitConfirm(zname, idx, opt) {
   const ov = uiModal(`
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
-    <div style="display:flex;gap:6px;align-items:center;margin:0 0 6px">
-      <select data-kitsw style="flex:1;font-size:12px;padding:3px 6px" title="החלפה לקיט אחר — הפופאפ נפתח מחדש עם הקיט שנבחר">${allKits().map((kk, i) => `<option value="${i}" ${i === idx ? 'selected' : ''}>🧰 ${esc((kk.name || '').slice(0, 60))} · ${(kk.items || []).length}</option>`).join('')}</select>
-      <button data-kitedit style="padding:3px 10px;font-size:11.5px;font-weight:700;white-space:nowrap" title="עריכת הקיט בבונה הקיטים (שורות, כמויות, החלפת פריט) — אחרי שמירה חוזרים לכאן">✎ ערוך קיט</button>
-      <button data-kitlist style="padding:3px 10px;font-size:11.5px;white-space:nowrap" title="רשימת כל הקיטים — עריכה, שכפול ויצירה">🧰 רשימה</button>
+    <div style="display:flex;gap:6px;align-items:center;margin:0 0 6px;flex-wrap:wrap">
+      <select data-kitsw style="flex:1 1 180px;min-width:0;max-width:100%;font-size:12px;padding:3px 6px" title="החלפה לקיט אחר — הפופאפ נפתח מחדש עם הקיט שנבחר">${allKits().map((kk, i) => `<option value="${i}" ${i === idx ? 'selected' : ''}>🧰 ${esc((kk.name || '').slice(0, 60))} · ${(kk.items || []).length}</option>`).join('')}</select>
+      <button data-kitedit style="flex:none;padding:3px 10px;font-size:11.5px;font-weight:700;white-space:nowrap" title="עריכת הקיט בבונה הקיטים (שורות, כמויות, החלפת פריט) — אחרי שמירה חוזרים לכאן">✎ ערוך קיט</button>
+      <button data-kitlist style="flex:none;padding:3px 10px;font-size:11.5px;white-space:nowrap" title="רשימת כל הקיטים — עריכה, שכפול ויצירה">🧰 רשימה</button>
     </div>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
     <div style="display:flex;align-items:center;gap:8px;margin:0 2px 8px"><button data-savekit style="padding:3px 10px;font-size:11.5px;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0" title="הכמויות והפריטים כפי שהם כאן נשמרים בקיט עצמו — לכל הפרויקטים">💾 עדכן את הקיט ברשימת הקיטים</button><div data-ktot style="flex:1;text-align:left;font-weight:800;font-size:13px"></div></div>
