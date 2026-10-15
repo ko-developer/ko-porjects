@@ -6917,6 +6917,7 @@ function patchRender() {
     ${insHtml}
     <div style="font-size:12px;font-weight:700;margin:8px 0 5px">${PATCH.srcPool.length ? '⚠ ' : '✓ '}מקורות ללא כניסה (${PATCH.srcPool.length})</div>
     <div class="pchPool ${PATCH.srcPool.length ? '' : 'ok'}" data-slot="srcpool">${PATCH.srcPool.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל המקורות מחוברים ✓</small>'}</div>
+    ${patchSrcAddHTML()}
     <div style="height:1px;background:#e3ded3;margin:12px 0"></div>` :
     ((PATCH.srcPool || []).length ? `<div style="font-size:11.5px;color:#c96a13;background:#fdf3e6;border-radius:9px;padding:7px 9px;margin-bottom:9px">🎧 יש ${PATCH.srcPool.length} מקורות נגינה בתכנית, אבל אין בארון פרוססור/מיקסר לחבר אליו — <button onclick="patchProcPicker()" style="padding:2px 10px;font-weight:700;background:#eef7f1;color:#0f6e56">➕ הוסף פרוססור</button> להצעה ולארון.</div>` : '');
   const spkBlock = amps + patchBundleDiagrams() + `
@@ -7118,6 +7119,31 @@ function srcChipWired(id) {
 function srcUnwired() { return srcAllChipIds().filter(id => !srcChipWired(id)).length; }
 /* טבלת חיווט של המקורות בלבד (מקורות → פרוססור/מיקסר). מעל חלונות אחרים כדי
    שאפשר לפתוח אותה מתוך חלון הקיט ולחזור אליו כשסוגרים. */
+/* הוספת מקור נגינה לאזור מתוך טבלת המקורות — בלי לחזור לאשף: המקור נכנס לאזור, מוצב, ומופיע ב"מקורות ללא כניסה" לגרירה */
+function patchSrcAddHTML() {
+  const z = PATCH && (P.zones || []).find(x => x.id === PATCH.zid); if (!z) return '';
+  const have = new Set(zoneOwnSources(z));
+  const opts = Object.entries(SRC_LBL).filter(([k]) => !have.has(k));
+  return `<div style="display:flex;gap:5px;align-items:center;margin-top:6px;flex-wrap:wrap">
+    <select data-addsrc style="font-size:11.5px;padding:2px 6px;min-width:0;flex:1 1 140px">${opts.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}${opts.length ? '' : '<option value="">כל סוגי המקורות כבר באזור</option>'}</select>
+    <button style="padding:2px 10px;font-weight:700;background:#eef7f1;color:#0f6e56;flex:none" ${opts.length ? '' : 'disabled'} onclick="patchSrcAdd()">➕ הוסף מקור ל"${esc(z.name.slice(0, 18))}"</button>
+    <small class="muted" style="font-size:10.5px">המקור נכנס לאזור ומופיע כאן לגרירה אל כניסה</small></div>`;
+}
+function patchSrcAdd() {
+  if (!PATCH) return;
+  const sel = document.querySelector('#patchOv [data-addsrc]'), k = sel && sel.value; if (!k) return;
+  const z = (P.zones || []).find(x => x.id === PATCH.zid); if (!z) return;
+  if (zoneOwnSources(z).includes(k)) { uiToast((SRC_LBL[k] || k) + ' כבר באזור'); return; }
+  const before = new Set(srcAllChipIds());
+  wizSrcToggle(z.id, k);   /* מוסיף לאזור, מציב על התכנית/בארון, שומר */
+  const used = new Set(Object.values(PATCH.inSlots || {}).flat());
+  const fresh = srcAllChipIds().filter(id => !before.has(id) && !used.has(id));
+  PATCH.srcPool.push(...fresh);
+  const o = document.getElementById('patchOv'); if (o) o.style.zIndex = ++FLOAT_Z;
+  patchRender();
+  uiToast('➕ ' + (SRC_LBL[k] || k) + ' נוסף ל"' + z.name + '"' + (fresh.length ? ' — גרור אותו אל כניסה' : ''), 4500);
+}
+window.patchSrcAdd = patchSrcAdd;
 function openSrcWire(zid, onClose) {
   const z = (P.zones || []).find(x => x.id === zid) || (P.zones || [])[0];
   if (!z) { uiToast('אין אזור בתכנית'); return Promise.resolve(); }
@@ -12056,6 +12082,15 @@ async function saveKitDraftAs() {
   saveKitDraft(false);
 }
 window.saveKitDraftAs = saveKitDraftAs;
+/* סדר הפריטים בקיט — ▲▼ (הסדר נשמר בקיט ומשפיע על ההצעה והארון) */
+function nkMove(i, d) {
+  const a = nkDraft && nkDraft.items; if (!a) return;
+  const j = i + d; if (j < 0 || j >= a.length) return;
+  [a[i], a[j]] = [a[j], a[i]];
+  if (nkDraft.replIdx === i) nkDraft.replIdx = j; else if (nkDraft.replIdx === j) nkDraft.replIdx = i;
+  renderKitNew();
+}
+window.nkMove = nkMove;
 function saveKitDraft(withMissing) {
   try { return saveKitDraft0(withMissing); } catch (e) { console.error(e); uiToast('⚠ השמירה נכשלה: ' + e.message); }
 }
@@ -12306,6 +12341,7 @@ function renderKitNew() {
       <code style="font-size:10px;color:#666;background:#f3f1ec;border-radius:4px;padding:1px 5px;white-space:nowrap">${esc(x.key || '—')}</code>
       <span class="muted" style="white-space:nowrap;font-size:11px">${stockBadge(x.key) || (pr ? '₪' + pr.toLocaleString() : '')}</span>
       <b style="white-space:nowrap">${pr ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</b>
+      <span style="display:inline-flex;flex-direction:column;gap:0"><button style="padding:0 5px;font-size:9px;line-height:11px" title="הזז למעלה" ${i === 0 ? 'disabled' : ''} onclick="nkMove(${i},-1)">▲</button><button style="padding:0 5px;font-size:9px;line-height:11px" title="הזז למטה" ${i === d.items.length - 1 ? 'disabled' : ''} onclick="nkMove(${i},1)">▼</button></span>
       <button style="padding:0 6px" title="החלפת הפריט — חיפוש בקטלוג" onclick="nkReplStart(${i})">🔄</button>
       <button style="padding:0 6px" onclick="nkDraft.items.splice(${i},1);renderKitNew()">✕</button></div>
       ${alts.length ? `<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:3px 50px 2px 0;font-size:10.5px"><span class="muted">מוצר מחליף:</span>${alts.map(a => `<button style="padding:1px 7px;font-size:10.5px;border:1px solid ${a.why === 'דגם חדש יותר' ? '#0f6e56' : '#cfd3dc'};background:${a.why === 'דגם חדש יותר' ? '#eef7f1' : '#fff'};border-radius:6px" title="${esc(a.name)} · ${a.why} — לחיצה מחליפה" onclick="nkReplace(${i},'${a.key}','${jsq(a.name)}')">${a.why === 'דגם חדש יותר' ? '🆕 ' : a.why.startsWith('אותו') ? '= ' : '↔ '}${esc(shortModel(a.name) || a.name.slice(0, 22))} · ₪${a.price.toLocaleString()} · <span style="color:${a.stock > 9 ? '#0a7a4b' : a.stock > 0 ? '#b8860b' : '#a32222'}">מלאי ${Math.round(a.stock)}</span></button>`).join('')}</div>` : ''}</div>`; }).join('')}
@@ -15412,7 +15448,7 @@ function zoneTierKits(z) {
       .sort((a, b) => ((b._liveFit ? 1 : 0) - (a._liveFit ? 1 : 0)) || (a._price - b._price) || (a._stock.dead - b._stock.dead));   /* בהופעות: קיטים ייעודיים להופעות קודם */
     const near = inB.slice().sort((a, b) => (b._spl - a._spl) || (a._price - b._price));
     const pick = fit[0] || near[0];
-    const alt = (fit.length ? fit : near).filter(x => x !== pick).slice(0, 3);
+    const alt = [...fit, ...near.filter(x => !fit.includes(x))].filter(x => x !== pick);
     out.push({ label, color, blurb, fits: !!fit.length, gap: true, pick, alt });
   });
   return out;
@@ -15468,7 +15504,7 @@ function zoneSpkPicker(zid, tab) {
           <span class="muted" style="font-size:11px;flex:1">${t.blurb}</span></div>
           ${t.fits === false ? '<p style="font-size:11px;color:#a32222;margin:2px 0">⚠ אין בדרגה זו קיט שעומד ביעד — מוצג הקרוב ביותר</p>' : ''}
           ${t.empty ? '<p class="muted" style="font-size:11.5px;margin:4px 0">אין קיט של המותג בקטלוג — בחר רמקולים בלשונית "מוצרים" או בנה קיט חדש</p>' : kitCard(t.pick, t.color + '33')}
-          ${t.alt.length ? `<details><summary style="font-size:11.5px;cursor:pointer;color:#666">עוד ${t.alt.length} של ${esc(t.label)}</summary>${t.alt.map(a => kitCard(a)).join('')}</details>` : ''}
+          ${t.alt.length ? `<details><summary style="font-size:11.5px;cursor:pointer;color:#666">עוד ${t.alt.length} של ${esc(t.label)} — כל הקיטים של המותג</summary>${t.alt.map(a => kitCard(a)).join('')}</details>` : ''}
         </div>`).join('') || '<p class="muted">אין קיטי סאונד בקטלוג</p>';
     } else if (TAB === 'kits') {
       const q = (body.dataset.q || '').toLowerCase();
