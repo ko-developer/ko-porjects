@@ -3070,6 +3070,15 @@ const REAR_TYPES = [['speakon', 'ספיקון NL4'], ['xlrf', 'XLR נקבה'], [
 function rearEditor(unitId) {
   for (const n of P.nodes) if (n.kind === 'rack') { const u = (n.units || []).find(x => x.id === unitId); if (u) { rearEditorByName(u.name); return; } }
 }
+/* אילו דגמים רשומת גב מכסה — לפי הביטוי שלה מול טבלאות המגברים/הפרוססורים וקטלוג ה-ERP ("DNA" → DNA 20, DNA 40, DNA 80, DNA 100, DNA 120) */
+function rearModelsOf(re) {
+  let rx; try { rx = new RegExp(re instanceof RegExp ? re.source : String(re || ''), 'i'); } catch { return []; }
+  if (!re) return [];
+  const out = new Set(), norm = m => m.replace(/([A-Za-z])(\d)/g, '$1 $2').replace(/\s+/g, ' ').trim();   /* "DNA40" ו-"DNA 40" — אותו דגם */
+  (typeof AMP_DATA !== 'undefined' ? AMP_DATA : []).forEach(d => { const nm = rearPretty(d.re); if (nm && rx.test(nm)) out.add(norm(nm)); });
+  if (typeof ERP_ITEMS !== 'undefined') ERP_ITEMS.forEach(([, nm]) => { if (nm && rx.test(nm)) { const m = shortModel(nm); if (m) out.add(norm(m)); } });
+  return [...out].sort((a, b) => a.localeCompare(b, 'en', { numeric: true })).slice(0, 12);
+}
 function rearEditorByName(uname) {
   const src = rearLayoutSrc(uname);
   const items = JSON.parse(JSON.stringify(src.items));
@@ -3089,7 +3098,18 @@ function rearEditorByName(uname) {
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:760px;width:96%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)">
     <b style="display:block;margin-bottom:2px">✎ עריכת גב הדגם — ${esc(window.__rearName)}</b>
-    <p class="muted" style="margin:0 0 8px">מקור הפריסה: <b>${srcTxt}</b> · השמירה עוברת לשרת (data/rear_layouts.json) ותקפה לכל הפרויקטים והדוחות.</p>
+    <p class="muted" style="margin:0 0 6px">מקור הפריסה: <b>${srcTxt}</b> · השמירה עוברת לשרת (data/rear_layouts.json) ותקפה לכל הפרויקטים והדוחות.</p>
+    ${(() => { /* איזו רשומה בספרייה נשמרת ואילו דגמים היא מכסה — "DNA" לבד לא אומר כלום, DNA 20 / 40 / 80 / 100 כן */
+      const ent = window.__rearEntry, models = rearModelsOf(ent.re), shared = ent.name !== window.__rearName;
+      const mine = shortModel(window.__rearName) || window.__rearName;
+      return `<div style="background:#f6f4ee;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:12px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;gap:4px;align-items:center;flex:1;min-width:200px">רשומה בספרייה <input value="${esc(ent.name).replace(/"/g, '&quot;')}" style="flex:1;font-size:12px" oninput="window.__rearEntry.name=this.value.trim()" title="שם הרשומה כפי שמופיע ברשימת הגבים"></label>
+          <label style="display:flex;gap:4px;align-items:center;flex:1;min-width:220px">תואמת לשמות (ביטוי) <input value="${esc(ent.re).replace(/"/g, '&quot;')}" style="flex:1;font-size:12px;direction:ltr" oninput="window.__rearEntry.re=this.value.trim();const el=document.getElementById('rearModels');if(el)el.textContent=rearModelsOf(this.value).join(' · ')||'—'" title="ביטוי רגולרי מול שם המוצר — כל מוצר שתואם משתמש בגב הזה"></label>
+        </div>
+        <div style="margin-top:4px;color:#5a5447">דגמים שמכוסים ברשומה הזו: <b id="rearModels">${esc(models.join(' · ') || '—')}</b>${models.length > 1 ? ' <span class="muted">(כולם מקבלים את אותו גב)</span>' : ''}</div>
+        ${shared && mine && mine !== ent.name ? `<div style="margin-top:4px;color:#5a5447">הדגם שנערך עכשיו: <b>${esc(mine)}</b> · <button style="padding:1px 8px;font-size:11px" title="רשומה נפרדת רק לדגם הזה — שאר הסדרה נשארת על הרשומה המשותפת" onclick="const n='${jsq(mine)}';window.__rearEntry={name:n,re:n.replace(/[.*+?^\\\\\\$\\{}()|[\\]\\\\\\\\]/g,'\\\\\\$&').replace(/\\s+/g,'\\\\s?')};const ins=this.closest('div').parentNode.querySelectorAll('input');ins[0].value=n;ins[1].value=window.__rearEntry.re;document.getElementById('rearModels').textContent=rearModelsOf(window.__rearEntry.re).join(' · ')||n;this.disabled=true">✂ פצל לרשומה של ${esc(mine)} בלבד</button></div>` : ''}
+      </div>`; })()}
     <div class="fld" style="margin-bottom:8px"><label>📋 משוך פריסת גב ממוצר אחר (מעתיק את כל המחברים)</label>
       <select onchange="if(this.value!==''){rearCopyFrom(this.value);this.value='';}">
         <option value="">— בחר דגם להעתקה —</option>
@@ -3508,7 +3528,7 @@ function rearLibManager() {
       <button style="flex:1" onclick="$('#rearLibIn').click()">📥 ייבוא JSON</button>
     </div>
     ${rows.map(r => { const grp = r.brand + ' · ' + r.type; const hdr = grp !== lastGrp ? `<div class="rlgrp" data-grp="${esc(grp)}" style="font-size:11px;font-weight:700;color:#534ab7;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #e9e6f8">${esc(r.brand)} <span style="color:#8a8377;font-weight:400">· ${esc(r.type)}</span></div>` : ''; lastGrp = grp; return hdr + `<div class="rlrow" data-grp="${esc(grp)}" data-brand="${esc(r.brand)}" data-type="${esc(r.type)}" data-img="${(rearImage(r.name) || {}).url ? 1 : 0}" data-q="${esc((r.name + ' ' + r.brand + ' ' + r.type).toLowerCase())}" style="padding:5px 8px;border:1px solid #eee;border-radius:7px;margin-bottom:4px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
-      <b style="flex:1;font-size:12px">${esc(r.name)}</b>
+      <b style="flex:1;font-size:12px">${esc(r.name)}${(() => { const e = (typeof REAR_LAYOUTS !== 'undefined' && REAR_LAYOUTS.find(x => x.name === r.name)) || REAR_KB.find(x => rearPretty(x.re) === r.name); const ms = e ? rearModelsOf(e.re).filter(m => m !== r.name) : []; return ms.length ? ` <span class="muted" style="font-weight:400;font-size:10.5px">· ${esc(ms.join(' · '))}</span>` : ''; })()}</b>
       <span class="muted" style="font-size:10px">${r.outs} יציאות · ${r.n} מחברים · ${r.src}</span>
       <button style="padding:1px 8px" onclick="document.getElementById('rearLibOv').remove();rearEditorByName('${jsq(r.name)}')">✎</button>
       ${r.custom ? `<button style="padding:1px 8px;background:#e3f0ff" title="העבר את הפריסה המותאמת לספריית השרת — תקף לכל הפרויקטים" onclick="rearLibPush('${jsq(r.name)}')">⬆ לשרת</button><button style="padding:1px 8px;background:#f3d9d2" onclick="uiConfirm('למחוק את הדגם המותאם?').then(ok=>{if(ok){delete store.rearLib['${jsq(r.name)}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}})">✕</button>` : r.srv ? `<button style="padding:1px 8px;background:#f3d9d2" title="מחיקה מספריית השרת" onclick="rearSrvDelete('${jsq(r.name)}')">✕</button>` : ''}
