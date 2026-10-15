@@ -13149,9 +13149,11 @@ function pickSearchItem(name, key) {
   /* מצב החלפה — התוצאה מחליפה את הפריט המסומן במקום להוסיף חדש */
   if (replFor) {
     const t = impItems.find(x => x.iid === replFor);
+    const oldName = t ? t.name : '';
     if (t) { t.name = name; if (key) t.key = key; t.price = undefined; autoPrice(t); }
     replFor = null; dockQ = '';
     render(); save();
+    if (t) replaceRackUnits(t, oldName);
     return;
   }
   let it = impItems.find(x => x.name === name);
@@ -13788,6 +13790,45 @@ function setItemZone(i, v) {
   const it = impItems[i];
   if (!v) delete it.zones; else it.zones = { [v]: it.placed || it.qty || 1 };
   renderImp(); save();
+}
+/* הוחלף פריט בהצעה שיש לו יחידות בארון (מגבר/פרוססור): שואלים אם להחליף גם בארון ובטבלת החיווט —
+   היחידות מקבלות את הדגם החדש, והרמקולים שחווטו מהן (וגם פאצ׳ים פנימיים) חוזרים למאגר הניתוב, כי ערוצי המגבר החדש שונים */
+async function replaceRackUnits(it, oldName) {
+  const sm = shortModel(oldName), same = nm => { const a = nm || '', b = oldName || ''; return a === b || a.startsWith(b) || b.startsWith(a) || (sm && shortModel(a) === sm); };
+  const hits = [];
+  P.nodes.forEach(rk => { if (rk.kind !== 'rack') return; (rk.units || []).forEach(u => { if (u.srcIid === it.iid || (!u.srcIid && same(u.name))) hits.push({ rk, u }); }); });
+  /* אין יחידה בשם הישן (הפריט כבר הוחלף בהצעה בעבר) — יחידות "יתומות" בארון שאינן תואמות לשום פריט בהצעה, עד הכמות של הפריט */
+  let orphan = false;
+  if (!hits.length && it.dest === 'unit' && !isServiceItem(it.name)) {
+    const matchAny = u => impItems.some(x => x.dest === 'unit' && (x.iid === u.srcIid || (() => { const a = x.name || '', b = u.name || '', s2 = shortModel(b); return a === b || a.startsWith(b) || b.startsWith(a) || (s2 && shortModel(a) === s2); })()));
+    P.nodes.forEach(rk => { if (rk.kind !== 'rack') return; (rk.units || []).forEach(u => { if ((u.cat === 'amp' || u.cat === 'audio') && !matchAny(u) && hits.length < (+it.qty || 1)) hits.push({ rk, u }); }); });
+    orphan = hits.length > 0;
+  }
+  if (!hits.length) return;
+  const cabs = (P.cables || []).filter(c => hits.some(({ rk, u }) => (c.from === rk.id && c.fromUnit === u.id) || (c.to === rk.id && c.toUnit === u.id) || (c.bands || []).some(bd => bd.unitId === u.id)));
+  const nSpk = cabs.filter(c => !c.internal && c.from !== c.to).length;
+  const ok = await uiConfirm((oldName !== it.name ? 'הפריט הוחלף בהצעת המחיר: ' + shortModel(oldName) + ' ← ' + shortModel(it.name) : 'הפריט בהצעה: ' + shortModel(it.name))
+    + (orphan ? '\n\nבארון יש ' + (hits.length > 1 ? hits.length + ' יחידות' : 'יחידה') + ' שלא תואמות לשום פריט בהצעה (' + [...new Set(hits.map(h => shortModel(h.u.name)))].join(', ') + ') — להחליף אותן לדגם הזה גם בארון ובטבלת החיווט?' : '\n\nלהחליף גם את ' + (hits.length > 1 ? hits.length + ' היחידות' : 'היחידה') + ' בארון ובטבלת החיווט?')
+    + (nSpk ? '\n' + nSpk + ' קווי רמקול שחווטו מהמגבר הישן יחזרו למאגר הניתוב (הערוצים של הדגם החדש שונים) — חווט אותם מחדש בטבלת החיווט.' : '\nאין קווי רמקול מחוברים ליחידות האלה.'),
+    { okText: '🔄 החלף גם בארון ובחיווט', cancelText: 'רק בהצעה' });
+  if (!ok) return;
+  const del = new Set(cabs.map(c => c.id));
+  const zids = new Set();
+  /* האזור לחיווט מחדש — לפי הרמקולים שהיו מחוברים (הארון עצמו יכול לעמוד מחוץ לאזור) */
+  cabs.forEach(c => { if (c.internal || c.from === c.to) return; const sp = byId(c.to); const z = sp && typeof nodeZoneGeo === 'function' ? nodeZoneGeo(sp) : null; if (z) zids.add(z.id); });
+  P.cables = (P.cables || []).filter(c => !del.has(c.id));
+  const um = /(\d)\s?U\b/i.exec(it.name), uH = um ? Math.max(1, Math.min(6, +um[1])) : (it.u || null);
+  hits.forEach(({ rk, u }) => {
+    u.name = it.name.slice(0, 40); u.srcIid = it.iid; if (it.key) u.key = it.key;
+    if (uH && uH !== u.u) { u.u = uH; try { rackArrange(rk); } catch (e) {} }
+    delete u.bridged; delete u.inCh; delete u.sigNet;
+    const z = typeof nodeZoneGeo === 'function' ? nodeZoneGeo(rk) : null; if (z) zids.add(z.id);
+  });
+  if (PATCH) { const zid = PATCH.zid; patchClose(); if (zid) zids.add(zid); }
+  save(); render();
+  uiToast('🔄 ' + hits.length + ' יחידות בארון הוחלפו ל-' + shortModel(it.name) + (nSpk ? ' · ' + nSpk + ' רמקולים חזרו למאגר הניתוב' : ''), 6000);
+  const zid = [...zids][0];
+  if (zid && nSpk && typeof smartWire === 'function') setTimeout(() => smartWire(zid), 300);
 }
 function startReplace(iid) {
   replFor = replFor === iid ? null : iid;
