@@ -12057,8 +12057,10 @@ function saveKitDraft0(withMissing) {
   if (nkDraft.replaces && nkDraft.replaces.trim() !== rec.name) rec.replaces = nkDraft.replaces.trim();   /* נשמר מהעורך = נבדק; מה שחסר הוצג שם ולא יוצע שוב במסך הכבלים */
   if (nkDraft.editIdx != null && store.userKits[nkDraft.editIdx]) store.userKits[nkDraft.editIdx] = rec;
   else store.userKits.push(rec);
-  const wasErp = nkDraft.fromErp, backCab = nkDraft.backCab;
-  save(); nkDraft = null; backCab ? kitCabAll() : renderKits();
+  const wasErp = nkDraft.fromErp, backCab = nkDraft.backCab, backKit = nkDraft.backKit;
+  save(); nkDraft = null;
+  if (backKit) { closeKits(); const gi = allKits().indexOf(rec); zoneKitConfirm(backKit.zname, gi >= 0 ? gi : backKit.idx, backKit.opt); }   /* נפתח מפופאפ הקיט לאזור — חוזרים אליו עם הקיט המעודכן */
+  else backCab ? kitCabAll() : renderKits();
   uiToast(wasErp ? '✎ הקיט "' + rec.name.slice(0, 40) + '" נשמר — הגרסה שלך מחליפה את קיט ה-ERP בכל האפליקציה' : '✓ הקיט "' + rec.name.slice(0, 40) + '" נשמר');
 }
 /* עריכת קיט קיים — טוען לתוך בונה הקיט (דגם מובנה → עותק מותאם) */
@@ -12266,7 +12268,7 @@ function renderKitNew() {
         .sort((a, b) => (+b[3] || 0) - (+a[3] || 0)).slice(0, 10) : [];
   const RCLS_HE = { spk: 'רמקולים', spkA: 'רמקולים מוגברים', sub: 'סאבים', subA: 'סאבים מוגברים', amp: 'מגברים', cabSpk: 'כבלי רמקול', cabPwr: 'כבלי חשמל', cabSig: 'כבלי סיגנל (XLR / DMX / RCA)', cabData: 'כבלי רשת / HDMI', cab: 'כבלים', rcv: 'רסיברים ביתיים', ampPA: 'מגברי כריזה', proc: 'פרוססורים', procK: 'פרוססורי קריוקי', mixer: 'מיקסרים', mic: 'מיקרופונים' };
   $('#impList').innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center"><button onclick="const b=nkDraft&&nkDraft.backCab;nkDraft=null;b?kitCabAll():renderKits()">← ביטול וחזרה</button><span style="flex:1"></span>
+    <div style="display:flex;gap:8px;align-items:center"><button onclick="const d=nkDraft||{};nkDraft=null;if(d.backKit){closeKits();zoneKitConfirm(d.backKit.zname,d.backKit.idx,d.backKit.opt)}else d.backCab?kitCabAll():renderKits()">← ביטול וחזרה</button><span style="flex:1"></span>
     ${d.editIdx != null || d.fromErp ? `<button onclick="nkDelete()" style="background:${d.delArm ? '#c1121f' : '#f3d9d2'};color:${d.delArm ? '#fff' : '#8a1c1c'};font-weight:700" title="הקיט יוסר מרשימת הקיטים (אפשר להחזיר דרך המסנן ✕ מוסתרים)">${d.delArm ? '🗑 לחץ שוב לאישור המחיקה' : '🗑 מחק מרשימת הקיטים'}</button>` : ''}</div>
     <h3 style="margin:10px 0 4px">➕ קיט חדש</h3>
     <div class="fld"><label>שם הקיט</label><input id="nkName" value="${esc(d.name)}" oninput="nkDraft.name=this.value"></div>
@@ -15143,6 +15145,11 @@ function zoneKitConfirm(zname, idx, opt) {
   const ov = uiModal(`
     <b style="font-size:14px">🧰 ${esc(k.name)} — ${k.items.length} פריטים</b>
     <p class="muted" style="font-size:10.5px;margin:4px 0">ערוך כמויות · 0 = דלג · 🔄 מחליף פריט מהקטלוג במידת הצורך</p>
+    <div style="display:flex;gap:6px;align-items:center;margin:0 0 6px">
+      <select data-kitsw style="flex:1;font-size:12px;padding:3px 6px" title="החלפה לקיט אחר — הפופאפ נפתח מחדש עם הקיט שנבחר">${allKits().map((kk, i) => `<option value="${i}" ${i === idx ? 'selected' : ''}>🧰 ${esc((kk.name || '').slice(0, 60))} · ${(kk.items || []).length}</option>`).join('')}</select>
+      <button data-kitedit style="padding:3px 10px;font-size:11.5px;font-weight:700;white-space:nowrap" title="עריכת הקיט בבונה הקיטים (שורות, כמויות, החלפת פריט) — אחרי שמירה חוזרים לכאן">✎ ערוך קיט</button>
+      <button data-kitlist style="padding:3px 10px;font-size:11.5px;white-space:nowrap" title="רשימת כל הקיטים — עריכה, שכפול ויצירה">🧰 רשימה</button>
+    </div>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
     <div style="display:flex;align-items:center;gap:8px;margin:0 2px 8px"><button data-savekit style="padding:3px 10px;font-size:11.5px;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0" title="הכמויות והפריטים כפי שהם כאן נשמרים בקיט עצמו — לכל הפרויקטים">💾 עדכן את הקיט ברשימת הקיטים</button><div data-ktot style="flex:1;text-align:left;font-weight:800;font-size:13px"></div></div>
     ${!kitHasSpk && INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
@@ -15160,6 +15167,13 @@ function zoneKitConfirm(zname, idx, opt) {
     ${kitHasSpk ? `<button data-auto style="width:100%;margin-bottom:6px" ${z ? '' : 'disabled title="דרוש אזור מסומן"'}>⚙ בנה מערכת אוטומטית — מחשב כמות רמקולים לפי שטח האזור</button>` : ''}
     <button data-cancel style="width:100%">ביטול</button>`);
   const done = () => ov.remove();
+  /* החלפה לקיט אחר / עריכת הקיט בבונה (וחזרה לכאן אחרי שמירה או ביטול) / רשימת הקיטים */
+  const ksw = ov.querySelector('[data-kitsw]');
+  if (ksw) ksw.onchange = () => { const i2 = +ksw.value; if (i2 >= 0 && i2 !== idx) { done(); zoneKitConfirm(zname, i2, opt); } };
+  const ked = ov.querySelector('[data-kitedit]');
+  if (ked) ked.onclick = () => { done(); showKits(); kitEdit(idx); if (nkDraft) nkDraft.backKit = { zname, idx, opt }; };
+  const kls = ov.querySelector('[data-kitlist]');
+  if (kls) kls.onclick = () => { done(); showKits(); };
   /* שינוי הפיזור נשמר על האזור מיד — גם "הוסף כמו שהוא" וגם הבנייה האוטומטית משתמשים בו */
   const plSel = ov.querySelector('[data-place]');
   if (plSel) plSel.onchange = () => {
