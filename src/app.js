@@ -184,10 +184,40 @@ normalizeAll();
    כשהשרת רץ (localhost) ה-store נטען מ-/api/store ונשמר אליו אוטומטית;
    בפריסה סטטית (Netlify) ה-fetch נכשל וממשיכים עם localStorage כרגיל. */
 let SRV = false, srvT = null, SRV_STORE = '';   /* SRV_STORE: מאיפה השרת הגיש את ה-store (דלי / מקומי) — נשלח חזרה בכל שמירה */
+/* באנר מצב השרת — כשאין חיבור או כשהשמירה נכשלת. בלי זה העבודה המשיכה בשקט על עותק מקומי ואבדה בריענון */
+function srvBanner(html) {
+  let b = document.getElementById('srvBanner');
+  if (!html) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'srvBanner'; b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#c1121f;color:#fff;font-size:12.5px;font-weight:700;padding:6px 12px;text-align:center;direction:rtl;box-shadow:0 2px 8px rgba(0,0,0,.3)'; (document.body || document.documentElement).appendChild(b); }
+  b.innerHTML = html;
+}
+/* הדף נטען אבל ה-store לא הגיע מהשרת (שרת באתחול / תקלה): עובדים על העותק המקומי, מודיעים בקול, ומנסים להתחבר כל 8 שניות.
+   כשהחיבור חוזר — בחירה: לשמור את מה שנעשה בינתיים לשרת (פרויקטים חדשים מתווספים, פרויקט שנערך גם בשרת — החדש יותר נשאר) או לטעון מהשרת */
+let srvOfflineT = null;
+function srvOffline(code) {
+  if (!window.__AUTH || srvOfflineT) return;
+  srvBanner('⚠ אין חיבור לשרת' + (code ? ' (קוד ' + code + ')' : '') + ' — האפליקציה עובדת על עותק מקומי והשינויים <u>לא נשמרים בענן</u>. מנסה להתחבר מחדש כל כמה שניות…');
+  const tick = async () => {
+    try {
+      const r = await fetch('/api/store', { cache: 'no-store' });
+      if (!r.ok) throw new Error(r.status);
+      clearInterval(srvOfflineT); srvOfflineT = null;
+      SRV_STORE = r.headers.get('x-ko-store') || '';
+      const keep = await uiConfirm('החיבור לשרת חזר.\n\nמה לעשות עם השינויים שנעשו בלי חיבור?\n• שמור לשרת — פרויקטים חדשים יתווספו; פרויקט שנערך בינתיים גם במקום אחר יישאר לפי הגרסה החדשה יותר.\n• טען מהשרת — השינויים שנעשו כאן בלי חיבור יאבדו.', { okText: '💾 שמור את המצב הנוכחי לשרת', cancelText: '🔄 טען מהשרת' });
+      if (keep) { SRV = true; srvBanner(''); await pushSrvNow(); uiToast('✓ נשמר לשרת'); } else location.reload();
+    } catch (e) {}
+  };
+  srvOfflineT = setInterval(tick, 8000);
+}
+let srvFailT = null;
+function srvSaveFail(code) {
+  srvBanner('⚠ השמירה לשרת נכשלה' + (code ? ' (קוד ' + code + ')' : ' (אין תשובה)') + ' — השינוי האחרון <u>לא נשמר</u>. מנסים שוב בעוד 5 שניות; אל תסגור את הלשונית.');
+  if (!srvFailT) srvFailT = setTimeout(() => { srvFailT = null; pushSrvNow(); }, 5000);
+}
 (async () => {
   try {
     const r = await fetch('/api/store', { cache: 'no-store' });
-    if (!r.ok) return;
+    if (!r.ok) { srvOffline(r.status); return; }
     const s = await r.json();
     SRV = true; SRV_STORE = r.headers.get('x-ko-store') || '';
     if (s && Array.isArray(s.projects) && s.projects.length) {
@@ -204,7 +234,7 @@ let SRV = false, srvT = null, SRV_STORE = '';   /* SRV_STORE: מאיפה השר�
     } else {
       pushSrv(); // DB ריק — זרע אותו ממה שיש בדפדפן
     }
-  } catch (e) {}
+  } catch (e) { srvOffline(0); }
 })();
 /* store "קל" מהשרת: תמונת הרקע / ה-PDF של פרויקטים שאינם פתוחים לא נשלחים (40MB על 113 פרויקטים) — במקומם hasBg/hasPdf.
    הגישה הראשונה ל-p.bg / p.bgPdf מביאה את החלק מ-/api/project/<id> ומציירת מחדש; עד אז undefined (התכנית בלי רקע לרגע).
@@ -234,8 +264,8 @@ function pushSrvNow() {
   const body = JSON.stringify(store);
   srvDirty = true;
   const p = srvInFlight = fetch('/api/store', { method: 'POST', headers: { 'content-type': 'application/json', 'x-ko-store': SRV_STORE }, body, keepalive: body.length < 60000 })
-    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; } if (r.status === 409) srvStale(); else if (!r.ok) console.warn('שמירה לשרת נכשלה', r.status); })
-    .catch(() => {});
+    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; } if (r.ok) { if (document.getElementById('srvBanner') && !srvOfflineT) srvBanner(''); } else if (r.status === 409) srvStale(); else { console.warn('שמירה לשרת נכשלה', r.status); srvSaveFail(r.status); } })
+    .catch(() => { srvSaveFail(0); });
   return p;
 }
 /* השרת עבר למקור נתונים אחר (חזר לדלי אחרי ניתוק) — הלשונית הזו מציגה נתונים ישנים ואסור שתדרוס; טוענים מחדש */
@@ -1925,15 +1955,64 @@ function firstFree(rack, u) {
   return -1;
 }
 /* ＋ על שטח פנוי בארון — בוחר את הארון, מסמן את מיקום ההוספה וממקד את טופס היחידה */
-function addUnitAt(nid, pos) {
-  sel = nid; ui.tab = 'node';
-  window.__addUPos = { nid, pos };
-  render();
-  setTimeout(() => {
-    const f = document.querySelector('#panel input[name="nm"]');
-    if (f) { f.focus(); f.placeholder = 'שם היחידה — תתווסף במיקום ' + (pos + 1) + 'U'; if (f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
-  }, 60);
+function addUnitAt(nid, pos) { rackAddProduct(nid, pos); }
+/* הוספה לארון מהקטלוג: הפריט נכנס להצעת המחיר (כמות 1, יחידה בארון) וגם כיחידה בארון במיקום שנבחר — או יחידה בשם חופשי (בלי הצעה) */
+function rackAddProduct(nid, pos) {
+  const rk = byId(nid); if (!rk || rk.kind !== 'rack') return;
+  const ov = uiModal(`<b style="font-size:14px">➕ הוספה לארון "${esc(rk.name)}"${pos >= 0 ? ' · מיקום ' + (pos + 1) + 'U' : ''}</b>
+    <p class="muted" style="font-size:11px;margin:4px 0 6px">מוצר מהקטלוג נכנס גם להצעת המחיר וגם כיחידה בארון · קיט מוסיף את כל הפריטים שלו</p>
+    <input id="rkQ" placeholder="🔍 חפש מגבר / פרוססור / מתג רשת / נגן…" style="width:100%;margin:0 0 6px;box-sizing:border-box" autocomplete="off">
+    <div id="rkRes" style="max-height:44vh;overflow:auto;border:1px solid #eee;border-radius:8px"></div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:10px;padding-top:8px;border-top:1px solid #eee">
+      <input id="rkNm" placeholder="או יחידה בשם חופשי (לא נכנסת להצעה)" style="flex:1;min-width:0">
+      <input id="rkU" type="number" min="1" max="12" value="1" style="width:46px" title="גובה U">
+      <button data-free style="white-space:nowrap">הוסף יחידה</button></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button data-x style="flex:1">סגור</button></div>`);
+  ov.firstElementChild.style.maxWidth = '640px';
+  const inp = ov.querySelector('#rkQ'), box = ov.querySelector('#rkRes');
+  const draw = () => {
+    const res = dockSearchResults(inp.value.trim()).slice(0, 60);
+    box.innerHTML = res.length ? res.map(r => r.type === 'kit'
+      ? `<div class="crow" data-kit="${r.i}" style="cursor:pointer"><span class="badge" style="background:#534ab7">${r.n}</span><span class="txt"><b>🧰 ${esc(r.name)}</b> · קיט מלא</span></div>`
+      : `<div class="crow" data-name="${jsq(r.name)}" data-key="${esc(r.key || '')}" style="cursor:pointer"><span class="badge" style="background:#0f6e56">➕</span>${imgCell(r.key, 28)}<span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`).join('')
+      : '<p class="muted" style="padding:10px;font-size:12px">' + (inp.value.trim() ? 'לא נמצא — נסה מילה אחרת (למשל שם הדגם)' : 'הקלד כדי לחפש') + '</p>';
+  };
+  inp.oninput = draw; draw();
+  setTimeout(() => inp.focus(), 50);
+  const place = (name, u, cat, srcIid) => {
+    let p = pos >= 0 && fits(rk, pos, u, -1) ? pos : firstFree(rk, u);
+    if (p < 0) { const std = [6, 9, 12, 16, 18, 20, 24, 27, 32, 42].find(v => v > rk.ru) || rk.ru + u; rk.ru = std; p = firstFree(rk, u); uiToast('🗄 הארון גדל ל-' + std + 'U — ודא ארון בגודל הזה בהצעה'); }
+    const unit = { id: uid('u'), name: name.slice(0, 40), u, cat, pos: p, srcIid };
+    rk.units.push(unit); rackArrange(rk); return unit;
+  };
+  box.onclick = e => {
+    const row = e.target.closest('.crow'); if (!row) return;
+    ov.remove();
+    if (row.dataset.kit != null) { pickKitInline(+row.dataset.kit); return; }
+    const name = row.dataset.name.replace(/\\'/g, "'"), key = row.dataset.key || '';
+    /* שורה בהצעה: קיימת → כמות +1, אחרת חדשה */
+    let it = impItems.find(x => x.name === name);
+    if (it) { it.qty = (+it.qty || 0) + 1; }
+    else {
+      const st = classifyStock(name), d = st ? null : SPEC_DICT.find(d2 => d2.re.test(name));
+      it = st ? { on: true, qty: 1, name, src: 'חיפוש', cat: 'other', u: 1, key, ...st } : { on: true, qty: 1, name, src: 'חיפוש', key, dest: 'unit', cat: d?.cat || 'other', u: d?.u || 1 };
+      it.iid = uid('i'); it.dest = 'unit'; it.rack = rk.name; autoPrice(it); impItems.push(it);
+    }
+    const um = /(\d)\s?U\b/i.exec(name), u = um ? Math.max(1, Math.min(6, +um[1])) : (it.u || 1);
+    const cat = /פאנל|panel|RP-|מולטי|patch|ניתוב/i.test(name) ? 'patch' : /פרוססור|processor|מטריצ|matrix|DSP|קרוסאובר/i.test(name) ? 'audio' : /מגבר|amplifier|\bamp\b/i.test(name) ? 'amp' : /רשת|switch|router|ראוטר|מתג/i.test(name) ? 'net' : 'other';
+    place(name, u, cat, it.iid);
+    it.placed = (it.placed || 0) + 1; if (it.placed >= (+it.qty || 1)) it.added = true;
+    sel = rk.id; ui.tab = 'node'; save(); render();
+    uiToast('➕ ' + shortModel(name) + ' נוסף להצעה ולארון "' + rk.name + '"', 4500);
+  };
+  ov.querySelector('[data-free]').onclick = () => {
+    const nm = ov.querySelector('#rkNm').value.trim(); if (!nm) { ov.querySelector('#rkNm').focus(); return; }
+    const u = Math.max(1, Math.min(12, +ov.querySelector('#rkU').value || 1));
+    ov.remove(); place(nm, u, 'other'); sel = rk.id; ui.tab = 'node'; save(); render();
+  };
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
 }
+window.rackAddProduct = rackAddProduct;
 /* מוקד → יחידה בארון: שם/קטגוריה/גובה U מנוחשים מהשם, הפריט מההצעה (srcIid) והכבלים עוברים ליחידה */
 function pointIntoRack(nid, rid, slot) {
   const n = byId(nid), r = byId(rid); if (!n || !r || r.kind !== 'rack') return;
@@ -7022,6 +7101,8 @@ const IN_UNIT_RE = /פרוססור|מעבד|מטריצ|מיקסר|קונסול|�
 const SERVICE_RE = /^\s*(תכנות|הגדרת|כיוון|כיול|תכנון|שירות|התקנה|הדרכה|תמיכה|אחריות|יצירת|העברת|עבודה|שעות|נסיע)/;
 function isServiceItem(name) { return SERVICE_RE.test(name || ''); }
 function isInUnit(name) { return IN_UNIT_RE.test(name || '') && !isServiceItem(name); }
+/* הפרוססור של הארון: יחידת כניסות שאינה מגבר (מגבר עם DSP פנימי נשאר מגבר); אם אין כזו — היחידה הראשונה עם כניסות */
+function rackProcUnit(rk) { const us = (rk && rk.units) || []; return us.find(u => isInUnit(u.name) && !/מגבר|amplifier|\bamp\b/i.test(u.name || '')) || us.find(u => isInUnit(u.name)); }
 /* מקור נגינה — מה שמזין את הארון: עמדת DJ, במה, מיקרופון, מחשב/נגן */
 /* ניקוי: שורות שירות שנכנסו לארון כיחידות (גרסאות קודמות) יורדות ממנו */
 function purgeServiceUnits() {
@@ -7413,15 +7494,20 @@ window.patchProcPicker = patchProcPicker; window.patchAddProc = patchAddProc;
 /* ===== סיגנל מהפרוססור אל המגברים (בתוך הארון): איזו יציאת פרוססור מזינה כל כניסת מגבר — XLR אנלוגי, או Dante ברשת =====
    השינויים כאן חלים מיד (כבלים פנימיים בארון), בלי לחכות ל"חבר". */
 const DANTE_RX = /dante|aes\s?67|network|רשת/i;
+/* AES67 — סדרות עם AES67 מובנה: KT DYNAMIQ, DigiSynthetic DMX/DS, NST (D48/ID48/VMX/VMO/DM88), XTA DPA/DNA, Powersoft, Lab IPD, K&F IPX. חיבור במתג רשת + Cat6, בלי XLR */
+const AES67_RX = /aes\s?67|DYNAMIQ|\bDMX\s?\d{3,4}|\bDS\s?\d{3}[A-Z]?\b|\bD48\b|ID48|VMX\s?88|VMO\s?16|DM88|\bNST\b|DPA\s?\d|DNA\s?\d|POWERSOFT|QUATTRO|OTTOCANALI|\bIPD\b|IPX\s?\d/i;
+function unitAes67Ok(u) { try { return AES67_RX.test(u.name || '') || rearLayout(u.name).some(i => /aes\s?67/i.test((i.port || '') + ' ' + (i.label || ''))); } catch (e) { return AES67_RX.test(u.name || ''); } }
+function sigNetKind(u) { return u && u.sigNet ? (u.sigNet === 'aes67' ? 'aes67' : 'dante') : ''; }
 function unitDanteOk(u) { try { return DANTE_RX.test(u.name || '') || rearLayout(u.name).some(i => DANTE_RX.test((i.port || '') + ' ' + (i.label || '') + ' ' + (i.t || ''))); } catch (e) { return DANTE_RX.test(u.name || ''); } }
 function patchSigRacks() {
   return P.nodes.filter(n => n.kind === 'rack' && !n.hidden).map(rk => {
-    const us = rk.units || [], proc = us.find(u => isInUnit(u.name));
-    const amps = us.filter(u => u !== proc && (u.cat === 'amp' || /מגבר/.test(u.name || '')) && !isInUnit(u.name));
+    const us = rk.units || [], proc = rackProcUnit(rk);
+    /* מגבר עם DSP פנימי (DYNAMIQ, DPA…) הוא מגבר — לא "פרוססור" — ומופיע כאן עם בחירת הסיגנל שלו */
+    const amps = us.filter(u => u !== proc && (u.cat === 'amp' || /מגבר|amplifier/i.test(u.name || '')));
     return proc && amps.length ? { rk, proc, amps } : null;
   }).filter(Boolean);
 }
-function patchSigCabs(rk, amp) { return (P.cables || []).filter(c => c.from === rk.id && c.to === rk.id && c.toUnit === amp.id && (c.internal === 'proc-amp' || c.internal === 'proc-amp-dante')); }
+function patchSigCabs(rk, amp) { return (P.cables || []).filter(c => c.from === rk.id && c.to === rk.id && c.toUnit === amp.id && (c.internal === 'proc-amp' || c.internal === 'proc-amp-dante' || c.internal === 'proc-amp-aes67')); }
 /* כל הפאצ׳ים האנלוגיים שיוצאים מהפרוססור (לא כולל כניסות שמוזנות במקביל ממגבר) */
 function patchSigAll(rk, proc) { return (P.cables || []).filter(c => c.from === rk.id && c.to === rk.id && c.internal === 'proc-amp' && c.fromUnit === proc.id); }
 /* מה הערוץ מזין: 0 = סאבים · 1 = טופים ראשיים (מיין / במה) · 2 = פיזורים / היקפי / אחר */
@@ -7469,7 +7555,7 @@ function patchSigBlockHTML() {
         '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button style="padding:3px 10px;font-weight:700;background:#eef7f1;color:#0f6e56" onclick="patchProcPicker()">➕ הוסף פרוססור</button><button style="padding:3px 10px;font-weight:700" onclick="patchProcPicker(\'' + rk.id + '\')">🔄 החלף את ' + esc(shortModel(proc.name)) + ' בפרוססור עם יותר יציאות</button><span style="color:#8a8377;align-self:center">או הזן כניסות במקביל (🔗 LNK) מהרשימה למטה</span></div></div>' : '';
       const head = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="flex:1;font-size:11.5px;color:#555">' + esc(shortModel(proc.name)) + ' · ' + outs.length + ' יציאות · ' + all.filter(c => c.pOut).length + ' בשימוש</span><button style="padding:2px 10px;font-size:11.5px" onclick="patchSigReorder(\'' + rk.id + '\')" title="מחלק מחדש את יציאות הפרוססור לפי הסדר">⚡ סדר: סאבים ← טופים ← פיזורים</button></div>';
       return warn + head + amps.map(amp => {
-        const cabs = patchSigCabs(rk, amp), net = !!amp.sigNet, ad = unitDanteOk(amp), ok = pd && ad;
+        const cabs = patchSigCabs(rk, amp), net = sigNetKind(amp), ad = unitDanteOk(amp), ok = pd && ad, okA = unitAes67Ok(proc) && unitAes67Ok(amp);
         const xl = cabs.filter(c => c.internal === 'proc-amp').sort((x, y) => String(x.pIn).localeCompare(String(y.pIn), 'en', { numeric: true }));
         /* אפשרויות "במקביל": יציאת LNK של כניסה שכבר מוזנת — באותו מגבר או במגבר אחר בארון */
         const lnkOpts = (c, ch) => amps.map(A => rearLayout(A.name).filter(i => /^LNK/.test(i.port || '')).map(i => i.port).sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true })).map(lp => {
@@ -7486,13 +7572,13 @@ function patchSigBlockHTML() {
               '<option value="">— בלי יציאה —</option>' + outs.map(o => '<option value="P|' + esc(o) + '"' + (isProc && c.pOut === o ? ' selected' : '') + '>' + esc(shortModel(proc.name)) + ' · ' + esc(o) + '</option>').join('') + (isProc && c.pOut && !outs.includes(c.pOut) ? '<option selected value="P|' + esc(c.pOut) + '">' + esc(c.pOut) + ' (לא בגב שבספרייה)</option>' : '') + lnkOpts(c, ch) + '</select></div>'; }).join('')
             : '<div style="padding:7px 10px;font-size:11.5px;color:#8a8377">אין עדיין פאצ׳ים — ייווצרו ב"חבר" לערוצים שמזינים רמקולים</div>');
         return '<div style="border:1px solid #e3ded3;border-radius:10px;margin-bottom:8px;overflow:hidden;background:#fff"><div style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:#f7f5f0"><b style="flex:1;font-size:12.5px">🎚 ' + esc(shortModel(amp.name) || amp.name.slice(0, 28)) + ' <span style="font-weight:400;color:#8a8377">· U' + (amp.pos + 1) + ' · ' + esc(rk.name.slice(0, 22)) + '</span></b>' +
-          '<select onchange="patchSigMode(\'' + rk.id + '\',\'' + amp.id + '\',this.value)" style="font-size:11.5px;padding:2px 6px" title="איך הסיגנל מגיע למגבר"><option value="xlr"' + (net ? '' : ' selected') + '>XLR אנלוגי</option><option value="dante"' + (net ? ' selected' : '') + '>🌐 Dante' + (ok ? '' : ' ⚠') + '</option></select></div>' + rows + '</div>';
+          '<select onchange="patchSigMode(\'' + rk.id + '\',\'' + amp.id + '\',this.value)" style="font-size:11.5px;padding:2px 6px" title="איך הסיגנל מגיע למגבר"><option value="xlr"' + (net ? '' : ' selected') + '>XLR אנלוגי</option><option value="dante"' + (net === 'dante' ? ' selected' : '') + '>🌐 Dante' + (ok ? '' : ' ⚠') + '</option><option value="aes67"' + (net === 'aes67' ? ' selected' : '') + '>🌐 AES67 (מתג רשת + Cat6)' + (okA ? '' : ' ⚠') + '</option></select></div>' + rows + '</div>';
       }).join('');
     }).join('');
 }
 function patchSigSet(cid, val) {
   const c = (P.cables || []).find(x => x.id === cid); if (!c) return;
-  const rk = byId(c.from), proc = rk && (rk.units || []).find(u => isInUnit(u.name)), amp = rk && (rk.units || []).find(u => u.id === c.toUnit);
+  const rk = byId(c.from), proc = rk && rackProcUnit(rk), amp = rk && (rk.units || []).find(u => u.id === c.toUnit);
   const nm = u => shortModel(u ? u.name : '');
   const parts = String(val || '').split('|');
   if (parts[0] === 'L') {   /* במקביל: גשר מיציאת LNK של כניסה אחרת אל הכניסה הזאת */
@@ -7516,7 +7602,7 @@ function patchSigPar(cid, ampId, srcCh) {
   const c = (P.cables || []).find(x => x.id === cid); if (!c) return;
   const on = c.fromUnit === ampId && c.pOut === 'LNK ' + srcCh;
   if (!on) { patchSigSet(cid, 'L|' + ampId + '|LNK ' + srcCh); return; }
-  const rk = byId(c.from), proc = rk && (rk.units || []).find(u => isInUnit(u.name));
+  const rk = byId(c.from), proc = rk && rackProcUnit(rk);
   const outs = proc ? [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true })) : [];
   const taken = new Set((P.cables || []).filter(x => x !== c && x.from === c.from && x.internal === 'proc-amp' && proc && x.fromUnit === proc.id && x.pOut).map(x => x.pOut));
   patchSigSet(cid, (o => o ? 'P|' + o : '')(outs.find(o => !taken.has(o))));
@@ -7533,7 +7619,7 @@ function patchShowRear() {
 }
 /* החלפת הפרוססור שבארון במוצר אחר — היחידה, שורת ההצעה והפאצ׳ים מתעדכנים */
 function patchReplaceProc(rkId, name, key) {
-  const rk = byId(rkId), proc = rk && (rk.units || []).find(u => isInUnit(u.name)); if (!proc) return;
+  const rk = byId(rkId), proc = rk && rackProcUnit(rk); if (!proc) return;
   const old = proc.name;
   const it = impItems.find(x => x.name === old || x.name.startsWith(old) || old.startsWith(x.name) || (proc.srcIid && x.iid === proc.srcIid));
   proc.name = name; delete proc.inCh;
@@ -7545,15 +7631,19 @@ function patchReplaceProc(rkId, name, key) {
 }
 window.patchSigReorder = patchSigReorder; window.patchShowRear = patchShowRear;
 function patchSigMode(rkId, ampId, mode) {
-  const rk = byId(rkId), amp = rk && (rk.units || []).find(u => u.id === ampId), proc = rk && (rk.units || []).find(u => isInUnit(u.name)); if (!amp || !proc) return;
-  const rest = (P.cables || []).filter(c => !(c.from === rkId && c.to === rkId && c.toUnit === ampId && (c.internal === 'proc-amp' || c.internal === 'proc-amp-dante')));
-  if (mode === 'dante') {
-    amp.sigNet = true;
-    const ok = unitDanteOk(proc) && unitDanteOk(amp);
-    rest.push({ id: uid('c'), from: rkId, fromUnit: proc.id, to: rkId, toUnit: ampId, type: 'cat', qty: '1', spec: 'Dante / AES67', len: 1, internal: 'proc-amp-dante',
-      note: 'Dante · ' + shortModel(proc.name) + ' → ' + shortModel(amp.name) + ' (כל הערוצים ברשת)' + (ok ? '' : ' · ⚠ יכולת Dante לא מאומתת לדגם') });
+  const rk = byId(rkId), amp = rk && (rk.units || []).find(u => u.id === ampId), proc = rk && rackProcUnit(rk); if (!amp || !proc) return;
+  const rest = (P.cables || []).filter(c => !(c.from === rkId && c.to === rkId && c.toUnit === ampId && (c.internal === 'proc-amp' || c.internal === 'proc-amp-dante' || c.internal === 'proc-amp-aes67')));
+  if (mode === 'dante' || mode === 'aes67') {
+    /* ברשת: Dante או AES67 — כבל רשת מהפרוססור למגבר דרך מתג רשת (או ישיר כשיש רק שני מכשירים), בלי XLR ובלי כניסות פיזיות */
+    const aes = mode === 'aes67';
+    amp.sigNet = aes ? 'aes67' : true;
+    const ok = aes ? unitAes67Ok(proc) && unitAes67Ok(amp) : unitDanteOk(proc) && unitDanteOk(amp);
+    const lbl = aes ? 'AES67' : 'Dante';
+    rest.push({ id: uid('c'), from: rkId, fromUnit: proc.id, to: rkId, toUnit: ampId, type: 'cat', qty: '1', spec: aes ? 'AES67 · Cat6 דרך מתג רשת' : 'Dante / AES67', len: 1, internal: aes ? 'proc-amp-aes67' : 'proc-amp-dante',
+      note: lbl + ' · ' + shortModel(proc.name) + ' → ' + shortModel(amp.name) + ' (כל הערוצים ברשת' + (aes ? ', מתג רשת + Cat6' : '') + ')' + (ok ? '' : ' · ⚠ יכולת ' + lbl + ' לא מאומתת לדגם') });
     P.cables = rest;
-    if (!ok) uiToast('⚠ לא זוהתה יכולת Dante באחד המוצרים — בדוק מול המפרט לפני ההזמנה', 5000);
+    if (!ok) uiToast('⚠ לא זוהתה יכולת ' + lbl + ' באחד המוצרים — בדוק מול המפרט לפני ההזמנה', 5000);
+    else if (aes) uiToast('🌐 AES67: ' + shortModel(proc.name) + ' → ' + shortModel(amp.name) + ' בכבל רשת. ודא מתג רשת בארון וכבל Cat6 לכל מכשיר', 5000);
   } else {
     delete amp.sigNet; P.cables = rest;
     /* חזרה ל-XLR: פאץ׳ לכל ערוץ מגבר שמזין רמקולים, מיציאת הפרוססור הפנויה הבאה (לפי הגב שבספרייה) */
@@ -7786,7 +7876,7 @@ async function patchApply() {
     const outIdx = {};   /* לכל פרוססור: כמה יציאות כבר נוצלו */
     PATCH.amps.forEach((a, ai) => {
       const chs = (used[ai] || []).sort((x, y) => x - y); if (!chs.length) return;
-      const proc = (a.rk.units || []).find(u => isInUnit(u.name)); if (!proc) return;
+      const proc = rackProcUnit(a.rk); if (!proc) return;
       if (a.u.sigNet) return;   /* המגבר מקבל סיגנל ב-Dante — בלי פאצ׳ים אנלוגיים */
       /* יציאות הפרוססור לפי הגב שלו (מהספרייה) — לא מניחים OUT 1..N */
       const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true }));
@@ -9849,6 +9939,7 @@ function renderPanel() {
         </div>
         <div class="fld"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="isp" style="width:auto"> 🧩 זהו פאנל מחברים (ייפתח עורך החורים)</label></div>
         <button class="primary" style="width:100%">הוסף יחידה</button>
+        <button type="button" style="width:100%;margin-top:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700" onclick="rackAddProduct('${n.id}',-1)" title="חיפוש בקטלוג — הפריט נכנס להצעת המחיר וגם כיחידה בארון">🔍 הוסף מוצר מהקטלוג — להצעה ולארון</button>
         <button type="button" style="width:100%;margin-top:6px" onclick="rackArrange(byId(sel));render();save();uiToast('⇅ הארון סודר לפי הסטנדרט: נגנים למעלה · פרוססורים וניתוב · מגברים למטה')">⇅ סדר לפי הסטנדרט — נגנים ↑ · פרוססורים · מגברים ↓</button>
       </form>`;
   } else if (n.kind === 'panel') {
@@ -13365,8 +13456,14 @@ function sendOffer() {
       <option value="customer_pickup">🏭 הלקוח אוסף מהמחסן</option>
       <option value="none">— ללא העברת תשתית —</option>
     </select></div>
+    <div class="fld" id="ofInfraByW"><label>מי מעביר את התשתיות (צנרת, כבלים בקירות) — נכנס לשם ההצעה ולדוח ההכנות</label><select id="ofInfraBy" onchange="ofInfraByChange(this.value)">
+      <option value="">— לא נקבע —</option>
+      <option value="KO">🔧 KO — הצוות שלנו מעביר</option>
+      <option value="הלקוח">👤 הלקוח / חשמלאי מטעמו</option>
+      <option value="משותף">🤝 משותף — הלקוח צנרת, KO כבלים</option>
+    </select></div>
     <div class="fld"><label>אופן משלוח הפריטים <span class="muted" style="font-size:10px">(מהאפשרויות של ה-ERP)</span></label><select id="ofShip" onchange="document.getElementById('ofAddrW').style.display=this.value==='warehouse_delivery'?'':'none'">
-      <option value="">🔧 קריאת שירות — הטכנאי מביא (ללא משלוח)</option>
+      <option value="">🔧 ללא משלוח — הטכנאי מביא לאתר (גם בפרויקט)</option>
       <option value="warehouse_delivery">🚚 משלוח מהמחסן לכתובת</option>
       <option value="warehouse_pickup">🏭 איסוף מהמחסן בהמשך</option>
       <option value="pickup_now">🤝 איסוף מיידי</option>
@@ -13392,7 +13489,7 @@ function sendOffer() {
       inf.innerHTML = o.infrastructure_transfer_methods.map(m => `<option value="${esc(m.value)}" title="${esc(m.description || '')}">${esc(LBL_I[m.value] || m.value)}</option>`).join('');
     const sh = document.getElementById('ofShip');
     if (sh && (o.shipment_methods || []).length)
-      sh.innerHTML = '<option value="">🔧 קריאת שירות — הטכנאי מביא (ללא משלוח)</option>' +
+      sh.innerHTML = '<option value="">🔧 ללא משלוח — הטכנאי מביא לאתר (גם בפרויקט)</option>' +
         o.shipment_methods.map(m => `<option value="${esc(m.value)}" title="${esc(m.description || '')}">${esc(LBL_S[m.value] || m.value)}</option>`).join('');
     if (o.vat_rate) { const el2 = document.querySelector('#offerOv p'); if (el2 && !el2.dataset.vat) { el2.dataset.vat = 1; el2.innerHTML = el2.innerHTML.replace('18%', Math.round(o.vat_rate * 100) + '%'); } }
   }).catch(() => {});
@@ -13473,9 +13570,17 @@ function sendOffer() {
     }
     ofPrjMode();
   };
+  /* מי מעביר תשתיות — נשמר על הפרויקט ומופיע בשם ההצעה (ל-ERP אין שדה לזה) */
+  window.ofInfraByChange = v => {
+    P.infraBy = v || undefined; save();
+    const nm = document.getElementById('ofName'); if (!nm) return;
+    nm.value = nm.value.replace(/\s*·\s*תשתיות:[^·]*$/, '') + (v ? ' · תשתיות: ' + v : '');
+  };
+  { const s = document.getElementById('ofInfraBy'); if (s && P.infraBy) { s.value = P.infraBy; ofInfraByChange(P.infraBy); } }
   window.ofPrjMode = () => {
     const no = document.getElementById('ofNoPrj').checked;
     document.getElementById('ofInfraW').style.display = no ? 'none' : '';
+    document.getElementById('ofInfraByW').style.display = no ? 'none' : '';
     const b = document.getElementById('ofSrvW').querySelector('button');
     if (b && !b.disabled) b.textContent = no ? '🚀 צור הצעה ללקוח ב-ERP' : '🚀 צור הצעה ופתח את הפרויקט ב-ERP';
   };
