@@ -8238,6 +8238,9 @@ function projGapCheck() {
     const poePorts = racks.reduce((s2, rk) => { const sw = rackNetSwitch(rk); return s2 + (sw ? netSwitchPorts(rk, sw).filter(it => /PoE/i.test(it.label || '')).length : 0); }, 0);
     if (poeDev > poePorts) finds.push({ i: '⚡', k: 'poe', t: poeDev + ' מכשירי PoE בהצעה (מתאמי Dante / פנלים / AP) · ' + poePorts + ' פורטי PoE במתגים שבארונות', b: '🔍 הוסף מתג PoE', fn: "gapSearch('POE')" }); }
   racks.forEach(rk => ctrlAccFor(rk).filter(a => !a.inOffer && a.kind !== 'io').slice(0, 2).forEach(a => finds.push({ i: '🎛', k: 'ctrl|' + rk.id + '|' + a.key, t: 'ל-' + a.forUnits[0] + ' ב"' + rk.name.slice(0, 18) + '" יש בקטלוג ' + (a.brand === 'NST' || /קיפד|keypad/i.test(a.name) ? 'קיפד' : 'פנל שליטה') + ' (' + shortModel(a.name).slice(0, 28) + ')' + (a.qty > 0 ? '' : ', לא במלאי כרגע') + ' — אין בהצעה', b: '➕ הוסף להצעה', fn: "pickSearchItem('" + jsq(a.name) + "','" + a.key + "')" })));
+  /* 4ג. כלל הבית: מגבר UNICORN DAP לא נכנס להצעות — להחליף ל-DYNAMIQ (4600 כשיש סאבים) */
+  { const dap = rows.filter(it => offerBanned(it.name)).map(it => shortModel(it.name)); racks.forEach(rk => (rk.units || []).forEach(u => { if (offerBanned(u.name)) dap.push(shortModel(u.name) + ' (ב"' + rk.name.slice(0, 14) + '")'); }));
+    if (dap.length) finds.push({ i: '⛔', k: 'dap', t: 'מגבר UNICORN DAP בהצעה/בארון (' + [...new Set(dap)].join(', ') + ') — לפי כלל הבית לא משתמשים ב-DAP בהצעות מחיר; להחליף ל-DYNAMIQ' + (qsum(it => /סאב|\bsub/i.test(it.name || '')) ? ' 4600 (יש סאבים)' : ' 750/450'), b: '🔍 DYNAMIQ', fn: "gapSearch('DYNAMIQ')" }); }
   if (racks.length && !qsum(it => PDU_RX.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
   /* 5ב. יחידה בארון שאף כבל לא נוגע בה — כנראה מיותרת; מציעים להסיר מהארון ומההצעה */
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
@@ -12409,7 +12412,7 @@ async function saveKitDraftAs() {
 window.saveKitDraftAs = saveKitDraftAs;
 /* סדר הפריטים בקיט — ▲▼ (הסדר נשמר בקיט ומשפיע על ההצעה והארון) */
 /* בונה הקיטים: החלפת צבע הרמקולים/סאבים */
-function nkFinish(f) { if (!nkDraft) return; const r = kitApplyFinish(nkDraft.items, f); renderKitNew(); uiToast('🎨 ' + f + ': ' + r.done + ' פריטים הוחלפו' + (r.miss.length ? ' · אין וריאנט ל: ' + r.miss.join(', ') : ''), 4500); }
+function nkFinish(f) { if (!nkDraft) return; const r = kitApplyFinish(nkDraft.items, f); renderKitNew(); uiToast(kitFinishMsg(f, r), 4500); }
 window.nkFinish = nkFinish;
 function nkMove(i, d) {
   const a = nkDraft && nkDraft.items; if (!a) return;
@@ -12543,34 +12546,59 @@ function finishVariants(x) {
   if (!isSpeakerItem(full)) return [];
   const stem = finishStem(full); if (!stem || stem.length < 3) return [];
   if (finCache.has(stem)) return finCache.get(stem);
-  const cls = kitFuncClass(full), out = [];
-  for (const it of ERP_ITEMS) { const nm = it[1] || ''; if (!isSpeakerItem(nm) || KIT_ALT_NO.test(nm) || kitFuncClass(nm) !== cls || finishStem(nm) !== stem) continue; const inf = erpInfo(it[0]) || {}; out.push({ key: it[0], name: nm, finish: finishOf(nm), price: +it[2] || inf.price || 0, stock: inf.qty || 0 }); }
+  /* "רמקול פאסיבי … SB 8" ו"סאב פאסיבי … SB 8 בצבע לבן" — אותו דגם: משווים רק פאסיבי/אקטיבי, לא רמקול/סאב */
+  const finCls = c => c === 'spk' || c === 'sub' ? 'p' : c === 'spkA' || c === 'subA' ? 'a' : c;
+  const cls = finCls(kitFuncClass(full)), out = [];
+  for (const it of ERP_ITEMS) { const nm = it[1] || ''; if (!isSpeakerItem(nm) || KIT_ALT_NO.test(nm) || finCls(kitFuncClass(nm)) !== cls || finishStem(nm) !== stem) continue; const inf = erpInfo(it[0]) || {}; out.push({ key: it[0], name: nm, finish: finishOf(nm), price: +it[2] || inf.price || 0, stock: inf.qty || 0 }); }
   const uniq = []; out.forEach(v => { const e = uniq.find(u => u.finish === v.finish); if (!e) uniq.push(v); else if (v.stock > e.stock) Object.assign(e, v); });   /* כפילויות באותו גימור — הזמין במלאי */
   finCache.set(stem, uniq); return uniq;
 }
 /* פס בחירת צבע לקיט: הצבעים שקיימים לרמקולים/סאבים שבקיט, עם מצב המלאי של כל שורה בצבע הזה */
+/* שם הפריט בלי הערת הגימור ("— בצבע לבן (ללא מק"ט נפרד)") */
+const FIN_NOTE_RE = /\s*—\s*בצבע [^()]*\(ללא מק"ט נפרד[^)]*\)\s*$/;
+function finBaseName(x) { const full = x.key && typeof ERP_ITEMS !== 'undefined' ? (ERP_ITEMS.find(it => it[0] === x.key) || [])[1] : ''; return (full || String(x.name || '')).replace(FIN_NOTE_RE, ''); }
+function finOfRow(x) { return x.fin || finishOf(x.name); }
+/* צבע שאינו ברשימה (RAL / לפי הזמנה) — נשאל ומעבירים הלאה */
+function kitFinishOther(cb) { uiPrompt('צבע / גימור לרמקולים ולסאבים (למשל: לבן, RAL 9010, אפור כהה). פריט שאין לו מק"ט בצבע הזה יסומן בשם הפריט "בצבע … (ללא מק"ט נפרד)" ויופיע כך בהצעה:', '').then(v => { v = String(v || '').trim(); if (v) cb(v); }); }
+window.kitFinishOther = kitFinishOther;
 function kitFinishBarHTML(rows, onclickTpl) {
-  const spk = rows.map((x, i) => ({ x, i, vars: finishVariants(x) })).filter(o => o.vars.length > 1);
+  /* כל הרמקולים והסאבים בקיט — גם דגם שיש לו מק"ט אחד בלבד (הצבע מסומן על הפריט, בלי החלפת מק"ט) */
+  const spk = rows.map((x, i) => ({ x, i, vars: finishVariants(x) })).filter(o => o.vars.length > 1 || isSpeakerItem(finBaseName(o.x)));
   if (!spk.length) return '';
-  const fins = [...new Set(spk.flatMap(o => o.vars.map(v => v.finish)))].filter(f => f !== 'רגיל');
-  if (!fins.length) return '';
-  /* הצבע הנוכחי = הצבע של הרמקול הראשון שיש לו וריאנטים (סאב בלי גרסה בצבע הזה לא 'מבטל' את הבחירה) */
-  const curFin = finishOf(spk[0].x.name);
+  const curFin = finOfRow(spk[0].x);
+  /* כל הגימורים שקיימים כמק"ט לאחד הפריטים — כולל הגימור הבסיסי ("רגיל" = בלי ציון צבע בשם) — והצבע המותאם אם נבחר */
+  const fins = ['רגיל', ...new Set(spk.flatMap(o => o.vars.map(v => v.finish)).filter(f => f !== 'רגיל'))];
+  if (curFin && !fins.includes(curFin)) fins.push(curFin);
+  const hasSku = spk.some(o => o.vars.length > 1);
   const chips = fins.map(f => {
     const st = spk.map(o => { const v = o.vars.find(v2 => v2.finish === f); return { o, v }; });
     const missing = st.filter(s => !s.v), noStock = st.filter(s => s.v && s.v.stock <= 0), ok = st.filter(s => s.v && s.v.stock > 0);
-    const tip = st.map(s => shortModel(s.o.x.name).slice(0, 20) + ': ' + (s.v ? (s.v.stock > 0 ? 'מלאי ' + s.v.stock : 'אין מלאי') : 'אין בצבע הזה')).join(' · ');
-    const col = missing.length ? '#b8860b' : noStock.length ? '#c1121f' : '#0a7a4b';
-    return `<button data-fin="${esc(f)}"${onclickTpl ? ' onclick="' + onclickTpl.replace('%F%', jsq(f)) + '"' : ''} title="${esc(tip)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;font-size:11.5px;border-radius:999px;border:1.5px solid ${curFin === f ? '#534ab7' : '#d8d3c8'};background:${curFin === f ? '#efecfd' : '#fff'}"><span style="width:12px;height:12px;border-radius:50%;background:${FIN_COLORS[f] || '#999'};border:1px solid #999;display:inline-block"></span>${esc(f)} <span style="font-size:10px;color:${col}">${missing.length ? '⚠ ' + missing.length + ' בלי וריאנט' : noStock.length ? '✗ ' + noStock.length + ' ללא מלאי' : '✓ ' + ok.length + '/' + st.length + ' במלאי'}</span></button>`;
+    const tip = f === 'רגיל' ? 'הגימור הבסיסי של כל דגם (המק"ט שבלי ציון צבע בשם)' : st.map(s => shortModel(finBaseName(s.o.x)).slice(0, 20) + ': ' + (s.v ? (s.v.stock > 0 ? 'מלאי ' + s.v.stock : 'אין מלאי') : 'אין מק"ט בצבע הזה — יסומן על הפריט')).join(' · ');
+    const col = f === 'רגיל' ? '#555' : missing.length ? '#b8860b' : noStock.length ? '#c1121f' : '#0a7a4b';
+    return `<button data-fin="${esc(f)}"${onclickTpl ? ' onclick="' + onclickTpl.replace('%F%', jsq(f)) + '"' : ''} title="${esc(tip)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;font-size:11.5px;border-radius:999px;border:1.5px solid ${curFin === f ? '#534ab7' : '#d8d3c8'};background:${curFin === f ? '#efecfd' : '#fff'}"><span style="width:12px;height:12px;border-radius:50%;background:${FIN_COLORS[f] || '#999'};border:1px solid #999;display:inline-block"></span>${esc(f)} <span style="font-size:10px;color:${col}">${missing.length ? '✎ ' + missing.length + ' לסימון על הפריט' + (ok.length ? ' · ' + ok.length + ' במק"ט' : '') : noStock.length ? '✗ ' + noStock.length + ' ללא מלאי' : '✓ ' + ok.length + '/' + st.length + ' במלאי'}</span></button>`;
   }).join(' ');
-  return `<div data-finbar style="background:#f6f4ee;border-radius:8px;padding:6px 8px;margin:0 0 6px;font-size:11.5px"><b>🎨 צבע הרמקולים והסאבים:</b> ${chips}<div class="muted" style="font-size:10.5px;margin-top:3px">לחיצה מחליפה את הרמקולים והסאבים לאותו דגם בצבע שנבחר (אקוסטיקה זהה), עם המלאי והמחיר האמיתיים של כל וריאנט · שורה בלי וריאנט בצבע הזה נשארת כמו שהיא</div></div>`;
+  const otherBtn = `<button data-finother${onclickTpl ? ' onclick="kitFinishOther(function(f){' + onclickTpl.replace("'%F%'", 'f') + '})"' : ''} title="צבע שאינו ברשימה (RAL / לפי הזמנה) — מסומן על הפריטים" style="padding:2px 9px;font-size:11.5px;border-radius:999px;border:1.5px dashed #bdb7aa;background:#fff">➕ צבע אחר…</button>`;
+  /* שיקוף: מה קרה לכל רמקול/סאב בצבע שנבחר — מק"ט בצבע, או סימון על הפריט */
+  const refl = curFin === 'רגיל' ? '' : '<div style="margin-top:4px;display:flex;flex-direction:column;gap:1px">' + spk.map(o => { const v = o.vars.find(v2 => v2.finish === curFin); const nm = esc(shortModel(finBaseName(o.x)).slice(0, 24)); return v && v.key === o.x.key ? '<span>✔ ' + nm + ' → מק"ט <b>' + esc(v.key) + '</b>' + (v.stock > 0 ? ' · מלאי ' + v.stock : ' · <span style="color:#c1121f">אין מלאי</span>') + '</span>' : o.x.fin ? '<span>✎ ' + nm + ' → מסומן "בצבע ' + esc(o.x.fin) + '" <span class="muted">(ללא מק"ט נפרד — לציין בהזמנה)</span></span>' : '<span class="muted">• ' + nm + ' — ' + esc(finOfRow(o.x)) + '</span>'; }).join('') + '</div>';
+  return `<div data-finbar style="background:#f6f4ee;border-radius:8px;padding:6px 8px;margin:0 0 6px;font-size:11.5px"><b>🎨 צבע הרמקולים והסאבים:</b> ${chips} ${otherBtn}${refl}<div class="muted" style="font-size:10.5px;margin-top:3px">${hasSku ? '' : 'לדגמים שבקיט יש מק"ט אחד בלבד — הצבע מסומן על הפריט ומופיע בהצעה. '}לחיצה מחליפה את הרמקולים והסאבים לאותו דגם בצבע שנבחר (אקוסטיקה זהה), עם המלאי והמחיר האמיתיים של כל וריאנט · שורה בלי וריאנט בצבע הזה נשארת כמו שהיא</div></div>`;
 }
 /* החלפת הרמקולים/סאבים ברשימה לצבע שנבחר — מחזיר כמה הוחלפו וכמה חסרים */
 function kitApplyFinish(rows, f) {
-  let done = 0; const miss = [];
-  rows.forEach(x => { const vars = finishVariants(x); if (vars.length < 2) return; const v = vars.find(v2 => v2.finish === f); if (!v) { miss.push(shortModel(x.name)); return; } if (v.key !== x.key) { x.key = v.key; x.name = v.name; x.price = undefined; done++; } });
-  return { done, miss };
+  let done = 0, noted = 0; const miss = [];
+  rows.forEach(x => {
+    const base = finBaseName(x); if (!isSpeakerItem(base)) return;
+    const vars = finishVariants(x), v = vars.find(v2 => v2.finish === f) || (f === 'רגיל' && vars.length < 2 ? { key: x.key, name: base } : null);
+    if (v) { if (v.key !== x.key) { x.key = v.key; x.price = undefined; done++; } x.name = v.name || base; delete x.fin; return; }
+    /* אין מק"ט בצבע הזה — מסמנים על הפריט (השם מגיע כך להצעה ולהזמנה) */
+    if (f === 'רגיל') { x.name = base; delete x.fin; return; }
+    x.fin = f; x.name = base + ' — בצבע ' + f + ' (ללא מק"ט נפרד — לציין בהזמנה)'; noted++; miss.push(shortModel(base));
+  });
+  return { done, noted, miss };
 }
+function kitFinishMsg(f, r) { return '🎨 ' + f + ': ' + r.done + ' פריטים הוחלפו למק"ט בצבע' + (r.noted ? ' · ' + r.noted + ' סומנו "בצבע ' + f + '" (אין מק"ט נפרד): ' + r.miss.join(', ') : ''); }
+/* כלל הבית: מגברי UNICORN DAP (500/800/4200) לא נכנסים לאף הצעת מחיר — לקיטים של KT משתמשים ב-DYNAMIQ (4600 כשיש סאבים) */
+const NO_OFFER_RE = /UNICORN\s*DAP\b|\bDAP\s?(?:500|800|4200)\b/i;
+function offerBanned(nm) { return NO_OFFER_RE.test(String(nm || '')); }
 function kitAltFor(x) {
   if (!x || !x.name || typeof ERP_ITEMS === 'undefined') return [];
   const ck = (x.key || '') + '|' + x.name; if (kitAltCache.has(ck)) return kitAltCache.get(ck);
@@ -12583,7 +12611,7 @@ function kitAltFor(x) {
     let newer = null; const sim = [];
     for (const it of ERP_ITEMS) {
       const k = it[0], nm = it[1] || '', pr = +it[2] || 0, st = +it[3] || 0;
-      if (k === x.key || !pr || KIT_ALT_NO.test(nm) || kitFuncClass(nm) !== cls) continue;
+      if (k === x.key || !pr || KIT_ALT_NO.test(nm) || offerBanned(nm) || kitFuncClass(nm) !== cls) continue;
       /* דגם חדש יותר: אותו שורש דגם, מספר גרסה גבוה יותר */
       if (stem.length >= 3 && kitStem(nm) === stem && kitVer(nm) > ver) { if (!newer || kitVer(nm) > kitVer(newer.name) || (kitVer(nm) === kitVer(newer.name) && st > newer.stock)) newer = { key: k, name: nm, price: pr, stock: st, why: 'דגם חדש יותר' }; continue; }
       if (!price || st <= 0) continue;
@@ -12723,6 +12751,82 @@ function renderKitNew() {
     <button style="width:100%;margin-top:6px;background:#efecfd;color:#4b3fb8;border:1px solid #c9c0f5;font-weight:700" onclick="saveKitDraftAs()" title="הקיט המקורי נשאר כמו שהוא; השינויים נשמרים כקיט שלי בשם חדש">📑 שמור את השינויים כקיט חדש (בשם אחר)</button>` : ''}`;
 }
 /* יצירת קיט חדש מהשורות המסומנות ✓ בהצעת המחיר */
+/* ===== הצעות לקיטים נוספים: רמקולים/סאבים במלאי ובמחיר שלא מופיעים באף קיט =====
+   לכל דגם כזה: טופ + סאב מאותו מותג + מגבר. המגבר: KT/Unicorn — לפי כלל הבית DYNAMIQ (4600 כשיש סאבים, 750 בלי);
+   מותג אחר — המגבר שהכי נפוץ בקיטים הקיימים של המותג (עם/בלי סאבים). הכמויות (4 טופים, 2 סאבים, מגבר 1) הן נקודת פתיחה לעריכה */
+const CEIL_SPK_RX = /תקר|ceiling|שקוע|in-?wall|\bIW\s?\d|\bIC\s?\d|סלע|\brock\b|גינה|garden/i;   /* תקרה / שקוע / סלע-גינה — בלי סאב בקיט */
+function kitProposals() {
+  if (typeof ERP_ITEMS === 'undefined') return [];
+  const kits = allKits(true), inKey = new Set(), inStem = new Set();
+  const brandAmps = {};   /* מותג → { sub: {name→n}, top: {name→n} } */
+  kits.forEach(k => {
+    const its = k.items || [];
+    its.forEach(x => { if (x.key) inKey.add(x.key); const st = finishStem(x.name); if (st && st.length >= 3) inStem.add(st); });
+    const spk = its.filter(x => isSpeakerItem(x.name || '')); if (!spk.length) return;
+    const br = kitBrandOf(spk.map(x => x.name).join(' ')); if (!br) return;
+    const hasSub = spk.some(x => KIT_SUB_RX.test(x.name || '') || /^sub/.test(kitFuncClass(x.name || '') || ''));
+    const ba = brandAmps[br] = brandAmps[br] || { sub: {}, top: {} };
+    its.forEach(x => { if (kitFuncClass(x.name || '') === 'amp' && !offerBanned(x.name)) { const b = ba[hasSub ? 'sub' : 'top']; const id = (x.key || '') + '|' + x.name; b[id] = (b[id] || 0) + 1; } });
+  });
+  const topAmp = (br, withSub) => { const ba = brandAmps[br]; if (!ba) return null; const m = ba[withSub ? 'sub' : 'top'], alt = ba[withSub ? 'top' : 'sub']; const pick = o => Object.entries(o).sort((a, b) => b[1] - a[1])[0]; const e = pick(m) || pick(alt); if (!e) return null; const [key, name] = e[0].split('|'); return { key: key || undefined, name }; };
+  const erpByKey = k => { const it = ERP_ITEMS.find(i => i[0] === k); return it ? { key: it[0], name: it[1], price: +it[2] || 0, stock: +it[3] || 0 } : null; };
+  /* מועמדים: רמקול/סאב, במלאי, במחיר, לא השכרה/ת.ח, לא באף קיט (לא לפי מק"ט ולא לפי שורש הדגם בכל צבע) */
+  const cands = []; let unknownBrand = 0;
+  const JUNK_RX = /גלגל|wheel|dolly|ח\.ח|temp name|בלוטוס|bluetooth|vibration|רטט/i;           /* לא רמקול להתקנה: גלגלים לסאב, חלק חילוף, שם זמני, רמקול בלוטוס */
+  for (const it of ERP_ITEMS) { const [k, nm, pr, st] = it; if (!(+pr > 0) || !(+st >= 2) || !isSpeakerItem(nm || '') || KIT_ALT_NO.test(nm || '') || JUNK_RX.test(nm || '') || inKey.has(k)) continue; if (+st < 4 && +pr < 1500) continue; const stem = finishStem(nm); if (!stem || stem.length < 3 || inStem.has(stem)) continue; let cls = kitFuncClass(nm); if (!cls || !/^(spk|sub)A?$/.test(cls)) continue; if (cls === 'spk' && KIT_SUB_RX.test(nm)) cls = 'sub';   /* "רמקול … SB12" = סאב */ const brand = kitBrandOf(nm); if (!brand) { unknownBrand++; continue; } cands.push({ key: k, name: nm, price: +pr, stock: +st, stem, cls, brand, ceil: CEIL_SPK_RX.test(nm) }); }
+  kitProposals.unknownBrand = unknownBrand;
+  /* אותו דגם בכמה צבעים — שורה אחת (הצבע עם הכי הרבה מלאי), השאר בהערה */
+  const byStem = new Map(); cands.forEach(c => { const e = byStem.get(c.stem); if (!e) byStem.set(c.stem, { ...c, fins: [finishOf(c.name)] }); else { e.fins.push(finishOf(c.name)); if (c.stock > e.stock) Object.assign(e, c, { fins: e.fins }); } });
+  const uniq = [...byStem.values()];
+  const tops = uniq.filter(c => c.cls === 'spk'), subs = uniq.filter(c => c.cls === 'sub'), topsA = uniq.filter(c => c.cls === 'spkA'), subsA = uniq.filter(c => c.cls === 'subA');
+  /* סאבים של המותג שכבר בקיטים (כשאין סאב חדש) — הסאב הכי נפוץ בקיטים של המותג */
+  const kitSubOf = br => { const cnt = {}; kits.forEach(k => { const spk = (k.items || []).filter(x => isSpeakerItem(x.name || '')); if (kitBrandOf(spk.map(x => x.name).join(' ')) !== br) return; spk.forEach(x => { if (KIT_SUB_RX.test(x.name || '') && kitFuncClass(x.name || '') === 'sub') { const id = (x.key || '') + '|' + x.name; cnt[id] = (cnt[id] || 0) + 1; } }); }); const e = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!e) return null; const [key, name] = e[0].split('|'); const inf = key ? erpByKey(key) : null; return inf || { key: key || undefined, name }; };
+  const isKT = br => br === 'KT / Unicorn';
+  const ktAmp = withSub => erpByKey(withSub ? 'SSDK7KO' : 'SSDK2KO');
+  const out = [], used = new Set();
+  const mk = (top, sub, qTop, qSub) => {
+    const br = top.brand, withSub = !!sub;
+    const amp = /A$/.test(top.cls) ? null : isKT(br) ? ktAmp(withSub) : topAmp(br, withSub);
+    const items = [{ key: top.key, name: top.name, qty: qTop }];
+    if (sub) items.push({ key: sub.key, name: sub.name, qty: qSub });
+    if (amp) items.push({ key: amp.key, name: amp.name, qty: 1 });
+    const nm = qTop + '× ' + shortModel(top.name) + (sub ? ' + ' + qSub + '× ' + shortModel(sub.name) : '') + (amp ? ' · ' + shortModel(amp.name) : '');
+    const why = [shortModel(top.name) + ' — ' + top.stock + ' במלאי, לא באף קיט' + (top.fins.length > 1 ? ' (צבעים: ' + [...new Set(top.fins)].join('/') + ')' : '') + (top.ceil ? ' · תקרה/שקוע — בלי סאב' : '')];
+    if (sub && !used.has(sub.key) && cands.some(c => c.key === sub.key)) why.push(shortModel(sub.name) + ' — ' + sub.stock + ' במלאי, לא באף קיט');
+    if (!amp && !/A$/.test(top.cls)) why.push('לא נמצא מגבר בקיטים של ' + br + ' — להוסיף בבונה');
+    if (amp && isKT(br)) why.push('כלל הבית: KT עם DYNAMIQ' + (withSub ? ' 4600 (יש סאבים)' : ' 750'));
+    out.push({ name: nm, brand: br, items, why, price: items.reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * x.qty; }, 0) });
+    used.add(top.key); if (sub) used.add(sub.key);
+  };
+  tops.sort((a, b) => b.stock - a.stock).forEach(t => { const s = t.ceil ? null : subs.filter(x => x.brand === t.brand && !used.has(x.key)).sort((a, b) => b.stock - a.stock)[0] || kitSubOf(t.brand) || subs.filter(x => x.brand === t.brand)[0]; mk(t, s, 4, 2); });   /* סאב חדש שעוד לא שובץ, אחרת הסאב הנפוץ בקיטים של המותג */
+  subs.filter(s => !used.has(s.key)).forEach(s => { /* סאב חדש בלי טופ חדש — עם הטופ הכי נפוץ בקיטים של המותג */ const cnt = {}; kits.forEach(k => { const spk = (k.items || []).filter(x => isSpeakerItem(x.name || '')); if (kitBrandOf(spk.map(x => x.name).join(' ')) !== s.brand) return; spk.forEach(x => { if (!KIT_SUB_RX.test(x.name || '') && kitFuncClass(x.name || '') === 'spk') { const id = (x.key || '') + '|' + x.name; cnt[id] = (cnt[id] || 0) + 1; } }); }); const e = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!e) return; const [key, name] = e[0].split('|'); const t = (key && erpByKey(key)) || { key: key || undefined, name, stock: 0 }; mk({ ...t, brand: s.brand, cls: 'spk', fins: [], stock: t.stock || 0 }, s, 4, 2); });
+  topsA.sort((a, b) => b.stock - a.stock).forEach(t => { const s = t.ceil ? null : subsA.filter(x => x.brand === t.brand).sort((a, b) => b.stock - a.stock)[0]; mk(t, s, 4, 2); });
+  subsA.filter(s => !used.has(s.key)).forEach(s => mk(s, null, 2, 0));
+  /* לפי מותג, ובתוך המותג לפי מלאי */
+  out.sort((a, b) => a.brand.localeCompare(b.brand, 'he') || b.price - a.price);
+  return out;
+}
+function kitProposeMore() {
+  const props = kitProposals();
+  if (!props.length) { uiToast('כל הרמקולים והסאבים שבמלאי כבר מופיעים בקיטים 👍', 3500); return; }
+  const ov = uiModal(`<b style="font-size:14px">💡 הצעות לקיטים נוספים — ${props.length}</b>
+    <p class="muted" style="font-size:10.5px;margin:4px 0 6px">רמקולים וסאבים שבמלאי ובמחיר ולא מופיעים באף קיט. הכמויות (4 טופים · 2 סאבים · מגבר 1) הן נקודת פתיחה — "✎ בבונה" פותח לעריכה לפני שמירה, "➕" מוסיף כמו שהוא לרשימת הקיטים שלי${kitProposals.unknownBrand ? ' · ' + kitProposals.unknownBrand + ' דגמים ממותג לא מזוהה לא הוצעו' : ''}</p>
+    <div style="max-height:56vh;overflow-y:auto;display:flex;flex-direction:column;gap:5px">${props.map((p, i) => (i === 0 || props[i - 1].brand !== p.brand ? '<div style="font-size:11px;font-weight:700;color:#534ab7;margin:4px 0 0">' + esc(p.brand) + '</div>' : '') + `<div data-prop="${i}" style="border:1px solid #e5e0d5;border-radius:8px;padding:6px 8px">
+      <div style="display:flex;gap:6px;align-items:center"><label style="flex:1;display:flex;gap:6px;align-items:center;font-size:12px;font-weight:700;cursor:pointer"><input type="checkbox" data-propck="${i}" checked> ${esc(p.name)}</label><b style="font-size:11px;white-space:nowrap">₪${Math.round(p.price).toLocaleString()}</b></div>
+      <div class="muted" style="font-size:10.5px;margin:2px 0">${esc(p.brand)} · ${p.items.map(x => x.qty + '× ' + esc(String(x.name).slice(0, 38))).join(' · ')}</div>
+      <div style="font-size:10.5px;color:#8a5a00">${p.why.map(w => '• ' + esc(w)).join('<br>')}</div>
+      <div style="display:flex;gap:6px;margin-top:4px"><button data-propedit="${i}" style="flex:1;padding:2px 8px;font-size:11px">✎ בבונה</button><button data-propadd="${i}" style="flex:1;padding:2px 8px;font-size:11px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe3d0;font-weight:700">➕ הוסף כמו שהוא</button></div>
+    </div>`).join('')}</div>
+    <button class="primary" data-propall style="width:100%;margin-top:8px;font-weight:700">➕ הוסף את כל המסומנים (${props.length})</button>
+    <button data-cancel style="width:100%;margin-top:6px">סגור</button>`);
+  ov.firstElementChild.style.maxWidth = '560px';
+  const addProp = p => { store.userKits = store.userKits || []; if (store.userKits.some(k => k.name === p.name)) return false; store.userKits.push({ name: p.name, cat: 'audio', sys: 'קיט שלי', items: JSON.parse(JSON.stringify(p.items)) }); return true; };
+  ov.querySelectorAll('[data-propadd]').forEach(b => { b.onclick = () => { const p = props[+b.dataset.propadd]; const ok = addProp(p); if (ok) { save(); uiToast('🧰 נוסף: ' + p.name, 3000); } else uiToast('כבר קיים קיט בשם הזה', 2500); b.closest('[data-prop]').style.opacity = .45; b.disabled = true; renderKits(); }; });
+  ov.querySelectorAll('[data-propedit]').forEach(b => { b.onclick = () => { const p = props[+b.dataset.propedit]; ov.remove(); nkDraft = { name: p.name, items: JSON.parse(JSON.stringify(p.items)), q: '', editIdx: null, cat: 'audio', sys: 'קיט שלי', fromErp: false }; renderKitNew(); }; });
+  ov.querySelector('[data-propall]').onclick = () => { let n = 0; ov.querySelectorAll('[data-propck]:checked').forEach(c => { const p = props[+c.dataset.propck]; if (!ov.querySelector('[data-propadd="' + c.dataset.propck + '"]').disabled && addProp(p)) n++; }); if (n) save(); ov.remove(); uiToast('🧰 נוספו ' + n + ' קיטים לרשימת הקיטים שלי', 3500); renderKits(); };
+  ov.querySelector('[data-cancel]').onclick = () => ov.remove();
+}
+window.kitProposeMore = kitProposeMore;
 async function kitFromOffer() {
   const marked = impItems.filter(it => it.on);
   if (!marked.length) { alert('סמן ✓ שורות בהצעת המחיר שיהיו הקיט'); return; }
@@ -12818,6 +12922,7 @@ function renderKits() {
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button style="flex:1" onclick="kitNew()">➕ צור קיט חדש</button>
       <button style="flex:1" onclick="kitFromOffer()">🧰 צור קיט מהצעת המחיר (✓)</button>
+      <button style="flex:1;background:#fff7e6;color:#8a5a00;font-weight:700;border:1px solid #f0d9a6" onclick="kitProposeMore()" title="רמקולים וסאבים שבמלאי ובמחיר ולא מופיעים באף קיט — הצעות לקיטים חדשים (כמויות להתאמה)">💡 הצע לי קיטים נוספים</button>
       <a style="flex:1;background:#efecfd;color:#6c5ce7;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:1px solid #ddd;border-radius:8px;padding:6px 10px;text-decoration:none;font-size:13px;cursor:pointer"
         href="/matrix"
         title="מי הולך עם מי — אישור ואיסור שילובים, נשמר ונקרא ע&quot;י המתכנן">🧩 מטריצת התאמות</a>
@@ -15622,7 +15727,8 @@ function zoneKitConfirm(zname, idx, opt) {
   const rowsEl = ov.querySelector('[data-kitrows]');
   /* צבע: לחיצה על צ׳יפ מחליפה את הרמקולים/סאבים לווריאנט בצבע, ומציירת מחדש את הפס והשורות */
   const finWrap = ov.querySelector('[data-finwrap]');
-  const bindFin = () => finWrap.querySelectorAll('[data-fin]').forEach(b => { b.onclick = () => { const r = kitApplyFinish(cur, b.dataset.fin); finWrap.innerHTML = kitFinishBarHTML(cur); bindFin(); renderRows(); uiToast('🎨 ' + b.dataset.fin + ': ' + r.done + ' פריטים הוחלפו' + (r.miss.length ? ' · אין וריאנט ל: ' + r.miss.join(', ') : ''), 4500); }; });
+  const applyFin = f => { const r = kitApplyFinish(cur, f); finWrap.innerHTML = kitFinishBarHTML(cur); bindFin(); renderRows(); uiToast(kitFinishMsg(f, r), 4500); };
+  const bindFin = () => { finWrap.querySelectorAll('[data-fin]').forEach(b => { b.onclick = () => applyFin(b.dataset.fin); }); const ob = finWrap.querySelector('[data-finother]'); if (ob) ob.onclick = () => kitFinishOther(applyFin); };
   bindFin();
   let swapIdx = null, swapQ = '';
   /* תוצאות ההחלפה: כל הווריאנטים (צבעים/גדלים), הכי הרבה מלאי למעלה, עד 30 */
@@ -15631,7 +15737,7 @@ function zoneKitConfirm(zname, idx, opt) {
     rowsEl.innerHTML = cur.map((x, i) => `<div style="border-bottom:1px solid #f0ede8;padding:3px 0">
       <div style="display:flex;gap:6px;align-items:center">
         <input data-kq="${i}" type="number" min="0" value="${x.qty}" style="width:48px;font-size:12px;padding:2px 4px;flex:none">
-        <span style="flex:1;font-size:11.5px;text-align:right">${esc((x.name || '').slice(0, 46))}</span>
+        <span style="flex:1;font-size:11.5px;text-align:right">${esc((x.fin ? finBaseName(x) : x.name || '').slice(0, 46))}${x.fin ? ' <span style="background:#efecfd;color:#4b3fb8;border-radius:5px;padding:0 5px;font-size:10px;white-space:nowrap" title="צבע מסומן על הפריט — אין מק&quot;ט נפרד, לציין בהזמנה">🎨 ${esc(x.fin)}</span>' : ''}${offerBanned(x.name) ? ' <span style="color:#c1121f;font-weight:700" title="כלל הבית: מגברי UNICORN DAP לא נכנסים להצעות — החלף ל-DYNAMIQ (4600 כשיש סאבים)">⛔ DAP</span>' : ''}</span>
         ${(() => { const inf = x.key ? erpInfo(x.key) : null; const pr = inf ? inf.price : 0; return pr ? `<b data-ksum="${i}" style="white-space:nowrap;font-size:11px">₪${Math.round(pr * (+x.qty || 0)).toLocaleString()}</b><span class="muted" style="font-size:9.5px;white-space:nowrap">₪${Math.round(pr).toLocaleString()}/יח׳</span>` : '<span class="muted" style="font-size:10px">—</span>'; })()}
         ${x.key ? `<span style="background:#f0ede8;border-radius:5px;padding:1px 6px;font-size:10px;white-space:nowrap" title="מק&quot;ט ERP">${esc(String(x.key))}</span>` : '<span style="color:#c1121f;font-size:10px;white-space:nowrap">ללא מק"ט</span>'}
         <button data-swap="${i}" title="החלף פריט מהקטלוג" style="padding:1px 6px;font-size:11px;flex:none">🔄</button>
