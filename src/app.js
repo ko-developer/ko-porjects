@@ -8235,6 +8235,7 @@ function projGapCheck() {
   { const poeDev = impItems.filter(it => it.on !== false && /PoE/i.test(it.name || '') && !/מתג|switch|רכזת|מפצל רשת/i.test(it.name || '')).reduce((s2, it) => s2 + (+it.qty || 0), 0);
     const poePorts = racks.reduce((s2, rk) => { const sw = rackNetSwitch(rk); return s2 + (sw ? netSwitchPorts(rk, sw).filter(it => /PoE/i.test(it.label || '')).length : 0); }, 0);
     if (poeDev > poePorts) finds.push({ i: '⚡', k: 'poe', t: poeDev + ' מכשירי PoE בהצעה (מתאמי Dante / פנלים / AP) · ' + poePorts + ' פורטי PoE במתגים שבארונות', b: '🔍 הוסף מתג PoE', fn: "gapSearch('POE')" }); }
+  racks.forEach(rk => ctrlAccFor(rk).filter(a => !a.inOffer && a.kind !== 'io').slice(0, 2).forEach(a => finds.push({ i: '🎛', k: 'ctrl|' + rk.id + '|' + a.key, t: 'ל-' + a.forUnits[0] + ' ב"' + rk.name.slice(0, 18) + '" יש בקטלוג ' + (a.brand === 'NST' || /קיפד|keypad/i.test(a.name) ? 'קיפד' : 'פנל שליטה') + ' (' + shortModel(a.name).slice(0, 28) + ')' + (a.qty > 0 ? '' : ', לא במלאי כרגע') + ' — אין בהצעה', b: '➕ הוסף להצעה', fn: "pickSearchItem('" + jsq(a.name) + "','" + a.key + "')" })));
   if (racks.length && !qsum(it => PDU_RX.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
   /* 5ב. יחידה בארון שאף כבל לא נוגע בה — כנראה מיותרת; מציעים להסיר מהארון ומההצעה */
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
@@ -10077,7 +10078,7 @@ function renderPanel() {
         <button class="primary" style="width:100%">הוסף יחידה</button>
         <button type="button" style="width:100%;margin-top:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700" onclick="rackAddProduct('${n.id}',-1)" title="חיפוש בקטלוג — הפריט נכנס להצעת המחיר וגם כיחידה בארון">🔍 הוסף מוצר מהקטלוג — להצעה ולארון</button>
         <button type="button" style="width:100%;margin-top:6px" onclick="rackArrange(byId(sel));render();save();uiToast('⇅ הארון סודר לפי הסטנדרט: נגנים למעלה · פרוססורים וניתוב · מגברים למטה')">⇅ סדר לפי הסטנדרט — נגנים ↑ · פרוססורים · מגברים ↓</button>
-      </form>`;
+      </form>` + ctrlAccHTML(n);
   } else if (n.kind === 'panel') {
     const cnt = P.cables.filter(c => c.from === n.id || c.to === n.id).length;
     html += `<div class="fld"><label>מותקן על</label><select onchange="byId('${n.id}').mount=this.value;render();save()">
@@ -11864,6 +11865,37 @@ function jsq(s) { return esc(String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g
 /* ---- ייבוא מפרט / הצעת מחיר ---- */
 let impItems = [];
 /* פנלים חכמים / קיפדים / בקרי קיר — לא נכנסים לארון: ננעצים על התכנית כמו עמדת DJ */
+/* ===== אביזרי שליטה (קיפדים / פנלי קיר) לפרוססורים ולמגברים — לפי המותג, מהקטלוג (גם כשאין מלאי כרגע) ===== */
+const CTRL_ACC = [
+  { brand: 'NST', for: /\bNST\b|\bD48|ID48|VMX\s?88|VMO\s?16|DM88|D24S/i, key: 'S9NAKOS2', name: 'פנל חכם עם צג לפרוססורים NST VR1PoE Remote Control Wall Panel', how: 'Cat6 לפורט PoE במתג (או ישירות לפורט הרשת של הפרוססור עם מזרק PoE)' },
+  { brand: 'DigiSynthetic', for: /DIGISYNTHET|DMX\s?\d{3,4}|\bDS\s?\d{3}|DSK\s?\d|\bK[57]\b/i, key: 'SDIG1KO', name: 'קיפד קיר לפרוססור DIGISYNTHETIC AES67 Control Wall Panel', how: 'Cat6 לרשת ה-AES67 — דרך המתג אל NET A/B של הפרוססור' },
+  { brand: 'DigiSynthetic', for: /DMX\s?208/i, key: 'SDIG10KO', name: 'יחידת הרחבה לפרוססור DMX208A מתאם AD/DA DIGISYNTHETIC DLA-04 4x4 network interface box', how: 'Cat6 לרשת · 4 כניסות + 4 יציאות אנלוגיות מרוחקות (למשל בעמדת DJ)', kind: 'io' },
+  { brand: 'XTA', for: /\bXTA\b|DC\s?1048|ICORE|DNA\s?\d|DPA\s?\d|\bAPA\b|MX36/i, key: 'SXTA8KOSR1', name: 'פנל קיפד 8 כפתורים לפרוססור XTA ICORE 1048 ACC-UN-WP2 - ספק כח 5V יותר מ20 מטר', how: 'Cat5 לפרוססור · מעל 20 מ׳ נדרש ספק 5V מקומי' },
+  { brand: 'Symetrix', for: /SYMETRIX|PRISM|JUPITER|RADIUS|EDGE/i, key: 'G1322DL', name: 'פנל שליטה לפרוססור מטריצה Symetrix ARC-2E WALL PANEL CONTROLER', how: 'ARC bus — Cat5 מהפרוססור' },
+  { brand: 'מטריצה', for: /מטריצ|matrix/i, key: 'SMIN1KOSR1', name: 'קיפד לפרוססור מטריצה keyboad for matrix KB-1', how: 'Cat5 למטריצה' },
+  { brand: 'מטריצה', for: /מטריצ|matrix/i, key: 'S1STRKO1', name: 'פנל P5 לפרוססור מטריצה עם אפליקציה 8input 8 output', how: 'רשת / אפליקציה' },
+];
+/* האביזרים שמתאימים ליחידות שבארון (פרוססורים ומגברים), עם מצב בהצעה ובמלאי */
+function ctrlAccFor(rk) {
+  const units = ((rk && rk.units) || []).filter(u => isInUnit(u.name) || u.cat === 'amp' || u.cat === 'audio');
+  const out = [];
+  CTRL_ACC.forEach(a => {
+    const hits = units.filter(u => a.for.test(u.name || '')); if (!hits.length) return;
+    const erp = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).find(x => x[0] === a.key), inf = erpInfo(a.key) || {};
+    const inOffer = (impItems || []).filter(it => it.key === a.key || it.name === a.name).reduce((s2, it) => s2 + (+it.qty || 0), 0);
+    out.push({ ...a, name: erp ? erp[1] : a.name, price: inf.price || 0, qty: inf.qty || 0, inOffer, forUnits: [...new Set(hits.map(u => shortModel(u.name) || u.name.slice(0, 16)))] });
+  });
+  return out;
+}
+function ctrlAccHTML(rk) {
+  const list = ctrlAccFor(rk); if (!list.length) return '';
+  return `<h3 class="sec" style="margin-top:12px">🎛 אביזרי שליטה — קיפדים ופנלי קיר למוצרים שבארון</h3>
+    <p class="muted" style="font-size:10.5px;margin:0 0 6px">מהקטלוג, לפי המותג של הפרוססור/המגבר. מופיע גם כשאין מלאי כרגע — ההזמנה דרך ההצעה.</p>
+    ${list.map(a => `<div style="border:1px solid #e3ded3;border-radius:8px;padding:6px 8px;margin-bottom:5px;font-size:11.5px">
+      <div style="display:flex;gap:6px;align-items:flex-start"><span style="flex:1;line-height:1.35"><b>${esc(a.brand)}</b> · ${esc(a.name)}</span>
+        <button style="flex:none;padding:2px 8px;font-weight:700;background:#eef7f1;color:#0f6e56" onclick="pickSearchItem('${jsq(a.name)}','${a.key}')" title="נוסף להצעה ונעיצה על התכנית (ליד הארון / על הקיר)">➕ ${a.inOffer ? 'עוד אחד' : 'הוסף'}</button></div>
+      <div class="muted" style="font-size:10.5px;margin-top:3px">ל-${esc(a.forUnits.join(', '))} · ${esc(a.how)} · ${a.price ? '₪' + Math.round(a.price).toLocaleString() : 'מחיר לפי הצעה'} · ${a.qty > 0 ? '<span style="color:#0a7a4b">מלאי ' + a.qty + '</span>' : '<span style="color:#b8860b">אין במלאי כרגע — להזמנה</span>'}${a.inOffer ? ' · <b style="color:#0f6e56">בהצעה ×' + a.inOffer + '</b>' : ''}</div></div>`).join('')}`;
+}
 const KEYPAD_RE = /קיפד|keypad|key\s?pad|פא?נל\s?חכם|פא?נל\s?(מגע|שליטה|בקרה|קיר|עם\s?צג)|touch\s?panel|control\s?panel|wall\s?(controller|control|panel|plate)|בקר\s?קיר|מתג\s?קיר|שלט\s?קיר|לוח\s?בקרה|volume\s?control|בקר\s?עוצמה|וסת\s?עוצמה/i;
 function isKeypadItem(name) { return KEYPAD_RE.test(String(name || '')); }
 function keypadNodeExtra(it) { return isKeypadItem(it && it.name) ? { pmin: true, mount: 'קיר בלוק', hgt: 1.4 } : {}; }
