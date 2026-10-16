@@ -327,7 +327,9 @@ const handleReq = async (req, res) => {
         const slug = (isFront ? 'front-' : 'custom-') + name.toLowerCase().replace(/[^a-z0-9\u0590-\u05ff]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '-' + Date.now().toString(36) + '.' + (m[2] === 'jpeg' ? 'jpg' : m[2]);
         await storage.write('rear_images/' + slug, buf, m[1]);
         const list = JSON.parse((await readCurated('rear_images.json', 'data/rear_images.json')).toString('utf8'));
-        const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        /* ביטוי זיהוי מפורש (למשל SG\\s?-?121[0O]P — שמות בקטלוג עם שגיאות כתיב/רווחים) — אחרת השם עצמו */
+        let esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (b.re) { try { new RegExp(String(b.re), 'i'); esc = String(b.re).slice(0, 200); } catch { throw new Error('regex לא תקין'); } }
         const i = list.findIndex(x => x.re === esc && x.custom); let rec;
         if (isFront) {
           /* צילום חזית: נשמר לצד צילום הגב. רשומה אישית לדגם — מעתיקה את צילום הגב והמיקומים מהרשומה הכללית שמתאימה לו, כך ששני דגמים עם אותו גב (IPD 1200 / 2400) יכולים לקבל חזית שונה */
