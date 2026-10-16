@@ -7013,8 +7013,8 @@ function patchRender() {
       /* יחס הספק מגבר/רמקולים — אדום: המגבר חלש מהרמקולים · כתום: פחות מ-×2 ·
          ירוק: ×2 ומעלה (הכלל המקובל — headroom של 3dB) · זהב: ×3 ומעלה */
       const ratio = (w && sw) ? w / sw : null;
-      const rc = ratio == null ? '' : ratio < 1 ? '#c1121f' : ratio < 2 ? '#c96a13' : ratio < 3 ? '#0f8a5f' : '#b7900f';
-      const rTip = ratio == null ? '' : ratio < 1 ? 'המגבר חלש מהרמקולים — סכנת קליפ/שריפה' : ratio < 2 ? 'פחות מ-×2 — headroom נמוך' : ratio < 3 ? '×2 ומעלה — תקין (3dB headroom)' : '×3 ומעלה — headroom נדיב';
+      const rc = ratio == null ? '' : ratio < AMP_RATIO_MIN ? '#c1121f' : ratio < 2 ? '#c96a13' : ratio < 3 ? '#0f8a5f' : '#b7900f';
+      const rTip = ratio == null ? '' : ratio < 1 ? 'המגבר חלש מהרמקולים — סכנת קליפ/שריפה' : ratio < AMP_RATIO_MIN ? 'מתחת לכלל הבית (×' + AMP_RATIO_MIN + ') — המגבר חייב להיות חזק ב-50% לפחות מהרמקולים שבערוץ' : ratio < 2 ? '×1.5 ומעלה — עומד בכלל הבית, headroom נמוך' : ratio < 3 ? '×2 ומעלה — תקין (3dB headroom)' : '×3 ומעלה — headroom נדיב';
       const wTxt = w ? ` · <b style="color:${rc}" title="${rTip}">🎚${w}W${ratio ? ' (×' + ratio.toFixed(1) + ')' : ''}</b>` : '';
       const zTxt = ids.length ? (bad ? '⚠ ' : tight ? '⚠ ' : '') + zz.toFixed(1) + 'Ω' + wTxt + (sw ? ' · 🔊' + sw + 'W' : '') + (dMs != null ? ` · <span style="${dSpread > 5 ? 'color:#c1121f;font-weight:700' : ''}">⏱${dMs.toFixed(1)}ms${dSpread > 5 ? '±' + (dSpread / 2).toFixed(1) : ''}</span>` : '') : '—';
       chs.push(`<div class="pchCh ${locked ? 'lock' : ''}" data-slot="${key}">
@@ -7068,7 +7068,7 @@ function patchRender() {
     </div>` : ''}
     ${estCables ? patchOfferPreview() : ''}
     ${totSpkW ? `<div style="font-size:11px;color:#8a8377;margin-top:4px;background:#f7f5f0;border-radius:8px;padding:6px 8px">⚡ סיכום הספקים: 🎚 מגברים ${totAmpW ? totAmpW.toLocaleString() + 'W' : '—'} זמינים בערוצים המאוישים · 🔊 רמקולים צורכים ${totSpkW.toLocaleString()}W RMS<br>
-      <span style="font-size:10.5px">יחס הספק לערוץ: <b style="color:#c1121f">אדום</b> = מגבר חלש מהרמקולים · <b style="color:#c96a13">כתום</b> = פחות מ-×2 · <b style="color:#0f8a5f">ירוק</b> = ×2 ומעלה · <b style="color:#b7900f">זהב</b> = ×3 ומעלה</span></div>` : ''}
+      <span style="font-size:10.5px">יחס הספק לערוץ: <b style="color:#c1121f">אדום</b> = מתחת ל-×1.5 (כלל הבית: המגבר חזק ב-50% לפחות מהרמקולים) · <b style="color:#c96a13">כתום</b> = ×1.5–×2 · <b style="color:#0f8a5f">ירוק</b> = ×2 ומעלה · <b style="color:#b7900f">זהב</b> = ×3 ומעלה</span></div>` : ''}
     <div style="font-size:11px;color:#8a8377;margin-top:4px;background:${anySpread ? '#fdeeee' : '#f7f5f0'};border-radius:8px;padding:6px 8px">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">⏱ דיליי:
         <select onchange="store.dlyMode=this.value;save();patchRender()" style="font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:6px">
@@ -12755,6 +12755,44 @@ function renderKitNew() {
    לכל דגם כזה: טופ + סאב מאותו מותג + מגבר. המגבר: KT/Unicorn — לפי כלל הבית DYNAMIQ (4600 כשיש סאבים, 750 בלי);
    מותג אחר — המגבר שהכי נפוץ בקיטים הקיימים של המותג (עם/בלי סאבים). הכמויות (4 טופים, 2 סאבים, מגבר 1) הן נקודת פתיחה לעריכה */
 const CEIL_SPK_RX = /תקר|ceiling|שקוע|in-?wall|\bIW\s?\d|\bIC\s?\d|סלע|\brock\b|גינה|garden/i;   /* תקרה / שקוע / סלע-גינה — בלי סאב בקיט */
+/* ===== כלל הבית לחיבור: הספק המגבר לערוץ ≥ ×1.5 מסכום הספק הרמקולים שבערוץ (בעומס בפועל) ===== */
+const AMP_RATIO_MIN = 1.5;
+/* הספק/אום של רמקול לפי שם פריט ב-ERP: טבלת הדגמים (גם "TILL 12" → TILL 12P, "TILL 15" → TILL 15P SUB), אחרת "250W" בשם; אום מהשם או 8 */
+function kitSpkSpec(nm) {
+  const n = String(nm || '');
+  const tries = [n, n.replace(/TILL\s?(8|12)\b(?!P)/i, 'TILL $1P'), n.replace(/TILL\s?(15|18)\b(?!P)/i, 'TILL $1P SUB'), n.replace(/MINIRAY/i, 'ARRAY')];
+  for (const t of tries) { const d = spkData(t); if (d && d.w) return { w: +d.w, o: +d.o || 8, src: shortModel(t) !== shortModel(n) ? 'לפי ' + shortModel(t) : 'מהטבלה' }; }
+  const mw = /(\d{2,4})\s*(?:W\b|וואט)/i.exec(n), mo = /(\d{1,2})\s*(?:ohm|אוהם|אום|Ω)/i.exec(n);
+  return { w: mw ? +mw[1] : null, o: mo ? +mo[1] : 8, src: mw ? 'מהשם' : '' };
+}
+/* תכנון: כמה מגברים מדגם X צריך לקבוצות רמקולים (כל קבוצה: w, o, qty, sub) כך שכל ערוץ עומד ב-×1.5 ובמינימום האום.
+   לכל קבוצה בוחרים כמה רמקולים לערוץ (הכי הרבה שעומד בכלל); סאב שלא נכנס בערוץ אחד — בגשר (2 ערוצים). מחזיר null כשלא ניתן */
+function kitAmpPlanFor(ampName, groups) {
+  const rec = ampRec(ampName); if (!rec || !rec.pw) return null;
+  const ch = ampChCount(ampName) || rec.ch || 2, mo = ampMinOhm(ampName);
+  let chans = 0; const lines = [];
+  for (const g of groups) {
+    if (!g.w) return null;
+    let pick = null;
+    /* עד 4 טופים / 2 סאבים לערוץ; העומס לא מתחת למינימום של המגבר (בדיוק על המינימום — לפי הנתון הרשמי, למשל 750W@4Ω) */
+    for (let n = g.sub ? 2 : 4; n >= 1; n--) { const load = g.o / n; if (load < mo - 0.05) continue; const w = ampChW(ampName, load); if (w && w >= AMP_RATIO_MIN * n * g.w) { pick = { n, load, w }; break; } }
+    if (pick) { const need = Math.ceil(g.qty / pick.n); chans += need; lines.push(need + ' ערוצ׳ ל-' + g.qty + '× ' + g.model + ' (' + pick.n + ' לערוץ, ' + pick.load.toFixed(0) + 'Ω: ' + pick.w + 'W ≥ ×' + AMP_RATIO_MIN + ' של ' + (pick.n * g.w) + 'W)'); continue; }
+    if (g.o >= 2 * mo - 0.05) { const bw = bridgeChW(ampName, g.o); if (bw && bw >= AMP_RATIO_MIN * g.w) { chans += 2 * g.qty; lines.push((2 * g.qty) + ' ערוצ׳ בגשר ל-' + g.qty + '× ' + g.model + ' (גשר ' + g.o + 'Ω: ' + bw + 'W ≥ ×' + AMP_RATIO_MIN + ' של ' + g.w + 'W)'); continue; } }
+    return null;
+  }
+  return { amps: Math.ceil(chans / ch), chans, ch, lines };
+}
+/* המגבר הזול ביותר (סה"כ) שעומד בכלל מבין המועמדים; prefer = ביטוי לדגם מועדף (DYNAMIQ ל-KT) — נבחר אם הוא עומד בכלל */
+function kitAmpChoose(groups, cands, prefer) {
+  const opts = [];
+  for (const c of cands) { const p = kitAmpPlanFor(c.name, groups); if (!p) continue; const inf = erpInfo(c.key) || {}; opts.push({ ...c, plan: p, cost: p.amps * (inf.price || c.price || 0), pref: prefer && prefer.test(c.name) ? 0 : 1 }); }
+  if (!opts.length) return null;
+  opts.sort((a, b) => a.pref - b.pref || a.cost - b.cost || a.plan.amps - b.plan.amps);
+  /* חלופה זולה יותר מדגם לא-מועדף — מוצגת כהערה */
+  const alt = opts.find(o => o !== opts[0] && o.cost < opts[0].cost);
+  if (alt) opts[0].alt = alt;
+  return opts[0];
+}
 function kitProposals() {
   if (typeof ERP_ITEMS === 'undefined') return [];
   const kits = allKits(true), inKey = new Set(), inStem = new Set();
@@ -12782,19 +12820,31 @@ function kitProposals() {
   /* סאבים של המותג שכבר בקיטים (כשאין סאב חדש) — הסאב הכי נפוץ בקיטים של המותג */
   const kitSubOf = br => { const cnt = {}; kits.forEach(k => { const spk = (k.items || []).filter(x => isSpeakerItem(x.name || '')); if (kitBrandOf(spk.map(x => x.name).join(' ')) !== br) return; spk.forEach(x => { if (KIT_SUB_RX.test(x.name || '') && kitFuncClass(x.name || '') === 'sub') { const id = (x.key || '') + '|' + x.name; cnt[id] = (cnt[id] || 0) + 1; } }); }); const e = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!e) return null; const [key, name] = e[0].split('|'); const inf = key ? erpByKey(key) : null; return inf || { key: key || undefined, name }; };
   const isKT = br => br === 'KT / Unicorn';
-  const ktAmp = withSub => erpByKey(withSub ? 'SSDK7KO' : 'SSDK2KO');
+  /* מועמדי מגבר למותג: KT — DYNAMIQ/MX3 שבמלאי (DYNAMIQ מועדף לפי כלל הבית); אחר — המגברים מהקיטים של המותג + מגברי המותג שבמלאי */
+  const ampCands = br => { const out = [], seen = new Set(); const add = (key, name, price, stock) => { if (!key || seen.has(key) || offerBanned(name) || KIT_ALT_NO.test(name) || /board|כרטיס|לוח|מודול|module|ספק כח/i.test(name)) return;   /* לא לוח/כרטיס חילוף של מגבר */ seen.add(key); out.push({ key, name, price, stock }); };
+    if (isKT(br)) ERP_ITEMS.forEach(it => { if (/DYNAMIQ|\bMX3/i.test(it[1] || '') && kitFuncClass(it[1] || '') === 'amp' && +it[3] > 0 && +it[2] > 0) add(it[0], it[1], +it[2], +it[3]); });
+    else { const ba = brandAmps[br] || { sub: {}, top: {} }; Object.keys({ ...ba.sub, ...ba.top }).forEach(id => { const [key, name] = id.split('|'); const e = key && erpByKey(key); if (e) add(e.key, e.name, e.price, e.stock); }); ERP_ITEMS.forEach(it => { if (kitFuncClass(it[1] || '') === 'amp' && kitBrandOf(it[1] || '') === br && +it[3] > 0 && +it[2] > 0) add(it[0], it[1], +it[2], +it[3]); }); }
+    return out; };
   const out = [], used = new Set();
   const mk = (top, sub, qTop, qSub) => {
     const br = top.brand, withSub = !!sub;
-    const amp = /A$/.test(top.cls) ? null : isKT(br) ? ktAmp(withSub) : topAmp(br, withSub);
+    const active = /A$/.test(top.cls);
+    /* מגבר לפי כלל הבית ×1.5: קבוצות = טופים (+ סאבים), המגבר הזול שעומד בכלל; בלי נתוני הספק — נופלים למגבר הנפוץ עם אזהרה */
+    const groups = active ? [] : [{ model: shortModel(top.name), qty: qTop, ...kitSpkSpec(top.name) }].concat(sub ? [{ model: shortModel(sub.name), qty: qSub, sub: true, ...kitSpkSpec(sub.name) }] : []);
+    const specOk = groups.every(g => g.w);
+    const chosen = active ? null : specOk ? kitAmpChoose(groups, ampCands(br), isKT(br) ? /DYNAMIQ/i : null) : null;
+    const amp = active ? null : chosen ? { key: chosen.key, name: chosen.name } : isKT(br) ? erpByKey('SSDK2KO') : topAmp(br, withSub);
+    const ampQty = chosen ? chosen.plan.amps : 1;
     const items = [{ key: top.key, name: top.name, qty: qTop }];
     if (sub) items.push({ key: sub.key, name: sub.name, qty: qSub });
-    if (amp) items.push({ key: amp.key, name: amp.name, qty: 1 });
-    const nm = qTop + '× ' + shortModel(top.name) + (sub ? ' + ' + qSub + '× ' + shortModel(sub.name) : '') + (amp ? ' · ' + shortModel(amp.name) : '');
+    if (amp) items.push({ key: amp.key, name: amp.name, qty: ampQty });
+    const nm = qTop + '× ' + shortModel(top.name) + (sub ? ' + ' + qSub + '× ' + shortModel(sub.name) : '') + (amp ? ' · ' + (ampQty > 1 ? ampQty + '× ' : '') + shortModel(amp.name) : '');
     const why = [shortModel(top.name) + ' — ' + top.stock + ' במלאי, לא באף קיט' + (top.fins.length > 1 ? ' (צבעים: ' + [...new Set(top.fins)].join('/') + ')' : '') + (top.ceil ? ' · תקרה/שקוע — בלי סאב' : '')];
     if (sub && !used.has(sub.key) && cands.some(c => c.key === sub.key)) why.push(shortModel(sub.name) + ' — ' + sub.stock + ' במלאי, לא באף קיט');
-    if (!amp && !/A$/.test(top.cls)) why.push('לא נמצא מגבר בקיטים של ' + br + ' — להוסיף בבונה');
-    if (amp && isKT(br)) why.push('כלל הבית: KT עם DYNAMIQ' + (withSub ? ' 4600 (יש סאבים)' : ' 750'));
+    if (!amp && !active) why.push('לא נמצא מגבר בקיטים של ' + br + ' — להוסיף בבונה');
+    if (chosen) { why.push('🎚 ' + ampQty + '× ' + shortModel(chosen.name) + ' — ' + chosen.plan.chans + ' ערוצים: ' + chosen.plan.lines.join(' · ')); if (chosen.alt) why.push('חלופה זולה יותר שעומדת בכלל: ' + chosen.alt.plan.amps + '× ' + shortModel(chosen.alt.name) + ' (₪' + Math.round(chosen.alt.cost).toLocaleString() + ' במקום ₪' + Math.round(chosen.cost).toLocaleString() + ')'); groups.forEach(g => { if (g.src && g.src !== 'מהטבלה') why.push(g.model + ': ' + g.w + 'W/' + g.o + 'Ω ' + g.src); }); }
+    else if (amp) why.push('⚠ לא אומת כלל ×' + AMP_RATIO_MIN + ': ' + (specOk ? 'אף מגבר ' + br + ' שבמלאי לא עומד בכלל לרמקולים האלה' : 'אין נתוני הספק ל-' + groups.filter(g => !g.w).map(g => g.model).join(', ')) + ' — לבדוק בבונה');
+    if (amp && isKT(br) && !/DYNAMIQ/i.test(amp.name)) why.push('DYNAMIQ שבמלאי לא עומד ב-×' + AMP_RATIO_MIN + ' לרמקולים האלה — הוצע ' + shortModel(amp.name));
     out.push({ name: nm, brand: br, items, why, price: items.reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * x.qty; }, 0) });
     used.add(top.key); if (sub) used.add(sub.key);
   };
@@ -12810,7 +12860,7 @@ function kitProposeMore() {
   const props = kitProposals();
   if (!props.length) { uiToast('כל הרמקולים והסאבים שבמלאי כבר מופיעים בקיטים 👍', 3500); return; }
   const ov = uiModal(`<b style="font-size:14px">💡 הצעות לקיטים נוספים — ${props.length}</b>
-    <p class="muted" style="font-size:10.5px;margin:4px 0 6px">רמקולים וסאבים שבמלאי ובמחיר ולא מופיעים באף קיט. הכמויות (4 טופים · 2 סאבים · מגבר 1) הן נקודת פתיחה — "✎ בבונה" פותח לעריכה לפני שמירה, "➕" מוסיף כמו שהוא לרשימת הקיטים שלי${kitProposals.unknownBrand ? ' · ' + kitProposals.unknownBrand + ' דגמים ממותג לא מזוהה לא הוצעו' : ''}</p>
+    <p class="muted" style="font-size:10.5px;margin:4px 0 6px">רמקולים וסאבים שבמלאי ובמחיר ולא מופיעים באף קיט. המגברים לפי כלל הבית: הספק המגבר לערוץ ≥ ×${AMP_RATIO_MIN} מהרמקולים שבערוץ (כמות המגברים מחושבת). הכמויות (4 טופים · 2 סאבים) הן נקודת פתיחה — "✎ בבונה" פותח לעריכה לפני שמירה, "➕" מוסיף כמו שהוא לרשימת הקיטים שלי${kitProposals.unknownBrand ? ' · ' + kitProposals.unknownBrand + ' דגמים ממותג לא מזוהה לא הוצעו' : ''}</p>
     <div style="max-height:56vh;overflow-y:auto;display:flex;flex-direction:column;gap:5px">${props.map((p, i) => (i === 0 || props[i - 1].brand !== p.brand ? '<div style="font-size:11px;font-weight:700;color:#534ab7;margin:4px 0 0">' + esc(p.brand) + '</div>' : '') + `<div data-prop="${i}" style="border:1px solid #e5e0d5;border-radius:8px;padding:6px 8px">
       <div style="display:flex;gap:6px;align-items:center"><label style="flex:1;display:flex;gap:6px;align-items:center;font-size:12px;font-weight:700;cursor:pointer"><input type="checkbox" data-propck="${i}" checked> ${esc(p.name)}</label><b style="font-size:11px;white-space:nowrap">₪${Math.round(p.price).toLocaleString()}</b></div>
       <div class="muted" style="font-size:10.5px;margin:2px 0">${esc(p.brand)} · ${p.items.map(x => x.qty + '× ' + esc(String(x.name).slice(0, 38))).join(' · ')}</div>
