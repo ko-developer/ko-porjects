@@ -1591,7 +1591,7 @@ async function dupProj() {
     ov.addEventListener('click', e => { if (e.target === ov) done(''); });
   });
   if (!mode) return;
-  const p = JSON.parse(JSON.stringify(P)); p.id = uid('p'); p.name = P.name + ' (עותק)';
+  const p = JSON.parse(JSON.stringify(P)); p.id = uid('p'); p.name = P.name + ' (עותק)'; p.dupOf = P.id;   /* קשר למקור — מוצג במנהל הפרויקטים כמשפחה */
   if (mode !== 'all') {
     for (const k of ['vers', 'impSaved', 'stock', 'xlinks', 'cabVis', '_gapAck', '_gapOk', '_instKit', 'erpOfferCode', 'erpQuoteFrom', 'thumb', 'thumbSig', 'sketch']) delete p[k];
     for (const sh of p.sheets || []) {
@@ -1699,7 +1699,12 @@ function pmRender(q) {
   const fmtT = t => t > 1e12 ? new Date(t).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '';
   const list = pmFiltered(q);
   if (pmUser) list.sort((a, b) => (+b.upd || 0) - (+a.upd || 0));   /* בסינון לפי משתמש — האחרונים שנערכו קודם */
-  el.innerHTML = list.map(p => `<div style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;${p.id === P.id ? 'background:#f2faf4' : ''}">
+  /* משפחות: שכפולים (dupOf / "(עותק)" של שם קיים) ופרויקטים עם אותה תכנית (אותה תמונת רקע) — מוצגים יחד במסגרת צבעונית */
+  const fam = pmFamilies(store.projects || []), FAM_COL = ['#534ab7', '#0f6e56', '#c96a13', '#1d4f91', '#a32222', '#7a2a6b', '#0b7285', '#8a6a00'];
+  const famOf = new Map(), famMeta = new Map(); fam.forEach((g, gi) => { g.ids.forEach(id => famOf.set(id, gi)); famMeta.set(gi, { col: FAM_COL[gi % FAM_COL.length], why: g.why, n: g.ids.length }); });
+  const ordered = [], done = new Set();
+  for (const p of list) { if (done.has(p.id)) continue; const gi = famOf.get(p.id); if (gi == null) { ordered.push([p]); done.add(p.id); continue; } const members = list.filter(x => famOf.get(x.id) === gi); members.forEach(x => done.add(x.id)); ordered.push(members); }
+  const row = p => `<div style="display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #eee;border-radius:8px;margin-bottom:4px;${p.id === P.id ? 'background:#f2faf4' : ''}">
       <input type="checkbox" style="width:auto" ${window.__pmSel.has(p.id) ? 'checked' : ''} onchange="this.checked?window.__pmSel.add('${p.id}'):window.__pmSel.delete('${p.id}')">
       ${pmThumbHTML(p)}
       <b style="flex:1;font-size:12.5px;cursor:pointer" title="עבור לפרויקט" onclick="switchProj('${p.id}');document.getElementById('pmOv').remove()">${esc(p.name)}${p.id === P.id ? ' ←' : ''}</b>
@@ -1707,8 +1712,34 @@ function pmRender(q) {
       <span class="muted" style="font-size:10px;white-space:nowrap">${(p.nodes || []).length} מוקדים</span>
       ${p.offerSent ? '<span title="נשלחה הצעה ל-ERP" style="font-size:12px">📤</span>' : ''}
       ${pmIsAdmin() && PM_USERS && PM_USERS.length ? `<button onclick="pmTransfer('${p.id}')" title="העברת בעלות — הפרויקט יירשם על שם משתמש אחר (יופיע אצלו ב'שלי' עם הרשאת עריכה)" style="padding:2px 7px;font-size:11px">👑</button>` : ''}
-    </div>${(() => { const us = pmUsersOf(p.id); return us.length ? `<div style="margin:-3px 0 5px;padding:0 34px 0 8px;font-size:10.5px;display:flex;gap:4px;flex-wrap:wrap">${us.map(({ u, p: g }) => `<span style="background:${g.created ? '#efecfd' : '#f4f2ec'};color:${g.created ? '#4b3fb8' : '#556'};border-radius:999px;padding:1px 8px" title="${esc(u.email)}">${g.created ? '✏️ נוצר ע״י' : '🔗 משותף עם'} ${esc(u.name || u.email)} · ${g.perm === 'view' ? 'צפייה' : 'עריכה'}</span>`).join('')}${+p.upd > 1e12 ? `<span class="muted">עודכן ${fmtT(+p.upd)}</span>` : ''}</div>` : ''; })()}`).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
+    </div>${(() => { const us = pmUsersOf(p.id); return us.length ? `<div style="margin:-3px 0 5px;padding:0 34px 0 8px;font-size:10.5px;display:flex;gap:4px;flex-wrap:wrap">${us.map(({ u, p: g }) => `<span style="background:${g.created ? '#efecfd' : '#f4f2ec'};color:${g.created ? '#4b3fb8' : '#556'};border-radius:999px;padding:1px 8px" title="${esc(u.email)}">${g.created ? '✏️ נוצר ע״י' : '🔗 משותף עם'} ${esc(u.name || u.email)} · ${g.perm === 'view' ? 'צפייה' : 'עריכה'}</span>`).join('')}${+p.upd > 1e12 ? `<span class="muted">עודכן ${fmtT(+p.upd)}</span>` : ''}</div>` : ''; })()}`;
+  el.innerHTML = ordered.map(g => {
+    if (g.length < 2) return row(g[0]);
+    const gi = famOf.get(g[0].id), m = famMeta.get(gi);
+    /* קבוצה גדולה (למשל פרויקטי בדיקה על אותה תכנית) מקופלת: 3 ראשונים + "עוד N" */
+    window.__pmFamOpen = window.__pmFamOpen || new Set();
+    const open = g.length <= 5 || window.__pmFamOpen.has(gi), shown = open ? g : g.slice(0, 3);
+    return `<div style="border:2px solid ${m.col};border-radius:10px;padding:6px 6px 2px;margin-bottom:6px;background:${m.col}0d">
+      <div style="font-size:10.5px;font-weight:700;color:${m.col};margin:0 2px 5px;display:flex;gap:6px;align-items:center"><span style="width:10px;height:10px;border-radius:50%;background:${m.col};display:inline-block"></span>🔗 ${g.length} פרויקטים קשורים — ${esc(m.why)}${g.length < m.n ? ' <span style="font-weight:400">(עוד ' + (m.n - g.length) + ' מחוץ לסינון)</span>' : ''}<span style="flex:1"></span>${g.length > 5 ? `<button style="padding:1px 8px;font-size:10.5px" onclick="window.__pmFamOpen.${open ? 'delete' : 'add'}(${gi});pmRender(window.__pmQ||'')">${open ? '▴ קפל' : '▾ הצג את כל ' + g.length}</button>` : ''}</div>
+      ${shown.map(row).join('')}${open ? '' : `<div class="muted" style="font-size:10.5px;margin:0 2px 4px">… ועוד ${g.length - shown.length} באותה תכנית</div>`}</div>`;
+  }).join('') || '<p class="muted" style="font-size:12px">אין תוצאות</p>';
   pmThumbsWatch(el);
+}
+/* משפחות פרויקטים: איחוד (union-find) לפי שכפול (dupOf), שם "(עותק)" של פרויקט קיים, ואותה תמונת רקע (thumbSig = אורך תמונת הרקע) */
+function pmFamilies(projects) {
+  const par = new Map(), why = new Map();
+  const find = id => { let x = id; while (par.get(x) && par.get(x) !== x) x = par.get(x); return x; };
+  const union = (a, b, w) => { if (!a || !b || a === b) return; if (!par.has(a)) par.set(a, a); if (!par.has(b)) par.set(b, b); const ra = find(a), rb = find(b); if (ra !== rb) par.set(ra, rb); const r = find(b); why.set(r, [...new Set([...(why.get(ra) || []), ...(why.get(rb) || []), w])]); };
+  const byName = new Map(projects.map(p => [(p.name || '').trim(), p.id]));
+  const bySig = new Map();
+  for (const p of projects) {
+    if (p.dupOf && projects.some(x => x.id === p.dupOf)) union(p.id, p.dupOf, 'שכפול');
+    const m = /^(.*?)\s*\(עותק\)\s*$/.exec(p.name || ''); if (m && byName.get(m[1].trim()) && byName.get(m[1].trim()) !== p.id) union(p.id, byName.get(m[1].trim()), 'שכפול');
+    if (+p.thumbSig > 2000) { const k = +p.thumbSig; if (bySig.has(k)) union(p.id, bySig.get(k), 'אותה תכנית'); else bySig.set(k, p.id); }
+  }
+  const groups = new Map();
+  for (const p of projects) { if (!par.has(p.id)) continue; const r = find(p.id); if (!groups.has(r)) groups.set(r, { ids: [], why: (why.get(r) || []).join(' · ') || 'קשורים' }); groups.get(r).ids.push(p.id); }
+  return [...groups.values()].filter(g => g.ids.length > 1);
 }
 /* תמונה ממוזערת של התכנית בשורת הפרויקט — כדי לזהות במבט על מה מדובר. נוצרת פעם אחת בדפדפן (160px, JPEG) ונשמרת בפרויקט (p.thumb);
    לפרויקטים קיימים היא נוצרת כשהשורה נגללת לתצוגה, והשמירה נעשית פעם אחת בסוף */
