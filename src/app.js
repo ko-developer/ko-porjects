@@ -16338,11 +16338,19 @@ function bomHTML() {
 }
 /* 🖼 הדמיה לדוח — מבט איזומטרי של כל אזור לפי התכנית: רצפה, ריהוט מהשרטוט, רמקולים בגובה ובכיוון שלהם,
    אלומות כיסוי, ארונות ודמויות. המיקומים, הגבהים והכיוונים אמיתיים; צורות המוצרים סכמטיות (לפי המידות כשהן ידועות). */
+/* הדמיה — מבט תלת־ממדי מקצועי על האזור: רצפה איזומטרית עם מפת עוצמה (dB SPL בגובה אוזן), תמונות המוצרים שנבחרו במקומן
+   ובגובהן, כיוון וזווית הפיזור של כל רמקול, ארונות, ריהוט מהשרטוט ומידות. בלי דמויות — הנתונים עצמם הם ההמחשה */
+function nodeImgUrl(n) {
+  const it = n.srcIid && typeof impItems !== 'undefined' && impItems.find(x => x.iid === n.srcIid);
+  const key = (it && it.key) || '', full = nodeFullName(n);
+  return (key && typeof erpImg === 'function' && erpImg(key)) || (typeof erpImgByModel === 'function' && erpImgByModel(full)) || (typeof modelImg === 'function' && modelImg(full)) || '';
+}
 function isoViewHTML() {
   if (!P.scale) return '';
   const zones = (P.zones || []).filter(z => P.nodes.some(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z)));
   if (!zones.length) return '';
-  const m = P.scale, C = 0.866, S2 = 0.5, VW = 1000;
+  const m = P.scale, C = 0.866, S2 = 0.5, VW = 1000, EAR = 1.5;
+  const [cFloor, cTop] = covRange();
   const shade = (hex, f) => { const h = (hex || '#888').replace('#', ''), v = h.length === 3 ? h.split('').map(c => c + c).join('') : h; const ch = i => Math.max(0, Math.min(255, Math.round(parseInt(v.substr(i, 2), 16) * f + (f > 1 ? (f - 1) * 60 : 0)))); return 'rgb(' + ch(0) + ',' + ch(2) + ',' + ch(4) + ')'; };
   const used = new Map();
   const out = zones.map(z => {
@@ -16350,120 +16358,135 @@ function isoViewHTML() {
     const ceil = +z.ceil || +(P.room && P.room.ceil) || 0;
     const s = (VW - 80) / ((W + H) * C), VZ = 1.2;
     const pts = P.nodes.filter(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z));
-    const topZ = Math.max(ceil, 3.2);
+    const wallH = Math.min(ceil || 0, 3.5), topZ = Math.max(wallH, 3.2);
     const ox = 40 + H * C * s, oy = 30 + topZ * s * VZ;
     const pr = (X, Y, Z) => [ox + (X - Y) * C * s, oy + (X + Y) * S2 * s - (Z || 0) * s * VZ];
-    const P2 = (X, Y, Z) => { const p = pr(X, Y, Z); return p[0].toFixed(1) + ',' + p[1].toFixed(1); };
+    const f1 = v => (+v).toFixed(1);
+    const P2 = (X, Y, Z) => { const p = pr(X, Y, Z); return f1(p[0]) + ',' + f1(p[1]); };
     const poly = (arr, fill, extra) => '<polygon points="' + arr.map(a => P2(a[0], a[1], a[2])).join(' ') + '" fill="' + fill + '" ' + (extra || '') + '/>';
     const wX = x => (x - b.L) * m, wY = y => (y - b.T) * m;
     const VH = oy + (W + H) * S2 * s + 46;
-    /* מנסרה: בסיס מצולע (מטרים), מגובה z0 בגובה h */
     const prism = (base, z0, h, col, op) => { const n = base.length, faces = [];
-      for (let i = 0; i < n; i++) { const a = base[i], c = base[(i + 1) % n], nx = c[1] - a[1], ny = -(c[0] - a[0]);   /* נורמל החוצה (לבסיס בכיוון השעון על המסך) */
-        faces.push({ d: (a[0] + a[1] + c[0] + c[1]) / 2, a, c, lit: nx + ny }); }
+      for (let i = 0; i < n; i++) { const a = base[i], c = base[(i + 1) % n]; faces.push({ d: (a[0] + a[1] + c[0] + c[1]) / 2, a, c }); }
       let cx = 0, cy = 0; base.forEach(p => { cx += p[0] / n; cy += p[1] / n; });
       const vis = faces.filter(f => { const mx = (f.a[0] + f.c[0]) / 2 - cx, my = (f.a[1] + f.c[1]) / 2 - cy; return mx + my > -1e-6; }).sort((f1, f2) => f1.d - f2.d);
       let g = ''; vis.forEach(f => { const mx = (f.a[0] + f.c[0]) / 2 - cx, my = (f.a[1] + f.c[1]) / 2 - cy; g += poly([[f.a[0], f.a[1], z0], [f.c[0], f.c[1], z0], [f.c[0], f.c[1], z0 + h], [f.a[0], f.a[1], z0 + h]], shade(col, mx > my ? 0.62 : 0.8), 'stroke="' + shade(col, 0.45) + '" stroke-width="0.6"' + (op ? ' opacity="' + op + '"' : '')); });
       return g + poly(base.map(p => [p[0], p[1], z0 + h]), shade(col, 1.12), 'stroke="' + shade(col, 0.5) + '" stroke-width="0.6"' + (op ? ' opacity="' + op + '"' : '')); };
     const rectBase = (cx, cy, w, d, deg) => { const a = (deg || 0) * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a); return [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([x, y]) => [cx + x * ca - y * sa, cy + x * sa + y * ca]); };
     const ngon = (cx, cy, r, k) => Array.from({ length: k }, (_, i) => [cx + r * Math.cos(i * 2 * Math.PI / k), cy + r * Math.sin(i * 2 * Math.PI / k)]);
-    const label = (X, Y, Z, txt, col) => { const p0 = pr(X, Y, Z), w = txt.length * 5.6 + 12, p = [Math.max(w / 2 + 4, Math.min(VW - w / 2 - 4, p0[0])), p0[1]]; return '<g><line x1="' + p0[0] + '" y1="' + p[1] + '" x2="' + p[0] + '" y2="' + (p[1] - 12) + '" stroke="' + col + '" stroke-width="1"/><rect x="' + (p[0] - w / 2) + '" y="' + (p[1] - 27) + '" width="' + w + '" height="15" rx="7.5" fill="#fff" stroke="' + col + '" stroke-width="1.2" opacity="0.96"/><text x="' + p[0] + '" y="' + (p[1] - 16) + '" text-anchor="middle" font-size="9.5" font-weight="800" fill="#1a1e28" direction="ltr" style="unicode-bidi:plaintext">' + esc(txt) + '</text></g>'; };
+    const label = (X, Y, Z, txt, col) => { const p0 = pr(X, Y, Z), w = txt.length * 5.6 + 14, p = [Math.max(w / 2 + 4, Math.min(VW - w / 2 - 4, p0[0])), p0[1]]; return '<g><line x1="' + f1(p0[0]) + '" y1="' + f1(p[1]) + '" x2="' + f1(p[0]) + '" y2="' + f1(p[1] - 12) + '" stroke="' + col + '" stroke-width="1"/><rect x="' + f1(p[0] - w / 2) + '" y="' + f1(p[1] - 27) + '" width="' + f1(w) + '" height="15" rx="7.5" fill="#fff" stroke="' + col + '" stroke-width="1.2"/><text x="' + f1(p[0]) + '" y="' + f1(p[1] - 16) + '" text-anchor="middle" font-size="9.5" font-weight="800" fill="' + col + '" direction="ltr">' + esc(txt) + '</text></g>'; };
     /* רצפה */
     const fl = z.poly && z.poly.length > 2 ? z.poly.map(p => [wX(p.x), wY(p.y)]) : [[0, 0], [W, 0], [W, H], [0, H]];
-    /* בלי gradient/clipPath לפי id — התצוגה המקדימה משכפלת את הדוח, ומזהים כפולים נפתרים אל המקור המוסתר */
-    let g = '<rect x="0" y="0" width="' + VW + '" height="' + VH.toFixed(0) + '" rx="10" fill="#eef3f8"/>';
-    g += prism([[0, 0], [W, 0], [W, H], [0, H]], -0.25, 0.25, '#b9ad94');
-    g += poly(fl.map(a => [a[0], a[1], 0]), '#ebe3d2', 'stroke="#8d8370" stroke-width="1.2"');
-    let grid = ''; for (let x = 1; x < W; x++) grid += '<line x1="' + pr(x, 0, 0)[0].toFixed(1) + '" y1="' + pr(x, 0, 0)[1].toFixed(1) + '" x2="' + pr(x, H, 0)[0].toFixed(1) + '" y2="' + pr(x, H, 0)[1].toFixed(1) + '"/>';
-    for (let y = 1; y < H; y++) grid += '<line x1="' + pr(0, y, 0)[0].toFixed(1) + '" y1="' + pr(0, y, 0)[1].toFixed(1) + '" x2="' + pr(W, y, 0)[0].toFixed(1) + '" y2="' + pr(W, y, 0)[1].toFixed(1) + '"/>';
-    g += '<g stroke="#cfc5b0" stroke-width="0.5" opacity="0.7">' + grid + '</g>';
-    /* קירות אחוריים — רק כשהוגדר גובה תקרה */
-    if (ceil) { g += poly([[0, 0, 0], [W, 0, 0], [W, 0, ceil], [0, 0, ceil]], '#e9e4d8', 'stroke="#a79f8e" stroke-width="1" opacity="0.85"') + poly([[0, 0, 0], [0, H, 0], [0, H, ceil], [0, 0, ceil]], '#dcd6c8', 'stroke="#a79f8e" stroke-width="1" opacity="0.85"'); }
-    /* אובייקטים מהשרטוט */
-    const solids = [], blocked = [];
-    const inZ = (x, y) => x >= b.L - 2 && x <= b.L + b.W + 2 && y >= b.T - 2 && y <= b.T + b.H + 2;
-    ((P.sketch && P.sketch.objs) || []).filter(o => inZ(o.x, o.y)).forEach(o => { const d = SK_OBJS[o.t] || {}, cx = wX(o.x), cy = wY(o.y), w = o.w * m, dd = o.h * m, col = d.c || '#777';
-      blocked.push({ x: cx, y: cy, r: Math.max(w, dd) / 2 + 0.4 });
-      if (o.t === 'pool') { const base = rectBase(cx, cy, w * 0.92, dd * 0.86, o.r); let wv = ''; for (let k = 1; k <= 3; k++) { const t = k / 4, a = base[0], c2 = base[3], e = base[1], f = base[2]; const p1 = [a[0] + (c2[0] - a[0]) * t, a[1] + (c2[1] - a[1]) * t], p2 = [e[0] + (f[0] - e[0]) * t, e[1] + (f[1] - e[1]) * t]; wv += '<line x1="' + pr(p1[0], p1[1], 0)[0].toFixed(1) + '" y1="' + pr(p1[0], p1[1], 0)[1].toFixed(1) + '" x2="' + pr(p2[0], p2[1], 0)[0].toFixed(1) + '" y2="' + pr(p2[0], p2[1], 0)[1].toFixed(1) + '" stroke="#fff" stroke-width="1.4" stroke-dasharray="10 7" opacity="0.6"/>'; }
-        g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0]), '#f7f3ea', 'stroke="#b7ad98" stroke-width="1"') + poly(base.map(p => [p[0], p[1], 0]), '#4aa8dc', 'stroke="#1f6fa8" stroke-width="1.2"') + wv; const lp = pr(cx, cy, 0); g += '<text x="' + lp[0] + '" y="' + (lp[1] + 4) + '" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" opacity="0.9">' + esc(d.n || '') + '</text>'; return; }
-      if (o.t === 'grass') { blocked.pop(); g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0]), '#8fcf7a', 'stroke="#4d9a45" stroke-width="1"'); return; }   /* דשא — משטח ירוק שאנשים עומדים עליו */
-      if (o.t === 'dance') { g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0]), col + '22', 'stroke="' + col + '" stroke-width="1.4" stroke-dasharray="7 5"'); return; }
-      const h = (typeof SIDE_OBJ_H !== 'undefined' && SIDE_OBJ_H[o.t]) || 0.8, base = d.round ? ngon(cx, cy, Math.min(w, dd) / 2, 14) : rectBase(cx, cy, w, dd, o.r);
-      solids.push({ d: cx + cy, svg: prism(base, 0, h, col) + (o.t === 'plant' ? '' : (() => { const lp = pr(cx, cy, h); return '<text x="' + lp[0] + '" y="' + (lp[1] + 3) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" opacity="0.92">' + esc(d.n || '') + '</text>'; })()) }); });
-    /* רמקולים */
-    const cones = [], stackN = {};
+    const inFloor = (x, y) => { let c = false; for (let i = 0, j = fl.length - 1; i < fl.length; j = i++) { const a = fl[i], d = fl[j]; if ((a[1] > y) !== (d[1] > y) && x < (d[0] - a[0]) * (y - a[1]) / (d[1] - a[1]) + a[0]) c = !c; } return c; };
+    let g = '<rect x="0" y="0" width="' + VW + '" height="' + VH.toFixed(0) + '" rx="10" fill="#f7f8fa"/>';
+    g += prism([[0, 0], [W, 0], [W, H], [0, H]], -0.22, 0.22, '#c9c3b6');
+    g += poly(fl.map(a => [a[0], a[1], 0]), '#f1efe9', 'stroke="#8d8370" stroke-width="1.2"');
+    let grid = ''; for (let x = 1; x < W; x++) grid += '<line x1="' + f1(pr(x, 0, 0)[0]) + '" y1="' + f1(pr(x, 0, 0)[1]) + '" x2="' + f1(pr(x, H, 0)[0]) + '" y2="' + f1(pr(x, H, 0)[1]) + '"/>';
+    for (let y = 1; y < H; y++) grid += '<line x1="' + f1(pr(0, y, 0)[0]) + '" y1="' + f1(pr(0, y, 0)[1]) + '" x2="' + f1(pr(W, y, 0)[0]) + '" y2="' + f1(pr(W, y, 0)[1]) + '"/>';
+    g += '<g stroke="#d6d0c3" stroke-width="0.5" opacity="0.8">' + grid + '</g>';
+    if (ceil) { g += poly([[0, 0, 0], [W, 0, 0], [W, 0, wallH], [0, 0, wallH]], '#eceae4', 'stroke="#a79f8e" stroke-width="1" opacity="0.9"') + poly([[0, 0, 0], [0, H, 0], [0, H, wallH], [0, 0, wallH]], '#e2dfd6', 'stroke="#a79f8e" stroke-width="1" opacity="0.9"'); }
+    /* הרמקולים — מיקום, גובה, כיוון ופיזור */
+    const spk = [], stackN = {};
     pts.forEach(n => { if (!cplSpkLike(n)) return;
       const anchor = n.att && n.att.cpl && byId(n.att.id), gg = anchor && (n.att.cpl === 'stack' || n.att.cpl === 'fly') ? nodeIconGeo(anchor) : nodeIconGeo(n);
       const X = Math.max(0.2, Math.min(W - 0.2, wX(gg.x))), Y = Math.max(0.2, Math.min(H - 0.2, wY(gg.y))), sub = cplIsSub(n), full = nodeFullName(n), d = spkData(full) || {};
       const dm = /(\d{2,4})\s*mm[^x×]*[x×]\s*(\d{2,4})\s*mm[^x×]*[x×]\s*(\d{2,4})/i.exec(d.dims || '') || /(\d{2,4})\s*[x×]\s*(\d{2,4})\s*[x×]\s*(\d{2,4})/.exec(d.dims || '');
       let bw = sub ? 0.55 : 0.34, bh = sub ? 0.55 : 0.55, bd = sub ? 0.6 : 0.32;
       if (dm) { bw = Math.max(0.14, +dm[1] / 1000); bh = Math.max(0.14, +dm[2] / 1000); bd = Math.max(0.14, +dm[3] / 1000); }
-      let hgt = n.hgt != null && n.hgt !== '' ? +n.hgt : null;
+      let hgt = n.hgt != null && n.hgt !== '' ? +n.hgt : null; const assumed = hgt == null && !sub;
       if (sub) hgt = hgt || 0; else if (hgt == null) hgt = n.att && n.att.cpl === 'stack' ? 0.6 : (ceil ? Math.max(1.8, Math.min(2.6, ceil - 0.4)) : 2.6);
       let z0 = sub ? hgt : Math.max(0, hgt - bh / 2);
       const key = Math.round(X * 2) + '|' + Math.round(Y * 2) + '|' + (sub ? 's' : 't'), idx = stackN[key] || 0; stackN[key] = idx + 1;
       if (sub) z0 += idx * bh; else if (n.att && n.att.cpl === 'stack') z0 = 0.6 + idx * bh; else z0 = Math.max(0, z0 - idx * (bh + 0.03));
-      const aim = n.aim ?? 0, base = rectBase(X, Y, bd, bw, aim), col = sub ? '#23262e' : '#2f3440';
-      let sv = '';
-      if (!sub && z0 > 0.7 && !(n.att && n.att.cpl === 'stack') && idx === 0) { const p0 = pr(X, Y, 0), p1 = pr(X, Y, z0); sv += '<line x1="' + p0[0].toFixed(1) + '" y1="' + p0[1].toFixed(1) + '" x2="' + p1[0].toFixed(1) + '" y2="' + p1[1].toFixed(1) + '" stroke="#555b66" stroke-width="2.2"/><ellipse cx="' + p0[0].toFixed(1) + '" cy="' + p0[1].toFixed(1) + '" rx="7" ry="3.5" fill="#555b66" opacity="0.7"/>'; }
-      sv += prism(base, z0, bh, col);
-      { const a = aim * Math.PI / 180, fx = X + Math.cos(a) * bd / 2, fy = Y + Math.sin(a) * bd / 2, fp = pr(fx, fy, z0 + bh / 2); sv += '<circle cx="' + fp[0].toFixed(1) + '" cy="' + fp[1].toFixed(1) + '" r="' + Math.max(2.2, Math.min(bw, bh) * s * 0.22).toFixed(1) + '" fill="' + (sub ? '#3f8f6b' : '#7c5cff') + '" stroke="#fff" stroke-width="0.8"/>'; }
-      const mm = /\(([^()]+)\)\s*$/.exec(n.name || ''), sm = shortModel(n.name) || (n.name || '').slice(0, 14);
-      solids.push({ d: X + Y + 0.01 * idx, svg: sv, lab: idx === 0 || !(n.att && n.att.cpl === 'line') ? { X, Y, Z: z0 + bh, t: sm + (mm ? ' (' + mm[1] + ')' : ''), c: sub ? '#0f6e56' : '#6a4fc9', lift: idx } : null });
-      const uk = sm; const u = used.get(uk) || { n, cnt: 0, sm }; u.cnt++; used.set(uk, u);
-      if (!sub && idx === 0) { const disp = Math.min(170, +(n.disp || d.h || 90)), R = Math.min(Math.max(W, H) * 0.6, 12), a0 = (aim - disp / 2) * Math.PI / 180, a1 = (aim + disp / 2) * Math.PI / 180, arc = [[X, Y, 0]]; for (let k = 0; k <= 14; k++) { const a = a0 + (a1 - a0) * k / 14; arc.push([Math.max(0, Math.min(W, X + Math.cos(a) * R)), Math.max(0, Math.min(H, Y + Math.sin(a) * R)), 0]); }   /* נחתך לגבולות הרצפה */ cones.push(poly(arc, '#7c5cff', 'opacity="0.13"')); }
+      const disp = Math.min(360, +(dispEff(n) || d.h || 90)), omni = sub || disp >= 300 || /שקוע|ceiling/i.test(full) || /תקרה/.test(n.mount || '');
+      spk.push({ n, X, Y, z0, bw, bh, bd, sub, idx, aim: n.aim ?? 0, disp, omni, spl: Math.min(effSpl(n), cTop), hgt, assumed, sm: shortModel(full) || shortModel(n.name) || (n.name || '').slice(0, 14), img: nodeImgUrl(n), stack: !!(n.att && (n.att.cpl === 'stack' || n.att.cpl === 'fly')), tilt: sub || omni ? 0 : spkTiltDeg(n, hgt, z, gg.x, gg.y) });
+      const u = used.get(full) || { n, cnt: 0, sm: shortModel(full) || shortModel(n.name) || (n.name || '').slice(0, 14) }; u.cnt++; used.set(full, u);
     });
-    g += cones.join('');
+    /* מפת עוצמה על הרצפה — dB SPL בגובה אוזן, סכום כל הרמקולים (מרחק תלת־ממדי, הנחתה מחוץ לזווית הפיזור) */
+    const srcs = spk.filter(o => !o.sub || P.covSub !== false);
+    let heat = '', minDb = 999, maxDb = -999, nCells = 0, nOk = 0;
+    if (srcs.length) {
+      const step = Math.max(0.25, Math.min(0.6, Math.sqrt(W * H / 1400)));
+      for (let x = step / 2; x < W; x += step) for (let y = step / 2; y < H; y += step) {
+        if (!inFloor(x, y)) continue;
+        let sum = 0;
+        for (const o of srcs) {
+          const dx = x - o.X, dy = y - o.Y, dz = (o.z0 + o.bh / 2) - EAR, dist = Math.max(0.5, Math.sqrt(dx * dx + dy * dy + dz * dz));
+          let att = 0;
+          if (!o.omni) { let da = Math.abs(((Math.atan2(dy, dx) * 180 / Math.PI - o.aim) % 360 + 540) % 360 - 180); const edge = o.disp / 2; if (da > edge) att = Math.min(18, (da - edge) * 0.4); }
+          sum += Math.pow(10, (o.spl - 20 * Math.log10(dist) - att) / 10);
+        }
+        const L = Math.min(cTop, 10 * Math.log10(sum)); nCells++;
+        minDb = Math.min(minDb, L); maxDb = Math.max(maxDb, L);
+        if (L < cFloor) continue; nOk++;
+        heat += poly([[x - step / 2, y - step / 2, 0], [x + step / 2, y - step / 2, 0], [x + step / 2, y + step / 2, 0], [x - step / 2, y + step / 2, 0]], jetColor(Math.min(1, (L - cFloor) / (cTop - cFloor))), 'opacity="0.62"');
+      }
+    }
+    g += '<g>' + heat + '</g>';
+    /* קווי זווית הפיזור על הרצפה + חץ כיוון */
+    spk.forEach(o => { if (o.sub || o.omni || o.idx) return;
+      const R = Math.min(Math.max(W, H) * 0.55, 8), a0 = (o.aim - o.disp / 2) * Math.PI / 180, a1 = (o.aim + o.disp / 2) * Math.PI / 180, cl = (x, y) => [Math.max(0, Math.min(W, x)), Math.max(0, Math.min(H, y))];
+      const e0 = cl(o.X + Math.cos(a0) * R, o.Y + Math.sin(a0) * R), e1 = cl(o.X + Math.cos(a1) * R, o.Y + Math.sin(a1) * R), p0 = pr(o.X, o.Y, 0), q0 = pr(e0[0], e0[1], 0), q1 = pr(e1[0], e1[1], 0);
+      g += '<path d="M' + f1(q0[0]) + ' ' + f1(q0[1]) + ' L' + f1(p0[0]) + ' ' + f1(p0[1]) + ' L' + f1(q1[0]) + ' ' + f1(q1[1]) + '" fill="none" stroke="#5b3fd6" stroke-width="1" stroke-dasharray="5 4" opacity="0.7"/>';
+      const am = o.aim * Math.PI / 180, ar = cl(o.X + Math.cos(am) * 1.3, o.Y + Math.sin(am) * 1.3), pa = pr(ar[0], ar[1], 0);
+      g += '<line x1="' + f1(p0[0]) + '" y1="' + f1(p0[1]) + '" x2="' + f1(pa[0]) + '" y2="' + f1(pa[1]) + '" stroke="#5b3fd6" stroke-width="2" opacity="0.85"/><circle cx="' + f1(pa[0]) + '" cy="' + f1(pa[1]) + '" r="3" fill="#5b3fd6"/>';
+    });
+    /* ריהוט מהשרטוט — אפור שקוף, לא מסתיר את מפת העוצמה */
+    const solids = [];
+    const inZ = (x, y) => x >= b.L - 2 && x <= b.L + b.W + 2 && y >= b.T - 2 && y <= b.T + b.H + 2;
+    ((P.sketch && P.sketch.objs) || []).filter(o => inZ(o.x, o.y)).forEach(o => { const d = SK_OBJS[o.t] || {}, cx = wX(o.x), cy = wY(o.y), w = o.w * m, dd = o.h * m;
+      if (o.t === 'grass' || o.t === 'dance' || o.t === 'pool') { g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0.01]), o.t === 'pool' ? '#8fc6e8' : o.t === 'grass' ? '#bfe3b0' : '#ffffff', 'stroke="#9a948a" stroke-width="1" stroke-dasharray="6 4" opacity="0.55"'); return; }
+      const h = (typeof SIDE_OBJ_H !== 'undefined' && SIDE_OBJ_H[o.t]) || 0.8, base = d.round ? ngon(cx, cy, Math.min(w, dd) / 2, 14) : rectBase(cx, cy, w, dd, o.r);
+      solids.push({ d: cx + cy, svg: prism(base, 0, h, '#aeb4c0', 0.55) + (() => { const lp = pr(cx, cy, h); return '<text x="' + f1(lp[0]) + '" y="' + f1(lp[1] + 3) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#2d3340" opacity="0.8">' + esc(d.n || '') + '</text>'; })() }); });
     /* ארונות */
     P.nodes.filter(n => n.kind === 'rack' && !n.hidden).forEach(n => { const x = 2200 - n.x - 20, y = n.y + 24; if (!inZ(x, y) && !(Math.abs(x - (b.L + b.W / 2)) < b.W / 2 + 120 && Math.abs(y - (b.T + b.H / 2)) < b.H / 2 + 120)) return;
       const X = Math.max(0.3, Math.min(W - 0.3, wX(x))), Y = Math.max(0.3, Math.min(H - 0.3, wY(y))), h = (n.ru || 12) * 0.0445 + 0.15;
-      blocked.push({ x: X, y: Y, r: 0.9 });
-      solids.push({ d: X + Y, svg: prism(rectBase(X, Y, 0.6, 0.6, 0), 0, h, '#1d2230'), lab: { X, Y, Z: h, t: (n.ru || 12) + 'U ' + (n.name || '').slice(0, 16), c: '#c9502e', lift: 0, rtl: 1 } }); });
-    /* דמויות — פיזור קבוע (לא אקראי בכל הפקה), לא על ריהוט */
-    { let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647; const want = Math.max(6, Math.min(22, Math.round(W * H / 24))); let tries = 0, k = 0;
-      const cols = ['#5b6b86', '#8a5a6b', '#4f7a6a', '#7a6a4f', '#5e5a8a', '#3f5f7a'];
-      while (k < want && tries++ < 300) { const X = 0.8 + rnd() * (W - 1.6), Y = 0.8 + rnd() * (H - 1.6); if (blocked.some(q => Math.hypot(q.x - X, q.y - Y) < q.r)) continue; blocked.push({ x: X, y: Y, r: 0.9 });
-        const p0 = pr(X, Y, 0), hh = Math.max(30, 1.72 * s * VZ), col = cols[k % cols.length], fem = k % 4 !== 3, x0 = p0[0], y0 = p0[1], f = v => v.toFixed(1);
-        const skin = ['#f0cfae', '#e3b48c', '#c98f66', '#f4d8bd'][k % 4], hair = ['#2b1d14', '#5a3a1e', '#1b1b1f', '#8a5a2b', '#b08a4a'][k % 5], yy = t => f(y0 - hh * t), xx = t => f(x0 + hh * t);
-        let fig = '<ellipse cx="' + f(x0) + '" cy="' + f(y0) + '" rx="' + f(hh * 0.2) + '" ry="' + f(hh * 0.07) + '" fill="#000" opacity="0.16"/>';
-        if (fem) {
-          const dress = ['#e0356b', '#1f1f28', '#d93a2b', '#7b3fd1', '#0f8a8a', '#f2a81d', '#e85d9e', '#2456c9'][k % 8], sw2 = (k % 3 === 0 ? 1 : -1) * 0.02;   /* תנוחה קלה של הירך */
-          /* רגליים ארוכות + עקבים */
-          fig += '<path d="M' + xx(-0.05 + sw2) + ' ' + yy(0.02) + ' L' + xx(-0.045 + sw2) + ' ' + yy(0.5) + ' M' + xx(0.055 + sw2) + ' ' + yy(0.02) + ' L' + xx(0.04 + sw2) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.052) + '" stroke-linecap="round"/>' +
-            '<path d="M' + xx(-0.075 + sw2) + ' ' + yy(0) + ' L' + xx(-0.03 + sw2) + ' ' + yy(0.03) + ' M' + xx(0.03 + sw2) + ' ' + yy(0) + ' L' + xx(0.075 + sw2) + ' ' + yy(0.03) + '" stroke="' + shade(dress, 0.7) + '" stroke-width="' + f(hh * 0.03) + '" stroke-linecap="round"/>' +
-            /* זרועות — אחת על המותן */
-            '<path d="M' + xx(-0.105) + ' ' + yy(0.8) + ' Q' + xx(-0.2) + ' ' + yy(0.68) + ' ' + xx(-0.1 + sw2) + ' ' + yy(0.6) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.04) + '" stroke-linecap="round" fill="none"/><path d="M' + xx(0.105) + ' ' + yy(0.8) + ' Q' + xx(0.15) + ' ' + yy(0.64) + ' ' + xx(0.13) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.04) + '" stroke-linecap="round" fill="none"/>' +
-            /* שמלה קצרה צמודה — כתפיים, מותן צרה, ירכיים */
-            '<path d="M' + xx(-0.095) + ' ' + yy(0.83) + ' Q' + xx(0) + ' ' + yy(0.79) + ' ' + xx(0.095) + ' ' + yy(0.83) + ' Q' + xx(0.115) + ' ' + yy(0.75) + ' ' + xx(0.06 + sw2 * 0.5) + ' ' + yy(0.64) + ' Q' + xx(0.135 + sw2) + ' ' + yy(0.56) + ' ' + xx(0.115 + sw2) + ' ' + yy(0.43) + ' Q' + xx(sw2) + ' ' + yy(0.405) + ' ' + xx(-0.115 + sw2) + ' ' + yy(0.43) + ' Q' + xx(-0.135 + sw2) + ' ' + yy(0.56) + ' ' + xx(-0.06 + sw2 * 0.5) + ' ' + yy(0.64) + ' Q' + xx(-0.115) + ' ' + yy(0.75) + ' ' + xx(-0.095) + ' ' + yy(0.83) + ' Z" fill="' + dress + '" stroke="' + shade(dress, 0.65) + '" stroke-width="0.6"/>' +
-            '<path d="M' + xx(-0.03) + ' ' + yy(0.84) + ' L' + xx(-0.03) + ' ' + yy(0.87) + ' L' + xx(0.03) + ' ' + yy(0.87) + ' L' + xx(0.03) + ' ' + yy(0.84) + ' Z" fill="' + skin + '"/>' +
-            /* שיער ארוך גולש */
-            '<path d="M' + xx(-0.1) + ' ' + yy(0.93) + ' Q' + xx(-0.11) + ' ' + yy(1.03) + ' ' + xx(0) + ' ' + yy(1.03) + ' Q' + xx(0.11) + ' ' + yy(1.03) + ' ' + xx(0.1) + ' ' + yy(0.93) + ' Q' + xx(0.14) + ' ' + yy(0.8) + ' ' + xx(0.11) + ' ' + yy(0.66) + ' Q' + xx(0.07) + ' ' + yy(0.74) + ' ' + xx(0.06) + ' ' + yy(0.86) + ' L' + xx(-0.06) + ' ' + yy(0.86) + ' Q' + xx(-0.07) + ' ' + yy(0.74) + ' ' + xx(-0.11) + ' ' + yy(0.66) + ' Q' + xx(-0.14) + ' ' + yy(0.8) + ' ' + xx(-0.1) + ' ' + yy(0.93) + ' Z" fill="' + hair + '"/>' +
-            '<ellipse cx="' + f(x0) + '" cy="' + yy(0.92) + '" rx="' + f(hh * 0.062) + '" ry="' + f(hh * 0.072) + '" fill="' + skin + '"/><path d="M' + xx(-0.066) + ' ' + yy(0.93) + ' Q' + xx(-0.02) + ' ' + yy(1.02) + ' ' + xx(0.066) + ' ' + yy(0.95) + ' Q' + xx(0.02) + ' ' + yy(0.975) + ' ' + xx(-0.066) + ' ' + yy(0.93) + ' Z" fill="' + hair + '"/>' +
-            '<path d="M' + xx(-0.02) + ' ' + yy(0.885) + ' Q' + xx(0) + ' ' + yy(0.872) + ' ' + xx(0.02) + ' ' + yy(0.885) + '" stroke="#c0304a" stroke-width="' + f(Math.max(0.7, hh * 0.012)) + '" fill="none" stroke-linecap="round"/>';
-        } else {
-          const mi = Math.floor(k / 4), pants = ['#2f3644', '#1f2430', '#3a3226', '#27303a'][mi % 4], shirt = ['#f4f1ea', '#1d2433', '#2f6fb0', '#7a1f2b'][mi % 4];
-          fig += '<path d="M' + xx(-0.06) + ' ' + yy(0) + ' L' + xx(-0.05) + ' ' + yy(0.5) + ' M' + xx(0.06) + ' ' + yy(0) + ' L' + xx(0.05) + ' ' + yy(0.5) + '" stroke="' + pants + '" stroke-width="' + f(hh * 0.085) + '" stroke-linecap="round"/>' +
-            '<path d="M' + xx(-0.17) + ' ' + yy(0.8) + ' L' + xx(-0.19) + ' ' + yy(0.5) + ' M' + xx(0.17) + ' ' + yy(0.8) + ' L' + xx(0.19) + ' ' + yy(0.5) + '" stroke="' + skin + '" stroke-width="' + f(hh * 0.055) + '" stroke-linecap="round"/>' +
-            '<path d="M' + xx(-0.17) + ' ' + yy(0.8) + ' L' + xx(-0.18) + ' ' + yy(0.66) + ' M' + xx(0.17) + ' ' + yy(0.8) + ' L' + xx(0.18) + ' ' + yy(0.66) + '" stroke="' + shirt + '" stroke-width="' + f(hh * 0.07) + '" stroke-linecap="round"/>' +
-            /* פלג גוף עליון בצורת V — כתפיים רחבות, מותן צרה */
-            '<path d="M' + xx(-0.165) + ' ' + yy(0.84) + ' Q' + xx(0) + ' ' + yy(0.88) + ' ' + xx(0.165) + ' ' + yy(0.84) + ' L' + xx(0.095) + ' ' + yy(0.47) + ' L' + xx(-0.095) + ' ' + yy(0.47) + ' Z" fill="' + shirt + '" stroke="' + shade(shirt, 0.7) + '" stroke-width="0.6"/>' +
-            '<path d="M' + xx(-0.035) + ' ' + yy(0.86) + ' L' + xx(0) + ' ' + yy(0.78) + ' L' + xx(0.035) + ' ' + yy(0.86) + ' Z" fill="' + skin + '"/>' +
-            '<circle cx="' + f(x0) + '" cy="' + yy(0.93) + '" r="' + f(hh * 0.072) + '" fill="' + skin + '"/><path d="M' + xx(-0.076) + ' ' + yy(0.94) + ' Q' + xx(0) + ' ' + yy(1.05) + ' ' + xx(0.076) + ' ' + yy(0.94) + ' Q' + xx(0) + ' ' + yy(0.985) + ' ' + xx(-0.076) + ' ' + yy(0.94) + ' Z" fill="' + hair + '"/>';
-        }
-        solids.push({ d: X + Y, svg: '<g>' + fig + '</g>' }); k++; } }
+      let sv = prism(rectBase(X, Y, 0.6, 0.6, 0), 0, h, '#1d2230');
+      for (let k = 1; k < (n.ru || 12); k++) { const p = pr(X + 0.3, Y - 0.3 + 0.6, k * 0.0445 + 0.08), q = pr(X + 0.3, Y - 0.3, k * 0.0445 + 0.08); sv += '<line x1="' + f1(p[0]) + '" y1="' + f1(p[1]) + '" x2="' + f1(q[0]) + '" y2="' + f1(q[1]) + '" stroke="#39404f" stroke-width="0.5"/>'; }
+      solids.push({ d: X + Y, svg: sv, lab: { X, Y, Z: h, t: (n.ru || 12) + 'U ' + (n.name || '').slice(0, 16), c: '#c9502e' } }); });
+    /* רמקולים — תמונת המוצר במקומה ובגובהה (עמוד/זרוע עד הרצפה), או קופסה כשאין תמונה */
+    spk.forEach(o => {
+      let sv = '';
+      const p0 = pr(o.X, o.Y, 0), pb = pr(o.X, o.Y, o.z0);
+      sv += '<ellipse cx="' + f1(p0[0]) + '" cy="' + f1(p0[1]) + '" rx="' + f1(Math.max(6, o.bw * s * 0.9)) + '" ry="' + f1(Math.max(3, o.bw * s * 0.4)) + '" fill="#000" opacity="0.14"/>';
+      if (!o.sub && o.z0 > 0.7 && !o.stack && o.idx === 0) sv += '<line x1="' + f1(p0[0]) + '" y1="' + f1(p0[1]) + '" x2="' + f1(pb[0]) + '" y2="' + f1(pb[1]) + '" stroke="#6b7280" stroke-width="2"/><circle cx="' + f1(p0[0]) + '" cy="' + f1(p0[1]) + '" r="3" fill="#6b7280"/>';
+      const wpx = Math.max(26, Math.max(o.bw, o.bd) * s * 1.25), hpx = Math.max(26, o.bh * s * VZ * 1.1);
+      if (o.img) {
+        const flip = ((o.aim % 360) + 360) % 360 > 90 && ((o.aim % 360) + 360) % 360 < 270;
+        sv += '<g transform="translate(' + f1(pb[0]) + ',' + f1(pb[1]) + ')' + (flip ? ' scale(-1,1)' : '') + (o.tilt ? ' rotate(' + f1(o.tilt * 0.8) + ' 0 ' + f1(-hpx / 2) + ')' : '') + '"><rect x="' + f1(-wpx / 2 - 2) + '" y="' + f1(-hpx - 2) + '" width="' + f1(wpx + 4) + '" height="' + f1(hpx + 4) + '" rx="3" fill="#fff" stroke="#b8bcc6" stroke-width="0.8"/><image href="' + esc(o.img) + '" x="' + f1(-wpx / 2) + '" y="' + f1(-hpx) + '" width="' + f1(wpx) + '" height="' + f1(hpx) + '" preserveAspectRatio="xMidYMid meet"/></g>';
+      } else sv += prism(rectBase(o.X, o.Y, o.bd, o.bw, o.aim), o.z0, o.bh, o.sub ? '#23262e' : '#2f3440');
+      solids.push({ d: o.X + o.Y + 0.01 * o.idx, svg: sv, lab: o.idx === 0 || !(o.n.att && o.n.att.cpl === 'line') ? { X: o.X, Y: o.Y, Z: o.z0 + o.bh + (o.img ? 0.1 : 0), t: o.sm + (o.sub ? '' : ' · ' + (o.assumed ? '?' : o.hgt.toFixed(1) + ' מ׳') + (o.tilt ? ' ↘' + o.tilt + '°' : '')), c: o.sub ? '#0f6e56' : '#5b3fd6', lift: o.idx } : null });
+    });
     solids.sort((a, c) => a.d - c.d).forEach(o => { g += o.svg; });
     solids.filter(o => o.lab).sort((a, c) => a.d - c.d).forEach(o => { const L = o.lab; g += label(L.X, L.Y, L.Z + (L.lift || 0) * 0.45, L.t, L.c); });
     /* מידות */
-    { const a = pr(0, H, 0), c = pr(W, H, 0), e = pr(W, 0, 0); g += '<text x="' + ((a[0] + c[0]) / 2 - 14) + '" y="' + ((a[1] + c[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + W.toFixed(1) + ' מ׳</text><text x="' + ((c[0] + e[0]) / 2 + 14) + '" y="' + ((c[1] + e[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + H.toFixed(1) + ' מ׳</text>'; }
-    { let area = W * H; if (z.poly && z.poly.length > 2) { let a2 = 0; z.poly.forEach((p, i) => { const q = z.poly[(i + 1) % z.poly.length]; a2 += p.x * q.y - q.x * p.y; }); area = Math.abs(a2) / 2 * m * m; }
-      const nTop = pts.filter(n => cplSpkLike(n) && !cplIsSub(n)).length, nSub = pts.filter(n => cplSpkLike(n) && cplIsSub(n)).length, chip = t => '<span style="border:1px solid #e3ded3;border-radius:999px;padding:2px 10px;background:#fff">' + t + '</span>';
-      var info = '<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11.5px;margin:0 0 6px">' + chip('📐 שטח <b>' + Math.round(area) + ' מ״ר</b>') + chip('מידות <b dir="ltr">' + W.toFixed(1) + ' × ' + H.toFixed(1) + ' מ׳</b>') + chip(ceil ? 'גובה תקרה <b>' + ceil + ' מ׳</b>' : 'חלל פתוח') + (nTop ? chip('🔊 <b>' + nTop + '</b> רמקולים') : '') + (nSub ? chip('🟢 <b>' + nSub + '</b> סאבים') : '') + (z.usage || (P.room && P.room.usage) ? chip('שימוש: <b>' + esc(z.usage || P.room.usage) + '</b>') : '') + '</div>'; }
+    { const a = pr(0, H, 0), c = pr(W, H, 0), e = pr(W, 0, 0); g += '<text x="' + f1((a[0] + c[0]) / 2 - 14) + '" y="' + f1((a[1] + c[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + W.toFixed(1) + ' מ׳</text><text x="' + f1((c[0] + e[0]) / 2 + 14) + '" y="' + f1((c[1] + e[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + H.toFixed(1) + ' מ׳</text>'; }
+    /* סרגל dB בפינה */
+    { const target = (typeof zoneSPL === 'function' && zoneSPL(z)) || 0, bx = 24, by = 18, bwid = 200, bht = 10; let stops = ''; for (let k = 0; k <= 10; k++) stops += '<stop offset="' + k * 10 + '%" stop-color="' + jetColor(k / 10) + '"/>';
+      g += '<defs><linearGradient id="isoLeg' + z.id + '" x1="0" x2="1" y1="0" y2="0">' + stops + '</linearGradient></defs><rect x="' + bx + '" y="' + by + '" width="' + bwid + '" height="' + bht + '" rx="3" fill="url(#isoLeg' + z.id + ')" stroke="#8d8370" stroke-width="0.6"/>'
+        + '<text x="' + bx + '" y="' + (by + bht + 11) + '" font-size="9" fill="#5a5343" direction="ltr">' + cFloor + ' dB</text><text x="' + (bx + bwid) + '" y="' + (by + bht + 11) + '" font-size="9" fill="#5a5343" text-anchor="end" direction="ltr">' + cTop + ' dB</text>'
+        + (target && target > cFloor && target < cTop ? '<line x1="' + f1(bx + bwid * (target - cFloor) / (cTop - cFloor)) + '" y1="' + (by - 3) + '" x2="' + f1(bx + bwid * (target - cFloor) / (cTop - cFloor)) + '" y2="' + (by + bht + 3) + '" stroke="#1a1e28" stroke-width="1.4"/><text x="' + f1(bx + bwid * (target - cFloor) / (cTop - cFloor)) + '" y="' + (by - 5) + '" font-size="9" font-weight="700" fill="#1a1e28" text-anchor="middle" direction="ltr">יעד ' + target + ' dB</text>' : '')
+        + '<text x="' + bx + '" y="' + (by - 5) + '" font-size="9" fill="#5a5343">עוצמה בגובה אוזן ' + EAR + ' מ׳</text>'; }
+    let area = W * H; if (z.poly && z.poly.length > 2) { let a2 = 0; z.poly.forEach((p, i) => { const q = z.poly[(i + 1) % z.poly.length]; a2 += p.x * q.y - q.x * p.y; }); area = Math.abs(a2) / 2 * m * m; }
+    const nTop = spk.filter(o => !o.sub).length, nSub = spk.filter(o => o.sub).length, chip = t => '<span style="border:1px solid #e3ded3;border-radius:999px;padding:2px 10px;background:#fff">' + t + '</span>';
+    const covPct = nCells ? Math.round(100 * nOk / nCells) : 0, target = (typeof zoneSPL === 'function' && zoneSPL(z)) || 0;
+    const info = '<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11.5px;margin:0 0 6px">' + chip('📐 שטח <b>' + Math.round(area) + ' מ״ר</b>') + chip('מידות <b dir="ltr">' + W.toFixed(1) + ' × ' + H.toFixed(1) + ' מ׳</b>') + chip(ceil ? 'גובה תקרה <b>' + ceil + ' מ׳</b>' : 'חלל פתוח') + (nTop ? chip('🔊 <b>' + nTop + '</b> רמקולים') : '') + (nSub ? chip('🟢 <b>' + nSub + '</b> סאבים') : '') + (z.usage ? chip('שימוש: <b>' + esc(z.usage) + '</b>') : '') + (target ? chip('יעד <b>' + target + ' dB</b>') : '') + (nCells ? chip('כיסוי <b>' + covPct + '%</b> מהשטח מעל ' + cFloor + ' dB · טווח <b dir="ltr">' + Math.round(minDb) + '–' + Math.round(maxDb) + ' dB</b>') : '') + '</div>';
     return '<h4 style="font-size:13px;margin:10px 0 4px">' + esc(z.name || 'אזור') + '</h4>' + info + '<svg viewBox="0 0 ' + VW + ' ' + Math.round(VH) + '" style="width:100%;height:auto;border:1px solid #e3ded3;border-radius:10px;background:#fff" direction="ltr">' + g + '</svg>';
   }).join('');
   if (!out) return '';
   const leg = [...used.values()].map(u => '<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #e3ded3;border-radius:10px;padding:4px 9px;background:#fff">' + prodImgCell(u.n, 38) + '<span style="font-size:11.5px"><b>' + u.cnt + '×</b> ' + esc(u.sm) + '</span></span>').join('');
-  return '<div class="rp-sec" style="page-break-before:always"><h3>🖼 הדמיה — מבט תלת־ממדי על ההצבה</h3>' + out + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' + leg + '</div><div style="font-size:10.5px;color:#777;margin-top:5px">הדמיה סכמטית לפי התכנית: המיקומים, הגבהים וכיווני הרמקולים אמיתיים · האלומה הסגולה = זווית הפיזור האופקית · צורות המוצרים והדמויות להמחשה בלבד</div></div>';
+  return '<div class="rp-sec" style="page-break-before:always"><h3>🖼 הדמיה — מבט תלת־ממדי על ההצבה ומפת העוצמה</h3>' + out + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' + leg + '</div><div style="font-size:10.5px;color:#777;margin-top:5px">הדמיה לפי התכנית: מיקומי הרמקולים, גובה ההתקנה, כיוון וזווית הפיזור (קו מקווקו) אמיתיים; תמונות המוצרים מהקטלוג. מפת הצבע = dB SPL מחושב בגובה אוזן, סכום כל הרמקולים, בלי החזרות מקירות · "?" = גובה התקנה שלא הוגדר למוקד</div></div>';
 }
+/* הטיה כלפי מטה של רמקול: ציר הרמקול מכוון לנקודה בגובה אוזן ב-60% מהטווח (מהרמקול עד קצה האזור בכיוון הכיוון שלו) —
+   כך הקהל הרחוק בקצה הפיזור האנכי והקרוב לא "מתחת" לקרן. n.tilt ידני גובר */
+function spkTiltDeg(n, hgt, z, gx, gy) {
+  if (n.tilt != null && n.tilt !== '') return Math.max(0, +n.tilt || 0);
+  const m = P.scale, b = zoneBounds(z), W = b.W * m, H = b.H * m, X = (gx - b.L) * m, Y = (gy - b.T) * m, a = (n.aim ?? 0) * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+  let D = 14; if (Math.abs(ca) > 1e-6) { const t = (ca > 0 ? W - X : -X) / ca; if (t > 0) D = Math.min(D, t); } if (Math.abs(sa) > 1e-6) { const t = (sa > 0 ? H - Y : -Y) / sa; if (t > 0) D = Math.min(D, t); }
+  D = Math.max(2, D); const drop = hgt - 1.6; if (drop <= 0.05) return 0;
+  return Math.round(Math.atan2(drop, D * 0.6) * 180 / Math.PI);
+}
+function spkVdisp(n) { const v = n.vdisp ?? (typeof guessVdisp === 'function' ? guessVdisp(nodeFullName(n)) : null); return v > 0 ? Math.min(120, v) : 60; }
 function sideViewHTML() {
   if (!P.scale) return '';
   const zones = (P.zones || []).filter(z => P.nodes.some(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z)));
@@ -16489,7 +16512,8 @@ function sideViewHTML() {
         if (hgt == null) { if (n.att && n.att.cpl === 'stack') hgt = subTop; else { hgt = ceil ? Math.max(1.8, Math.min(2.6, ceil - 0.4)) : 2.6; assumed = true; } } }
       else { if (hgt == null) hgt = 0; }
       const mm = /\((\d+)\)\s*$/.exec(n.name || '');
-      return { n, u, hgt, assumed, kind, num: mm ? mm[1] : '', lbl: shortModel(n.name) || (n.name || '').slice(0, 14) };
+      const aim = (n.aim ?? 0) * Math.PI / 180, dir = (alongX ? Math.cos(aim) : Math.sin(aim)) >= 0 ? 1 : -1;
+      return { n, u, hgt, assumed, kind, num: mm ? mm[1] : '', lbl: shortModel(nodeFullName(n)) || shortModel(n.name) || (n.name || '').slice(0, 14), dir, tilt: kind === 'top' ? spkTiltDeg(n, hgt, z, gx.x, gx.y) : 0, vd: kind === 'top' ? spkVdisp(n) : 0 };
     });
     /* ריהוט מהשרטוט */
     const objs = ((P.sketch && P.sketch.objs) || []).filter(o => inZ(o.x, o.y)).map(o => {
@@ -16539,9 +16563,22 @@ function sideViewHTML() {
       const x = X(i.u), col = i.kind === 'sub' ? '#0f6e56' : '#6d28d9';
       const bw = (i.kind === 'sub' ? 0.6 : 0.35) * Math.max(sx, 22), bh = (i.kind === 'sub' ? 0.6 : 0.5) * sy;
       const yb = i.kind === 'sub' ? Y(i.hgt) : Y(i.hgt) + bh / 2;      /* סאב: גובה = תחתית; טופ: גובה = מרכז */
-      g += '<rect x="' + (x - bw / 2) + '" y="' + (yb - bh) + '" width="' + bw + '" height="' + bh + '" rx="2" fill="' + col + (i.assumed ? '22' : '') + '" stroke="' + col + '" stroke-width="1.6"' + (i.assumed ? ' stroke-dasharray="4 3"' : '') + '/>';
+      /* טופ: גזרת הפיזור האנכי מהרמקול אל הרצפה, בהטיה כלפי מטה — הציר מכוון לגובה אוזן ב-60% מהטווח */
+      if (i.kind === 'top' && i.hgt > 1.0) {
+        const yc = yb - bh / 2, capH = ceil || topM - 0.3, ray = deg => { const r = deg * Math.PI / 180, cr = Math.max(1e-6, Math.cos(r)), sr = Math.sin(r);
+          let Lm = (i.dir > 0 ? L - i.u : i.u) / cr;   /* עד קצה האזור */
+          if (sr > 1e-6) Lm = Math.min(Lm, i.hgt / sr); else if (sr < -1e-6) Lm = Math.min(Lm, (capH - i.hgt) / -sr);   /* עד הרצפה / התקרה */
+          Lm = Math.max(0.3, Lm); return [X(i.u + i.dir * cr * Lm), Y(Math.max(0, Math.min(capH, i.hgt - sr * Lm)))]; };
+        const e1 = ray(i.tilt - i.vd / 2), e2 = ray(i.tilt + i.vd / 2), ax = ray(i.tilt);
+        g += '<polygon points="' + x + ',' + yc + ' ' + e1[0].toFixed(1) + ',' + e1[1].toFixed(1) + ' ' + e2[0].toFixed(1) + ',' + e2[1].toFixed(1) + '" fill="' + col + '" opacity="0.1"/>'
+          + '<path d="M' + e1[0].toFixed(1) + ' ' + e1[1].toFixed(1) + ' L' + x + ' ' + yc + ' L' + e2[0].toFixed(1) + ' ' + e2[1].toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="0.9" stroke-dasharray="5 4" opacity="0.6"/>'
+          + '<line x1="' + x + '" y1="' + yc + '" x2="' + ax[0].toFixed(1) + '" y2="' + ax[1].toFixed(1) + '" stroke="' + col + '" stroke-width="1.3" opacity="0.8"/>';
+      }
+      const rot = i.kind === 'top' && i.tilt ? ' transform="rotate(' + (i.dir * i.tilt) + ' ' + x + ' ' + (yb - bh / 2) + ')"' : '';
+      g += '<g' + rot + '><rect x="' + (x - bw / 2) + '" y="' + (yb - bh) + '" width="' + bw + '" height="' + bh + '" rx="2" fill="' + col + (i.assumed ? '22' : '') + '" stroke="' + col + '" stroke-width="1.6"' + (i.assumed ? ' stroke-dasharray="4 3"' : '') + '/>'
+        + (i.kind === 'top' ? '<rect x="' + (i.dir > 0 ? x + bw / 2 - 3 : x - bw / 2) + '" y="' + (yb - bh + 2) + '" width="3" height="' + (bh - 4) + '" fill="#fff" opacity="0.8"/>' : '') + '</g>';
       if (i.kind === 'top' && i.hgt > 0.9) g += ceil ? '<line x1="' + x + '" y1="' + Y(ceil) + '" x2="' + x + '" y2="' + (yb - bh) + '" stroke="#555" stroke-width="1"/>' : '';
-      const txt = (i.cnt > 1 ? i.cnt + '× ' : '') + i.lbl + (i.kind === 'top' ? ' · ' + (i.assumed ? '?' : (+i.hgt).toFixed(1) + 'm') : '');
+      const txt = (i.cnt > 1 ? i.cnt + '× ' : '') + i.lbl + (i.kind === 'top' ? ' · ' + (i.assumed ? '?' : (+i.hgt).toFixed(1) + 'm') + (i.tilt ? ' · ↘' + i.tilt + '°' : '') : '');
       const tw = txt.length * 6.2 + 8, key = Math.round(yb - bh);
       const xc = Math.max(padL + tw / 2, Math.min(VW - padR - tw / 2, x));
       let row = 0; while (lblRows.some(q => q.row === row && Math.abs(q.key - key) < 14 && Math.abs(q.x - xc) < (q.w + tw) / 2)) row++;
@@ -16555,7 +16592,7 @@ function sideViewHTML() {
     const anyAssumed = items.some(i => i.assumed);
     return '<h4 style="font-size:13px;margin:10px 0 4px">' + esc(z.name || 'אזור') + (ceil ? ' · תקרה ' + ceil + ' מ׳' : ' · חלל פתוח (לא הוגדר גובה תקרה)') + '</h4>' +
       '<svg viewBox="0 0 ' + VW + ' ' + Math.round(VH) + '" style="width:100%;height:auto;border:1px solid #e3ded3;border-radius:8px;background:#fff" direction="ltr">' + g + '</svg>' +
-      '<div style="font-size:10.5px;color:#777;margin-top:3px">🟣 רמקול · 🟢 סאב · דמויות = אדם עומד 1.75 מ׳ · גובהי הריהוט טיפוסיים, להמחשה' + (sy > sx * 1.05 ? ' · קנה המידה האנכי מוגדל פי ' + (sy / sx).toFixed(1) : '') + (anyAssumed ? ' · <b style="color:#c1121f">"?" = גובה התקנה לא הוגדר למוקד (מצויר בהנחה) — יש להזין גובה בפאנל המוקד</b>' : '') + '</div>';
+      '<div style="font-size:10.5px;color:#777;margin-top:3px">🟣 רמקול · 🟢 סאב · ↘ = הטיה מומלצת כלפי מטה (הציר לגובה אוזן ב-60% מהטווח; הגזרה המקווקוות = הפיזור האנכי של הדגם) · דמויות = אדם עומד 1.75 מ׳ · גובהי הריהוט טיפוסיים, להמחשה' + (sy > sx * 1.05 ? ' · קנה המידה האנכי מוגדל פי ' + (sy / sx).toFixed(1) : '') + (anyAssumed ? ' · <b style="color:#c1121f">"?" = גובה התקנה לא הוגדר למוקד (מצויר בהנחה) — יש להזין גובה בפאנל המוקד</b>' : '') + '</div>';
   }).join('');
   return out ? '<div class="rp-sec" style="page-break-before:always"><h3>📐 היטל צד — גבהים והצבה</h3>' + out + '</div>' : '';
 }
