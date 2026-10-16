@@ -5850,6 +5850,8 @@ function renderWires() {
     const bw = txt.length * fz * 0.62 + 18;
     out += `<rect x="${mx - bw / 2}" y="${my - fz - 8}" width="${bw}" height="${fz + 10}" rx="6" fill="#e24b4a" opacity="0.92"/><text x="${mx}" y="${my - 4}" text-anchor="middle" font-size="${fz}" font-weight="700" fill="#fff">${txt}</text>`;
   }
+  /* קטע המידה שנמצא בכיול בלחיצה — מסומן באדום בזמן שהדיאלוג פתוח */
+  if (window.__calSeg && document.getElementById('calOv')) { const { c1, c2 } = window.__calSeg, Zc = getZ() || 1; out += '<line x1="' + c1.x + '" y1="' + c1.y + '" x2="' + c2.x + '" y2="' + c2.y + '" stroke="#e24b4a" stroke-width="' + (2.5 / Zc).toFixed(2) + '" opacity="0.9"/>' + [c1, c2].map(p => '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + (5 / Zc).toFixed(2) + '" fill="#fff" stroke="#e24b4a" stroke-width="' + (2 / Zc).toFixed(2) + '"/>').join(''); }
   /* המידות ששימשו לזיהוי האוטומטי — לוודא בעין שהוא נכון */
   if (typeof asMarksSVG === 'function') out += asMarksSVG();
   /* כיתובי התכנית שנקראו ב-OCR — לפי קטגוריה */
@@ -9881,7 +9883,8 @@ function renderPanel() {
           <div style="font-weight:800;color:${P.scale ? '#0f6e56' : '#c9502e'};margin-bottom:4px">${P.scale ? '✓ קנה מידה מכויל' : '⚠ התכנית עדיין לא מכוילת'}</div>
           <p class="muted" style="margin:0 0 8px">${P.scale ? `1 מ׳ = ${(1 / P.scale).toFixed(1)}px · מרחקי כבלים נמדדים אוטומטית מהתכנית` : 'בלי כיול מרחקי הכבלים לא יחושבו נכון. כייל פעם אחת לפי מידה ידועה בתכנית.'}</p>
           ${typeof asSummaryHTML === 'function' ? asSummaryHTML() : ''}
-          <button class="primary" style="width:100%;${calMode ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : 'בצע כיול ידני'}</button>
+          <button class="primary" style="width:100%;${calMode && calMode.smart ? 'background:#ff8a50;color:#1a1e28' : 'background:#0f6e56'}" onclick="calMode={pts:[],smart:true};render()" title="לחיצה אחת על קו מידה בתכנית — הקצוות נמצאים לבד, ואתה רק מקליד את המספר שכתוב">📐 ${calMode && calMode.smart ? 'לחץ על קו מידה בתכנית (מתחת למספר)…' : 'כיול בלחיצה על מידה בתכנית'}</button>
+          <button class="primary" style="width:100%;margin-top:6px;${calMode && !calMode.smart ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode && !calMode.smart ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : 'בצע כיול ידני (2 נקודות)'}</button>
           ${!P.autoScale && typeof asStepButtonsHTML === 'function' ? asStepButtonsHTML() : ''}
         </div>
         ${typeof ptPanelHTML === 'function' ? ptPanelHTML() : ''}
@@ -10964,6 +10967,59 @@ function uiPrompt(msg, def = '', opts = {}) {
   });
 }
 /* דיאלוג הזנת המרחק לכיול — שדה בתוך הדף במקום prompt() (חסום בדפדפנים משובצים) */
+/* ===== כיול בלחיצה אחת על מידה בתכנית =====
+   OCR לא קורא ספרות של 6 פיקסלים בצילום/צילום מסך של תכנית, אבל קו המידה עצמו ברור: לוחצים על מספר המידה,
+   מוצאים את קו המידה הקרוב (רצף כהה ארוך) ואת שני קצות הקטע — קווי העזר/הטיקים שחוצים אותו — ומבקשים רק להקליד את המספר */
+let calImgCache = null;
+async function calImgLum() {
+  if (calImgCache && calImgCache.src === P.bg) return calImgCache;
+  const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = P.bg; });
+  const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+  const g = cv.getContext('2d'); g.drawImage(img, 0, 0); const d = g.getImageData(0, 0, cv.width, cv.height).data;
+  const lum = new Uint8Array(cv.width * cv.height); for (let i = 0, j = 0; i < d.length; i += 4, j++) lum[j] = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) | 0;
+  calImgCache = { w: cv.width, h: cv.height, lum, src: P.bg }; return calImgCache;
+}
+function calCanvasToImg(pt, im) { const k = im.w / (P.bgW || 1400); return { x: (pt.x - bgLeft()) * k, y: (pt.y - bgTop()) * k }; }
+function calImgToCanvas(x, y, im) { const k = (P.bgW || 1400) / im.w; return { x: bgLeft() + x * k, y: bgTop() + y * k }; }
+/* קטע מידה ליד נקודת תמונה: הקו הארוך ביותר (אופקי או אנכי) בטווח ±30px, והקצוות = חצייה ניצבת משני צידי הקו */
+function calFindSeg(im, x0, y0, TH = 200) {
+  const W = im.w, H = im.h, L = im.lum, dark = (x, y) => x >= 0 && y >= 0 && x < W && y < H && L[y * W + x] < TH;
+  const run = (x, y, horiz) => { let a = 0, b = 0, gap = 0; for (let t = 1; t < 800; t++) { if (horiz ? dark(x - t, y) : dark(x, y - t)) { a = t; gap = 0; } else if (++gap > 2) break; } gap = 0; for (let t = 1; t < 800; t++) { if (horiz ? dark(x + t, y) : dark(x, y + t)) { b = t; gap = 0; } else if (++gap > 2) break; } return a + b + 1; };
+  /* קו המידה = הקו הדק (לא קיר עבה) הקרוב ביותר ללחיצה: הולכים מהנקודה החוצה, ובודקים שהקו דק (רוב אורכו בלי כהה 2px מעליו ומתחתיו) */
+  const thin = (x, y, horiz) => { let ok = 0, n = 0; for (let t = -40; t <= 40; t += 4) { const px = horiz ? x + t : x, py = horiz ? y : y + t; if (!dark(px, py)) continue; n++; if (horiz ? (!dark(px, py - 2) && !dark(px, py + 2)) : (!dark(px - 2, py) && !dark(px + 2, py))) ok++; } return n >= 6 && ok / n >= 0.7; };
+  let best = null;
+  for (let r = 0; r <= 40 && !best; r++) for (const off of r ? [-r, r] : [0]) {
+    for (const horiz of [true, false]) {
+      const x = horiz ? x0 : x0 + off, y = horiz ? y0 + off : y0; if (!dark(x, y)) continue;
+      const len = run(x, y, horiz); if (len < 40 || !thin(x, y, horiz)) continue;
+      if (!best || len > best.len) best = { horiz, x, y, off, len };
+    }
+  }
+  if (!best) return null;
+  /* חצייה ניצבת = כהה משני צידי הקו (קו עזר / טיק); טקסט שנוגע בקו רק מצד אחד לא נחשב */
+  /* חצייה: קו עזר שחוצה (כהה משני הצדדים), או טיק/קו עזר שנוגע בקו ונמשך לפחות 4px לצד אחד (טקסט לא נוגע בקו — יש רווח) */
+  const side = (x, y, dx, dy) => dark(x + dx * 2, y + dy * 2) && dark(x + dx * 3, y + dy * 3) && dark(x + dx * 4, y + dy * 4);
+  const touch = (x, y, dx, dy) => dark(x + dx, y + dy) && side(x, y, dx, dy) && dark(x + dx * 5, y + dy * 5);
+  const cross = (x, y) => best.horiz ? ((side(x, y, 0, -1) && side(x, y, 0, 1)) || touch(x, y, 0, -1) || touch(x, y, 0, 1)) : ((side(x, y, -1, 0) && side(x, y, 1, 0)) || touch(x, y, -1, 0) || touch(x, y, 1, 0));
+  const walk = dir => { let gap = 0, last = 0; for (let t = 3; t < 3000; t++) { const x = best.horiz ? best.x + dir * t : best.x, y = best.horiz ? best.y : best.y + dir * t; if (!dark(x, y)) { if (++gap > 2) break; continue; } gap = 0; last = t; if (cross(x, y)) return t; } return last; };
+  const a = walk(-1), b = walk(1);
+  const p1 = best.horiz ? { x: best.x - a, y: best.y } : { x: best.x, y: best.y - a }, p2 = best.horiz ? { x: best.x + b, y: best.y } : { x: best.x, y: best.y + b };
+  return { p1, p2, horiz: best.horiz, len: Math.hypot(p2.x - p1.x, p2.y - p1.y), line: best };
+}
+async function calSmartAt(pt) {
+  let im; try { im = await calImgLum(); } catch (e) { uiToast('⚠ לא ניתן לקרוא את תמונת התכנית'); return false; }
+  const q = calCanvasToImg(pt, im);
+  let seg = calFindSeg(im, Math.round(q.x), Math.round(q.y));
+  if (!seg || seg.len < 10) seg = calFindSeg(im, Math.round(q.x), Math.round(q.y), 230);
+  if (!seg || seg.len < 10) { uiToast('לא נמצא קו מידה ליד הלחיצה — לחץ על קו המידה עצמו (מתחת למספר), או כייל ב-2 נקודות', 5000); return false; }
+  const c1 = calImgToCanvas(seg.p1.x, seg.p1.y, im), c2 = calImgToCanvas(seg.p2.x, seg.p2.y, im);
+  const px = Math.hypot(c1.x - c2.x, c1.y - c2.y);
+  calMode = null; window.__calSeg = { c1, c2 }; render();
+  showCalDialog(px, c1, c2);
+  const p = document.querySelector('#calOv p'); if (p) p.innerHTML = 'נמצא קטע מידה ' + (seg.horiz ? 'אופקי' : 'אנכי') + ' של <b>' + Math.round(seg.len) + 'px</b> בתמונה (מסומן באדום על התכנית).<br>מה המידה שכתובה עליו? במ״מ כמו בתכנית (למשל 1015) או במטרים — אזהה לבד.';
+  return true;
+}
+window.calSmartAt = calSmartAt;
 function showCalDialog(px, p1, p2) {
   const old = document.getElementById('calOv');
   if (old) old.remove();
@@ -11110,6 +11166,7 @@ document.addEventListener('pointerdown', e => {
   }
   /* כיול קנה מידה — שתי לחיצות על נקודות שהמרחק ביניהן ידוע */
   if (calMode && e.target.closest('#canvasWrap')) {
+    if (calMode.smart) { calSmartAt(canvasPt(e)); e.preventDefault(); return; }
     calMode.pts.push(canvasPt(e));
     if (calMode.pts.length === 2) {
       const [p1, p2] = calMode.pts;
@@ -12471,10 +12528,13 @@ function finishStem(nm) { let s = String(nm || '').replace(/בצבע\s*\S*/g, ' 
 const finCache = new Map();
 /* כל הווריאנטים של אותו דגם (רמקול/סאב בלבד) — [{key, name, finish, price, stock}] */
 function finishVariants(x) {
-  if (!x || !x.name || typeof ERP_ITEMS === 'undefined' || !isSpeakerItem(x.name)) return [];
-  const stem = finishStem(x.name); if (!stem || stem.length < 3) return [];
+  if (!x || !x.name || typeof ERP_ITEMS === 'undefined') return [];
+  /* שמות הפריטים בקיטים מה-ERP קטועים — השם המלא לפי המק"ט */
+  const full = (x.key && (ERP_ITEMS.find(it => it[0] === x.key) || [])[1]) || x.name;
+  if (!isSpeakerItem(full)) return [];
+  const stem = finishStem(full); if (!stem || stem.length < 3) return [];
   if (finCache.has(stem)) return finCache.get(stem);
-  const cls = kitFuncClass(x.name), out = [];
+  const cls = kitFuncClass(full), out = [];
   for (const it of ERP_ITEMS) { const nm = it[1] || ''; if (!isSpeakerItem(nm) || KIT_ALT_NO.test(nm) || kitFuncClass(nm) !== cls || finishStem(nm) !== stem) continue; const inf = erpInfo(it[0]) || {}; out.push({ key: it[0], name: nm, finish: finishOf(nm), price: +it[2] || inf.price || 0, stock: inf.qty || 0 }); }
   const uniq = []; out.forEach(v => { const e = uniq.find(u => u.finish === v.finish); if (!e) uniq.push(v); else if (v.stock > e.stock) Object.assign(e, v); });   /* כפילויות באותו גימור — הזמין במלאי */
   finCache.set(stem, uniq); return uniq;

@@ -157,6 +157,7 @@ function wizStepHTML(s) {
       ${!P.calOk ? `<p class="hint">📏 קו הייחוס הסגול מוצג על התכנית ברוחב המלא + סרגל 5 מ׳. השווה מול שולחן (~0.8 מ׳), דלת (~0.9 מ׳) או מידה מודפסת — ורק אז אשר.</p>
         <button class="big" style="background:#0f6e56" onclick="wizCalConfirm()">✓ הכיול נכון — אשר והמשך</button>` : ''}`
       : `<p class="hint">כייל בשתי לחיצות על מידה ידועה בתכנית — קיר, פתח או מידה מודפסת (מידות בתכנית בנייה בד"כ במ״מ: 23700 = 23.7 מ׳).</p>`}
+    <button class="big" style="background:#0f6e56" onclick="calMode={pts:[],smart:true};render()" title="לחיצה אחת על קו מידה בתכנית — הקצוות נמצאים לבד">📐 כיול בלחיצה על מידה בתכנית — לחץ על קו מידה, הקלד את המספר</button>
     <button class="big" onclick="calMode={pts:[]};render()">📏 בצע כיול ידני — לחץ על 2 נקודות שהמרחק ביניהן ידוע</button>`;
   }
   if (k === 'zone') {
