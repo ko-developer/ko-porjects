@@ -334,7 +334,7 @@ const handleReq = async (req, res) => {
           const base = i >= 0 ? list[i] : (list.find(x => { try { return new RegExp(x.re, 'i').test(name); } catch { return false; } }) || {});
           rec = { ...base, re: esc, model: i >= 0 ? base.model : name + (base.model ? ' — ' + base.model : ''), custom: true, front: slug, v: (base.v || 1) + 1 };
           if (+b.w > 0 && +b.h > 0) { rec.fw = Math.round(+b.w); rec.fh = Math.round(+b.h); } else { delete rec.fw; delete rec.fh; }
-        } else rec = { ...(i >= 0 && list[i].front ? { front: list[i].front, fw: list[i].fw, fh: list[i].fh } : {}), re: esc, file: slug, model: name, src: 'העלאה ידנית', custom: true };
+        } else { rec = { ...(i >= 0 && list[i].front ? { front: list[i].front, fw: list[i].fw, fh: list[i].fh } : {}), re: esc, file: slug, model: name, src: 'העלאה ידנית', custom: true }; if (+b.w > 0 && +b.h > 0) { rec.w = Math.round(+b.w); rec.h = Math.round(+b.h); } }
         if (i >= 0) list[i] = rec; else list.unshift(rec);   /* העלאה ידנית גוברת על תמונה מהאתר */
         await storage.writeJson('rear_images.json', list); curInvalidate('rear_images.json');
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ ok: true, rec }));

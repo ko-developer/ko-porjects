@@ -3583,6 +3583,30 @@ function rearPosOf(it, pos, i, n) {
   return { x: it.x != null ? it.x : pp ? pp[0] : ((i + 0.5) / Math.max(1, n)) * 100, y: it.y != null ? it.y : pp ? pp[1] : 50, w };
 }
 /* תמונת הגב (ואם יש — גם החזית) עם סמני המחברים במקומם (x,y באחוזים; בלי מיקום — פרוסים לרוחב) */
+const REAR_MEAS = new Set();
+function rearCropOf(im) { return (im && im.crop) || { x: 0, y: 0, w: 100, h: 100 }; }
+function rearMeasure(im) {
+  if (!im || !im.file || im.crop || REAR_MEAS.has(im.file)) return;
+  REAR_MEAS.add(im.file);
+  const orig = (typeof REAR_IMAGES !== 'undefined' && REAR_IMAGES.find(r => r.file === im.file)) || im;
+  const done = crop => { orig.crop = crop; if (orig !== im) im.crop = crop; try { render(); } catch (e) {} };
+  const img = new Image();
+  img.onload = () => {
+    try {
+      if (!orig.w || !orig.h) { orig.w = img.naturalWidth; orig.h = img.naturalHeight; }
+      const W = 240, H = Math.max(1, Math.round(W * img.naturalHeight / img.naturalWidth)), cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const g = cv.getContext('2d'); g.drawImage(img, 0, 0, W, H);
+      const d = g.getImageData(0, 0, W, H).data; let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (d[i + 3] > 40 && (d[i] < 232 || d[i + 1] < 232 || d[i + 2] < 232)) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+      if (x1 < 0) return done({ x: 0, y: 0, w: 100, h: 100 });
+      x0 = Math.max(0, x0 - 2); y0 = Math.max(0, y0 - 2); x1 = Math.min(W - 1, x1 + 2); y1 = Math.min(H - 1, y1 + 2);
+      const crop = { x: x0 / W * 100, y: y0 / H * 100, w: (x1 - x0 + 1) / W * 100, h: (y1 - y0 + 1) / H * 100 };
+      done(crop.w > 94 && crop.h > 94 ? { x: 0, y: 0, w: 100, h: 100 } : crop);   /* שוליים זניחים — בלי חיתוך */
+    } catch (e) { done({ x: 0, y: 0, w: 100, h: 100 }); }
+  };
+  img.onerror = () => done({ x: 0, y: 0, w: 100, h: 100 });
+  img.src = '/rear-img/' + im.file + '?v=' + (im.v || 1);
+}
 function rearImageHTML(name, items, opts = {}) {
   const im = rearImage(name); if (!im) return '';
   const n = items.length, sel = opts.sel, pos = im.pos || {};
@@ -4104,7 +4128,9 @@ function renderNodes() {
             || (wireMode?.from?.nid === n.id && wireMode.from.unitId === u.id)) ? ' picked' : '';
           /* תמונת גב אמיתית (data/rear_images) — המחברים יושבים על התמונה במקומם; אחרת פאנל סכמטי */
           /* בתצוגת הגב — רק הגב; החזית מצורפת מתחתיו רק כשיש מחברים שיושבים בחזית (K7: מיקרופונים בחזית) */
-          const im0 = rearImage(u.name), im = im0 && im0.url ? im0 : null, ih = im && im.w ? panelW * im.h / im.w : 0;
+          const im0 = rearImage(u.name), im = im0 && im0.url ? im0 : null;
+          if (im && (!im.w || !im.crop)) rearMeasure(im);
+          const cr = rearCropOf(im), ih = im ? panelW * ((im.w && im.h) ? (im.h * cr.h) / (im.w * cr.w) : 0.33) : 0;
           const hasFrontConn = !!im && items.some(it => rearSideOf(it, im.pos || {}) === 'front');
           const fh = im && hasFrontConn && im.front && im.fw ? panelW * im.fh / im.fw : 0;
           const imH = im ? Math.round(ih * RZ) : 0, fH = im ? Math.round(fh * RZ) : 0;
@@ -4118,7 +4144,7 @@ function renderNodes() {
             if (im) {
               const { x: px, y: py, w: pw } = rearPosOf(it, imPos, ii, items.length);
               const onFront = fH && rearSideOf(it, imPos) === 'front';
-              cx = px / 100 * panelW; cyi = onFront ? fTop + py / 100 * fH : imTop + py / 100 * imH;
+              cx = onFront ? px / 100 * panelW : (px - cr.x) / cr.w * panelW; cyi = onFront ? fTop + py / 100 * fH : imTop + (py - cr.y) / cr.h * imH;
               if (pw) it._gs = Math.max(0.4, Math.min(2.5, panelW * pw / 100 / 22));
             } else if (isRight(it)) { cx = panelW - PADR - (R - ri) * STEP + STEP / 2; ri++; }
             else { cx = PADL + li * STEP + STEP / 2; li++; }
@@ -4164,7 +4190,7 @@ function renderNodes() {
               </div></div>`;
           });
           rows += `<div class="runit${picked}" data-runit="${u.id}" style="top:${top}px;height:${h}px">
-            <div class="runit-panel${im ? ' photo' : ''}" style="width:${panelW}px;height:${h}px;flex:none${im ? `;background-color:#0b0d12;background-image:url('${im.url}')${fH ? `,url('${im.furl}')` : ''};background-position:0 ${imTop}px${fH ? `,0 ${fTop}px` : ''};background-size:${panelW}px ${imH}px${fH ? `,${panelW}px ${fH}px` : ''};background-repeat:no-repeat` : ''}">${conns}</div>
+            <div class="runit-panel${im ? ' photo' : ''}" style="width:${panelW}px;height:${h}px;flex:none${im ? `;background-color:#0b0d12;background-image:url('${im.url}')${fH ? `,url('${im.furl}')` : ''};background-position:${(-cr.x / cr.w * panelW).toFixed(1)}px ${(imTop - cr.y / cr.h * imH).toFixed(1)}px${fH ? `,0 ${fTop}px` : ''};background-size:${(panelW * 100 / cr.w).toFixed(1)}px ${(imH * 100 / cr.h).toFixed(1)}px${fH ? `,${panelW}px ${fH}px` : ''};background-repeat:no-repeat` : ''}">${conns}</div>
             <div style="width:${CHW}px;flex:none"></div>
             <div class="runit-lbl" style="background:${(CATS[u.cat] || CATS.other).c};width:${LBLW}px;height:${h}px;flex:none;position:relative"><b>${esc(u.name)}</b><small>${u.u}U · פאנל אחורי</small>${rearImage(u.name) ? '<small style="display:block;color:#ffd9a8">📷 תמונת גב אמיתית</small>' : ''}${rearVerified(u.name) ? '<small style="display:block;color:#bfe6d6">✓ גב מהספרייה</small>' : '<small style="display:block;color:#ffcbb3;font-weight:800" title="המחברים המוצגים הם ניחוש — הגדר את גב הדגם בספריית גבי המוצרים">⚠ גב לא מאומת</small>'}
               <button class="runit-edit" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();rearEditor('${u.id}')" title="ערוך את פריסת הגב של הדגם" style="position:absolute;bottom:3px;left:3px">✎ גב</button></div></div>`;
@@ -9872,7 +9898,7 @@ function renderPanel() {
     <div class="row2">
       <div class="fld"><label>גובה (מ׳)</label><input type="number" step="0.1" min="0" value="${n.hgt ?? (isSub ? 0 : 2.6)}" onchange="byId('${n.id}').hgt=+this.value;save()"></div>
       <div class="fld"><label>התקנה על גבי</label><select onchange="byId('${n.id}').mount=this.value;save()">${MOUNTS.map(m => `<option value="${m}" ${curM === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
-      ${isSpk ? `<div class="fld"><label>כיוון ההתקנה (שופר)</label><select onchange="mountSet('${n.id}','orient',this.value);render()"><option value="" ${!spkFlat(n) ? 'selected' : ''}>↕ מאונך (רגיל) — הארון עומד, הפיזור האופקי (H) לרוחב</option><option value="flat" ${spkFlat(n) ? 'selected' : ''}>↔ מאוזן (שוכב) — השופר מסובב 90°, הפיזור האנכי (V) לרוחב</option></select>
+      ${isSpk ? `<div class="fld" style="min-width:0"><label>כיוון ההתקנה</label><select style="width:100%;min-width:0" title="מאונך (רגיל): הארון עומד, הפיזור האופקי לרוחב · מאוזן (שוכב): השופר מסובב 90°, הפיזור האנכי לרוחב" onchange="mountSet('${n.id}','orient',this.value);render()"><option value="" ${!spkFlat(n) ? 'selected' : ''}>↕ מאונך (רגיל)</option><option value="flat" ${spkFlat(n) ? 'selected' : ''}>↔ מאוזן · סובב שופר</option></select>
         ${spkFlat(n) ? '<p style="font-size:10.5px;margin:3px 0 0;color:#9a3412">🔁 התקנה מאוזנת: יש לסובב את השופר ב-90° — מופיע בדוח ההתקנה; הכיסוי מחושב לפי V לרוחב</p>' : ''}</div>` : ''}
     </div>
     ${pt === 'light' && typeof fxNodeHTML === 'function' ? fxNodeHTML(n) : ''}
