@@ -9505,7 +9505,8 @@ function zoneClipPolys(z) {
   return polys;
 }
 /* הפיזור האופקי בפועל: ברמקול מאונך (מסובב 90°) הזווית האנכית של היצרן היא זו שלרוחב */
-function dispEff(n) { const h = n.disp ?? guessDisp(n.name); if (n.orient !== 'v') return h; const v = n.vdisp ?? (typeof guessVdisp === 'function' ? guessVdisp(nodeFullName(n)) : null); return v != null && v > 0 ? v : h; }
+function spkFlat(n) { return !!n && n.orient === 'flat'; }
+function dispEff(n) { const h = n.disp ?? guessDisp(n.name); if (!spkFlat(n)) return h; const v = n.vdisp ?? (typeof guessVdisp === 'function' ? guessVdisp(nodeFullName(n)) : null); return v != null && v > 0 ? v : h; }
 function renderCoverage() {
   const svg = $('#coverage'), bar = $('#covbar');
   if (!svg) return;
@@ -9871,8 +9872,8 @@ function renderPanel() {
     <div class="row2">
       <div class="fld"><label>גובה (מ׳)</label><input type="number" step="0.1" min="0" value="${n.hgt ?? (isSub ? 0 : 2.6)}" onchange="byId('${n.id}').hgt=+this.value;save()"></div>
       <div class="fld"><label>התקנה על גבי</label><select onchange="byId('${n.id}').mount=this.value;save()">${MOUNTS.map(m => `<option value="${m}" ${curM === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
-      ${isSpk ? `<div class="fld"><label>כיוון ההתקנה (שופר)</label><select onchange="byId('${n.id}').orient=this.value;save();render()"><option value="h" ${(n.orient || 'h') === 'h' ? 'selected' : ''}>↔ מאוזן — הפיזור האופקי (H) לרוחב</option><option value="v" ${n.orient === 'v' ? 'selected' : ''}>↕ מאונך — מסובב 90°, הפיזור האנכי (V) לרוחב</option></select>
-        ${n.orient === 'v' ? '<p style="font-size:10.5px;margin:3px 0 0;color:#9a3412">🔁 התקנה מאונכת: יש לסובב את השופר — מופיע בדוח ההתקנה; הכיסוי מחושב לפי V לרוחב</p>' : ''}</div>` : ''}
+      ${isSpk ? `<div class="fld"><label>כיוון ההתקנה (שופר)</label><select onchange="mountSet('${n.id}','orient',this.value);render()"><option value="" ${!spkFlat(n) ? 'selected' : ''}>↕ מאונך (רגיל) — הארון עומד, הפיזור האופקי (H) לרוחב</option><option value="flat" ${spkFlat(n) ? 'selected' : ''}>↔ מאוזן (שוכב) — השופר מסובב 90°, הפיזור האנכי (V) לרוחב</option></select>
+        ${spkFlat(n) ? '<p style="font-size:10.5px;margin:3px 0 0;color:#9a3412">🔁 התקנה מאוזנת: יש לסובב את השופר ב-90° — מופיע בדוח ההתקנה; הכיסוי מחושב לפי V לרוחב</p>' : ''}</div>` : ''}
     </div>
     ${pt === 'light' && typeof fxNodeHTML === 'function' ? fxNodeHTML(n) : ''}
     ${!isSpk ? `<p class="muted" style="font-size:11px">מוקד מסוג ${PTYPES.find(x => x[0] === pt)[1]} — ללא כיסוי אקוסטי.</p>
@@ -10666,7 +10667,7 @@ function mountProductFor(n, kind) {
 function mountRows() {
   return P.nodes.filter(n => n.kind === 'point' && !n.hidden && (n.srcIid ? isSpeakerItem(nodeFullName(n)) : /רמקול|סאב|speaker|sub/i.test(n.name || '')) && (n.ptype == null || n.ptype === 'speaker' || n.ptype === 'sub')).map(n => { const kind = hangKindOf(n); return { n, kind, pr: mountProductFor(n, kind) }; });
 }
-function mountSet(id, f, v) { const n = byId(id); if (!n) return; if (f === 'hang') { if (v === 'auto') delete n.hang; else n.hang = v; } else if (f === 'straight') n.straight = !!v; else if (f === 'mount') n.mount = v; else if (f === 'orient') n.orient = v; save(); mountManager(); }
+function mountSet(id, f, v) { const n = byId(id); if (!n) return; if (f === 'orient') { if (v === 'flat') n.orient = 'flat'; else delete n.orient; } else if (f === 'hang') { if (v === 'auto') delete n.hang; else n.hang = v; } else if (f === 'straight') n.straight = !!v; else if (f === 'mount') n.mount = v; else if (f === 'orient') n.orient = v; save(); mountManager(); }
 function mountAddAll(onlyId) {
   const rows = mountRows().filter(r => r.pr && r.pr.key && (!onlyId || r.n.id === onlyId)); let added = 0, qty = 0;
   const need = {}; rows.forEach(r => { const e = need[r.pr.key] = need[r.pr.key] || { pr: r.pr, qty: 0, parents: new Set() }; e.qty += r.pr.qty; if (r.n.srcIid) e.parents.add(r.n.srcIid); });
@@ -10686,7 +10687,7 @@ function mountManager() {
     <td><b>${esc(shortModel(nm))}</b><br><small class="muted">${esc(nm.slice(0, 44))}</small></td>
     <td><select onchange="mountSet('${n.id}','mount',this.value)"><option value="">—</option>${MOUNTS.map(m => `<option ${n.mount === m ? 'selected' : ''}>${m}</option>`).join('')}</select></td>
     <td style="text-align:center"><input type="checkbox" style="width:auto" ${n.straight ? 'checked' : ''} title="רמקול ישר בלי צידוד — אז מותר מתקן ח" onchange="mountSet('${n.id}','straight',this.checked)"></td>
-    <td><select onchange="mountSet('${n.id}','orient',this.value)" style="${n.orient === 'v' ? 'color:#9a3412;font-weight:700' : ''}"><option value="h" ${(n.orient || 'h') === 'h' ? 'selected' : ''}>↔ מאוזן</option><option value="v" ${n.orient === 'v' ? 'selected' : ''}>↕ מאונך · סובב שופר</option></select></td>
+    <td><select onchange="mountSet('${n.id}','orient',this.value)" style="${spkFlat(n) ? 'color:#9a3412;font-weight:700' : ''}"><option value="" ${!spkFlat(n) ? 'selected' : ''}>↕ מאונך</option><option value="flat" ${spkFlat(n) ? 'selected' : ''}>↔ מאוזן · סובב שופר</option></select></td>
     <td><select onchange="mountSet('${n.id}','hang',this.value)"><option value="auto" ${!n.hang ? 'selected' : ''}>אוטו · ${HANG_HE[kind]}</option>${Object.entries(HANG_HE).map(([k, t]) => `<option value="${k}" ${n.hang === k ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
     <td style="font-size:11.5px">${pr ? `${pr.key ? imgCell(pr.key, 30, pr.name) : ''} ${esc(pr.name.slice(0, 52))}<br><small class="muted">${esc(pr.why)}</small>` : '<span class="muted">—</span>'}</td>
     <td style="text-align:center;font-weight:700">${pr ? '× ' + pr.qty : ''}</td>

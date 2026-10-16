@@ -1,6 +1,6 @@
 // Assembles dist/index.html — a single self-contained file (Netlify drag-and-drop friendly).
 // ההרכבה המשותפת (קוד + נתונים) יושבת ב-assemble.js ומשמשת גם את SvelteKit.
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, statSync } from 'node:fs';
 import { assembleAppJs } from './assemble.js';
 
 const app = assembleAppJs();
@@ -27,6 +27,10 @@ for (const k of ['matrix', 'logic']) {
 try {
   mkdirSync('dist/rear-img', { recursive: true });
   let n = 0;
-  for (const f of readdirSync('data/rear_images')) if (/\.(jpe?g|png|webp|gif)$/i.test(f)) { copyFileSync('data/rear_images/' + f, 'dist/rear-img/' + f); n++; }
+  /* מעתיקים רק קובץ שהשתנה (גודל/זמן) — 74 העתקות בכל בנייה הכבידו על דיסק מלא */
+  for (const f of readdirSync('data/rear_images')) if (/\.(jpe?g|png|webp|gif)$/i.test(f)) {
+    const src = 'data/rear_images/' + f, dst = 'dist/rear-img/' + f;
+    try { const sa = statSync(src), sb = statSync(dst); if (sa.size === sb.size && sb.mtimeMs >= sa.mtimeMs) { n++; continue; } } catch {}
+    copyFileSync(src, dst); n++; }
   console.log(`build OK -> dist/rear-img/ (${n} images)`);
 } catch (e) { console.warn('rear images not copied:', e.message); }
