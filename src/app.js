@@ -12358,11 +12358,19 @@ function kitStock(k) {
   return { dead, low, core };
 }
 /* תצוגה מקדימה של קיט — לפני הוספה לרשימה */
+/* פריטי הקיט אחרי בחירת צבע במסך הקיט (לא משנה את הקיט עצמו — רק מה שמוצג ומה שנוסף להצעה) */
+function kitItemsWithFinish(k, gi) {
+  const sel = window.__kitFinSel; if (!sel || sel.gi !== gi || !sel.f) return k.items;
+  const items = JSON.parse(JSON.stringify(k.items)); kitApplyFinish(items, sel.f); return items;
+}
+function kitPrevFinish(gi, f) { window.__kitFinSel = { gi, f }; kitPrev(gi); }
+window.kitPrevFinish = kitPrevFinish;
 function kitPrev(gi) {
   const k = allKits()[gi]; if (!k) return;
   const isUser = (store.userKits || []).includes(k);
   let total = 0;
-  const rows = k.items.map(x => {
+  const kitItems = kitItemsWithFinish(k, gi);
+  const rows = kitItems.map(x => {
     const pr = x.key && typeof ERP_PRICES !== 'undefined' && ERP_PRICES[x.key] != null ? ERP_PRICES[x.key] : null;
     if (pr != null) total += pr * (x.qty || 1);
     return `<div style="display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px solid #eee;font-size:12px">
@@ -12379,7 +12387,8 @@ function kitPrev(gi) {
     ${rows}
     <p style="text-align:left;font-weight:700;margin:6px 8px">סה"כ משוער: ₪${total.toLocaleString()}</p>
     ${kitCableNeeds(k).length ? '<div style="border:1.5px solid #e9b4b4;border-radius:9px;margin:6px 0 10px;overflow:hidden"><div style="background:#fdf0f0;padding:6px 8px;font-weight:700;color:#c1121f;font-size:12.5px">🔌 חסרים כבלים בקיט — שורות מוצעות לאישור</div>' + kitCabRowsHTML(k, gi) + '<button style="width:100%;background:#eef7f1;color:#0f6e56;font-weight:700;border-radius:0" onclick="kitCabApply(' + gi + ')">✓ אשר והוסף את המסומנים לקיט</button></div>' : ''}
-    <button class="primary" style="width:100%" onclick="pickKit(${gi})">➕ הוסף את הקיט לרשימת הפריטים</button>
+    ${kitFinishBarHTML(kitItems, "kitPrevFinish(" + gi + ",'%F%')")}
+    <button class="primary" style="width:100%" onclick="pickKit(${gi})">➕ הוסף את הקיט לרשימת הפריטים${window.__kitFinSel && window.__kitFinSel.gi === gi ? ' — בצבע ' + esc(window.__kitFinSel.f) : ''}</button>
     <button style="width:100%;margin-top:6px;background:#eef7f1;color:#0f6e56;font-weight:700" onclick="kitEdit(${gi})">✎ ערוך את הקיט — השינוי נשמר לתמיד${isUser ? '' : ' (מחליף את קיט ה-ERP)'}</button>
     <button style="width:100%;margin-top:6px;background:#efecfd;color:#4b3fb8;font-weight:700" onclick="kitDup(${gi})" title="פותח עותק של הקיט בבונה הקיטים — שנה פריטים וכמויות ושמור בשם אחר; הקיט המקורי לא משתנה">📋 שכפל את הקיט — שנה פריטים ושמור בשם אחר</button>
     <button style="width:100%;margin-top:6px" onclick="kitToggleHide(${gi})">${kitHidden(k.name) ? '↺ החזר את הקיט לרשימה' : '✕ הסתר — הקיט לא רלוונטי'}</button>
@@ -12840,7 +12849,7 @@ function renderKits() {
 function pickKit(i) {
   const k = allKits()[i];
   const src = 'קיט: ' + k.name.slice(0, 30);
-  for (const x of k.items) {
+  for (const x of kitItemsWithFinish(k, i)) {   /* צבע שנבחר במסך הקיט */
     const st = classifyStock(x.name);
     const it = st
       ? { on: true, qty: x.qty, name: x.name, src, cat: 'other', u: 1, key: x.key, ...st }
