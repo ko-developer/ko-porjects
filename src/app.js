@@ -12782,6 +12782,31 @@ function kitAmpPlanFor(ampName, groups) {
   }
   return { amps: Math.ceil(chans / ch), chans, ch, lines };
 }
+/* ===== כללי הבית לשיבוץ מגברים לפי תפקיד (מותג → איזה מגבר לאיזה רכיב). Funktion-One (אורי, 2026-10):
+   DNA 120 — בעיקר לסאבים 24" / דאבל 21 (F124, F221) · DNA 100 — באסים (שאר הסאבים) ולו-מידים · DPA 80 — הי-מיד והי (הטופים) ===== */
+const BIG_SUB_RX = /F\s?-?124|F\s?-?221|BR\s?-?221|\b24\s?(?:"|''|אינץ|inch)|2\s?[x×]\s?21|דאבל\s?21|double\s?21/i;
+const AMP_ROLE_RULES = [
+  { brand: 'FUNKTION ONE', rules: [
+    { when: g => g.sub && BIG_SUB_RX.test(g.name), re: /DNA\s?-?120/i, why: 'סאב 24"/דאבל 21 → DNA 120' },
+    { when: g => g.sub, re: /DNA\s?-?100/i, why: 'באסים → DNA 100' },
+    { when: g => !g.sub, re: /DPA\s?-?80/i, why: 'הי-מיד/הי → DPA 80' },
+  ] },
+];
+/* שיבוץ לפי תפקיד: לכל קבוצה המגבר שהכלל קובע (מהקטלוג, במלאי קודם), בדיקת ×1.5 וחישוב כמות; מגברים שונים = שורות שונות. null כשאין כלל/קטלוג/עמידה בכלל */
+function kitAmpByRole(brand, groups) {
+  const rs = AMP_ROLE_RULES.find(r => r.brand === brand); if (!rs || typeof ERP_ITEMS === 'undefined') return null;
+  const per = [];
+  for (const g of groups) {
+    const rule = rs.rules.find(r => r.when(g)); if (!rule) return null;
+    const its = ERP_ITEMS.filter(it => rule.re.test(it[1] || '') && kitFuncClass(it[1] || '') === 'amp' && +it[2] > 0 && !offerBanned(it[1]) && !KIT_ALT_NO.test(it[1] || '') && !/board|כרטיס|לוח|מודול|module/i.test(it[1] || '')).sort((a, b) => (+b[3] > 0) - (+a[3] > 0) || +a[2] - +b[2]);
+    if (!its.length) return null;
+    const it = its[0], plan = kitAmpPlanFor(it[1], [g]); if (!plan) return null;
+    per.push({ g, rule, key: it[0], name: it[1], stock: +it[3] || 0, plan });
+  }
+  const byKey = {};
+  per.forEach(p => { const e = byKey[p.key] = byKey[p.key] || { key: p.key, name: p.name, stock: p.stock, ch: p.plan.ch, chans: 0, lines: [], whys: [] }; e.chans += p.plan.chans; e.lines.push(...p.plan.lines); if (!e.whys.includes(p.rule.why)) e.whys.push(p.rule.why); });
+  return Object.values(byKey).map(e => ({ ...e, amps: Math.ceil(e.chans / e.ch) }));
+}
 /* המגבר הזול ביותר (סה"כ) שעומד בכלל מבין המועמדים; prefer = ביטוי לדגם מועדף (DYNAMIQ ל-KT) — נבחר אם הוא עומד בכלל */
 function kitAmpChoose(groups, cands, prefer) {
   const opts = [];
@@ -12830,19 +12855,24 @@ function kitProposals() {
     const br = top.brand, withSub = !!sub;
     const active = /A$/.test(top.cls);
     /* מגבר לפי כלל הבית ×1.5: קבוצות = טופים (+ סאבים), המגבר הזול שעומד בכלל; בלי נתוני הספק — נופלים למגבר הנפוץ עם אזהרה */
-    const groups = active ? [] : [{ model: shortModel(top.name), qty: qTop, ...kitSpkSpec(top.name) }].concat(sub ? [{ model: shortModel(sub.name), qty: qSub, sub: true, ...kitSpkSpec(sub.name) }] : []);
+    const groups = active ? [] : [{ model: shortModel(top.name), name: top.name, qty: qTop, ...kitSpkSpec(top.name) }].concat(sub ? [{ model: shortModel(sub.name), name: sub.name, qty: qSub, sub: true, ...kitSpkSpec(sub.name) }] : []);
     const specOk = groups.every(g => g.w);
-    const chosen = active ? null : specOk ? kitAmpChoose(groups, ampCands(br), isKT(br) ? /DYNAMIQ/i : null) : null;
-    const amp = active ? null : chosen ? { key: chosen.key, name: chosen.name } : isKT(br) ? erpByKey('SSDK2KO') : topAmp(br, withSub);
+    /* קודם כללי השיבוץ לפי תפקיד של המותג (Funktion-One: DPA 80 לטופים, DNA 100 לסאבים, DNA 120 ל-24"/דאבל 21); אחרת המגבר הזול שעומד ב-×1.5 */
+    const roleAmps = active || !specOk ? null : kitAmpByRole(br, groups);
+    const chosen = active || roleAmps ? null : specOk ? kitAmpChoose(groups, ampCands(br), isKT(br) ? /DYNAMIQ/i : null) : null;
+    const amp = active || roleAmps ? null : chosen ? { key: chosen.key, name: chosen.name } : isKT(br) ? erpByKey('SSDK2KO') : topAmp(br, withSub);
     const ampQty = chosen ? chosen.plan.amps : 1;
     const items = [{ key: top.key, name: top.name, qty: qTop }];
     if (sub) items.push({ key: sub.key, name: sub.name, qty: qSub });
-    if (amp) items.push({ key: amp.key, name: amp.name, qty: ampQty });
-    const nm = qTop + '× ' + shortModel(top.name) + (sub ? ' + ' + qSub + '× ' + shortModel(sub.name) : '') + (amp ? ' · ' + (ampQty > 1 ? ampQty + '× ' : '') + shortModel(amp.name) : '');
+    if (roleAmps) roleAmps.forEach(a => items.push({ key: a.key, name: a.name, qty: a.amps }));
+    else if (amp) items.push({ key: amp.key, name: amp.name, qty: ampQty });
+    const ampTxt = roleAmps ? roleAmps.map(a => (a.amps > 1 ? a.amps + '× ' : '') + shortModel(a.name)).join(' + ') : amp ? (ampQty > 1 ? ampQty + '× ' : '') + shortModel(amp.name) : '';
+    const nm = qTop + '× ' + shortModel(top.name) + (sub ? ' + ' + qSub + '× ' + shortModel(sub.name) : '') + (ampTxt ? ' · ' + ampTxt : '');
     const why = [shortModel(top.name) + ' — ' + top.stock + ' במלאי, לא באף קיט' + (top.fins.length > 1 ? ' (צבעים: ' + [...new Set(top.fins)].join('/') + ')' : '') + (top.ceil ? ' · תקרה/שקוע — בלי סאב' : '')];
     if (sub && !used.has(sub.key) && cands.some(c => c.key === sub.key)) why.push(shortModel(sub.name) + ' — ' + sub.stock + ' במלאי, לא באף קיט');
-    if (!amp && !active) why.push('לא נמצא מגבר בקיטים של ' + br + ' — להוסיף בבונה');
-    if (chosen) { why.push('🎚 ' + ampQty + '× ' + shortModel(chosen.name) + ' — ' + chosen.plan.chans + ' ערוצים: ' + chosen.plan.lines.join(' · ')); if (chosen.alt) why.push('חלופה זולה יותר שעומדת בכלל: ' + chosen.alt.plan.amps + '× ' + shortModel(chosen.alt.name) + ' (₪' + Math.round(chosen.alt.cost).toLocaleString() + ' במקום ₪' + Math.round(chosen.cost).toLocaleString() + ')'); groups.forEach(g => { if (g.src && g.src !== 'מהטבלה') why.push(g.model + ': ' + g.w + 'W/' + g.o + 'Ω ' + g.src); }); }
+    if (!amp && !roleAmps && !active) why.push('לא נמצא מגבר בקיטים של ' + br + ' — להוסיף בבונה');
+    if (roleAmps) { roleAmps.forEach(a => why.push('🎚 ' + a.amps + '× ' + shortModel(a.name) + ' (' + a.whys.join(', ') + ')' + (a.stock > 0 ? '' : ' — אין במלאי') + ' — ' + a.chans + ' ערוצים: ' + a.lines.join(' · '))); groups.forEach(g => { if (g.src && g.src !== 'מהטבלה') why.push(g.model + ': ' + g.w + 'W/' + g.o + 'Ω ' + g.src); }); }
+    else if (chosen) { why.push('🎚 ' + ampQty + '× ' + shortModel(chosen.name) + ' — ' + chosen.plan.chans + ' ערוצים: ' + chosen.plan.lines.join(' · ')); if (chosen.alt) why.push('חלופה זולה יותר שעומדת בכלל: ' + chosen.alt.plan.amps + '× ' + shortModel(chosen.alt.name) + ' (₪' + Math.round(chosen.alt.cost).toLocaleString() + ' במקום ₪' + Math.round(chosen.cost).toLocaleString() + ')'); groups.forEach(g => { if (g.src && g.src !== 'מהטבלה') why.push(g.model + ': ' + g.w + 'W/' + g.o + 'Ω ' + g.src); }); }
     else if (amp) why.push('⚠ לא אומת כלל ×' + AMP_RATIO_MIN + ': ' + (specOk ? 'אף מגבר ' + br + ' שבמלאי לא עומד בכלל לרמקולים האלה' : 'אין נתוני הספק ל-' + groups.filter(g => !g.w).map(g => g.model).join(', ')) + ' — לבדוק בבונה');
     if (amp && isKT(br) && !/DYNAMIQ/i.test(amp.name)) why.push('DYNAMIQ שבמלאי לא עומד ב-×' + AMP_RATIO_MIN + ' לרמקולים האלה — הוצע ' + shortModel(amp.name));
     out.push({ name: nm, brand: br, items, why, price: items.reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * x.qty; }, 0) });
