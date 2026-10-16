@@ -365,6 +365,7 @@ const handleReq = async (req, res) => {
             if (it.port) o.port = String(it.port).slice(0, 12);
             for (const k of ['x', 'y', 'w']) if (typeof it[k] === 'number' && isFinite(it[k])) o[k] = Math.round(it[k] * 10) / 10;
             if (it.side === 'front') o.side = 'front';
+            if (/^(anet|anet2|ctrl|poe|port)$/.test(String(it.role || ''))) o.role = it.role;   /* תפקיד פורט רשת: אודיו ראשי/משני, בקרה, PoE, פורט מתג */
             return o;
           });
           const re = String(b.re || name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).slice(0, 200);

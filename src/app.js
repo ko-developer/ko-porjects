@@ -3337,6 +3337,7 @@ function rearEdRender() {
       <div class="fld"><label>משויך לפורט (מספר היציאה/הכניסה בחיווט)</label><div style="display:flex;gap:4px">
         <select style="flex:1" onchange="rearSetPort(${sel},this.value,null)"><option value="" ${!pm ? 'selected' : ''}>— ללא (חשמל / רשת / בקרה) —</option><option value="OUT" ${pm && pm[1].toUpperCase() === 'OUT' ? 'selected' : ''}>יציאה OUT</option><option value="IN" ${pm && pm[1].toUpperCase() === 'IN' ? 'selected' : ''}>כניסה IN</option><option value="LNK" ${pm && pm[1].toUpperCase() === 'LNK' ? 'selected' : ''}>לינק LNK (יציאת שרשור)</option></select>
         <input type="number" min="1" max="64" value="${pm ? +pm[2] : ''}" placeholder="מס׳" style="width:64px" ${pm ? '' : 'disabled'} onchange="rearSetPort(${sel},null,this.value)"></div></div>
+      ${/rj45|fiber/.test(it.t) ? `<div class="fld"><label>תפקיד פורט הרשת</label><select onchange="if(this.value)__rearDraft[${sel}].role=this.value;else delete __rearDraft[${sel}].role;rearEdRender()" title="רשת אודיו = Dante / AES67 — הכבל לניתוב האודיו ברשת מתחבר לפורט הזה; בקרה = ניהול בלבד"><option value="" ${!it.role ? 'selected' : ''}>אוטו — ${esc(NET_ROLE_HE[netPortRole(it, window.__rearName, items)] || '')}</option>${Object.entries(NET_ROLE_HE).map(([k, v]) => `<option value="${k}" ${it.role === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>` : ''}
       ${(im || {}).furl ? `<div class="fld"><label>איפה המחבר יושב</label><select onchange="rearSetSide(${sel},this.value)"><option value="rear" ${rearSideOf(it, pos) !== 'front' ? 'selected' : ''}>גב</option><option value="front" ${rearSideOf(it, pos) === 'front' ? 'selected' : ''}>חזית</option></select></div>` : '<div></div>'}
     </div>
     ${hasImg ? `<div class="row2">
@@ -3691,7 +3692,7 @@ function rearLibManager() {
     </div>
     ${rows.map(r => { const grp = r.brand + ' · ' + r.type; const hdr = grp !== lastGrp ? `<div class="rlgrp" data-grp="${esc(grp)}" style="font-size:11px;font-weight:700;color:#534ab7;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #e9e6f8">${esc(r.brand)} <span style="color:#8a8377;font-weight:400">· ${esc(r.type)}</span></div>` : ''; lastGrp = grp; return hdr + `<div class="rlrow" data-grp="${esc(grp)}" data-brand="${esc(r.brand)}" data-type="${esc(r.type)}" data-img="${(rearImage(r.name) || {}).url ? 1 : 0}" data-q="${esc((r.name + ' ' + r.brand + ' ' + r.type).toLowerCase())}" style="padding:5px 8px;border:1px solid #eee;border-radius:7px;margin-bottom:4px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
       <b style="flex:1;font-size:12px">${esc(r.name)}${(() => { const e = (typeof REAR_LAYOUTS !== 'undefined' && REAR_LAYOUTS.find(x => x.name === r.name)) || REAR_KB.find(x => rearPretty(x.re) === r.name); const ms = e ? rearModelsOf(e.re).filter(m => m !== r.name) : []; return ms.length ? ` <span class="muted" style="font-weight:400;font-size:10.5px">· ${esc(ms.join(' · '))}</span>` : ''; })()}</b>
-      <span class="muted" style="font-size:10px">${r.outs} יציאות · ${r.n} מחברים · ${r.src}</span>
+      <span class="muted" style="font-size:10px">${(() => { let nets = []; try { nets = rearPortsAuto(r.items).filter(i => /rj45|fiber/.test(i.t)); } catch (e) {} return nets.length ? '🌐 ' + nets.slice(0, 6).map(i => { const ro = netPortRole(i, r.name, nets); return esc(i.label || i.port) + ({ anet: ' 🎵', anet2: ' 🎵₂', ctrl: ' ⚙', poe: ' ⚡', port: '' }[ro] || ''); }).join(', ') + (nets.length > 6 ? ' +' + (nets.length - 6) : '') + ' · ' : ''; })()}${r.outs} יציאות · ${r.n} מחברים · ${r.src}</span>
       <button style="padding:1px 8px" onclick="document.getElementById('rearLibOv').remove();rearEditorByName('${jsq(r.name)}')">✎</button>
       ${r.custom ? `<button style="padding:1px 8px;background:#e3f0ff" title="העבר את הפריסה המותאמת לספריית השרת — תקף לכל הפרויקטים" onclick="rearLibPush('${jsq(r.name)}')">⬆ לשרת</button><button style="padding:1px 8px;background:#f3d9d2" onclick="uiConfirm('למחוק את הדגם המותאם?').then(ok=>{if(ok){delete store.rearLib['${jsq(r.name)}'];save();document.getElementById('rearLibOv').remove();rearLibManager();}})">✕</button>` : r.srv ? `<button style="padding:1px 8px;background:#f3d9d2" title="מחיקה מספריית השרת" onclick="rearSrvDelete('${jsq(r.name)}')">✕</button>` : ''}
     </div>${(rearImage(r.name) || {}).url ? '' : strip(r.items)}${rearImageHTML(r.name, r.items, { style: 'margin-bottom:4px' })}</div>`; }).join('')}</div>`;
@@ -5313,7 +5314,7 @@ function portClick(nid, unitId, portStr, isOut) {
    עותק לתצוגה ולחיווט בלבד; הספרייה עצמה לא משתנה. מתגי DIP אינם מחברים. */
 function rearPortsAuto(items) {
   const cnt = {}, tot = {};
-  const base = it => it.t === 'rj45' ? 'NET' : (it.t === 'pwr' || it.t === 'power') ? 'AC' : String(it.label || it.t || 'PORT').toUpperCase().replace(/\s+/g, ' ').slice(0, 10);
+  const base = it => it.t === 'rj45' ? (it.label ? String(it.label).toUpperCase().replace(/\s+/g, ' ').slice(0, 12) : 'NET') : (it.t === 'pwr' || it.t === 'power') ? 'AC' : String(it.label || it.t || 'PORT').toUpperCase().replace(/\s+/g, ' ').slice(0, 10);
   (items || []).forEach(it => { if (!it.port && it.t !== 'dip') { const b = base(it); tot[b] = (tot[b] || 0) + 1; } });
   return (items || []).map(it => { if (it.port || it.t === 'dip') return it; const b = base(it); cnt[b] = (cnt[b] || 0) + 1; return { ...it, port: tot[b] > 1 ? b + ' ' + cnt[b] : b, _auto: true }; });
 }
@@ -6465,8 +6466,8 @@ function patchOpen(z, amps, lines, leftover) {
     });
   });
   PATCH.ins.forEach((t, ii) => {
-    P.cables.filter(c => c.to === t.rk.id && c.toUnit === t.u.id && /^IN/.test(c.pIn || '')).forEach(c => {
-      const nums = String(c.pIn).match(/\d+/g) || [];
+    P.cables.filter(c => (c.to === t.rk.id && c.toUnit === t.u.id && /^IN/.test(c.pIn || '')) || (c.logUnit === t.u.id && /^IN/.test(c.logIn || ''))).forEach(c => {
+      const nums = String(c.logIn || c.pIn).match(/\d+/g) || [];
       if (c.srcCh === 'LR' && nums.length === 2) {
         /* מולטי אחד שנושא L+R — שני צ׳יפים על שתי כניסות, אותו כבל */
         [['L', +nums[0]], ['R', +nums[1]]].forEach(([chn, n3]) => {
@@ -7552,10 +7553,56 @@ window.patchProcPicker = patchProcPicker; window.patchAddProc = patchAddProc;
    השינויים כאן חלים מיד (כבלים פנימיים בארון), בלי לחכות ל"חבר". */
 const DANTE_RX = /dante|aes\s?67|network|רשת/i;
 /* AES67 — סדרות עם AES67 מובנה: KT DYNAMIQ, DigiSynthetic DMX/DS, NST (D48/ID48/VMX/VMO/DM88), XTA DPA/DNA, Powersoft, Lab IPD, K&F IPX. חיבור במתג רשת + Cat6, בלי XLR */
-const AES67_RX = /aes\s?67|DYNAMIQ|\bDMX\s?\d{3,4}|\bDS\s?\d{3}[A-Z]?\b|\bD48\b|ID48|VMX\s?88|VMO\s?16|DM88|\bNST\b|DPA\s?\d|DNA\s?\d|POWERSOFT|QUATTRO|OTTOCANALI|\bIPD\b|IPX\s?\d/i;
-function unitAes67Ok(u) { try { return AES67_RX.test(u.name || '') || rearLayout(u.name).some(i => /aes\s?67/i.test((i.port || '') + ' ' + (i.label || ''))); } catch (e) { return AES67_RX.test(u.name || ''); } }
+const AES67_RX = /aes\s?67|DYNAMIQ|\bDMX\s?\d{3,4}|\bDS\s?\d{3}[A-Z]?\b|\bD48\b|ID48|VMX\s?88|VMO\s?16|DM88|\bNST\b|DPA\s?\d|DNA\s?\d|POWERSOFT|QUATTRO|OTTOCANALI|\bIPD\b|\bPLM\b|LAB\.?\s?GRUPPEN|IPX\s?\d/i;
+/* ===== רשת אודיו (Dante / AES67): איזה פורט במכשיר הוא כניסת הרשת לאודיו, ומה תפקידו =====
+   'anet' = רשת אודיו ראשי · 'anet2' = משני (רדונדנטי) · 'ctrl' = בקרה/ניהול בלבד · 'poe' = כניסת PoE (המכשיר ניזון מהמתג) · 'port' = פורט של מתג/ראוטר
+   תפקיד מפורש (role, מעורך הגב) גובר; אחרת לפי התווית, ולפורט ETH/NET כללי — לפי יכולת הדגם (שם / טבלת הנתונים) */
+const NET_AUDIO_RX = /dante|aes\s?67|audio|primary|\bNET\s?A\b|\bNET\s?1\b|\bETH\s?1\b|DANTE\s?P/i, NET_AUDIO2_RX = /secondary|\bNET\s?B\b|\bNET\s?2\b|\bETH\s?2\b|DANTE\s?S/i, NET_CTRL_RX = /ctrl|control|mgmt|manage|console|rs485|\bweb\b|\bWAN\b|uplink|sfp/i;
+function unitNetMeta(uname) { const ms = store.ampMeta || {}, k = rearKey(uname || '').toUpperCase(); const hit = Object.keys(ms).find(x => x && x.length >= 3 && k.includes(x.toUpperCase())); return hit ? ms[hit] || {} : {}; }
+function unitNetAudioCapable(uname) { return DANTE_RX.test(uname || '') || AES67_RX.test(uname || '') || /dante|aes\s?67|omneo/i.test(String(unitNetMeta(uname).net || '')); }
+function netPortRole(it, uname, items) {
+  if (!it || !/rj45|fiber/.test(it.t || '')) return '';
+  if (it.role) return it.role;
+  const s = (it.label || '') + ' ' + (it.port || '');
+  /* למכשיר יש פורטי Dante/AES67 מפורשים (DANTE P/S…) — פורט ETH/NET/ETH 1 כללי בו הוא בקרה. בלי כאלה (XTA DNA: ETH + ETH 2) הפורטים הכלליים הם רשת האודיו */
+  const explicit = Array.isArray(items) && items.some(o => o !== it && /rj45|fiber/.test(o.t || '') && (o.role === 'anet' || /dante|aes\s?67|audio|omneo|avb|milan/i.test((o.label || '') + ' ' + (o.port || ''))));
+  const generic = /^(ETH|NET|LAN|ETHERNET|NETWORK)\s?\d?$/i.test(String(it.label || it.port || '').trim());
+  if (generic && explicit) return 'ctrl';
+  if (/^(P\s?\d+|LAN\s?\d+|SFP\s?\d*|UPLINK\s?\d*)$/i.test(String(it.port || '').trim()) || /PoE\s?\d/i.test(it.label || '')) return 'port';
+  if (NET_CTRL_RX.test(s)) return 'ctrl';
+  if (NET_AUDIO2_RX.test(s)) return 'anet2';
+  if (NET_AUDIO_RX.test(s)) return 'anet';
+  return !explicit && unitNetAudioCapable(uname) ? 'anet' : 'ctrl';
+}
+const NET_ROLE_HE = { anet: 'רשת אודיו ראשי', anet2: 'רשת אודיו משני', ctrl: 'בקרה / ניהול', poe: 'כניסת PoE (אודיו + הזנה)', port: 'פורט מתג' };
+function unitAudioNetPorts(u) { let items; try { items = rearPortsAuto(rearLayout(u.name)); } catch (e) { return []; } const r = items.filter(it => ['anet', 'anet2', 'poe'].includes(netPortRole(it, u.name, items))); return r.sort((a, b) => (netPortRole(a, u.name, items) === 'anet2') - (netPortRole(b, u.name, items) === 'anet2')); }
+function unitAudioNetPort(u) { const p = unitAudioNetPorts(u)[0]; return p ? p.port : 'NET'; }
+/* מתג הרשת שבארון — יחידה עם פורטי RJ45 ממוספרים (P1… / LAN1…) */
+function rackNetSwitch(rk) {
+  return ((rk && rk.units) || []).find(u => { if (!(u.cat === 'net' || /מתג|switch|רכזת|מפצל רשת|ראוטר|router/i.test(u.name || ''))) return false; try { return rearPortsAuto(rearLayout(u.name)).some(it => it.t === 'rj45' && netPortRole(it, u.name) === 'port'); } catch (e) { return false; } });
+}
+function netSwitchPorts(rk, sw) { try { return rearPortsAuto(rearLayout(sw.name)).filter(it => it.t === 'rj45' && netPortRole(it, sw.name) === 'port' && !/WAN|uplink/i.test((it.label || '') + ' ' + (it.port || ''))); } catch (e) { return []; } }
+function netSwitchUsed(rk, sw) { const used = new Set(); (P.cables || []).forEach(c => { if (c.from === rk.id && c.fromUnit === sw.id && c.pOut) used.add(c.pOut); if (c.to === rk.id && c.toUnit === sw.id) cablePIns(c).forEach(p => used.add(p)); }); return used; }
+function netSwitchFreePort(rk, sw, wantPoe) {
+  const used = netSwitchUsed(rk, sw), free = netSwitchPorts(rk, sw).filter(it => !used.has(it.port));
+  const isPoe = it => /PoE/i.test(it.label || '');
+  return free.find(it => wantPoe ? isPoe(it) : !isPoe(it)) || free[0] || null;
+}
+/* כבל רשת בין יחידה בארון למתג: פורט הרשת-אודיו של היחידה ← פורט פנוי במתג (קיים → חוזר כמו שהוא) */
+function netLinkUnit(rk, u, opts = {}) {
+  const sw = rackNetSwitch(rk); if (!sw || sw === u) return null;
+  const uPort = unitAudioNetPort(u);
+  const ex = (P.cables || []).find(c => c.from === rk.id && c.to === rk.id && ((c.fromUnit === sw.id && c.toUnit === u.id) || (c.fromUnit === u.id && c.toUnit === sw.id)) && c.type === 'cat');
+  if (ex) { if (opts.internal && ex.internal !== opts.internal) ex.internal = opts.internal; return ex; }
+  const sp = netSwitchFreePort(rk, sw, !!opts.poe); if (!sp) { uiToast('⚠ אין פורט פנוי במתג ' + shortModel(sw.name) + ' — דרוש מתג גדול יותר', 5000); return null; }
+  const c = { id: uid('c'), from: rk.id, fromUnit: sw.id, pOut: sp.port, to: rk.id, toUnit: u.id, pIn: uPort, type: 'cat', qty: '1', spec: 'Cat6 · ' + (opts.lbl || 'רשת אודיו'), len: 1, internal: opts.internal || 'net', note: (opts.lbl || 'רשת') + ' · ' + shortModel(sw.name) + ' ' + sp.port + ' → ' + shortModel(u.name) + ' ' + uPort };
+  P.cables.push(c); return c;
+}
+/* כבלי הרשת של הפרוססור למתג מתייתרים כשאף מגבר בארון לא מוזן ברשת */
+function netProcCleanup(rk) { if ((rk.units || []).some(u => u.sigNet)) return; P.cables = (P.cables || []).filter(c => !(c.internal === 'net-proc' && c.from === rk.id)); }
+function unitAes67Ok(u) { try { return AES67_RX.test(u.name || '') || /aes\s?67/i.test(String(unitNetMeta(u.name).net || '')) || rearLayout(u.name).some(i => /aes\s?67/i.test((i.port || '') + ' ' + (i.label || '')) || i.role === 'anet'); } catch (e) { return AES67_RX.test(u.name || ''); } }
 function sigNetKind(u) { return u && u.sigNet ? (u.sigNet === 'aes67' ? 'aes67' : 'dante') : ''; }
-function unitDanteOk(u) { try { return DANTE_RX.test(u.name || '') || rearLayout(u.name).some(i => DANTE_RX.test((i.port || '') + ' ' + (i.label || '') + ' ' + (i.t || ''))); } catch (e) { return DANTE_RX.test(u.name || ''); } }
+function unitDanteOk(u) { try { return DANTE_RX.test(u.name || '') || /dante/i.test(String(unitNetMeta(u.name).net || '')) || rearLayout(u.name).some(i => DANTE_RX.test((i.port || '') + ' ' + (i.label || '') + ' ' + (i.t || '')) || i.role === 'anet'); } catch (e) { return DANTE_RX.test(u.name || ''); } }
 function patchSigRacks() {
   return P.nodes.filter(n => n.kind === 'rack' && !n.hidden).map(rk => {
     const us = rk.units || [], proc = rackProcUnit(rk);
@@ -7695,14 +7742,25 @@ function patchSigMode(rkId, ampId, mode) {
     const aes = mode === 'aes67';
     amp.sigNet = aes ? 'aes67' : true;
     const ok = aes ? unitAes67Ok(proc) && unitAes67Ok(amp) : unitDanteOk(proc) && unitDanteOk(amp);
-    const lbl = aes ? 'AES67' : 'Dante';
-    rest.push({ id: uid('c'), from: rkId, fromUnit: proc.id, to: rkId, toUnit: ampId, type: 'cat', qty: '1', spec: aes ? 'AES67 · Cat6 דרך מתג רשת' : 'Dante / AES67', len: 1, internal: aes ? 'proc-amp-aes67' : 'proc-amp-dante',
-      note: lbl + ' · ' + shortModel(proc.name) + ' → ' + shortModel(amp.name) + ' (כל הערוצים ברשת' + (aes ? ', מתג רשת + Cat6' : '') + ')' + (ok ? '' : ' · ⚠ יכולת ' + lbl + ' לא מאומתת לדגם') });
+    const lbl = aes ? 'AES67' : 'Dante', internal = aes ? 'proc-amp-aes67' : 'proc-amp-dante';
     P.cables = rest;
-    if (!ok) uiToast('⚠ לא זוהתה יכולת ' + lbl + ' באחד המוצרים — בדוק מול המפרט לפני ההזמנה', 5000);
-    else if (aes) uiToast('🌐 AES67: ' + shortModel(proc.name) + ' → ' + shortModel(amp.name) + ' בכבל רשת. ודא מתג רשת בארון וכבל Cat6 לכל מכשיר', 5000);
+    const sw = rackNetSwitch(rk);
+    if (sw) {
+      /* דרך המתג: פרוססור → מתג (פעם אחת לארון), מתג → פורט הרשת-אודיו של המגבר */
+      netLinkUnit(rk, proc, { internal: 'net-proc', lbl });
+      const c = netLinkUnit(rk, amp, { internal, lbl });
+      if (c && !ok) c.note += ' · ⚠ יכולת ' + lbl + ' לא מאומתת לדגם';
+      if (!unitAudioNetPorts(amp).length) uiToast('⚠ בגב של ' + shortModel(amp.name) + ' שבספרייה אין פורט רשת — הוסף אותו בעורך הגב (תפקיד: רשת אודיו) כדי שהכבל יצויר במקום', 6000);
+      if (!unitAudioNetPorts(proc).length) uiToast('⚠ בגב של ' + shortModel(proc.name) + ' שבספרייה אין פורט רשת — הוסף אותו בעורך הגב (תפקיד: רשת אודיו)', 6000);
+      if (c) uiToast('🌐 ' + lbl + ': ' + shortModel(proc.name) + ' → ' + shortModel(sw.name) + ' → ' + shortModel(amp.name) + ' (' + c.pOut + ' → ' + c.pIn + ')', 5000);
+    } else {
+      P.cables.push({ id: uid('c'), from: rkId, fromUnit: proc.id, pOut: unitAudioNetPort(proc), to: rkId, toUnit: ampId, pIn: unitAudioNetPort(amp), type: 'cat', qty: '1', spec: 'Cat6 · ' + lbl + ' (ישיר, בלי מתג)', len: 1, internal,
+        note: lbl + ' · ' + shortModel(proc.name) + ' → ' + shortModel(amp.name) + ' ישיר (אין מתג רשת בארון)' + (ok ? '' : ' · ⚠ יכולת ' + lbl + ' לא מאומתת לדגם') });
+      uiToast('🌐 ' + lbl + ': כבל ישיר ' + shortModel(proc.name) + ' → ' + shortModel(amp.name) + ' — אין מתג רשת בארון. עם יותר משני מכשירים ברשת נדרש מתג (בדיקת השלמות מציעה)', 6000);
+    }
+    if (!ok) uiToast('⚠ לא זוהתה יכולת ' + lbl + ' באחד המוצרים — בדוק מול המפרט / טבלת הנתונים (טור "רשת אודיו")', 5000);
   } else {
-    delete amp.sigNet; P.cables = rest;
+    delete amp.sigNet; P.cables = rest; netProcCleanup(rk);
     /* חזרה ל-XLR: פאץ׳ לכל ערוץ מגבר שמזין רמקולים, מיציאת הפרוססור הפנויה הבאה (לפי הגב שבספרייה) */
     const chs = [...new Set(P.cables.filter(c => c.from === rkId && c.fromUnit === ampId && c.to !== rkId).map(c => +(String(c.pOut || '').match(/\d+/) || [0])[0]).filter(Boolean))].sort((a, b) => a - b);
     const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true }));
@@ -7862,6 +7920,14 @@ async function patchApply() {
   }
   if (inMissing.size) setTimeout(() => uiToast('🧵 לקווי ' + [...inMissing].map(t => CTYPES[t] ? CTYPES[t].n : t).join(' · ') + ' אין כבל בהצעה — בדיקת השלמות תציע להשלים מהקטלוג', 6000), 400);
   /* כניסות שרוקנו — הקווים הישנים שלהן נמחקים */
+  /* מקור שהוא מכשיר רשת (מתאם Dante / AES67 עם PoE): פיזית הכבל הולך למתג הרשת (פורט PoE), לא לכניסת XLR; הערוץ הלוגי נשמר ב-logIn */
+  made.forEach(cc => {
+    const src = byId(cc.from); if (!src || src.kind !== 'point' || !/dante|aes\s?67/i.test(nodeFullName(src))) return;
+    const rk = byId(cc.to), proc = rk && (rk.units || []).find(u => u.id === cc.toUnit), sw = rk && rackNetSwitch(rk); if (!proc) return;
+    cc.logUnit = proc.id; cc.logIn = cc.pIn; cc.type = 'cat'; cc.conn = 'rj45'; cc.conn2 = 'rj45'; cc.cores = undefined; cc.srcCh = undefined;
+    if (sw) { const sp = netSwitchFreePort(rk, sw, true); if (sp) { cc.toUnit = sw.id; cc.pIn = sp.port; cc.spec = 'Cat6 · Dante/AES67' + (/PoE/i.test(sp.label || '') ? ' + PoE' : ' (⚠ פורט ללא PoE)'); cc.note = 'מתאם רשת → ' + shortModel(sw.name) + ' ' + sp.port + ' · לוגית: ' + shortModel(proc.name) + ' ' + cc.logIn; } else { cc.spec = 'Cat6 · Dante/AES67'; cc.note = '⚠ אין פורט פנוי במתג — לוגית: ' + shortModel(proc.name) + ' ' + cc.logIn; } }
+    else { cc.pIn = unitAudioNetPort(proc); cc.spec = 'Cat6 · Dante/AES67 ישיר'; cc.note = 'מתאם רשת → ' + shortModel(proc.name) + ' ' + cc.pIn + ' (אין מתג רשת בארון; מתאם PoE צריך הזנה) · לוגית: ' + cc.logIn; }
+  });
   Object.entries(PATCH.inPre || {}).forEach(([k6, cids]) => {
     if ((PATCH.inOrig || {})[k6] === (PATCH.inSlots[k6] || []).join(',')) return;
     if ((PATCH.inSlots[k6] || []).length) return;
@@ -8158,6 +8224,17 @@ function projGapCheck() {
   if (hung > mounts) finds.push({ i: '🔧', k: 'mounts', t: hung + ' רמקולים תלויים · רק ' + mounts + ' תושבות/מתקנים בהצעה', b: '➕ הוסף ' + (hung - mounts) + ' תושבות', fn: 'gapAddMounts(' + (hung - mounts) + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מתקן לרמקול')" } });
   /* 5. ארון בלי פס שקעים */
   const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
+  /* רשת אודיו: מגברים שמוזנים ב-Dante/AES67 צריכים מתג רשת בארון עם מספיק פורטים; מכשירי PoE (מתאמי Dante, פנלים, AP) צריכים פורטי PoE */
+  racks.forEach(rk => {
+    const netAmps = (rk.units || []).filter(u => u.sigNet); if (!netAmps.length) return;
+    const sw = rackNetSwitch(rk);
+    if (!sw) { finds.push({ i: '🌐', k: 'netsw|' + rk.id, t: netAmps.length + ' מגברים ב"' + rk.name.slice(0, 18) + '" מוזנים ברשת (Dante/AES67) — אין מתג רשת בארון', b: '🔍 הוסף מתג רשת', fn: "gapSearch('מתג רשת')" }); return; }
+    const ports = netSwitchPorts(rk, sw).length, need = netAmps.length + 1 + (P.cables || []).filter(c => c.to === rk.id && c.toUnit === sw.id && c.from !== rk.id).length;
+    if (need > ports) finds.push({ i: '🌐', k: 'netports|' + rk.id, t: 'מתג ' + shortModel(sw.name) + ' ב"' + rk.name.slice(0, 18) + '": ' + ports + ' פורטים · נדרשים ~' + need + ' (פרוססור, ' + netAmps.length + ' מגברים ומכשירי רשת)', b: '🔍 מתג גדול יותר', fn: "gapSearch('מתג רשת')" });
+  });
+  { const poeDev = impItems.filter(it => it.on !== false && /PoE/i.test(it.name || '') && !/מתג|switch|רכזת|מפצל רשת/i.test(it.name || '')).reduce((s2, it) => s2 + (+it.qty || 0), 0);
+    const poePorts = racks.reduce((s2, rk) => { const sw = rackNetSwitch(rk); return s2 + (sw ? netSwitchPorts(rk, sw).filter(it => /PoE/i.test(it.label || '')).length : 0); }, 0);
+    if (poeDev > poePorts) finds.push({ i: '⚡', k: 'poe', t: poeDev + ' מכשירי PoE בהצעה (מתאמי Dante / פנלים / AP) · ' + poePorts + ' פורטי PoE במתגים שבארונות', b: '🔍 הוסף מתג PoE', fn: "gapSearch('POE')" }); }
   if (racks.length && !qsum(it => PDU_RX.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
   /* 5ב. יחידה בארון שאף כבל לא נוגע בה — כנראה מיותרת; מציעים להסיר מהארון ומההצעה */
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
@@ -9058,7 +9135,7 @@ function spkDataManager(tab) {
   const allBrands = [...new Set(rows.map(r => r.brand).concat(['Funktion-One', 'Kling & Freitag', 'KT Audio', 'XTA', 'Yamaha', 'SAE', 'Lab Gruppen', 'Crown', 'DigiSynthetic', 'Lambda Labs', 'אחר']))].sort();
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
   const heads = '<th>תמונה</th>' + (tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th title="פסיבי = קו אחד · Bi-amp = HI+LOW · Tri-amp = HI+MID+LOW — כל פס מקבל ערוץ מגבר משלו בפאץ׳">הגברה</th><th>קישורים<br>🔗📄📘</th>' :
-    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th style="text-align:right">הערות</th><th>קישור</th>');
+    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th style="text-align:right">הערות</th><th>קישור</th>');
   const ov = document.createElement('div');
   ov.id = 'spkDbOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
@@ -9082,7 +9159,7 @@ function spkDataManager(tab) {
     const c = r.ok ? '#0f8a5f' : '#c1121f';
     const bg = r.ok ? '#eef7f1' : '#fdeeee';
     const arg = r.lk ? `'${jsq(r.lk)}'` : `null,${r.bi}`;
-    const colspan = tab === 'spk' ? 13 : tab === 'amp' ? 12 : 8;
+    const colspan = tab === 'spk' ? 13 : tab === 'amp' ? 13 : 8;
     const brandHdr = (ri === 0 || rows[ri - 1].brand !== r.brand) ? `<tr style="background:#e9e4db"><td colspan="${colspan}" style="padding:4px 6px;font-weight:800;font-size:12px">🏷 ${esc(r.brand)}</td></tr>` : '';
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
     const nmA = jsq(r.name);
@@ -9103,6 +9180,7 @@ function spkDataManager(tab) {
         `<td style="text-align:center"><input value="${cell(r.d.ch)}" style="width:40px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'ch',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.mo)}" placeholder="4" style="width:38px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'mo',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.dsp != null ? meta.dsp : guessDsp(r.d, r.name))}" placeholder="?" title="DSP: ✓ = יש · ציין ערוצים עודפים לשליטה במוצרים ללא DSP" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','dsp',this.value)"></td>
+       <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="—" title="רשת אודיו (Dante / AES67 / OMNEO) — ריק = אין" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
        ${['8', '4', '2.7', '2'].map(o => { const v = (r.d.pw || {})[o]; return `<td style="text-align:center"><input value="${v ?? ''}" placeholder="—" title="הספק לערוץ ב-${o}Ω (W)" style="width:54px;text-align:center;border:1px solid ${v != null ? c : '#ddd'};background:${v != null ? bg : '#fff'};border-radius:4px;font-size:11.5px;font-weight:${v != null ? 700 : 400}" onchange="${fn}(${arg},'pw:${o}',this.value)"></td>`; }).join('')}
        <td>${(() => { const ex = Object.entries(r.d.pw || {}).filter(([o]) => !['8', '4', '2.7', '2'].includes(String(o))).map(([o, v]) => `${v}W @${o}${+o >= 50 ? 'V' : 'Ω'}`).join(' · '); return ex ? `<div style="font-size:10.5px;color:#0f6e56;font-weight:700;white-space:nowrap">${esc(ex)}</div>` : ''; })()}<input value="${esc(r.d.w || '')}" title="${esc(r.d.w || '')}" style="width:100%;min-width:150px;border:1px solid #ddd;border-radius:4px;font-size:10.5px;color:#555" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>` :
