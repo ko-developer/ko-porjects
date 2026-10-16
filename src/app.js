@@ -11868,7 +11868,7 @@ let impItems = [];
 /* ===== אביזרי שליטה (קיפדים / פנלי קיר) לפרוססורים ולמגברים — לפי המותג, מהקטלוג (גם כשאין מלאי כרגע) ===== */
 const CTRL_ACC = [
   { brand: 'NST', for: /\bNST\b|\bD48|ID48|VMX\s?88|VMO\s?16|DM88|D24S/i, key: 'S9NAKOS2', name: 'פנל חכם עם צג לפרוססורים NST VR1PoE Remote Control Wall Panel', how: 'Cat6 לפורט PoE במתג (או ישירות לפורט הרשת של הפרוססור עם מזרק PoE)' },
-  { brand: 'DigiSynthetic', for: /DIGISYNTHET|DMX\s?\d{3,4}|\bDS\s?\d{3}|DSK\s?\d|\bK[57]\b/i, key: 'SDIG1KO', name: 'קיפד קיר לפרוססור DIGISYNTHETIC AES67 Control Wall Panel', how: 'Cat6 לרשת ה-AES67 — דרך המתג אל NET A/B של הפרוססור' },
+  { brand: 'DigiSynthetic', for: /DIGISYNTHET|DMX\s?\d{3,4}|\bDS\s?\d{3}|DSK\s?\d|\bK[57]\b|UNICORN|DYNAMIQ|\bMX3\b/i, key: 'SDIG1KO', name: 'קיפד קיר לפרוססור DIGISYNTHETIC AES67 Control Wall Panel', how: 'Cat6 לרשת ה-AES67 — דרך המתג אל NET A/B של הפרוססור · שולט גם במוצרי Unicorn/KT (אותה תוכנה — DigiSynthetic מייצרת את מערכת השליטה)' },
   { brand: 'DigiSynthetic', for: /DMX\s?208/i, key: 'SDIG10KO', name: 'יחידת הרחבה לפרוססור DMX208A מתאם AD/DA DIGISYNTHETIC DLA-04 4x4 network interface box', how: 'Cat6 לרשת · 4 כניסות + 4 יציאות אנלוגיות מרוחקות (למשל בעמדת DJ)', kind: 'io' },
   { brand: 'XTA', for: /\bXTA\b|DC\s?1048|ICORE|DNA\s?\d|DPA\s?\d|\bAPA\b|MX36/i, key: 'SXTA8KOSR1', name: 'פנל קיפד 8 כפתורים לפרוססור XTA ICORE 1048 ACC-UN-WP2 - ספק כח 5V יותר מ20 מטר', how: 'Cat5 לפרוססור · מעל 20 מ׳ נדרש ספק 5V מקומי' },
   { brand: 'Symetrix', for: /SYMETRIX|PRISM|JUPITER|RADIUS|EDGE/i, key: 'G1322DL', name: 'פנל שליטה לפרוססור מטריצה Symetrix ARC-2E WALL PANEL CONTROLER', how: 'ARC bus — Cat5 מהפרוססור' },
@@ -12342,6 +12342,9 @@ async function saveKitDraftAs() {
 }
 window.saveKitDraftAs = saveKitDraftAs;
 /* סדר הפריטים בקיט — ▲▼ (הסדר נשמר בקיט ומשפיע על ההצעה והארון) */
+/* בונה הקיטים: החלפת צבע הרמקולים/סאבים */
+function nkFinish(f) { if (!nkDraft) return; const r = kitApplyFinish(nkDraft.items, f); renderKitNew(); uiToast('🎨 ' + f + ': ' + r.done + ' פריטים הוחלפו' + (r.miss.length ? ' · אין וריאנט ל: ' + r.miss.join(', ') : ''), 4500); }
+window.nkFinish = nkFinish;
 function nkMove(i, d) {
   const a = nkDraft && nkDraft.items; if (!a) return;
   const j = i + d; if (j < 0 || j >= a.length) return;
@@ -12460,6 +12463,45 @@ function kitVer(nm) { const m = /\b(?:V|MK|MARK)\s?-?(\d)\b|\b(II|III|IV)\b/i.ex
 function kitStem(nm) { return shortModel(nm || '').toUpperCase().replace(/\b(?:V|MK|MARK)\s?-?\d\b|\b(II|III|IV)\b/g, '').replace(/[\s\-]+/g, '').trim(); }
 function kitInch(nm) { const m = /(\d{1,2}(?:\.\d)?)\s*(?:אינ[ץצ]|"|''|inch)/i.exec(nm || ''); return m ? +m[1] : null; }
 function kitBrandOf(nm) { const b = (typeof KIT_BRANDS !== 'undefined' ? KIT_BRANDS : []).find(([, re]) => re.test(nm || '')); return b ? b[0] : ''; }
+/* ===== צבע / גימור של רמקולים וסאבים בקיט: אותו דגם בדיוק בצבע אחר (EUPHORIA 5 WOOD / WHITE / BLACK), עם המלאי של כל וריאנט ===== */
+const FIN_WORDS = [['שחור', /שחור|\bBLACK\b|\bBLK\b/i], ['לבן', /לבן|\bWHITE\b|\bWHT\b/i], ['עץ', /\bWOOD\b|\bעץ\b/i], ['במבוק', /BAMBOO|במבוק/i], ['אפור', /אפור|\bGREY\b|\bGRAY\b/i], ['כסף', /כסף|\bSILVER\b/i]];
+const FIN_COLORS = { 'שחור': '#1c1c1c', 'לבן': '#f2f2ee', 'עץ': '#b1793f', 'במבוק': '#d8b478', 'אפור': '#8d918c', 'כסף': '#c9ccd1', 'רגיל': '#777' };
+function finishOf(nm) { const f = FIN_WORDS.find(([, re]) => re.test(nm || '')); return f ? f[0] : 'רגיל'; }
+function finishStem(nm) { let s = String(nm || '').replace(/בצבע\s*\S*/g, ' ').replace(/\s*-\s*$/, ''); FIN_WORDS.forEach(([, re]) => { s = s.replace(new RegExp(re.source, 'gi'), ' '); }); return kitStem(s.replace(/\s+/g, ' ').trim()); }
+const finCache = new Map();
+/* כל הווריאנטים של אותו דגם (רמקול/סאב בלבד) — [{key, name, finish, price, stock}] */
+function finishVariants(x) {
+  if (!x || !x.name || typeof ERP_ITEMS === 'undefined' || !isSpeakerItem(x.name)) return [];
+  const stem = finishStem(x.name); if (!stem || stem.length < 3) return [];
+  if (finCache.has(stem)) return finCache.get(stem);
+  const cls = kitFuncClass(x.name), out = [];
+  for (const it of ERP_ITEMS) { const nm = it[1] || ''; if (!isSpeakerItem(nm) || KIT_ALT_NO.test(nm) || kitFuncClass(nm) !== cls || finishStem(nm) !== stem) continue; const inf = erpInfo(it[0]) || {}; out.push({ key: it[0], name: nm, finish: finishOf(nm), price: +it[2] || inf.price || 0, stock: inf.qty || 0 }); }
+  const uniq = []; out.forEach(v => { const e = uniq.find(u => u.finish === v.finish); if (!e) uniq.push(v); else if (v.stock > e.stock) Object.assign(e, v); });   /* כפילויות באותו גימור — הזמין במלאי */
+  finCache.set(stem, uniq); return uniq;
+}
+/* פס בחירת צבע לקיט: הצבעים שקיימים לרמקולים/סאבים שבקיט, עם מצב המלאי של כל שורה בצבע הזה */
+function kitFinishBarHTML(rows, onclickTpl) {
+  const spk = rows.map((x, i) => ({ x, i, vars: finishVariants(x) })).filter(o => o.vars.length > 1);
+  if (!spk.length) return '';
+  const fins = [...new Set(spk.flatMap(o => o.vars.map(v => v.finish)))].filter(f => f !== 'רגיל');
+  if (!fins.length) return '';
+  /* הצבע הנוכחי = הצבע של הרמקול הראשון שיש לו וריאנטים (סאב בלי גרסה בצבע הזה לא 'מבטל' את הבחירה) */
+  const curFin = finishOf(spk[0].x.name);
+  const chips = fins.map(f => {
+    const st = spk.map(o => { const v = o.vars.find(v2 => v2.finish === f); return { o, v }; });
+    const missing = st.filter(s => !s.v), noStock = st.filter(s => s.v && s.v.stock <= 0), ok = st.filter(s => s.v && s.v.stock > 0);
+    const tip = st.map(s => shortModel(s.o.x.name).slice(0, 20) + ': ' + (s.v ? (s.v.stock > 0 ? 'מלאי ' + s.v.stock : 'אין מלאי') : 'אין בצבע הזה')).join(' · ');
+    const col = missing.length ? '#b8860b' : noStock.length ? '#c1121f' : '#0a7a4b';
+    return `<button data-fin="${esc(f)}"${onclickTpl ? ' onclick="' + onclickTpl.replace('%F%', jsq(f)) + '"' : ''} title="${esc(tip)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;font-size:11.5px;border-radius:999px;border:1.5px solid ${curFin === f ? '#534ab7' : '#d8d3c8'};background:${curFin === f ? '#efecfd' : '#fff'}"><span style="width:12px;height:12px;border-radius:50%;background:${FIN_COLORS[f] || '#999'};border:1px solid #999;display:inline-block"></span>${esc(f)} <span style="font-size:10px;color:${col}">${missing.length ? '⚠ ' + missing.length + ' בלי וריאנט' : noStock.length ? '✗ ' + noStock.length + ' ללא מלאי' : '✓ ' + ok.length + '/' + st.length + ' במלאי'}</span></button>`;
+  }).join(' ');
+  return `<div data-finbar style="background:#f6f4ee;border-radius:8px;padding:6px 8px;margin:0 0 6px;font-size:11.5px"><b>🎨 צבע הרמקולים והסאבים:</b> ${chips}<div class="muted" style="font-size:10.5px;margin-top:3px">לחיצה מחליפה את הרמקולים והסאבים לאותו דגם בצבע שנבחר (אקוסטיקה זהה), עם המלאי והמחיר האמיתיים של כל וריאנט · שורה בלי וריאנט בצבע הזה נשארת כמו שהיא</div></div>`;
+}
+/* החלפת הרמקולים/סאבים ברשימה לצבע שנבחר — מחזיר כמה הוחלפו וכמה חסרים */
+function kitApplyFinish(rows, f) {
+  let done = 0; const miss = [];
+  rows.forEach(x => { const vars = finishVariants(x); if (vars.length < 2) return; const v = vars.find(v2 => v2.finish === f); if (!v) { miss.push(shortModel(x.name)); return; } if (v.key !== x.key) { x.key = v.key; x.name = v.name; x.price = undefined; done++; } });
+  return { done, miss };
+}
 function kitAltFor(x) {
   if (!x || !x.name || typeof ERP_ITEMS === 'undefined') return [];
   const ck = (x.key || '') + '|' + x.name; if (kitAltCache.has(ck)) return kitAltCache.get(ck);
@@ -12591,7 +12633,7 @@ function renderKitNew() {
         <b style="color:${stq > 9 ? '#0a7a4b' : stq > 0 ? '#b8860b' : '#a32222'};white-space:nowrap">מלאי ${stq}</b>
         <span class="muted" style="white-space:nowrap">₪${pr.toLocaleString()}</span></button>`; }).join('')}
     ${toks.length && !hits.length ? '<p class="muted" style="font-size:11px">לא נמצא — נסה מילה אחת מהשם (השכרות וחלקי חילוף מוסתרים)</p>' : ''}
-    ${d.items.length ? '<h3 class="sec">פריטים בקיט (' + d.items.length + ')</h3>' : ''}
+    ${d.items.length ? '<h3 class="sec">פריטים בקיט (' + d.items.length + ')</h3>' + kitFinishBarHTML(d.items, "nkFinish('%F%')") : ''}
     ${d.items.map((x, i) => { const inf = x.key ? erpInfo(x.key) : null; const pr = inf ? inf.price : 0;
       const alts = kitAltFor(x);
       return `<div style="border:1px solid ${d.replIdx === i ? '#e9a03b' : '#eee'};border-radius:6px;margin-bottom:3px;padding:3px 6px"><div style="display:flex;gap:6px;align-items:center;font-size:12px">
@@ -15472,6 +15514,7 @@ function zoneKitConfirm(zname, idx, opt) {
       <button data-kitedit style="flex:none;padding:3px 10px;font-size:11.5px;font-weight:700;white-space:nowrap" title="עריכת הקיט בבונה הקיטים (שורות, כמויות, החלפת פריט) — אחרי שמירה חוזרים לכאן">✎ ערוך קיט</button>
       <button data-kitlist style="flex:none;padding:3px 10px;font-size:11.5px;white-space:nowrap" title="רשימת כל הקיטים — עריכה, שכפול ויצירה">🧰 רשימה</button>
     </div>
+    <div data-finwrap>${kitFinishBarHTML(cur)}</div>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
     <div style="display:flex;align-items:center;gap:8px;margin:0 2px 8px"><button data-savekit style="padding:3px 10px;font-size:11.5px;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0" title="הכמויות והפריטים כפי שהם כאן נשמרים בקיט עצמו — לכל הפרויקטים">💾 עדכן את הקיט ברשימת הקיטים</button><div data-ktot style="flex:1;text-align:left;font-weight:800;font-size:13px"></div></div>
     ${!kitHasSpk && INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
@@ -15508,6 +15551,10 @@ function zoneKitConfirm(zname, idx, opt) {
   const swBtn = ov.querySelector('[data-srcwire]');
   if (swBtn) swBtn.onclick = () => openSrcWire(z.id);
   const rowsEl = ov.querySelector('[data-kitrows]');
+  /* צבע: לחיצה על צ׳יפ מחליפה את הרמקולים/סאבים לווריאנט בצבע, ומציירת מחדש את הפס והשורות */
+  const finWrap = ov.querySelector('[data-finwrap]');
+  const bindFin = () => finWrap.querySelectorAll('[data-fin]').forEach(b => { b.onclick = () => { const r = kitApplyFinish(cur, b.dataset.fin); finWrap.innerHTML = kitFinishBarHTML(cur); bindFin(); renderRows(); uiToast('🎨 ' + b.dataset.fin + ': ' + r.done + ' פריטים הוחלפו' + (r.miss.length ? ' · אין וריאנט ל: ' + r.miss.join(', ') : ''), 4500); }; });
+  bindFin();
   let swapIdx = null, swapQ = '';
   /* תוצאות ההחלפה: כל הווריאנטים (צבעים/גדלים), הכי הרבה מלאי למעלה, עד 30 */
   const swapRes = q => dockSearchResults(q).filter(r => r.type === 'item').sort((a, b) => { const qa = (erpInfo(a.key) || {}).qty || 0, qb = (erpInfo(b.key) || {}).qty || 0; return qb - qa || String(a.name).localeCompare(String(b.name), 'he'); }).slice(0, 30);
