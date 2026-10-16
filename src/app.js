@@ -16454,7 +16454,7 @@ function isoViewHTML() {
       const wpx = Math.max(26, Math.max(o.bw, o.bd) * s * 1.25), hpx = Math.max(26, o.bh * s * VZ * 1.1);
       if (o.img) {
         const flip = ((o.aim % 360) + 360) % 360 > 90 && ((o.aim % 360) + 360) % 360 < 270;
-        sv += '<g transform="translate(' + f1(pb[0]) + ',' + f1(pb[1]) + ')' + (flip ? ' scale(-1,1)' : '') + (o.tilt ? ' rotate(' + f1(o.tilt * 0.8) + ' 0 ' + f1(-hpx / 2) + ')' : '') + '"><rect x="' + f1(-wpx / 2 - 2) + '" y="' + f1(-hpx - 2) + '" width="' + f1(wpx + 4) + '" height="' + f1(hpx + 4) + '" rx="3" fill="#fff" stroke="#b8bcc6" stroke-width="0.8"/><image href="' + esc(o.img) + '" x="' + f1(-wpx / 2) + '" y="' + f1(-hpx) + '" width="' + f1(wpx) + '" height="' + f1(hpx) + '" preserveAspectRatio="xMidYMid meet"/></g>';
+        sv += '<g transform="translate(' + f1(pb[0]) + ',' + f1(pb[1]) + ')' + (flip ? ' scale(-1,1)' : '') + (o.tilt ? ' rotate(' + f1(o.tilt * 0.8) + ' 0 ' + f1(-hpx / 2) + ')' : '') + '"><image href="' + esc(o.img) + '" x="' + f1(-wpx / 2) + '" y="' + f1(-hpx) + '" width="' + f1(wpx) + '" height="' + f1(hpx) + '" preserveAspectRatio="xMidYMax meet" style="mix-blend-mode:multiply"/></g>';
       } else sv += prism(rectBase(o.X, o.Y, o.bd, o.bw, o.aim), o.z0, o.bh, o.sub ? '#23262e' : '#2f3440');
       solids.push({ d: o.X + o.Y + 0.01 * o.idx, svg: sv, lab: o.idx === 0 || !(o.n.att && o.n.att.cpl === 'line') ? { X: o.X, Y: o.Y, Z: o.z0 + o.bh + (o.img ? 0.1 : 0), t: o.sm + (o.sub ? '' : ' · ' + (o.assumed ? '?' : o.hgt.toFixed(1) + ' מ׳') + (o.tilt ? ' ↘' + o.tilt + '°' : '')), c: o.sub ? '#0f6e56' : '#5b3fd6', lift: o.idx } : null });
     });
