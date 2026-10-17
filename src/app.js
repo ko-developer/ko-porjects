@@ -12906,6 +12906,8 @@ function kitProposals() {
     if (sub) items.push({ key: sub.key, name: sub.name, qty: qSub });
     if (roleAmps) roleAmps.forEach(a => items.push({ key: a.key, name: a.name, qty: a.amps }));
     else if (amp) items.push({ key: amp.key, name: amp.name, qty: ampQty });
+    /* Funktion-One / K&F / Lambda (פאסיבי): גליל כבל רמקול + מחברי ספיקון SL4FX-N — 2 לכל רמקול (קצה מגבר + קצה רמקול), כמו בקיטים הקיימים */
+    if (!active && /^(FUNKTION ONE|K&F|Lambda Labs)$/.test(br)) { const reel = erpByKey('CA1219KO'), conn = erpByKey('CASEE5KO'); const nSpk = qTop + (sub ? qSub : 0); if (reel) items.push({ key: reel.key, name: reel.name, qty: 1 }); if (conn) items.push({ key: conn.key, name: conn.name, qty: 2 * nSpk }); }
     const ampTxt = roleAmps ? roleAmps.map(a => (a.amps > 1 ? a.amps + '× ' : '') + shortModel(a.name)).join(' + ') : amp ? (ampQty > 1 ? ampQty + '× ' : '') + shortModel(amp.name) : '';
     const nm = qTop + '× ' + shortModel(top.name) + (sub ? ' + ' + qSub + '× ' + shortModel(sub.name) : '') + (ampTxt ? ' · ' + ampTxt : '');
     const why = [shortModel(top.name) + ' — ' + top.stock + ' במלאי, לא באף קיט' + (top.fins.length > 1 ? ' (צבעים: ' + [...new Set(top.fins)].join('/') + ')' : '') + (top.ceil ? ' · תקרה/שקוע — בלי סאב' : '')];
