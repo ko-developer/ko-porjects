@@ -12752,8 +12752,14 @@ function renderKitNew() {
     ${(() => { const nM = nkMissing().length; return nM
       ? '<button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft(true)">💾 הוסף את ' + nM + ' השורות החסרות ושמור</button><button style="width:100%;margin-top:6px" onclick="saveKitDraft()">💾 שמור בלי להוסיף</button>'
       : '<button class="primary" style="width:100%;margin-top:8px" onclick="saveKitDraft()">💾 שמור קיט</button>'; })()}
-    <button style="width:100%;margin-top:6px;background:#efecfd;color:#4b3fb8;border:1px solid #c9c0f5;font-weight:700" onclick="saveKitDraftAs()" title="הקיט המקורי נשאר כמו שהוא; השינויים נשמרים כקיט שלי בשם חדש">📑 שמור את השינויים כקיט חדש (בשם אחר)</button>` : ''}`;
+    <button style="width:100%;margin-top:6px;background:#efecfd;color:#4b3fb8;border:1px solid #c9c0f5;font-weight:700" onclick="saveKitDraftAs()" title="הקיט המקורי נשאר כמו שהוא; השינויים נשמרים כקיט שלי בשם חדש">📑 שמור את השינויים כקיט חדש (בשם אחר)</button>` : ''}
+    ${d.editIdx != null || d.fromErp
+      ? `<button style="width:100%;margin-top:6px;background:${d.delArm ? '#c1121f' : '#fdf0f0'};color:${d.delArm ? '#fff' : '#8a1c1c'};border:1px solid #e9b4b4;font-weight:700" onclick="nkDelete()" title="הקיט יוסר מרשימת הקיטים (קיט ERP מוסתר — אפשר להחזיר דרך המסנן ✕ מוסתרים)">${d.delArm ? '🗑 לחץ שוב לאישור המחיקה' : '🗑 הסר את הקיט מרשימת הקיטים'}</button>`
+      : `<button style="width:100%;margin-top:6px;background:#fdf0f0;color:#8a1c1c;border:1px solid #e9b4b4;font-weight:700" onclick="nkDiscard()" title="הקיט עוד לא נשמר — סגירה בלי לשמור">🗑 בטל את הקיט (לא נשמר)</button>`}`;
 }
+/* ביטול טיוטה שעוד לא נשמרה — סגירה בלי לשמור, חזרה למקום שממנו הגיעו */
+function nkDiscard() { const d = nkDraft || {}; nkDraft = null; if (d.backKit) { closeKits(); zoneKitConfirm(d.backKit.zname, d.backKit.idx, d.backKit.opt); } else if (d.backCab) kitCabAll(); else renderKits(); uiToast('הקיט בוטל — לא נשמר', 2500); }
+window.nkDiscard = nkDiscard;
 /* יצירת קיט חדש מהשורות המסומנות ✓ בהצעת המחיר */
 /* ===== הצעות לקיטים נוספים: רמקולים/סאבים במלאי ובמחיר שלא מופיעים באף קיט =====
    לכל דגם כזה: טופ + סאב מאותו מותג + מגבר. המגבר: KT/Unicorn — לפי כלל הבית DYNAMIQ (4600 כשיש סאבים, 750 בלי);
