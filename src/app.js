@@ -13022,6 +13022,11 @@ function kitStdCore(k) {
 }
 function kitLabel(k) { return kitStdName(k); }
 function kitSpkItems(k) { return (k.items || []).filter(x => isSpeakerItem(x.name)); }
+/* קיטים כפולים: אותם דגמי רמקולים וסאבים (בלי צבע, בלי כמויות) — "אותו מוצר" בכמה קיטים. מפתח → רשימת הקיטים */
+let kitDupOnly = false;
+function kitDupKey(k) { const st = [...new Set(kitSpkItems(k).map(x => finishStem(x.name)).filter(t => t && t.length >= 3))].sort(); return st.join('+'); }
+function kitDupGroups(kits) { const g = {}; kits.forEach(k => { const key = kitDupKey(k); if (!key) return; (g[key] = g[key] || []).push(k); }); return g; }
+window.kitDupToggle = () => { kitDupOnly = !kitDupOnly; kitShow = 60; renderKits(); };
 function kitSpkCount(k) { return kitSpkItems(k).reduce((s2, x) => s2 + (+x.qty || 1), 0); }
 function kitBrands(k) { const out = new Set(); for (const x of kitSpkItems(k)) { const b = KIT_BRANDS.find(([, re]) => re.test(x.name || '')); if (b) out.add(b[0]); } if (!out.size) { const b = KIT_BRANDS.find(([, re]) => re.test(k.name || '')); if (b) out.add(b[0]); } return [...out]; }
 const KIT_SPK_RANGES = [['', 'כל כמות'], ['1-2', '1–2'], ['3-4', '3–4'], ['5-8', '5–8'], ['9-16', '9–16'], ['17+', '17+']];
@@ -13040,16 +13045,19 @@ function renderKits() {
   const base = list;
   const brandCounts = {}; base.forEach(k => kitBrands(k).forEach(b => { brandCounts[b] = (brandCounts[b] || 0) + 1; }));
   const spkCounts = {}; KIT_SPK_RANGES.forEach(([v]) => { spkCounts[v] = base.filter(k => kitBrand ? kitBrands(k).includes(kitBrand) : true).filter(k => kitSpkIn(kitSpkCount(k), v)).length; });
-  const list2 = base.filter(k => !kitBrand || kitBrands(k).includes(kitBrand)).filter(k => kitSpkIn(kitSpkCount(k), kitSpk));
+  const dupG = kitDupGroups(list.filter(k => !kitHidden(k.name))), dupN = Object.values(dupG).filter(a => a.length > 1).length;
+  const list2 = base.filter(k => !kitBrand || kitBrands(k).includes(kitBrand)).filter(k => kitSpkIn(kitSpkCount(k), kitSpk)).filter(k => !kitDupOnly || (dupG[kitDupKey(k)] || []).length > 1)
+    .sort((a, b) => kitDupOnly ? kitDupKey(a).localeCompare(kitDupKey(b)) : 0);   /* במצב כפולים — הקבוצות צמודות */
   const chip = (on, lbl, onclick, col) => `<button onclick="${onclick}" style="padding:2px 10px;border-radius:14px;font-size:11.5px;border:1px solid ${on ? col : '#ccc'};background:${on ? col : '#fff'};color:${on ? '#fff' : '#333'}">${lbl}</button>`;
   const brandChips = chip(!kitBrand, 'כל המותגים', "kitBrand='';kitShow=60;renderKits()", '#534ab7') + Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).map(([b, n]) => chip(kitBrand === b, esc(b) + ' <b>' + n + '</b>', "kitBrand='" + b.replace(/'/g, "\\'") + "';kitShow=60;renderKits()", '#534ab7')).join('');
+  const dupChip = dupN ? chip(kitDupOnly, '⚠ כפולים <b>' + dupN + '</b>', 'kitDupToggle()', '#c1121f') : '';
   const spkChips = KIT_SPK_RANGES.map(([v, l]) => chip(kitSpk === v, (v ? '🔊 ' : '') + l + (v ? ' <b>' + spkCounts[v] + '</b>' : ''), "kitSpk='" + v + "';kitShow=60;renderKits()", '#0f6e56')).join('');
   const chips = CATS_K.map(([v, l]) => `<button onclick="kitCat='${v}';kitShow=60;renderKits()" style="padding:3px 12px;border-radius:16px;font-size:12px;border:1px solid ${kitCat === v ? '#c9502e' : '#ccc'};background:${kitCat === v ? '#c9502e' : '#fff'};color:${kitCat === v ? '#fff' : '#333'}">${l}</button>`).join(' ');
   $('#impList').innerHTML = `
     <div class="fld" style="position:relative"><input id="kitQIn" placeholder="חיפוש קיט… (F1, EVO, לד, נאון)" value="${esc(kitQ)}" oninput="kitQ=this.value;kitShow=60;renderKits();const e2=document.getElementById('kitQIn');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)" style="width:100%;padding-left:30px">${kitQ ? '<button title="נקה חיפוש" onclick="kitQ=\'\';kitShow=60;renderKits();document.getElementById(\'kitQIn\').focus()" style="position:absolute;left:4px;top:50%;transform:translateY(-50%);border:0;background:#e5e5e5;border-radius:50%;width:22px;height:22px;padding:0;line-height:20px;cursor:pointer;font-size:12px">✕</button>' : ''}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${chips}</div>
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px;align-items:center"><span class="muted" style="font-size:11px;margin-inline-end:2px">מותג רמקולים:</span>${brandChips}</div>
-    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;align-items:center"><span class="muted" style="font-size:11px;margin-inline-end:2px">כמות רמקולים בקיט:</span>${spkChips}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;align-items:center"><span class="muted" style="font-size:11px;margin-inline-end:2px">כמות רמקולים בקיט:</span>${spkChips}${dupChip ? '<span style="flex:1"></span>' + dupChip : ''}</div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button style="flex:1" onclick="kitNew()">➕ צור קיט חדש</button>
       <button style="flex:1" onclick="kitFromOffer()">🧰 צור קיט מהצעת המחיר (✓)</button>
@@ -13072,7 +13080,7 @@ function renderKits() {
         <span class="badge" style="background:${isUser ? '#0f6e56' : '#534ab7'}">${k.items.length}</span>
         <b style="font-size:11px;white-space:nowrap;color:#333">₪${Math.round(kPrice).toLocaleString()}</b>
         <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${kitStdDiff(k) ? ` <span style="color:#999">—</span> <b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;${hid ? 'text-decoration:line-through' : ''}" title="שם לפי התוכן: רמקולים · סאבים · מגברים · פרוססור">${esc(kitStdName(k))}</b>` : ''}${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
-          ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}<br>
+          ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}${(() => { const g = dupG[kitDupKey(k)] || []; return g.length > 1 ? ' <span onclick="event.stopPropagation();kitDupOnly=true;kitQ=\'\';kitShow=60;renderKits()" title="אותם רמקולים/סאבים גם ב: ' + esc(g.filter(o => o !== k).map(o => (o.name || '').slice(0, 40)).join(' · ')) + ' — לחיצה מציגה רק כפולים" style="background:#fdf0f0;color:#c1121f;border:1px solid #e9b4b4;border-radius:5px;padding:0 5px;font-size:9.5px;cursor:pointer;white-space:nowrap">⚠ כפול ×' + g.length + '</span>' : ''; })()}<br>
           <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·
             ${dsp.kind === 'na' ? '' : `<span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · `}${(() => { const cn = dsp.kind === 'na' ? [] : kitCableNeeds(k); return cn.length ? '<span style="color:#c1121f;font-weight:700">🔌 חסרים כבלים (' + cn.length + ')</span> · ' : ''; })()}${dsp.kind === 'na' ? '' : '🔊 ' + kitSpkCount(k) + ' רמקולים'}${kitBrands(k).length ? ' · ' + esc(kitBrands(k).join(' + ')) : ''} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
         <button onclick="event.stopPropagation();kitToggleHide(${gi})" title="${hid ? 'החזר לרשימה' : 'הסתר — לא רלוונטי'}"
