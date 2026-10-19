@@ -16149,7 +16149,7 @@ function zoneSpkPicker(zid, tab) {
       body.innerHTML = `<input data-kq placeholder="🔍 סינון קיטים…" value="${esc(body.dataset.q || '')}" style="width:100%;padding:6px;box-sizing:border-box;margin-bottom:8px">` +
         (ks.slice(0, 30).map(x => kitCard(x)).join('') || '<p class="muted">אין תוצאות</p>');
       const kq = body.querySelector('[data-kq]');
-      kq.oninput = e => { body.dataset.q = e.target.value; paint(); body.querySelector('[data-kq]').focus(); };
+      kq.oninput = e => { body.dataset.q = e.target.value; paint(); const el = body.querySelector('[data-kq]'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); };   /* הסמן לסוף — אחרת כל אות נכנסת בהתחלה והטקסט מתהפך */
     } else {
       const q = (body.dataset.pq || '').toLowerCase();
       const f = rows.filter(r => !q || r.name.toLowerCase().includes(q));
@@ -16164,7 +16164,7 @@ function zoneSpkPicker(zid, tab) {
           <button data-add="${rows.indexOf(r)}" title="הוסף להצעה כפריט נפרד" style="flex:none;font-weight:800">➕</button>
         </div>`).join('') || '<p class="muted">אין תוצאות</p>');
       const pq = body.querySelector('[data-pq]');
-      pq.oninput = e => { body.dataset.pq = e.target.value; paint(); body.querySelector('[data-pq]').focus(); };
+      pq.oninput = e => { body.dataset.pq = e.target.value; paint(); const el = body.querySelector('[data-pq]'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); };
       body.querySelectorAll('[data-add]').forEach(el => el.onclick = ev => {
         ev.stopPropagation();
         const r = rows[+el.dataset.add];
