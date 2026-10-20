@@ -17122,10 +17122,12 @@ function rackSection(n) {
   }
   const used = n.units.reduce((s, u) => s + u.u, 0);
   return `<div class="rp-sec"><h3>${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
+    <h4 style="font-size:13px;margin:0 0 8px;color:#534ab7">תכנית משולבת המציגה את כל המערכת — חזית הארון, היחידות וגב הארון עם החיווט</h4>
     <div class="rp-flex">
       <div class="rp-rails" style="width:${RW}px"><div class="rails" style="height:${n.ru * RU}px;position:relative;background:repeating-linear-gradient(180deg, #2b2e34 0 ${RU - 2}px, #26292f ${RU - 2}px ${RU}px)">${rows}</div>
         <div style="font-size:10.5px;color:#777;text-align:center;margin-top:3px">חזית הארון</div></div>
-      <div style="flex:1"><table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table></div>
+      <div style="flex:1;min-width:260px"><table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table>
+        <div data-rackrear="${n.id}" style="margin-top:10px"></div></div>
     </div>
     ${ct ? `<h4 style="font-size:13px;margin:10px 0 4px">כבלים מחוברים לארון</h4><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th></tr>${ct}</table>` : ''}
   </div>`;
@@ -17213,6 +17215,19 @@ function exportPDF() {
   h += `<p style="color:#999;font-size:11px;text-align:center">הופק ב-KO Projects · ${new Date().toLocaleString('he-IL')}</p>`;
   const r = $('#report');
   r.innerHTML = h;
+  /* גב הארון עם החיווט — נפתח רגע בתצוגת גב, מועתק כמו שהוא לדוח, ונסגר */
+  try { const holders = [...r.querySelectorAll('[data-rackrear]')]; if (holders.length) {
+    const st0 = racks.map(n => [n, n.min, n.rear]); racks.forEach(n => { n.min = false; n.rear = true; }); renderNodes(); renderWires();
+    holders.forEach(hd => { const n = racks.find(x => x.id === hd.dataset.rackrear); const el = n && (document.getElementById('ndo_' + n.id) || document.getElementById('nd_' + n.id)); if (!el) return;
+      try { floatRedraw(n, el); } catch {}
+      const w0 = el.offsetWidth, h0 = el.offsetHeight; if (!w0 || !h0) return;
+      const cl = el.cloneNode(true); cl.removeAttribute('id'); cl.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+      cl.querySelectorAll('canvas').forEach((cv2, i2) => { const org = el.querySelectorAll('canvas')[i2]; try { const im2 = document.createElement('img'); im2.src = org.toDataURL(); im2.style.cssText = cv2.style.cssText; cv2.replaceWith(im2); } catch { cv2.remove(); } });
+      const k2 = Math.min(1, 520 / w0, 520 / h0), box = document.createElement('div');
+      box.style.cssText = 'position:relative;width:' + Math.round(w0 * k2) + 'px;height:' + Math.round(h0 * k2) + 'px;overflow:hidden;page-break-inside:avoid';
+      cl.classList.remove('sel'); cl.style.cssText += ';position:absolute;right:auto;left:0;top:0;margin:0;outline:none;opacity:1;transform-origin:top left;width:' + w0 + 'px;transform:scale(' + k2.toFixed(4) + ')';
+      box.classList.add('rp-zoomable'); box.appendChild(cl); hd.appendChild(box); const cap = document.createElement('div'); cap.style.cssText = 'font-size:10.5px;color:#777;text-align:center;margin-top:3px'; cap.textContent = 'גב הארון — מחברים וחיווט'; hd.appendChild(cap); });
+    st0.forEach(([n, a, b2]) => { n.min = a; n.rear = b2; }); renderNodes(); renderWires(); } } catch (e) { console.warn('rackrear', e); }
   /* תמונת מצב של התכנית המלאה — מדידה אמיתית של גבולות התוכן (כולל רקע מסובב, אזורים וסמנים) */
   const cnv = $('#canvas'), crect = cnv.getBoundingClientRect(), Zc = getZ();
   let xmax = 500, ymax = 400;
@@ -17462,11 +17477,7 @@ holder.classList.add('rp-zoomable');
         sideEls.forEach(({ cl, w0, h0, n }) => { const k2 = n.kind === 'rack' ? Math.min(900 / w0, 620 / h0) : Math.min(1.3, 420 / w0), box = document.createElement('div');   /* גב הארון מוקטן בתוך האלמנט — מגדילים */
           box.style.cssText = 'position:relative;flex:none;width:' + Math.round(w0 * k2) + 'px;height:' + Math.round(h0 * k2) + 'px;page-break-inside:avoid;overflow:hidden';
           cl.style.transform = 'scale(' + k2.toFixed(4) + ')'; box.classList.add('rp-zoomable'); box.appendChild(cl); rearD.appendChild(box); });
-        /* מאיפה מגיע / לאן יוצא כל קו חיצוני של הארון */
-        { const LBx = cableLabels(), chips = []; sideEls.filter(e2 => e2.n.kind === 'rack').forEach(({ n: rk }) => cabs.forEach(c => { const inn = c.to === rk.id, outt = c.from === rk.id; if (inn === outt) return; const o = byId(inn ? c.from : c.to); if (!o) return;
-            const u = unitOf(rk.id, inn ? c.toUnit : c.fromUnit), prt = inn ? c.pIn : (c.pOut || ((c.bands || [])[0] || {}).port), col = cableColor(c);
-            chips.push(`<span style="display:inline-flex;align-items:center;gap:5px;border:1.5px solid ${col};border-radius:999px;padding:2px 9px 2px 3px;background:#fff;white-space:nowrap"><b style="background:${col};color:#fff;border-radius:999px;padding:0 7px">${esc(String(LBx[c.id] || ''))}</b>${inn ? 'מגיע מ־' : 'יוצא אל'} <b>${esc((shortModel(o.name) && o.kind === 'point' ? shortModel(o.name) + ((/\(([^()]+)\)\s*$/.exec(o.name) || [])[0] ? ' ' + /\(([^()]+)\)\s*$/.exec(o.name)[0] : '') : o.name).slice(0, 34))}</b>${u ? ' · ' + esc(shortModel(u.name) || u.name.slice(0, 18)) : ''}${prt ? ' <span dir="ltr" style="color:#555">' + esc(prt) + '</span>' : ''}</span>`); }));
-          if (chips.length) { const lg = document.createElement('div'); lg.style.cssText = 'flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;font-size:11.5px'; lg.innerHTML = '<div style="flex-basis:100%;text-align:center;font-size:11.5px;font-weight:700;color:#333">🔌 קווים חיצוניים של הארון — מאיפה מגיע / לאן יוצא כל קו</div>' + chips.join(''); rearD.appendChild(lg); } }
+        /* רשימת הקווים החיצוניים מופיעה בטבלה שמתחת — בלי ענן צ'יפים */
         sec.appendChild(rearD); }
       const lad = document.createElement('div'); lad.innerHTML = ladderHTML(cabs, CAT_COL[cat]); sec.appendChild(lad);
       snaps.push(sec);
