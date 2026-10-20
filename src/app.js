@@ -17223,7 +17223,7 @@ function exportPDF() {
   if (typeof xlinkReportHTML === 'function') h += xlinkReportHTML();
   h += routeReportHTML();
   h += mountReportHTML();
-  h += `<div class="rp-sec"><h3>מפתח כבלים מלא</h3>${cableTableHTML()}</div>`;
+  /* מפתח הכבלים המלא עבר לפרק 'תכנית משולבת — כל המערכת' (לפני השרטוטים המפורקים) */
   h += `<p style="color:#999;font-size:11px;text-align:center">הופק ב-KO Projects · ${new Date().toLocaleString('he-IL')}</p>`;
   const r = $('#report');
   r.innerHTML = h;
@@ -17396,6 +17396,7 @@ holder.classList.add('rp-zoomable');
     if (svgL) { const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', 'rpTmpLbl'); sv.style.cssText = 'position:absolute;left:0;top:0;width:2200px;height:1400px;overflow:visible;pointer-events:none;z-index:8';
       sv.innerHTML = svgL; host.appendChild(sv); } }
   const ovRestore = () => { document.querySelectorAll('#nodes > .rpTmpLbl').forEach(x => x.remove()); ovSaved.forEach(([n, a, b2, c2, d2]) => { if (a === undefined) delete n.min; else n.min = a; if (b2 === undefined) delete n.pmin; else n.pmin = b2; if (c2 === undefined) delete n.mini; else n.mini = c2; if (d2 === undefined) delete n.full; else n.full = d2; }); renderNodes(); renderWires(); };
+  let allSnap = null;   /* התכנית המשולבת (כל המוקדים וכל הקווים) — לעמוד הארון ולפרק "תכנית משולבת" שלפני השרטוטים המפורקים */
   /* התכנית הכללית ממלאת את העמוד: חיתוך לתוכן (שרטוט הרקע + המוקדים + הקווים), בלי שוליים ריקים של הקנבס */
   { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
     const addR = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - cr0.left) / Z0); T = Math.min(T, (rb.top - cr0.top) / Z0); R = Math.max(R, (rb.right - cr0.left) / Z0); B = Math.max(B, (rb.bottom - cr0.top) / Z0); };
@@ -17407,7 +17408,7 @@ holder.classList.add('rp-zoomable');
     regMain = reg0; const mainSnap = makeSnap('תכנית כללית — פריסת הציוד', reg0, 950); snaps.push(mainSnap);
     /* עמוד הארון: התכנית המשולבת (כל הפריטים וכל הקווים) מעל פירוט היחידות */
     window.__rpOnly = new Set((P.cables || []).map(c => c.id)); renderNodes(); renderWires();   /* כל המוקדים וכל הקווים, מכל הדיסציפלינות */
-    const allSnap = makeSnap('', reg0, 950); allSnap.querySelector('h3') && allSnap.querySelector('h3').remove();
+    allSnap = makeSnap('', reg0, 950); allSnap.querySelector('h3') && allSnap.querySelector('h3').remove();
     r.querySelectorAll('[data-rackplan]').forEach(ph => { const c = allSnap._holder.cloneNode(true); c.classList.add('rp-zoomable'); ph.appendChild(c); const cap = document.createElement('div'); cap.style.cssText = 'font-size:10.5px;color:#777;text-align:center;margin-top:3px'; cap.textContent = 'תכנית משולבת — כל הפריטים וכל הקווים'; ph.appendChild(cap); });
     window.__rpOnly = null; renderNodes(); }
   window.__rpOnly = null; renderWires();
@@ -17422,6 +17423,12 @@ holder.classList.add('rp-zoomable');
   ovRestore();
   /* היטל צד — מיד אחרי התכנית הכללית (או התקריב, אם יש) */
   try { const sv = sideViewHTML(); if (sv) { const t = document.createElement('div'); t.innerHTML = sv; if (t.firstElementChild) snaps.push(t.firstElementChild); } } catch (e) { console.warn('sideView', e); }
+  /* סדר הדוח: אחרי היטלי הצד — התכנית המשולבת (כל הפריטים וכל הקווים) עם מפתח הכבלים המלא, ואחריה השרטוטים המפורקים לפי דיסציפלינה */
+  try { if (allSnap && (P.cables || []).length) { const comb = document.createElement('div'); comb.className = 'rp-sec'; comb.style.pageBreakBefore = 'always';
+    comb.innerHTML = '<h3>🗺 תכנית משולבת — כל המערכת (' + P.cables.length + ' כבלים)</h3><p class="muted" style="font-size:11px;margin:-2px 0 6px">כל המוקדים וכל הקווים מכל הדיסציפלינות על תכנית אחת, ומתחתיה מפתח הכבלים המלא. בעמודים הבאים — השרטוטים המפורקים: כל דיסציפלינה בנפרד.</p>';
+    const hold = allSnap._holder.cloneNode(true); hold.classList.add('rp-zoomable'); comb.appendChild(hold);
+    const lad = document.createElement('div'); lad.innerHTML = '<h4 style="font-size:13px;margin:10px 0 4px">🧵 מפתח הכבלים המלא</h4>' + cableTableHTML(); comb.appendChild(lad);   /* אותו מפתח שהיה בסוף הדוח — עכשיו כאן */
+    snaps.push(comb); } } catch (e) { console.warn('combined', e); }
   try { const bq = bomHTML(); if (bq) { const t = document.createElement('div'); t.innerHTML = bq; snaps.unshift(t.firstElementChild); } } catch (e) { console.warn('bom', e); }
   /* ההדמיה פותחת את הדוח, ואחריה כתב הכמויות */
   try { const iv = isoViewHTML(); if (iv) { const t = document.createElement('div'); t.innerHTML = iv; if (t.firstElementChild) snaps.unshift(t.firstElementChild); } } catch (e) { console.warn('isoView', e); }
