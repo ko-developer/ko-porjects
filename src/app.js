@@ -17122,7 +17122,8 @@ function rackSection(n) {
   }
   const used = n.units.reduce((s, u) => s + u.u, 0);
   return `<div class="rp-sec"><h3>${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
-    <h4 style="font-size:13px;margin:0 0 8px;color:#534ab7">תכנית משולבת המציגה את כל המערכת — חזית הארון, היחידות וגב הארון עם החיווט</h4>
+    <h4 style="font-size:13px;margin:0 0 8px;color:#534ab7">תכנית משולבת המציגה את כל המערכת — כל הפריטים וכל הקווים, חזית הארון, היחידות וגב הארון עם החיווט</h4>
+    <div data-rackplan="${n.id}" style="margin:0 0 10px"></div>
     <table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table>
     <div class="rp-flex" style="margin-top:10px;align-items:flex-start;gap:16px">
       <div class="rp-rails" style="width:${RW}px;flex:none"><div class="rails" style="height:${n.ru * RU}px;position:relative;background:repeating-linear-gradient(180deg, #2b2e34 0 ${RU - 2}px, #26292f ${RU - 2}px ${RU}px)">${rows}</div>
@@ -17392,7 +17393,12 @@ holder.classList.add('rp-zoomable');
     document.querySelectorAll('#nodes > .node, #nodes > div.rpTmpLbl').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
     const reg0 = L < Infinity ? { L: Math.max(0, L - 10), T: Math.max(0, T - 10), R: Math.min(2200, R + 10), B: Math.min(1400, B + 10) } : null;
-    regMain = reg0; snaps.push(makeSnap('תכנית כללית — פריסת הציוד', reg0, 950)); }
+    regMain = reg0; const mainSnap = makeSnap('תכנית כללית — פריסת הציוד', reg0, 950); snaps.push(mainSnap);
+    /* עמוד הארון: התכנית המשולבת (כל הפריטים וכל הקווים) מעל פירוט היחידות */
+    window.__rpOnly = new Set((P.cables || []).map(c => c.id)); renderNodes(); renderWires();   /* כל המוקדים וכל הקווים, מכל הדיסציפלינות */
+    const allSnap = makeSnap('', reg0, 950); allSnap.querySelector('h3') && allSnap.querySelector('h3').remove();
+    r.querySelectorAll('[data-rackplan]').forEach(ph => { const c = allSnap._holder.cloneNode(true); c.classList.add('rp-zoomable'); ph.appendChild(c); const cap = document.createElement('div'); cap.style.cssText = 'font-size:10.5px;color:#777;text-align:center;margin-top:3px'; cap.textContent = 'תכנית משולבת — כל הפריטים וכל הקווים'; ph.appendChild(cap); });
+    window.__rpOnly = null; renderNodes(); }
   window.__rpOnly = null; renderWires();
   /* אזור הפעילות: חיתוך למקום שבו המוקדים והכבלים, מוגדל — כשהתכנית גדולה והציוד מרוכז בפינה */
   { const cr0 = $('#canvas').getBoundingClientRect(), Z0 = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
