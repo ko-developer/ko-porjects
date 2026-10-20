@@ -8243,6 +8243,12 @@ function projGapCheck() {
   /* 4ג. כלל הבית: מגבר UNICORN DAP לא נכנס להצעות — להחליף ל-DYNAMIQ (4600 כשיש סאבים) */
   { const dap = rows.filter(it => offerBanned(it.name)).map(it => shortModel(it.name)); racks.forEach(rk => (rk.units || []).forEach(u => { if (offerBanned(u.name)) dap.push(shortModel(u.name) + ' (ב"' + rk.name.slice(0, 14) + '")'); }));
     if (dap.length) finds.push({ i: '⛔', k: 'dap', t: 'מגבר UNICORN DAP בהצעה/בארון (' + [...new Set(dap)].join(', ') + ') — לפי כלל הבית לא משתמשים ב-DAP בהצעות מחיר; להחליף ל-DYNAMIQ' + (qsum(it => /סאב|\bsub/i.test(it.name || '')) ? ' 4600 (יש סאבים)' : ' 750/450'), b: '🔍 DYNAMIQ', fn: "gapSearch('DYNAMIQ')" }); }
+  /* 5א. ארון תקשורת בהצעה קטן מהציוד שבארון (או חסר): לכל ארון בתכנית — ארון בהצעה עם מספיק U לכל היחידות */
+  { const cabs = []; rows.forEach(it => { const u = rackCabU(it.name); if (u) for (let q = 0; q < Math.max(1, Math.round(+it.qty || 1)); q++) cabs.push({ u, name: it.name }); }); cabs.sort((a, b) => a.u - b.u);
+    const need = racks.map(rk => ({ rk, used: (rk.units || []).reduce((s2, u) => s2 + (+u.u || 1), 0) })).sort((a, b) => b.used - a.used);
+    need.forEach(({ rk, used }) => { const i = cabs.findIndex(c => c.u >= used); if (i >= 0) { cabs.splice(i, 1); return; }
+      const best = cabs.length ? Math.max(...cabs.map(c => c.u)) : 0;
+      finds.push({ i: '🗄', k: 'rackcab|' + rk.id, t: 'ב"' + rk.name.slice(0, 18) + '" ' + used + 'U בשימוש' + (rk.ru ? ' (תוכנן ' + rk.ru + 'U)' : '') + (best ? ' · בהצעה ארון ' + best + 'U בלבד — קטן מדי' : ' · אין ארון תקשורת/קייס בהצעה'), b: '🔍 ארון ' + Math.max(used, rk.ru || 0) + 'U', fn: "gapSearch('ארון תקשורת " + Math.max(used, rk.ru || 0) + "U')" }); }); }
   if (racks.length && !qsum(it => PDU_RX.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
   /* 5ב. יחידה בארון שאף כבל לא נוגע בה — כנראה מיותרת; מציעים להסיר מהארון ומההצעה */
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
@@ -8377,6 +8383,9 @@ function gapAddMounts(n) {
 }
 /* אותו ביטוי לבדיקה ולתיקון — אחרת הפס שנוסף לא מזוהה והממצא נשאר */
 const PDU_RX = /פס שקעים|פס חשמל|שקעים לארון|PDU|רב שקע|מפצל.{0,12}שקע|רבעיית חשמל/i;
+/* ארון תקשורת / קייס ראק בהצעה (לא פנל/מדף/אביזר לארון) — וגודלו ב-U מהשם */
+const RACK_CAB_RX = /ארון (?:תקשורת|שרת|מסד|19)|קייס (?:ארון|צף|קצר)|FLOATING RACK|\brack\b|ראק/i, RACK_CAB_NO = /פנל|פאנל|מדף|מתקן|מאוורר|דלת|מסילה|ת\.ח|פס שקעים|כיסוי|גלגל|ידית|בורג|אום/i;
+function rackCabU(nm) { const n = String(nm || ''); if (!RACK_CAB_RX.test(n) || RACK_CAB_NO.test(n)) return 0; const m = /(\d{1,2})\s?U\b/i.exec(n); return m ? +m[1] : 0; }
 function gapAddPdu(n) { gapAddFromCatalog(PDU_RX, n, 'unit', 'פס שקעים'); }
 window.gapAddMounts = gapAddMounts; window.gapAddPdu = gapAddPdu;
 function gapAddShortXlr(n) { gapAddFromCatalog(/XLR.{0,30}(1|0\.5|1\.5|2)\s*מטר|XLR.{0,20}קצר|patch.{0,10}XLR/i, n, 'conn', 'כבל XLR קצר'); }
