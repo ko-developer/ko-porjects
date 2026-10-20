@@ -16960,8 +16960,9 @@ function isoViewHTML() {
     /* מידות */
     { const a = pr(0, H, 0), c = pr(W, H, 0), e = pr(W, 0, 0); g += '<text x="' + f1((a[0] + c[0]) / 2 - 14) + '" y="' + f1((a[1] + c[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + W.toFixed(1) + ' מ׳</text><text x="' + f1((c[0] + e[0]) / 2 + 14) + '" y="' + f1((c[1] + e[1]) / 2 + 26) + '" font-size="11" font-weight="700" fill="#5a5343" text-anchor="middle">' + H.toFixed(1) + ' מ׳</text>'; }
     /* סרגל dB בפינה */
-    { const target = (typeof zoneSPL === 'function' && zoneSPL(z)) || 0, bx = 24, by = 18, bwid = 200, bht = 10; let stops = ''; for (let k = 0; k <= 10; k++) stops += '<stop offset="' + k * 10 + '%" stop-color="' + jetColor(k / 10) + '"/>';
-      g += '<defs><linearGradient id="isoLeg' + z.id + '" x1="0" x2="1" y1="0" y2="0">' + stops + '</linearGradient></defs><rect x="' + bx + '" y="' + by + '" width="' + bwid + '" height="' + bht + '" rx="3" fill="url(#isoLeg' + z.id + ')" stroke="#8d8370" stroke-width="0.6"/>'
+    { const target = (typeof zoneSPL === 'function' && zoneSPL(z)) || 0, bx = 24, by = 18, bwid = 200, bht = 10; /* סרגל צבע ממלבנים (בלי gradient עם id — הדוח משוכפל לתצוגה המקדימה ו-url(#id) היה מצביע על העותק המוסתר ונשאר לבן) */
+      const NS = 40; let bar = ''; for (let k = 0; k < NS; k++) bar += '<rect x="' + f1(bx + bwid * k / NS) + '" y="' + by + '" width="' + f1(bwid / NS + 0.6) + '" height="' + bht + '" fill="' + jetColor(k / (NS - 1)) + '"/>';
+      g += bar + '<rect x="' + bx + '" y="' + by + '" width="' + bwid + '" height="' + bht + '" rx="3" fill="none" stroke="#8d8370" stroke-width="0.6"/>'
         + '<text x="' + bx + '" y="' + (by + bht + 11) + '" font-size="9" fill="#5a5343" direction="ltr">' + cFloor + ' dB</text><text x="' + (bx + bwid) + '" y="' + (by + bht + 11) + '" font-size="9" fill="#5a5343" text-anchor="end" direction="ltr">' + cTop + ' dB</text>'
         + (target && target > cFloor && target < cTop ? '<line x1="' + f1(bx + bwid * (target - cFloor) / (cTop - cFloor)) + '" y1="' + (by - 3) + '" x2="' + f1(bx + bwid * (target - cFloor) / (cTop - cFloor)) + '" y2="' + (by + bht + 3) + '" stroke="#1a1e28" stroke-width="1.4"/><text x="' + f1(bx + bwid * (target - cFloor) / (cTop - cFloor)) + '" y="' + (by - 5) + '" font-size="9" font-weight="700" fill="#1a1e28" text-anchor="middle" direction="ltr">יעד ' + target + ' dB</text>' : '')
         + '<text x="' + bx + '" y="' + (by - 5) + '" font-size="9" fill="#5a5343">עוצמה בגובה אוזן ' + EAR + ' מ׳</text>'; }
@@ -17396,7 +17397,7 @@ holder.classList.add('rp-zoomable');
     if (!present.includes(cat)) continue;
     const all = (P.cables || []).filter(c => cabGroup(c) === cat);
     const spkC = cat === 'audio' ? all.filter(c => grpOf(c) === 'spk') : [], sigC = cat === 'audio' ? all.filter(c => grpOf(c) !== 'spk') : [];
-    if (spkC.length && sigC.length) pagesL.push({ cat, cabs: spkC, title: '🔊 שרטוט חיווט רמקולים — יציאות המגברים' }, { cat, cabs: sigC, title: '🎚 שרטוט סיגנל — מקורות נגינה, פרוססור ומגברים' });
+    if (spkC.length && sigC.length) pagesL.push({ cat, cabs: spkC, title: '🔊 שרטוט חיווט רמקולים — יציאות המגברים', note: 'בחלק זה מוצגים רק קווי היציאה לחיווט הרמקולים, כולל מספור וסדר החיבורים בארון המסד.' }, { cat, cabs: sigC, note: 'בחלק זה מוצגים רק קווי הסיגנל: מקורות הנגינה, הפרוססור והכניסות למגברים.', title: '🎚 שרטוט סיגנל — מקורות נגינה, פרוססור ומגברים' });
     else pagesL.push({ cat, cabs: all, title: CAT_TITLES[cat] });
   }
   if (pagesL.length > 1) {
@@ -17437,6 +17438,7 @@ holder.classList.add('rp-zoomable');
         /* האזור המצולם מתרחב כך שאף תווית לא נחתכת */
         if (regC) host.querySelectorAll('div.rpTmpLbl').forEach(lb => { const r = lb.getBoundingClientRect(); regC.L = Math.max(0, Math.min(regC.L, (r.left - crL.left) / ZL - 8)); regC.R = Math.min(2200, Math.max(regC.R, (r.right - crL.left) / ZL + 8)); regC.B = Math.min(1400, Math.max(regC.B, (r.bottom - crL.top) / ZL + 8)); }); }
       const sec = makeSnap(pg.title + ' (' + cabs.length + ' כבלים)', regC, 950);
+      if (pg.note) { const pn = document.createElement('p'); pn.className = 'muted'; pn.style.cssText = 'font-size:11px;margin:-2px 0 6px'; pn.textContent = pg.note; const h3 = sec.querySelector('h3'); if (h3) h3.after(pn); else sec.prepend(pn); }
       document.querySelectorAll('#nodes > .rpTmpLbl').forEach(x => x.remove());
       /* מספרי הכבלים על התכנית — מוגדלים */
       sec._holder.querySelectorAll('[data-cbadge]').forEach(g => { g.querySelectorAll('circle').forEach(c => { c.setAttribute('r', (parseFloat(c.getAttribute('r')) || 6) * 1.35); c.setAttribute('fill', '#fff'); });
