@@ -17223,9 +17223,10 @@ function exportPDF() {
       const w0 = el.offsetWidth, h0 = el.offsetHeight; if (!w0 || !h0) return;
       const cl = el.cloneNode(true); cl.removeAttribute('id'); cl.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
       cl.querySelectorAll('canvas').forEach((cv2, i2) => { const org = el.querySelectorAll('canvas')[i2]; try { const im2 = document.createElement('img'); im2.src = org.toDataURL(); im2.style.cssText = cv2.style.cssText; cv2.replaceWith(im2); } catch { cv2.remove(); } });
-      /* חזית וגב באותו גובה, יחד ממלאים את רוחב העמוד (תצוגת הדוח ≈ 1000px): kr·w0 + kf·RW = PAGE, kr·h0 = kf·tH */
+      /* חזית וגב — כל אחד במחצית רוחב העמוד (תצוגת הדוח ≈ 1000px) */
       const tH = +hd.dataset.h || 520, frontEl = hd.parentElement.querySelector('.rp-rails'), rails0 = frontEl && frontEl.querySelector('.rails'), RW0 = frontEl ? parseFloat(frontEl.style.width) || frontEl.offsetWidth || 350 : 350;
-      const PAGE = 940, GAP = 16, kr = Math.max(0.5, Math.min(3, (PAGE - GAP) / (w0 + RW0 * h0 / tH))), kf = kr * h0 / tH;
+      /* חצי-חצי: כל אחד ברוחב מחצית העמוד */
+      const PAGE = 940, GAP = 16, HALF = (PAGE - GAP) / 2, kr = Math.max(0.5, Math.min(3, HALF / w0)), kf = Math.max(0.5, Math.min(3, HALF / RW0));
       if (rails0 && Math.abs(kf - 1) > 0.02) { const fb = document.createElement('div'); fb.style.cssText = 'position:relative;width:' + Math.round(RW0 * kf) + 'px;height:' + Math.round(tH * kf) + 'px;overflow:visible'; rails0.style.width = RW0 + 'px'; rails0.style.transformOrigin = 'top right'; rails0.style.transform = 'scale(' + kf.toFixed(4) + ')'; rails0.style.position = 'absolute'; rails0.style.right = '0'; rails0.style.top = '0'; rails0.replaceWith(fb); fb.appendChild(rails0); frontEl.style.width = Math.round(RW0 * kf) + 'px'; }
       const k2 = kr, box = document.createElement('div');
       box.style.cssText = 'position:relative;width:' + Math.round(w0 * k2) + 'px;height:' + Math.round(h0 * k2) + 'px;overflow:hidden;page-break-inside:avoid';
