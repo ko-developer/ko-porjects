@@ -17170,7 +17170,7 @@ function rackSection(n) {
     <h4 style="font-size:13px;margin:0 0 8px;color:#534ab7">תכנית משולבת המציגה את כל המערכת — כל הפריטים וכל הקווים, חזית הארון, היחידות וגב הארון עם החיווט</h4>
     <div data-rackplan="${n.id}" style="margin:0 0 10px"></div>
     <table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table>
-    <div class="rp-flex" style="margin-top:10px;align-items:flex-start;gap:16px">
+    <div class="rp-flex" data-rackimgs="${n.id}" data-rackname="${esc(n.name)}" style="margin-top:10px;align-items:flex-start;gap:16px">
       <div class="rp-rails" style="width:${RW}px;flex:none"><div class="rails" style="height:${n.ru * RU}px;position:relative;background:repeating-linear-gradient(180deg, #2b2e34 0 ${RU - 2}px, #26292f ${RU - 2}px ${RU}px)">${rows}</div>
         <div style="font-size:10.5px;color:#777;text-align:center;margin-top:3px">חזית הארון</div></div>
       <div data-rackrear="${n.id}" data-h="${n.ru * RU}" style="flex:none"></div>
@@ -17453,6 +17453,8 @@ holder.classList.add('rp-zoomable');
   try { if (allSnap && (P.cables || []).length) { const comb = document.createElement('div'); comb.className = 'rp-sec'; comb.style.pageBreakBefore = 'always';
     comb.innerHTML = '<h3>🗺 תכנית משולבת — כל המערכת (' + P.cables.length + ' כבלים)</h3><p class="muted" style="font-size:11px;margin:-2px 0 6px">כל המוקדים וכל הקווים מכל הדיסציפלינות על תכנית אחת, ומתחתיה מפתח הכבלים המלא. בעמודים הבאים — השרטוטים המפורקים: כל דיסציפלינה בנפרד.</p>';
     const hold = allSnap._holder.cloneNode(true); hold.classList.add('rp-zoomable'); comb.appendChild(hold);
+    /* חזית וגב של כל ארון — עולים לכאן, מתחת לתכנית המרכזית (עמוד הארון נשאר עם הטבלאות) */
+    r.querySelectorAll('[data-rackimgs]').forEach(fx => { const t = document.createElement('h4'); t.style.cssText = 'font-size:13px;margin:12px 0 4px'; t.textContent = '🗄 ' + (fx.dataset.rackname || 'ארון') + ' — חזית וגב'; comb.appendChild(t); comb.appendChild(fx); });
     const lad = document.createElement('div'); lad.innerHTML = '<h4 style="font-size:13px;margin:10px 0 4px">🧵 מפתח הכבלים המלא</h4>' + cableTableHTML(); comb.appendChild(lad);   /* אותו מפתח שהיה בסוף הדוח — עכשיו כאן */
     snaps.push(comb); } } catch (e) { console.warn('combined', e); }
   try { const bq = bomHTML(); if (bq) { const t = document.createElement('div'); t.innerHTML = bq; snaps.unshift(t.firstElementChild); } } catch (e) { console.warn('bom', e); }
