@@ -17719,6 +17719,9 @@ async function reportDownloadPdf(page, btn) {
     if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
     if (!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     const root = page.firstElementChild, blocks = [...root.children].filter(el => el.offsetHeight > 4);
+    /* תמונות מוצרים ממקור אחר (דלי האתר, חנות, יצרנים) — דרך /img-proxy מאותו מקור, אחרת html2canvas משאיר אותן ריקות */
+    btn.textContent = '⏳ תמונות…';
+    await Promise.all([...root.querySelectorAll('img')].filter(im => /^https?:\/\//i.test(im.getAttribute('src') || '') && !(im.getAttribute('src') || '').startsWith(location.origin)).map(im => new Promise(res => { const t = setTimeout(res, 15000); im.onload = im.onerror = () => { clearTimeout(t); res(); }; im.src = '/img-proxy?u=' + encodeURIComponent(im.getAttribute('src')); })));
     const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }), PW = 210, PH = 297, M = 9, CW = PW - 2 * M, CH = PH - 2 * M;
     let y = M, first = true;
     for (let i = 0; i < blocks.length; i++) {

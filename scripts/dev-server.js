@@ -68,6 +68,8 @@ const imgVer = new Map();   /* קובץ תמונה → ה-?v= האחרון שנ�
 const curInvalidate = key => { curCache.delete(key); if (CUR_DISK) { try { unlinkSync(curDisk(key)); } catch {} } };
 const db = openStore(storage);
 /* תשובות טקסט גדולות (הדף, ה-store) נדחסות gzip כשהדפדפן תומך — 2.4MB HTML → ~0.5MB */
+const imgProxyCache = new Map();   /* /img-proxy — תמונות מוצרים שהובאו ממקור אחר */
+
 function sendText(req, res, code, headers, body) {
   const buf = Buffer.isBuffer(body) ? body : Buffer.from(body, 'utf8');
   if (buf.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
@@ -197,6 +199,27 @@ const handleReq = async (req, res) => {
     res.writeHead(302, { location: '/login' }); res.end(); return;
   }
   const isOwner = me.role === 'owner';
+  /* פרוקסי תמונות מוצרים (דלי האתר, החנות, אתרי יצרנים) מאותו מקור — html2canvas בהורדת PDF לא מצייר תמונה ממקור אחר בלי CORS.
+     רק hosts מוכרים, רק תמונות, עד 12MB, מטמון בזיכרון */
+  if (path0 === '/img-proxy' && req.method === 'GET') {
+    const u = new URLSearchParams((req.url || '').split('?')[1] || '').get('u') || '';
+    const okHost = /^https:\/\/(storage\.googleapis\.com\/ko-wp-images\/|store\.kot\.co\.il\/|kot\.co\.il\/|images\.prismic\.io\/|prismic-io\.s3\.amazonaws\.com\/|cdn\.shopify\.com\/|www\.kling-freitag\.com\/|xta\.co\.uk\/|www\.sea-distribution\.com\/|nstaudio\.com\/|www\.saeaudio\.com\/|d3b79pswu7f4ma\.cloudfront\.net\/|www\.kt-audio\.com\/|en\.soundlightup\.com\/|archive\.org\/|files\.digisynthetic\.cn\/|products\.dynacord\.com\/|www\.proaudiodesign\.com\/|funktion-one\.com\/|www\.funktion-one\.com\/)/i.test(u);
+    if (!okHost) { res.writeHead(400); res.end('host not allowed'); return; }
+    try {
+      let hit = imgProxyCache.get(u);
+      if (!hit) {
+        const r = await fetch(u, { redirect: 'follow', signal: AbortSignal.timeout(20000) });
+        if (!r.ok) throw new Error('upstream ' + r.status);
+        const buf = Buffer.from(await r.arrayBuffer()); if (buf.length > 12 * 1024 * 1024) throw new Error('too big');
+        let ct = String(r.headers.get('content-type') || '').split(';')[0].trim();
+        if (!/^image\//.test(ct)) ct = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml' }[(u.split('?')[0].split('.').pop() || '').toLowerCase()] || '';
+        if (!ct) throw new Error('not an image');
+        hit = { buf, ct }; imgProxyCache.set(u, hit); if (imgProxyCache.size > 400) imgProxyCache.delete(imgProxyCache.keys().next().value);
+      }
+      res.writeHead(200, { 'content-type': hit.ct, 'cache-control': 'public, max-age=86400' }); res.end(hit.buf);
+    } catch (e) { res.writeHead(502); res.end('image unavailable: ' + (e.message || e)); }
+    return;
+  }
   /* --- מעקב באגים: דיווח לכל משתמש מחובר, ניהול לבעלים (scripts/bugs.js) --- */
   if (await handleBugs(req, res, path0, me)) return;
   if (path0 === '/bugs') { if (!isOwner) { res.writeHead(302, { location: '/' }); res.end(); return; } sendPage(res, AUTH_PAGES['/bugs']); return; }
