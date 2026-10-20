@@ -17123,11 +17123,11 @@ function rackSection(n) {
   const used = n.units.reduce((s, u) => s + u.u, 0);
   return `<div class="rp-sec"><h3>${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
     <h4 style="font-size:13px;margin:0 0 8px;color:#534ab7">תכנית משולבת המציגה את כל המערכת — חזית הארון, היחידות וגב הארון עם החיווט</h4>
-    <div class="rp-flex">
-      <div class="rp-rails" style="width:${RW}px"><div class="rails" style="height:${n.ru * RU}px;position:relative;background:repeating-linear-gradient(180deg, #2b2e34 0 ${RU - 2}px, #26292f ${RU - 2}px ${RU}px)">${rows}</div>
+    <table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table>
+    <div class="rp-flex" style="margin-top:10px;align-items:flex-start;gap:16px">
+      <div class="rp-rails" style="width:${RW}px;flex:none"><div class="rails" style="height:${n.ru * RU}px;position:relative;background:repeating-linear-gradient(180deg, #2b2e34 0 ${RU - 2}px, #26292f ${RU - 2}px ${RU}px)">${rows}</div>
         <div style="font-size:10.5px;color:#777;text-align:center;margin-top:3px">חזית הארון</div></div>
-      <div style="flex:1;min-width:260px"><table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table>
-        <div data-rackrear="${n.id}" style="margin-top:10px"></div></div>
+      <div data-rackrear="${n.id}" data-h="${n.ru * RU}" style="flex:none"></div>
     </div>
     ${ct ? `<h4 style="font-size:13px;margin:10px 0 4px">כבלים מחוברים לארון</h4><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th></tr>${ct}</table>` : ''}
   </div>`;
@@ -17223,7 +17223,7 @@ function exportPDF() {
       const w0 = el.offsetWidth, h0 = el.offsetHeight; if (!w0 || !h0) return;
       const cl = el.cloneNode(true); cl.removeAttribute('id'); cl.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
       cl.querySelectorAll('canvas').forEach((cv2, i2) => { const org = el.querySelectorAll('canvas')[i2]; try { const im2 = document.createElement('img'); im2.src = org.toDataURL(); im2.style.cssText = cv2.style.cssText; cv2.replaceWith(im2); } catch { cv2.remove(); } });
-      const k2 = Math.min(1, 520 / w0, 520 / h0), box = document.createElement('div');
+      const tH = +hd.dataset.h || 520, k2 = Math.min(tH / h0, 760 / w0), box = document.createElement('div');   /* הגב בגובה חזית הארון שלידו */
       box.style.cssText = 'position:relative;width:' + Math.round(w0 * k2) + 'px;height:' + Math.round(h0 * k2) + 'px;overflow:hidden;page-break-inside:avoid';
       cl.classList.remove('sel'); cl.style.cssText += ';position:absolute;right:auto;left:0;top:0;margin:0;outline:none;opacity:1;transform-origin:top left;width:' + w0 + 'px;transform:scale(' + k2.toFixed(4) + ')';
       box.classList.add('rp-zoomable'); box.appendChild(cl); hd.appendChild(box); const cap = document.createElement('div'); cap.style.cssText = 'font-size:10.5px;color:#777;text-align:center;margin-top:3px'; cap.textContent = 'גב הארון — מחברים וחיווט'; hd.appendChild(cap); });
