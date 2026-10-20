@@ -16822,17 +16822,36 @@ const SIDE_OBJ_H = { bar: 1.1, barStools: 1.1, counter: 1.1, outKitchen: 0.9, ki
 /* כתב כמויות לדוח — כל פריטי ההצעה (רמקולים, אלקטרוניקה, כבלים, אביזרים) עם כמות; שורות זהות מאוחדות */
 function bomHTML() {
   if (typeof impItems === 'undefined' || !impItems.length) return '';
-  const G = { spk: '🔊 רמקולים וסאבים', el: '🎛 אלקטרוניקה — מגברים, פרוססורים, מיקסרים ומיקרופונים', cab: '🧵 כבלים ומחברים', oth: '🔩 אביזרים ושונות' };
+  const G = { spk: '🔊 רמקולים וסאבים', el: '🎛 אלקטרוניקה — מגברים, פרוססורים, מיקסרים ומיקרופונים', cab: '🧵 כבלים ומחברים', oth: '🔩 אביזרים ושונות', pts: '📍 מוקדים נוספים בתכנית' };
   const gOf = nm => { const c = typeof kitFuncClass === 'function' ? (kitFuncClass(nm) || '') : ''; return /^(spk|sub)/.test(c) ? 'spk' : /^(amp|proc|rcv|mixer|mic)/.test(c) ? 'el' : /^cab/.test(c) || /^(מחבר|פנל|כבל)/.test(nm) ? 'cab' : 'oth'; };
   const rows = new Map();
-  impItems.forEach(it => { const q = +it.qty || 0; if (!it.name || q <= 0) return; const k = (it.key || '') + '|' + it.name; const r = rows.get(k) || { name: it.name, key: it.key || '', qty: 0, g: gOf(it.name) }; r.qty += q; rows.set(k, r); });
+  impItems.forEach(it => { const q = +it.qty || 0; if (!it.name || q <= 0) return; const k = (it.key || '') + '|' + it.name; const r = rows.get(k) || { name: it.name, key: it.key || '', qty: 0, g: gOf(it.name), pts: [] }; r.qty += q; rows.set(k, r); });
   if (!rows.size) return '';
+  /* מוקדי הקצה שעל התכנית משתלבים מתחת לשורת הפריט שלהם (לפי מק"ט, אחרת לפי השם) — טבלה אחת: כמה הוזמן ואיפה כל יחידה יושבת */
+  const points = (P.nodes || []).filter(n => n.kind === 'point'), LBLp = typeof cableLabels === 'function' ? cableLabels() : {};
+  const baseName = n => String(n.name || '').replace(/\s*\(\d+\)\s*$/, '').trim();
+  const orphan = [];
+  points.forEach(n => { const k = typeof prodKey === 'function' ? prodKey(n) : ''; const nm = baseName(n);
+    let r = k ? [...rows.values()].find(x => x.key && x.key === k) : null;
+    if (!r && nm) r = [...rows.values()].find(x => x.name === nm || (nm.length > 8 && x.name.startsWith(nm)) || (x.name.length > 8 && nm.startsWith(x.name)));
+    if (r) r.pts.push(n); else orphan.push(n); });
+  const ptRow = (n, sub) => { const cbs = P.cables.filter(c => c.from === n.id || c.to === n.id).map(c => LBLp[c.id]).filter(Boolean).join(', ');
+    const zn = typeof zoneAt === 'function' ? zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }) : null, k = typeof prodKey === 'function' ? prodKey(n) : '';
+    return '<tr style="' + (sub ? 'background:#fbfaf7;font-size:11px' : '') + '"><td></td><td></td><td>' + (sub ? '' : (typeof prodImgCell === 'function' ? prodImgCell(n) : '')) + '</td><td style="' + (sub ? 'padding-inline-start:18px' : '') + '">' + (sub ? '↳ ' : '<b>') + esc(n.name) + (sub ? '' : '</b>') + (n.sub && !sub ? ' <span style="color:#666">' + esc(n.sub) + '</span>' : '') + '</td><td dir="ltr" style="text-align:right;font-size:11px">' + (sub ? '' : (k ? '<a href="' + esc(storeLink(k)) + '" target="_blank" rel="noopener">' + esc(k) + '</a>' : '—')) + '</td>'
+      + '<td>' + (zn ? esc(zn.name) : '—') + '</td><td style="text-align:center">' + (n.hgt ?? '—') + '</td><td>' + esc(n.mount || '—') + '</td><td dir="ltr" style="text-align:right;font-size:11px">' + esc((typeof prodDims === 'function' && prodDims(n)) || '—') + '</td><td style="text-align:center">' + (cbs || '—') + '</td><td style="font-size:11px">' + ((typeof prodLinks === 'function' && prodLinks(n)) || '—') + '</td></tr>'; };
   let h = '', tot = 0;
+  const COLS = 11;
   ['spk', 'el', 'cab', 'oth'].forEach(g => { const rs = [...rows.values()].filter(r => r.g === g); if (!rs.length) return;
-    h += '<tr><td colspan="5" style="background:#f6f2ea;font-weight:800;font-size:12px">' + G[g] + ' (' + rs.length + ')</td></tr>' +
+    h += '<tr><td colspan="' + COLS + '" style="background:#f6f2ea;font-weight:800;font-size:12px">' + G[g] + ' (' + rs.length + ')</td></tr>' +
       rs.map((r, i) => { tot++; const img = r.key && typeof erpImg === 'function' && erpImg(r.key);
-        return '<tr><td style="text-align:center;color:#888">' + (i + 1) + '</td><td style="text-align:center;font-weight:800;font-size:13px">' + (Math.round(r.qty * 100) / 100) + '</td><td style="width:44px">' + (img ? '<img src="' + esc(img) + '" style="width:36px;height:36px;object-fit:contain;border:1px solid #eee;border-radius:6px;background:#fff">' : '') + '</td><td><b>' + esc(r.name) + '</b></td><td dir="ltr" style="text-align:right;font-size:11px">' + esc(r.key) + '</td></tr>'; }).join(''); });
-  return '<div class="rp-sec" style="page-break-before:always"><h3>📋 כתב כמויות — ' + tot + ' פריטים</h3><table><thead><tr><th>#</th><th>כמות</th><th></th><th>פריט</th><th>מק״ט</th></tr></thead><tbody>' + h + '</tbody></table></div>';
+        /* סיכום אזורים לשורת הפריט: "אזור 1 ×4 · אזור 2 ×2" */
+        const zc = {}; r.pts.forEach(n => { const zn = typeof zoneAt === 'function' ? zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }) : null; const z = zn ? zn.name : '—'; zc[z] = (zc[z] || 0) + 1; });
+        const zTxt = Object.entries(zc).map(([z, c]) => esc(z) + (c > 1 ? ' ×' + c : '')).join(' · ');
+        const placed = r.pts.length, miss = Math.round(r.qty) - placed;
+        return '<tr><td style="text-align:center;color:#888">' + (i + 1) + '</td><td style="text-align:center;font-weight:800;font-size:13px">' + (Math.round(r.qty * 100) / 100) + '</td><td style="width:44px">' + (img ? '<img src="' + esc(img) + '" style="width:36px;height:36px;object-fit:contain;border:1px solid #eee;border-radius:6px;background:#fff">' : '') + '</td><td><b>' + esc(r.name) + '</b>' + (placed ? '<div style="font-size:10.5px;color:#666">' + placed + ' על התכנית' + (miss > 0 ? ' · ' + miss + ' לא הוצבו' : '') + '</div>' : '') + '</td><td dir="ltr" style="text-align:right;font-size:11px">' + esc(r.key) + '</td><td style="font-size:11px">' + (zTxt || '') + '</td><td colspan="' + (COLS - 6) + '"></td></tr>'
+          + r.pts.sort((a, b) => String(a.name).localeCompare(String(b.name), 'he', { numeric: true })).map(n => ptRow(n, true)).join(''); }).join(''); });
+  if (orphan.length) h += '<tr><td colspan="' + COLS + '" style="background:#f6f2ea;font-weight:800;font-size:12px">' + G.pts + ' (' + orphan.length + ')</td></tr>' + orphan.map(n => ptRow(n, false)).join('');
+  return '<div class="rp-sec" style="page-break-before:always"><h3>📋 כתב כמויות ומוקדי קצה — ' + tot + ' פריטים</h3><p class="muted" style="font-size:11px;margin:-2px 0 6px">כל פריט בהצעה עם הכמות; מתחת לרמקולים ולמוקדים — כל יחידה שעל התכנית: אזור, גובה, התקנה, מידות ומספרי הכבלים</p><table><thead><tr><th>#</th><th>כמות</th><th></th><th>פריט / מוקד</th><th>מק״ט</th><th>אזור</th><th>גובה (מ׳)</th><th>התקנה על</th><th>מידות</th><th>כבלים (#)</th><th>קישורים</th></tr></thead><tbody>' + h + '</tbody></table></div>';
 }
 /* 🖼 הדמיה לדוח — מבט איזומטרי של כל אזור לפי התכנית: רצפה, ריהוט מהשרטוט, רמקולים בגובה ובכיוון שלהם,
    אלומות כיסוי, ארונות ודמויות. המיקומים, הגבהים והכיוונים אמיתיים; צורות המוצרים סכמטיות (לפי המידות כשהן ידועות). */
@@ -17199,15 +17218,7 @@ function exportPDF() {
         ${lbls ? `<div style="color:#666;font-size:11px;margin-top:2px">שמות חורים: ${lbls}</div>` : ''}</div>`;
     }).join('') + '</div>';
   }
-  if (points.length) {
-    const LBLp = cableLabels();
-    h += `<div class="rp-sec"><h3>מוקדי קצה — רמקולים, מקרנים ותאורה</h3><table class="cablelist"><tr><th></th><th>מוקד</th><th>מק״ט</th><th>תיאור</th><th>אזור</th><th>גובה (מ׳)</th><th>התקנה על</th><th>מידות</th><th>קישורים</th><th>כבלים (#)</th></tr>` +
-      points.map(n => {
-        const cbs = P.cables.filter(c => c.from === n.id || c.to === n.id).map(c => LBLp[c.id]).join(', ');
-        const zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 });
-        return `<tr><td>${prodImgCell(n)}</td><td><b>${esc(n.name)}</b></td><td dir="ltr" style="text-align:right;font-size:11px">${prodKey(n) ? `<a href="${esc(storeLink(prodKey(n)))}" target="_blank" rel="noopener">${esc(prodKey(n))}</a>` : '—'}</td><td>${esc(n.sub || '')}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${n.hgt ?? '—'}</td><td>${esc(n.mount || '—')}</td><td dir="ltr" style="text-align:right;font-size:11px">${esc(prodDims(n) || '—')}</td><td style="font-size:11px">${prodLinks(n) || '—'}</td><td>${cbs || '—'}</td></tr>`;
-      }).join('') + '</table></div>';
-  }
+  /* מוקדי הקצה משולבים בכתב הכמויות (bomHTML) */
   if (typeof sndRepReportHTML === 'function') h += sndRepReportHTML();
   if (typeof xlinkReportHTML === 'function') h += xlinkReportHTML();
   h += routeReportHTML();
