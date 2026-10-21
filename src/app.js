@@ -17445,7 +17445,18 @@ holder.classList.add('rp-zoomable');
     regMain = reg0; const mainSnap = makeSnap('תכנית כללית — פריסת הציוד', reg0, 950); snaps.push(mainSnap);
     /* עמוד הארון: התכנית המשולבת (כל הפריטים וכל הקווים) מעל פירוט היחידות */
     window.__rpOnly = new Set((P.cables || []).map(c => c.id)); renderNodes(); renderWires();   /* כל המוקדים וכל הקווים, מכל הדיסציפלינות */
-    allSnap = makeSnap('', reg0, 950); allSnap.querySelector('h3') && allSnap.querySelector('h3').remove();
+    /* ליד כל מוקד: גובה ההתקנה וסוג הכבל בקיצור (2×2.5 · Cat6 · XLR) — תווית קטנה מתחת לאייקון, רק בצילום הזה */
+    try { const crA = $('#canvas').getBoundingClientRect(), ZA = getZ(), hostA = $('#nodes');
+      const cabShort = c => { const t = String((c.spec || '') + ' ' + (cableKindLabel(c) || '')); const m = /(\d)\s?[xX×]\s?(\d+(?:\.\d+)?)/.exec(t); if (m) return m[1] + '×' + m[2]; if (/cat\s?6a/i.test(t)) return 'Cat6a'; if (/cat\s?6/i.test(t)) return 'Cat6'; if (/cat\s?5/i.test(t)) return 'Cat5e'; if (/xlr/i.test(t)) return 'XLR'; if (/hdmi/i.test(t)) return 'HDMI'; if (/dmx/i.test(t)) return 'DMX'; if (/אופטי|fiber/i.test(t)) return 'אופטי'; if (/חשמל|power|מתח/i.test(t)) return 'חשמל'; return (cableKindLabel(c) || '').split(' ')[0]; };
+      P.nodes.filter(n => n.kind === 'point' && !n.hidden).forEach(n => { const el = document.getElementById('ndo_' + n.id) || document.getElementById('nd_' + n.id); if (!el) return; const rr = el.getBoundingClientRect(); if (!rr.width) return;
+        const sub = /סאב|\bsub\b|וופר/i.test(n.name || ''), isSpk = (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && isSpeakerItem(n.name || '');
+        const hg = n.hgt != null && n.hgt !== '' ? +n.hgt : (isSpk ? (sub ? 0 : 2.6) : null);
+        const cabs = [...new Set((P.cables || []).filter(c => c.from === n.id || c.to === n.id).map(cabShort).filter(Boolean))];
+        const parts = []; if (hg != null) parts.push('↕' + hg + ' מ׳'); if (cabs.length) parts.push(cabs.join(' · ')); if (!parts.length) return;
+        const lb = document.createElement('div'); lb.className = 'rpTmpLbl'; lb.dataset.hl = '1'; lb.textContent = parts.join(' · ');
+        lb.style.cssText = 'position:absolute;z-index:9;white-space:nowrap;font-size:8.5px;font-weight:700;color:#1a1e28;background:rgba(255,255,255,.92);border:1px solid #8d8370;border-radius:4px;padding:0 4px;line-height:12px;pointer-events:none;direction:rtl;left:' + ((rr.left + rr.right) / 2 - crA.left) / ZA + 'px;top:' + ((rr.bottom - crA.top) / ZA + 2) + 'px;transform:translateX(-50%)';
+        hostA.appendChild(lb); }); } catch (e) { console.warn('plan labels', e); }
+    allSnap = makeSnap('', reg0, 950); document.querySelectorAll('#nodes > .rpTmpLbl[data-hl]').forEach(x => x.remove()); allSnap.querySelector('h3') && allSnap.querySelector('h3').remove();
     r.querySelectorAll('[data-rackplan]').forEach(ph => { const c = allSnap._holder.cloneNode(true); c.classList.add('rp-zoomable'); ph.appendChild(c); const cap = document.createElement('div'); cap.style.cssText = 'font-size:10.5px;color:#777;text-align:center;margin-top:3px'; cap.textContent = 'תכנית משולבת — כל הפריטים וכל הקווים'; ph.appendChild(cap); });
     window.__rpOnly = null; renderNodes(); }
   window.__rpOnly = null; renderWires();
