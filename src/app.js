@@ -16928,6 +16928,13 @@ function isoViewHTML() {
     let g = '<rect x="0" y="0" width="' + VW + '" height="' + VH.toFixed(0) + '" rx="10" fill="#f7f8fa"/>';
     g += prism([[0, 0], [W, 0], [W, H], [0, H]], -0.22, 0.22, '#c9c3b6');
     g += poly(fl.map(a => [a[0], a[1], 0]), '#f1efe9', 'stroke="#8d8370" stroke-width="1.2"');
+    /* שרטוט התכנית על הרצפה: תמונת הרקע מוטלת איזומטרית (העתקה אפינית של מישור הרצפה) וחתוכה לתיבת האזור; מפת העוצמה שקופה-למחצה מעליה */
+    if (P.bg) { try {
+      const bW = P.bgW || 1400, bH = (typeof bgHeightPx === 'function' && bgHeightPx()) || Math.round(bW * ((curSheet(P) || {}).bgAsp || 0.64)), bL = bgLeft(), bT = bgTop();
+      const A = C * s * m, B = S2 * s * m, E0 = ox - A * (b.L - b.T), F0 = oy - B * (b.L + b.T), e = A * (bL - bT) + E0, fy = B * (bL + bT) + F0;
+      const u0 = b.L - bL, v0 = b.T - bT;
+      g += '<g transform="matrix(' + [A, B, -A, B, e, fy].map(v => (+v).toFixed(5)).join(' ') + ')" opacity="0.92"><svg x="' + f1(u0) + '" y="' + f1(v0) + '" width="' + f1(b.W) + '" height="' + f1(b.H) + '" viewBox="' + f1(u0) + ' ' + f1(v0) + ' ' + f1(b.W) + ' ' + f1(b.H) + '" overflow="hidden"><image x="0" y="0" width="' + bW + '" height="' + bH + '" href="' + esc(P.bg) + '" preserveAspectRatio="none"/></svg></g>';
+    } catch (e2) { console.warn('iso bg', e2); } }
     let grid = ''; for (let x = 1; x < W; x++) grid += '<line x1="' + f1(pr(x, 0, 0)[0]) + '" y1="' + f1(pr(x, 0, 0)[1]) + '" x2="' + f1(pr(x, H, 0)[0]) + '" y2="' + f1(pr(x, H, 0)[1]) + '"/>';
     for (let y = 1; y < H; y++) grid += '<line x1="' + f1(pr(0, y, 0)[0]) + '" y1="' + f1(pr(0, y, 0)[1]) + '" x2="' + f1(pr(W, y, 0)[0]) + '" y2="' + f1(pr(W, y, 0)[1]) + '"/>';
     g += '<g stroke="#d6d0c3" stroke-width="0.5" opacity="0.8">' + grid + '</g>';
@@ -17794,6 +17801,8 @@ function reportPreview() {
   document.body.appendChild(ov);
   /* מציגים עותק של הדוח — כך שהמקור נשאר מוכן להדפסה */
   const clone = r.cloneNode(true);
+  clone.querySelectorAll('[id]').forEach(el => { el.id = el.id + '-pv'; });
+  clone.querySelectorAll('[fill^="url(#"],[stroke^="url(#"],[clip-path^="url(#"],[mask^="url(#"],[filter^="url(#"]').forEach(el => { for (const at of ['fill', 'stroke', 'clip-path', 'mask', 'filter']) { const v = el.getAttribute(at); if (v && /^url\(#/.test(v)) el.setAttribute(at, v.replace(/^url\(#([^)]+)\)/, 'url(#$1-pv)')); } });
   clone.removeAttribute('id'); clone.style.display = 'block';
   ov.querySelector('#rpPage').appendChild(clone);
   /* 🔍 זום: לחיצה על שרטוט (תכנית / גב ארון / קופסה / היטל צד) פותחת אותו מוגדל, עם + / − / גלגלת וגרירה */
