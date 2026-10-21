@@ -17467,7 +17467,7 @@ holder.classList.add('rp-zoomable');
       const addB = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - crB.left) / ZB); T = Math.min(T, (rb.top - crB.top) / ZB); R = Math.max(R, (rb.right - crB.left) / ZB); B = Math.max(B, (rb.bottom - crB.top) / ZB); };
       document.querySelectorAll('#nodes > .node, #nodes > .rpTmpLbl').forEach(el => addB(el.getBoundingClientRect()));
       document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addB(pth.getBoundingClientRect()); });
-      document.querySelectorAll('#zonesc > *').forEach(el => addB(el.getBoundingClientRect()));
+      (P.zones || []).forEach(z => { try { const zb = zoneBounds(z); if (zb && zb.W > 0) { L = Math.min(L, zb.L); T = Math.min(T, zb.T); R = Math.max(R, zb.L + zb.W); B = Math.max(B, zb.T + zb.H); } } catch {} });   /* גבולות האזורים מהנתונים (ה-SVG של האזורים משתרע על כל הקנבס) */
       if (L < Infinity && (R - L) > 200 && (B - T) > 120) regAll = { L: Math.max(0, L - 24), T: Math.max(0, T - 24), R: Math.min(2200, R + 24), B: Math.min(1400, B + 24) }; }
     allSnap = makeSnap('', regAll, 950); document.querySelectorAll('#nodes > .rpTmpLbl[data-hl]').forEach(x => x.remove()); allSnap.querySelector('h3') && allSnap.querySelector('h3').remove();
     r.querySelectorAll('[data-rackplan]').forEach(ph => { const c = allSnap._holder.cloneNode(true); c.classList.add('rp-zoomable'); ph.appendChild(c); const cap = document.createElement('div'); cap.style.cssText = 'font-size:10.5px;color:#777;text-align:center;margin-top:3px'; cap.textContent = 'תכנית משולבת — כל הפריטים וכל הקווים'; ph.appendChild(cap); });
