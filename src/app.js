@@ -17447,7 +17447,7 @@ holder.classList.add('rp-zoomable');
     document.querySelectorAll('#nodes > .node, #nodes > div.rpTmpLbl').forEach(el => addR(el.getBoundingClientRect()));
     document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addR(pth.getBoundingClientRect()); });
     const reg0 = L < Infinity ? { L: Math.max(0, L - 10), T: Math.max(0, T - 10), R: Math.min(2200, R + 10), B: Math.min(1400, B + 10) } : null;
-    regMain = reg0; const mainSnap = makeSnap('תכנית כללית — פריסת הציוד', reg0, 950); snaps.push(mainSnap);
+    regMain = reg0; makeSnap('תכנית כללית — פריסת הציוד', reg0, 950);   /* לא נכנס לדוח (יש את התכנית המשולבת) — נשאר רק לחישוב הגבולות והתוויות */
     /* עמוד הארון: התכנית המשולבת (כל הפריטים וכל הקווים) מעל פירוט היחידות */
     window.__rpOnly = new Set((P.cables || []).map(c => c.id)); renderNodes(); renderWires();   /* כל המוקדים וכל הקווים, מכל הדיסציפלינות */
     /* ליד כל מוקד: גובה ההתקנה וסוג הכבל בקיצור (2×2.5 · Cat6 · XLR) — תווית קטנה מתחת לאייקון, רק בצילום הזה */
