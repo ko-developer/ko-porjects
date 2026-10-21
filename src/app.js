@@ -4054,6 +4054,7 @@ function renderNodes() {
   for (const [n, floatPass] of passList) {
     if (n.hidden) continue;
     if (!window.__rpOnly && !layerHas(n)) continue;   /* מוקד של שכבה אחרת */
+    if (window.__rpHideMic && n.ptype === 'mic') continue;   /* דוח: מיקרופון מדידה הוא כלי עבודה של המתכנן, לא חלק מהמערכת */
     const stk = floatPass ? null : stackOf[n.id];
     const d = document.createElement('div');
     d.className = 'node' + (sel === n.id ? ' sel' : '') + (n.kind === 'rack' && n.rear ? ' rear' : '')
@@ -16839,7 +16840,7 @@ function bomHTML() {
   if (!rows.size) return '';
   /* מוקדי הקצה שעל התכנית משתלבים מתחת לשורת הפריט שלהם (לפי מק"ט, אחרת לפי השם): שורה קצרה לכל יחידה — מספר הפריט, אזור, גובה, התקנה ומספר הכבל */
   /* גם פאנלים/קופסאות קיר וקיפדים שעל התכנית — עם המידות ומספרי הקווים שלהם */
-  const points = (P.nodes || []).filter(n => n.kind === 'point' || (n.kind === 'panel' && n.panel)), LBLp = typeof cableLabels === 'function' ? cableLabels() : {};
+  const points = (P.nodes || []).filter(n => (n.kind === 'point' && n.ptype !== 'mic') || (n.kind === 'panel' && n.panel)), LBLp = typeof cableLabels === 'function' ? cableLabels() : {};
   const baseName = n => String(n.name || '').replace(/\s*\(\d+\)\s*$/, '').trim();
   const instNo = n => { const m = /\((\d+)\)\s*$/.exec(String(n.name || '')); return m ? +m[1] : null; };
   const orphan = [];
@@ -16904,7 +16905,7 @@ function isoViewHTML() {
     const b = zoneBounds(z), W = b.W * m, H = b.H * m; if (!(W > 0.5 && H > 0.5)) return '';
     const ceil = +z.ceil || +(P.room && P.room.ceil) || 0;
     const s = (VW - 80) / ((W + H) * C), VZ = 1.2;
-    const pts = P.nodes.filter(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z));
+    const pts = P.nodes.filter(n => n.kind === 'point' && !n.hidden && n.ptype !== 'mic' && nodeInZone(n, z));   /* מיקרופון מדידה לא בהדמיה */
     const wallH = Math.min(ceil || 0, 3.5), topZ = Math.max(wallH, 3.2);
     const ox = 40 + H * C * s, oy = 30 + topZ * s * VZ;
     const pr = (X, Y, Z) => [ox + (X - Y) * C * s, oy + (X + Y) * S2 * s - (Z || 0) * s * VZ];
@@ -17054,7 +17055,7 @@ function sideViewHTML() {
     const uOf = (x, y) => ((alongX ? x - b.L : y - b.T) * m);
     const inZ = (x, y) => x >= b.L - 2 && x <= b.L + b.W + 2 && y >= b.T - 2 && y <= b.T + b.H + 2;
     /* מוקדים */
-    const pts = P.nodes.filter(n => n.kind === 'point' && !n.hidden && nodeInZone(n, z));
+    const pts = P.nodes.filter(n => n.kind === 'point' && !n.hidden && n.ptype !== 'mic' && nodeInZone(n, z));   /* מיקרופון מדידה לא בהדמיה */
     const subTop = 0.6;
     const items = pts.map(n => {
       const g = nodeIconGeo(n), anchor = n.att && n.att.cpl && byId(n.att.id);
@@ -17190,6 +17191,10 @@ function rackSection(n) {
   </div>`;
 }
 function exportPDF() {
+  window.__rpHideMic = true;   /* מיקרופוני מדידה לא בצילומי הדוח */
+  try { return exportPDF0(); } finally { window.__rpHideMic = false; try { renderNodes(); } catch {} }   /* המיקרופונים חוזרים לתכנית החיה */
+}
+function exportPDF0() {
   recalcCableLengths();   /* אורכים עדכניים לפי המיקומים והתוואים — גם לכבלים שלא נגעו בהם מאז */
   const racks = P.nodes.filter(n => n.kind === 'rack');
   const points = P.nodes.filter(n => n.kind === 'point');
@@ -17456,7 +17461,15 @@ holder.classList.add('rp-zoomable');
         const lb = document.createElement('div'); lb.className = 'rpTmpLbl'; lb.dataset.hl = '1'; lb.textContent = parts.join(' · ');
         lb.style.cssText = 'position:absolute;z-index:9;white-space:nowrap;font-size:8.5px;font-weight:700;color:#1a1e28;background:rgba(255,255,255,.92);border:1px solid #8d8370;border-radius:4px;padding:0 4px;line-height:12px;pointer-events:none;direction:rtl;left:' + ((rr.left + rr.right) / 2 - crA.left) / ZA + 'px;top:' + ((rr.bottom - crA.top) / ZA + 2) + 'px;transform:translateX(-50%)';
         hostA.appendChild(lb); }); } catch (e) { console.warn('plan labels', e); }
-    allSnap = makeSnap('', reg0, 950); document.querySelectorAll('#nodes > .rpTmpLbl[data-hl]').forEach(x => x.remove()); allSnap.querySelector('h3') && allSnap.querySelector('h3').remove();
+    /* חיתוך לגבולות הרלוונטיים: המוקדים, הקווים, האזורים והתוויות — בלי שולי הרקע הריקים */
+    let regAll = reg0;
+    { const crB = $('#canvas').getBoundingClientRect(), ZB = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+      const addB = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - crB.left) / ZB); T = Math.min(T, (rb.top - crB.top) / ZB); R = Math.max(R, (rb.right - crB.left) / ZB); B = Math.max(B, (rb.bottom - crB.top) / ZB); };
+      document.querySelectorAll('#nodes > .node, #nodes > .rpTmpLbl').forEach(el => addB(el.getBoundingClientRect()));
+      document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') addB(pth.getBoundingClientRect()); });
+      document.querySelectorAll('#zonesc > *').forEach(el => addB(el.getBoundingClientRect()));
+      if (L < Infinity && (R - L) > 200 && (B - T) > 120) regAll = { L: Math.max(0, L - 24), T: Math.max(0, T - 24), R: Math.min(2200, R + 24), B: Math.min(1400, B + 24) }; }
+    allSnap = makeSnap('', regAll, 950); document.querySelectorAll('#nodes > .rpTmpLbl[data-hl]').forEach(x => x.remove()); allSnap.querySelector('h3') && allSnap.querySelector('h3').remove();
     r.querySelectorAll('[data-rackplan]').forEach(ph => { const c = allSnap._holder.cloneNode(true); c.classList.add('rp-zoomable'); ph.appendChild(c); const cap = document.createElement('div'); cap.style.cssText = 'font-size:10.5px;color:#777;text-align:center;margin-top:3px'; cap.textContent = 'תכנית משולבת — כל הפריטים וכל הקווים'; ph.appendChild(cap); });
     window.__rpOnly = null; renderNodes(); }
   window.__rpOnly = null; renderWires();
@@ -17474,7 +17487,7 @@ holder.classList.add('rp-zoomable');
   /* סדר הדוח: אחרי היטלי הצד — התכנית המשולבת (כל הפריטים וכל הקווים) עם מפתח הכבלים המלא, ואחריה השרטוטים המפורקים לפי דיסציפלינה */
   try { if (allSnap && (P.cables || []).length) { const comb = document.createElement('div'); comb.className = 'rp-sec'; comb.style.pageBreakBefore = 'always';
     comb.innerHTML = '<h3>🗺 תכנית משולבת — כל המערכת (' + P.cables.length + ' כבלים)</h3><p class="muted" style="font-size:11px;margin:-2px 0 6px">כל המוקדים וכל הקווים מכל הדיסציפלינות על תכנית אחת, ומתחתיה מפתח הכבלים המלא. בעמודים הבאים — השרטוטים המפורקים: כל דיסציפלינה בנפרד.</p>';
-    const hold = allSnap._holder.cloneNode(true); hold.classList.add('rp-zoomable'); comb.appendChild(hold);
+    const hold = allSnap._holder.cloneNode(true); hold.classList.add('rp-zoomable'); hold.dataset.pdfFull = 'תכנית משולבת — כל המערכת'; comb.appendChild(hold);
     /* חזית וגב של כל ארון — עולים לכאן, מתחת לתכנית המרכזית (עמוד הארון נשאר עם הטבלאות) */
     r.querySelectorAll('[data-rackimgs]').forEach(fx => { const t = document.createElement('h4'); t.style.cssText = 'font-size:13px;margin:12px 0 4px'; t.textContent = '🗄 ' + (fx.dataset.rackname || 'ארון') + ' — חזית וגב'; comb.appendChild(t); comb.appendChild(fx); });
     const lad = document.createElement('div'); lad.innerHTML = '<h4 style="font-size:13px;margin:10px 0 4px">🧵 מפתח הכבלים המלא</h4>' + cableTableHTML(); comb.appendChild(lad);   /* אותו מפתח שהיה בסוף הדוח — עכשיו כאן */
@@ -17760,6 +17773,18 @@ async function reportDownloadPdf(page, btn) {
         pdf.addImage(part.toDataURL('image/jpeg', 0.86), 'JPEG', M, y, CW, hPx * mmPerPx, undefined, 'FAST');
         done += hPx; y += hPx * mmPerPx + 3; first = false;
         if (done < cv.height) { pdf.addPage(); y = M; }
+      }
+      /* "פתח את התכנית בגדול": תכנית שסומנה — גם בעמוד משלה לרוחב, על כל העמוד */
+      for (const full of blocks[i].querySelectorAll('[data-pdf-full]')) {
+        try { /* נחתך מצילום המקטע (צילום נוסף של תת-אלמנט נכשל ב-html2canvas) */
+          const hr = full.getBoundingClientRect(), br = blocks[i].getBoundingClientRect(), kx = cv.width / br.width, ky = cv.height / br.height;
+          const sx = Math.max(0, (hr.left - br.left) * kx), sy = Math.max(0, (hr.top - br.top) * ky), sw = Math.min(cv.width - sx, hr.width * kx), sh = Math.min(cv.height - sy, hr.height * ky);
+          if (sw < 10 || sh < 10) continue;
+          const cf = document.createElement('canvas'); cf.width = Math.round(sw); cf.height = Math.round(sh); cf.getContext('2d').drawImage(cv, sx, sy, sw, sh, 0, 0, cf.width, cf.height);
+          pdf.addPage('a4', 'landscape'); const LW = 297, LH = 210, m2 = 8, tw = LW - 2 * m2, th = LH - 2 * m2 - 8;
+          const k = Math.min(tw / cf.width, th / cf.height), w = cf.width * k, h = cf.height * k;
+          pdf.addImage(cf.toDataURL('image/jpeg', 0.9), 'JPEG', (LW - w) / 2, m2 + 8 + (th - h) / 2, w, h, undefined, 'FAST');
+          pdf.addPage('a4', 'portrait'); y = M; first = true; } catch (e2) { console.warn('pdf full page', e2); }
       }
     }
     const name = 'KO-דוח-' + String(P.name || 'פרויקט').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + '-' + new Date().toISOString().slice(0, 10) + '.pdf';
