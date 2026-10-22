@@ -17175,19 +17175,20 @@ function rackSection(n) {
     const other = inner
       ? `${esc(unitOf(n.id, c.fromUnit)?.name || '?')} ↔ ${esc(unitOf(n.id, c.toUnit)?.name || '?')}`
       : (c.from === n.id ? endName(c.to, c.toUnit) : endName(c.from, c.fromUnit));
-    ct += `<tr><td><span class="badge" style="background:${cableColor(c)}">${i + 1}</span></td><td>${dirTxt}</td><td>${dev ? esc(dev.name) : '—'}</td><td>${other}</td><td>${CTYPES[c.type].n}</td><td>${esc(c.spec || '')}</td></tr>`;
+    const cdm = (typeof conduitFor === 'function' && !inner) ? conduitFor(c) : null;
+    ct += `<tr><td><span class="badge" style="background:${cableColor(c)}">${i + 1}</span></td><td>${dirTxt}</td><td>${dev ? esc(dev.name) : '—'}</td><td>${other}</td><td>${CTYPES[c.type].n}</td><td>${esc(c.spec || '')}</td><td style="text-align:center;white-space:nowrap">${cdm ? '<b>Ø' + cdm.mm + '</b> <span style="font-size:10px;color:#777">מ״מ</span>' : inner ? '—' : ''}</td></tr>`;
   }
   const used = n.units.reduce((s, u) => s + u.u, 0);
-  return `<div class="rp-sec"><h3>${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
-    <h4 style="font-size:13px;margin:0 0 8px;color:#534ab7">תכנית משולבת המציגה את כל המערכת — כל הפריטים וכל הקווים, חזית הארון, היחידות וגב הארון עם החיווט</h4>
-    <div data-rackplan="${n.id}" style="margin:0 0 10px"></div>
+  return `<div class="rp-sec"><h3>⚡ תכנית הדרכה לחשמלאי — ${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
+    <h4 style="font-size:13px;margin:0 0 8px;color:#534ab7">היחידות בארון, הכבלים המחוברים אליו עם חתך הצינור המומלץ, והתכנית המשולבת של כל המערכת</h4>
     <table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table>
     <div class="rp-flex" data-rackimgs="${n.id}" data-rackname="${esc(n.name)}" style="margin-top:10px;align-items:flex-start;gap:16px">
       <div class="rp-rails" style="width:${RW}px;flex:none"><div class="rails" style="height:${n.ru * RU}px;position:relative;background:repeating-linear-gradient(180deg, #2b2e34 0 ${RU - 2}px, #26292f ${RU - 2}px ${RU}px)">${rows}</div>
         <div style="font-size:10.5px;color:#777;text-align:center;margin-top:3px">חזית הארון</div></div>
       <div data-rackrear="${n.id}" data-h="${n.ru * RU}" style="flex:none"></div>
     </div>
-    ${ct ? `<h4 style="font-size:13px;margin:10px 0 4px">כבלים מחוברים לארון</h4><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th></tr>${ct}</table>` : ''}
+    ${ct ? `<h4 style="font-size:13px;margin:10px 0 4px">כבלים מחוברים לארון</h4><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th><th>חתך צינור מומלץ</th></tr>${ct}</table>` : ''}
+    <div data-rackplan="${n.id}" style="margin:10px 0 0"></div>
   </div>`;
 }
 function exportPDF() {
