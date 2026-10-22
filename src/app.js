@@ -16836,7 +16836,7 @@ function bomHTML() {
   /* ארון תקשורת / קייס ראק נספר עם האלקטרוניקה — הוא הבית שלה */
   const gOf = nm => { if (typeof rackCabU === 'function' && rackCabU(nm)) return 'el'; const c = typeof kitFuncClass === 'function' ? (kitFuncClass(nm) || '') : ''; return /^(spk|sub)/.test(c) ? 'spk' : /^(amp|proc|rcv|mixer|mic)/.test(c) ? 'el' : /^cab/.test(c) || /^(מחבר|פנל|כבל)/.test(nm) ? 'cab' : 'oth'; };
   const rows = new Map();
-  impItems.forEach(it => { const q = +it.qty || 0; if (!it.name || q <= 0) return; const k = (it.key || '') + '|' + it.name; const r = rows.get(k) || { name: it.name, key: it.key || '', qty: 0, g: gOf(it.name), pts: [] }; r.qty += q; rows.set(k, r); });
+  impItems.forEach(it => { const q = +it.qty || 0; if (!it.name || q <= 0 || it.on === false || it.dest === 'ignore') return; const k = (it.key || '') + '|' + it.name; const r = rows.get(k) || { name: it.name, key: it.key || '', qty: 0, g: gOf(it.name), pts: [] }; r.qty += q; rows.set(k, r); });   /* פריט שבוטל בהצעה (✓ מוסר) לא נכנס לדוח */
   if (!rows.size) return '';
   /* מוקדי הקצה שעל התכנית משתלבים מתחת לשורת הפריט שלהם (לפי מק"ט, אחרת לפי השם): שורה קצרה לכל יחידה — מספר הפריט, אזור, גובה, התקנה ומספר הכבל */
   /* גם פאנלים/קופסאות קיר וקיפדים שעל התכנית — עם המידות ומספרי הקווים שלהם */
@@ -17226,11 +17226,12 @@ function exportPDF0() {
   const pwPanels = P.nodes.filter(n => n.kind === 'panel' && n.panel && (n.ptype === 'power' || n.panel.holes.some(hh => (CONNS[hh.conn] || {}).pw)));
   /* ⚡ נקודות חשמל שסומנו ליד מוקדים ("דרוש נקודת חשמל 16A-N6") */
   const pwNodes = P.nodes.filter(n => needsPower(n) && !pwPanels.includes(n));
-  if (pwPanels.length || pwNodes.length) {
+  const pwRacks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);   /* הזנת חשמל לארון המסד — לפי כלל הבית (rackPowerReq) */
+  if (pwPanels.length || pwNodes.length || pwRacks.length) {
     const PHN = { 1: 'L1', 2: 'L2', 3: 'L3' };
     h += `<div class="rp-sec"><h3>⚡ הכנות חשמל — שקעים, סיקונים ופאזות</h3>
-      <p style="font-size:12px;color:#555;margin:0 0 8px">מה שהחשמלאי צריך להכין לפני ההתקנה: לכל נקודה סוג השקע, הזרם, הפאזה המוזנת והשם/ייעוד. סיקון תלת-פאזי = 3 פאזות + N + PE. ההזנות לארון המגברים מסומנות בנפרד בדוח.</p>` + (pwNodes.length ? `<div style="margin-bottom:14px;page-break-inside:avoid"><b style="font-size:13px">🔌 נקודות חשמל ליד מוקדים (${pwNodes.length})</b>
-        <table class="cablelist" style="margin-top:6px"><tr><th>#</th><th>ליד המוקד</th><th>אזור</th><th>מותקן על</th><th>דרישה</th></tr>${pwNodes.map((n, i) => { const zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }); return `<tr><td>${i + 1}</td><td><b>${esc(n.name)}</b>${n.sub ? `<div style="font-size:11px;color:#777">${esc(n.sub)}</div>` : ''}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${esc(n.mount || '—')}</td><td>שקע 16A · N6 — משדה סאונד בלבד</td></tr>`; }).join('')}</table></div>` : '') + pwPanels.map(n => {
+      <p style="font-size:12px;color:#555;margin:0 0 8px">מה שהחשמלאי צריך להכין לפני ההתקנה: לכל נקודה סוג השקע, הזרם, הפאזה המוזנת והשם/ייעוד. סיקון תלת-פאזי = 3 פאזות + N + PE. הזנת ארון המסד — על שדה סאונד בלבד.</p>` + (pwNodes.length || pwRacks.length ? `<div style="margin-bottom:14px;page-break-inside:avoid"><b style="font-size:13px">🔌 נקודות חשמל ליד מוקדים (${pwNodes.length + pwRacks.length})</b>
+        <table class="cablelist" style="margin-top:6px"><tr><th>#</th><th>ליד המוקד</th><th>אזור</th><th>מותקן על</th><th>דרישה</th></tr>${pwNodes.map((n, i) => { const zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }); return `<tr><td>${i + 1}</td><td><b>${esc(n.name)}</b>${n.sub ? `<div style="font-size:11px;color:#777">${esc(n.sub)}</div>` : ''}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${esc(n.mount || '—')}</td><td>שקע 16A · N6 — משדה סאונד בלבד</td></tr>`; }).concat(pwRacks.map((rk, j) => { const zn = zoneAt({ x: 2200 - rk.x - 20, y: rk.y + 20 }), pr = rackPowerReq(rk); return `<tr><td>${pwNodes.length + j + 1}</td><td><b>⚡ חשמל בארון מסד — ${esc(rk.name)}</b><div style="font-size:11px;color:#777">${esc(pr.why)}</div></td><td>${zn ? esc(zn.name) : '—'}</td><td>ארון</td><td>${esc(pr.txt)}</td></tr>`; })).join('')}</table></div>` : '') + pwPanels.map(n => {
       const p = n.panel, zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 });
       const cnt = {}; p.holes.forEach(hh => { const t = CONNS[hh.conn]; if (!t || !t.pw) return; const k = t.n + (hh.ph ? ' · ' + PHN[hh.ph] : ''); cnt[k] = (cnt[k] || 0) + 1; });
       const sum = Object.entries(cnt).map(([k, v]) => `${v}× ${esc(k)}`).join(' · ');
