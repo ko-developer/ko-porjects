@@ -9086,7 +9086,11 @@ const AMP_DATA = [
   { re: /D24S/i, kind: 'proc', io: '2×4', w: 'NST Audio', ok: 1 },
   { re: /\bSIX\b|XTA.*SIX/i, kind: 'proc', io: '6×6', w: 'XTA Six', ok: 1, url: 'https://xta.co.uk/portfolio/six/' },
   { re: /\bMX36\b|XTA.*MX/i, kind: 'proc', io: '3×6', w: 'XTA MX', ok: 1, url: 'https://xta.co.uk/portfolio/mx36/' },
-  { re: /DS8000/i, kind: 'proc', io: '8×8', w: 'XTA DS8000', ok: 1, url: 'https://xta.co.uk/portfolio/ds8000/' }
+  { re: /DS8000/i, kind: 'proc', io: '8×8', w: 'XTA DS8000', ok: 1, url: 'https://xta.co.uk/portfolio/ds8000/' },
+  { re: /DMX\s?208\s?L/i, kind: 'proc', io: '4×4 (+4×4 AES67)', w: 'DigiSynthetic · הזנה PoE-af (15W) או DC 12V-1.5A → צריכה מקס׳ 18W (לפי דירוג ההזנה) · 1/4U חצי רוחב', mains: 18, ok: 1, url: 'https://www.digisynthetic.com/products/dsp-processor/dmx208l' },
+  /* ציוד ארון שאינו מגבר/פרוססור — לצריכת החשמל בדוח החשמלאי (טאב "🔌 ציוד אחר") */
+  { re: /TL-SG1210P|TL-?SG\s?-?121[0O]P/i, kind: 'other', io: 'מתג PoE+', w: 'TP-Link TL-SG1210P · 8× PoE+ (תקציב 63W) + RJ45 + SFP · צריכה מקס׳ 77.24W עם 63W PD, 7.0W בלי PD (דף היצרן) · ספק 53.5V/1.31A · 209×126×26 מ"מ', mains: 78, ok: 1, url: 'https://www.tp-link.com/us/business-networking/poe-switch/tl-sg1210p/' },
+  { re: /WIIM\s?ULTRA(?!\s?AMP)/i, kind: 'other', io: 'סטרימר / קדם-מגבר', w: 'WiiM Ultra · הזנה 100–240V AC, 0.5A מקס׳ → עד 115VA (לפי הזרם הנקוב) · 211×200×72 מ"מ · 1.42 ק"ג', mains: 115, ok: 1, url: 'https://www.wiimhome.com/wiimultra/specs' }
 ];
 const prettyRe = re => String(re).replace(/^\/|\/i?$/g, '').replace(/\(\?![^)]*\)/g, '').replace(/\(([^()|?]*)\)\?/g, '$1').replace(/\\\+/g, '+').split('|')[0]
   .replace(/\[[^\]]*\]\??/g, ' ').replace(/\\s\?|\\s\*|\\s|\\b|\\\.|\(|\)|\?|\^|\$|-\?/g, ' ').replace(/\s+/g, ' ').trim();
@@ -9130,8 +9134,9 @@ function spkDataManager(tab) {
     SPEAKER_DATA.forEach((d, i) => rows.push({ name: prettyRe(d.re), d, ok: !!d.ok, src: 'מובנה', bi: i }));
     for (const [k, d] of Object.entries(store.spkLib || {})) rows.push({ name: k, d, ok: d.ok !== false, src: 'מיובא', lk: k });
   } else {
-    AMP_DATA.forEach((d, i) => { if (d.kind === (tab === 'amp' ? 'amp' : 'proc')) rows.push({ name: prettyRe(d.re), d, ok: !!d.ok, src: 'מובנה', bi: i }); });
-    for (const [k, d] of Object.entries(store.ampLib || {})) if (d.kind === (tab === 'amp' ? 'amp' : 'proc')) rows.push({ name: k, d, ok: d.ok !== false, src: 'מותאם', lk: k });
+    const kindT = tab === 'amp' ? 'amp' : tab === 'other' ? 'other' : 'proc';
+    AMP_DATA.forEach((d, i) => { if (d.kind === kindT) rows.push({ name: prettyRe(d.re), d, ok: !!d.ok, src: 'מובנה', bi: i }); });
+    for (const [k, d] of Object.entries(store.ampLib || {})) if (d.kind === kindT) rows.push({ name: k, d, ok: d.ok !== false, src: 'מותאם', lk: k });
   }
   /* איחוד כפילויות: אותו שם (בלי רגישות לרישיות) = שורה אחת, עריכות ידניות גוברות;
      גרסת צבע (WR/WH/BK/WHITE/BLACK/לבן/שחור) מנוהלת בשורת הבסיס ולא כשורה נפרדת */
@@ -9167,7 +9172,7 @@ function spkDataManager(tab) {
   const allBrands = [...new Set(rows.map(r => r.brand).concat(['Funktion-One', 'Kling & Freitag', 'KT Audio', 'XTA', 'Yamaha', 'SAE', 'Lab Gruppen', 'Crown', 'DigiSynthetic', 'Lambda Labs', 'אחר']))].sort();
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
   const heads = '<th>תמונה</th>' + (tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th title="פסיבי = קו אחד · Bi-amp = HI+LOW · Tri-amp = HI+MID+LOW — כל פס מקבל ערוץ מגבר משלו בפאץ׳">הגברה</th><th>קישורים<br>🔗📄📘</th>' :
-    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th style="text-align:right">הערות</th><th>קישור</th>');
+    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : (tab === 'other' ? '<th>סוג</th>' : '<th>כניסות×יציאות</th>') + '<th>רשת / תאימות</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th style="text-align:right">הערות</th><th>קישור</th>');
   const ov = document.createElement('div');
   ov.id = 'spkDbOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
@@ -9176,7 +9181,7 @@ function spkDataManager(tab) {
     <style>#spkDbOv table a{font-size:17px;margin:0 5px;text-decoration:none;display:inline-block}#spkDbOv table a:hover{transform:scale(1.25)}#spkDbOv table td{padding:6px 5px}#spkDbOv table td button{font-size:12.5px;padding:2px 7px}</style>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1">📚 טבלת נתונים טכניים (${rows.length})</b>
       <button onclick="document.getElementById('spkDbOv').remove()">✕</button></div>
-    <div style="display:flex;gap:5px;margin-bottom:8px">${tabBtn('spk', '🔊 רמקולים')}${tabBtn('amp', '🎚 מגברים')}${tabBtn('proc', '🎛 פרוססורים')}${tab !== 'spk' ? `<button onclick="gearAudit()" title="מעבר מוצר-מוצר על פערים: טבלה ↔ פריסת גב ↔ צילום ↔ מדריך" style="flex:none;padding:5px 12px;border-radius:8px;font-weight:700;background:#fff1e3;border:1.5px solid #ff8a50;color:#c94a24">🔍 ביקורת מוצרים</button>` : ''}</div>
+    <div style="display:flex;gap:5px;margin-bottom:8px">${tabBtn('spk', '🔊 רמקולים')}${tabBtn('amp', '🎚 מגברים')}${tabBtn('proc', '🎛 פרוססורים')}${tabBtn('other', '🔌 ציוד אחר')}${tab !== 'spk' ? `<button onclick="gearAudit()" title="מעבר מוצר-מוצר על פערים: טבלה ↔ פריסת גב ↔ צילום ↔ מדריך" style="flex:none;padding:5px 12px;border-radius:8px;font-weight:700;background:#fff1e3;border:1.5px solid #ff8a50;color:#c94a24">🔍 ביקורת מוצרים</button>` : ''}</div>
     <p class="muted" style="margin:0 0 4px;font-size:11px">🟢 = מאומת (דף יצרן / שם פריט ב-ERP) · 🔴 = הערכה. עריכה שומרת כמותאם ומסמנת כמאומת.</p>
     <p style="margin:0 0 8px;font-size:11.5px;background:#f7f5f0;border-radius:8px;padding:5px 9px">מקרא קישורים: 🔗 דף המוצר באתר היצרן · 📄 מפרט טכני PDF · 📘 מדריך משתמש PDF · ✎ עריכת הקישורים</p>
     <div class="fld" style="margin-bottom:6px"><input id="spkDbQ" placeholder="🔍 חפש דגם…" value="${esc(window.__spkQ || '')}" oninput="window.__spkQ=this.value;spkDataManager('${tab}');const e2=document.getElementById('spkDbQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
@@ -9476,7 +9481,7 @@ function specSheet(tab, name) {
 async function spkDbAddModel(tab) {
   const nm = await uiPrompt('שם הדגם החדש:'); if (!nm) return;
   if (tab === 'spk') { store.spkLib = store.spkLib || {}; store.spkLib[rearKey(nm.trim())] = { re: null, h: 90, v: 50, sens: 99, max: 126, ok: false }; }
-  else { store.ampLib = store.ampLib || {}; store.ampLib[rearKey(nm.trim())] = { re: null, kind: tab === 'amp' ? 'amp' : 'proc', ch: tab === 'amp' ? 2 : undefined, io: tab === 'proc' ? '2×4' : undefined, w: '', ok: false }; }
+  else { store.ampLib = store.ampLib || {}; store.ampLib[rearKey(nm.trim())] = { re: null, kind: tab === 'amp' ? 'amp' : tab === 'other' ? 'other' : 'proc', ch: tab === 'amp' ? 2 : undefined, io: tab === 'proc' ? '2×4' : undefined, w: '', ok: false }; }
   save(); spkDataManager(tab);
 }
 async function editAmpLink(libKey, bi) {
@@ -17203,8 +17208,7 @@ function rackSection(n) {
         <div style="font-size:10.5px;color:#777;text-align:center;margin-top:3px">חזית הארון</div></div>
       <div data-rackrear="${n.id}" data-h="${n.ru * RU}" style="flex:none"></div>
     </div>
-    ${ct ? `<h4 style="font-size:13px;margin:10px 0 4px">כבלים מחוברים לארון</h4><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th><th>חתך צינור מומלץ</th></tr>${ct}</table>` : ''}
-  </div><div class="rp-sec" data-rpk="rackplan:${n.id}" data-rpf="rackplan"><h3>🗺 תכנית משולבת — ${esc(n.name)}</h3><div data-rackplan="${n.id}"></div></div>`;
+  </div>${ct ? `<div class="rp-sec" data-rpk="rackcab:${n.id}" data-rpf="rackcab"><h3>🔌 כבלים מחוברים לארון — ${esc(n.name)}</h3><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th><th>חתך צינור מומלץ</th></tr>${ct}</table></div>` : ''}<div class="rp-sec" data-rpk="rackplan:${n.id}" data-rpf="rackplan"><h3>🗺 תכנית משולבת — ${esc(n.name)}</h3><div data-rackplan="${n.id}"></div></div>`;
 }
 function exportPDF() {
   window.__rpHideMic = true;   /* מיקרופוני מדידה לא בצילומי הדוח */
