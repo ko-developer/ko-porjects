@@ -4079,6 +4079,7 @@ function renderNodes() {
       d.className += ' mini';
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)} · ${n.ru}U · ${n.units.length} יחידות · לחץ לפתיחה" style="cursor:grab;position:relative">
         <div class="mnum" style="background:#2d3444">${n.ru}U</div>
+        ${n.units.length ? `<div title="${esc(rackPowerReq(n).txt)}" style="position:absolute;left:50%;top:100%;transform:translate(-50%,3px);white-space:nowrap;background:#fff3cd;color:#7a4b00;border:1.5px solid #e0a100;border-radius:6px;font-size:9.5px;font-weight:800;padding:1px 5px;line-height:1.3;pointer-events:none;z-index:3">⚡ ${rackPowerReq(n).short}</div>` : ''}
         <div class="mic" style="border-color:#2d3444" title="לחץ לפתיחת הארון"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="1.5" fill="none" stroke="#2d3444" stroke-width="2"/><line x1="8.5" y1="7" x2="15.5" y2="7" stroke="#2d3444" stroke-width="2"/><line x1="8.5" y1="11" x2="15.5" y2="11" stroke="#2d3444" stroke-width="2"/><line x1="8.5" y1="15" x2="15.5" y2="15" stroke="#2d3444" stroke-width="2"/></svg></div>
 </div>`;
       d.addEventListener('pointerdown', e => {
@@ -7187,7 +7188,18 @@ function rackPowerReq(rk) {
   const procs = (rk.units || []).filter(u => u.cat === 'proc' || /פרוססור|processor|\bDSP\b/i.test(u.name || '')).length;
   const big = amps > 3;
   const w = `${amps} מגבר${amps === 1 ? '' : 'ים'}${procs ? ' + פרוססור' : ''}`;
-  return { amps, procs, big, txt: big ? RACK_PWR_BIG : RACK_PWR_SMALL, why: big ? w + ' — יותר מ-3 מגברים' : w + ' — עד 3 מגברים' };
+  return { amps, procs, big, txt: big ? RACK_PWR_BIG : RACK_PWR_SMALL, short: big ? '3×16A (3×N4) · שדה סאונד' : '16A-N6 · שדה סאונד', why: big ? w + ' — יותר מ-3 מגברים' : w + ' — עד 3 מגברים' };
+}
+/* צריכת חשמל מקסימלית של יחידה בארון (W): מהספרייה (עריכה בטבלת הנתונים הטכניים), מטבלת המגברים (mains), או מהערת ההספק ("צריכה 4800W"). אין נתון = null — לא ממציאים */
+function unitMainsW(name) {
+  const k = typeof rearKey === 'function' ? rearKey(name || '') : '';
+  const lib = k && store.ampLib && store.ampLib[k];
+  if (lib && +lib.mains > 0) return +lib.mains;
+  const d = (typeof AMP_DATA !== 'undefined' ? AMP_DATA : []).find(x => x.re && x.re.test(name || ''));
+  if (d && +d.mains > 0) return +d.mains;
+  const txt = (lib && lib.w) || (d && d.w) || '';
+  const m = /צריכ[הת]\s*(?:חשמל\s*)?(?:מקס[׳']?\s*)?(\d{2,5})\s*W/i.exec(txt) || /(?:power\s*consumption|mains)\D{0,12}(\d{2,5})\s*W/i.exec(txt);
+  return m ? +m[1] : null;
 }
 function isSrcNode(n) {
   if (!n || n.kind === 'rack') return false;
@@ -9011,7 +9023,7 @@ const AMP_DATA = [
   { re: /\bDPA\b|\bDNA\b|\bXTA\b/i, kind: 'amp', ch: 4, mo: 2, ok: 1, w: 'מגבר XTA — דגם לא מפורט בשם · מגברי XTA יציבים 2Ω', url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
   /* ===== KT Audio — מאומת מ-kt-audio.com ===== */
   /* DYNAMIQ 4600 = DynamiQ-600x4 — מהמדריך של היצרן (Owner's Manual, טבלת Specification + שרטוט הפנלים), 2026-10 */
-  { re: /DYNAMIQ\s?-?(?:4600|600\s?x\s?4)/i, kind: 'amp', ch: 4, mo: 4, ok: 1, w: '4×600W @8Ω · 4×900W @4Ω · גשר 2×1800W @8Ω · DSP + AES67 (2× RJ45 RAVENNA) · 4× XLR IN · 4× ספיקון · 1U · 483×45×299 מ"מ · צריכה 4800W', pw: { 8: 600, 4: 900 }, br: { 8: 1800 }, man: 'מדריך יצרן DynamiQ-600x4 (PDF)' },
+  { re: /DYNAMIQ\s?-?(?:4600|600\s?x\s?4)/i, kind: 'amp', ch: 4, mo: 4, ok: 1, w: '4×600W @8Ω · 4×900W @4Ω · גשר 2×1800W @8Ω · DSP + AES67 (2× RJ45 RAVENNA) · 4× XLR IN · 4× ספיקון · 1U · 483×45×299 מ"מ · צריכה 4800W', pw: { 8: 600, 4: 900 }, br: { 8: 1800 }, mains: 4800, man: 'מדריך יצרן DynamiQ-600x4 (PDF)' },
   { re: /DYNAMIQ\s?450/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×300W @8Ω · 2×450W @4Ω · גשר 900W @8Ω · DSP + AES67', pw: { 8: 300, 4: 450 }, br: { 8: 900 }, url: 'https://www.kt-audio.com/products/unicorn-dynamiq-450', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf', io: 'XLR balanced input, dual RJ45 (AES67) / Speakon 4-pole output', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf?v=1774536680' },
   { re: /DYNAMIQ\s?750/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×500W @8Ω · 2×750W @4Ω · גשר 1500W @8Ω · DSP + AES67', pw: { 8: 500, 4: 750 }, br: { 8: 1500 }, url: 'https://www.kt-audio.com/products/unicorn-dynamiq-750', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf', io: 'XLR balanced input, dual RJ45 (AES67) / Speakon 4-pole output', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf?v=1774536680' },
   { re: /MX3\s?-?\s?700/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×700W @8Ω · 2×1000W @4Ω · גשר 2000W @8Ω', pw: { 8: 700, 4: 1000 }, br: { 8: 2000 }, url: 'https://www.kt-audio.com/products/unicorn-mx3-700', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MX3_Series_Manual.pdf?v=1776079829' },
@@ -9155,7 +9167,7 @@ function spkDataManager(tab) {
   const allBrands = [...new Set(rows.map(r => r.brand).concat(['Funktion-One', 'Kling & Freitag', 'KT Audio', 'XTA', 'Yamaha', 'SAE', 'Lab Gruppen', 'Crown', 'DigiSynthetic', 'Lambda Labs', 'אחר']))].sort();
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
   const heads = '<th>תמונה</th>' + (tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th title="פסיבי = קו אחד · Bi-amp = HI+LOW · Tri-amp = HI+MID+LOW — כל פס מקבל ערוץ מגבר משלו בפאץ׳">הגברה</th><th>קישורים<br>🔗📄📘</th>' :
-    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th style="text-align:right">הערות</th><th>קישור</th>');
+    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : '<th>כניסות×יציאות</th><th>רשת / תאימות</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th style="text-align:right">הערות</th><th>קישור</th>');
   const ov = document.createElement('div');
   ov.id = 'spkDbOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
@@ -9179,7 +9191,7 @@ function spkDataManager(tab) {
     const c = r.ok ? '#0f8a5f' : '#c1121f';
     const bg = r.ok ? '#eef7f1' : '#fdeeee';
     const arg = r.lk ? `'${jsq(r.lk)}'` : `null,${r.bi}`;
-    const colspan = tab === 'spk' ? 13 : tab === 'amp' ? 13 : 8;
+    const colspan = tab === 'spk' ? 13 : tab === 'amp' ? 14 : 9;
     const brandHdr = (ri === 0 || rows[ri - 1].brand !== r.brand) ? `<tr style="background:#e9e4db"><td colspan="${colspan}" style="padding:4px 6px;font-weight:800;font-size:12px">🏷 ${esc(r.brand)}</td></tr>` : '';
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
     const nmA = jsq(r.name);
@@ -9202,10 +9214,12 @@ function spkDataManager(tab) {
        <td style="text-align:center"><input value="${esc(meta.dsp != null ? meta.dsp : guessDsp(r.d, r.name))}" placeholder="?" title="DSP: ✓ = יש · ציין ערוצים עודפים לשליטה במוצרים ללא DSP" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','dsp',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="—" title="רשת אודיו (Dante / AES67 / OMNEO) — ריק = אין" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
        ${['8', '4', '2.7', '2'].map(o => { const v = (r.d.pw || {})[o]; return `<td style="text-align:center"><input value="${v ?? ''}" placeholder="—" title="הספק לערוץ ב-${o}Ω (W)" style="width:54px;text-align:center;border:1px solid ${v != null ? c : '#ddd'};background:${v != null ? bg : '#fff'};border-radius:4px;font-size:11.5px;font-weight:${v != null ? 700 : 400}" onchange="${fn}(${arg},'pw:${o}',this.value)"></td>`; }).join('')}
+       <td style="text-align:center"><input value="${r.d.mains ?? ''}" placeholder="—" title="צריכת חשמל מקסימלית מהרשת (W) — מדף היצרן" style="width:54px;text-align:center;border:1px solid ${r.d.mains ? '#0f8a5f' : '#ddd'};border-radius:4px;font-size:11.5px" onchange="${fn}(${arg},'mains',this.value)"></td>
        <td>${(() => { const ex = Object.entries(r.d.pw || {}).filter(([o]) => !['8', '4', '2.7', '2'].includes(String(o))).map(([o, v]) => `${v}W @${o}${+o >= 50 ? 'V' : 'Ω'}`).join(' · '); return ex ? `<div style="font-size:10.5px;color:#0f6e56;font-weight:700;white-space:nowrap">${esc(ex)}</div>` : ''; })()}<input value="${esc(r.d.w || '')}" title="${esc(r.d.w || '')}" style="width:100%;min-width:150px;border:1px solid #ddd;border-radius:4px;font-size:10.5px;color:#555" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>` :
         `<td style="text-align:center"><input value="${esc(r.d.io || '')}" style="width:56px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'io',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="?" title="רשת דיגיטלית (Dante / AES67 / OMNEO) ותאימות תכנה עם מוצרים אחרים" style="width:110px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
+       <td style="text-align:center"><input value="${r.d.mains ?? ''}" placeholder="—" title="צריכת חשמל מקסימלית מהרשת (W) — מדף היצרן" style="width:54px;text-align:center;border:1px solid ${r.d.mains ? '#0f8a5f' : '#ddd'};border-radius:4px;font-size:11.5px" onchange="${fn}(${arg},'mains',this.value)"></td>
        <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid #ccc;border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>`);
     const ampMode = tab === 'spk' ? (meta.amp || spkAmpMode(r.name)) : 'passive';
@@ -9475,12 +9489,12 @@ async function editAmpLink(libKey, bi) {
 function editAmpDb(libKey, biOrField, arg3, arg4) {
   store.ampLib = store.ampLib || {};
   let key, field, val;
-  if (libKey === null) { const bi = biOrField; field = arg3; val = arg4; const bd = AMP_DATA[bi]; key = rearKey(prettyRe(bd.re)); if (!store.ampLib[key]) store.ampLib[key] = { re: null, kind: bd.kind, ch: bd.ch, mo: bd.mo, io: bd.io, w: bd.w, pw: bd.pw ? { ...bd.pw } : undefined, br: bd.br ? { ...bd.br } : undefined, url: bd.url, pdf: bd.pdf, man: bd.man, ok: bd.ok }; }   /* כל הנתונים עוברים לעותק הנערך — קודם טבלת ההספקים (pw) אבדה בעריכה */
+  if (libKey === null) { const bi = biOrField; field = arg3; val = arg4; const bd = AMP_DATA[bi]; key = rearKey(prettyRe(bd.re)); if (!store.ampLib[key]) store.ampLib[key] = { re: null, kind: bd.kind, ch: bd.ch, mo: bd.mo, io: bd.io, w: bd.w, pw: bd.pw ? { ...bd.pw } : undefined, br: bd.br ? { ...bd.br } : undefined, url: bd.url, pdf: bd.pdf, man: bd.man, mains: bd.mains, ok: bd.ok }; }   /* כל הנתונים עוברים לעותק הנערך — קודם טבלת ההספקים (pw) אבדה בעריכה */
   else { key = libKey; field = biOrField; val = arg3; }
   if (!store.ampLib[key]) return;
   if (/^pw:/.test(field)) { const o = field.slice(3), rec = store.ampLib[key]; rec.pw = { ...(rec.pw || {}) }; if (val === '' || val == null || !(+val > 0)) delete rec.pw[o]; else rec.pw[o] = +val; rec.ok = true; save(); spkDataManager(); return; }
   if (field === 'ok') store.ampLib[key].ok = (val === true || val === 'true');
-  else if (field === 'ch' || field === 'mo') { store.ampLib[key][field] = (val === '' || val == null) ? undefined : (+val || undefined); store.ampLib[key].ok = true; }
+  else if (field === 'ch' || field === 'mo' || field === 'mains') { store.ampLib[key][field] = (val === '' || val == null) ? undefined : (+val || undefined); store.ampLib[key].ok = true; }
   else { store.ampLib[key][field] = val; store.ampLib[key].ok = true; }
   save(); spkDataManager();
 }
@@ -17164,8 +17178,10 @@ function rackSection(n) {
       : `<div class="unit" style="top:${u.pos * RU}px;height:${u.u * RU}px;font-size:12px;background:${(CATS[u.cat] || CATS.other).c}"><b>${esc(u.name)}</b><span>${u.u}U</span></div>`;
   }
   const sorted = [...n.units].sort((a, b) => a.pos - b.pos);
-  let ut = '';
-  for (const u of sorted) ut += `<tr><td>U${u.pos + 1}</td><td>${esc(u.name)}</td><td>${u.u}U</td><td>${(CATS[u.cat] || CATS.other).n}</td></tr>`;
+  let ut = '', mwSum = 0, mwMiss = 0;
+  for (const u of sorted) { const mw = unitMainsW(u.name); if (mw) mwSum += mw; else mwMiss++;
+    ut += `<tr><td>U${u.pos + 1}</td><td>${esc(u.name)}</td><td>${u.u}U</td><td>${(CATS[u.cat] || CATS.other).n}</td><td style="text-align:center;white-space:nowrap">${mw ? '<b>' + mw + '</b> W' : '<span style="color:#b00;font-size:11px" title="אין נתון יצרן — להזין בטבלת הנתונים הטכניים (🎚 מגברים / 🎛 פרוססורים)">לא ידוע</span>'}</td></tr>`; }
+  if (sorted.length) ut += `<tr style="background:#f6f2ea;font-weight:700"><td colspan="4">סה״כ צריכה מקסימלית${mwMiss ? ' <span style="font-weight:400;color:#777">(לפי ' + (sorted.length - mwMiss) + ' מתוך ' + sorted.length + ' פריטים עם נתון יצרן)</span>' : ''}</td><td style="text-align:center;white-space:nowrap">${mwSum ? '<b>' + mwSum + '</b> W' : '—'}</td></tr>`;
   const cbs = P.cables.map((c, i) => ({ c, i })).filter(({ c }) => c.from === n.id || c.to === n.id);
   let ct = '';
   for (const { c, i } of cbs) {
@@ -17179,17 +17195,16 @@ function rackSection(n) {
     ct += `<tr><td><span class="badge" style="background:${cableColor(c)}">${i + 1}</span></td><td>${dirTxt}</td><td>${dev ? esc(dev.name) : '—'}</td><td>${other}</td><td>${CTYPES[c.type].n}</td><td>${esc(c.spec || '')}</td><td style="text-align:center;white-space:nowrap">${cdm ? '<b>Ø' + cdm.mm + '</b> <span style="font-size:10px;color:#777">מ״מ</span>' : inner ? '—' : ''}</td></tr>`;
   }
   const used = n.units.reduce((s, u) => s + u.u, 0);
-  return `<div class="rp-sec"><h3>⚡ תכנית הדרכה לחשמלאי — ${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
+  return `<div class="rp-sec" data-rpk="rack:${n.id}" data-rpf="rack"><h3>⚡ תכנית הדרכה לחשמלאי — ${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
     <h4 style="font-size:13px;margin:0 0 8px;color:#534ab7">היחידות בארון, הכבלים המחוברים אליו עם חתך הצינור המומלץ, והתכנית המשולבת של כל המערכת</h4>
-    <table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th></tr>${ut || '<tr><td colspan="4">ארון ריק</td></tr>'}</table>
+    <table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th><th title="צריכת חשמל מקסימלית מהרשת לפי היצרן">צריכה מקס׳</th></tr>${ut || '<tr><td colspan="5">ארון ריק</td></tr>'}</table>
     <div class="rp-flex" data-rackimgs="${n.id}" data-rackname="${esc(n.name)}" style="margin-top:10px;align-items:flex-start;gap:16px">
       <div class="rp-rails" style="width:${RW}px;flex:none"><div class="rails" style="height:${n.ru * RU}px;position:relative;background:repeating-linear-gradient(180deg, #2b2e34 0 ${RU - 2}px, #26292f ${RU - 2}px ${RU}px)">${rows}</div>
         <div style="font-size:10.5px;color:#777;text-align:center;margin-top:3px">חזית הארון</div></div>
       <div data-rackrear="${n.id}" data-h="${n.ru * RU}" style="flex:none"></div>
     </div>
     ${ct ? `<h4 style="font-size:13px;margin:10px 0 4px">כבלים מחוברים לארון</h4><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th><th>חתך צינור מומלץ</th></tr>${ct}</table>` : ''}
-    <div data-rackplan="${n.id}" style="margin:10px 0 0"></div>
-  </div>`;
+  </div><div class="rp-sec" data-rpk="rackplan:${n.id}" data-rpf="rackplan"><h3>🗺 תכנית משולבת — ${esc(n.name)}</h3><div data-rackplan="${n.id}"></div></div>`;
 }
 function exportPDF() {
   window.__rpHideMic = true;   /* מיקרופוני מדידה לא בצילומי הדוח */
@@ -17490,10 +17505,13 @@ holder.classList.add('rp-zoomable');
   try { if (allSnap && (P.cables || []).length) { const comb = document.createElement('div'); comb.className = 'rp-sec'; comb.style.pageBreakBefore = 'always';
     comb.innerHTML = '<h3>🗺 תכנית משולבת — כל המערכת (' + P.cables.length + ' כבלים)</h3><p class="muted" style="font-size:11px;margin:-2px 0 6px">כל המוקדים וכל הקווים מכל הדיסציפלינות על תכנית אחת, ומתחתיה מפתח הכבלים המלא. בעמודים הבאים — השרטוטים המפורקים: כל דיסציפלינה בנפרד.</p>';
     const hold = allSnap._holder.cloneNode(true); hold.classList.add('rp-zoomable'); hold.dataset.pdfFull = 'תכנית משולבת — כל המערכת'; comb.appendChild(hold);
-    /* חזית וגב של כל ארון — עולים לכאן, מתחת לתכנית המרכזית (עמוד הארון נשאר עם הטבלאות) */
-    r.querySelectorAll('[data-rackimgs]').forEach(fx => { const t = document.createElement('h4'); t.style.cssText = 'font-size:13px;margin:12px 0 4px'; t.textContent = '🗄 ' + (fx.dataset.rackname || 'ארון') + ' — חזית וגב'; comb.appendChild(t); comb.appendChild(fx); });
-    const lad = document.createElement('div'); lad.innerHTML = '<h4 style="font-size:13px;margin:10px 0 4px">🧵 מפתח הכבלים המלא</h4>' + cableTableHTML(); comb.appendChild(lad);   /* אותו מפתח שהיה בסוף הדוח — עכשיו כאן */
-    snaps.push(comb); } } catch (e) { console.warn('combined', e); }
+    comb.dataset.rpk = 'comb'; snaps.push(comb);
+    /* חזית וגב של כל ארון — מקטע משלו (אפשר להזיז/להסתיר בעורך מבנה הדוח) */
+    const imgs = document.createElement('div'); imgs.className = 'rp-sec'; imgs.dataset.rpk = 'rackimgs'; imgs.innerHTML = '<h3>🗄 הארונות — חזית וגב</h3>';
+    r.querySelectorAll('[data-rackimgs]').forEach(fx => { const t = document.createElement('h4'); t.style.cssText = 'font-size:13px;margin:12px 0 4px'; t.textContent = '🗄 ' + (fx.dataset.rackname || 'ארון') + ' — חזית וגב'; imgs.appendChild(t); imgs.appendChild(fx); });
+    if (imgs.children.length > 1) snaps.push(imgs);
+    const lad = document.createElement('div'); lad.className = 'rp-sec'; lad.dataset.rpk = 'cableidx'; lad.innerHTML = '<h3>🧵 מפתח הכבלים המלא</h3>' + cableTableHTML(); snaps.push(lad);   /* אותו מפתח שהיה בסוף הדוח */
+    } } catch (e) { console.warn('combined', e); }
   try { const bq = bomHTML(); if (bq) { const t = document.createElement('div'); t.innerHTML = bq; snaps.unshift(t.firstElementChild); } } catch (e) { console.warn('bom', e); }
   /* ההדמיה פותחת את הדוח, ואחריה כתב הכמויות */
   try { const iv = isoViewHTML(); if (iv) { const t = document.createElement('div'); t.innerHTML = iv; if (t.firstElementChild) snaps.unshift(t.firstElementChild); } } catch (e) { console.warn('isoView', e); }
@@ -17622,6 +17640,7 @@ holder.classList.add('rp-zoomable');
     snaps.push(sec);
   }
   for (let si = snaps.length - 1; si >= 0; si--) r.insertBefore(snaps[si], r.children[1]);
+  try { rpLayoutApply(r); } catch (e) { console.warn('rpLayout', e); }   /* הסדר/ההסתרות/הכותרות ששמר המשתמש בעורך מבנה הדוח */
   reportPreview();
 }
 /* תצוגה מקדימה של הדוח לפני הדפסה — רואים את כל הפריסה ואז מחליטים */
@@ -17763,8 +17782,9 @@ async function reportDownloadPdf(page, btn) {
     let y = M, first = true;
     for (let i = 0; i < blocks.length; i++) {
       btn.textContent = '⏳ ' + (i + 1) + '/' + blocks.length;
-      const cv = await window.html2canvas(blocks[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: root.scrollWidth });
+      const cv = await window.html2canvas(blocks[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: root.scrollWidth, ignoreElements: el => !!(el.classList && el.classList.contains('rp-pvonly')) });
       if (!cv.width || !cv.height) continue;
+      if (!first && y > M && blocks[i].style.pageBreakBefore === 'always') { pdf.addPage(); y = M; }   /* "עמוד חדש" מעורך מבנה הדוח */
       const mmPerPx = CW / cv.width; let done = 0;
       /* מקטע שנכנס בעמוד — לא נחתך: אם אין לו מקום ביתרת העמוד, עובר לעמוד חדש */
       if (!first && cv.height * mmPerPx <= CH && y + cv.height * mmPerPx > PH - M) { pdf.addPage(); y = M; }
@@ -17818,6 +17838,82 @@ function rpZoomOpen(src) {
   sc.onpointerup = sc.onpointercancel = () => { dr = null; sc.style.cursor = 'grab'; };
   const esc2 = e => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', esc2); } }; document.addEventListener('keydown', esc2);
 }
+/* ===== עורך מבנה הדוח: סדר המקטעים, הסתרה, כותרת ועמוד חדש — נשמר ב-store.rpLayout וחל על כל הדוחות (מפתח לכל מקטע; מקטע חדש נכנס במקומו הטבעי) ===== */
+function rpLayoutGet() { const l = store.rpLayout || {}; return { order: Array.isArray(l.order) ? l.order : [], hide: Array.isArray(l.hide) ? l.hide : [], brk: l.brk || {}, titles: l.titles || {} }; }
+function rpLayoutSet(l) { store.rpLayout = l; save(); }
+function rpSlug(t) { return String(t || '').replace(/\([^)]*\)/g, '').replace(/[0-9]+/g, '').replace(/[^\p{L}]+/gu, '-').replace(/^-+|-+$/g, ''); }
+function rpSecs(r) { return [...r.children].filter(el => el.classList && el.classList.contains('rp-sec')); }
+function rpKeyInit(sec, i) {
+  const h3 = sec.querySelector('h3');
+  if (!sec.dataset.rpt0) sec.dataset.rpt0 = h3 ? h3.textContent.trim() : ('מקטע ' + (i + 1));
+  if (!sec.dataset.rpk) sec.dataset.rpk = rpSlug(sec.dataset.rpt0) || ('sec' + i);
+  if (!sec.dataset.rpf) sec.dataset.rpf = sec.dataset.rpk.includes(':') ? sec.dataset.rpk.split(':')[0] : (rpSlug(sec.dataset.rpt0.split(' — ')[0]) || sec.dataset.rpk);   /* משפחה: "ארון" / "חיבורים בין קופסאות" — לסדר שנשמר בפרויקט אחר */
+  if (!sec.dataset.rpi) sec.dataset.rpi = String(i);
+  if (!sec.dataset.rpb0) sec.dataset.rpb0 = sec.style.pageBreakBefore === 'always' ? '1' : '0';
+}
+function rpLayoutApply(r) {
+  const lay = rpLayoutGet(), secs = rpSecs(r);
+  secs.forEach((s, i) => rpKeyInit(s, i));
+  const rankOf = s => { let i = lay.order.indexOf(s.dataset.rpk); if (i < 0) i = lay.order.findIndex(k => k === s.dataset.rpf || k.split(':')[0] === s.dataset.rpf); return i; };
+  let last = -1;
+  const ranked = secs.slice().sort((a, b) => (+a.dataset.rpi) - (+b.dataset.rpi)).map((s, i) => { let rk = rankOf(s); if (rk < 0) rk = last + 0.0001 * (i + 1); else last = rk; return { s, rk, i }; });
+  ranked.sort((a, b) => a.rk - b.rk || a.i - b.i);
+  const foot = [...r.children].reverse().find(el => el.tagName === 'P' && !el.classList.contains('rp-sec')) || null;
+  ranked.forEach(({ s }) => r.insertBefore(s, foot));
+  secs.forEach(s => {
+    const k = s.dataset.rpk, h3 = s.querySelector('h3');
+    s.classList.toggle('rp-hid', lay.hide.includes(k));
+    if (h3) h3.textContent = lay.titles[k] || s.dataset.rpt0;
+    s.style.pageBreakBefore = (lay.brk[k] != null ? lay.brk[k] : s.dataset.rpb0 === '1') ? 'always' : 'auto';
+  });
+}
+/* העותק שמוצג בתצוגה המקדימה (וממנו יורד ה-PDF) — נבנה מחדש אחרי כל שינוי במבנה */
+function rpPrevFill(ov) {
+  const r = $('#report'), page = ov.querySelector('#rpPage'), st = page.scrollTop;
+  page.innerHTML = '';
+  const clone = r.cloneNode(true);
+  clone.querySelectorAll('[id]').forEach(el => { el.id = el.id + '-pv'; });
+  clone.querySelectorAll('[fill^="url(#"],[stroke^="url(#"],[clip-path^="url(#"],[mask^="url(#"],[filter^="url(#"]').forEach(el => { for (const at of ['fill', 'stroke', 'clip-path', 'mask', 'filter']) { const v = el.getAttribute(at); if (v && /^url\(#/.test(v)) el.setAttribute(at, v.replace(/^url\(#([^)]+)\)/, 'url(#$1-pv)')); } });
+  clone.removeAttribute('id'); clone.style.display = 'block';
+  /* סימון "עמוד חדש" — רק בתצוגה (לא בהדפסה ולא ב-PDF) */
+  clone.querySelectorAll('.rp-sec').forEach(s => { if (s.style.pageBreakBefore === 'always' && !s.classList.contains('rp-hid')) { const m = document.createElement('div'); m.className = 'rp-pvonly'; m.style.cssText = 'border-top:2px dashed #c9c2b5;margin:4px 0 14px;text-align:center;font-size:10px;color:#a39c90;line-height:0'; m.innerHTML = '<span style="background:#fff;padding:0 8px">— עמוד חדש —</span>'; s.prepend(m); } });
+  page.appendChild(clone);
+  /* 🔍 זום: לחיצה על שרטוט (תכנית / גב ארון / קופסה / היטל צד) פותחת אותו מוגדל, עם + / − / גלגלת וגרירה */
+  clone.querySelectorAll('.rp-zoomable, .rp-sec svg[viewBox]').forEach(z => { if (z.closest('.rp-zoomable') && !z.classList.contains('rp-zoomable')) return; z.style.cursor = 'zoom-in'; z.title = 'לחץ להגדלה'; z.onclick = () => rpZoomOpen(z); });
+  page.scrollTop = st;
+  const cnt = ov.querySelector('[data-rpcount]'); if (cnt) cnt.textContent = rpSecs(r).filter(s => !s.classList.contains('rp-hid')).length + 1;
+}
+function rpLayoutEditor(ov) {
+  const old = ov.querySelector('#rpLay'); if (old) { old.remove(); return; }
+  const r = $('#report'), pane = document.createElement('div'); pane.id = 'rpLay';
+  pane.style.cssText = 'position:fixed;left:14px;top:84px;width:330px;max-height:calc(100vh - 100px);overflow:auto;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.4);padding:10px 12px;z-index:155;direction:rtl;font-size:12.5px';
+  pane.addEventListener('click', e => e.stopPropagation());
+  const keys = () => rpSecs(r).map(s => s.dataset.rpk);
+  const draw = () => {
+    const lay = rpLayoutGet(), secs = rpSecs(r);
+    pane.innerHTML = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><b style="flex:1;font-size:14px">🧩 מבנה הדוח</b><button data-reset style="font-size:11px" title="חזרה לסדר, לכותרות ולעמודים של ברירת המחדל">↺ ברירת מחדל</button><button data-x>✕</button></div>'
+      + '<p class="muted" style="font-size:11px;margin:0 0 8px;line-height:1.5">גרירת שורה משנה את הסדר · ▲▼ הזזה · 👁 הסתרה/הצגה · ⤵ עמוד חדש לפני המקטע · ✎ שינוי כותרת · לחיצה על השם גוללת אליו. נשמר אוטומטית ותקף לכל הדוחות.</p>'
+      + '<div data-list>' + secs.map((s, i) => { const k = s.dataset.rpk, hid = lay.hide.includes(k), brk = s.style.pageBreakBefore === 'always', h3 = s.querySelector('h3'), t = h3 ? h3.textContent.trim() : k;
+        return `<div data-row="${esc(k)}" draggable="true" style="display:flex;align-items:center;gap:3px;padding:4px 2px;border-bottom:1px solid #eee;${hid ? 'opacity:.55' : ''}"><span style="cursor:grab;color:#999;font-size:15px;flex:none" title="גרור לשינוי הסדר">⠿</span><span data-go style="flex:1;min-width:0;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${hid ? 'text-decoration:line-through' : ''}" title="${esc(t)} — לחץ לגלילה">${esc(t)}</span><button data-mv="-1" title="למעלה" ${i === 0 ? 'disabled' : ''} style="padding:0 5px;flex:none">▲</button><button data-mv="1" title="למטה" ${i === secs.length - 1 ? 'disabled' : ''} style="padding:0 5px;flex:none">▼</button><button data-brk title="עמוד חדש לפני המקטע" style="padding:0 5px;flex:none;${brk ? 'background:#534ab7;color:#fff' : ''}">⤵</button><button data-ren title="שינוי כותרת" style="padding:0 5px;flex:none">✎</button><button data-hide title="${hid ? 'הצג בדוח' : 'הסתר מהדוח'}" style="padding:0 5px;flex:none">${hid ? '🚫' : '👁'}</button></div>`; }).join('') + '</div>';
+    const commit = (l, ord) => { l.order = ord || keys(); rpLayoutSet(l); rpLayoutApply(r); rpPrevFill(ov); draw(); };
+    pane.querySelector('[data-x]').onclick = () => pane.remove();
+    pane.querySelector('[data-reset]').onclick = () => { delete store.rpLayout; save(); rpLayoutApply(r); rpPrevFill(ov); draw(); uiToast('↺ מבנה הדוח חזר לברירת המחדל'); };
+    pane.querySelectorAll('[data-row]').forEach(row => {
+      const k = row.dataset.row, sec = () => rpSecs(r).find(s => s.dataset.rpk === k);
+      row.querySelector('[data-go]').onclick = () => { const t = [...ov.querySelectorAll('#rpPage .rp-sec')].find(s => s.dataset.rpk === k); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      row.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { const ks = keys(), i = ks.indexOf(k), j = i + (+b.dataset.mv); if (i < 0 || j < 0 || j >= ks.length) return; ks.splice(i, 1); ks.splice(j, 0, k); commit(rpLayoutGet(), ks); });
+      row.querySelector('[data-hide]').onclick = () => { const l = rpLayoutGet(); l.hide = l.hide.includes(k) ? l.hide.filter(x => x !== k) : l.hide.concat(k); commit(l); };
+      row.querySelector('[data-brk]').onclick = () => { const s = sec(); if (!s) return; const l = rpLayoutGet(), eff = s.style.pageBreakBefore === 'always', nat = s.dataset.rpb0 === '1'; l.brk = { ...l.brk }; if (!eff === nat) delete l.brk[k]; else l.brk[k] = !eff; commit(l); };
+      row.querySelector('[data-ren]').onclick = () => { const s = sec(); const cur = rpLayoutGet().titles[k] || (s && s.dataset.rpt0) || ''; uiPrompt('כותרת המקטע בדוח', cur).then(v => { if (v == null) return; const l = rpLayoutGet(); l.titles = { ...l.titles }; if (!v.trim() || v.trim() === (s && s.dataset.rpt0)) delete l.titles[k]; else l.titles[k] = v.trim(); commit(l); }); };
+      row.ondragstart = e => { e.dataTransfer.setData('text/plain', k); e.dataTransfer.effectAllowed = 'move'; row.style.background = '#eef'; };
+      row.ondragend = () => { row.style.background = ''; };
+      row.ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; const rc = row.getBoundingClientRect(); row.style.boxShadow = (e.clientY - rc.top) < rc.height / 2 ? 'inset 0 2px 0 #534ab7' : 'inset 0 -2px 0 #534ab7'; };
+      row.ondragleave = () => { row.style.boxShadow = ''; };
+      row.ondrop = e => { e.preventDefault(); row.style.boxShadow = ''; const src = e.dataTransfer.getData('text/plain'); if (!src || src === k) return; const ks = keys().filter(x => x !== src), rc = row.getBoundingClientRect(); let j = ks.indexOf(k); if ((e.clientY - rc.top) >= rc.height / 2) j++; ks.splice(j, 0, src); commit(rpLayoutGet(), ks); };
+    });
+  };
+  draw(); ov.appendChild(pane);
+}
 function reportPreview() {
   const old = document.getElementById('rpPrev'); if (old) old.remove();
   const r = $('#report');
@@ -17828,7 +17924,8 @@ function reportPreview() {
   ov.innerHTML = `
     <div style="background:#fff;border-radius:12px;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:96vw">
       <b style="font-size:15px;flex:1;white-space:nowrap">📑 תצוגה מקדימה — ${esc(P.name.slice(0, 24))}</b>
-      <span class="muted" style="font-size:11.5px">${pages} מקטעים · גלול לראות הכול · 🔍 לחיצה על שרטוט מגדילה אותו</span>
+      <span class="muted" style="font-size:11.5px"><span data-rpcount>${pages}</span> מקטעים · גלול לראות הכול · 🔍 לחיצה על שרטוט מגדילה אותו</span>
+      <button id="rpEdit" style="background:#534ab7;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer" title="סדר המקטעים, הסתרה, כותרות ועמוד חדש — נשמר לכל הדוחות">🧩 סדר הדוח</button>
       <button id="rpPrint" style="background:#0f6e56;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer">🖨 הדפס / שמור PDF</button>
       <button id="rpDl" style="background:#185fa5;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer" title="יוצר קובץ PDF ומוריד אותו למחשב — בלי חלון ההדפסה">⬇ הורד PDF למחשב</button>
       <button id="rpDxf" style="background:#5b4b8a;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer" title="שרטוט וקטורי ל-AutoCAD בפורמט DXF (נפתח ב-AutoCAD ונשמר משם כ-DWG): מוקדים, כבלים לפי דיסציפלינה, צנרת, אזורים — במטרים" onclick="exportDXF()">📐 AutoCAD (DXF/DWG)</button>
@@ -17837,14 +17934,8 @@ function reportPreview() {
     </div>
     <div id="rpPage" style="flex:1;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.4);width:min(1000px,96vw);padding:22px"></div>`;
   document.body.appendChild(ov);
-  /* מציגים עותק של הדוח — כך שהמקור נשאר מוכן להדפסה */
-  const clone = r.cloneNode(true);
-  clone.querySelectorAll('[id]').forEach(el => { el.id = el.id + '-pv'; });
-  clone.querySelectorAll('[fill^="url(#"],[stroke^="url(#"],[clip-path^="url(#"],[mask^="url(#"],[filter^="url(#"]').forEach(el => { for (const at of ['fill', 'stroke', 'clip-path', 'mask', 'filter']) { const v = el.getAttribute(at); if (v && /^url\(#/.test(v)) el.setAttribute(at, v.replace(/^url\(#([^)]+)\)/, 'url(#$1-pv)')); } });
-  clone.removeAttribute('id'); clone.style.display = 'block';
-  ov.querySelector('#rpPage').appendChild(clone);
-  /* 🔍 זום: לחיצה על שרטוט (תכנית / גב ארון / קופסה / היטל צד) פותחת אותו מוגדל, עם + / − / גלגלת וגרירה */
-  clone.querySelectorAll('.rp-zoomable, .rp-sec svg[viewBox]').forEach(z => { if (z.closest('.rp-zoomable') && !z.classList.contains('rp-zoomable')) return; z.style.cursor = 'zoom-in'; z.title = 'לחץ להגדלה'; z.onclick = () => rpZoomOpen(z); });
+  rpPrevFill(ov);   /* עותק של הדוח — המקור נשאר מוכן להדפסה; נבנה מחדש אחרי כל שינוי בעורך המבנה */
+  ov.querySelector('#rpEdit').onclick = () => rpLayoutEditor(ov);
   ov.querySelector('#rpClose').onclick = () => ov.remove();
   ov.querySelector('#rpPrint').onclick = () => {
     ov.remove();
