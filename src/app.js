@@ -17813,7 +17813,8 @@ async function reportDownloadPdf(page, btn) {
           pdf.addPage('a4', 'portrait'); y = M; first = true; } catch (e2) { console.warn('pdf full page', e2); }
       }
     }
-    const name = 'KO-דוח-' + String(P.name || 'פרויקט').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + '-' + new Date().toISOString().slice(0, 10) + '.pdf';
+    const tabO = RP_TABS.find(t => t.id === (window.__rpTab || 'cust'));
+    const name = 'KO-דוח-' + (tabO ? tabO.n + '-' : '') + String(P.name || 'פרויקט').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + '-' + new Date().toISOString().slice(0, 10) + '.pdf';
     window.__lastReportPdf = { pages: pdf.getNumberOfPages(), name };
     pdf.save(name); uiToast('⬇ הדוח ירד למחשב: ' + name);
   } catch (e) { alert('יצירת ה-PDF נכשלה: ' + (e && e.message || e)); }
@@ -17843,7 +17844,7 @@ function rpZoomOpen(src) {
   const esc2 = e => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', esc2); } }; document.addEventListener('keydown', esc2);
 }
 /* ===== עורך מבנה הדוח: סדר המקטעים, הסתרה, כותרת ועמוד חדש — נשמר ב-store.rpLayout וחל על כל הדוחות (מפתח לכל מקטע; מקטע חדש נכנס במקומו הטבעי) ===== */
-function rpLayoutGet() { const l = store.rpLayout || {}; return { order: Array.isArray(l.order) ? l.order : [], hide: Array.isArray(l.hide) ? l.hide : [], brk: l.brk || {}, titles: l.titles || {} }; }
+function rpLayoutGet() { const l = store.rpLayout || {}; return { order: Array.isArray(l.order) ? l.order : [], hide: Array.isArray(l.hide) ? l.hide : [], brk: l.brk || {}, titles: l.titles || {}, tabs: l.tabs || {} }; }
 function rpLayoutSet(l) { store.rpLayout = l; save(); }
 function rpSlug(t) { return String(t || '').replace(/\([^)]*\)/g, '').replace(/[0-9]+/g, '').replace(/[^\p{L}]+/gu, '-').replace(/^-+|-+$/g, ''); }
 function rpSecs(r) { return [...r.children].filter(el => el.classList && el.classList.contains('rp-sec')); }
@@ -17867,45 +17868,75 @@ function rpLayoutApply(r) {
   secs.forEach(s => {
     const k = s.dataset.rpk, h3 = s.querySelector('h3');
     s.classList.toggle('rp-hid', lay.hide.includes(k));
+    s.dataset.rptab = rpTabOf(s, lay);
     if (h3) h3.textContent = lay.titles[k] || s.dataset.rpt0;
     s.style.pageBreakBefore = (lay.brk[k] != null ? lay.brk[k] : s.dataset.rpb0 === '1') ? 'always' : 'auto';
   });
 }
-/* העותק שמוצג בתצוגה המקדימה (וממנו יורד ה-PDF) — נבנה מחדש אחרי כל שינוי במבנה */
+/* ===== חלקי הדוח (טאבים): ללקוח · לחשמלאי · למתקין — כל מקטע שייך לחלק אחד (ברירת מחדל לפי סוגו, ניתן לשינוי בעורך המבנה); ההדפסה וה-PDF לפי החלק המוצג ===== */
+const RP_TABS = [{ id: 'cust', n: 'תכנית והדמיה ללקוח', ic: '🏠' }, { id: 'elec', n: 'תכנית הדרכה לחשמלאי', ic: '⚡' }, { id: 'inst', n: 'תכנית הדרכה למתקין', ic: '🔧' }];
+function rpTabDefault(sec) {
+  const k = sec.dataset.rpk || '', f = sec.dataset.rpf || '';
+  if (/^rack(cab|plan)?$/.test(f) || /^הכנות-חשמל/.test(k) || /^שרטוט-חשמל/.test(k)) return 'elec';
+  if (/^(הדמיה|כתב-כמויות|היטל-צד|תכנון-סאונד)/.test(k) || k === 'comb') return 'cust';
+  return 'inst';
+}
+function rpTabOf(sec, lay) { lay = lay || rpLayoutGet(); const t = lay.tabs[sec.dataset.rpk] || lay.tabs[sec.dataset.rpf]; return RP_TABS.some(x => x.id === t) ? t : rpTabDefault(sec); }
+/* סימון חלק פעיל על עץ דוח (המקור להדפסה / העותק לתצוגה): המקטעים של חלקים אחרים מוסתרים, ושם החלק נכנס לכריכה. 'all' = הכול */
+function rpTabMark(root, act) {
+  const tabO = RP_TABS.find(t => t.id === act);
+  root.querySelectorAll('.rp-sec').forEach(s => s.classList.toggle('rp-tabhid', !!tabO && s.dataset.rptab !== act));
+  root.querySelectorAll('.rp-tabttl').forEach(x => x.remove());
+  if (tabO) { const cv = root.querySelector('.rp-cover h2'); if (cv) { const d = document.createElement('div'); d.className = 'rp-tabttl'; d.textContent = tabO.ic + ' ' + tabO.n; d.style.cssText = 'font-size:15px;font-weight:800;color:#1a1e28;margin:2px 0 4px'; cv.after(d); } }
+}
+/* העותק שמוצג בתצוגה המקדימה (וממנו יורד ה-PDF) — נבנה מחדש אחרי כל שינוי במבנה או מעבר בין חלקים */
 function rpPrevFill(ov) {
-  const r = $('#report'), page = ov.querySelector('#rpPage'), st = page.scrollTop;
+  const r = $('#report'), page = ov.querySelector('#rpPage'), st = page.scrollTop, act = window.__rpTab || 'cust';
   page.innerHTML = '';
   const clone = r.cloneNode(true);
   clone.querySelectorAll('[id]').forEach(el => { el.id = el.id + '-pv'; });
   clone.querySelectorAll('[fill^="url(#"],[stroke^="url(#"],[clip-path^="url(#"],[mask^="url(#"],[filter^="url(#"]').forEach(el => { for (const at of ['fill', 'stroke', 'clip-path', 'mask', 'filter']) { const v = el.getAttribute(at); if (v && /^url\(#/.test(v)) el.setAttribute(at, v.replace(/^url\(#([^)]+)\)/, 'url(#$1-pv)')); } });
   clone.removeAttribute('id'); clone.style.display = 'block';
+  rpTabMark(clone, act);
   /* סימון "עמוד חדש" — רק בתצוגה (לא בהדפסה ולא ב-PDF) */
-  clone.querySelectorAll('.rp-sec').forEach(s => { if (s.style.pageBreakBefore === 'always' && !s.classList.contains('rp-hid')) { const m = document.createElement('div'); m.className = 'rp-pvonly'; m.style.cssText = 'border-top:2px dashed #c9c2b5;margin:4px 0 14px;text-align:center;font-size:10px;color:#a39c90;line-height:0'; m.innerHTML = '<span style="background:#fff;padding:0 8px">— עמוד חדש —</span>'; s.prepend(m); } });
+  clone.querySelectorAll('.rp-sec').forEach(s => { if (s.style.pageBreakBefore === 'always' && !s.classList.contains('rp-hid') && !s.classList.contains('rp-tabhid')) { const m = document.createElement('div'); m.className = 'rp-pvonly'; m.style.cssText = 'border-top:2px dashed #c9c2b5;margin:4px 0 14px;text-align:center;font-size:10px;color:#a39c90;line-height:0'; m.innerHTML = '<span style="background:#fff;padding:0 8px">— עמוד חדש —</span>'; s.prepend(m); } });
   page.appendChild(clone);
   /* 🔍 זום: לחיצה על שרטוט (תכנית / גב ארון / קופסה / היטל צד) פותחת אותו מוגדל, עם + / − / גלגלת וגרירה */
   clone.querySelectorAll('.rp-zoomable, .rp-sec svg[viewBox]').forEach(z => { if (z.closest('.rp-zoomable') && !z.classList.contains('rp-zoomable')) return; z.style.cursor = 'zoom-in'; z.title = 'לחץ להגדלה'; z.onclick = () => rpZoomOpen(z); });
   page.scrollTop = st;
-  const cnt = ov.querySelector('[data-rpcount]'); if (cnt) cnt.textContent = rpSecs(r).filter(s => !s.classList.contains('rp-hid')).length + 1;
+  const cnt = ov.querySelector('[data-rpcount]'); if (cnt) cnt.textContent = clone.querySelectorAll('.rp-sec:not(.rp-hid):not(.rp-tabhid)').length + 1;
+  /* כפתורי החלקים: הפעיל מודגש, ולכל חלק מספר המקטעים שלו */
+  const vis = rpSecs(r).filter(s => !s.classList.contains('rp-hid'));
+  ov.querySelectorAll('[data-rpview]').forEach(b => { const on = b.dataset.rpview === act; b.style.background = on ? '#534ab7' : '#fff'; b.style.color = on ? '#fff' : '#1a1e28'; b.style.borderColor = on ? '#534ab7' : '#ddd'; const n = b.querySelector('[data-rptabn]'); if (n) n.textContent = '(' + vis.filter(s => s.dataset.rptab === b.dataset.rpview).length + ')'; });
 }
 function rpLayoutEditor(ov) {
   const old = ov.querySelector('#rpLay'); if (old) { old.remove(); return; }
   const r = $('#report'), pane = document.createElement('div'); pane.id = 'rpLay';
-  pane.style.cssText = 'position:fixed;left:14px;top:84px;width:330px;max-height:calc(100vh - 100px);overflow:auto;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.4);padding:10px 12px;z-index:155;direction:rtl;font-size:12.5px';
+  pane.style.cssText = 'position:fixed;left:14px;top:84px;width:350px;max-height:calc(100vh - 100px);overflow:auto;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.4);padding:10px 12px;z-index:155;direction:rtl;font-size:12.5px';
   pane.addEventListener('click', e => e.stopPropagation());
   const keys = () => rpSecs(r).map(s => s.dataset.rpk);
   const draw = () => {
     const lay = rpLayoutGet(), secs = rpSecs(r);
-    pane.innerHTML = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><b style="flex:1;font-size:14px">🧩 מבנה הדוח</b><button data-reset style="font-size:11px" title="חזרה לסדר, לכותרות ולעמודים של ברירת המחדל">↺ ברירת מחדל</button><button data-x>✕</button></div>'
-      + '<p class="muted" style="font-size:11px;margin:0 0 8px;line-height:1.5">גרירת שורה משנה את הסדר · ▲▼ הזזה · 👁 הסתרה/הצגה · ⤵ עמוד חדש לפני המקטע · ✎ שינוי כותרת · לחיצה על השם גוללת אליו. נשמר אוטומטית ותקף לכל הדוחות.</p>'
-      + '<div data-list>' + secs.map((s, i) => { const k = s.dataset.rpk, hid = lay.hide.includes(k), brk = s.style.pageBreakBefore === 'always', h3 = s.querySelector('h3'), t = h3 ? h3.textContent.trim() : k;
-        return `<div data-row="${esc(k)}" draggable="true" style="display:flex;align-items:center;gap:3px;padding:4px 2px;border-bottom:1px solid #eee;${hid ? 'opacity:.55' : ''}"><span style="cursor:grab;color:#999;font-size:15px;flex:none" title="גרור לשינוי הסדר">⠿</span><span data-go style="flex:1;min-width:0;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${hid ? 'text-decoration:line-through' : ''}" title="${esc(t)} — לחץ לגלילה">${esc(t)}</span><button data-mv="-1" title="למעלה" ${i === 0 ? 'disabled' : ''} style="padding:0 5px;flex:none">▲</button><button data-mv="1" title="למטה" ${i === secs.length - 1 ? 'disabled' : ''} style="padding:0 5px;flex:none">▼</button><button data-brk title="עמוד חדש לפני המקטע" style="padding:0 5px;flex:none;${brk ? 'background:#534ab7;color:#fff' : ''}">⤵</button><button data-ren title="שינוי כותרת" style="padding:0 5px;flex:none">✎</button><button data-hide title="${hid ? 'הצג בדוח' : 'הסתר מהדוח'}" style="padding:0 5px;flex:none">${hid ? '🚫' : '👁'}</button></div>`; }).join('') + '</div>';
+    const row = (s, i, nIn) => { const k = s.dataset.rpk, hid = lay.hide.includes(k), brk = s.style.pageBreakBefore === 'always', h3 = s.querySelector('h3'), t = h3 ? h3.textContent.trim() : k;
+      return `<div data-row="${esc(k)}" draggable="true" style="display:flex;align-items:center;gap:3px;padding:4px 2px;border-bottom:1px solid #eee;${hid ? 'opacity:.55' : ''}"><span style="cursor:grab;color:#999;font-size:15px;flex:none" title="גרור לשינוי הסדר או להעברה לחלק אחר">⠿</span><span data-go style="flex:1;min-width:0;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${hid ? 'text-decoration:line-through' : ''}" title="${esc(t)} — לחץ לגלילה">${esc(t)}</span><select data-tab title="לאיזה חלק של הדוח שייך המקטע (1 ללקוח · 2 לחשמלאי · 3 למתקין)" style="font-size:10.5px;border:1px solid #ddd;border-radius:4px;flex:none">${RP_TABS.map((tb, j) => `<option value="${tb.id}" ${s.dataset.rptab === tb.id ? 'selected' : ''}>${j + 1}</option>`).join('')}</select><button data-mv="-1" title="למעלה" ${i === 0 ? 'disabled' : ''} style="padding:0 5px;flex:none">▲</button><button data-mv="1" title="למטה" ${i === nIn - 1 ? 'disabled' : ''} style="padding:0 5px;flex:none">▼</button><button data-brk title="עמוד חדש לפני המקטע" style="padding:0 5px;flex:none;${brk ? 'background:#534ab7;color:#fff' : ''}">⤵</button><button data-ren title="שינוי כותרת" style="padding:0 5px;flex:none">✎</button><button data-hide title="${hid ? 'הצג בדוח' : 'הסתר מהדוח'}" style="padding:0 5px;flex:none">${hid ? '🚫' : '👁'}</button></div>`; };
+    pane.innerHTML = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><b style="flex:1;font-size:14px">🧩 מבנה הדוח</b><button data-reset style="font-size:11px" title="חזרה לחלוקה, לסדר, לכותרות ולעמודים של ברירת המחדל">↺ ברירת מחדל</button><button data-x>✕</button></div>'
+      + '<p class="muted" style="font-size:11px;margin:0 0 4px;line-height:1.5">הדוח מחולק לשלושה חלקים; כל מקטע שייך לאחד מהם (הבורר 1/2/3 או גרירה בין הקבוצות). גרירה/▲▼ לסדר · 👁 הסתרה · ⤵ עמוד חדש · ✎ כותרת · לחיצה על השם גוללת אליו. נשמר אוטומטית לכל הדוחות.</p>'
+      + RP_TABS.map((tb, ti) => { const ss = secs.filter(s => s.dataset.rptab === tb.id);
+        return `<div data-tabhdr="${tb.id}" style="margin:10px 0 2px;font-weight:800;font-size:12.5px;color:#534ab7;border-bottom:2px solid #534ab7;padding-bottom:2px;cursor:pointer" title="הצג חלק זה בתצוגה">${ti + 1} · ${tb.ic} ${tb.n} <span class="muted" style="font-weight:400">(${ss.length})</span></div>`
+          + ss.map((s, i) => row(s, i, ss.length)).join('')
+          + `<div data-tabdrop="${tb.id}" class="muted" style="font-size:11px;padding:5px;margin-top:3px;border:1px dashed #ccc;border-radius:6px;text-align:center">גרור לכאן מקטע כדי להעביר אותו לחלק זה</div>`; }).join('');
     const commit = (l, ord) => { l.order = ord || keys(); rpLayoutSet(l); rpLayoutApply(r); rpPrevFill(ov); draw(); };
+    const setTab = (l, k, v) => { const s = rpSecs(r).find(x => x.dataset.rpk === k); l.tabs = { ...l.tabs, [k]: v }; if (s && s.dataset.rpf && s.dataset.rpf !== k) l.tabs[s.dataset.rpf] = v; return l; };   /* גם למשפחה (כל עמודי הארון, בכל הפרויקטים) */
     pane.querySelector('[data-x]').onclick = () => pane.remove();
     pane.querySelector('[data-reset]').onclick = () => { delete store.rpLayout; save(); rpLayoutApply(r); rpPrevFill(ov); draw(); uiToast('↺ מבנה הדוח חזר לברירת המחדל'); };
+    pane.querySelectorAll('[data-tabhdr]').forEach(h => h.onclick = () => { window.__rpTab = h.dataset.tabhdr; rpPrevFill(ov); });
+    const dropTo = (src, tb, beforeKey, after) => { const ks = keys().filter(x => x !== src); let j = beforeKey ? ks.indexOf(beforeKey) + (after ? 1 : 0) : ks.length; ks.splice(j, 0, src); commit(setTab(rpLayoutGet(), src, tb), ks); };
+    pane.querySelectorAll('[data-tabdrop]').forEach(z => { z.ondragover = e => { e.preventDefault(); z.style.borderColor = '#534ab7'; }; z.ondragleave = () => { z.style.borderColor = '#ccc'; }; z.ondrop = e => { e.preventDefault(); const src = e.dataTransfer.getData('text/plain'); if (src) dropTo(src, z.dataset.tabdrop, null); }; });
     pane.querySelectorAll('[data-row]').forEach(row => {
       const k = row.dataset.row, sec = () => rpSecs(r).find(s => s.dataset.rpk === k);
-      row.querySelector('[data-go]').onclick = () => { const t = [...ov.querySelectorAll('#rpPage .rp-sec')].find(s => s.dataset.rpk === k); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
-      row.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { const ks = keys(), i = ks.indexOf(k), j = i + (+b.dataset.mv); if (i < 0 || j < 0 || j >= ks.length) return; ks.splice(i, 1); ks.splice(j, 0, k); commit(rpLayoutGet(), ks); });
+      row.querySelector('[data-go]').onclick = () => { const s = sec(); if (s && window.__rpTab !== 'all' && window.__rpTab !== s.dataset.rptab) { window.__rpTab = s.dataset.rptab; rpPrevFill(ov); } const t = [...ov.querySelectorAll('#rpPage .rp-sec')].find(x => x.dataset.rpk === k); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      row.querySelector('[data-tab]').onchange = e => commit(setTab(rpLayoutGet(), k, e.target.value));
+      row.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { const s = sec(); if (!s) return; const same = rpSecs(r).filter(x => x.dataset.rptab === s.dataset.rptab), tgt = same[same.indexOf(s) + (+b.dataset.mv)]; if (!tgt) return; dropTo(k, s.dataset.rptab, tgt.dataset.rpk, +b.dataset.mv > 0); });
       row.querySelector('[data-hide]').onclick = () => { const l = rpLayoutGet(); l.hide = l.hide.includes(k) ? l.hide.filter(x => x !== k) : l.hide.concat(k); commit(l); };
       row.querySelector('[data-brk]').onclick = () => { const s = sec(); if (!s) return; const l = rpLayoutGet(), eff = s.style.pageBreakBefore === 'always', nat = s.dataset.rpb0 === '1'; l.brk = { ...l.brk }; if (!eff === nat) delete l.brk[k]; else l.brk[k] = !eff; commit(l); };
       row.querySelector('[data-ren]').onclick = () => { const s = sec(); const cur = rpLayoutGet().titles[k] || (s && s.dataset.rpt0) || ''; uiPrompt('כותרת המקטע בדוח', cur).then(v => { if (v == null) return; const l = rpLayoutGet(); l.titles = { ...l.titles }; if (!v.trim() || v.trim() === (s && s.dataset.rpt0)) delete l.titles[k]; else l.titles[k] = v.trim(); commit(l); }); };
@@ -17913,7 +17944,7 @@ function rpLayoutEditor(ov) {
       row.ondragend = () => { row.style.background = ''; };
       row.ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; const rc = row.getBoundingClientRect(); row.style.boxShadow = (e.clientY - rc.top) < rc.height / 2 ? 'inset 0 2px 0 #534ab7' : 'inset 0 -2px 0 #534ab7'; };
       row.ondragleave = () => { row.style.boxShadow = ''; };
-      row.ondrop = e => { e.preventDefault(); row.style.boxShadow = ''; const src = e.dataTransfer.getData('text/plain'); if (!src || src === k) return; const ks = keys().filter(x => x !== src), rc = row.getBoundingClientRect(); let j = ks.indexOf(k); if ((e.clientY - rc.top) >= rc.height / 2) j++; ks.splice(j, 0, src); commit(rpLayoutGet(), ks); };
+      row.ondrop = e => { e.preventDefault(); row.style.boxShadow = ''; const src = e.dataTransfer.getData('text/plain'); if (!src || src === k) return; const s = sec(); if (!s) return; const rc = row.getBoundingClientRect(); dropTo(src, s.dataset.rptab, k, (e.clientY - rc.top) >= rc.height / 2); };
     });
   };
   draw(); ov.appendChild(pane);
@@ -17936,13 +17967,17 @@ function reportPreview() {
       <button id="rpShare" style="background:#25D366;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer">📲 שתף</button>
       <button id="rpClose" style="border:1px solid #ddd;background:#fff;border-radius:9px;padding:9px 14px;cursor:pointer">ביטול</button>
     </div>
+    <div id="rpTabs" style="background:#fff;border-radius:12px;padding:6px 10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;box-shadow:0 8px 30px rgba(0,0,0,.25);max-width:96vw"><span style="font-size:11.5px;color:#666">חלקי הדוח:</span>${RP_TABS.map((t, i) => `<button data-rpview="${t.id}" style="border-radius:9px;padding:6px 12px;font-weight:800;border:1px solid #ddd;background:#fff;cursor:pointer">${i + 1} · ${t.ic} ${t.n} <span data-rptabn="${t.id}" style="font-weight:400;font-size:11px"></span></button>`).join('')}<button data-rpview="all" style="border-radius:9px;padding:6px 12px;border:1px solid #ddd;background:#fff;cursor:pointer">הכול</button><span style="font-size:11px;color:#777">ההדפסה וה-PDF — לחלק המוצג</span></div>
     <div id="rpPage" style="flex:1;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.4);width:min(1000px,96vw);padding:22px"></div>`;
   document.body.appendChild(ov);
-  rpPrevFill(ov);   /* עותק של הדוח — המקור נשאר מוכן להדפסה; נבנה מחדש אחרי כל שינוי בעורך המבנה */
+  if (!window.__rpTab) window.__rpTab = 'cust';
+  ov.querySelectorAll('[data-rpview]').forEach(b => b.onclick = () => { window.__rpTab = b.dataset.rpview; rpPrevFill(ov); });
+  rpPrevFill(ov);   /* עותק של הדוח — המקור נשאר מוכן להדפסה; נבנה מחדש אחרי כל שינוי בעורך המבנה או מעבר חלק */
   ov.querySelector('#rpEdit').onclick = () => rpLayoutEditor(ov);
   ov.querySelector('#rpClose').onclick = () => ov.remove();
   ov.querySelector('#rpPrint').onclick = () => {
     ov.remove();
+    try { rpTabMark($('#report'), window.__rpTab || 'cust'); } catch {}   /* מדפיסים רק את החלק המוצג; חוזר למלא אחרי ההדפסה */
     document.body.classList.add('printing');
     setTimeout(() => window.print(), 80);
   };
@@ -17955,7 +17990,7 @@ function reportPreview() {
   };
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
-window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
+window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); try { rpTabMark($('#report'), 'all'); } catch {} });
 
 impItems = impLoad();
 render(); viewToContent();
