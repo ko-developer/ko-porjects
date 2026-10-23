@@ -7201,6 +7201,16 @@ function unitMainsW(name) {
   const m = /צריכ[הת]\s*(?:חשמל\s*)?(?:מקס[׳']?\s*)?(\d{2,5})\s*W/i.exec(txt) || /(?:power\s*consumption|mains)\D{0,12}(\d{2,5})\s*W/i.exec(txt);
   return m ? +m[1] : null;
 }
+/* סוג התקע/ההזנה של יחידה בארון: מהספרייה (שדה "תקע" בטבלת הנתונים), מטבלת המגברים (plug), או ממחבר ה-power בפריסת הגב של הדגם; אין = null */
+function unitPlug(name) {
+  const k = typeof rearKey === 'function' ? rearKey(name || '') : '';
+  const lib = k && store.ampLib && store.ampLib[k];
+  if (lib && lib.plug) return String(lib.plug);
+  const d = (typeof AMP_DATA !== 'undefined' ? AMP_DATA : []).find(x => x.re && x.re.test(name || ''));
+  if (d && d.plug) return d.plug;
+  try { const it = (rearLayout(name) || []).find(x => x.t === 'power'); if (it) return 'AC' + (it.label && !/^AC$/i.test(it.label) ? ' · ' + it.label : '') + ' (לפי פריסת הגב)'; } catch {}
+  return null;
+}
 function isSrcNode(n) {
   if (!n || n.kind === 'rack') return false;
   if (n.srcKind) return true;
@@ -9026,7 +9036,7 @@ const AMP_DATA = [
   { re: /DYNAMIQ\s?-?(?:4600|600\s?x\s?4)/i, kind: 'amp', ch: 4, mo: 4, ok: 1, w: '4×600W @8Ω · 4×900W @4Ω · גשר 2×1800W @8Ω · DSP + AES67 (2× RJ45 RAVENNA) · 4× XLR IN · 4× ספיקון · 1U · 483×45×299 מ"מ · צריכה 4800W', pw: { 8: 600, 4: 900 }, br: { 8: 1800 }, mains: 4800, man: 'מדריך יצרן DynamiQ-600x4 (PDF)' },
   { re: /DYNAMIQ\s?450/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×300W @8Ω · 2×450W @4Ω · גשר 900W @8Ω · DSP + AES67', pw: { 8: 300, 4: 450 }, br: { 8: 900 }, url: 'https://www.kt-audio.com/products/unicorn-dynamiq-450', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf', io: 'XLR balanced input, dual RJ45 (AES67) / Speakon 4-pole output', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf?v=1774536680' },
   { re: /DYNAMIQ\s?750/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×500W @8Ω · 2×750W @4Ω · גשר 1500W @8Ω · DSP + AES67', pw: { 8: 500, 4: 750 }, br: { 8: 1500 }, url: 'https://www.kt-audio.com/products/unicorn-dynamiq-750', pdf: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf', io: 'XLR balanced input, dual RJ45 (AES67) / Speakon 4-pole output', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/Dynamiq.pdf?v=1774536680' },
-  { re: /MX3\s?-?\s?700/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×700W @8Ω · 2×1000W @4Ω · גשר 2000W @8Ω', pw: { 8: 700, 4: 1000 }, br: { 8: 2000 }, url: 'https://www.kt-audio.com/products/unicorn-mx3-700', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MX3_Series_Manual.pdf?v=1776079829' },
+  { re: /MX3\s?-?\s?700/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×700W @8Ω · 2×1000W @4Ω · גשר 2000W @8Ω', pw: { 8: 700, 4: 1000 }, br: { 8: 2000 }, plug: 'כבל חשמל 3×1.0 ממ״ר, תקע 10A/250V (דף היצרן)', url: 'https://www.kt-audio.com/products/unicorn-mx3-700', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MX3_Series_Manual.pdf?v=1776079829' },
   { re: /MX3\s?-?\s?200/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×200W @8Ω · MX3 Series', pw: { 8: 200 }, url: 'https://www.kt-audio.com/products/unicorn-mx3-200-750', man: 'https://cdn.shopify.com/s/files/1/0821/7804/8283/files/MX3_Series_Manual.pdf?v=1776079829' },
   { re: /DAP\s?4200/i, kind: 'amp', ch: 3, mo: 4, ok: 1, w: '2×400W + 1500W sub @8Ω · 2×800W + 2000W @4Ω · DSP', pw: { 8: 400, 4: 800 }, url: 'https://www.kt-audio.com/products/unicorn-dap-4200' },
   { re: /DAP\s?800/i, kind: 'amp', ch: 2, mo: 4, ok: 1, w: '2×800W @4Ω · DSP', pw: { 4: 800 }, url: 'https://www.kt-audio.com/products/unicorn-dap-800' },
@@ -9087,10 +9097,10 @@ const AMP_DATA = [
   { re: /\bSIX\b|XTA.*SIX/i, kind: 'proc', io: '6×6', w: 'XTA Six', ok: 1, url: 'https://xta.co.uk/portfolio/six/' },
   { re: /\bMX36\b|XTA.*MX/i, kind: 'proc', io: '3×6', w: 'XTA MX', ok: 1, url: 'https://xta.co.uk/portfolio/mx36/' },
   { re: /DS8000/i, kind: 'proc', io: '8×8', w: 'XTA DS8000', ok: 1, url: 'https://xta.co.uk/portfolio/ds8000/' },
-  { re: /DMX\s?208\s?L/i, kind: 'proc', io: '4×4 (+4×4 AES67)', w: 'DigiSynthetic · הזנה PoE-af (15W) או DC 12V-1.5A → צריכה מקס׳ 18W (לפי דירוג ההזנה) · 1/4U חצי רוחב', mains: 18, ok: 1, url: 'https://www.digisynthetic.com/products/dsp-processor/dmx208l' },
+  { re: /DMX\s?208\s?L/i, kind: 'proc', io: '4×4 (+4×4 AES67)', w: 'DigiSynthetic · הזנה PoE-af (15W) או DC 12V-1.5A → צריכה מקס׳ 18W (לפי דירוג ההזנה) · 1/4U חצי רוחב', mains: 18, plug: 'PoE-af או DC 12V (ספק)', ok: 1, url: 'https://www.digisynthetic.com/products/dsp-processor/dmx208l' },
   /* ציוד ארון שאינו מגבר/פרוססור — לצריכת החשמל בדוח החשמלאי (טאב "🔌 ציוד אחר") */
-  { re: /TL-SG1210P|TL-?SG\s?-?121[0O]P/i, kind: 'other', io: 'מתג PoE+', w: 'TP-Link TL-SG1210P · 8× PoE+ (תקציב 63W) + RJ45 + SFP · צריכה מקס׳ 77.24W עם 63W PD, 7.0W בלי PD (דף היצרן) · ספק 53.5V/1.31A · 209×126×26 מ"מ', mains: 78, ok: 1, url: 'https://www.tp-link.com/us/business-networking/poe-switch/tl-sg1210p/' },
-  { re: /WIIM\s?ULTRA(?!\s?AMP)/i, kind: 'other', io: 'סטרימר / קדם-מגבר', w: 'WiiM Ultra · הזנה 100–240V AC, 0.5A מקס׳ → עד 115VA (לפי הזרם הנקוב) · 211×200×72 מ"מ · 1.42 ק"ג', mains: 115, ok: 1, url: 'https://www.wiimhome.com/wiimultra/specs' }
+  { re: /TL-SG1210P|TL-?SG\s?-?121[0O]P/i, kind: 'other', io: 'מתג PoE+', w: 'TP-Link TL-SG1210P · 8× PoE+ (תקציב 63W) + RJ45 + SFP · צריכה מקס׳ 77.24W עם 63W PD, 7.0W בלי PD (דף היצרן) · ספק 53.5V/1.31A · 209×126×26 מ"מ', mains: 78, plug: 'ספק חיצוני DC 53.5V/1.31A', ok: 1, url: 'https://www.tp-link.com/us/business-networking/poe-switch/tl-sg1210p/' },
+  { re: /WIIM\s?ULTRA(?!\s?AMP)/i, kind: 'other', io: 'סטרימר / קדם-מגבר', w: 'WiiM Ultra · הזנה 100–240V AC, 0.5A מקס׳ → עד 115VA (לפי הזרם הנקוב) · 211×200×72 מ"מ · 1.42 ק"ג', mains: 115, plug: 'כבל AC מצורף (100–240V, 0.5A)', ok: 1, url: 'https://www.wiimhome.com/wiimultra/specs' }
 ];
 const prettyRe = re => String(re).replace(/^\/|\/i?$/g, '').replace(/\(\?![^)]*\)/g, '').replace(/\(([^()|?]*)\)\?/g, '$1').replace(/\\\+/g, '+').split('|')[0]
   .replace(/\[[^\]]*\]\??/g, ' ').replace(/\\s\?|\\s\*|\\s|\\b|\\\.|\(|\)|\?|\^|\$|-\?/g, ' ').replace(/\s+/g, ' ').trim();
@@ -9172,7 +9182,7 @@ function spkDataManager(tab) {
   const allBrands = [...new Set(rows.map(r => r.brand).concat(['Funktion-One', 'Kling & Freitag', 'KT Audio', 'XTA', 'Yamaha', 'SAE', 'Lab Gruppen', 'Crown', 'DigiSynthetic', 'Lambda Labs', 'אחר']))].sort();
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
   const heads = '<th>תמונה</th>' + (tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th title="פסיבי = קו אחד · Bi-amp = HI+LOW · Tri-amp = HI+MID+LOW — כל פס מקבל ערוץ מגבר משלו בפאץ׳">הגברה</th><th>קישורים<br>🔗📄📘</th>' :
-    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : (tab === 'other' ? '<th>סוג</th>' : '<th>כניסות×יציאות</th>') + '<th>רשת / תאימות</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th style="text-align:right">הערות</th><th>קישור</th>');
+    tab === 'amp' ? '<th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th title="סוג התקע / ההזנה (IEC, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי">תקע</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : (tab === 'other' ? '<th>סוג</th>' : '<th>כניסות×יציאות</th>') + '<th>רשת / תאימות</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th title="סוג התקע / ההזנה (IEC, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי">תקע</th><th style="text-align:right">הערות</th><th>קישור</th>');
   const ov = document.createElement('div');
   ov.id = 'spkDbOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
@@ -9196,7 +9206,7 @@ function spkDataManager(tab) {
     const c = r.ok ? '#0f8a5f' : '#c1121f';
     const bg = r.ok ? '#eef7f1' : '#fdeeee';
     const arg = r.lk ? `'${jsq(r.lk)}'` : `null,${r.bi}`;
-    const colspan = tab === 'spk' ? 13 : tab === 'amp' ? 14 : 9;
+    const colspan = tab === 'spk' ? 13 : tab === 'amp' ? 15 : 10;
     const brandHdr = (ri === 0 || rows[ri - 1].brand !== r.brand) ? `<tr style="background:#e9e4db"><td colspan="${colspan}" style="padding:4px 6px;font-weight:800;font-size:12px">🏷 ${esc(r.brand)}</td></tr>` : '';
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
     const nmA = jsq(r.name);
@@ -9220,11 +9230,13 @@ function spkDataManager(tab) {
        <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="—" title="רשת אודיו (Dante / AES67 / OMNEO) — ריק = אין" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
        ${['8', '4', '2.7', '2'].map(o => { const v = (r.d.pw || {})[o]; return `<td style="text-align:center"><input value="${v ?? ''}" placeholder="—" title="הספק לערוץ ב-${o}Ω (W)" style="width:54px;text-align:center;border:1px solid ${v != null ? c : '#ddd'};background:${v != null ? bg : '#fff'};border-radius:4px;font-size:11.5px;font-weight:${v != null ? 700 : 400}" onchange="${fn}(${arg},'pw:${o}',this.value)"></td>`; }).join('')}
        <td style="text-align:center"><input value="${r.d.mains ?? ''}" placeholder="—" title="צריכת חשמל מקסימלית מהרשת (W) — מדף היצרן" style="width:54px;text-align:center;border:1px solid ${r.d.mains ? '#0f8a5f' : '#ddd'};border-radius:4px;font-size:11.5px" onchange="${fn}(${arg},'mains',this.value)"></td>
+       <td style="text-align:center"><input value="${esc(r.d.plug || '')}" placeholder="—" title="סוג התקע / ההזנה (IEC C14, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי" style="width:90px;text-align:center;border:1px solid ${r.d.plug ? '#0f8a5f' : '#ddd'};border-radius:4px;font-size:10.5px" onchange="${fn}(${arg},'plug',this.value)"></td>
        <td>${(() => { const ex = Object.entries(r.d.pw || {}).filter(([o]) => !['8', '4', '2.7', '2'].includes(String(o))).map(([o, v]) => `${v}W @${o}${+o >= 50 ? 'V' : 'Ω'}`).join(' · '); return ex ? `<div style="font-size:10.5px;color:#0f6e56;font-weight:700;white-space:nowrap">${esc(ex)}</div>` : ''; })()}<input value="${esc(r.d.w || '')}" title="${esc(r.d.w || '')}" style="width:100%;min-width:150px;border:1px solid #ddd;border-radius:4px;font-size:10.5px;color:#555" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>` :
         `<td style="text-align:center"><input value="${esc(r.d.io || '')}" style="width:56px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'io',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="?" title="רשת דיגיטלית (Dante / AES67 / OMNEO) ותאימות תכנה עם מוצרים אחרים" style="width:110px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
        <td style="text-align:center"><input value="${r.d.mains ?? ''}" placeholder="—" title="צריכת חשמל מקסימלית מהרשת (W) — מדף היצרן" style="width:54px;text-align:center;border:1px solid ${r.d.mains ? '#0f8a5f' : '#ddd'};border-radius:4px;font-size:11.5px" onchange="${fn}(${arg},'mains',this.value)"></td>
+       <td style="text-align:center"><input value="${esc(r.d.plug || '')}" placeholder="—" title="סוג התקע / ההזנה (IEC C14, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי" style="width:90px;text-align:center;border:1px solid ${r.d.plug ? '#0f8a5f' : '#ddd'};border-radius:4px;font-size:10.5px" onchange="${fn}(${arg},'plug',this.value)"></td>
        <td><input value="${esc(r.d.w || '')}" style="width:100%;border:1px solid #ccc;border-radius:4px;font-size:11px" onchange="${fn}(${arg},'w',this.value)"></td>
        <td style="text-align:center;white-space:nowrap">${r.d.url ? `<a href="${esc(r.d.url)}" target="_blank" title="דף המוצר">🔗</a>` : ''}${r.d.pdf ? `<a href="${esc(r.d.pdf)}" target="_blank" title="PDF">📄</a>` : ''}${r.d.man ? `<a href="${esc(r.d.man)}" target="_blank" title="מדריך משתמש (PDF)">📘</a>` : ''}<button style="padding:0 4px;font-size:10px" title="עריכת קישור לדף המוצר / PDF" onclick="editAmpLink(${arg})">✎</button></td>`);
     const ampMode = tab === 'spk' ? (meta.amp || spkAmpMode(r.name)) : 'passive';
@@ -17185,24 +17197,25 @@ function rackSection(n) {
   const sorted = [...n.units].sort((a, b) => a.pos - b.pos);
   let ut = '', mwSum = 0, mwMiss = 0;
   for (const u of sorted) { const mw = unitMainsW(u.name); if (mw) mwSum += mw; else mwMiss++;
-    ut += `<tr><td>U${u.pos + 1}</td><td>${esc(u.name)}</td><td>${u.u}U</td><td>${(CATS[u.cat] || CATS.other).n}</td><td style="text-align:center;white-space:nowrap">${mw ? '<b>' + mw + '</b> W' : '<span style="color:#b00;font-size:11px" title="אין נתון יצרן — להזין בטבלת הנתונים הטכניים (🎚 מגברים / 🎛 פרוססורים)">לא ידוע</span>'}</td></tr>`; }
-  if (sorted.length) ut += `<tr style="background:#f6f2ea;font-weight:700"><td colspan="4">סה״כ צריכה מקסימלית${mwMiss ? ' <span style="font-weight:400;color:#777">(לפי ' + (sorted.length - mwMiss) + ' מתוך ' + sorted.length + ' פריטים עם נתון יצרן)</span>' : ''}</td><td style="text-align:center;white-space:nowrap">${mwSum ? '<b>' + mwSum + '</b> W' : '—'}</td></tr>`;
-  const cbs = P.cables.map((c, i) => ({ c, i })).filter(({ c }) => c.from === n.id || c.to === n.id);
+    ut += `<tr><td>U${u.pos + 1}</td><td>${esc(u.name)}</td><td>${u.u}U</td><td>${(CATS[u.cat] || CATS.other).n}</td><td style="text-align:center;white-space:nowrap">${mw ? '<b>' + mw + '</b> W' : '<span style="color:#b00;font-size:11px" title="אין נתון יצרן — להזין בטבלת הנתונים הטכניים (🎚 מגברים / 🎛 פרוססורים)">לא ידוע</span>'}</td><td style="font-size:11px">${(() => { const pg = unitPlug(u.name); return pg ? esc(pg) : '<span style="color:#b00" title="להזין בשדה \'תקע\' בטבלת הנתונים הטכניים">לא ידוע</span>'; })()}</td></tr>`; }
+  if (sorted.length) ut += `<tr style="background:#f6f2ea;font-weight:700"><td colspan="4">סה״כ צריכה מקסימלית${mwMiss ? ' <span style="font-weight:400;color:#777">(לפי ' + (sorted.length - mwMiss) + ' מתוך ' + sorted.length + ' פריטים עם נתון יצרן)</span>' : ''}</td><td style="text-align:center;white-space:nowrap">${mwSum ? '<b>' + mwSum + '</b> W' : '—'}</td><td></td></tr>`;
+  /* לחשמלאי רק הכבלים שיוצאים מהארון / נכנסים אליו (פאצ'ים פנימיים בארון — בחלק המתקין) */
+  const cbs = P.cables.map((c, i) => ({ c, i })).filter(({ c }) => (c.from === n.id || c.to === n.id) && !(c.from === n.id && c.to === n.id));
+  /* שם קצר: דגם + מספר הרמקול בתכנית + האזור */
+  const shortEnd = (nid, unitId) => { const o = byId(nid); if (!o) return '?'; const u = unitOf(nid, unitId); const inst = /\((\d+)\)\s*$/.exec(o.name || ''); const base = u ? (shortModel(u.name) || u.name.slice(0, 30)) + ' <span style="color:#777">(' + esc(o.name) + ')</span>' : esc(shortModel(o.name) || (o.name || '').slice(0, 30)) + (inst ? ' <b>(' + inst[1] + ')</b>' : ''); const zn = o.kind === 'point' && typeof zoneAt === 'function' ? zoneAt({ x: 2200 - o.x - 20, y: o.y + 20 }) : null; return base + (zn ? ' <span style="font-size:10.5px;color:#777">· ' + esc(zn.name) + '</span>' : ''); };
   let ct = '';
   for (const { c, i } of cbs) {
-    const inner = c.from === n.id && c.to === n.id;
-    const dirTxt = inner ? 'פנימי' : (c.from === n.id ? 'יוצא' : 'נכנס');
+    const inner = false;
+    const dirTxt = c.from === n.id ? 'יוצא' : 'נכנס';
     const dev = c.from === n.id ? unitOf(n.id, c.fromUnit) : unitOf(n.id, c.toUnit);
-    const other = inner
-      ? `${esc(unitOf(n.id, c.fromUnit)?.name || '?')} ↔ ${esc(unitOf(n.id, c.toUnit)?.name || '?')}`
-      : (c.from === n.id ? endName(c.to, c.toUnit) : endName(c.from, c.fromUnit));
+    const other = c.from === n.id ? shortEnd(c.to, c.toUnit) : shortEnd(c.from, c.fromUnit);
     const cdm = (typeof conduitFor === 'function' && !inner) ? conduitFor(c) : null;
-    ct += `<tr><td><span class="badge" style="background:${cableColor(c)}">${i + 1}</span></td><td>${dirTxt}</td><td>${dev ? esc(dev.name) : '—'}</td><td>${other}</td><td>${CTYPES[c.type].n}</td><td>${esc(c.spec || '')}</td><td style="text-align:center;white-space:nowrap">${cdm ? '<b>Ø' + cdm.mm + '</b> <span style="font-size:10px;color:#777">מ״מ</span>' : inner ? '—' : ''}</td></tr>`;
+    ct += `<tr><td><span class="badge" style="background:${cableColor(c)}">${i + 1}</span></td><td>${dirTxt}</td><td>${dev ? esc(shortModel(dev.name) || dev.name.slice(0, 30)) : '—'}</td><td>${other}</td><td>${CTYPES[c.type].n}</td><td>${esc(c.spec || '')}</td><td style="text-align:center;white-space:nowrap">${cdm ? '<b>Ø' + cdm.mm + '</b> <span style="font-size:10px;color:#777">מ״מ</span>' : inner ? '—' : ''}</td></tr>`;
   }
   const used = n.units.reduce((s, u) => s + u.u, 0);
   return `<div class="rp-sec" data-rpk="rack:${n.id}" data-rpf="rack"><h3>⚡ תכנית הדרכה לחשמלאי — ${esc(n.name)}${n.rtype && RACK_TYPES[n.rtype] ? ' · ' + RACK_TYPES[n.rtype].ic + ' ' + esc(RACK_TYPES[n.rtype].n) : ''}${n.sub ? ' — ' + esc(n.sub) : ''} · ${n.ru}U (${used}U בשימוש)</h3>
     <h4 style="font-size:13px;margin:0 0 8px;color:#534ab7">היחידות בארון, הכבלים המחוברים אליו עם חתך הצינור המומלץ, והתכנית המשולבת של כל המערכת</h4>
-    <table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th><th title="צריכת חשמל מקסימלית מהרשת לפי היצרן">צריכה מקס׳</th></tr>${ut || '<tr><td colspan="5">ארון ריק</td></tr>'}</table>
+    <table class="cablelist"><tr><th>מיקום</th><th>יחידה</th><th>גובה</th><th>קטגוריה</th><th title="צריכת חשמל מקסימלית מהרשת לפי היצרן">צריכה מקס׳</th><th title="סוג התקע / ההזנה של היחידה (לפי היצרן או פריסת הגב)">סוג תקע</th></tr>${ut || '<tr><td colspan="6">ארון ריק</td></tr>'}</table>
     <div class="rp-flex" data-rackimgs="${n.id}" data-rackname="${esc(n.name)}" style="margin-top:10px;align-items:flex-start;gap:16px">
       <div class="rp-rails" style="width:${RW}px;flex:none"><div class="rails" style="height:${n.ru * RU}px;position:relative;background:repeating-linear-gradient(180deg, #2b2e34 0 ${RU - 2}px, #26292f ${RU - 2}px ${RU}px)">${rows}</div>
         <div style="font-size:10.5px;color:#777;text-align:center;margin-top:3px">חזית הארון</div></div>
