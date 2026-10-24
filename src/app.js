@@ -2880,7 +2880,7 @@ function renderHeader() {
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>
     <button onclick="rearLibManager()">🛠 ספריית גבי מוצרים</button>
     <button onclick="spkDataManager()">🔊 טבלת נתוני רמקולים/מגברים</button>`;
-  document.body.classList.toggle('wiring', !!wireMode || !!pinMode || !!calMode || !!zoneMode || !!connPin || !!window.__asPick || !!window.__riserPick || !!window.__rackPlace || !!window.__djPlace || !!window.__micPlace);
+  document.body.classList.toggle('wiring', !!wireMode || !!pinMode || !!calMode || !!zoneMode || !!connPin || !!window.__asPick || !!window.__asTable || !!window.__riserPick || !!window.__rackPlace || !!window.__djPlace || !!window.__micPlace);
 }
 
 function viewMenuHTML() {
@@ -5017,7 +5017,7 @@ document.addEventListener('keydown', e => {
   if (selHole || brushOn) { selHole = null; brushOn = false; render(); return; }
   if (sketchMode) { if (sketchMode.cur && sketchMode.cur.length) { sketchMode.cur = []; renderWires(); } else sketchEnd(); return; }
   if (conduitMode) { conduitPickEnd(); return; }
-  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd || window.__asPick || window.__riserPick) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; window.__asPick = null; window.__riserPick = null; window.__fxDetAdd = null; window.__pick2 = null; window.__fxSel = null; if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') setTimeout(wizRender, 0); if (P.fxDet && P.fxDet.selSet) P.fxDet.selSet = null; if (window.__fxPath && typeof fxPathEnd === 'function') fxPathEnd(false); document.body.style.cursor = ''; render(); }
+  if (wireMode || pinMode || calMode || zoneMode || connPin || replFor || window.__moveEnd || window.__asPick || window.__asTable || window.__riserPick) { wireMode = null; wireStock = null; pinMode = null; calMode = null; zoneMode = null; connPin = null; replFor = null; window.__moveEnd = null; window.__asPick = null; window.__asTable = null; window.__riserPick = null; window.__fxDetAdd = null; window.__pick2 = null; window.__fxSel = null; if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') setTimeout(wizRender, 0); if (P.fxDet && P.fxDet.selSet) P.fxDet.selSet = null; if (window.__fxPath && typeof fxPathEnd === 'function') fxPathEnd(false); document.body.style.cursor = ''; render(); }
 });
 function connGlyph(conn) {
   const ct = CONNS[conn] || CONNS.empty, C = ct.c;
@@ -11207,7 +11207,7 @@ document.addEventListener('pointerdown', e => {
   }
   /* ציור אזור סאונד — ניקור נקודות עד סגירת הצורה */
   if (sketchMode && e.target.closest('#canvasWrap') && !e.target.closest('#sketchBar') && !e.target.closest('[data-skobj]')
-    && !(window.__rackPlace || window.__djPlace || window.__micPlace || window.__nodePlace || pinMode || wireMode || calMode || zoneMode || connPin || window.__riserPick || window.__asPick)) {   /* מצב הצבה פעיל (ריכוז ארון, עמדה, נעיצת מוצר…) — הלחיצה שלו, לא של כלי השרטוט */
+    && !(window.__rackPlace || window.__djPlace || window.__micPlace || window.__nodePlace || pinMode || wireMode || calMode || zoneMode || connPin || window.__riserPick || window.__asPick || window.__asTable)) {   /* מצב הצבה פעיל (ריכוז ארון, עמדה, נעיצת מוצר…) — הלחיצה שלו, לא של כלי השרטוט */
     const p2 = canvasPt(e);
     { const wEl = e.target.closest('[data-skwall]'); if (wEl && (sketchMode.tool === 'select' || sketchMode.tool === 'erase')) { skWallPick(+wEl.dataset.skwall); e.preventDefault(); return; } }
     if (sketchMode.tool === 'wall') {
@@ -11271,6 +11271,11 @@ document.addEventListener('pointerdown', e => {
   if (window.__asPick && e.target.closest('#canvasWrap')) {
     const p = canvasPt(e); window.__asPick = null; render();
     if (typeof asVerifyAt === 'function') asVerifyAt(p);
+    e.preventDefault(); return;
+  }
+  if (window.__asTable && e.target.closest('#canvasWrap')) {   /* כיול לפי שולחן מסומן — נשאר במצב לשולחן הבא */
+    const p = canvasPt(e);
+    if (typeof asTableAt === 'function') asTableAt(p);
     e.preventDefault(); return;
   }
   /* כיול קנה מידה — שתי לחיצות על נקודות שהמרחק ביניהן ידוע */

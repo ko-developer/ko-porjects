@@ -182,7 +182,7 @@ function asLabel(r) {
   const c = r.conf === 'high' ? '🟢 בטוח' : r.conf === 'medium' ? '🟡 סביר — אשר' : r.conf === 'low' ? '🟠 חלש — בדוק' : '🔴 לא זוהה';
   const parts = [];
   if (r.ratio) parts.push('כיתוב 1:' + r.ratio);
-  if (r.chain) parts.push(r.chain.n + ' זוגות מידות ב' + ({ mm: 'מ״מ', cm: 'ס״מ', m: 'מטר' }[r.chain.unit] || r.chain.unit) + ' (פיזור ' + (r.chain.mad * 100).toFixed(1) + '%)');
+  if (r.chain) parts.push(r.chain.furniture ? r.chain.n + ' שולחנות עם מידות כתובות (פיזור ' + (r.chain.mad * 100).toFixed(1) + '%)' : r.chain.n + ' זוגות מידות ב' + ({ mm: 'מ״מ', cm: 'ס״מ', m: 'מטר' }[r.chain.unit] || r.chain.unit) + ' (פיזור ' + (r.chain.mad * 100).toFixed(1) + '%)');
   if (r.dev != null) parts.push('הצלבה: סטייה ' + (r.dev * 100).toFixed(1) + '%');
   return c + ' · ' + parts.join(' · ');
 }
@@ -216,6 +216,69 @@ function asSummaryHTML() {
     ${!r.pxPerM || over ? '' : (P.calOk ? '' : `<button class="primary" style="width:100%;margin-top:6px;background:#0f6e56" onclick="P.calOk=1;save();render();if(typeof WIZ!=='undefined'&&WIZ)wizRender();uiToast('✓ קנה המידה האוטומטי אושר')">✓ הזיהוי נכון — אשר</button>`)}
     ${typeof asStepButtonsHTML === 'function' ? asStepButtonsHTML() : ''}
   </div>`;
+}
+
+/* ===== סריקת זום לתמונה: אריחים מוגדלים (כמו ב-PDF) — ספרות של 5-6px בתמונה קטנה לא נקראות בלי הגדלה ×6-10 ===== */
+async function asOcrZoomImage(img, opt = {}) {
+  const SC = opt.sc || Math.max(2, Math.min(10, 9000 / Math.max(img.width, img.height))), TILE = opt.tile || 1700, tw = TILE / SC, step = tw * 0.92;
+  const worker = await asWorker(); const tokens = [], seen = new Set();
+  const cols = Math.max(1, Math.ceil(img.width / step)), rows = Math.max(1, Math.ceil(img.height / step)), tStop = Date.now() + (opt.maxMs || 180000);
+  let done = 0, i = 0;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (Date.now() > tStop) break;
+    const x0 = c * step, y0 = r * step, wPx = Math.min(tw, img.width - x0), hPx = Math.min(tw, img.height - y0); i++;
+    if (wPx < 20 || hPx < 20) continue;
+    const cv = document.createElement('canvas'); cv.width = Math.round(wPx * SC); cv.height = Math.round(hPx * SC);
+    const g = cv.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, x0, y0, wPx, hPx, 0, 0, cv.width, cv.height);
+    if (!asPrepBin(g, cv.width, cv.height, SC)) continue;
+    done++;
+    for (const tk of await asOcrBin(worker, cv, SC, x0, y0, false)) { const key = tk.frame + '|' + tk.t + '|' + Math.round(tk.x / 3) + '|' + Math.round(tk.y / 3); if (seen.has(key)) continue; seen.add(key); tokens.push(tk); }
+    if (opt.onTile) opt.onTile(i, rows * cols, tokens.length);
+  }
+  await worker.terminate();
+  tokens.__sc = SC; return tokens;   /* פיקסלים של התמונה המקורית, y מלמעלה */
+}
+/* ===== תכניות ריהוט: מידות השולחנות ("70/70", "80/80", "130") =====
+   בתכנית ריהוט אין שרשרת מידות — אבל כל שולחן מסומן במידותיו בס״מ, והוא מצויר בגודלו האמיתי.
+   לכל כיתוב כזה צועדים מהמספר החוצה בארבעה כיוונים עד הקו הכהה הראשון שהוא באמת קו (רצף ארוך,
+   לא אות של המילה "שולחן" שמעל המספר) → רוחב/עומק השולחן בפיקסלים ↔ W/D שכתובים → פיקסל לס״מ.
+   שולחן מסובב = W/D הפוכים; מספר יחיד = שולחן עגול (קוטר). חציון על כל השולחנות + סובלנות 7%. */
+function asFurnitureEstimate(cv, tokens) {
+  const W = cv.width, H = cv.height, d = cv.getContext('2d').getImageData(0, 0, W, H).data;
+  const dark = (x, y) => x >= 0 && y >= 0 && x < W && y < H && d[(y * W + x) * 4] < 128;
+  /* אורך הרצף הכהה דרך (x,y) בניצב לכיוון הצעידה (עם סובלנות של פיקסל אחד) */
+  const runLen = (x, y, horiz) => { let n = 1; for (const s of [-1, 1]) { let gap = 0; for (let i = 1; i < 4000; i++) { const qx = horiz ? x + s * i : x, qy = horiz ? y : y + s * i; if (dark(qx, qy)) { n++; gap = 0; } else if (++gap > 1) break; } } return n; };
+  /* צעידה מ-(x,y) בכיוון (dx,dy): מרחק עד קו כהה שאורכו לפחות minRun — או null */
+  const march = (x, y, dx, dy, skip, maxD, minRun) => { for (let s = skip; s < maxD; s++) { const px = x + dx * s, py = y + dy * s; if (dark(px, py) && runLen(px, py, !!dy) >= minRun) return s; } return null; };
+  const samples = [];
+  for (const tk of tokens) {
+    const m = /^(\d{2,3})\s*[\/x×X]\s*(\d{2,3})$/.exec(tk.t || ''), m1 = !m && /^\d{2,3}$/.test(tk.t || '') ? [null, tk.t, tk.t] : null;
+    const mm = m || m1; if (!mm) continue;
+    const a = +mm[1], b = +mm[2]; if (a < 30 || a > 400 || b < 30 || b > 400) continue;
+    const vert = tk.frame !== 'h', tw = vert ? tk.h : tk.w, th = vert ? tk.w : tk.h;   /* גודל הכיתוב במסגרת התמונה */
+    if (!(th > 3)) continue;
+    const cx = Math.round(tk.x), cy = Math.round(tk.y), maxD = Math.max(80, th * 16), minRun = Math.max(8, th * 2.2);
+    /* שלוש צעידות מקבילות (מרכז ± 30% מגודל הכיתוב) — החציון מדלג על פיקסל בודד של אות */
+    const dist = (dx, dy) => { const arr = []; for (const o of [-0.3, 0, 0.3]) { const r = march(dx ? cx : cx + Math.round(o * tw), dy ? cy : cy + Math.round(o * th), dx, dy, dx ? Math.ceil(tw / 2) + 2 : Math.ceil(th / 2) + 2, maxD, minRun); if (r != null) arr.push(r); } return arr.length >= 2 ? asMedian(arr) : null; };
+    const L = dist(-1, 0), R = dist(1, 0), U = dist(0, -1), D = dist(0, 1);
+    if (L == null || R == null || U == null || D == null) continue;
+    const wpx = L + R, hpx = U + D;
+    if (wpx < tw * 1.1 || hpx < th * 1.5) continue;
+    const cands = m1 ? [[a, a]] : [[a, b], [b, a]];   /* שולחן מסובב — W/D מתחלפים */
+    let best = null;
+    for (const [rw, rd] of cands) { const kx = wpx / rw, ky = hpx / rd, dev = Math.abs(kx - ky) / ((kx + ky) / 2); if (dev <= 0.12 && (!best || dev < best.dev)) best = { kx, ky, dev, rw, rd }; }
+    if (!best) continue;
+    samples.push({ t: tk.t, k: (best.kx + best.ky) / 2 * 100, dev: best.dev, cx: cx - L + wpx / 2, cy: cy - U + hpx / 2, wpx, hpx, rw: best.rw, rd: best.rd, single: !!m1 });
+  }
+  window.__asFurn = samples;
+  if (samples.length < 2) return null;
+  const med = asMedian(samples.map(s => s.k));
+  const inl = samples.filter(s => Math.abs(s.k - med) / med <= 0.07);
+  if (inl.length < 2) return null;
+  const k2 = asMedian(inl.map(s => s.k)), mad = asMedian(inl.map(s => Math.abs(s.k - k2))) / k2;
+  const marks = inl.slice(0, 40).map(s => ({ a: s.t, b: s.t, va: s.rw / 100, vb: s.rd / 100, vert: false, real: s.rw / 100, ax: s.cx, ay: s.cy, aw: s.wpx, ah: s.hpx, bx: s.cx, by: s.cy, bw: s.wpx, bh: s.hpx }));
+  return { unit: 'cm', k: k2, n: inl.length, total: samples.length, mad, furniture: true, marks,
+    samples: inl.slice(0, 6).map(s => ({ a: s.t, b: 'נמדד ' + Math.round(s.wpx) + '×' + Math.round(s.hpx) + 'px', real: s.rw / 100, k: s.k })) };
 }
 
 /* ================= PDF: שכבת הטקסט ================= */
@@ -363,7 +426,7 @@ async function asOcrBin(worker, cv, SC, x0, y0, hOnly) {
     const res = await worker.recognize(c2);
     for (const wd of (res.data.words || [])) {
       const txt = (wd.text || '').trim();
-      if (!txt || wd.confidence < 55 || !/^\d+([.,]\d+)?$|1\s*[:\/]\s*\d{2,4}/.test(txt)) continue;
+      if (!txt || wd.confidence < 55 || !/^\d+([.,]\d+)?$|1\s*[:\/]\s*\d{2,4}|^\d{2,3}\/\d{2,3}$/.test(txt)) continue;   /* גם מידות ריהוט 70/70 */
       const bb = wd.bbox, p = map((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2);
       out.push({ t: txt, x: x0 + p.x / SC, y: y0 + p.y / SC, w: (bb.x1 - bb.x0) / SC, h: (bb.y1 - bb.y0) / SC, frame, c: wd.confidence });
     }
@@ -500,7 +563,20 @@ async function autoScaleImage(img, bgW) {
     let sheetK = null, sheet = '';
     if (ratio) { const SH = { A0: 1189, A1: 841, A2: 594, A3: 420, A4: 297 }; const st = tokens.map(t => /^\s*(A[0-4])\s*$/i.exec(t.t || '')).filter(Boolean)[0] || /(?:גיליון|גליון|פורמט|format|sheet)\s*[:\-]?\s*(A[0-4])\b/i.exec(lines.join(' \n ')) || /\b(A[0-4])\s*(?:גיליון|גליון)/i.exec(lines.join(' \n '));
       if (st) { sheet = st[1].toUpperCase(); sheetK = Math.max(cv.width, cv.height) / (SH[sheet] / 1000 * ratio.n); } }
-    const r = asDecide(tokens, ratio, sheetK);
+    let r = asDecide(tokens, ratio, sheetK);
+    /* לא נמצא בקריאה המהירה: סריקת זום באריחים מוגדלים — הספרות בתמונה קטנה (5-6px) נקראות רק בהגדלה */
+    if (!r.unitPerM || r.conf === 'low' || r.conf === 'none') { try {
+      const t2 = await asOcrZoomImage(img, { onTile: (i, n, nt) => { if (i % 4 === 0) uiToast('🔍 סורק את התכנית בהגדלה… אריח ' + i + '/' + n + ' · ' + nt + ' מספרים נקראו', 3000); } });
+      for (const tk of t2) tokens.push({ t: tk.t, x: tk.x * k, y: tk.y * k, w: tk.w * k, h: tk.h * k, frame: tk.frame, c: tk.c, zoom: true });
+      window.__asTokens = tokens;
+      const lines2 = [...asLines(tokens, 'h'), ...asLines(tokens, 'v'), ...asLines(tokens, 'w')].map(l => l.text);
+      const ratio2 = ratio || asFindRatio(lines2.concat(tokens.map(t => t.t)), tokens);
+      const r2 = asDecide(tokens, ratio2, sheetK); if (r2.unitPerM && (!r.unitPerM || (r2.chain && (!r.chain || r2.chain.n > r.chain.n)))) r = r2;
+    } catch (e) { console.warn('zoom image', e); } }
+    /* תכנית ריהוט (בלי שרשרת מידות): מידות השולחנות הכתובות — 70/70, 80/80, 130 */
+    if (!r.unitPerM || r.conf === 'low' || r.conf === 'none') { try { const f = asFurnitureEstimate(cv, tokens);
+      if (f && (!r.chain || f.n >= 2)) { r.chain = { unit: 'cm', n: f.n, total: f.total, mad: f.mad, k: f.k, samples: f.samples, marks: f.marks, furniture: true }; r.unitPerM = f.k; r.conf = f.n >= 5 && f.mad <= 0.03 ? 'high' : f.n >= 3 ? 'medium' : 'low'; r.method = 'furniture'; r.dev = null;
+        r.note = 'לפי מידות הריהוט הכתובות בשרטוט: ' + f.n + ' שולחנות עם כיתוב (' + [...new Set(f.samples.map(x => x.a))].slice(0, 4).join(', ') + ') נמדדו ונמצאו עקביים' + (f.total > f.n ? ' · ' + (f.total - f.n) + ' לא תואמים הושמטו' : '') + ' — בדוק בעין את הקו האדום על שולחן'; } } catch (e) { console.warn('furniture', e); } }
     if (sheet) { r.sheet = sheet; r.note = (r.note || '') + ' · גודל הדף לפי הכיתוב "גיליון ' + sheet + '" (בהנחה שהתמונה היא הגיליון המלא)'; }
     const pxPerM = r.unitPerM ? r.unitPerM * (bgW / cv.width) : null;
     asNormMarks(r, cv.width, cv.height, false);
@@ -592,6 +668,98 @@ async function asVerifyAt(pt) {
   } catch (e) { console.warn('asVerifyAt', e); uiToast('האימות נכשל: ' + (e.message || e)); }
 }
 window.asVerifyMode = asVerifyMode; window.asVerifyAt = asVerifyAt;
+/* ===== כיול לפי שולחן מסומן (תכניות ריהוט בלי שרשרת מידות) =====
+   לחיצה על שולחן שכתובה עליו מידה (70/70, 80/80, 130…): מודדים את המלבן/העיגול הסגור שמקיף את הנקודה
+   (צעידה החוצה בארבעה כיוונים עד קו של השולחן — רכיב מחובר גדול, לא אות של הכיתוב), ושואלים מה כתוב.
+   פיקסלים ÷ ס״מ = קנה המידה. כל שולחן נוסף מחזק (חציון, סובלנות 7%). הקו האדום נוחת על קצות השולחן לבדיקה בעין. */
+function asTableBox(cv, x, y) {
+  /* חלון סביב הלחיצה (±300px בקנבס המוגדל ≈ 2 מ׳), בינארי; מוחקים רכיבים קטנים (אותיות וספרות של הכיתוב) ונשארים עם קווי השולחן, קו המידה והכיסאות */
+  const W = cv.width, H = cv.height, R = 300;
+  x = Math.round(x); y = Math.round(y);
+  const x0 = Math.max(0, x - R), y0 = Math.max(0, y - R), x1 = Math.min(W, x + R), y1 = Math.min(H, y + R), w = x1 - x0, h = y1 - y0;
+  if (w < 20 || h < 20) return null;
+  const d = cv.getContext('2d').getImageData(x0, y0, w, h).data, bin = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) bin[i] = d[i * 4] < 128 ? 1 : 0;
+  const lab = new Int32Array(w * h), st = new Int32Array(w * h); let comp = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (!bin[i] || lab[i]) continue;
+    comp++; let sp = 0, minx = w, maxx = 0, miny = h, maxy = 0; st[sp++] = i; lab[i] = comp; const pix = [];
+    while (sp) { const p = st[--sp]; pix.push(p); const yy = (p / w) | 0, xx = p - yy * w; if (xx < minx) minx = xx; if (xx > maxx) maxx = xx; if (yy < miny) miny = yy; if (yy > maxy) maxy = yy;
+      if (xx > 0 && bin[p - 1] && !lab[p - 1]) { lab[p - 1] = comp; st[sp++] = p - 1; } if (xx < w - 1 && bin[p + 1] && !lab[p + 1]) { lab[p + 1] = comp; st[sp++] = p + 1; }
+      if (yy > 0 && bin[p - w] && !lab[p - w]) { lab[p - w] = comp; st[sp++] = p - w; } if (yy < h - 1 && bin[p + w] && !lab[p + w]) { lab[p + w] = comp; st[sp++] = p + w; } }
+    const cw = maxx - minx, ch = maxy - miny;
+    /* אות / ספרה / רעש, או מילה/מספר (נמוך ורחב, עד ~90px) — נמחק; קווי שולחן (≥110px) נשארים */
+    if ((cw < 24 && ch < 24) || (ch <= 20 && cw < 90) || (cw <= 20 && ch < 90)) for (const p of pix) bin[p] = 0;
+  }
+  const cx = x - x0, cy = y - y0, dk = (px, py) => px >= 0 && py >= 0 && px < w && py < h && bin[py * w + px] === 1;
+  /* קרן מהלחיצה עד הפיקסל הכהה הראשון; שלוש קרניים מקבילות (±15px) — קו מידה שעובר דרך המרכז נתפס רק באחת והחציון מדלג עליו */
+  /* כל הפגיעות לאורך הקרן (עד 6), עם דילוג על הרצף הכהה */
+  const ray = (sx, sy, dx, dy, min) => { const hits = []; for (let s = 3; s < R && hits.length < 6; s++) { if (dk(sx + dx * s, sy + dy * s)) { if (s >= min) hits.push(s); while (s < R && dk(sx + dx * s, sy + dy * s)) s++; } } return hits[0] ?? null; };
+  const dist = (dx, dy, min) => { const a = []; for (const o of [-15, 0, 15]) { const r = ray(dx ? cx : cx + o, dy ? cy : cy + o, dx, dy, min || 0); if (r != null) a.push(r); } return a.length >= 2 ? asMedian(a) : null; };
+  /* קו מידה שעובר דרך המרכז ("⟵130⟶") נפגע קרוב מאוד; הצד שבו הפגיעה הראשונה רחוקה יותר הוא הבסיס, ובציר השני מתעלמים מפגיעות קרובות מ-30% ממנו */
+  let L = dist(-1, 0), Rr = dist(1, 0), U = dist(0, -1), D = dist(0, 1);
+  if (L == null || Rr == null || U == null || D == null) return null;
+  const hb = Math.min(L, Rr), vb = Math.min(U, D);
+  if (hb >= vb) { const min = hb * 0.3; U = dist(0, -1, min); D = dist(0, 1, min); } else { const min = vb * 0.3; L = dist(-1, 0, min); Rr = dist(1, 0, min); }
+  if (L == null || Rr == null || U == null || D == null) return null;
+  const bw = L + Rr, bh = U + D; if (bw < 12 || bh < 12) return null;
+  /* ארבעת הקצוות חייבים להיות סבירים זה מול זה (שולחן, לא פינת חדר): יחס עד 1:3 */
+  if (bw / bh > 4 || bh / bw > 4) return null;
+  return { w: bw, h: bh, cx: x - L + bw / 2, cy: y - U + bh / 2 };
+}
+function asTableMode() {
+  if (!P.bg) { uiToast('אין תכנית'); return; }
+  window.__asTable = window.__asTable ? null : { at: Date.now() }; window.__asPick = null; render();
+  if (window.__asTable) uiToast('🪑 לחץ על שולחן שכתובה עליו מידה (70/70, 130…) — על הכיתוב במרכזו · Esc לסיום', 7000);
+}
+async function asTableAt(pt) {
+  try {
+    if (P.bgRot) { uiToast('לכיול לפי שולחן סובב את התכנית חזרה ל-0°'); return; }
+    const W = P.bgW || 1400, H = bgHeightPx(), u = (pt.x - bgLeft()) / W, v = (pt.y - bgTop()) / H;
+    if (u < 0 || u > 1 || v < 0 || v > 1) { uiToast('לחץ בתוך התכנית'); return; }
+    const img = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = P.bg; });
+    const k = Math.max(1, Math.min(4, 3600 / Math.max(img.width, img.height)));
+    const key = P.id + '|' + (P.curSheet || '') + '|' + P.bg.length;
+    let cv = window.__asBin && window.__asBin.key === key ? window.__asBin.cv : null;
+    if (!cv) {
+      cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      const g = cv.getContext('2d'); g.imageSmoothingQuality = 'high'; g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+      const id = g.getImageData(0, 0, cv.width, cv.height), px = id.data;
+      for (let i = 0; i < px.length; i += 4) { const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2], v2 = l < 150 ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v2; }
+      g.putImageData(id, 0, 0); window.__asBin = { key, cv };
+    }
+    /* הלחיצה נפלה על אות של הכיתוב? מנסים גם מעט ליד */
+    let box = null; for (const [ox, oy] of [[0, 0], [6, 0], [-6, 0], [0, 6], [0, -6], [10, 10], [-10, -10], [10, -10], [-10, 10]]) { box = asTableBox(cv, u * cv.width + ox * k, v * cv.height + oy * k); if (box) break; }
+    if (!box) { uiToast('לא נמצא מלבן/עיגול סגור סביב הנקודה — לחץ במרכז השולחן, על הכיתוב', 6000); return; }
+    const def = (P.autoScale && P.autoScale.tableLast) || '70/70';
+    const ans = await uiPrompt('מה כתוב על השולחן? (בס״מ: 70/70, 80/80, 130 לעגול)\nנמדד: ' + Math.round(box.w / k) + '×' + Math.round(box.h / k) + ' פיקסלים בתכנית', def);
+    if (ans == null) return;
+    const txt = String(ans).trim(), m = /^(\d{2,3})\s*[\/x×X]\s*(\d{2,3})$/.exec(txt), m1 = /^\d{2,3}$/.test(txt);
+    if (!m && !m1) { uiToast('כתוב כמו 70/70 או 130'); return; }
+    let a = m ? +m[1] : +txt, b = m ? +m[2] : +txt;
+    if (m && Math.abs(box.w / box.h - a / b) > Math.abs(box.w / box.h - b / a)) [a, b] = [b, a];   /* שולחן מסובב — W/D מתחלפים */
+    const kx = box.w / a, ky = box.h / b, dev = Math.abs(kx - ky) / ((kx + ky) / 2);
+    /* ציר אחד נמדד גדול מדי (קרן שעברה דרך פער בקו מקווקו ופגעה בכיסא/בקיר)? הקטן מבין השניים הוא המדידה האמינה */
+    const oneAxis = dev > 0.25, kcm = oneAxis ? Math.min(kx, ky) : (kx + ky) / 2;
+    if (oneAxis) { if (kx < ky) box.h = b * kx; else box.w = a * ky; }
+    const key2 = P.id + '|' + (P.curSheet || '');
+    if (!window.__asTab || window.__asTab.key !== key2) window.__asTab = { key: key2, s: [] };
+    window.__asTab.s.push({ t: txt, k: kcm * 100, dev, cx: box.cx, cy: box.cy, wpx: box.w, hpx: box.h, rw: a, rd: b });
+    const S = window.__asTab.s, med = asMedian(S.map(x => x.k)), inl = S.filter(x => Math.abs(x.k - med) / med <= 0.07), k2 = asMedian(inl.map(x => x.k));
+    const mad = inl.length > 1 ? asMedian(inl.map(x => Math.abs(x.k - k2))) / k2 : 0;
+    const r = { ratio: null, ratioVotes: 0, unitPerM_ratio: null, unitPerM: k2, conf: inl.length >= 2 && mad <= 0.03 ? 'high' : 'medium', method: 'table', dev: null, step: 2, verified: S.length, showAll: true, tableLast: txt,
+      note: 'לפי ' + inl.length + ' שולחנות שסימנת (' + [...new Set(inl.map(x => x.t))].join(', ') + ')' + (oneAxis ? ' · השולחן האחרון נמדד לפי ציר אחד (הקו של הצד השני לא נמצא)' : dev > 0.12 ? ' · ⚠ הפרופורציה של השולחן האחרון לא תואמת למידה (' + Math.round(dev * 100) + '%)' : '') + (S.length > inl.length ? ' · ' + (S.length - inl.length) + ' לא תואמים הושמטו' : '') + ' — בדוק שהקו האדום נוחת על קצות השולחן',
+      chain: { unit: 'cm', n: inl.length, total: S.length, mad, k: k2, furniture: true, samples: inl.slice(0, 6).map(x => ({ a: x.t, b: 'נמדד ' + Math.round(x.wpx / k) + '×' + Math.round(x.hpx / k) + 'px', real: x.rw / 100, k: x.k })),
+        marks: inl.slice(0, 40).map(x => ({ a: x.t, b: x.t, va: x.rw / 100, vb: x.rd / 100, vert: false, real: x.rw / 100, ax: x.cx, ay: x.cy, aw: x.wpx, ah: x.hpx, bx: x.cx, by: x.cy, bw: x.wpx, bh: x.hpx })) } };
+    const pxPerM = k2 * (W / cv.width);
+    asNormMarks(r, cv.width, cv.height, false);
+    P.calSrc = ''; asApply(r, pxPerM, 'table', true);
+    uiToast((r.conf === 'high' ? '✓ ' : '🪑 ') + 'קנה מידה לפי השולחן: 1 מ׳ = ' + pxPerM.toFixed(1) + 'px · ' + (inl.length === 1 ? 'לחץ על שולחן נוסף לאימות (Esc לסיום)' : inl.length + ' שולחנות מסכימים'), 6000);
+    window.__asTable = { at: Date.now() }; render();   /* נשארים במצב — שולחן נוסף מחזק */
+  } catch (e) { console.warn('asTableAt', e); uiToast('הכיול לפי שולחן נכשל: ' + (e.message || e)); }
+}
+window.asTableMode = asTableMode; window.asTableAt = asTableAt;
+
 window.autoScaleFromBg = autoScaleFromBg;
 
 /* --- סימון על התכנית: איזה זוגות מידות שימשו — כדי שאפשר יהיה לוודא בעין --- */
@@ -662,6 +830,7 @@ function asStepButtonsHTML() {
   const pick = !!window.__asPick, r = P.autoScale;
   return '<div style="display:flex;gap:4px;margin-top:6px">' +
     '<button style="flex:1" onclick="autoScaleFromBg()" title="קורא את הכיתוב 1:N בחותמת השרטוט (שכבת טקסט או OCR) ומחיל אותו">🔍 ' + (r ? 'שלב 1 — זהה שוב' : 'שלב 1 — זהה קנה מידה') + '</button>' +
-    '<button style="flex:1;' + (pick ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : '') + '" onclick="asVerifyMode()" title="לחיצה ליד מספר מידה בתכנית: קורא את המידות שם ומאמת (או קובע) את קנה המידה, עם סימון אדום להשוואה בעין">📐 ' + (pick ? 'לחץ ליד מידה… (Esc)' : 'שלב 2 — אמת ליד מידה') + '</button></div>';
+    '<button style="flex:1;' + (pick ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : '') + '" onclick="asVerifyMode()" title="לחיצה ליד מספר מידה בתכנית: קורא את המידות שם ומאמת (או קובע) את קנה המידה, עם סימון אדום להשוואה בעין">📐 ' + (pick ? 'לחץ ליד מידה… (Esc)' : 'שלב 2 — אמת ליד מידה') + '</button>' +
+    '<button style="flex:1;' + (window.__asTable ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : '') + '" onclick="asTableMode()" title="תכנית ריהוט בלי שרשרת מידות: לחיצה על שולחן שכתובה עליו מידה (70/70, 130) — המלבן נמדד אוטומטית ואתה מקליד מה כתוב">🪑 ' + (window.__asTable ? 'לחץ על שולחן… (Esc)' : 'לפי שולחן מסומן') + '</button></div>';
 }
 window.asStepButtonsHTML = asStepButtonsHTML;
