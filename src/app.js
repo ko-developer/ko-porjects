@@ -111,6 +111,13 @@ const CONNS = {
 };
 /* סאב מוגבר (אקטיבי) — מקבל כבל סיגנל (RCA/XLR), לא קו רמקול */
 const isActiveSub = s => /סאב|sub|וופר/i.test(s || '') && /מוגבר|אקטיבי|active|powered/i.test(s || '');
+/* רמקול מוגבר (אקטיבי) — דורש נקודת חשמל ליד הרמקול וקו סיגנל XLR (כבל מוכן או גליל + מחברים) במקום קו הגברה. ALPHA 15x של Unicorn, Res 2A, "רמקול מוגבר" בשם, או סימון "מוגבר" בטבלת הנתונים */
+const ACTIVE_SPK_RE = /מוגבר|אקטיבי|\bactive\b|\bpowered\b|UNICORN\s?ALPHA\s?\d|\bALPHA\s?15\s?X?\b/i;
+function isActiveSpk(s) { s = String(s || ''); if (!s) return false; if (isActiveSub(s) || ACTIVE_SPK_RE.test(s)) return true; try { return typeof spkAmpMode === 'function' && spkAmpMode(s) === 'active'; } catch { return false; } }
+function isActivePoint(n) { return !!n && n.kind === 'point' && (n.ptype == null || n.ptype === 'speaker' || n.ptype === 'sub') && isActiveSpk(typeof nodeFullName === 'function' ? nodeFullName(n) : n.name); }
+/* מתקן תלייה בקופסה — כלל הבית (אורי, 10/2026): כל דגמי KT Audio וסדרת EUPHORIA של Unicorn מגיעים עם מתקן; TILL ו-PAGAZ לא. ניתן לדריסה בטבלת הנתונים ("מתקן בקופסה") */
+const BRACKET_INC_RULES = [[false, /TILL|PAGAZ/i], [true, /EUPHORIA|KT\s?AUDIO|WR\s?600|KT\s?ARRAY|MINIRAY|\bKT\s?\d{3,4}\b/i]];
+function spkBracketInc(name) { const m = typeof spkMetaFor === 'function' ? spkMetaFor(name) : null; if (m && m.inc) return m.inc === 'yes'; for (const [v, re] of BRACKET_INC_RULES) if (re.test(name || '')) return v; return null; }
 const defPanel = (count = 16, rows = 2, conn = 'xlrf') =>
   ({ mode: 'matrix', rows, holes: Array.from({ length: count }, () => ({ conn })) });
 const pCols = p => Math.ceil(p.holes.length / Math.max(1, p.rows || 1));
@@ -4255,7 +4262,7 @@ function renderNodes() {
         <div class="mnum" style="background:${isPw ? '#a32222' : '#c9502e'}">${p.holes.length}</div>
         <div class="mic" style="border-color:${isPw ? '#a32222' : '#c9502e'}">${isPw ? pwIcon : isDjNode(n) ? '<b style="font-size:11px;font-weight:900;color:#c9502e;letter-spacing:.5px;line-height:18px;display:block">DJ</b>' : '<svg width="18" height="18" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="#c9502e" stroke-width="2"/><circle cx="8" cy="12" r="2" fill="#c9502e"/><circle cx="14" cy="12" r="2" fill="#c9502e"/></svg>'}</div>
         ${cnt ? `<div class="mnum" style="background:#0f6e56;left:auto;right:-6px;top:-6px">${cnt}</div>` : ''}</div>
-        ${needsPower(n) ? `<div title="${DJ_POWER_TXT}" style="position:absolute;left:50%;top:100%;transform:translate(-50%,3px);white-space:nowrap;background:#fff3cd;color:#7a4b00;border:1.5px solid #e0a100;border-radius:6px;font-size:9.5px;font-weight:800;padding:1px 5px;line-height:1.3;pointer-events:none;z-index:3">⚡ נקודת חשמל 16A-N6 · שדה סאונד</div>` : ''}`;
+        ${needsPower(n) ? `<div title="${powerTxtOf(n)}" style="position:absolute;left:50%;top:100%;transform:translate(-50%,3px);white-space:nowrap;background:#fff3cd;color:#7a4b00;border:1.5px solid #e0a100;border-radius:6px;font-size:9.5px;font-weight:800;padding:1px 5px;line-height:1.3;pointer-events:none;z-index:3">⚡ נקודת חשמל 16A-N6 · שדה סאונד</div>` : ''}`;
       d.addEventListener('pointerdown', e => {
         if (wireMode) { handleWireClick(n.id); e.stopPropagation(); e.preventDefault(); return; }
         sel = n.id; ui.tab = 'node';
@@ -4334,6 +4341,7 @@ function renderNodes() {
       d.innerHTML = `<div data-drag="${n.id}" title="${esc(n.name)}" style="cursor:grab;position:relative">
         <div class="mnum" style="background:${mc}${stk ? ';position:absolute;left:-27px;top:50%;transform:translateY(-50%);z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.4)' : ''}">${mm ? mm[1] : '•'}</div>
         <div class="mic" style="border-color:${mc}">${icon}</div>${cplBadgeHTML(n, mc)}${nodeCabChipHTML(n, stk)}
+        ${needsPower(n) ? `<div title="${esc(powerTxtOf(n))}" style="position:absolute;left:50%;bottom:100%;transform:translate(-50%,-3px);white-space:nowrap;background:#fff3cd;color:#7a4b00;border:1.5px solid #e0a100;border-radius:6px;font-size:9px;font-weight:800;padding:0 4px;line-height:1.3;pointer-events:none;z-index:3">⚡ חשמל 16A</div>` : ''}
 </div>`; /* לחיצה על האייקון פותחת — אין צורך בכפתור צף */
       /* לחיצה על האייקון עצמו פותחת את המוקד — כמו בארון ובפאנל; גרירה נשארת גרירה */
       d.addEventListener('pointerdown', e => {
@@ -4775,7 +4783,7 @@ function toggleWire() { wireMode = wireMode ? null : { from: null }; if (!wireMo
 function wireTypeFor(nid) {
   const n = byId(nid);
   const s = ((n?.name || '') + ' ' + (n?.sub || ''));
-  if (isActiveSub(s)) return 'xlr'; /* סאב מוגבר — סיגנל RCA/XLR (עד ~10 מ׳), לא קו הגברה */
+  if (isActiveSpk(s)) return 'xlr'; /* סאב מוגבר — סיגנל RCA/XLR (עד ~10 מ׳), לא קו הגברה */
   if (/(רמקול|SPECTRA|NOMOS|GRAVIS|CA\s?106|סאב|פיל|מוניטור|דיליי|speaker)/i.test(s)) return 'nl4';
   if (/(מקרן|proj|וידאו)/i.test(s)) return 'sdi';
   if (/(תאור|light|dmx)/i.test(s)) return 'dmx';
@@ -6687,7 +6695,7 @@ function patchZ(ids) { const inv = ids.map(byId).filter(Boolean).reduce((s, n) =
 function patchAutoCab(key) {
   const [ai] = key.split('|').map(Number), a = PATCH.amps[ai], ids = PATCH.slots[key] || [];
   const nodes = ids.map(byId).filter(Boolean); if (!a || !nodes.length) return '2.5';
-  if (nodes.every(n => isActiveSub(n.name))) return 'xlr';
+  if (nodes.every(n => isActiveSpk(n.name))) return 'xlr';
   const dmax = P.scale ? Math.max(...nodes.map(n => Math.hypot(a.rk.x - n.x, a.rk.y - n.y) * P.scale)) : 0;
   const sw = nodes.reduce((s3, n3) => { const pw = spkWatt(n3); return s3 + (pw == null ? 150 : pw); }, 0);
   let mm = dmax <= 20 ? 2.5 : dmax <= 40 ? 4 : 6;
@@ -7178,7 +7186,9 @@ function isDjNode(n) { return !!n && (n.srcKind === 'dj' || (n.kind === 'panel' 
 /* דרישת החשמל של עמדת DJ — טקסט אחד לתכנית, לדוח ולבדיקה */
 const DJ_POWER_TXT = 'נקודת חשמל 16A-N6 ליד העמדה — משדה סאונד בלבד';
 /* דרישת חשמל למוקד: עמדת DJ — כברירת מחדל; כל פאנל / קופסת במה / מוקד חיצוני עם מולטי או חשמל — לפי בחירת אורי (n.pwrReq) */
-function needsPower(n) { return !!n && n.kind !== 'rack' && (n.pwrReq === true || (isDjNode(n) && n.pwrReq !== false)); }
+function needsPower(n) { return !!n && n.kind !== 'rack' && (n.pwrReq === true || ((isDjNode(n) || isActivePoint(n)) && n.pwrReq !== false)); }
+const ACTIVE_POWER_TXT = 'נקודת חשמל 16A ליד הרמקול המוגבר — משדה סאונד בלבד';
+function powerTxtOf(n) { return isActivePoint(n) ? ACTIVE_POWER_TXT : DJ_POWER_TXT; }
 function canReqPower(n) { return !!n && n.kind !== 'rack' && (n.kind === 'panel' || !!n.srcKind || (P.cables || []).some(c => (c.from === n.id || c.to === n.id) && /multi|pwr/.test(c.type || ''))); }
 /* הזנת ארון מגברים — הכלל של אורי: עד 3 מגברים + פרוססור = 16A-N6 בגובה גב הארון; יותר מ-3 = 3×16A (3×N4). תמיד משדה סאונד בלבד */
 const RACK_PWR_SMALL = 'הזנת חשמל 16A-N6 בגובה גב הארון — על שדה סאונד בלבד';
@@ -8020,7 +8030,7 @@ async function patchApply() {
       const base = run.length > 1 ? 'שרשור (' + run.length + ' רמקולים)' : (runs.length > 1 || nodes.length > 1 ? 'קו ישיר (מקביל בערוץ)' : 'קו בודד');
       const note = base + (ri === 0 ? dlyTxt : '') + brTxt;
       const cc = { id: uid('c'), from: a.rk.id, fromUnit: a.u.id, to: spkBase(head.id), type: 'nl4', qty: '1', spec: '', note: note + (head.band ? ' · פס ' + BAND_LBL[head.band] : ''), conn: 'speakon', conn2: 'speakon', pOut: pOutLbl, pIn: head.band ? BAND_LBL[head.band] : undefined };
-      if (isActiveSub(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
+      if (isActiveSpk(head.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = isActiveSub(head.name) ? 'rca' : 'xlrf'; cc.note = isActiveSub(head.name) ? 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳' : 'סיגנל לרמקול מוגבר — XLR (הרמקול דורש נקודת חשמל)'; }
       if (P.scale) cc.len = +(dist(a.rk, head) * P.scale).toFixed(1);
       patchApplyCab(key, cc);
       if (cblRef && cc.type === 'nl4' && !cc.stockRef) applyStockRef(cblRef, null, cc);
@@ -8262,9 +8272,22 @@ function projGapCheck() {
     if (need > xlrHave) finds.push({ i: '🎚', t: 'מולטי עם ' + mcCores + ' גידים — דרושים ~' + need + ' מחברי XLR (זכר/נקבה) · בהצעה ' + xlrHave, b: '➕ הוסף ' + (need - xlrHave) + ' מחברים', fn: 'gapAddConn(' + (need - xlrHave) + ')', alt: { b: '🔍 בחר אחר', fn: "gapSearch('מחבר XLR')" } });
   }
   /* 4. תושבות ומתקנים לרמקולים תלויים */
-  const hung = spkN.filter(n => patchKind(n) !== 'sub' && !/שקוע|תקרת גבס/.test((n.name || '') + (n.mount || ''))).length;
+  const hung = spkN.filter(n => patchKind(n) !== 'sub' && !/שקוע|תקרת גבס/.test((n.name || '') + (n.mount || '')) && spkBracketInc(nodeFullName(n)) !== true).length;   /* רמקול שמגיע עם מתקן בקופסה לא צריך מתקן בהצעה */
   const mounts = qsum(it => /מתקן|תושבת|יוקה|YOKE|ברקט|bracket/i.test(it.name));
   if (hung > mounts) finds.push({ i: '🔧', k: 'mounts', t: hung + ' רמקולים תלויים · רק ' + mounts + ' תושבות/מתקנים בהצעה', b: '➕ הוסף ' + (hung - mounts) + ' תושבות', fn: 'gapAddMounts(' + (hung - mounts) + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מתקן לרמקול')" } });
+  /* 4b. רמקולים מוגברים: קו סיגנל XLR לכל אחד (כבל מוכן, או גליל + 2 מחברים) + נקודת חשמל ליד הרמקול */
+  { const actN = spkN.filter(n => isActivePoint(n));
+    if (actN.length) {
+      const ready = qsum(it => /כבל/.test(it.name) && /XLR/i.test(it.name) && /\d\s?(מטר|מ['׳]|m\b)/i.test(it.name) && !/גליל|לפי מטר|מולטי|multi|RCA|PL\s?[36]|AUX|DMX/i.test(it.name));
+      const reel = qsum(it => /כבל/.test(it.name) && /XLR|מיקרופון|סאונד/i.test(it.name) && /גליל|לפי מטר/.test(it.name));
+      const conn = qsum(it => /מחבר|connector/i.test(it.name) && /XLR/i.test(it.name));
+      const have = ready + (reel ? Math.floor(conn / 2) : 0), miss = actN.length - have;
+      if (miss > 0) finds.push({ i: '🔌', k: 'actxlr', t: actN.length + ' רמקולים מוגברים — דרוש קו XLR לכל אחד (כבל XLR מוכן, או גליל + 2 מחברים) · בהצעה ' + have, b: '➕ גליל + ' + (2 * miss) + ' מחברים', fn: 'gapAddXlrLine(' + miss + ')', alt: { b: '🔍 כבל XLR מוכן', fn: "gapSearch('כבל XLR')" } });
+      const noPw = actN.filter(n => !needsPower(n));
+      if (noPw.length) finds.push({ i: '⚡', k: 'actpw', t: noPw.length + ' רמקולים מוגברים שסומנו "בלי נקודת חשמל" — רמקול מוגבר דורש 16A ליד הרמקול', b: '⚡ סמן נקודת חשמל', fn: 'gapActPower()' });
+      const noCab = actN.filter(n => !(P.cables || []).some(c => (c.to === n.id || c.from === n.id) && c.type === 'xlr'));
+      if (noCab.length && (P.cables || []).length) finds.push({ i: '🔌', k: 'actcab', t: noCab.length + ' רמקולים מוגברים בלי קו סיגנל XLR בתכנית (הם לא מתחברים ליציאת מגבר)', b: '🧵 חיווט אוטומטי', fn: 'autoConnect()' });
+    } }
   /* 5. ארון בלי פס שקעים */
   const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
   /* רשת אודיו: מגברים שמוזנים ב-Dante/AES67 צריכים מתג רשת בארון עם מספיק פורטים; מכשירי PoE (מתאמי Dante, פנלים, AP) צריכים פורטי PoE */
@@ -8463,6 +8486,16 @@ async function gapFixConnectors() {
   gapBack();
 }
 /* הוספת מחברים ישירות מהמלאי/קטלוג — בלי לחפש ידנית */
+/* קו XLR לרמקול מוגבר מגליל: גליל כבל מיקרופון/XLR (אם אין) + 2 מחברי XLR לכל קו */
+function gapAddXlrLine(n) {
+  const want = Math.max(1, +n || 1);
+  if (!impItems.some(it => it.on !== false && /כבל/.test(it.name) && /XLR|מיקרופון|סאונד/i.test(it.name) && /גליל|לפי מטר/.test(it.name))) {
+    const cand = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([, n2]) => n2 && /כבל/.test(n2) && /XLR|מיקרופון/i.test(n2) && /גליל/.test(n2) && !/מולטי|multi/i.test(n2)).sort((a, b) => byStockThenSold(a[0], b[0]))[0];
+    if (cand) { const it = { on: true, qty: 1, name: cand[1], key: cand[0], src: 'בדיקת שלמות', dest: 'reel', type: 'xlr', cat: 'cable', u: 1, iid: uid('i') }; autoPrice(it); impItems.push(it); }
+  }
+  gapAddConn(2 * want);
+}
+function gapActPower() { P.nodes.forEach(n => { if (isActivePoint(n) && n.pwrReq === false) delete n.pwrReq; }); render(); save(); uiToast('⚡ נקודת חשמל סומנה ליד כל רמקול מוגבר'); gapBack(); }
 function gapAddConn(n) {
   const want = Math.max(1, +n || 1);
   const ex = impItems.find(it => /XLR/i.test(it.name) && /מחבר|connector/i.test(it.name));
@@ -8603,7 +8636,7 @@ async function smartWire(zid) {
     const all = [l.head, ...l.seg.map(sg => sg.to)];
     all.forEach((nd, i) => {
       const cc = { id: uid('c'), from: l.amp.rk.id, fromUnit: l.amp.u.id, to: nd.id, type: 'nl4', qty: '1', spec: '', note: all.length > 1 ? 'קו ישיר ' + (i + 1) + '/' + all.length + ' (מקביל בערוץ)' : l.label, conn: 'speakon', conn2: 'speakon', pOut: 'OUT ' + l.ch };
-      if (isActiveSub(nd.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = 'rca'; cc.note = 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳'; }
+      if (isActiveSpk(nd.name)) { cc.type = 'xlr'; cc.conn = 'xlrm'; cc.conn2 = isActiveSub(nd.name) ? 'rca' : 'xlrf'; cc.note = isActiveSub(nd.name) ? 'סיגנל לסאב מוגבר — RCA/XLR עד ~10 מ׳' : 'סיגנל לרמקול מוגבר — XLR (הרמקול דורש נקודת חשמל)'; }
       if (P.scale) cc.len = +(dist(l.amp.rk, nd) * P.scale).toFixed(1);
       P.cables.push(cc);
       made2.push(cc);
@@ -9200,7 +9233,7 @@ function spkDataManager(tab) {
   rows.sort((a, b) => a.brand === b.brand ? a.name.localeCompare(b.name) : a.brand.localeCompare(b.brand));
   const allBrands = [...new Set(rows.map(r => r.brand).concat(['Funktion-One', 'Kling & Freitag', 'KT Audio', 'XTA', 'Yamaha', 'SAE', 'Lab Gruppen', 'Crown', 'DigiSynthetic', 'Lambda Labs', 'אחר']))].sort();
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
-  const heads = '<th>תמונה</th>' + (tab === 'spk' ? '<th>סוג</th><th>מותג</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th title="פסיבי = קו אחד · Bi-amp = HI+LOW · Tri-amp = HI+MID+LOW — כל פס מקבל ערוץ מגבר משלו בפאץ׳">הגברה</th><th>קישורים<br>🔗📄📘</th>' :
+  const heads = '<th>תמונה</th>' + (tab === 'spk' ? '<th>סוג</th><th>מותג</th><th title="מגיע עם מתקן תלייה בקופסה? כלל הבית: כל דגמי KT Audio ו-EUPHORIA כן · TILL ו-PAGAZ לא">מתקן<br>בקופסה</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th title="פסיבי = קו אחד · Bi-amp = HI+LOW · Tri-amp = HI+MID+LOW — כל פס מקבל ערוץ מגבר משלו בפאץ׳">הגברה</th><th>קישורים<br>🔗📄📘</th>' :
     tab === 'amp' ? '<th>מותג</th><th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th title="סוג התקע / ההזנה (IEC, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי">תקע</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : '<th>מותג</th>' + (tab === 'other' ? '<th>סוג</th>' : '<th>כניסות×יציאות</th>') + '<th>רשת / תאימות</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th title="סוג התקע / ההזנה (IEC, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי">תקע</th><th style="text-align:right">הערות</th><th>קישור</th>');
   const ov = document.createElement('div');
   ov.id = 'spkDbOv';
@@ -9225,7 +9258,7 @@ function spkDataManager(tab) {
     const c = r.ok ? '#0f8a5f' : '#c1121f';
     const bg = r.ok ? '#eef7f1' : '#fdeeee';
     const arg = r.lk ? `'${jsq(r.lk)}'` : `null,${r.bi}`;
-    const colspan = tab === 'spk' ? 13 : tab === 'amp' ? 16 : 11;
+    const colspan = tab === 'spk' ? 14 : tab === 'amp' ? 16 : 11;
     const brandHdr = (ri === 0 || rows[ri - 1].brand !== r.brand) ? `<tr style="background:#e9e4db"><td colspan="${colspan}" style="padding:4px 6px;font-weight:800;font-size:12px">🏷 ${esc(r.brand)}</td></tr>` : '';
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
     const nmA = jsq(r.name);
@@ -9234,6 +9267,7 @@ function spkDataManager(tab) {
     const cells = imgTd + (tab === 'spk' ?
       `<td style="text-align:center"><select style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','typ',this.value)">${['רמקול', 'סאב', 'קולום', 'שקוע', 'מוניטור', 'אחר'].map(t => `<option ${(meta.typ || guessTyp(r.name)) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
        <td style="text-align:center"><select title="מותג — הבחירה מסדרת את הקיבוץ בטבלה" style="max-width:112px;border:1px solid #ccc;border-radius:4px;font-size:11px;background:#fff" onchange="if(this.value==='__new'){spkBrandNew('${nmA}')}else spkMetaSet('${nmA}','brand',this.value)">${allBrands.map(b2 => `<option ${r.brand === b2 ? 'selected' : ''}>${esc(b2)}</option>`).join('')}<option value="__new">➕ מותג חדש…</option></select></td>
+       <td style="text-align:center"><select title="מגיע עם מתקן תלייה בקופסה — אוטו לפי כלל הבית, או קביעה ידנית" style="font-size:11px;border:1px solid #ccc;border-radius:4px;background:#fff" onchange="spkMetaSet('${nmA}','inc',this.value)">${(() => { const v = (meta.inc || ''), auto = (() => { for (const [b2, re] of BRACKET_INC_RULES) if (re.test(r.name)) return b2; return null; })(); return [['', 'אוטו · ' + (auto === true ? '✓ כן' : auto === false ? '✗ לא' : '?')], ['yes', '✓ כן'], ['no', '✗ לא']].map(([val, t]) => `<option value="${val}" ${v === val ? 'selected' : ''}>${t}</option>`).join(''); })()}</select></td>
        <td style="text-align:center"><input value="${cell(r.d.h)}" style="width:44px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'h',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.v)}" style="width:44px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'v',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.sens)}" style="width:44px;text-align:center;border:1px solid #ccc;border-radius:4px" onchange="${fn}(${arg},'sens',this.value)"></td>
@@ -10166,7 +10200,7 @@ function renderPanel() {
   } else if (canReqPower(n)) {
     html += `<label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;background:#fff3cd;border:1px solid #e0a100;border-radius:8px;padding:6px 8px;margin:6px 0;color:#7a4b00">
       <input type="checkbox" style="width:auto" ${needsPower(n) ? 'checked' : ''} onchange="byId('${n.id}').pwrReq=this.checked;render();save()">
-      <span>⚡ דרוש נקודת חשמל 16A-N6 ליד המוקד — משדה סאונד בלבד${isDjNode(n) ? ' <small style="opacity:.8">(ברירת מחדל לעמדת DJ)</small>' : ''}</span></label>`;
+      <span>⚡ דרוש נקודת חשמל 16A-N6 ליד המוקד — משדה סאונד בלבד${isDjNode(n) ? ' <small style="opacity:.8">(ברירת מחדל לעמדת DJ)</small>' : isActivePoint(n) ? ' <small style="opacity:.8">(ברירת מחדל לרמקול מוגבר)</small>' : ''}</span></label>`;
   }
   html += `<h3 class="sec"></h3><button style="width:100%;background:#f3d9d2;color:#8c2f16" onclick="delNode('${n.id}')">מחק מוקד</button>`;
   p.innerHTML = html;
@@ -10832,6 +10866,12 @@ function mountProductFor(n, kind) {
   const nm = nodeFullName(n), brand = spkBrandOf(nm), tok = spkModelTok(nm), items = typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : [];
   const find = (rx, notRx) => { const hits = items.filter(([k, s]) => s && rx.test(s) && !(notRx && notRx.test(s))).sort((a, b) => byStockThenSold(a[0], b[0])); return hits[0] || null; };
   const tokRx = tok ? new RegExp('(^|[^A-Z0-9])' + tok + '([^0-9]|$)', 'i') : null;
+  /* מגיע עם מתקן בקופסה (KT Audio, EUPHORIA): אין מה לקנות; ל-EUPHORIA מציעים אופציונלית מתקן צידוד אחורי Centurion (נמכר איתו לעיתים קרובות) */
+  if ((kind === 'adj' || kind === 'yoke') && spkBracketInc(nm) === true) {
+    if (/EUPHORIA/i.test(nm)) { const h = find(/CENTURION/i, null) && items.filter(([k, s2]) => s2 && /CENTURION/i.test(s2) && /SPEAKER\s?BRACKET|(מתקן|סטנד|סטדנט).*לרמקול|לרמקול.*(מתקן|סטנד|סטדנט)/i.test(s2) && !/טראס|truss|קלמרה|coupler|תאורה|lighting|מיקרופון|רמקולים ביחד/i.test(s2)).sort((a, b) => (/SPEAKER\s?BRACKET/i.test(b[1]) - /SPEAKER\s?BRACKET/i.test(a[1])) || byStockThenSold(a[0], b[0]))[0];
+      return h ? { key: h[0], name: h[1], qty: 1, inc: true, opt: true, why: 'מגיע עם מתקן ח בקופסה · אופציונלי: מתקן צידוד אחורי Centurion' } : { key: '', name: 'כלול בקופסה (מתקן ח)', qty: 0, inc: true, why: 'מגיע עם מתקן בקופסה' }; }
+    return { key: '', name: 'כלול בקופסה', qty: 0, inc: true, why: 'מגיע עם מתקן תלייה בקופסה — אין צורך לקנות' };
+  }
   if (kind === 'rings') { const th = brand === 'Funktion-One' ? /M\s?10/i : /M\s?8\b/i; const h = find(/בורג עין.*טבעת תלי/i, null) && (items.filter(([k, s2]) => s2 && /בורג עין.*טבעת תלי/i.test(s2) && th.test(s2)).sort((a, b) => byStockThenSold(a[0], b[0]))[0] || find(/בורג עין.*טבעת תלי/i)); return h ? { key: h[0], name: h[1], qty: 3, why: '3 טבעות לרמקול — תלייה מהתקרה (' + (brand === 'Funktion-One' ? 'M10 לתבריגי Funktion-One' : 'M8') + ')' } : null; }
   if (kind === 'yoke') { const h = (tokRx && find(new RegExp('מתקן ח|YOKE|U-mount', 'i'), null) && items.filter(([k, s]) => s && /מתקן ח|YOKE|U-mount/i.test(s) && tokRx.test(s)).sort((a, b) => byStockThenSold(a[0], b[0]))[0]) || null; return h ? { key: h[0], name: h[1], qty: 1, why: 'מתקן ח — לתקרה (מוט הברגה / ישירות), רמקול ישר' } : { key: '', name: 'מתקן ח (YOKE) ל' + (tok || nm.slice(0, 20)) + ' — אין בקטלוג', qty: 1, why: 'מתקן ח — לא נמצא בקטלוג לדגם', missing: true }; }
   if (kind === 'adj') {
@@ -10846,7 +10886,7 @@ function mountRows() {
 }
 function mountSet(id, f, v) { const n = byId(id); if (!n) return; if (f === 'orient') { if (v === 'flat') n.orient = 'flat'; else delete n.orient; } else if (f === 'hang') { if (v === 'auto') delete n.hang; else n.hang = v; } else if (f === 'straight') n.straight = !!v; else if (f === 'mount') n.mount = v; else if (f === 'orient') n.orient = v; save(); mountManager(); }
 function mountAddAll(onlyId) {
-  const rows = mountRows().filter(r => r.pr && r.pr.key && (!onlyId || r.n.id === onlyId)); let added = 0, qty = 0;
+  const rows = mountRows().filter(r => r.pr && r.pr.key && (!onlyId || r.n.id === onlyId) && (!r.pr.opt || onlyId)); let added = 0, qty = 0;   /* אופציונלי (צידוד Centurion ל-EUPHORIA) — רק בלחיצה על השורה */
   const need = {}; rows.forEach(r => { const e = need[r.pr.key] = need[r.pr.key] || { pr: r.pr, qty: 0, parents: new Set() }; e.qty += r.pr.qty; if (r.n.srcIid) e.parents.add(r.n.srcIid); });
   for (const [key, e] of Object.entries(need)) {
     let it = impItems.find(x => x.key === key && x.on !== false);
@@ -10866,9 +10906,9 @@ function mountManager() {
     <td style="text-align:center"><input type="checkbox" style="width:auto" ${n.straight ? 'checked' : ''} title="רמקול ישר בלי צידוד — אז מותר מתקן ח" onchange="mountSet('${n.id}','straight',this.checked)"></td>
     <td><select onchange="mountSet('${n.id}','orient',this.value)" style="${spkFlat(n) ? 'color:#9a3412;font-weight:700' : ''}"><option value="" ${!spkFlat(n) ? 'selected' : ''}>↕ מאונך</option><option value="flat" ${spkFlat(n) ? 'selected' : ''}>↔ מאוזן · סובב שופר</option></select></td>
     <td><select onchange="mountSet('${n.id}','hang',this.value)"><option value="auto" ${!n.hang ? 'selected' : ''}>אוטו · ${HANG_HE[kind]}</option>${Object.entries(HANG_HE).map(([k, t]) => `<option value="${k}" ${n.hang === k ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
-    <td style="font-size:11.5px">${pr ? `${pr.key ? imgCell(pr.key, 30, pr.name) : ''} ${esc(pr.name.slice(0, 52))}<br><small class="muted">${esc(pr.why)}</small>` : '<span class="muted">—</span>'}</td>
-    <td style="text-align:center;font-weight:700">${pr ? '× ' + pr.qty : ''}</td>
-    <td style="text-align:center">${pr && pr.key ? (have >= pr.qty ? '<span style="color:#0f6e56">✓ בהצעה</span>' : `<button onclick="mountAddAll('${n.id}')">➕ להצעה</button>`) : pr && pr.missing ? '<span style="color:#c1121f">⚠ אין בקטלוג</span>' : ''}</td></tr>`; }).join('');
+    <td style="font-size:11.5px">${pr && pr.inc ? '<span style="color:#0f6e56;font-weight:700">📦 מתקן בקופסה</span><br>' : ''}${pr ? `${pr.key ? imgCell(pr.key, 30, pr.name) : ''} ${pr.opt ? '<span style="color:#b36b00;font-weight:700">אופציונלי:</span> ' : ''}${pr.key || !pr.inc ? esc(pr.name.slice(0, 52)) : ''}<br><small class="muted">${esc(pr.why)}</small>` : '<span class="muted">—</span>'}</td>
+    <td style="text-align:center;font-weight:700">${pr && pr.qty ? '× ' + pr.qty : ''}</td>
+    <td style="text-align:center">${pr && pr.key ? (have >= pr.qty ? '<span style="color:#0f6e56">✓ בהצעה</span>' : `<button onclick="mountAddAll('${n.id}')">${pr.opt ? '➕ הוסף צידוד' : '➕ להצעה'}</button>`) : pr && pr.missing ? '<span style="color:#c1121f">⚠ אין בקטלוג</span>' : ''}</td></tr>`; }).join('');
   const tot = {}; rows.forEach(r => { if (r.pr && r.pr.key) { const e = tot[r.pr.key] = tot[r.pr.key] || { name: r.pr.name, qty: 0 }; e.qty += r.pr.qty; } });
   const ov = uiModal(`<div id="mountOv"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:15px;flex:1">🪝 אביזרי תלייה לפי הרמקולים</b><button data-x>✕</button></div>
     <p class="muted" style="font-size:11.5px;margin:0 0 8px">כללי הבית: תלייה מהתקרה = <b>3 טבעות</b> (בורג עין) לכל רמקול · <b>מתקן ח</b> (YOKE) לתקרה במוט הברגה או ישירות — רק כשהרמקול ישר בלי צידוד · אחרת <b>מתקן מתכוונן</b>: Unicorn/KT → GU40, שאר המותגים → המתקן המתכוונן של היצרן · רצפה / סטאק / בארון = בלי אביזר.</p>
@@ -10915,7 +10955,7 @@ function prodLinks(n) {
 }
 function mountReportHTML() {
   const rows = mountRows().filter(r => r.kind !== 'none'); if (!rows.length) return '';
-  return `<div class="rp-sec"><h3>🪝 אביזרי תלייה — לפי הרמקולים</h3><table class="cablelist"><tr><th></th><th>רמקול</th><th>מותקן על</th><th>אופן התלייה</th><th>אביזר</th><th>כמות</th><th>מידות</th><th>דף היצרן</th></tr>${rows.map(r => `<tr><td>${prodImgCell(r.n, 42)}</td><td>${esc(nodeFullName(r.n).slice(0, 40))}</td><td>${esc(r.n.mount || '—')}</td><td>${esc(HANG_HE[r.kind])}</td><td>${r.pr ? esc(r.pr.name.slice(0, 50)) : '—'}</td><td>${r.pr ? r.pr.qty : ''}</td><td dir="ltr" style="text-align:right;font-size:11px">${esc(prodDims(r.n) || '—')}</td><td style="font-size:11px">${prodLinks(r.n) || '—'}</td></tr>`).join('')}</table></div>`;
+  return `<div class="rp-sec"><h3>🪝 אביזרי תלייה — לפי הרמקולים</h3><table class="cablelist"><tr><th></th><th>רמקול</th><th>מותקן על</th><th>אופן התלייה</th><th>אביזר</th><th>כמות</th><th>מידות</th><th>דף היצרן</th></tr>${rows.map(r => `<tr><td>${prodImgCell(r.n, 42)}</td><td>${esc(nodeFullName(r.n).slice(0, 40))}</td><td>${esc(r.n.mount || '—')}</td><td>${esc(HANG_HE[r.kind])}</td><td>${r.pr && r.pr.inc ? '📦 מגיע עם מתקן בקופסה' + (r.pr.key ? '<div style="font-size:11px;color:#b36b00">אופציונלי: ' + esc(r.pr.name.slice(0, 50)) + '</div>' : '') : r.pr ? esc(r.pr.name.slice(0, 50)) : '—'}</td><td>${r.pr && r.pr.qty && !r.pr.opt ? r.pr.qty : ''}</td><td dir="ltr" style="text-align:right;font-size:11px">${esc(prodDims(r.n) || '—')}</td><td style="font-size:11px">${prodLinks(r.n) || '—'}</td></tr>`).join('')}</table></div>`;
 }
 function routeManager() {
   const old = document.getElementById('routeOv'); if (old) (old.closest('.uiDlgOv') || old).remove();   /* ה-id על התוכן — מסירים את השכבה כולה, לא רק אותו (אחרת נשארת קופסה ריקה) */
@@ -17286,7 +17326,7 @@ function exportPDF0() {
     const PHN = { 1: 'L1', 2: 'L2', 3: 'L3' };
     h += `<div class="rp-sec"><h3>⚡ הכנות חשמל — שקעים, סיקונים ופאזות</h3>
       <p style="font-size:12px;color:#555;margin:0 0 8px">מה שהחשמלאי צריך להכין לפני ההתקנה: לכל נקודה סוג השקע, הזרם, הפאזה המוזנת והשם/ייעוד. סיקון תלת-פאזי = 3 פאזות + N + PE. הזנת ארון המסד — על שדה סאונד בלבד.</p>` + (pwNodes.length || pwRacks.length ? `<div style="margin-bottom:14px;page-break-inside:avoid"><b style="font-size:13px">🔌 נקודות חשמל ליד מוקדים (${pwNodes.length + pwRacks.length})</b>
-        <table class="cablelist" style="margin-top:6px"><tr><th>#</th><th>ליד המוקד</th><th>אזור</th><th>מותקן על</th><th>דרישה</th></tr>${pwNodes.map((n, i) => { const zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }); return `<tr><td>${i + 1}</td><td><b>${esc(n.name)}</b>${n.sub ? `<div style="font-size:11px;color:#777">${esc(n.sub)}</div>` : ''}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${esc(n.mount || '—')}</td><td>שקע 16A · N6 — משדה סאונד בלבד</td></tr>`; }).concat(pwRacks.map((rk, j) => { const zn = zoneAt({ x: 2200 - rk.x - 20, y: rk.y + 20 }), pr = rackPowerReq(rk); return `<tr><td>${pwNodes.length + j + 1}</td><td><b>⚡ חשמל בארון מסד — ${esc(rk.name)}</b><div style="font-size:11px;color:#777">${esc(pr.why)}</div></td><td>${zn ? esc(zn.name) : '—'}</td><td>ארון</td><td>${esc(pr.txt)}</td></tr>`; })).join('')}</table></div>` : '') + pwPanels.map(n => {
+        <table class="cablelist" style="margin-top:6px"><tr><th>#</th><th>ליד המוקד</th><th>אזור</th><th>מותקן על</th><th>דרישה</th></tr>${pwNodes.map((n, i) => { const zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }); return `<tr><td>${i + 1}</td><td><b>${esc(n.name)}</b>${n.sub ? `<div style="font-size:11px;color:#777">${esc(n.sub)}</div>` : ''}</td><td>${zn ? esc(zn.name) : '—'}</td><td>${esc(n.mount || '—')}</td><td>${isActivePoint(n) ? 'שקע 16A ליד הרמקול המוגבר — משדה סאונד בלבד' : 'שקע 16A · N6 — משדה סאונד בלבד'}</td></tr>`; }).concat(pwRacks.map((rk, j) => { const zn = zoneAt({ x: 2200 - rk.x - 20, y: rk.y + 20 }), pr = rackPowerReq(rk); return `<tr><td>${pwNodes.length + j + 1}</td><td><b>⚡ חשמל בארון מסד — ${esc(rk.name)}</b><div style="font-size:11px;color:#777">${esc(pr.why)}</div></td><td>${zn ? esc(zn.name) : '—'}</td><td>ארון</td><td>${esc(pr.txt)}</td></tr>`; })).join('')}</table></div>` : '') + pwPanels.map(n => {
       const p = n.panel, zn = zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 });
       const cnt = {}; p.holes.forEach(hh => { const t = CONNS[hh.conn]; if (!t || !t.pw) return; const k = t.n + (hh.ph ? ' · ' + PHN[hh.ph] : ''); cnt[k] = (cnt[k] || 0) + 1; });
       const sum = Object.entries(cnt).map(([k, v]) => `${v}× ${esc(k)}`).join(' · ');
