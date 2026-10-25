@@ -824,7 +824,22 @@ function asDimSeg(cv, x, y) {
 function asDimMode() {
   if (!P.bg) { uiToast('אין תכנית'); return; }
   window.__asDim = window.__asDim ? null : { at: Date.now() }; window.__asPick = null; window.__asTable = null; render();
-  if (window.__asDim) uiToast('📐 לחץ על מספר מידה בשרטוט (צמוד לקו המידה שלו) · Esc לסיום', 7000);
+  if (window.__asDim) uiToast('📏 לחץ על הקצה הראשון של המידה, ואז על הקצה השני — ואז הקלד את המספר · Esc לסיום', 7000);
+}
+/* הצמדה לקו: הפיקסל הכהה הקרוב ביותר ללחיצה (רדיוס קטן) — כך שהלחיצה על סימון הקצה מדויקת */
+function asSnap(cv, x, y, rad) {
+  const W = cv.width, H = cv.height, R = rad || 10, x0 = Math.max(0, Math.round(x) - R), y0 = Math.max(0, Math.round(y) - R), w = Math.min(W, Math.round(x) + R + 1) - x0, h = Math.min(H, Math.round(y) + R + 1) - y0;
+  if (w <= 0 || h <= 0) return { x, y };
+  const d = cv.getContext('2d').getImageData(x0, y0, w, h).data; let best = null;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { if (d[(j * w + i) * 4] >= 128) continue; const dx = x0 + i - x, dy = y0 + j - y, dd = dx * dx + dy * dy; if (!best || dd < best.dd) best = { x: x0 + i, y: y0 + j, dd }; }
+  return best ? { x: best.x, y: best.y } : { x, y };
+}
+/* סימון נקודה על התכנית (טבעת אדומה + תווית) — בתוך #nodes, בקואורדינטות הקנבס */
+function asRingAt(x, y, label, cls) {
+  const host = $('#nodes'), Z = getZ(), d = document.createElement('div'); d.className = cls || 'asFoundMark';
+  d.style.cssText = 'position:absolute;left:' + x + 'px;top:' + y + 'px;z-index:40;pointer-events:none';
+  d.innerHTML = '<div style="position:absolute;left:-10px;top:-10px;width:20px;height:20px;border:3px solid #e02020;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.9)"></div>' + (label ? '<div style="position:absolute;left:14px;top:-10px;transform:scale(' + (1 / Z).toFixed(3) + ');transform-origin:left top;background:#e02020;color:#fff;font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;white-space:nowrap">' + esc(label) + '</div>' : '');
+  host.appendChild(d); return d;
 }
 async function asDimAt(pt, prefill, auto) {
   try {
@@ -832,10 +847,25 @@ async function asDimAt(pt, prefill, auto) {
     const W = P.bgW || 1400, H = bgHeightPx(), u = (pt.x - bgLeft()) / W, v = (pt.y - bgTop()) / H;
     if (u < 0 || u > 1 || v < 0 || v > 1) { uiToast('לחץ בתוך התכנית'); return; }
     const { cv, k } = await asBinCanvas();
-    let seg = null; for (const [ox, oy] of [[0, 0], [0, 8], [0, -8], [8, 0], [-8, 0], [0, 16], [0, -16]]) { seg = asDimSeg(cv, u * cv.width + ox * k, v * cv.height + oy * k); if (seg) break; }
-    if (!seg) { uiToast('לא נמצא קו מידה ליד הנקודה — לחץ על המספר, צמוד לקו המידה שלו', 6000); return; }
+    let seg, warn = '';
+    if (auto) {
+      /* משבב של מספר שנקרא: קו המידה של המספר נמדד אוטומטית */
+      seg = null; for (const [ox, oy] of [[0, 0], [0, 8], [0, -8], [8, 0], [-8, 0], [0, 16], [0, -16]]) { seg = asDimSeg(cv, u * cv.width + ox * k, v * cv.height + oy * k); if (seg) break; }
+      if (!seg) { uiToast('לא נמצא קו מידה ליד המספר — סמן את שני הקצוות ידנית (📏 לפי מידה מסומנת)', 6000); return; }
+      warn = seg.ticks ? '' : 'במידה האחרונה לא נמצאו סימוני קצה — נמדד אורך הקו כולו';
+    } else {
+      /* ידני: שתי לחיצות — קצה אחד ואז השני; כל לחיצה נצמדת לקו/סימון הקרוב */
+      const m = window.__asDim && window.__asDim.p1 ? window.__asDim : (window.__asDim = { at: Date.now() });
+      const sp = asSnap(cv, u * cv.width, v * cv.height, Math.round(5 * k));
+      if (!m.p1) { m.p1 = sp; document.querySelectorAll('.asDimPt').forEach(e => e.remove()); asRingAt(bgLeft() + sp.x / cv.width * W, bgTop() + sp.y / cv.height * H, 'קצה 1 — עכשיו לחץ על הקצה השני', 'asDimPt'); uiToast('📏 קצה 1 סומן — לחץ על הקצה השני של המידה', 5000); return; }
+      const p1 = m.p1, p2 = sp; delete m.p1; document.querySelectorAll('.asDimPt').forEach(e => e.remove());
+      const dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.hypot(dx, dy); if (len < 6) { uiToast('שתי הנקודות כמעט זהות — לחץ שוב על שני הקצוות'); return; }
+      const horiz = Math.abs(dx) >= Math.abs(dy);
+      seg = horiz ? { horiz: true, len, x1: Math.min(p1.x, p2.x), x2: Math.max(p1.x, p2.x), y: (p1.y + p2.y) / 2, ticks: 2 } : { horiz: false, len, y1: Math.min(p1.y, p2.y), y2: Math.max(p1.y, p2.y), x: (p1.x + p2.x) / 2, ticks: 2 };
+      const skew = Math.min(Math.abs(dx), Math.abs(dy)) / len; if (skew > 0.08) warn = 'המידה האחרונה אלכסונית (' + Math.round(skew * 100) + '%) — נמדד המרחק הישר בין שתי הלחיצות';
+    }
     const def = prefill || (P.autoScale && P.autoScale.dimLast) || '';
-    const ans = auto && prefill ? prefill : await uiPrompt('מה המספר שכתוב על המידה הזו?\n315 = ס״מ · 3150 = מ״מ · 3.15 = מ׳ (אפשר גם עם יחידה: 315cm / 3150mm)\nנמדד: קטע של ' + Math.round(seg.len / k) + ' פיקסלים ' + (seg.horiz ? 'אופקי' : 'אנכי') + (seg.ticks ? ' בין סימוני המידה' : ' (לא נמצאו סימוני קצה — אורך הקו כולו)'), def);
+    const ans = auto && prefill ? prefill : await uiPrompt('מה המספר שכתוב על המידה הזו?\n315 = ס״מ · 3150 = מ״מ · 3.15 = מ׳ (אפשר גם עם יחידה: 315cm / 3150mm)\nנמדד: ' + Math.round(seg.len / k) + ' פיקסלים ' + (seg.horiz ? 'אופקי' : 'אנכי') + (auto ? (seg.ticks ? ' בין סימוני המידה' : ' (לא נמצאו סימוני קצה — אורך הקו כולו)') : ' בין שתי הלחיצות'), def);
     if (ans == null) return;
     const m = /^\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m|מ["״]?מ|ס["״]?מ|מ['׳]?)?\s*$/i.exec(String(ans).replace(',', '.'));
     if (!m) { uiToast('כתוב מספר, למשל 315 או 3.15'); return; }
@@ -843,12 +873,12 @@ async function asDimAt(pt, prefill, auto) {
     const unit = ut ? (/cm|ס/.test(ut) ? 'cm' : /mm|מ["״]?מ/.test(ut) ? 'mm' : 'm') : (m[1].includes('.') ? 'm' : vnum >= 1000 ? 'mm' : vnum >= 10 ? 'cm' : 'm');
     const meters = unit === 'mm' ? vnum / 1000 : unit === 'cm' ? vnum / 100 : vnum;
     if (!(meters > 0.05 && meters < 200)) { uiToast('המידה לא סבירה (' + meters + ' מ׳)'); return; }
-    const r = asSampleAdd({ t: String(ans).trim(), kind: 'dim', k: seg.len / meters, meters, vert: !seg.horiz, cx: seg.horiz ? (seg.x1 + seg.x2) / 2 : seg.x, cy: seg.horiz ? seg.y : (seg.y1 + seg.y2) / 2, wpx: seg.horiz ? seg.len : 4, hpx: seg.horiz ? 4 : seg.len, warn: seg.ticks ? '' : 'במידה האחרונה לא נמצאו סימוני קצה — נמדד אורך הקו כולו' }, cv, k);
+    const r = asSampleAdd({ t: String(ans).trim(), kind: 'dim', k: seg.len / meters, meters, vert: !seg.horiz, cx: seg.horiz ? (seg.x1 + seg.x2) / 2 : seg.x, cy: seg.horiz ? seg.y : (seg.y1 + seg.y2) / 2, wpx: seg.horiz ? seg.len : 4, hpx: seg.horiz ? 4 : seg.len, warn }, cv, k);
     r.dimLast = String(ans).trim(); save();
-    window.__asDim = { at: Date.now() }; render();
+    if (!auto) { window.__asDim = { at: Date.now() }; render(); }
   } catch (e) { console.warn('asDimAt', e); uiToast('הכיול לפי מידה נכשל: ' + (e.message || e)); }
 }
-/* מספר שנקרא (שבב בסיכום) → מתמקדים בו על התכנית עם טבעת אדומה ותיבת אישור: "זו מידה — מדוד" / "לא מידה" */
+/* מספר שנקרא (שבב בסיכום) → מתמקדים בו על התכנית עם טבעת אדומה, ותיבת אישור צפה מעל הכול: "זו מידה — מדוד" / "לא מידה" */
 function asFoundShow(i) {
   const r = P.autoScale, f = r && r.found && r.found[i]; if (!f) return;
   const x = bgLeft() + f.u * (P.bgW || 1400), y = bgTop() + f.v * bgHeightPx();
@@ -856,13 +886,17 @@ function asFoundShow(i) {
   scrollToBox({ L: x - 120, R: x + 120, T: y - 90, B: y + 90 }, 0);
   document.querySelectorAll('.asFoundMark').forEach(e => e.remove());
   if (!document.getElementById('asPulseCss')) { const st = document.createElement('style'); st.id = 'asPulseCss'; st.textContent = '@keyframes asPulse{0%{transform:scale(.8);opacity:1}100%{transform:scale(1.6);opacity:.15}}'; document.head.appendChild(st); }
-  const host = $('#nodes'), Z = getZ(), d = document.createElement('div'); d.className = 'asFoundMark';
+  const host = $('#nodes'), d = document.createElement('div'); d.className = 'asFoundMark';
   d.style.cssText = 'position:absolute;left:' + x + 'px;top:' + y + 'px;z-index:40;pointer-events:none';
-  d.innerHTML = '<div style="position:absolute;left:-16px;top:-16px;width:32px;height:32px;border:3px solid #e02020;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.9);animation:asPulse 1.1s ease-in-out infinite"></div>'
-    + '<div onpointerdown="event.stopPropagation()" style="position:absolute;left:22px;top:-12px;transform:scale(' + (1 / Z).toFixed(3) + ');transform-origin:left top;pointer-events:auto;background:#fff;border:1.5px solid #e02020;border-radius:9px;padding:6px 9px;font-size:12px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.25);direction:rtl;text-align:right">'
-    + '<b>המספר שנקרא כאן: <span style="direction:ltr;display:inline-block;font-size:14px">' + esc(f.t) + '</span></b>'
-    + '<div style="display:flex;gap:4px;margin-top:5px"><button class="primary" style="padding:3px 8px;font-size:11.5px" onclick="asFoundConfirm(' + i + ')">✓ זו מידה — מדוד</button><button style="padding:3px 8px;font-size:11.5px" onclick="asFoundReject(' + i + ')">✗ לא מידה</button><button style="padding:3px 6px;font-size:11.5px" onclick="document.querySelectorAll(\'.asFoundMark\').forEach(e=>e.remove())">סגור</button></div></div>';
+  d.innerHTML = '<div style="position:absolute;left:-16px;top:-16px;width:32px;height:32px;border:3px solid #e02020;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.9);animation:asPulse 1.1s ease-in-out infinite"></div>';
   host.appendChild(d);
+  /* התיבה צפה מעל הכול (fixed), ליד הטבעת על המסך */
+  const rc = $('#canvas').getBoundingClientRect(), Z = getZ(), sx = rc.left + x * Z, sy = rc.top + y * Z;
+  const box = document.createElement('div'); box.className = 'asFoundMark';
+  box.style.cssText = 'position:fixed;left:' + Math.max(8, Math.min(window.innerWidth - 300, sx + 26)) + 'px;top:' + Math.max(8, Math.min(window.innerHeight - 90, sy - 20)) + 'px;z-index:400;background:#fff;border:1.5px solid #e02020;border-radius:10px;padding:7px 10px;font-size:12.5px;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.3);direction:rtl;text-align:right';
+  box.innerHTML = '<b>המספר שנקרא כאן: <span style="direction:ltr;display:inline-block;font-size:15px">' + esc(f.t) + '</span></b>'
+    + '<div style="display:flex;gap:4px;margin-top:6px"><button class="primary" style="padding:4px 9px;font-size:12px" onclick="asFoundConfirm(' + i + ')">✓ זו מידה — מדוד</button><button style="padding:4px 9px;font-size:12px" onclick="asFoundReject(' + i + ')">✗ לא מידה</button><button style="padding:4px 7px;font-size:12px" onclick="document.querySelectorAll(\'.asFoundMark\').forEach(e=>e.remove())">סגור</button></div>';
+  document.body.appendChild(box);
 }
 function asFoundConfirm(i) { const r = P.autoScale, f = r && r.found && r.found[i]; if (!f) return; document.querySelectorAll('.asFoundMark').forEach(e => e.remove()); f.ok = true; asDimAt({ x: bgLeft() + f.u * (P.bgW || 1400), y: bgTop() + f.v * bgHeightPx() }, f.t, true); }
 function asFoundReject(i) { const r = P.autoScale, f = r && r.found && r.found[i]; if (!f) return; f.no = true; document.querySelectorAll('.asFoundMark').forEach(e => e.remove()); save(); render(); }
@@ -967,7 +1001,7 @@ function asStepButtonsHTML() {
   if (!P.bg) return '';
   const pick = !!window.__asPick, r = P.autoScale;
   return (r ? '' : asRatioFieldHTML()) + '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">' +
-    '<button style="flex:1;min-width:120px;' + (window.__asDim ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : '') + '" onclick="asDimMode()" title="לחיצה על מספר מידה בשרטוט: קו המידה שלו נמדד אוטומטית ואתה מאשר את המספר — עובד גם כשה-OCR לא קורא">📏 ' + (window.__asDim ? 'לחץ על מספר מידה… (Esc)' : 'לפי מידה מסומנת') + '</button>' +
+    '<button style="flex:1;min-width:120px;' + (window.__asDim ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : '') + '" onclick="asDimMode()" title="שתי לחיצות על שני קצוות של מידה בשרטוט (הלחיצה נצמדת לסימון הקצה), ואז המספר שכתוב עליה — עובד גם כשה-OCR לא קורא">📏 ' + (window.__asDim ? 'לחץ על שני הקצוות… (Esc)' : 'לפי מידה מסומנת') + '</button>' +
     '<button style="flex:1" onclick="autoScaleFromBg()" title="קורא את הכיתוב 1:N בחותמת השרטוט (שכבת טקסט או OCR) ומחיל אותו">🔍 ' + (r ? 'שלב 1 — זהה שוב' : 'שלב 1 — זהה קנה מידה') + '</button>' +
     '<button style="flex:1;' + (pick ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : '') + '" onclick="asVerifyMode()" title="לחיצה ליד מספר מידה בתכנית: קורא את המידות שם ומאמת (או קובע) את קנה המידה, עם סימון אדום להשוואה בעין">📐 ' + (pick ? 'לחץ ליד מידה… (Esc)' : 'שלב 2 — אמת ליד מידה') + '</button>' +
     '<button style="flex:1;' + (window.__asTable ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : '') + '" onclick="asTableMode()" title="תכנית ריהוט בלי שרשרת מידות: לחיצה על שולחן שכתובה עליו מידה (70/70, 130) — המלבן נמדד אוטומטית ואתה מקליד מה כתוב">🪑 ' + (window.__asTable ? 'לחץ על שולחן… (Esc)' : 'לפי שולחן מסומן') + '</button></div>';
