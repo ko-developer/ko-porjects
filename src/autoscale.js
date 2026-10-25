@@ -826,7 +826,7 @@ function asDimMode() {
   window.__asDim = window.__asDim ? null : { at: Date.now() }; window.__asPick = null; window.__asTable = null; render();
   if (window.__asDim) uiToast('📐 לחץ על מספר מידה בשרטוט (צמוד לקו המידה שלו) · Esc לסיום', 7000);
 }
-async function asDimAt(pt, prefill) {
+async function asDimAt(pt, prefill, auto) {
   try {
     if (P.bgRot) { uiToast('לכיול לפי מידה סובב את התכנית חזרה ל-0°'); return; }
     const W = P.bgW || 1400, H = bgHeightPx(), u = (pt.x - bgLeft()) / W, v = (pt.y - bgTop()) / H;
@@ -835,7 +835,7 @@ async function asDimAt(pt, prefill) {
     let seg = null; for (const [ox, oy] of [[0, 0], [0, 8], [0, -8], [8, 0], [-8, 0], [0, 16], [0, -16]]) { seg = asDimSeg(cv, u * cv.width + ox * k, v * cv.height + oy * k); if (seg) break; }
     if (!seg) { uiToast('לא נמצא קו מידה ליד הנקודה — לחץ על המספר, צמוד לקו המידה שלו', 6000); return; }
     const def = prefill || (P.autoScale && P.autoScale.dimLast) || '';
-    const ans = await uiPrompt('מה המספר שכתוב על המידה הזו?\n315 = ס״מ · 3150 = מ״מ · 3.15 = מ׳ (אפשר גם עם יחידה: 315cm / 3150mm)\nנמדד: קטע של ' + Math.round(seg.len / k) + ' פיקסלים ' + (seg.horiz ? 'אופקי' : 'אנכי') + (seg.ticks ? ' בין סימוני המידה' : ' (לא נמצאו סימוני קצה — אורך הקו כולו)'), def);
+    const ans = auto && prefill ? prefill : await uiPrompt('מה המספר שכתוב על המידה הזו?\n315 = ס״מ · 3150 = מ״מ · 3.15 = מ׳ (אפשר גם עם יחידה: 315cm / 3150mm)\nנמדד: קטע של ' + Math.round(seg.len / k) + ' פיקסלים ' + (seg.horiz ? 'אופקי' : 'אנכי') + (seg.ticks ? ' בין סימוני המידה' : ' (לא נמצאו סימוני קצה — אורך הקו כולו)'), def);
     if (ans == null) return;
     const m = /^\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m|מ["״]?מ|ס["״]?מ|מ['׳]?)?\s*$/i.exec(String(ans).replace(',', '.'));
     if (!m) { uiToast('כתוב מספר, למשל 315 או 3.15'); return; }
@@ -848,12 +848,25 @@ async function asDimAt(pt, prefill) {
     window.__asDim = { at: Date.now() }; render();
   } catch (e) { console.warn('asDimAt', e); uiToast('הכיול לפי מידה נכשל: ' + (e.message || e)); }
 }
-/* מספר שנקרא ב-OCR/שכבת הטקסט (שבב בסיכום) → מודדים את קו המידה שלו, עם המספר מוכן בשדה */
-function asDimFromToken(i) {
+/* מספר שנקרא (שבב בסיכום) → מתמקדים בו על התכנית עם טבעת אדומה ותיבת אישור: "זו מידה — מדוד" / "לא מידה" */
+function asFoundShow(i) {
   const r = P.autoScale, f = r && r.found && r.found[i]; if (!f) return;
-  const pt = { x: bgLeft() + f.u * (P.bgW || 1400), y: bgTop() + f.v * bgHeightPx() };
-  asDimAt(pt, f.t);
+  const x = bgLeft() + f.u * (P.bgW || 1400), y = bgTop() + f.v * bgHeightPx();
+  if (getZ() < 1.6) { P.zoom = 1.6; applyZoom(); }
+  scrollToBox({ L: x - 120, R: x + 120, T: y - 90, B: y + 90 }, 0);
+  document.querySelectorAll('.asFoundMark').forEach(e => e.remove());
+  if (!document.getElementById('asPulseCss')) { const st = document.createElement('style'); st.id = 'asPulseCss'; st.textContent = '@keyframes asPulse{0%{transform:scale(.8);opacity:1}100%{transform:scale(1.6);opacity:.15}}'; document.head.appendChild(st); }
+  const host = $('#nodes'), Z = getZ(), d = document.createElement('div'); d.className = 'asFoundMark';
+  d.style.cssText = 'position:absolute;left:' + x + 'px;top:' + y + 'px;z-index:40;pointer-events:none';
+  d.innerHTML = '<div style="position:absolute;left:-16px;top:-16px;width:32px;height:32px;border:3px solid #e02020;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.9);animation:asPulse 1.1s ease-in-out infinite"></div>'
+    + '<div onpointerdown="event.stopPropagation()" style="position:absolute;left:22px;top:-12px;transform:scale(' + (1 / Z).toFixed(3) + ');transform-origin:left top;pointer-events:auto;background:#fff;border:1.5px solid #e02020;border-radius:9px;padding:6px 9px;font-size:12px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.25);direction:rtl;text-align:right">'
+    + '<b>המספר שנקרא כאן: <span style="direction:ltr;display:inline-block;font-size:14px">' + esc(f.t) + '</span></b>'
+    + '<div style="display:flex;gap:4px;margin-top:5px"><button class="primary" style="padding:3px 8px;font-size:11.5px" onclick="asFoundConfirm(' + i + ')">✓ זו מידה — מדוד</button><button style="padding:3px 8px;font-size:11.5px" onclick="asFoundReject(' + i + ')">✗ לא מידה</button><button style="padding:3px 6px;font-size:11.5px" onclick="document.querySelectorAll(\'.asFoundMark\').forEach(e=>e.remove())">סגור</button></div></div>';
+  host.appendChild(d);
 }
+function asFoundConfirm(i) { const r = P.autoScale, f = r && r.found && r.found[i]; if (!f) return; document.querySelectorAll('.asFoundMark').forEach(e => e.remove()); f.ok = true; asDimAt({ x: bgLeft() + f.u * (P.bgW || 1400), y: bgTop() + f.v * bgHeightPx() }, f.t, true); }
+function asFoundReject(i) { const r = P.autoScale, f = r && r.found && r.found[i]; if (!f) return; f.no = true; document.querySelectorAll('.asFoundMark').forEach(e => e.remove()); save(); render(); }
+function asDimFromToken(i) { asFoundShow(i); }
 /* רשימת המספרים שנקראו בתכנית — לבחירה (ממוינים, בלי כפילויות) */
 function asFoundList(tokens, srcW, srcH, yUp) {
   const seen = new Set(), out = [];
@@ -861,8 +874,8 @@ function asFoundList(tokens, srcW, srcH, yUp) {
   return out.sort((a, b) => b.n - a.n).slice(0, 40);
 }
 function asFoundHTML(r) {
-  if (!r || !r.found || !r.found.length) return '';
-  return '<div style="margin-top:5px;font-size:11px"><span class="muted">מספרים שנקראו בשרטוט — לחץ על מספר שאתה מזהה כמידה, ונמדוד את קו המידה שלו:</span><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;direction:ltr">' + r.found.map((f, i) => `<button onclick="asDimFromToken(${i})" style="padding:1px 7px;font-size:11px;border-radius:999px;border:1px solid #c9c2b5;background:#fff;cursor:pointer" title="מדוד את קו המידה של ${esc(f.t)}">${esc(f.t)}</button>`).join('') + '</div></div>';
+  if (!r || !r.found || !r.found.filter(f => !f.no).length) return '';
+  return '<div style="margin-top:5px;font-size:11px"><span class="muted">מספרים שנקראו בשרטוט — לחיצה על מספר מסמנת אותו על התכנית; אם זו מידה, אשר שם ונמדוד את הקו שלה:</span><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;direction:ltr">' + r.found.map((f, i) => f.no ? '' : `<button onclick="asFoundShow(${i})" style="padding:1px 7px;font-size:11px;border-radius:999px;border:1px solid ${f.ok ? '#0f6e56' : '#c9c2b5'};background:${f.ok ? '#eef7f1' : '#fff'};cursor:pointer" title="הצג את המספר על התכנית">${f.ok ? '✓ ' : ''}${esc(f.t)}</button>`).join('') + '</div></div>';
 }
 /* ===== שדה קנה מידה ידני: "1 : N" + גיליון (לתמונה — בהנחה שהתמונה היא הגיליון המלא; ב-PDF גודל הדף ידוע) ===== */
 function asSheets() { return [['A4', 297], ['A3', 420], ['A2', 594], ['A1', 841], ['A0', 1189]]; }   /* פונקציה ולא const — הרינדור הראשון רץ לפני שהקובץ הזה נטען */
@@ -882,7 +895,7 @@ function asApplyRatioField() {
   P.calSrc = ''; asApply(r2, pxPerM, 'ratio', true);
   uiToast('✓ הוחל 1:' + n + ' — 1 מ׳ = ' + pxPerM.toFixed(1) + 'px · אמת לפי מידה בשרטוט אם אפשר', 6000);
 }
-window.asDimMode = asDimMode; window.asDimAt = asDimAt; window.asDimFromToken = asDimFromToken; window.asApplyRatioField = asApplyRatioField; window.asRatioFieldHTML = asRatioFieldHTML;
+window.asDimMode = asDimMode; window.asDimAt = asDimAt; window.asDimFromToken = asDimFromToken; window.asFoundShow = asFoundShow; window.asFoundConfirm = asFoundConfirm; window.asFoundReject = asFoundReject; window.asApplyRatioField = asApplyRatioField; window.asRatioFieldHTML = asRatioFieldHTML;
 
 
 window.autoScaleFromBg = autoScaleFromBg;
