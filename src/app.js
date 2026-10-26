@@ -6495,7 +6495,9 @@ function patchOpen(z, amps, lines, leftover) {
       const ch = +(nums[0] || 0);
       if (!ch || ch > t.inTotal) return;
       const key = 'i' + ii + '|' + ch;
-      (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.vsrc || (c.from + (c.srcCh ? '#' + c.srcCh : '')));
+      /* פאץ׳ פנימי מיחידה בארון (פרוססור/מיקסר → מגבר): הצ׳יפ מציג את היחידה והיציאה, לא את שם הארון */
+      const internal = c.from === t.rk.id;   /* גם כשהיחידה המקורית לא נרשמה — זה עדיין פאץ׳ פנימי, לא 'הארון' כמקור */
+      (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.vsrc || (internal ? 'u:' + c.fromUnit + '#' + (c.pOut || '') : c.from + (c.srcCh ? '#' + c.srcCh : '')));
       (PATCH.inPre[key] = PATCH.inPre[key] || []).push(c.id);
     });
   });
@@ -7359,6 +7361,11 @@ function openOutWire() { const zid = wireZoneId(); if (!zid) { uiToast('אין �
 function openInWire() { const zid = wireZoneId(); if (!zid) { uiToast('אין אזור בתכנית — סמן אזור קודם'); return; } openSrcWire(zid); }
 window.openOutWire = openOutWire; window.openInWire = openInWire;
 function patchSrcChip(id) {
+  if (/^u:/.test(id)) {   /* פאץ׳ פנימי: יחידה בארון → כניסת המגבר */
+    const m = /^u:([^#]+)#?(.*)$/.exec(id), un = m && P.nodes.flatMap(n => n.kind === 'rack' ? (n.units || []).map(u => ({ n, u })) : []).find(x => x.u.id === m[1]);
+    const nm = un ? modelOf(un.u.name) || un.u.name.slice(0, 22) : 'יחידה בארון (לא צוינה)', port = m && m[2] ? ' · ' + m[2] : '';
+    return `<span class="pchip src" title="פאץ׳ פנימי בארון: ${esc(un ? un.u.name : '')}${port} → כניסת המגבר">🎛 ${esc(nm)}${port ? '<b style="font-size:9.5px;background:rgba(0,0,0,.08);border-radius:4px;padding:0 4px;margin-inline-start:3px">' + esc(m[2]) + '</b>' : ''} <small style="opacity:.7">פאץ׳ פנימי</small></span>`;
+  }
   const ch = srcCh(id), chTag = ch ? ` <b style="font-size:9.5px;background:rgba(0,0,0,.08);border-radius:4px;padding:0 4px">${ch}</b>` : '';
   if (isVsrc(id)) {
     return `<span class="pchip src ${PATCH.sel === id ? 'sel' : ''}" draggable="true" data-chip="${id}"
@@ -9986,7 +9993,6 @@ function renderPanel() {
           <div style="font-weight:800;color:${P.scale ? '#0f6e56' : '#c9502e'};margin-bottom:4px">${P.scale ? '✓ קנה מידה מכויל' : '⚠ התכנית עדיין לא מכוילת'}</div>
           <p class="muted" style="margin:0 0 8px">${P.scale ? `1 מ׳ = ${(1 / P.scale).toFixed(1)}px · מרחקי כבלים נמדדים אוטומטית מהתכנית` : 'בלי כיול מרחקי הכבלים לא יחושבו נכון. כייל פעם אחת לפי מידה ידועה בתכנית.'}</p>
           ${typeof asSummaryHTML === 'function' ? asSummaryHTML() : ''}
-          <button class="primary" style="width:100%;${calMode && calMode.smart ? 'background:#ff8a50;color:#1a1e28' : 'background:#0f6e56'}" onclick="calMode={pts:[],smart:true};render()" title="לחיצה אחת על קו מידה בתכנית — הקצוות נמצאים לבד, ואתה רק מקליד את המספר שכתוב">📐 ${calMode && calMode.smart ? 'לחץ על קו מידה בתכנית (מתחת למספר)…' : 'כיול בלחיצה על מידה בתכנית'}</button>
           <button class="primary" style="width:100%;margin-top:6px;${calMode && !calMode.smart ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode && !calMode.smart ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : 'בצע כיול ידני (2 נקודות)'}</button>
           ${!P.autoScale && typeof asStepButtonsHTML === 'function' ? asStepButtonsHTML() : ''}
         </div>
