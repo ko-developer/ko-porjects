@@ -15148,12 +15148,12 @@ async function aiServerReady() {
   return AI_SRV;
 }
 /* שולח הודעות ל-Claude ומחזיר את גוף התשובה. זורק Error('NOKEY') אם המשתמש ביטל את בקשת המפתח. */
-async function claudeMsg(messages, maxTokens) {
+async function claudeMsg(messages, maxTokens, model) {
   const mode = await aiServerReady();
   if (mode === 'srv') {
     const r = await fetch('/api/ai', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ messages, max_tokens: maxTokens })
+      body: JSON.stringify({ messages, max_tokens: maxTokens, ...(model ? { model } : {}) })
     });
     const j = await r.json().catch(() => ({ error: 'תשובת שרת לא תקינה' }));
     if (!r.ok || j.error) throw new Error(j.error || 'שגיאת שרת ' + r.status);
@@ -17450,6 +17450,105 @@ function rackSection(n) {
     </div>
   </div>${ct ? `<div class="rp-sec" data-rpk="rackcab:${n.id}" data-rpf="rackcab"><h3>🔌 כבלים מחוברים לארון — ${esc(n.name)}</h3><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th><th>חתך צינור מומלץ</th></tr>${ct}</table></div>` : ''}<div class="rp-sec" data-rpk="rackplan:${n.id}" data-rpf="rackplan"><h3>🗺 תכנית משולבת — ${esc(n.name)}</h3><div data-rackplan="${n.id}"></div></div>`;
 }
+/* ===== 🤖 בנה לי מערכת עם AI — Claude בוחר רמקול/סאב מהקטלוג (במלאי) לפי האזור וכללי הבית, מציע כמויות וגובה,
+   ואחרי אישור המנוע הקיים ("בנה הכל") מציב, מכניס מגברים לפי הכללים, ארון, עמדה וחיווט ===== */
+function aiBuildCatalog() {
+  const rows = [];
+  for (const it of (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : [])) {
+    const [k, nm, pr, st] = it; if (!(+pr > 0) || !(+st >= 1) || !isSpeakerItem(nm || '')) continue;
+    if (typeof KIT_ALT_NO !== 'undefined' && KIT_ALT_NO.test(nm || '')) continue;
+    if (/גלגל|wheel|dolly|ח\.ח|ת\.ח|temp name|בלוטוס|bluetooth|רטט|vibration|כיסוי|cover|מתקן|bracket|השכר/i.test(nm || '')) continue;
+    const d = (typeof spkData === 'function' ? spkData(nm) : null) || {};
+    const sub = typeof KIT_SUB_RX !== 'undefined' ? KIT_SUB_RX.test(nm) : /סאב|\bsub\b/i.test(nm);
+    rows.push({ k, nm: String(nm).slice(0, 70), pr: Math.round(+pr), st: +st, sub, act: isActiveSpk(nm), w: d.w, o: d.o, sens: d.sens, max: d.max, h: d.h, v: d.v, brand: (typeof kitBrandOf === 'function' ? kitBrandOf(nm) : '') || '', inc: typeof spkBracketInc === 'function' ? spkBracketInc(nm) : null });
+  }
+  rows.sort((a, b) => b.st - a.st || a.pr - b.pr);
+  return rows.slice(0, 90);
+}
+async function wizAiBuild(zid) {
+  const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
+  if (!z.usage) { uiToast('🎯 בחר קודם תכלית לאזור'); return; }
+  const area = typeof zoneAreaM === 'function' ? zoneAreaM(z) : 0;
+  if (!area) { uiToast('כייל את התכנית קודם — בלי קנה מידה אין שטח לחישוב'); return; }
+  const cat = aiBuildCatalog(); if (!cat.length) { uiToast('אין רמקולים במלאי בקטלוג'); return; }
+  const srcs = (typeof zoneOwnSources === 'function' ? zoneOwnSources(z) : []).map(k => (SRC_LBL[k] || k));
+  const ceil = z.ceil ?? (P.room && P.room.ceil) ?? '';
+  const catTxt = cat.map(r => [r.k, r.nm, '₪' + r.pr, 'מלאי ' + r.st, r.sub ? 'SUB' : r.act ? 'ACTIVE' : 'TOP', r.w ? r.w + 'W@' + (r.o || 8) + 'Ω' : 'W?', r.sens ? r.sens + 'dB' : '', r.max ? 'max' + r.max : '', r.h && r.v ? r.h + 'x' + r.v + '°' : '', r.brand, r.inc === true ? 'מתקן בקופסה' : r.inc === false ? 'בלי מתקן' : ''].filter(Boolean).join(' | ')).join('\n');
+  const prompt = `אתה מתכנן מערכות סאונד להתקנות קבע בחברת KO (ישראל). בחר מהקטלוג שלנו (רק מוצרים מהרשימה, לפי המק"ט) מערכת לאזור אחד, לפי כללי הבית:
+- מגברים לא בוחרים — המנוע בוחר אוטומטית לפי הכלל (הספק מגבר ×1.5–×2 מהרמקולים, KT→DYNAMIQ, אף פעם לא DAP). אתה בוחר רק רמקול ראשי (TOP), סאב (אם צריך) וכמויות.
+- כמות הטופים לפי שטח, גובה תקרה, פיזור הדגם ויעד העוצמה של התכלית (רקע ~72dB, מסעדה ~80-85, בר ~90-95, מועדון/רחבה 100+). סאב: למוזיקה/בר/מועדון כן, לרקע שקט לא; לכל ~80 מ"ר לפחות סאב אחד כשצריך בס.
+- העדף מלאי זמין, אותו מותג לטופ ולסאב, ומחיר סביר לתכלית. ALPHA (ACTIVE) רק אם באמת מתאים; מגבר לא נדרש לרמקול ACTIVE אבל נדרשת נקודת חשמל.
+- אל תמציא מק"טים. ענה ב-JSON בלבד, בלי טקסט לפני/אחרי, במבנה:
+{"spk":{"key":"מק\"ט","qty":מספר,"height_m":מספר,"why":"משפט"},"sub":{"key":"מק\"ט","qty":מספר,"why":"משפט"} או null,"place":"ring"|"wall"|"corners","notes":["הערות קצרות למתכנן"]}
+"place": ring = סביב האזור/פיזור אחיד, wall = לאורך קיר אחד, corners = 4 פינות (רחבה/פורגראונד).
+
+האזור: "${z.name}" · תכלית: ${z.usage} · שטח ${area.toFixed(0)} מ"ר · תקרה ${ceil || '?'} מ׳ · מקורות נגינה: ${srcs.join(', ') || 'לא הוגדרו'}${P.room && P.room.absorb != null ? ' · ספיגה אקוסטית ' + P.room.absorb + '/10' : ''}
+${(P.zones || []).length > 1 ? 'אזורים אחרים בפרויקט: ' + (P.zones || []).filter(x => x.id !== z.id).map(x => x.name + ' (' + (x.usage || '?') + (x._spk ? ', נבחר ' + shortModel(x._spk) : '') + ')').join(', ') + ' — אם אפשר, אותו מותג/משפחה.' : ''}
+
+קטלוג (מק"ט | שם | מחיר | מלאי | סוג | הספק | רגישות | SPL מקס | פיזור | מותג | מתקן):
+${catTxt}`;
+  const ov = uiModal('<b style="font-size:14px">🤖 Claude מתכנן מערכת ל"' + esc(z.name) + '"…</b><p class="muted" style="font-size:12px;margin:8px 0">שולח את נתוני האזור, הקטלוג במלאי וכללי הבית. כמה שניות.</p>');
+  let plan;
+  try {
+    const j = await claudeMsg([{ role: 'user', content: prompt }], 2500, 'claude-opus-5-5');
+    const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const m = /\{[\s\S]*\}/.exec(txt); if (!m) throw new Error('לא התקבל JSON מהמודל');
+    plan = JSON.parse(m[0]);
+  } catch (e) { ov.remove(); uiToast('🤖 הבנייה עם AI נכשלה: ' + (e.message === 'NOKEY' ? 'אין מפתח API' : e.message), 7000); return; }
+  ov.remove();
+  const byKey = k => cat.find(r => r.k === k) || (typeof ERP_ITEMS !== 'undefined' ? (ERP_ITEMS.find(i => i[0] === k) ? { k, nm: ERP_ITEMS.find(i => i[0] === k)[1], pr: +ERP_ITEMS.find(i => i[0] === k)[2], st: +ERP_ITEMS.find(i => i[0] === k)[3] } : null) : null);
+  const spk = plan.spk && byKey(plan.spk.key), sub = plan.sub && plan.sub.key ? byKey(plan.sub.key) : null;
+  if (!spk) { uiToast('🤖 המודל בחר מק"ט שלא בקטלוג (' + (plan.spk && plan.spk.key) + ') — נסה שוב', 6000); return; }
+  const place = ['ring', 'wall', 'corners'].includes(plan.place) ? plan.place : 'ring';
+  const PL = { ring: 'פיזור סביב האזור', wall: 'לאורך קיר', corners: '4 פינות' };
+  const ov2 = uiModal(`
+    <b style="font-size:14px">🤖 הצעת AI ל"${esc(z.name)}" — ${esc(z.usage)} · ${area.toFixed(0)} מ"ר</b>
+    <div style="font-size:12.5px;line-height:1.6;margin:8px 0">
+      <div><b>🔊 טופ:</b> ${esc(spk.nm)} <span class="muted">(${esc(spk.k)} · ₪${spk.pr} · מלאי ${spk.st})</span> × <b>${+plan.spk.qty || '?'}</b> · גובה ${plan.spk.height_m ? (+plan.spk.height_m).toFixed(1) + ' מ׳' : '?'}<br><span class="muted">${esc(plan.spk.why || '')}</span></div>
+      ${sub ? `<div style="margin-top:4px"><b>🔈 סאב:</b> ${esc(sub.nm)} <span class="muted">(${esc(sub.k)} · ₪${sub.pr} · מלאי ${sub.st})</span> × <b>${+plan.sub.qty || '?'}</b><br><span class="muted">${esc(plan.sub.why || '')}</span></div>` : '<div style="margin-top:4px" class="muted">בלי סאב</div>'}
+      <div style="margin-top:4px"><b>📍 פריסה:</b> ${PL[place]}</div>
+      ${(plan.notes || []).length ? '<ul style="margin:6px 0 0;padding-inline-start:18px">' + (plan.notes || []).slice(0, 6).map(n => '<li>' + esc(String(n)) + '</li>').join('') + '</ul>' : ''}
+      <p class="muted" style="font-size:11px;margin:8px 0 0">בלחיצה על "בנה": המנוע מציב את הרמקולים לפי כיסוי (הכמות הסופית לפי השטח והפיזור), מכניס מגברים לפי כלל ×1.5–×2, ארון, עמדה/קופסת במה, וחיווט לאישור. אחר כך "האם שכחתי משהו?" משלים כבלים, מחברים, מתקנים, פס שקעים ומפצל רשת.</p>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button class="primary" data-go style="flex:1;background:#0f6e56">🚀 בנה לפי ההצעה</button><button data-again style="flex:0 0 auto">🔄 הצעה אחרת</button><button data-x style="flex:0 0 auto">ביטול</button></div>`);
+  ov2.querySelector('[data-x]').onclick = () => ov2.remove();
+  ov2.querySelector('[data-again]').onclick = () => { ov2.remove(); wizAiBuild(zid); };
+  ov2.querySelector('[data-go]').onclick = () => {
+    ov2.remove();
+    z._spk = spk.nm; z._spkKey = spk.k;
+    if (sub) { z._sub = sub.nm; z._subKey = sub.k; } else { delete z._sub; delete z._subKey; }
+    z._place = place; z._aiPlan = { spk: plan.spk, sub: plan.sub, place, notes: plan.notes, at: Date.now() };
+    if (plan.spk.height_m > 0) z._spkH = +plan.spk.height_m;
+    save();
+    if (typeof wizBuildAll === 'function') wizBuildAll(true);
+    setTimeout(() => { const n = aiTrimToPlan(z); if (n) uiToast('🤖 הכמות לפי ההצעה: ' + (+plan.spk.qty) + ' טופים' + (sub ? ' + ' + (+plan.sub.qty) + ' סאבים' : '') + ' (המנוע הציב ' + n + ' יותר — הוסרו)', 5000); }, 350);   /* לפני החיווט (700ms) */
+    uiToast('🤖 נבנה לפי הצעת ה-AI: ' + shortModel(spk.nm) + (sub ? ' + ' + shortModel(sub.nm) : ''), 6000);
+  };
+}
+/* הכמות של ה-AI גוברת על חישוב הכיסוי של המנוע: אחרי ההצבה משאירים N רמקולים מפוזרים אחיד (לפי זווית סביב מרכז האזור) ו-N סאבים */
+function aiTrimToPlan(z) {
+  const plan = z && z._aiPlan; if (!plan) return 0;
+  const b = zoneBounds(z), cx = b.L + b.W / 2, cy = b.T + b.H / 2; let removed = 0;
+  const trim = (name, want) => {
+    if (!name || !(want > 0)) return;
+    const nodes = P.nodes.filter(n => n.kind === 'point' && String(n.name || '').startsWith(name.slice(0, 40)) && zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }) === z);
+    if (nodes.length <= want) return;
+    nodes.forEach(n => { n._ang = Math.atan2((n.y + 24) - cy, (2200 - n.x - 20) - cx); }); nodes.sort((a, c) => a._ang - c._ang);
+    const keep = new Set(); for (let i = 0; i < want; i++) keep.add(nodes[Math.floor(i * nodes.length / want)]);
+    const drop = nodes.filter(n => !keep.has(n)); const ids = new Set(drop.map(n => n.id));
+    P.nodes = P.nodes.filter(n => !ids.has(n.id)); P.cables = (P.cables || []).filter(c => !ids.has(c.from) && !ids.has(c.to)); removed += drop.length;
+    nodes.forEach(n => { delete n._ang; });
+    const it = impItems.find(x => x.iid === nodes[0].srcIid) || impItems.find(x => x.name === name && x.dest === 'point');
+    if (it) { it.qty = want; it.placed = want; if (it.zones) it.zones[z.name] = want; }
+    /* מספור מחדש (1..N) */
+    const kept = nodes.filter(n => keep.has(n)); kept.forEach((n, i) => { n.name = String(n.name).replace(/s*(d+)s*$/, '') + ' (' + (i + 1) + ')'; });
+  };
+  trim(z._spk, +(plan.spk && plan.spk.qty)); trim(z._sub, plan.sub ? +plan.sub.qty : 0);
+  if (removed) { render(); save(); }
+  return removed;
+}
+window.wizAiBuild = wizAiBuild; window.aiTrimToPlan = aiTrimToPlan;
+
 /* פתיחת הדוח ישירות על חלק מסוים: cust / elec / inst / all */
 function exportReportPart(part) { window.__rpTab = part || 'cust'; exportPDF(); }
 window.exportReportPart = exportReportPart;

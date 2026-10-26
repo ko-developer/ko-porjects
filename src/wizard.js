@@ -208,6 +208,7 @@ function wizStepHTML(s) {
       <option value="">— תכלית / עוצמה —</option>
       ${usages.map(u => `<option ${z.usage === u ? 'selected' : ''}>${u}</option>`).join('')}
     </select>
+    <button class="big" style="background:#1f6feb" onclick="wizAiBuild('${z.id}')" title="Claude בוחר מהקטלוג (במלאי) רמקול וסאב לאזור לפי התכלית, השטח וכללי הבית; אחרי אישור — בנייה מלאה: הצבה, מגברים לפי הכלל, ארון, עמדה וחיווט">🤖 בנה לי מערכת עם AI — כמויות, מגברים, ארון, חיווט</button>
     <button class="big" style="background:#534ab7" onclick="zoneSpkPicker('${z.id}')">🎛 בחר מערכת — הצעות לפי מותג · קיטים · מוצרים</button>
     <input id="wizKitQ" placeholder="🔍 או חפש ישר קיט / רמקול…" oninput="wizKitSearch(this.value)">
     <div id="wizKitRes" style="max-height:150px;overflow-y:auto"></div>
