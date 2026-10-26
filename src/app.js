@@ -17450,6 +17450,9 @@ function rackSection(n) {
     </div>
   </div>${ct ? `<div class="rp-sec" data-rpk="rackcab:${n.id}" data-rpf="rackcab"><h3>🔌 כבלים מחוברים לארון — ${esc(n.name)}</h3><table class="cablelist"><tr><th>#</th><th>כיוון</th><th>מכשיר בארון</th><th>הצד השני</th><th>סוג</th><th>מפרט</th><th>חתך צינור מומלץ</th></tr>${ct}</table></div>` : ''}<div class="rp-sec" data-rpk="rackplan:${n.id}" data-rpf="rackplan"><h3>🗺 תכנית משולבת — ${esc(n.name)}</h3><div data-rackplan="${n.id}"></div></div>`;
 }
+/* פתיחת הדוח ישירות על חלק מסוים: cust / elec / inst / all */
+function exportReportPart(part) { window.__rpTab = part || 'cust'; exportPDF(); }
+window.exportReportPart = exportReportPart;
 function exportPDF() {
   window.__rpHideMic = true;   /* מיקרופוני מדידה לא בצילומי הדוח */
   try { return exportPDF0(); } finally { window.__rpHideMic = false; try { renderNodes(); } catch {} }   /* המיקרופונים חוזרים לתכנית החיה */

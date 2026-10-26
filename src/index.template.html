@@ -315,7 +315,10 @@ body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer
       <button onclick="exportPlanPDF();this.closest('.dd').classList.remove('open')" title="דף ה-PDF המקורי של התכנית + האזורים, הכבלים והמוקדים כקווים וקטוריים — לייבוא ב-AutoCAD (PDFIMPORT)">📄 תכנית ל-AutoCAD (PDF וקטורי)</button>
       <button onclick="exportJSON();this.closest('.dd').classList.remove('open')">💾 ייצוא פרויקט (JSON)</button>
       <button onclick="exportBackup();this.closest('.dd').classList.remove('open')">🗄 גיבוי מלא — כל הפרויקטים · Full Backup</button>
-      <button onclick="exportPDF();this.closest('.dd').classList.remove('open')">📑 דוח PDF</button>
+      <button onclick="exportReportPart('cust');this.closest('.dd').classList.remove('open')">🏠 דוח — תכנית והדמיה ללקוח</button>
+      <button onclick="exportReportPart('elec');this.closest('.dd').classList.remove('open')">⚡ דוח — תכנית הדרכה לחשמלאי</button>
+      <button onclick="exportReportPart('inst');this.closest('.dd').classList.remove('open')">🔧 דוח — תכנית הדרכה למתקין</button>
+      <button onclick="exportReportPart('all');this.closest('.dd').classList.remove('open')">📑 הדוח המלא (כל החלקים)</button>
       <button onclick="showBom();this.closest('.dd').classList.remove('open')">🧾 כתב כמויות מהתכנית</button>
     </div>
   </div>

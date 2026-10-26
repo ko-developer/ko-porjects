@@ -264,9 +264,11 @@ function wizStepHTML(s) {
   }
   return `
     <h4>דוחות</h4>
-    <p class="hint">דוח המתקינים כולל: לוח ארונות, לוח משיכת כבלים (מ→אל, סוג, אורך, מחברים), לוח תליית רמקולים (גובה/תושבת/כיוון) ורשימת ציוד.</p>
-    <button class="big" onclick="installerReport()">🔧 דוח מתקינים / חשמלאים</button>
-    <button class="sec" onclick="window.print()">🖨 הדפסת התכנית והמפתח (הקיים)</button>`;
+    <p class="hint">הדוח מחולק לשלושה חלקים, כל אחד נפתח בתצוגה מקדימה עם הדפסה / הורדת PDF. בתצוגה אפשר לעבור בין החלקים, לסדר מקטעים (🧩) ולייצא כל חלק בנפרד.</p>
+    <button class="big" style="background:#0f6e56" onclick="exportReportPart('cust')">🏠 תכנית והדמיה ללקוח</button>
+    <button class="big" style="background:#b7791f" onclick="exportReportPart('elec')">⚡ תכנית הדרכה לחשמלאי</button>
+    <button class="big" style="background:#534ab7" onclick="exportReportPart('inst')">🔧 תכנית הדרכה למתקין</button>
+    <button class="sec" onclick="exportReportPart('all')">📑 הדוח המלא — כל החלקים</button>`;
 }
 
 /* ---- 📐 שלב יישור התכניות (קומות / מבנים / שרטוטים נוספים) ---- */
