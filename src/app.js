@@ -6377,6 +6377,59 @@ function patchCss() {
 const patchNum = n => { const m = (n.name || '').match(/\((\d+)\)(?!.*\(\d+\))/); return m ? m[1] : '•'; };
 /* שם המוצר המלא של מוקד — שמות על התכנית נחתכים ל-40 תווים ומאבדים את הדגם,
    אז מעדיפים את שם הפריט המקורי מהצעת המחיר */
+/* ===== DigiSynthetic AES67: כל מוצר של DigiSynthetic שכתוב עליו AES67 (פאנלים, קיפדים, מתאמים, כרטיס קול, DLA-04) מתחבר לשאר המוצרים ברשת —
+   Cat6 למתג הרשת בארון — ומקבל הזנה PoE מהמתג (בלי נקודת חשמל). בהוספה לתכנית נוסף אוטומטית כבל הרשת למתג ה-PoE ===== */
+const DIGI_BRAND_RX = /DIGISYNTH|DIGISYNTHEIC|\bDIGI\b|דיגיסינטטיק/i, DIGI_NET_KIND_RX = /AES\s?67|DLA-?\s?04|network/i;
+function isDigiNetDev(name) { const s = String(name || ''); return DIGI_BRAND_RX.test(s) && DIGI_NET_KIND_RX.test(s); }
+function isDigiNetNode(n) { return !!n && (n.kind === 'point' || n.kind === 'panel') && isDigiNetDev(nodeFullName(n)); }
+function digiNetCableOf(n) { return (P.cables || []).find(c => c.type === 'cat' && !c.internal && ((c.to === n.id && byId(c.from) && byId(c.from).kind === 'rack') || (c.from === n.id && byId(c.to) && byId(c.to).kind === 'rack'))) || null; }
+/* הארון שאליו מתחבר מכשיר הרשת: ארון עם מתג PoE (הקרוב), אחרת ארון עם מתג כלשהו, אחרת הארון הקרוב */
+function digiNetRack(n) {
+  const racks = P.nodes.filter(r => r.kind === 'rack'); if (!racks.length) return null;
+  const dist = r => Math.hypot((r.x || 0) - (n.x || 0), (r.y || 0) - (n.y || 0));
+  const withSw = racks.map(r => ({ r, sw: rackNetSwitch(r) })).filter(x => x.sw).sort((a, b) => dist(a.r) - dist(b.r));
+  const poe = withSw.find(x => netSwitchPorts(x.r, x.sw).some(it => /PoE/i.test(it.label || '')));
+  return poe || withSw[0] || { r: racks.slice().sort((a, b) => dist(a) - dist(b))[0], sw: null };
+}
+function digiNetLbl(n) { return String(n.name || '').replace(/\s*\(\d+\)\s*$/, '').slice(0, 34) + (/\(\d+\)\s*$/.test(n.name || '') ? ' ' + n.name.match(/\(\d+\)\s*$/)[0] : ''); }
+function digiNetAssign(cc, n, sw, sp) {
+  const poe = /PoE/i.test(sp.label || '');
+  cc.fromUnit = sw.id; cc.pOut = sp.port; cc.spec = 'Cat6 · AES67' + (poe ? ' + PoE' : '');
+  cc.note = 'רשת AES67 — ' + digiNetLbl(n) + ' ↔ ' + shortModel(sw.name) + ' ' + sp.port + (poe ? ' · הזנה PoE מהמתג, בלי נקודת חשמל' : ' · ⚠ פורט ללא PoE — דרוש מזרק PoE או ספק');
+}
+/* כבלי רשת של מוצרי DigiSynthetic שנפרסו לפני שהיה מתג בארון — משובצים לפורטי ה-PoE כשהמתג נכנס */
+function digiNetRelink(rk) {
+  const sw = rk && rackNetSwitch(rk); if (!sw) return 0; let k = 0;
+  (P.cables || []).forEach(c => { if (c.from !== rk.id || c.type !== 'cat' || c.fromUnit || !isDigiNetNode(byId(c.to))) return; const sp = netSwitchFreePort(rk, sw, true); if (!sp) return; digiNetAssign(c, byId(c.to), sw, sp); k++; });
+  return k;
+}
+function digiNetUnlinked(rk) { return (P.cables || []).filter(c => c.from === rk.id && c.type === 'cat' && !c.fromUnit && isDigiNetNode(byId(c.to))); }
+window.digiNetRelink = digiNetRelink;
+function digiNetAutoCable(n) {
+  if (!isDigiNetNode(n) || digiNetCableOf(n)) return null;
+  const t = digiNetRack(n); if (!t) return null;
+  const rk = t.r, sw = t.sw, sp = sw ? netSwitchFreePort(rk, sw, true) : null, poe = !!(sp && /PoE/i.test(sp.label || ''));
+  const cc = { id: uid('c'), from: rk.id, to: n.id, type: 'cat', qty: '1', conn: 'rj45', conn2: 'rj45', spec: 'Cat6 · AES67' + (poe ? ' + PoE' : ''), srcNet: 'aes67' };
+  if (sw && sp) digiNetAssign(cc, n, sw, sp);
+  else if (sw) cc.note = 'רשת AES67 → ' + shortModel(sw.name) + ' · ⚠ אין פורט פנוי במתג — דרוש מתג גדול יותר';
+  else cc.note = 'רשת AES67 לארון "' + (rk.name || '') + '" · ⚠ אין מתג PoE בארון — בדיקת השלמות תציע מתג';
+  if (P.scale) cc.len = +(Math.hypot((rk.x || 0) - (n.x || 0), (rk.y || 0) - (n.y || 0)) * P.scale).toFixed(1);
+  { const hs = n.panel && n.panel.holes, hi = hs ? hs.findIndex(h => h.conn === 'rj45') : -1; if (hi >= 0) { cc.toHole = hi + 1; if (!hs[hi].label) hs[hi].label = 'NET'; } }
+  P.cables.push(cc);
+  return cc;
+}
+/* כל מוצרי DigiSynthetic AES67 שעל התכנית בלי כבל רשת לארון — מקבלים אחד (אחרי הוספה לתכנית / בניית מערכת) */
+function digiNetAutoAll(ids) {
+  let k = 0; P.nodes.forEach(n => { if (ids && !ids.has(n.id)) return; if (digiNetAutoCable(n)) k++; });
+  if (k) setTimeout(() => uiToast('🌐 ' + k + ' כבלי רשת Cat6 (AES67 + PoE) למתג נוספו למוצרי DigiSynthetic', 5000), 300);
+  return k;
+}
+function digiNetHintHTML(n) {
+  const c = digiNetCableOf(n);
+  return '<div style="background:#eaf3ff;border:1px solid #9cc3ee;border-radius:8px;padding:6px 8px;margin:6px 0;font-size:12px;color:#164a7a"><b>🌐 DigiSynthetic AES67</b> — מתחבר ברשת (Cat6) למתג שבארון ומוזן PoE מהמתג; אין צורך בנקודת חשמל.<br>' +
+    (c ? '<small>' + esc(c.note || c.spec || 'כבל רשת לארון') + '</small>' : '<button type="button" style="margin-top:4px;background:#185fa5;color:#fff;border:none;border-radius:7px;padding:5px 9px;font-weight:700;cursor:pointer" onclick="if(digiNetAutoCable(byId(\'' + n.id + '\'))){save();render();uiToast(\'🌐 נוסף כבל רשת למתג\')}else uiToast(\'אין ארון בתכנית\')">➕ חבר ברשת למתג ה-PoE</button>') + '</div>';
+}
+window.digiNetAutoCable = digiNetAutoCable;
 function nodeFullName(n) {
   if (n && n.srcIid) { const it = impItems.find(x => x.iid === n.srcIid); if (it && it.name) return it.name; }
   return (n && n.name) || '';
@@ -7412,7 +7465,7 @@ function patchSoundCardAdd() {
   const sel = document.querySelector('#patchOv [data-sndcard]'), key = sel && sel.value; if (!key) return;
   const row = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).find(([k]) => k === key); if (!row) return;
   const it = { on: true, qty: 1, name: row[1], key: row[0], src: 'כרטיס קול למחשב', dest: 'acc', cat: 'other', u: 1, iid: uid('i') }; autoPrice(it); impItems.push(it);
-  save(); if (typeof renderImp === 'function') renderImp(); patchRender(); uiToast('➕ ' + shortModel(row[1]) + ' נוסף להצעה — כרטיס הקול בין המחשב למערכת', 4500);
+  save(); if (typeof renderImp === 'function') renderImp(); patchRender(); uiToast('➕ ' + shortModel(row[1]) + ' נוסף להצעה — כרטיס הקול בין המחשב למערכת' + (isDigiNetDev(row[1]) ? ' · DigiSynthetic AES67: יוצא ברשת Cat6 למתג ומוזן PoE' : ''), 5500);
 }
 window.patchSoundCardAdd = patchSoundCardAdd;
 /* רשת אודיו בין המגברים: מקור שמגיע לכניסת AES67/Dante של מגבר אחד — כל המגברים באותו פרוטוקול בארון מקבלים אותו בכבל רשת:
@@ -8104,11 +8157,14 @@ async function patchApply() {
   /* כניסות שרוקנו — הקווים הישנים שלהן נמחקים */
   /* מקור שהוא מכשיר רשת (מתאם Dante / AES67 עם PoE): פיזית הכבל הולך למתג הרשת (פורט PoE), לא לכניסת XLR; הערוץ הלוגי נשמר ב-logIn */
   made.forEach(cc => {
-    const src = byId(cc.from); if (!src || src.kind !== 'point' || !/dante|aes\s?67/i.test(nodeFullName(src))) return;
+    const src = byId(cc.from); if (!src || src.kind !== 'point') return;
+    const sc = src.srcKind === 'pc' ? soundCardInOffer() : null, viaCard = !!(sc && isDigiNetDev(sc.name));   /* מחשב עם כרטיס קול DigiSynthetic USB-AES67 — הכרטיס יוצא ברשת */
+    if (!/dante|aes\s?67/i.test(nodeFullName(src)) && !viaCard) return;
     const rk = byId(cc.to), proc = rk && (rk.units || []).find(u => u.id === cc.toUnit), sw = rk && rackNetSwitch(rk); if (!proc) return;
+    const devNm = viaCard ? 'כרטיס קול ' + shortModel(sc.name) + ' (USB מהמחשב)' : 'מתאם רשת';
     cc.logUnit = proc.id; cc.logIn = cc.pIn; cc.type = 'cat'; cc.conn = 'rj45'; cc.conn2 = 'rj45'; cc.cores = undefined; cc.srcCh = undefined;
-    if (sw) { const sp = netSwitchFreePort(rk, sw, true); if (sp) { cc.toUnit = sw.id; cc.pIn = sp.port; cc.spec = 'Cat6 · Dante/AES67' + (/PoE/i.test(sp.label || '') ? ' + PoE' : ' (⚠ פורט ללא PoE)'); cc.note = 'מתאם רשת → ' + shortModel(sw.name) + ' ' + sp.port + ' · לוגית: ' + shortModel(proc.name) + ' ' + cc.logIn; } else { cc.spec = 'Cat6 · Dante/AES67'; cc.note = '⚠ אין פורט פנוי במתג — לוגית: ' + shortModel(proc.name) + ' ' + cc.logIn; } }
-    else { cc.pIn = unitAudioNetPort(proc); cc.spec = 'Cat6 · Dante/AES67 ישיר'; cc.note = 'מתאם רשת → ' + shortModel(proc.name) + ' ' + cc.pIn + ' (אין מתג רשת בארון; מתאם PoE צריך הזנה) · לוגית: ' + cc.logIn; }
+    if (sw) { const sp = netSwitchFreePort(rk, sw, true); if (sp) { cc.toUnit = sw.id; cc.pIn = sp.port; cc.spec = 'Cat6 · Dante/AES67' + (/PoE/i.test(sp.label || '') ? ' + PoE' : ' (⚠ פורט ללא PoE)'); cc.note = devNm + ' → ' + shortModel(sw.name) + ' ' + sp.port + (viaCard ? ' · הזנה PoE' : '') + ' · לוגית: ' + shortModel(proc.name) + ' ' + cc.logIn; } else { cc.spec = 'Cat6 · Dante/AES67'; cc.note = '⚠ אין פורט פנוי במתג — לוגית: ' + shortModel(proc.name) + ' ' + cc.logIn; } }
+    else { cc.pIn = unitAudioNetPort(proc); cc.spec = 'Cat6 · Dante/AES67 ישיר'; cc.note = devNm + ' → ' + shortModel(proc.name) + ' ' + cc.pIn + ' (אין מתג רשת בארון; מכשיר PoE צריך הזנה) · לוגית: ' + cc.logIn; }
   });
   Object.entries(PATCH.inPre || {}).forEach(([k6, cids]) => {
     if ((PATCH.inOrig || {})[k6] === (PATCH.inSlots[k6] || []).join(',')) return;
@@ -8424,16 +8480,20 @@ function projGapCheck() {
   const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
   /* רשת אודיו: מגברים שמוזנים ב-Dante/AES67 צריכים מתג רשת בארון עם מספיק פורטים; מכשירי PoE (מתאמי Dante, פנלים, AP) צריכים פורטי PoE */
   racks.forEach(rk => {
-    const netAmps = (rk.units || []).filter(u => u.sigNet); if (!netAmps.length) return;
+    const netAmps = (rk.units || []).filter(u => u.sigNet);
+    const netDevs = (P.cables || []).filter(c => c.type === 'cat' && !c.internal && ((c.from === rk.id && isDigiNetNode(byId(c.to))) || (c.to === rk.id && isDigiNetNode(byId(c.from)))));   /* פאנלים / קיפדים / מתאמים DigiSynthetic AES67 — ברשת + PoE */
+    if (!netAmps.length && !netDevs.length) return;
     const sw = rackNetSwitch(rk);
-    if (!sw) { const needP = netAmps.length + 1 + (P.cables || []).filter(c => c.to === rk.id && c.type === 'cat' && c.from !== rk.id).length + 1, poe = (P.cables || []).some(c => /PoE/i.test(c.spec || '')), cand = netSwitchCands(needP, poe)[0] || netSwitchCands(needP, false)[0];
-      finds.push({ i: '🌐', k: 'netsw|' + rk.id, t: netAmps.length + ' מגברים ב"' + rk.name.slice(0, 18) + '" מוזנים ברשת (Dante/AES67) — אין מפצל רשת בארון · נדרשים ~' + needP + ' פורטים (מגברים + פרוססור + עלייה)' + (cand ? ' · מוצע: ' + cand.r[1].slice(0, 44) + ' (' + cand.p + ' פורטים' + (cand.r[3] > 0 ? ', במלאי ' + cand.r[3] : ', אין מלאי') + ')' : ''), b: cand ? '➕ הוסף מפצל ' + cand.p + ' פורטים לארון' : '🔍 מפצל רשת', fn: cand ? "gapAddSwitch('" + rk.id + "'," + needP + ',' + (poe ? 'true' : 'false') + ')' : "gapSearch('מפצל רשת')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מפצל רשת')" } }); return; }
-    const ports = netSwitchPorts(rk, sw).length, need = netAmps.length + 1 + (P.cables || []).filter(c => c.to === rk.id && c.toUnit === sw.id && c.from !== rk.id).length;
+    const who = (netAmps.length ? netAmps.length + ' מגברים מוזנים ברשת (Dante/AES67)' : '') + (netDevs.length ? (netAmps.length ? ' + ' : '') + netDevs.length + ' מוצרי DigiSynthetic AES67 (PoE)' : '');
+    if (!sw) { const needP = netAmps.length + 1 + (P.cables || []).filter(c => c.type === 'cat' && !c.internal && ((c.to === rk.id && c.from !== rk.id) || (c.from === rk.id && c.to !== rk.id))).length + 1, poe = netDevs.length > 0 || (P.cables || []).some(c => /PoE/i.test(c.spec || '')), cand = netSwitchCands(needP, poe)[0] || netSwitchCands(needP, false)[0];
+      finds.push({ i: '🌐', k: 'netsw|' + rk.id, t: who + ' ב"' + rk.name.slice(0, 18) + '" — אין מפצל רשת' + (poe ? ' PoE' : '') + ' בארון · נדרשים ~' + needP + ' פורטים (מגברים + פרוססור + מכשירי רשת + עלייה)' + (cand ? ' · מוצע: ' + cand.r[1].slice(0, 44) + ' (' + cand.p + ' פורטים' + (cand.r[3] > 0 ? ', במלאי ' + cand.r[3] : ', אין מלאי') + ')' : ''), b: cand ? '➕ הוסף מפצל ' + cand.p + ' פורטים לארון' : '🔍 מפצל רשת', fn: cand ? "gapAddSwitch('" + rk.id + "'," + needP + ',' + (poe ? 'true' : 'false') + ')' : "gapSearch('מפצל רשת')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מפצל רשת')" } }); return; }
+    { const un = digiNetUnlinked(rk); if (un.length) finds.push({ i: '🌐', k: 'diginet|' + rk.id, t: un.length + ' מוצרי DigiSynthetic AES67 מחוברים לארון "' + rk.name.slice(0, 18) + '" בלי פורט במתג ' + shortModel(sw.name), b: '🔌 שבץ לפורטי PoE', fn: "digiNetRelink(byId('" + rk.id + "'));render();save();gapBack()" }); }
+    const ports = netSwitchPorts(rk, sw).length, need = netAmps.length + 1 + (P.cables || []).filter(c => (c.to === rk.id && c.toUnit === sw.id && c.from !== rk.id) || (c.from === rk.id && c.fromUnit === sw.id && c.to !== rk.id)).length;
     if (need > ports) finds.push({ i: '🌐', k: 'netports|' + rk.id, t: 'מתג ' + shortModel(sw.name) + ' ב"' + rk.name.slice(0, 18) + '": ' + ports + ' פורטים · נדרשים ~' + need + ' (פרוססור, ' + netAmps.length + ' מגברים ומכשירי רשת)', b: '🔍 מתג גדול יותר', fn: "gapSearch('מתג רשת')" });
   });
-  { const poeDev = impItems.filter(it => it.on !== false && /PoE/i.test(it.name || '') && !/מתג|switch|רכזת|מפצל רשת/i.test(it.name || '')).reduce((s2, it) => s2 + (+it.qty || 0), 0);
+  { const poeDev = impItems.filter(it => it.on !== false && (/PoE/i.test(it.name || '') || (isDigiNetDev(it.name) && it.dest !== 'unit' && it.dest !== 'panelUnit')) && !/מתג|switch|רכזת|מפצל רשת/i.test(it.name || '')).reduce((s2, it) => s2 + (+it.qty || 0), 0);
     const poePorts = racks.reduce((s2, rk) => { const sw = rackNetSwitch(rk); return s2 + (sw ? netSwitchPorts(rk, sw).filter(it => /PoE/i.test(it.label || '')).length : 0); }, 0);
-    if (poeDev > poePorts) finds.push({ i: '⚡', k: 'poe', t: poeDev + ' מכשירי PoE בהצעה (מתאמי Dante / פנלים / AP) · ' + poePorts + ' פורטי PoE במתגים שבארונות', b: '🔍 הוסף מתג PoE', fn: "gapSearch('POE')" }); }
+    if (poeDev > poePorts) finds.push({ i: '⚡', k: 'poe', t: poeDev + ' מכשירי PoE בהצעה (מתאמי Dante / פנלים וקיפדים DigiSynthetic AES67 / AP) · ' + poePorts + ' פורטי PoE במתגים שבארונות', b: '🔍 הוסף מתג PoE', fn: "gapSearch('POE')" }); }
   racks.forEach(rk => ctrlAccFor(rk).filter(a => !a.inOffer && a.kind !== 'io').slice(0, 2).forEach(a => finds.push({ i: '🎛', k: 'ctrl|' + rk.id + '|' + a.key, t: 'ל-' + a.forUnits[0] + ' ב"' + rk.name.slice(0, 18) + '" יש בקטלוג ' + (a.brand === 'NST' || /קיפד|keypad/i.test(a.name) ? 'קיפד' : 'פנל שליטה') + ' (' + shortModel(a.name).slice(0, 28) + ')' + (a.qty > 0 ? '' : ', לא במלאי כרגע') + ' — אין בהצעה', b: '➕ הוסף להצעה', fn: "pickSearchItem('" + jsq(a.name) + "','" + a.key + "')" })));
   /* 4ג. כלל הבית: מגבר UNICORN DAP לא נכנס להצעות — להחליף ל-DYNAMIQ (4600 כשיש סאבים) */
   { const dap = rows.filter(it => offerBanned(it.name)).map(it => shortModel(it.name)); racks.forEach(rk => (rk.units || []).forEach(u => { if (offerBanned(u.name)) dap.push(shortModel(u.name) + ' (ב"' + rk.name.slice(0, 14) + '")'); }));
@@ -8599,7 +8659,8 @@ function gapAddSwitch(rkId, minPorts, poe) {
   if (nu.pos + nu.u > rk.ru) rk.ru = nu.pos + nu.u;
   (rk.units = rk.units || []).push(nu);
   const it = { on: true, qty: 1, name: c.r[1], key: c.r[0], src: 'בדיקת שלמות', dest: 'unit', cat: 'net', u: 1, iid: uid('i'), added: true, placed: 1 }; autoPrice(it); impItems.push(it); nu.srcIid = it.iid;
-  render(); save(); uiToast('➕ נוסף לארון ולהצעה: ' + c.r[1].slice(0, 50) + ' (' + c.p + ' פורטים' + (c.r[3] > 0 ? ', במלאי ' + c.r[3] : ', אין מלאי') + ')', 6000); gapBack();
+  const rl = digiNetRelink(rk);   /* מוצרי DigiSynthetic AES67 שחיכו למתג — משובצים לפורטי ה-PoE */
+  render(); save(); uiToast('➕ נוסף לארון ולהצעה: ' + c.r[1].slice(0, 50) + ' (' + c.p + ' פורטים' + (c.r[3] > 0 ? ', במלאי ' + c.r[3] : ', אין מלאי') + ')' + (rl ? ' · ' + rl + ' מוצרי DigiSynthetic שובצו לפורטי PoE' : ''), 6000); gapBack();
 }
 window.gapAddRack = gapAddRack; window.gapAddSwitch = gapAddSwitch;
 function rackCabU(nm) { const n = String(nm || ''); if (!RACK_CAB_RX.test(n) || RACK_CAB_NO.test(n)) return 0; const m = /(\d{1,2})\s?U\b/i.exec(n); return m ? +m[1] : 0; }
@@ -10342,9 +10403,11 @@ function renderPanel() {
       </form>` + ctrlAccHTML(n);
   } else if (n.kind === 'panel') {
     const cnt = P.cables.filter(c => c.from === n.id || c.to === n.id).length;
+    const PM = ['', 'קיר', 'עמדה', 'ארון', 'במה', 'רצפה', 'תקרה', 'אחר'], curPm = !n.mount ? '' : PM.includes(n.mount) ? n.mount : 'אחר';
     html += `<div class="fld"><label>מותקן על</label><select onchange="byId('${n.id}').mount=this.value;render();save()">
-      ${['', 'קיר', 'עמדה', 'ארון', 'במה', 'רצפה', 'תקרה'].map(m => `<option value="${m}" ${(n.mount || '') === m ? 'selected' : ''}>${m || '— בחר —'}</option>`).join('')}
-    </select></div>
+      ${PM.map(m => `<option value="${m}" ${curPm === m ? 'selected' : ''}>${m || '— בחר —'}</option>`).join('')}
+    </select>${curPm === 'אחר' ? `<input value="${esc(n.mount === 'אחר' ? '' : (n.mount || ''))}" placeholder="פרט על גבי מה — שדה פתוח" style="margin-top:4px" onchange="byId('${n.id}').mount=this.value.trim()||'אחר';save();render()">` : ''}</div>
+    ${isDigiNetNode(n) ? digiNetHintHTML(n) : ''}
     <p class="muted" style="font-size:11px">🔌 ${n.panel.holes.length} חורים · ${cnt} חיבורים · <a href="#" onclick="event.preventDefault();multiView('${n.id}')">תצוגת ניתוב מלאה ⤢</a></p>
     <h3 class="sec">עיצוב הפאנל</h3>` + panelEditor(n.panel, n.id, -1) +
       `<p class="muted" style="margin-top:6px">לחיצה על חור בקנבס מחילה את המברשת. במצב חופשי — גרור חורים למיקום הרצוי.</p>`;
@@ -10352,6 +10415,8 @@ function renderPanel() {
   if (n.kind === 'rack') {
     const r = rackPowerReq(n);
     html += `<div style="background:#fff3cd;border:1px solid #e0a100;border-radius:8px;padding:6px 8px;margin:6px 0;font-size:12px;color:#7a4b00"><b>⚡ הזנת חשמל לארון:</b> ${r.txt}<br><small>${r.why} · מופיע בדוח ההכנות</small></div>`;
+  } else if (isDigiNetNode(n) && n.kind !== 'panel') {
+    html += digiNetHintHTML(n);
   } else if (canReqPower(n)) {
     html += `<label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;background:#fff3cd;border:1px solid #e0a100;border-radius:8px;padding:6px 8px;margin:6px 0;color:#7a4b00">
       <input type="checkbox" style="width:auto" ${needsPower(n) ? 'checked' : ''} onchange="byId('${n.id}').pwrReq=this.checked;render();save()">
@@ -16051,7 +16116,7 @@ function placeZoneRackItems(z) {
     if (it.dest !== 'unit' && it.dest !== 'panelUnit') continue;
     if (isKeypadItem(it.name)) {   /* פנל חכם / קיפד — מוקד על התכנית ליד הארון (גוררים למקום הנכון), לא יחידה בארון */
       it.dest = 'panelNode'; const rem = Math.max(0, (+it.qty || 1) - (it.placed || 0));
-      for (let k2 = 0; k2 < rem; k2++) { P.nodes.push({ id: uid('n'), kind: 'panel', name: it.name.slice(0, 40) + (rem > 1 ? ' (' + (k2 + 1) + ')' : ''), sub: 'מתוך: ' + (it.src || '') + ' · ' + z.name, x: rk.x - 80 - k2 * 50, y: rk.y + 20 + k2 * 36, panel: { mode: 'matrix', rows: 1, holes: [{ conn: 'rj45' }] }, pmin: true, mount: 'קיר בלוק', srcIid: it.iid }); n2++; }
+      for (let k2 = 0; k2 < rem; k2++) { P.nodes.push({ id: uid('n'), kind: 'panel', name: it.name.slice(0, 40) + (rem > 1 ? ' (' + (k2 + 1) + ')' : ''), sub: 'מתוך: ' + (it.src || '') + ' · ' + z.name, x: rk.x - 80 - k2 * 50, y: rk.y + 20 + k2 * 36, panel: { mode: 'matrix', rows: 1, holes: [{ conn: 'rj45' }] }, pmin: true, mount: 'קיר בלוק', srcIid: it.iid }); digiNetAutoCable(P.nodes[P.nodes.length - 1]); n2++; }
       if (rem) { it.placed = (it.placed || 0) + rem; it.added = true; }
       continue;
     }
@@ -17023,6 +17088,7 @@ function stockUsage(it) {
 }
 function addImported() {
   let px = 150, py = 900, added = 0, lastNewRack = null;
+  const before = new Set(P.nodes.map(x => x.id));
   for (const it of impItems) {
     if (!it.on || it.added || it.dest === 'ignore') continue;
     it.iid = it.iid || uid('i');
@@ -17071,6 +17137,7 @@ function addImported() {
     it.added = true;
     added++;
   }
+  digiNetAutoAll(new Set(P.nodes.filter(x => !before.has(x.id)).map(x => x.id)));   /* מוצרי DigiSynthetic AES67 → כבל רשת למתג ה-PoE */
   render();
 }
 
@@ -18126,6 +18193,13 @@ async function reportDownloadPdf(page, btn) {
     /* תמונות מוצרים ממקור אחר (דלי האתר, חנות, יצרנים) — דרך /img-proxy מאותו מקור, אחרת html2canvas משאיר אותן ריקות */
     btn.textContent = '⏳ תמונות…';
     await Promise.all([...root.querySelectorAll('img')].filter(im => /^https?:\/\//i.test(im.getAttribute('src') || '') && !(im.getAttribute('src') || '').startsWith(location.origin)).map(im => new Promise(res => { const t = setTimeout(res, 15000); im.onload = im.onerror = () => { clearTimeout(t); res(); }; im.src = '/img-proxy?u=' + encodeURIComponent(im.getAttribute('src')); })));
+    /* תמונות בתוך SVG (הדמיה תלת־ממדית, היטל צד): html2canvas מצייר SVG כתמונה אחת, ושם קישור חיצוני לא נטען (יצא אייקון "תמונה שבורה") — מוטמעות כ-data URL */
+    await Promise.all([...root.querySelectorAll('svg image')].map(async im => {
+      const h = im.getAttribute('href') || im.getAttribute('xlink:href') || ''; if (!h || /^data:/i.test(h)) return;
+      try { const u = /^https?:\/\//i.test(h) && !h.startsWith(location.origin) ? '/img-proxy?u=' + encodeURIComponent(h) : h;
+        const b = await (await fetch(u)).blob(); const d = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(b); });
+        im.setAttribute('href', d); im.removeAttribute('xlink:href'); } catch (e) { console.warn('svg image inline', h.slice(0, 80), e); }
+    }));
     const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }), PW = 210, PH = 297, M = 9, CW = PW - 2 * M, CH = PH - 2 * M;
     let y = M, first = true, toc = null; const partPage = {};   /* קישורים פנימיים: תפריט הכריכה → עמוד השער של כל חלק */
     for (let i = 0; i < blocks.length; i++) {
