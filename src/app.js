@@ -6435,6 +6435,7 @@ function patchOpen(z, amps, lines, leftover) {
   matrixCellsLoad();
   patchCss();
   purgeServiceUnits();
+  { const nb = purgeBogusAmpPatches(); if (nb) { save(); uiToast('🧹 הוסרו ' + nb + ' פאצ׳ים שגויים (יציאת מגבר → כניסת מגבר)', 4500); } }
   PATCH = {
     zid: z.id, sel: null, mode: 'spk',
     amps: amps.map(a => ({ rk: a.rk, u: a.u, minOhm: a.minOhm, chTotal: a.chTotal, pre: a.pre || new Set(), bridge: !!a.u.bridged, foreign: a.foreign || {} })),
@@ -7193,7 +7194,15 @@ const SERVICE_RE = /^\s*(תכנות|הגדרת|כיוון|כיול|תכנון|ש
 function isServiceItem(name) { return SERVICE_RE.test(name || ''); }
 function isInUnit(name) { return IN_UNIT_RE.test(name || '') && !isServiceItem(name); }
 /* הפרוססור של הארון: יחידת כניסות שאינה מגבר (מגבר עם DSP פנימי נשאר מגבר); אם אין כזו — היחידה הראשונה עם כניסות */
-function rackProcUnit(rk) { const us = (rk && rk.units) || []; return us.find(u => isInUnit(u.name) && !/מגבר|amplifier|\bamp\b/i.test(u.name || '')) || us.find(u => isInUnit(u.name)); }
+function rackProcUnit(rk) { const us = (rk && rk.units) || []; return us.find(u => isInUnit(u.name) && !/מגבר|amplifier|\bamp\b/i.test(u.name || '')) || null; }   /* מגבר (גם עם DSP) לעולם לא 'פרוססור' — יציאות המגבר הן לרמקולים, לא לכניסות של מגבר אחר */
+/* ניקוי פאצ׳ים שגויים מגרסה קודמת: יציאת רמקול של מגבר (OUT n) שמוזנת לכניסת מגבר — לא קיים; הזנה במקביל (LNK n) כן */
+function purgeBogusAmpPatches() {
+  const isAmp = u => !!u && (u.cat === 'amp' || /מגבר|amplifier/i.test(u.name || ''));
+  const bad = new Set();
+  (P.nodes || []).forEach(rk => { if (rk.kind !== 'rack') return; (P.cables || []).forEach(c => { if (c.from !== rk.id || c.to !== rk.id || !/^IN/i.test(c.pIn || '')) return; const fu = (rk.units || []).find(u => u.id === c.fromUnit); if (isAmp(fu) && !/^LNK/i.test(c.pOut || '')) bad.add(c.id); }); });
+  if (bad.size) P.cables = P.cables.filter(c => !bad.has(c.id));
+  return bad.size;
+}
 /* מקור נגינה — מה שמזין את הארון: עמדת DJ, במה, מיקרופון, מחשב/נגן */
 /* ניקוי: שורות שירות שנכנסו לארון כיחידות (גרסאות קודמות) יורדות ממנו */
 function purgeServiceUnits() {
