@@ -17563,7 +17563,9 @@ function exportPDF0() {
   let h = `<div class="rp-cover"><div class="rp-logo">KO</div><div>
     <h1>KO Projects — דוח פרויקט</h1><h2>${esc(P.name)}</h2>
     <p>${new Date().toLocaleDateString('he-IL')} · ${racks.length} ארונות · ${points.length} מוקדי קצה · ${P.cables.length} כבלים${P.room && (P.room.ceil || P.room.usage) ? `<br>תקרה: ${P.room.ceil || '?'} מ׳ · ספיגה אקוסטית: ${P.room.absorb ?? '?'}/10 · שימוש: ${esc(P.room.usage || '—')}` : ''}${P.scale ? ' · קנה מידה מכויל ✓' : ''}${(P.zones || []).length ? '<br>אזורי סאונד: ' + P.zones.map(z => esc(z.name) + ' (' + esc(z.usage || '—') + ')').join(' · ') : ''}</p>
-  </div></div>`;
+  </div>
+    <div class="rp-toc" data-rptoc><div class="rp-toc-h">הדוח מחולק לשלושה חלקים — לחיצה עוברת לחלק:</div><div class="rp-toc-r">${RP_TABS.map((t, i) => `<a class="rp-toc-b" data-rppart="${t.id}" href="#rp-part-${t.id}"><span class="rp-toc-n">${i + 1}</span><span class="rp-toc-i">${t.ic}</span><b>${esc(t.n)}</b><small>${esc(RP_TAB_DESC[t.id] || '')}</small></a>`).join('')}</div></div>
+  </div>`;
   for (const n of racks) h += rackSection(n);
   /* פאנלים וקופסאות מולטי */
   /* פאנלים שכבר מופיעים במקום אחר בדוח לא חוזרים כאן: הכנות חשמל (בפרק החשמל), ופאנלים עם כבלים (בשרטוטי הדיסציפלינות) */
@@ -18125,22 +18127,29 @@ async function reportDownloadPdf(page, btn) {
     btn.textContent = '⏳ תמונות…';
     await Promise.all([...root.querySelectorAll('img')].filter(im => /^https?:\/\//i.test(im.getAttribute('src') || '') && !(im.getAttribute('src') || '').startsWith(location.origin)).map(im => new Promise(res => { const t = setTimeout(res, 15000); im.onload = im.onerror = () => { clearTimeout(t); res(); }; im.src = '/img-proxy?u=' + encodeURIComponent(im.getAttribute('src')); })));
     const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }), PW = 210, PH = 297, M = 9, CW = PW - 2 * M, CH = PH - 2 * M;
-    let y = M, first = true;
+    let y = M, first = true, toc = null; const partPage = {};   /* קישורים פנימיים: תפריט הכריכה → עמוד השער של כל חלק */
     for (let i = 0; i < blocks.length; i++) {
       btn.textContent = '⏳ ' + (i + 1) + '/' + blocks.length;
       const cv = await window.html2canvas(blocks[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: root.scrollWidth, ignoreElements: el => !!(el.classList && el.classList.contains('rp-pvonly')) });
       if (!cv.width || !cv.height) continue;
       if (!first && y > M && blocks[i].style.pageBreakBefore === 'always') { pdf.addPage(); y = M; }   /* "עמוד חדש" מעורך מבנה הדוח */
-      const mmPerPx = CW / cv.width; let done = 0;
+      const mmPerPx = CW / cv.width; let done = 0, top0 = null, page0 = 0;
       /* מקטע שנכנס בעמוד — לא נחתך: אם אין לו מקום ביתרת העמוד, עובר לעמוד חדש */
       if (!first && cv.height * mmPerPx <= CH && y + cv.height * mmPerPx > PH - M) { pdf.addPage(); y = M; }
       while (done < cv.height) {
         const room = (PH - M - y) / mmPerPx; if (room < 40 / mmPerPx * 0.25) { pdf.addPage(); y = M; continue; }
+        if (done === 0) { top0 = y; page0 = pdf.internal.getCurrentPageInfo().pageNumber; }
         const hPx = Math.min(cv.height - done, Math.floor(room)), part = document.createElement('canvas'); part.width = cv.width; part.height = hPx;
         part.getContext('2d').drawImage(cv, 0, done, cv.width, hPx, 0, 0, cv.width, hPx);
         pdf.addImage(part.toDataURL('image/jpeg', 0.86), 'JPEG', M, y, CW, hPx * mmPerPx, undefined, 'FAST');
         done += hPx; y += hPx * mmPerPx + 3; first = false;
         if (done < cv.height) { pdf.addPage(); y = M; }
+      }
+      if (top0 != null) {
+        if (blocks[i].dataset.rppart) partPage[blocks[i].dataset.rppart] = page0;
+        const links = [...blocks[i].querySelectorAll('.rp-toc a[data-rppart]')].filter(a => a.offsetHeight > 0);
+        if (links.length) { const br = blocks[i].getBoundingClientRect(), kx = cv.width / br.width, ky = cv.height / br.height;
+          toc = { page: page0, rects: links.map(a => { const hr = a.getBoundingClientRect(); return { part: a.dataset.rppart, x: M + (hr.left - br.left) * kx * mmPerPx, y: top0 + (hr.top - br.top) * ky * mmPerPx, w: hr.width * kx * mmPerPx, h: hr.height * ky * mmPerPx }; }) }; }
       }
       /* "פתח את התכנית בגדול": תכנית שסומנה — גם בעמוד משלה לרוחב, על כל העמוד */
       for (const full of blocks[i].querySelectorAll('[data-pdf-full]')) {
@@ -18158,6 +18167,8 @@ async function reportDownloadPdf(page, btn) {
     const tabO = RP_TABS.find(t => t.id === (window.__rpTab || 'cust'));
     const name = 'KO-דוח-' + (tabO ? tabO.n + '-' : '') + String(P.name || 'פרויקט').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) + '-' + new Date().toISOString().slice(0, 10) + '.pdf';
     window.__lastReportPdf = { pages: pdf.getNumberOfPages(), name };
+    if (toc) { try { pdf.setPage(toc.page); for (const rc of toc.rects) if (partPage[rc.part]) pdf.link(rc.x, rc.y, rc.w, rc.h, { pageNumber: partPage[rc.part] }); } catch (e3) { console.warn('pdf links', e3); } }
+    window.__lastReportLinks = toc ? toc.rects.map(rc => ({ part: rc.part, to: partPage[rc.part] || 0 })) : [];
     pdf.save(name); uiToast('⬇ הדוח ירד למחשב: ' + name);
   } catch (e) { alert('יצירת ה-PDF נכשלה: ' + (e && e.message || e)); }
   finally { btn.disabled = false; btn.textContent = lbl; }
@@ -18228,9 +18239,27 @@ function rpTabOf(sec, lay) { lay = lay || rpLayoutGet(); const t = lay.tabs[sec.
 function rpTabMark(root, act) {
   const tabO = RP_TABS.find(t => t.id === act);
   root.querySelectorAll('.rp-sec').forEach(s => s.classList.toggle('rp-tabhid', !!tabO && s.dataset.rptab !== act));
-  root.querySelectorAll('.rp-tabttl').forEach(x => x.remove());
-  if (tabO) { const cv = root.querySelector('.rp-cover h2'); if (cv) { const d = document.createElement('div'); d.className = 'rp-tabttl'; d.textContent = tabO.ic + ' ' + tabO.n; d.style.cssText = 'font-size:15px;font-weight:800;color:#1a1e28;margin:2px 0 4px'; cv.after(d); } }
+  root.querySelectorAll('.rp-tabttl, .rp-partttl').forEach(x => x.remove());
+  const toc = root.querySelector('.rp-toc'); if (toc) toc.style.display = tabO ? 'none' : '';
+  if (tabO) { const cv = root.querySelector('.rp-cover h2'); if (cv) { const d = document.createElement('div'); d.className = 'rp-tabttl'; d.textContent = tabO.ic + ' ' + tabO.n; d.style.cssText = 'font-size:15px;font-weight:800;color:#1a1e28;margin:2px 0 4px'; cv.after(d); } return; }
+  /* הדוח המלא: שלושת החלקים בזה אחר זה (לקוח → חשמלאי → מתקין), כל חלק פותח בעמוד שער משלו; התפריט בכריכה מקשר אליהם */
+  const secs = rpSecs(root), foot = [...root.children].reverse().find(el => el.tagName === 'P' && !el.classList.contains('rp-sec')) || null;
+  const parts = RP_TABS.map(t => ({ t, secs: secs.filter(s => (s.dataset.rptab || rpTabOf(s)) === t.id) }));
+  const nVis = parts.filter(p => p.secs.some(s => !s.classList.contains('rp-hid'))).length;
+  let no = 0;
+  for (const p of parts) {
+    const vis = p.secs.some(s => !s.classList.contains('rp-hid'));
+    const b = toc && toc.querySelector('[data-rppart="' + p.t.id + '"]'); if (b) b.classList.toggle('rp-toc-off', !vis);
+    if (vis) {
+      no++;
+      const d = document.createElement('div'); d.className = 'rp-partttl'; d.dataset.rppart = p.t.id; d.id = 'rp-part-' + p.t.id; d.style.pageBreakBefore = 'always';
+      d.innerHTML = '<div class="rp-partttl-n">חלק ' + no + ' מתוך ' + nVis + '</div><div class="rp-partttl-t">' + p.t.ic + ' ' + esc(p.t.n) + '</div><div class="rp-partttl-s">' + esc(RP_TAB_DESC[p.t.id] || '') + '</div><div class="rp-partttl-p">' + esc(P.name) + ' · KO Projects</div>';
+      root.insertBefore(d, foot);
+    }
+    p.secs.forEach(s => root.insertBefore(s, foot));
+  }
 }
+const RP_TAB_DESC = { cust: 'הדמיות, תכנית פריסה, היטל צד וכתב כמויות', elec: 'הכנות חשמל, ארונות, צריכה ותקעים, שרטוט חשמל', inst: 'חיווט, כבלים, קופסאות, מוקדים ומתקנים' };
 /* העותק שמוצג בתצוגה המקדימה (וממנו יורד ה-PDF) — נבנה מחדש אחרי כל שינוי במבנה או מעבר בין חלקים */
 function rpPrevFill(ov) {
   const r = $('#report'), page = ov.querySelector('#rpPage'), st = page.scrollTop, act = window.__rpTab || 'cust';
@@ -18241,7 +18270,8 @@ function rpPrevFill(ov) {
   clone.removeAttribute('id'); clone.style.display = 'block';
   rpTabMark(clone, act);
   /* סימון "עמוד חדש" — רק בתצוגה (לא בהדפסה ולא ב-PDF) */
-  clone.querySelectorAll('.rp-sec').forEach(s => { if (s.style.pageBreakBefore === 'always' && !s.classList.contains('rp-hid') && !s.classList.contains('rp-tabhid')) { const m = document.createElement('div'); m.className = 'rp-pvonly'; m.style.cssText = 'border-top:2px dashed #c9c2b5;margin:4px 0 14px;text-align:center;font-size:10px;color:#a39c90;line-height:0'; m.innerHTML = '<span style="background:#fff;padding:0 8px">— עמוד חדש —</span>'; s.prepend(m); } });
+  clone.querySelectorAll('.rp-toc a[data-rppart]').forEach(a => a.onclick = e => { e.preventDefault(); const d = clone.querySelector('.rp-partttl[data-rppart="' + a.dataset.rppart + '"]'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); else { window.__rpTab = a.dataset.rppart; rpPrevFill(ov); } });
+  clone.querySelectorAll('.rp-sec, .rp-partttl').forEach(s => { if (s.style.pageBreakBefore === 'always' && !s.classList.contains('rp-hid') && !s.classList.contains('rp-tabhid')) { const m = document.createElement('div'); m.className = 'rp-pvonly'; m.style.cssText = 'border-top:2px dashed #c9c2b5;margin:4px 0 14px;text-align:center;font-size:10px;color:#a39c90;line-height:0'; m.innerHTML = '<span style="background:#fff;padding:0 8px">— עמוד חדש —</span>'; s.prepend(m); } });
   page.appendChild(clone);
   /* 🔍 זום: לחיצה על שרטוט (תכנית / גב ארון / קופסה / היטל צד) פותחת אותו מוגדל, עם + / − / גלגלת וגרירה */
   clone.querySelectorAll('.rp-zoomable, .rp-sec svg[viewBox]').forEach(z => { if (z.closest('.rp-zoomable') && !z.classList.contains('rp-zoomable')) return; z.style.cursor = 'zoom-in'; z.title = 'לחץ להגדלה'; z.onclick = () => rpZoomOpen(z); });
