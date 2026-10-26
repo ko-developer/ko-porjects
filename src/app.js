@@ -6480,7 +6480,13 @@ function patchOpen(z, amps, lines, leftover) {
     });
   });
   PATCH.ins.forEach((t, ii) => {
-    P.cables.filter(c => (c.to === t.rk.id && c.toUnit === t.u.id && /^IN/.test(c.pIn || '')) || (c.logUnit === t.u.id && /^IN/.test(c.logIn || ''))).forEach(c => {
+    P.cables.filter(c => (c.to === t.rk.id && c.toUnit === t.u.id && /^IN/.test(c.pIn || '')) || (c.logUnit === t.u.id && /^IN/.test(c.logIn || '')) || (c.srcNet && ((c.to === t.rk.id && c.toUnit === t.u.id) || c.logUnit === t.u.id))).forEach(c => {
+      if (c.srcNet) {   /* כניסה דיגיטלית (רשת / AES3) */
+        const key = 'i' + ii + '|' + c.srcNet;
+        (PATCH.inSlots[key] = PATCH.inSlots[key] || []).push(c.vsrc || (c.from + (c.srcCh ? '#' + c.srcCh : '')));
+        (PATCH.inPre[key] = PATCH.inPre[key] || []).push(c.id);
+        return;
+      }
       const nums = String(c.logIn || c.pIn).match(/\d+/g) || [];
       if (c.srcCh === 'LR' && nums.length === 2) {
         /* מולטי אחד שנושא L+R — שני צ׳יפים על שתי כניסות, אותו כבל */
@@ -7062,6 +7068,16 @@ function patchRender() {
         <div class="pchChips">${ids.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#c9c2b4;font-size:10.5px">גרור לכאן</small>'}</div>
         <span class="pchZ ${ids.length ? 'ok' : 'emp'}">${ids.length ? ids.length + ' מקור' + (ids.length > 1 ? 'ות' : '') : '—'}</span></div>`);
     }
+    /* מה היחידה יכולה לקבל: אנלוגי / רשת / AES3 — ושורות לכניסות הדיגיטליות */
+    { const kd = unitInputKinds(t.u);
+      const cap = [kd.analog ? '🎚 ' + [kd.xlr ? kd.xlr + '× XLR' : '', kd.rca ? kd.rca + '× RCA' : ''].filter(Boolean).join(' + ') + ' אנלוגי' : (t.inTotal ? '🎚 ' + t.inTotal + ' כניסות אנלוגיות (לפי ההגדרה)' : ''), kd.net ? '🌐 ' + kd.net + ' ברשת' + (kd.netPorts.length ? ' (' + kd.netPorts.join(', ') + ')' : '') : '', kd.aes3.length ? '🔗 AES3 (' + kd.aes3.join(', ') + ')' : ''].filter(Boolean).join(' · ');
+      rows.unshift(`<div style="font-size:10.5px;color:#555;padding:1px 6px 4px">כניסות אפשריות: ${esc(cap || '—')}</div>`);
+      const digRow = (key, lbl, hint) => { const ids = PATCH.inSlots[key] || []; return `<div class="pchCh" data-slot="${key}" style="background:#f3f0fb">
+        <span class="pchOut" title="${esc(hint)}">${lbl}</span>
+        <div class="pchChips">${ids.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#9a92c9;font-size:10.5px">' + esc(hint) + ' — גרור לכאן</small>'}</div>
+        <span class="pchZ ${ids.length ? 'ok' : 'emp'}">${ids.length ? ids.length + ' מקור' + (ids.length > 1 ? 'ות' : '') : '—'}</span></div>`; };
+      if (kd.net) rows.push(digRow('i' + ii + '|net', '🌐 ' + esc(kd.net), 'כניסה דיגיטלית ברשת — מקור עם ' + kd.net + ' בכבל Cat6 דרך מתג הרשת בארון'));
+      if (kd.aes3.length) rows.push(digRow('i' + ii + '|aes', '🔗 AES3', 'כניסה דיגיטלית AES3 — XLR דיגיטלי 110Ω מהמקור')); }
     return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(t.u.name)}">🎛 ${esc(modelOf(t.u.name))}
       <small><input type="number" min="0" max="32" value="${t.inTotal}" title="מספר הכניסות של היחידה — נשמר לדגם · 0 = למוצר אין כניסות והוא לא יוצע כאן" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchInSet(${ii},this.value)"> כניסות · ${esc(t.rk.name.slice(0, 14))}</small></div>${rows.join('')}</div>`;
   }).join('');
@@ -7071,6 +7087,7 @@ function patchRender() {
     <div style="font-size:12px;font-weight:700;margin:8px 0 5px">${PATCH.srcPool.length ? '⚠ ' : '✓ '}מקורות ללא כניסה (${PATCH.srcPool.length})</div>
     <div class="pchPool ${PATCH.srcPool.length ? '' : 'ok'}" data-slot="srcpool">${PATCH.srcPool.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#0f6e56;font-size:11.5px">כל המקורות מחוברים ✓</small>'}</div>
     ${patchSrcAddHTML()}
+    ${patchSoundCardHTML()}
     <div style="height:1px;background:#e3ded3;margin:12px 0"></div>` :
     ((PATCH.srcPool || []).length ? `<div style="font-size:11.5px;color:#c96a13;background:#fdf3e6;border-radius:9px;padding:7px 9px;margin-bottom:9px">🎧 יש ${PATCH.srcPool.length} מקורות נגינה בתכנית, אבל אין בארון פרוססור/מיקסר לחבר אליו — <button onclick="patchProcPicker()" style="padding:2px 10px;font-weight:700;background:#eef7f1;color:#0f6e56">➕ הוסף פרוססור</button> להצעה ולארון.</div>` : '');
   const spkBlock = amps + patchBundleDiagrams() + `
@@ -7338,6 +7355,38 @@ function patchSrcAdd() {
   uiToast('➕ ' + (SRC_LBL[k] || k) + ' נוסף ל"' + z.name + '"' + (fresh.length ? ' — גרור אותו אל כניסה' : ''), 4500);
 }
 window.patchSrcAdd = patchSrcAdd;
+/* סוגי הכניסות שיחידה בארון יכולה לקבל: אנלוגי (XLR / RCA), דיגיטלי ברשת (Dante / AES67) או AES3 — לפי פריסת הגב של הדגם וטבלת הנתונים */
+function unitInputKinds(u) {
+  let items = []; try { items = rearPortsAuto(rearLayout(u.name)); } catch (e) { items = []; }
+  const txt = i => ((i.port || '') + ' ' + (i.label || ''));
+  const ins = items.filter(i => /^IN\b/i.test(i.port || '') || /\bIN\b|input/i.test(i.label || ''));
+  const xlr = ins.filter(i => /xlr/i.test(i.t || '')).length, rca = ins.filter(i => /rca/i.test(i.t || '')).length;
+  const aes3 = items.filter(i => /AES\s?3\b|AES\s?\/\s?EBU|AES-?EBU/i.test(txt(i)) && !/AES\s?67/i.test(txt(i))).map(i => i.port || i.label || 'AES3');
+  const metaNet = String((unitNetMeta(u.name) || {}).net || '');
+  if (!aes3.length && /AES\s?3\b|AES\/EBU/i.test(metaNet)) aes3.push('AES3');
+  const netPorts = unitAudioNetPorts(u), lbls = netPorts.map(txt).join(' ') + ' ' + metaNet;
+  const net = /aes\s?67/i.test(lbls) && !/dante/i.test(lbls) ? 'AES67' : /dante/i.test(lbls) && !/aes\s?67/i.test(lbls) ? 'Dante' : (unitDanteOk(u) || unitAes67Ok(u)) ? [unitDanteOk(u) ? 'Dante' : '', unitAes67Ok(u) ? 'AES67' : ''].filter(Boolean).join('/') : '';
+  return { xlr, rca, analog: xlr + rca, aes3, net, netPorts: netPorts.map(p => p.port) };
+}
+/* מחשב / נגן כמקור: בין המחשב לכניסה צריך כרטיס קול (USB מהמחשב → XLR/RCA) — הצעה מהקטלוג */
+function patchPcSources() {
+  const ids = [...new Set([...(PATCH && PATCH.srcPool || []), ...Object.values(PATCH && PATCH.inSlots || {}).flat()])];
+  return ids.filter(id => isVsrc(id) ? srcBase(id).split('|')[2] === 'pc' : (() => { const n = byId(srcBase(id)); return !!n && (n.srcKind === 'pc' || (!n.srcKind && /מחשב|נגן|player/i.test(n.name || ''))); })());
+}
+function soundCardInOffer() { return impItems.find(it => it.on !== false && /כרטיס קול|audio interface/i.test(it.name || '') && !/מיקסר|קונטרולר|MIDI|מתקן|תלי|bracket|כיסוי|כבל/i.test(it.name || '')); }
+function soundCardCands() { return (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([, n]) => n && /^\s*כרטיס קול/.test(n) && !/מיקסר|קונטרולר|MIDI|מתקן|תלי|bracket|כיסוי|כבל/i.test(n)).sort((a, b) => byStockThenSold(a[0], b[0])).slice(0, 12); }
+function patchSoundCardHTML() {
+  if (!PATCH || !patchPcSources().length) return '';
+  const have = soundCardInOffer(), cands = soundCardCands();
+  return `<div style="border:1.5px solid #4b3fb8;background:#f6f4fd;border-radius:9px;padding:7px 9px;margin:6px 0 2px;font-size:11.5px"><b>🖥 מחשב / נגן כמקור — דרוש כרטיס קול</b> בין המחשב לכניסת הפרוססור/המגבר (USB מהמחשב → XLR/RCA לכניסה; או מתאם Dante/AES67 לכניסה ברשת)${have ? `<div style="color:#0f6e56;margin-top:3px">✓ בהצעה: ${esc(have.name.slice(0, 60))}</div>` : `<div style="display:flex;gap:5px;align-items:center;margin-top:5px;flex-wrap:wrap"><select data-sndcard style="font-size:11px;padding:2px 6px;flex:1 1 200px;min-width:0">${cands.map(([k, n, p, st]) => `<option value="${esc(k)}">${esc(n.slice(0, 55))} · ${st > 0 ? 'מלאי ' + st : 'אין מלאי'}${p ? ' · ₪' + p : ''}</option>`).join('')}</select><button style="padding:2px 10px;font-weight:700;background:#eef7f1;color:#0f6e56;flex:none" ${cands.length ? '' : 'disabled'} onclick="patchSoundCardAdd()">➕ הוסף להצעה</button></div>`}</div>`;
+}
+function patchSoundCardAdd() {
+  const sel = document.querySelector('#patchOv [data-sndcard]'), key = sel && sel.value; if (!key) return;
+  const row = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).find(([k]) => k === key); if (!row) return;
+  const it = { on: true, qty: 1, name: row[1], key: row[0], src: 'כרטיס קול למחשב', dest: 'acc', cat: 'other', u: 1, iid: uid('i') }; autoPrice(it); impItems.push(it);
+  save(); if (typeof renderImp === 'function') renderImp(); patchRender(); uiToast('➕ ' + shortModel(row[1]) + ' נוסף להצעה — כרטיס הקול בין המחשב למערכת', 4500);
+}
+window.patchSoundCardAdd = patchSoundCardAdd;
 function openSrcWire(zid, onClose) {
   const z = (P.zones || []).find(x => x.id === zid) || (P.zones || [])[0];
   if (!z) { uiToast('אין אזור בתכנית'); return Promise.resolve(); }
@@ -7924,10 +7973,25 @@ async function patchApply() {
   /* כניסות: מקור נגינה ← כניסת הפרוססור/מיקסר שבארון. אותה לוגיקה כמו ביציאות —
      כניסה שלא נגעו בה נשארת, כניסה ששונתה מחליפה את הקווים שלה. */
   for (const [key, ids] of Object.entries(PATCH.inSlots || {})) {
-    const [ii, ch] = key.slice(1).split('|').map(Number);
+    const [iiS, chS] = key.slice(1).split('|'); const ii = +iiS, ch = /^\d+$/.test(chS) ? +chS : chS;
     const t = PATCH.ins[ii]; if (!t) continue;
     if ((PATCH.inOrig || {})[key] === ids.join(',')) continue;
     if ((PATCH.inPre || {})[key]) { const del = new Set(PATCH.inPre[key]); P.cables = P.cables.filter(c => !del.has(c.id)); }
+    if (typeof ch !== 'number') {
+      /* כניסה דיגיטלית: רשת (Cat6 דרך המתג, Dante/AES67) או AES3 (XLR דיגיטלי) */
+      const isNet = ch === 'net', kd = unitInputKinds(t.u), pIn = isNet ? unitAudioNetPort(t.u) : (kd.aes3[0] || 'AES3');
+      ids.forEach(sid => {
+        const vs = isVsrc(sid), src = vs ? null : byId(srcBase(sid)); if (!vs && !src) return;
+        const label = vs ? vsrcLabel(sid) : nodeFullName(src), sch = srcCh(sid);
+        const cc = { id: uid('c'), from: vs ? t.rk.id : src.id, to: t.rk.id, toUnit: t.u.id, pIn, type: isNet ? 'cat' : 'aes', qty: '1', spec: isNet ? 'Cat6 · ' + kd.net : 'AES3 — XLR דיגיטלי 110Ω', srcNet: ch, srcCh: sch || undefined, vsrc: vs ? sid : undefined, internal: vs ? 'src-proc' : undefined, len: vs ? 1 : undefined,
+          note: label + (sch ? ' ' + sch : '') + ' ← ' + shortModel(t.u.name) + ' ' + pIn + (isNet ? ' · דיגיטלי ברשת (' + kd.net + ')' : ' · AES3 דיגיטלי'), conn: isNet ? 'rj45' : 'xlrm', conn2: isNet ? 'rj45' : 'xlrf' };
+        if (src && P.scale) cc.len = +(dist(src, t.rk) * P.scale).toFixed(1);
+        if (isNet) { const sw = rackNetSwitch(t.rk); if (sw) { const sp = netSwitchFreePort(t.rk, sw, false); if (sp) { cc.logUnit = t.u.id; cc.logIn = pIn; cc.toUnit = sw.id; cc.pIn = sp.port; cc.note += ' · דרך המתג ' + shortModel(sw.name) + ' ' + sp.port; } } }
+        const ref = inRef(cc.type); if (ref) applyStockRef(ref, null, cc);
+        P.cables.push(cc); n2++; made.push(cc);
+      });
+      continue;
+    }
     ids.filter(isVsrc).forEach(vid => {
       /* מקור בארון: פאץ׳ פנימי מהיחידה (אם כבר בארון) אל כניסת הפרוססור */
       const [, , kind] = srcBase(vid).split('|'); const vch = srcCh(vid);
@@ -8295,6 +8359,9 @@ function projGapCheck() {
       const noCab = actN.filter(n => !(P.cables || []).some(c => (c.to === n.id || c.from === n.id) && c.type === 'xlr'));
       if (noCab.length && (P.cables || []).length) finds.push({ i: '🔌', k: 'actcab', t: noCab.length + ' רמקולים מוגברים בלי קו סיגנל XLR בתכנית (הם לא מתחברים ליציאת מגבר)', b: '🧵 חיווט אוטומטי', fn: 'autoConnect()' });
     } }
+  /* 4c. מחשב / נגן כמקור — דרוש כרטיס קול בין המחשב למערכת */
+  { const pcSrc = P.nodes.some(n => n.srcKind === 'pc' && !n.hidden) || (P.zones || []).some(z => zoneOwnSources(z).includes('pc'));
+    if (pcSrc && !soundCardInOffer()) finds.push({ i: '🖥', k: 'sndcard', t: 'מחשב / נגן כמקור נגינה — אין כרטיס קול בהצעה (USB מהמחשב → XLR/RCA לכניסת הפרוססור)', b: '🔍 בחר כרטיס קול', fn: "gapSearch('כרטיס קול')" }); }
   /* 5. ארון בלי פס שקעים */
   const racks = P.nodes.filter(n => n.kind === 'rack' && (n.units || []).length);
   /* רשת אודיו: מגברים שמוזנים ב-Dante/AES67 צריכים מתג רשת בארון עם מספיק פורטים; מכשירי PoE (מתאמי Dante, פנלים, AP) צריכים פורטי PoE */
