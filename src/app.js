@@ -7073,16 +7073,20 @@ function patchRender() {
     { const kd = unitInputKinds(t.u);
       const cap = [kd.analog ? '🎚 ' + [kd.xlr ? kd.xlr + '× XLR' : '', kd.rca ? kd.rca + '× RCA' : ''].filter(Boolean).join(' + ') + ' אנלוגי' : (t.inTotal ? '🎚 ' + t.inTotal + ' כניסות אנלוגיות (לפי ההגדרה)' : ''), kd.net ? '🌐 ' + kd.net + ' ברשת' + (kd.netPorts.length ? ' (' + kd.netPorts.join(', ') + ')' : '') : '', kd.aes3.length ? '🔗 AES3 (' + kd.aes3.join(', ') + ')' : '', unitAuxOuts(t.u) > 0 ? '🎛 פרוססור מובנה · ' + unitAuxOuts(t.u) + '× AUX OUT — יכול להזין מגברים ללא DSP בארון' : ''].filter(Boolean).join(' · ');
       rows.unshift(`<div style="font-size:10.5px;color:#555;padding:1px 6px 4px">כניסות אפשריות: ${esc(cap || '—')}</div>`);
-      const digRow = (key, lbl, hint) => { const ids = PATCH.inSlots[key] || []; return `<div class="pchCh" data-slot="${key}" style="background:#f3f0fb">
+      const digRow = (key, lbl, hint, extra) => { const ids = PATCH.inSlots[key] || []; return `<div class="pchCh" data-slot="${key}" style="background:#f3f0fb">
         <span class="pchOut" title="${esc(hint)}">${lbl}</span>
-        <div class="pchChips">${ids.map(id2 => patchSrcChip(id2)).join('') || '<small style="color:#9a92c9;font-size:10.5px">' + esc(hint) + ' — גרור לכאן</small>'}</div>
+        <div class="pchChips">${ids.map(id2 => patchSrcChip(id2)).join('')}${extra || ''}${ids.length || extra ? '' : '<small style="color:#9a92c9;font-size:10.5px">' + esc(hint) + ' — גרור לכאן</small>'}</div>
         <span class="pchZ ${ids.length ? 'ok' : 'emp'}">${ids.length ? ids.length + ' מקור' + (ids.length > 1 ? 'ות' : '') : '—'}</span></div>`; };
-      if (kd.net) { rows.push(digRow('i' + ii + '|net', '🌐 ' + esc(kd.net), 'כניסה דיגיטלית ברשת — מקור עם ' + kd.net + ' בכבל Cat6 דרך מתג הרשת בארון'));
-        /* כל המגברים באותו פרוטוקול בארון — חיבור ביניהם בכבל רשת (דרך המתג / בשרשור) */
-        const k0 = kd.net.split('/')[0], netAmps = rackNetAmps(t.rk, k0), nc = rackNetAmpCabs(t.rk).length, sw = rackNetSwitch(t.rk);
-        if (netAmps.length > 1) rows.push(`<div style="font-size:10.5px;padding:2px 8px 6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#f3f0fb;border-radius:0 0 8px 8px"><span style="color:#4b3fb8">${nc ? '✓ ' + netAmps.length + ' מגברים מחוברים ב-' + esc(k0) + ' (' + nc + ' כבלי רשת' + (sw ? ' דרך המתג' : ' בשרשור') + ')' : netAmps.length + ' מגברים בארון עם ' + esc(k0) + ' — אותו סטרים לכולם'}</span><button onclick="patchNetShare(${ii})" style="padding:1px 8px;font-size:10.5px;font-weight:700">🔗 חבר את כולם ב-${esc(k0)} בכבל רשת${sw ? ' דרך ' + esc(shortModel(sw.name)) : ' (שרשור מגבר למגבר)'}</button>${nc ? `<button onclick="patchNetUnshare(${ii})" style="padding:1px 8px;font-size:10.5px">✕ בטל</button>` : ''}</div>`); }
+      if (kd.net) {
+        /* כבלי הרשת של המגבר הזה (מתג / שרשור) — מוצגים כצ׳יפים בשורת הרשת, שיהיה ברור שהוא מחובר בכבל רשת */
+        const k0 = kd.net.split('/')[0], netAmps = rackNetAmps(t.rk, k0), sw = rackNetSwitch(t.rk), allU = (t.rk.units || []);
+        const links = rackNetAmpCabs(t.rk).filter(c => c.fromUnit === t.u.id || c.toUnit === t.u.id).map(c => { const other = allU.find(u => u.id === (c.fromUnit === t.u.id ? c.toUnit : c.fromUnit)); const mine = c.fromUnit === t.u.id ? c.pOut : c.pIn, his = c.fromUnit === t.u.id ? c.pIn : c.pOut;
+          return `<span class="pchip" style="background:#e8e3fb;border-color:#4b3fb8;color:#2d2470;cursor:default" title="${esc(c.note || '')}">🌐 Cat6 ${esc(mine || '')} ↔ ${esc(other ? shortModel(other.name) : '?')} ${esc(his || '')}</span>`; }).join('');
+        rows.push(digRow('i' + ii + '|net', '🌐 ' + esc(kd.net), 'כניסה דיגיטלית ברשת — מקור עם ' + kd.net + ' בכבל Cat6 דרך מתג הרשת בארון', links));
+        if (netAmps.length > 1 || sw) { const inGrp = netAmps.filter(u => u.netGrp).length;
+          rows.push(`<div style="font-size:10.5px;padding:2px 8px 6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#f3f0fb;border-radius:0 0 8px 8px"><label style="display:flex;gap:4px;align-items:center;font-weight:700;color:#4b3fb8;cursor:pointer"><input type="checkbox" style="width:auto;margin:0" ${t.u.netGrp ? 'checked' : ''} onchange="patchNetToggle(${ii},this.checked)"> בקבוצת הרשת (${esc(k0)})</label><span style="color:#6b6480">${inGrp ? inGrp + ' מתוך ' + netAmps.length + ' מגברים בקבוצה' + (sw ? ' · דרך ' + esc(shortModel(sw.name)) : ' · בשרשור') : netAmps.length + ' מגברים בארון עם ' + esc(k0) + ' — סמן אילו מקבלים את הסטרים'}</span><button onclick="patchNetShare(${ii})" style="padding:1px 8px;font-size:10.5px">🔗 כולם</button>${inGrp ? `<button onclick="patchNetUnshare(${ii})" style="padding:1px 8px;font-size:10.5px">✕ בטל הכול</button>` : ''}</div>`); } }
       if (kd.aes3.length) rows.push(digRow('i' + ii + '|aes', '🔗 AES3', 'כניסה דיגיטלית AES3 — XLR דיגיטלי 110Ω מהמקור')); }
-    return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(t.u.name)}">🎛 ${esc(modelOf(t.u.name))}
+    return `<div class="pchAmp"><div class="pchAmpHd" title="${esc(t.u.name)}">🎛 ${esc(modelOf(t.u.name))}${t.u.netGrp ? ' <span style="font-size:10px;background:#4b3fb8;color:#fff;border-radius:6px;padding:0 6px;vertical-align:middle">🌐 ברשת</span>' : ''}
       <small><input type="number" min="0" max="32" value="${t.inTotal}" title="מספר הכניסות של היחידה — נשמר לדגם · 0 = למוצר אין כניסות והוא לא יוצע כאן" style="width:34px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:5px;text-align:center" onchange="patchInSet(${ii},this.value)"> כניסות · ${esc(t.rk.name.slice(0, 14))}</small></div>${rows.join('')}</div>`;
   }).join('');
   const insBlock = (PATCH.ins || []).length ? `
@@ -7412,24 +7416,31 @@ window.patchSoundCardAdd = patchSoundCardAdd;
    דרך מתג הרשת (כל מגבר ↔ פורט במתג) או, בלי מתג, בשרשור ממגבר למגבר (פורט 2 → פורט 1 של הבא) */
 function rackNetAmps(rk, kind) { return ((rk && rk.units) || []).filter(u => (isAmpUnit(u) || isInUnit(u.name)) && unitInputKinds(u).net && (!kind || unitInputKinds(u).net.toLowerCase().includes(kind.toLowerCase()))).sort((a, b) => (a.pos || 0) - (b.pos || 0)); }
 function rackNetAmpCabs(rk) { return (P.cables || []).filter(c => c.internal === 'net-amp' && c.from === rk.id); }
+/* בונה מחדש את כבלי הרשת של הארון לפי המגברים שבקבוצה (u.netGrp): דרך המתג — כל מגבר ↔ פורט; בלי מתג — שרשור ביניהם לפי הסדר בארון */
+function patchNetRebuild(rk, k0) {
+  const old = new Set(rackNetAmpCabs(rk).map(c => c.id)); P.cables = P.cables.filter(c => !old.has(c.id));
+  const sel = rackNetAmps(rk, k0).filter(u => u.netGrp), sw = rackNetSwitch(rk); let made = 0;
+  const mk = (fu, pOut, tu, pIn, note) => { P.cables.push({ id: uid('c'), from: rk.id, fromUnit: fu, pOut, to: rk.id, toUnit: tu, pIn, type: 'cat', qty: '1', spec: 'Cat6 · ' + k0, len: 1, conn: 'rj45', conn2: 'rj45', internal: 'net-amp', note }); made++; };
+  if (sw) sel.forEach(a => { const sp = netSwitchFreePort(rk, sw, false), p = unitAudioNetPorts(a)[0]; if (!sp) { uiToast('⚠ אין פורט פנוי במתג ' + shortModel(sw.name) + ' עבור ' + shortModel(a.name), 5000); return; } mk(a.id, p ? p.port : 'NET', sw.id, sp.port, 'רשת אודיו ' + k0 + ' — ' + shortModel(a.name) + ' ↔ ' + shortModel(sw.name) + ' ' + sp.port); });
+  else for (let i = 0; i + 1 < sel.length; i++) { const a = sel[i], b = sel[i + 1], pa = unitAudioNetPorts(a), pb = unitAudioNetPorts(b); mk(a.id, (pa[1] || pa[0] || {}).port || 'NET 2', b.id, (pb[0] || {}).port || 'NET 1', 'רשת אודיו ' + k0 + ' בשרשור — ' + shortModel(a.name) + ' → ' + shortModel(b.name)); }
+  (rk.units || []).forEach(u => { if (!isAmpUnit(u)) return; if (u.netGrp && sel.includes(u)) u.sigNet = /aes/i.test(k0) ? 'aes67' : true; else delete u.sigNet; });   /* מגבר בקבוצה מקבל סיגנל ברשת — בלי פאצ׳ים אנלוגיים */
+  return { made, n: sel.length, sw: !!sw };
+}
+function patchNetToggle(ii, on) {
+  const t = PATCH && PATCH.ins[ii]; if (!t) return; const k0 = (unitInputKinds(t.u).net || '').split('/')[0]; if (!k0) return;
+  if (on) t.u.netGrp = true; else delete t.u.netGrp;
+  const r = patchNetRebuild(t.rk, k0); save(); render(); patchRender();
+  uiToast(on ? '🌐 ' + shortModel(t.u.name) + ' בקבוצת הרשת — ' + r.n + ' מגברים, ' + r.made + ' כבלי רשת' + (r.sw ? ' דרך המתג' : r.n > 1 ? ' בשרשור' : ' (אין מתג — צריך לפחות שני מגברים לשרשור)') : shortModel(t.u.name) + ' הוצא מקבוצת הרשת', 4500);
+}
 function patchNetShare(ii) {
   const t = PATCH && PATCH.ins[ii]; if (!t) return; const rk = t.rk, kind = unitInputKinds(t.u).net; if (!kind) return;
   const k0 = kind.split('/')[0], amps = rackNetAmps(rk, k0); if (amps.length < 2) { uiToast('אין מגבר נוסף עם ' + kind + ' בארון'); return; }
-  const sw = rackNetSwitch(rk); let made = 0;
-  const have = (a, b) => rackNetAmpCabs(rk).some(c => (c.fromUnit === a && c.toUnit === b) || (c.fromUnit === b && c.toUnit === a));
-  const mk = (fu, pOut, tu, pIn, note) => { P.cables.push({ id: uid('c'), from: rk.id, fromUnit: fu, pOut, to: rk.id, toUnit: tu, pIn, type: 'cat', qty: '1', spec: 'Cat6 · ' + k0, len: 1, conn: 'rj45', conn2: 'rj45', internal: 'net-amp', note }); made++; };
-  if (sw) {
-    amps.forEach(a => { if (have(a.id, sw.id)) return; const sp = netSwitchFreePort(rk, sw, false), p = unitAudioNetPorts(a)[0]; if (!sp) { uiToast('⚠ אין פורט פנוי במתג ' + shortModel(sw.name) + ' עבור ' + shortModel(a.name), 5000); return; }
-      mk(a.id, p ? p.port : 'NET', sw.id, sp.port, 'רשת אודיו ' + k0 + ' — ' + shortModel(a.name) + ' ↔ ' + shortModel(sw.name) + ' ' + sp.port); });
-  } else {
-    for (let i = 0; i + 1 < amps.length; i++) { const a = amps[i], b = amps[i + 1]; if (have(a.id, b.id)) continue; const pa = unitAudioNetPorts(a), pb = unitAudioNetPorts(b);
-      mk(a.id, (pa[1] || pa[0] || {}).port || 'NET 2', b.id, (pb[0] || {}).port || 'NET 1', 'רשת אודיו ' + k0 + ' בשרשור — ' + shortModel(a.name) + ' → ' + shortModel(b.name)); }
-  }
-  amps.forEach(a => { if (isAmpUnit(a)) a.sigNet = /aes/i.test(k0) ? 'aes67' : true; });   /* המגברים מקבלים סיגנל ברשת — בלי פאצ׳ים אנלוגיים */
-  save(); render(); patchRender();
-  uiToast(made ? '🌐 ' + made + ' כבלי רשת נוספו — ' + amps.length + ' מגברים מקבלים ' + k0 + (sw ? ' דרך המתג' : ' בשרשור ממגבר למגבר') : '✓ המגברים כבר מחוברים ברשת', 5000);
+  amps.forEach(a => { a.netGrp = true; });
+  const r = patchNetRebuild(rk, k0); save(); render(); patchRender();
+  uiToast('🌐 ' + r.n + ' מגברים מקבלים ' + k0 + ' — ' + r.made + ' כבלי רשת' + (r.sw ? ' דרך המתג' : ' בשרשור ממגבר למגבר'), 5000);
 }
-function patchNetUnshare(ii) { const t = PATCH && PATCH.ins[ii]; if (!t) return; const rk = t.rk, ids = new Set(rackNetAmpCabs(rk).map(c => c.id)); P.cables = P.cables.filter(c => !ids.has(c.id)); (rk.units || []).forEach(u => { if (isAmpUnit(u)) delete u.sigNet; }); save(); render(); patchRender(); uiToast('רשת האודיו בין המגברים הוסרה'); }
+function patchNetUnshare(ii) { const t = PATCH && PATCH.ins[ii]; if (!t) return; const rk = t.rk, k0 = (unitInputKinds(t.u).net || '').split('/')[0]; (rk.units || []).forEach(u => { delete u.netGrp; }); patchNetRebuild(rk, k0 || ''); save(); render(); patchRender(); uiToast('רשת האודיו בין המגברים הוסרה'); }
+window.patchNetToggle = patchNetToggle;
 window.patchNetShare = patchNetShare; window.patchNetUnshare = patchNetUnshare;
 function openSrcWire(zid, onClose) {
   const z = (P.zones || []).find(x => x.id === zid) || (P.zones || [])[0];
