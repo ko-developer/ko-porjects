@@ -187,7 +187,9 @@ function asLabel(r) {
   return c + ' · ' + parts.join(' · ');
 }
 /* תיבת סיכום ל-UI (פאנל צד + אשף) */
-function asSummaryHTML() {
+/* אורי (10/2026): הזיהוי האוטומטי, השבבים, 'לפי שולחן' ו'לפי מידה' בוטלו מה-UI — נשאר רק שדה 1:N + גיליון, והכיול הידני */
+function asSummaryHTML() { return asRatioFieldHTML(); }
+function asSummaryHTML_old() {
   const r = P.autoScale; if (!r) return '';
   const col = r.conf === 'high' ? '#0f6e56' : r.conf === 'medium' ? '#b7791f' : '#c9502e';
   const over = P.scale && (P.calSrc === 'manual' || P.calSrc === undefined);
@@ -943,7 +945,8 @@ function asNormMarks(r, srcW, srcH, yUp) {
   if (r.chain) delete r.chain.marks;
   r.show = true;
 }
-function asMarksSVG() {
+function asMarksSVG() { return ''; }
+function asMarksSVG_old() {
   /* לכל מידה ששימשה: קו אדום עם קצוות באורך המידה לפי קנה המידה הנוכחי — הקצוות
      חייבים לנחות בדיוק על סימוני המידה שבשרטוט. הערך כתוב באדום ליד המספר המקורי. */
   const r = P.autoScale;
@@ -997,7 +1000,8 @@ function asSetRatio(v) {
 window.asSetRatio = asSetRatio;
 
 /* שני כפתורי הזיהוי — שלב 1 (כיתוב) ושלב 2 (אימות ליד נקודה) */
-function asStepButtonsHTML() {
+function asStepButtonsHTML() { return ''; }
+function asStepButtonsHTML_old() {
   if (!P.bg) return '';
   const pick = !!window.__asPick, r = P.autoScale;
   return (r ? '' : asRatioFieldHTML()) + '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">' +

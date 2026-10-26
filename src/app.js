@@ -2391,7 +2391,7 @@ function uploadBg(inp, onDone) {
         render();
         setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
         /* קנה מידה מהטקסט של ה-PDF — בלי AI; רץ לפני ההמשך כדי שהאשף יראה את התוצאה */
-        if (!keepLayout && typeof autoScalePdf === 'function') await autoScalePdf(pg, P.bgW);
+        /* זיהוי קנה מידה אוטומטי בוטל (אורי, 10/2026) — כיול דרך שדה 1:N או ידנית */
         }
         if (pages.length > 1) { sheetGo(firstSheet); uiToast('📑 נטענו ' + pages.length + ' דפים — כל דף כתכנית משלו (לשוניות מעל התכנית)', 7000); }
         if (onDone) onDone();
@@ -2418,7 +2418,7 @@ function uploadBg(inp, onDone) {
     if (onDone) onDone();
     if (!keepLayout && typeof fxAfterUpload === 'function') fxAfterUpload();   /* תאורה: תכנית תקרה או חזית? */
     /* OCR מקומי ברקע — התוצאה נכנסת כשמוכנה */
-    if (!keepLayout && typeof autoScaleImage === 'function') autoScaleImage(img, P.bgW);
+    /* OCR אוטומטי לקנה מידה בוטל (אורי, 10/2026) */
   };
   img.src = URL.createObjectURL(file);
 }
