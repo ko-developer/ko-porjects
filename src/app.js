@@ -7349,8 +7349,11 @@ function srcAllChipIds() {
 function srcChipWired(id) {
   const b = srcBase(id), ch = srcCh(id);
   /* סטריאו על מולטי אחד: כבל אחד עם srcCh 'LR' מכסה את שני הצ׳יפים */
-  return P.cables.some(c => /^IN/.test(c.pIn || '') && (isVsrc(b) ? c.vsrc === id : (c.from === b && ((c.srcCh || '') === ch || c.srcCh === 'LR'))));
+  return P.cables.some(c => (/^IN/.test(c.pIn || '') || /^IN/.test(c.logIn || '') || c.srcNet) && (isVsrc(b) ? c.vsrc === id : (c.from === b && ((c.srcCh || '') === ch || c.srcCh === 'LR'))));
 }
+/* המקורות שעדיין בלי כניסה — בשמות, לאשף (שיהיה ברור מה חסר) */
+function srcUnwiredNames() { return srcAllChipIds().filter(id => !srcChipWired(id)).map(id => { const ch = srcCh(id); if (isVsrc(id)) return vsrcLabel(id) + (ch ? ' ' + ch : ''); const n = byId(srcBase(id)); return (n ? shortModel(nodeFullName(n)) || n.name : '?') + (ch ? ' ' + ch : ''); }); }
+window.srcUnwiredNames = srcUnwiredNames;
 /* צ׳יפי מקור שעדיין אין להם כניסה בארון */
 function srcUnwired() { return srcAllChipIds().filter(id => !srcChipWired(id)).length; }
 /* טבלת חיווט של המקורות בלבד (מקורות → פרוססור/מיקסר). מעל חלונות אחרים כדי
@@ -8423,7 +8426,8 @@ function projGapCheck() {
   racks.forEach(rk => {
     const netAmps = (rk.units || []).filter(u => u.sigNet); if (!netAmps.length) return;
     const sw = rackNetSwitch(rk);
-    if (!sw) { finds.push({ i: '🌐', k: 'netsw|' + rk.id, t: netAmps.length + ' מגברים ב"' + rk.name.slice(0, 18) + '" מוזנים ברשת (Dante/AES67) — אין מתג רשת בארון', b: '🔍 הוסף מתג רשת', fn: "gapSearch('מתג רשת')" }); return; }
+    if (!sw) { const needP = netAmps.length + 1 + (P.cables || []).filter(c => c.to === rk.id && c.type === 'cat' && c.from !== rk.id).length + 1, poe = (P.cables || []).some(c => /PoE/i.test(c.spec || '')), cand = netSwitchCands(needP, poe)[0] || netSwitchCands(needP, false)[0];
+      finds.push({ i: '🌐', k: 'netsw|' + rk.id, t: netAmps.length + ' מגברים ב"' + rk.name.slice(0, 18) + '" מוזנים ברשת (Dante/AES67) — אין מפצל רשת בארון · נדרשים ~' + needP + ' פורטים (מגברים + פרוססור + עלייה)' + (cand ? ' · מוצע: ' + cand.r[1].slice(0, 44) + ' (' + cand.p + ' פורטים' + (cand.r[3] > 0 ? ', במלאי ' + cand.r[3] : ', אין מלאי') + ')' : ''), b: cand ? '➕ הוסף מפצל ' + cand.p + ' פורטים לארון' : '🔍 מפצל רשת', fn: cand ? "gapAddSwitch('" + rk.id + "'," + needP + ',' + (poe ? 'true' : 'false') + ')' : "gapSearch('מפצל רשת')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מפצל רשת')" } }); return; }
     const ports = netSwitchPorts(rk, sw).length, need = netAmps.length + 1 + (P.cables || []).filter(c => c.to === rk.id && c.toUnit === sw.id && c.from !== rk.id).length;
     if (need > ports) finds.push({ i: '🌐', k: 'netports|' + rk.id, t: 'מתג ' + shortModel(sw.name) + ' ב"' + rk.name.slice(0, 18) + '": ' + ports + ' פורטים · נדרשים ~' + need + ' (פרוססור, ' + netAmps.length + ' מגברים ומכשירי רשת)', b: '🔍 מתג גדול יותר', fn: "gapSearch('מתג רשת')" });
   });
@@ -8439,7 +8443,8 @@ function projGapCheck() {
     const need = racks.map(rk => ({ rk, used: (rk.units || []).reduce((s2, u) => s2 + (+u.u || 1), 0) })).sort((a, b) => b.used - a.used);
     need.forEach(({ rk, used }) => { const i = cabs.findIndex(c => c.u >= used); if (i >= 0) { cabs.splice(i, 1); return; }
       const best = cabs.length ? Math.max(...cabs.map(c => c.u)) : 0;
-      finds.push({ i: '🗄', k: 'rackcab|' + rk.id, t: 'ב"' + rk.name.slice(0, 18) + '" ' + used + 'U בשימוש' + (rk.ru ? ' (תוכנן ' + rk.ru + 'U)' : '') + (best ? ' · בהצעה ארון ' + best + 'U בלבד — קטן מדי' : ' · אין ארון תקשורת/קייס בהצעה'), b: '🔍 ארון ' + Math.max(used, rk.ru || 0) + 'U', fn: "gapSearch('ארון תקשורת " + Math.max(used, rk.ru || 0) + "U')" }); }); }
+      const wantU = used + 2, cab = rackCabCands(wantU)[0];
+      finds.push({ i: '🗄', k: 'rackcab|' + rk.id, t: 'ב"' + rk.name.slice(0, 18) + '" ' + used + 'U בשימוש' + (rk.ru ? ' (תוכנן ' + rk.ru + 'U)' : '') + (best ? ' · בהצעה ארון ' + best + 'U בלבד — קטן מדי' : ' · אין ארון תקשורת/קייס בהצעה') + ' · מומלץ ארון ' + wantU + 'U (+2U רזרבה)' + (cab ? ': ' + cab.r[1].slice(0, 40) + (cab.r[3] > 0 ? ' · במלאי ' + cab.r[3] : ' · אין מלאי') : ''), b: cab ? '➕ הוסף ארון ' + cab.u + 'U' : '🔍 ארון ' + wantU + 'U', fn: cab ? "gapAddRack('" + rk.id + "'," + wantU + ')' : "gapSearch('ארון תקשורת " + wantU + "U')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('ארון תקשורת')" } }); }); }
   if (racks.length && !qsum(it => PDU_RX.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
   /* 5ב. יחידה בארון שאף כבל לא נוגע בה — כנראה מיותרת; מציעים להסיר מהארון ומההצעה */
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
@@ -8575,7 +8580,28 @@ function gapAddMounts(n) {
 /* אותו ביטוי לבדיקה ולתיקון — אחרת הפס שנוסף לא מזוהה והממצא נשאר */
 const PDU_RX = /פס שקעים|פס חשמל|שקעים לארון|PDU|רב שקע|מפצל.{0,12}שקע|רבעיית חשמל/i;
 /* ארון תקשורת / קייס ראק בהצעה (לא פנל/מדף/אביזר לארון) — וגודלו ב-U מהשם */
-const RACK_CAB_RX = /ארון (?:תקשורת|שרת|מסד|19)|קייס (?:ארון|צף|קצר)|FLOATING RACK|\brack\b|ראק/i, RACK_CAB_NO = /פנל|פאנל|מדף|מתקן|מאוורר|דלת|מסילה|ת\.ח|פס שקעים|כיסוי|גלגל|ידית|בורג|אום/i;
+const RACK_CAB_RX = /ארון (?:תקשורת|שרת|מסד|19)|קייס (?:ארון|צף|קצר)|FLOATING RACK|\brack\b|ראק/i, RACK_CAB_NO = /פנל|פאנל|מדף|מתקן|מאוורר|דלת|מסילה|ת\.ח|פס שקעים|כיסוי|גלגל|ידית|בורג|אום|מגירה|מיקסר|SAMPLE|RAILS/i;
+/* כלל הבית (אורי): מציעים תמיד ארון גדול ב-2U מהנדרש — הארון הקטן ביותר בקטלוג שעומד בזה (במלאי קודם, אחר כך מחיר) */
+function rackCabCands(minU) { return (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).map(r => ({ r, u: rackCabU(r[1]) })).filter(x => x.u >= minU && !/השכר|שירות|פגום|דוגמא/.test(x.r[1])).sort((a, b) => a.u - b.u || ((b.r[3] > 0) - (a.r[3] > 0)) || (+a.r[2] || 1e9) - (+b.r[2] || 1e9)); }
+function gapAddRack(rkId, minU) {
+  const c = rackCabCands(minU)[0]; if (!c) { uiToast('⚠ אין בקטלוג ארון של ' + minU + 'U ומעלה — בחר ידנית'); gapSearch('ארון תקשורת'); return; }
+  const it = { on: true, qty: 1, name: c.r[1], key: c.r[0], src: 'בדיקת שלמות', dest: 'acc', cat: 'other', u: 1, iid: uid('i') }; autoPrice(it); impItems.push(it);
+  const rk = byId(rkId); if (rk && (+rk.ru || 0) < c.u) rk.ru = c.u;   /* הארון בתכנית מתעדכן לגודל שנבחר */
+  render(); save(); uiToast('➕ נוסף ארון ' + c.u + 'U: ' + c.r[1].slice(0, 50) + (c.r[3] > 0 ? ' (במלאי ' + c.r[3] + ')' : ' (אין מלאי)'), 6000); gapBack();
+}
+/* מתג (מפצל) רשת: הקטן ביותר עם מספיק פורטים — נכנס לארון ולהצעה; PoE כשיש מכשירי PoE */
+function netSwitchPortsOf(nm) { const n = String(nm || ''); let m = /(\d+)\s*\+\s*(\d+)\s*PORT/i.exec(n); if (m) return +m[1] + +m[2]; m = /(\d+)\s*(?:PORT|פורט|יציאות)/i.exec(n); return m ? +m[1] : 0; }
+function netSwitchCands(minPorts, poe) { return (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([, n]) => n && /מפצל רשת|מתג רשת|רכזת/i.test(n) && !/USB|HDMI|KVM|VGA|בורר|DMX|SWITCHCRAFT/i.test(n) && (!poe || /PoE/i.test(n))).map(r => { let lay = 0; try { lay = rearPortsAuto(rearLayout(r[1])).filter(i => i.t === 'rj45').length; } catch (e) { lay = 0; } return { r, p: Math.max(netSwitchPortsOf(r[1]), lay), lay }; }).filter(x => x.p >= minPorts).sort((a, b) => ((b.lay > 0) - (a.lay > 0)) || ((b.r[3] > 0) - (a.r[3] > 0)) || a.p - b.p || (+a.r[2] || 1e9) - (+b.r[2] || 1e9)); }   /* קודם מתג שיש לו פריסת גב (הפורטים ידועים לחיווט), במלאי, ואז הקטן שמספיק */
+function gapAddSwitch(rkId, minPorts, poe) {
+  const c = netSwitchCands(minPorts, poe)[0] || netSwitchCands(minPorts, false)[0]; if (!c) { uiToast('⚠ אין בקטלוג מפצל רשת עם ' + minPorts + ' פורטים — בחר ידנית'); gapSearch('מפצל רשת'); return; }
+  const rk = byId(rkId); if (!rk) return;
+  const nu = { id: uid('u'), name: c.r[1], u: /1U|לארון/.test(c.r[1]) ? 1 : 1, cat: 'net', pos: (rk.units || []).reduce((s2, x) => Math.max(s2, x.pos + x.u), 0) };
+  if (nu.pos + nu.u > rk.ru) rk.ru = nu.pos + nu.u;
+  (rk.units = rk.units || []).push(nu);
+  const it = { on: true, qty: 1, name: c.r[1], key: c.r[0], src: 'בדיקת שלמות', dest: 'unit', cat: 'net', u: 1, iid: uid('i'), added: true, placed: 1 }; autoPrice(it); impItems.push(it); nu.srcIid = it.iid;
+  render(); save(); uiToast('➕ נוסף לארון ולהצעה: ' + c.r[1].slice(0, 50) + ' (' + c.p + ' פורטים' + (c.r[3] > 0 ? ', במלאי ' + c.r[3] : ', אין מלאי') + ')', 6000); gapBack();
+}
+window.gapAddRack = gapAddRack; window.gapAddSwitch = gapAddSwitch;
 function rackCabU(nm) { const n = String(nm || ''); if (!RACK_CAB_RX.test(n) || RACK_CAB_NO.test(n)) return 0; const m = /(\d{1,2})\s?U\b/i.exec(n); return m ? +m[1] : 0; }
 function gapAddPdu(n) { gapAddFromCatalog(PDU_RX, n, 'unit', 'פס שקעים'); }
 window.gapAddMounts = gapAddMounts; window.gapAddPdu = gapAddPdu;

@@ -234,7 +234,8 @@ function wizStepHTML(s) {
     <h4>קיט התקנה לפרויקט</h4>
     <p class="hint">קיטי התשתית שסוגרים את הפרויקט — עמדה, ארון, מולטי, פנלים ומחברים. הכמויות ניתנות לעריכה לפני ההוספה.</p>
     ${kits.map(x => `<button class="sec" onclick="P._instKit=1;save();zoneKitConfirm('${jsq((z || {}).name || '')}',${x.i});wizRender()">🧰 ${esc((x.k.name + (kitStdDiff(x.k) ? ' — ' + kitStdName(x.k) : '')).slice(0, 70))} · ${(x.k.items || []).length} פריטים</button>`).join('') || '<p class="hint">אין קיטי התקנה בקטלוג</p>'}
-    ${P._instKit ? '<button class="sec done" onclick="WIZ.step=WS(\'src\');wizRender()">✓ נבחר קיט התקנה — המשך לחיווט המקורות וגב הארון</button>' : `<button class="sec" onclick="P._instKit=1;save();WIZ.step=WS('src');wizRender()">דלג — בלי קיט</button>`}
+    ${P._instKit ? '<button class="sec done" onclick="WIZ.step=WS(\'src\');wizRender()">✓ נבחר קיט התקנה — המשך לחיווט המקורות וגב הארון</button>' : ''}
+    <button class="sec" onclick="P._instKit=1;save();WIZ.step=WS('src');wizRender()">◀ המשך ללא קיט התקנה</button>
     <button class="big" onclick="installManager()">🔧 טבלת התקנה ותמחור (זמנים ומחירים)</button>`;
   }
   if (k === 'gap') return `
@@ -304,7 +305,8 @@ function wizSrcStepHTML() {
   return `
     <h4>חיווט מקורות וגב הארון</h4>
     <p class="hint">אחרי שקיט ההתקנה הביא את הקופסאות, הפנלים והמחברים: מחברים את מקורות הנגינה (עמדת DJ, קופסת במה, פנלים, סטרימר) אל כניסות הפרוססור / המיקסר, ומוודאים שכל כבל שמגיע לארון מחובר למחבר של מכשיר.</p>
-    <div class="kpi"><div><b style="color:${nSrc ? '#c1121f' : '#0f6e56'}">${nSrc}</b><small>מקורות לא מחווטים</small></div><div><b style="color:${nRk ? '#c96a13' : '#0f6e56'}">${nRk}</b><small>כבלים לא מחווטים בארון</small></div></div>
+    <div class="kpi"><div title="${esc((typeof srcUnwiredNames === 'function' ? srcUnwiredNames() : []).join(' · '))}"><b style="color:${nSrc ? '#c1121f' : '#0f6e56'}">${nSrc}</b><small>מקורות בלי כניסה</small></div><div><b style="color:${nRk ? '#c96a13' : '#0f6e56'}">${nRk}</b><small>כבלים לא מחווטים בארון</small></div></div>
+    ${nSrc ? `<p class="hint" style="color:#c1121f">בלי כניסה בארון: ${esc((typeof srcUnwiredNames === 'function' ? srcUnwiredNames() : []).join(' · '))} — פתח את ניתוב המקורות של האזור וגרור אותם לכניסה (IN / AES67)</p>` : ''}
     ${!P._instKit ? '<p class="hint" style="color:#c96a13">עוד לא נבחר קיט התקנה — בלי הקיט חסרים הקופסאות והפנלים שאליהם מחווטים. <a href="#" onclick="WIZ.step=WS(\'kit\');wizRender();return false">חזרה לקיט ההתקנה</a></p>' : ''}
     ${zs.map(zz => `<button class="sec" onclick="openSrcWire('${zz.id}')">🎚 ${esc(zz.name)} — ניתוב מקורות אל הכניסות</button>`).join('')}
     ${racks.map(rk => { const k2 = (P.cables || []).filter(c => (c.from === rk.id || c.to === rk.id) && rackCabUnwired(rk, c)).length; return `<button class="sec ${k2 ? '' : 'done'}" onclick="byId('${rk.id}').rear=true;byId('${rk.id}').min=false;render();rackFocus('${rk.id}')">${k2 ? '🔌' : '✓'} גב הארון "${esc(rk.name.slice(0, 26))}"${k2 ? ' — ' + k2 + ' כבלים מחכים לחיבור' : ' — הכול מחובר'}</button>`; }).join('')}
