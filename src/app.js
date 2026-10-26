@@ -3077,7 +3077,7 @@ function ampRear(nOut, nIn, opts = {}) {
 }
 const REAR_KB = [
   /* XTA — DPA / DNA (כל הסדרה, אותו גב) */
-  { re: /DPA\s?\d/i, items: [...ampRear(4, 4, { net: 'DANTE' }), ...[1, 2, 3, 4].map(k => ({ t: 'xlrm', label: 'AUX' + k, port: 'OUT ' + (4 + k) })), { t: 'rj45', label: 'CTRL' }, { t: 'block4', label: 'GPIO' }] },   /* DPA: 4 יציאות AUX מעובדות (XLR), רשת בקרה, GPIO — לפי צילום הגב */
+  { re: /DPA\s?\d/i, items: [...ampRear(4, 4, { net: 'DANTE' }), ...[1, 2, 3, 4].map(k => ({ t: 'xlrm', label: 'AUX' + k, port: 'AUX ' + k })), { t: 'rj45', label: 'CTRL' }, { t: 'block4', label: 'GPIO' }] },   /* DPA: 4 יציאות AUX מעובדות (XLR), רשת בקרה, GPIO — לפי צילום הגב */
   { re: /DNA\s?\d|XTA.*DNA/i, items: [...ampRear(4, 4, { net: 'ETH', link: true }), { t: 'rj45', label: 'ETH 2' }] },   /* DNA: שני פורטי רשת (1 - AUDIO NETWORK - 2) */
   /* NST Audio — פריסות מהצילומים הרשמיים (nstaudio.com); הספציפיים לפני הכללי */
   { re: /D48X/i, items: [{ t: 'power', label: 'AC' }, ...[8, 7, 6, 5, 4, 3, 2, 1].map(k => ({ t: 'xlrm', label: 'OUT' + k, port: 'OUT ' + k })), ...[4, 3, 2, 1].map(k => ({ t: 'xlrf', label: 'IN' + k, port: 'IN ' + k })), { t: 'rj45', label: 'ETH 1' }, { t: 'rj45', label: 'ETH 2' }] },
@@ -7071,7 +7071,7 @@ function patchRender() {
     }
     /* מה היחידה יכולה לקבל: אנלוגי / רשת / AES3 — ושורות לכניסות הדיגיטליות */
     { const kd = unitInputKinds(t.u);
-      const cap = [kd.analog ? '🎚 ' + [kd.xlr ? kd.xlr + '× XLR' : '', kd.rca ? kd.rca + '× RCA' : ''].filter(Boolean).join(' + ') + ' אנלוגי' : (t.inTotal ? '🎚 ' + t.inTotal + ' כניסות אנלוגיות (לפי ההגדרה)' : ''), kd.net ? '🌐 ' + kd.net + ' ברשת' + (kd.netPorts.length ? ' (' + kd.netPorts.join(', ') + ')' : '') : '', kd.aes3.length ? '🔗 AES3 (' + kd.aes3.join(', ') + ')' : ''].filter(Boolean).join(' · ');
+      const cap = [kd.analog ? '🎚 ' + [kd.xlr ? kd.xlr + '× XLR' : '', kd.rca ? kd.rca + '× RCA' : ''].filter(Boolean).join(' + ') + ' אנלוגי' : (t.inTotal ? '🎚 ' + t.inTotal + ' כניסות אנלוגיות (לפי ההגדרה)' : ''), kd.net ? '🌐 ' + kd.net + ' ברשת' + (kd.netPorts.length ? ' (' + kd.netPorts.join(', ') + ')' : '') : '', kd.aes3.length ? '🔗 AES3 (' + kd.aes3.join(', ') + ')' : '', unitAuxOuts(t.u) > 0 ? '🎛 פרוססור מובנה · ' + unitAuxOuts(t.u) + '× AUX OUT — יכול להזין מגברים ללא DSP בארון' : ''].filter(Boolean).join(' · ');
       rows.unshift(`<div style="font-size:10.5px;color:#555;padding:1px 6px 4px">כניסות אפשריות: ${esc(cap || '—')}</div>`);
       const digRow = (key, lbl, hint) => { const ids = PATCH.inSlots[key] || []; return `<div class="pchCh" data-slot="${key}" style="background:#f3f0fb">
         <span class="pchOut" title="${esc(hint)}">${lbl}</span>
@@ -7194,12 +7194,21 @@ const SERVICE_RE = /^\s*(תכנות|הגדרת|כיוון|כיול|תכנון|ש
 function isServiceItem(name) { return SERVICE_RE.test(name || ''); }
 function isInUnit(name) { return IN_UNIT_RE.test(name || '') && !isServiceItem(name); }
 /* הפרוססור של הארון: יחידת כניסות שאינה מגבר (מגבר עם DSP פנימי נשאר מגבר); אם אין כזו — היחידה הראשונה עם כניסות */
-function rackProcUnit(rk) { const us = (rk && rk.units) || []; return us.find(u => isInUnit(u.name) && !/מגבר|amplifier|\bamp\b/i.test(u.name || '')) || null; }   /* מגבר (גם עם DSP) לעולם לא 'פרוססור' — יציאות המגבר הן לרמקולים, לא לכניסות של מגבר אחר */
+/* יציאות AUX מעובדות של מגבר (XTA DPA: פרוססור מובנה) — מהספרייה/טבלת הנתונים (aux), או מפריסת הגב (XLR יציאה עם תווית AUX) */
+function unitAuxPorts(u) { try { return rearPortsAuto(rearLayout(u.name)).filter(i => i.t === 'xlrm' && /AUX/i.test((i.label || '') + ' ' + (i.port || ''))).map(i => i.port).filter(Boolean); } catch (e) { return []; } }
+function unitAuxOuts(u) { if (!u) return 0; const k = rearKey(u.name), lib = (store.ampLib || {})[k]; if (lib && lib.aux != null && lib.aux !== '') return +lib.aux || 0; const d = (typeof AMP_DATA !== 'undefined' ? AMP_DATA : []).find(x => x.kind === 'amp' && x.re && x.re.test(u.name || '')); if (d && d.aux != null) return +d.aux || 0; return unitAuxPorts(u).length; }
+const isAmpUnit = u => !!u && (u.cat === 'amp' || /מגבר|amplifier|\bamp\b/i.test(u.name || ''));
+/* יציאות ה'פרוססור' לפאצ׳ים: פרוססור/מיקסר — OUT n; מגבר עם פרוססור מובנה (XTA DPA) — יציאות ה-AUX בלבד, לא יציאות הרמקול */
+function procOuts(proc) { if (!proc) return []; if (isAmpUnit(proc)) { const a = unitAuxPorts(proc); if (a.length) return a.sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true })); const n = unitAuxOuts(proc); return Array.from({ length: n }, (_, i) => 'AUX ' + (i + 1)); } return [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true })); }
+/* הפרוססור של הארון: יחידת כניסות שאינה מגבר; אם אין — מגבר עם פרוססור מובנה ויציאות AUX (XTA DPA) שיכול להזין מגברים בלי DSP; מגבר רגיל לעולם לא */
+/* תווית ליציאת הפרוססור בהערות: במגבר-פרוססור (XTA) — AUX n לפי תווית הגב, אחרת שם הפורט */
+function procOutLbl(proc, port) { try { const it = rearPortsAuto(rearLayout(proc.name)).find(i => i.port === port); return it && /AUX/i.test(it.label || '') ? it.label.replace(/AUX(\d)/i, 'AUX $1') : port; } catch (e) { return port; } }
+function rackProcUnit(rk) { const us = (rk && rk.units) || []; return us.find(u => isInUnit(u.name) && !isAmpUnit(u)) || us.find(u => isAmpUnit(u) && unitAuxOuts(u) > 0) || null; }   /* מגבר (גם עם DSP) לעולם לא 'פרוססור' — יציאות המגבר הן לרמקולים, לא לכניסות של מגבר אחר */
 /* ניקוי פאצ׳ים שגויים מגרסה קודמת: יציאת רמקול של מגבר (OUT n) שמוזנת לכניסת מגבר — לא קיים; הזנה במקביל (LNK n) כן */
 function purgeBogusAmpPatches() {
   const isAmp = u => !!u && (u.cat === 'amp' || /מגבר|amplifier/i.test(u.name || ''));
   const bad = new Set();
-  (P.nodes || []).forEach(rk => { if (rk.kind !== 'rack') return; (P.cables || []).forEach(c => { if (c.from !== rk.id || c.to !== rk.id || !/^IN/i.test(c.pIn || '')) return; const fu = (rk.units || []).find(u => u.id === c.fromUnit); if (isAmp(fu) && !/^LNK/i.test(c.pOut || '')) bad.add(c.id); }); });
+  (P.nodes || []).forEach(rk => { if (rk.kind !== 'rack') return; (P.cables || []).forEach(c => { if (c.from !== rk.id || c.to !== rk.id || !/^IN/i.test(c.pIn || '')) return; const fu = (rk.units || []).find(u => u.id === c.fromUnit); if (isAmp(fu) && !/^LNK/i.test(c.pOut || '') && !(unitAuxOuts(fu) > 0 && (unitAuxPorts(fu).includes(c.pOut) || /AUX/i.test(c.pOut || '')))) bad.add(c.id); }); });
   if (bad.size) P.cables = P.cables.filter(c => !bad.has(c.id));
   return bad.size;
 }
@@ -7759,18 +7768,18 @@ const SIG_CLS = ['🔈 סאבים', '🔊 טופים', '🔉 פיזורים', ''
 /* חלוקת יציאות הפרוססור מחדש לפי הסדר: סאבים ← טופים ← פיזורים, ובתוך כל קבוצה לפי מיקום המגבר והערוץ */
 function patchSigReorder(rkId, quiet) {
   const R = patchSigRacks().find(x => x.rk.id === rkId); if (!R) return;
-  const outs = [...new Set(rearLayout(R.proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true }));
+  const outs = procOuts(R.proc);
   const cabs = patchSigAll(R.rk, R.proc).map(c => { const amp = (R.rk.units || []).find(u => u.id === c.toUnit), ch = +(String(c.pIn || '').match(/\d+/) || [0])[0]; return { c, amp, ch, k: amp ? patchSigClass(R.rk, amp, ch) : 3 }; })
     .sort((x, y) => x.k - y.k || (x.amp ? x.amp.pos : 0) - (y.amp ? y.amp.pos : 0) || x.ch - y.ch);
   cabs.forEach((x, i) => { x.c.pOut = outs[i] || undefined; delete x.c.manual;
-    x.c.note = 'פאץ׳ פנימי · ' + shortModel(R.proc.name) + ' ' + (x.c.pOut || '⚠ אין יציאה פנויה') + ' → ' + shortModel(x.amp ? x.amp.name : '') + ' ' + (x.c.pIn || ''); });
+    x.c.note = 'פאץ׳ פנימי · ' + shortModel(R.proc.name) + ' ' + (x.c.pOut ? procOutLbl(R.proc, x.c.pOut) : '⚠ אין יציאה פנויה') + ' → ' + shortModel(x.amp ? x.amp.name : '') + ' ' + (x.c.pIn || ''); });
   if (!quiet) { save(); render(); if (PATCH) patchRender(); uiToast('⚡ יציאות הפרוססור סודרו: סאבים ← טופים ← פיזורים' + (cabs.length > outs.length ? ' · ⚠ ' + (cabs.length - outs.length) + ' כניסות נשארו בלי יציאה' : '')); }
 }
 function patchSigBlockHTML() {
   const R = patchSigRacks(); if (!R.length) return '';
   return '<div style="height:1px;background:#e3ded3;margin:14px 0 10px"></div><div style="font-size:12.5px;font-weight:800;margin-bottom:3px">🎚 סיגנל מהפרוססור אל המגברים</div><div style="font-size:11px;color:#8a8377;margin-bottom:8px">איזו יציאת פרוססור מזינה כל כניסת מגבר, או כניסה שמוזנת במקביל (LNK) מכניסה אחרת. שינוי כאן נשמר מיד. סדר ברירת המחדל: סאבים ← טופים ← פיזורים.</div>' +
     R.map(({ rk, proc, amps }) => {
-      const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true }));
+      const outs = procOuts(proc);
       const pd = unitDanteOk(proc), all = patchSigAll(rk, proc), missing = all.filter(c => !c.pOut).length;
       const fedIn = new Set((P.cables || []).filter(c => c.from === rk.id && c.to === rk.id && c.internal === 'proc-amp' && c.pOut).map(c => c.toUnit + '|' + c.pIn));
       const warn = missing ? '<div style="background:#fdf0f0;border:1px solid #e9b4b4;border-radius:9px;padding:7px 9px;margin-bottom:8px;font-size:12px"><b style="color:#c1121f">⚠ חסרות ' + missing + ' יציאות פרוססור</b> — ל-' + esc(shortModel(proc.name)) + ' יש ' + outs.length + ' יציאות, ונדרשות ' + all.length + '.' +
@@ -7825,7 +7834,7 @@ function patchSigPar(cid, ampId, srcCh) {
   const on = c.fromUnit === ampId && c.pOut === 'LNK ' + srcCh;
   if (!on) { patchSigSet(cid, 'L|' + ampId + '|LNK ' + srcCh); return; }
   const rk = byId(c.from), proc = rk && rackProcUnit(rk);
-  const outs = proc ? [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true })) : [];
+  const outs = proc ? procOuts(proc) : [];
   const taken = new Set((P.cables || []).filter(x => x !== c && x.from === c.from && x.internal === 'proc-amp' && proc && x.fromUnit === proc.id && x.pOut).map(x => x.pOut));
   patchSigSet(cid, (o => o ? 'P|' + o : '')(outs.find(o => !taken.has(o))));
 }
@@ -7881,11 +7890,11 @@ function patchSigMode(rkId, ampId, mode) {
     delete amp.sigNet; P.cables = rest; netProcCleanup(rk);
     /* חזרה ל-XLR: פאץ׳ לכל ערוץ מגבר שמזין רמקולים, מיציאת הפרוססור הפנויה הבאה (לפי הגב שבספרייה) */
     const chs = [...new Set(P.cables.filter(c => c.from === rkId && c.fromUnit === ampId && c.to !== rkId).map(c => +(String(c.pOut || '').match(/\d+/) || [0])[0]).filter(Boolean))].sort((a, b) => a - b);
-    const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true }));
+    const outs = procOuts(proc);
     const taken = new Set(P.cables.filter(c => c.from === rkId && c.to === rkId && c.fromUnit === proc.id && c.pOut).map(c => c.pOut));
     chs.forEach(ch => { const pOut = outs.find(o => !taken.has(o)); if (pOut) taken.add(pOut);
       P.cables.push({ id: uid('c'), from: rkId, fromUnit: proc.id, pOut: pOut || undefined, to: rkId, toUnit: ampId, pIn: 'IN ' + ch, type: 'xlr', qty: '1', spec: '', len: 1, conn: 'xlrm', conn2: 'xlrf', internal: 'proc-amp',
-        note: 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + (pOut || '⚠ אין יציאה פנויה') + ' → ' + shortModel(amp.name) + ' IN ' + ch }); });
+        note: 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + (pOut ? procOutLbl(proc, pOut) : '⚠ אין יציאה פנויה') + ' → ' + shortModel(amp.name) + ' IN ' + ch }); });
   }
   if (!patchSigAll(rk, proc).some(c => c.manual)) patchSigReorder(rkId, true);
   save(); render(); if (PATCH) patchRender();
@@ -8135,7 +8144,7 @@ async function patchApply() {
       const proc = rackProcUnit(a.rk); if (!proc) return;
       if (a.u.sigNet) return;   /* המגבר מקבל סיגנל ב-Dante — בלי פאצ׳ים אנלוגיים */
       /* יציאות הפרוססור לפי הגב שלו (מהספרייה) — לא מניחים OUT 1..N */
-      const outs = [...new Set(rearLayout(proc.name).filter(i => /^OUT/.test(i.port || '')).map(i => i.port))].sort((x, y) => String(x).localeCompare(String(y), 'en', { numeric: true }));
+      const outs = procOuts(proc);
       const taken = new Set(P.cables.filter(c => c.from === a.rk.id && c.to === a.rk.id && c.fromUnit === proc.id && c.pOut).map(c => c.pOut));
       chs.forEach(ch => {
         const pIn = 'IN ' + ch;
@@ -8145,7 +8154,7 @@ async function patchApply() {
           /* פאץ׳ שנוצר לפני שהגב נמשך מהספרייה — יציאה שלא קיימת בגב מוחלפת ביציאה אמיתית פנויה */
           if (ex.pOut && !outs.includes(ex.pOut)) {
             taken.delete(ex.pOut); const np = outs.find(o => !taken.has(o));
-            if (np) { ex.pOut = np; taken.add(np); ex.note = 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + np + ' → ' + shortModel(a.u.name) + ' ' + pIn; }
+            if (np) { ex.pOut = np; taken.add(np); ex.note = 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + procOutLbl(proc, np) + ' → ' + shortModel(a.u.name) + ' ' + pIn; }
             else { ex.pOut = undefined; ex.note = 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ⚠ אין יציאה פנויה (לפי הגב בספרייה) → ' + shortModel(a.u.name) + ' ' + pIn; uiToast('⚠ ל' + shortModel(proc.name) + ' אין יציאה פנויה עבור ' + shortModel(a.u.name) + ' ' + pIn + ' — בדוק את גב הדגם בספרייה', 6000); }
           }
           return;
@@ -8153,7 +8162,7 @@ async function patchApply() {
         let pOut = outs.find(o => !taken.has(o));
         if (pOut) taken.add(pOut);
         P.cables.push({ id: uid('c'), from: a.rk.id, fromUnit: proc.id, pOut: pOut || undefined, to: a.rk.id, toUnit: a.u.id, pIn, type: 'xlr', qty: '1', spec: '', len: 1, conn: 'xlrm', conn2: 'xlrf', internal: 'proc-amp',
-          note: 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + (pOut || '⚠ אין יציאה פנויה') + ' → ' + shortModel(a.u.name) + ' ' + pIn });
+          note: 'פאץ׳ פנימי · ' + shortModel(proc.name) + ' ' + (pOut ? procOutLbl(proc, pOut) : '⚠ אין יציאה פנויה') + ' → ' + shortModel(a.u.name) + ' ' + pIn });
         if (!pOut) uiToast('⚠ ל' + shortModel(proc.name) + ' אין יציאה פנויה עבור ' + shortModel(a.u.name) + ' ' + pIn + ' — לפי הגב שבספרייה', 5000);
       });
     });
@@ -9150,9 +9159,9 @@ const AMP_DATA = [
   { re: /RX\s?-?A\s?-?820|YAMAHA\s?820\b/i, kind: 'amp', ch: 7, ok: 0, w: 'דף מפרט לא זמין — להשלים מה-manual (7.2)', url: '' },
   { re: /XDA\s?-?QS5400/i, kind: 'amp', ch: 8, ok: 0, w: 'מולטי-רום 4 אזורים — דף מפרט לא זמין, להשלים מה-datasheet', url: '' },
   /* ===== XTA / MC² — מאומת מ-xta.co.uk (טבלת הספק מלאה בכל אימפדנס) ===== */
-  { re: /DPA\s?40|DSP\s?40|DELTA\s?40/i, kind: 'amp', ch: 4, mo: 2, mains: 1392, mainsSrc: 'XTA Main Specifications: 5.8A @240V, 4Ω, Heavy (crest 9dB ≈ 1/8 הספק) × 240V · Nominal/Average: 2.9A ≈ 696W', ok: 1, w: '4×500W @8Ω · 1000W @4Ω · 1400W @2.7Ω · 1200W @2Ω · גשר 2400W @8Ω', pw: { 8: 500, 4: 1000, 2.7: 1400, 2: 1200 }, br: { 8: 2400, 4: 2000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
-  { re: /DPA\s?80|DSP\s?80|DELTA\s?80/i, kind: 'amp', ch: 4, mo: 2, mains: 2472, mainsSrc: 'XTA Main Specifications: 10.3A @240V, 4Ω, Heavy (crest 9dB ≈ 1/8 הספק) × 240V · Nominal/Average: 5A ≈ 1200W', ok: 1, w: '4×1000W @8Ω · 2000W @4Ω · 2200W @2.7Ω · 2000W @2Ω · גשר 4000W', pw: { 8: 1000, 4: 2000, 2.7: 2200, 2: 2000 }, br: { 8: 4000, 4: 4000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
-  { re: /DPA\s?100|DSP\s?100|DELTA\s?100/i, kind: 'amp', ch: 4, mo: 2, mains: 3768, mainsSrc: 'XTA Main Specifications: 15.7A @240V, 4Ω, Heavy (crest 9dB ≈ 1/8 הספק) × 240V · Nominal/Average: 7.5A ≈ 1800W', ok: 1, w: '4×1400W @8Ω · 2700W @4Ω · 3700W @2.7Ω · 3500W @2Ω · גשר 7000W @4Ω', pw: { 8: 1400, 4: 2700, 2.7: 3700, 2: 3500 }, br: { 8: 5400, 4: 7000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
+  { re: /DPA\s?40|DSP\s?40|DELTA\s?40/i, kind: 'amp', ch: 4, mo: 2, aux: 4, mains: 1392, mainsSrc: 'XTA Main Specifications: 5.8A @240V, 4Ω, Heavy (crest 9dB ≈ 1/8 הספק) × 240V · Nominal/Average: 2.9A ≈ 696W', ok: 1, w: '4×500W @8Ω · 1000W @4Ω · 1400W @2.7Ω · 1200W @2Ω · גשר 2400W @8Ω', pw: { 8: 500, 4: 1000, 2.7: 1400, 2: 1200 }, br: { 8: 2400, 4: 2000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
+  { re: /DPA\s?80|DSP\s?80|DELTA\s?80/i, kind: 'amp', ch: 4, mo: 2, aux: 4, mains: 2472, mainsSrc: 'XTA Main Specifications: 10.3A @240V, 4Ω, Heavy (crest 9dB ≈ 1/8 הספק) × 240V · Nominal/Average: 5A ≈ 1200W', ok: 1, w: '4×1000W @8Ω · 2000W @4Ω · 2200W @2.7Ω · 2000W @2Ω · גשר 4000W', pw: { 8: 1000, 4: 2000, 2.7: 2200, 2: 2000 }, br: { 8: 4000, 4: 4000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
+  { re: /DPA\s?100|DSP\s?100|DELTA\s?100/i, kind: 'amp', ch: 4, mo: 2, aux: 4, mains: 3768, mainsSrc: 'XTA Main Specifications: 15.7A @240V, 4Ω, Heavy (crest 9dB ≈ 1/8 הספק) × 240V · Nominal/Average: 7.5A ≈ 1800W', ok: 1, w: '4×1400W @8Ω · 2700W @4Ω · 3700W @2.7Ω · 3500W @2Ω · גשר 7000W @4Ω', pw: { 8: 1400, 4: 2700, 2.7: 3700, 2: 3500 }, br: { 8: 5400, 4: 7000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
   { re: /DNA\s?20|20ND/i, kind: 'amp', ch: 4, mo: 2, ok: 1, w: '4×175W @8Ω · 350W @4Ω · 480W @2.7Ω · 340W @2Ω · 100V: 200W/ערוץ', pw: { 8: 175, 4: 350, 2.7: 480, 2: 340 }, br: { 8: 700, 4: 660 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
   { re: /DNA\s?40|40ND/i, kind: 'amp', ch: 4, mo: 2, mains: 1392, mainsSrc: 'XTA Main Specifications: 5.8A @240V, 4Ω, Heavy (crest 9dB ≈ 1/8 הספק) × 240V · Nominal/Average: 2.9A ≈ 696W', ok: 1, w: '4×500W @8Ω · 1000W @4Ω · 1400W @2.7Ω · 1200W @2Ω · גשר 2400W @8Ω', pw: { 8: 500, 4: 1000, 2.7: 1400, 2: 1200 }, br: { 8: 2400, 4: 2000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
   { re: /50ND|DELTA\s?50/i, kind: 'amp', ch: 2, mo: 2, ok: 1, w: '2×1500W @8Ω · 3000W @4Ω · 3700W @2.7Ω · 3500W @2Ω · גשר 7000W @4Ω', pw: { 8: 1500, 4: 3000, 2.7: 3700, 2: 3500 }, br: { 8: 6000, 4: 7000 }, url: 'https://xta.co.uk/portfolio/delta-dpa-dna-legacy/' },
@@ -9317,7 +9326,7 @@ function spkDataManager(tab) {
   const allBrands = [...new Set(rows.map(r => r.brand).concat(['Funktion-One', 'Kling & Freitag', 'KT Audio', 'XTA', 'Yamaha', 'SAE', 'Lab Gruppen', 'Crown', 'DigiSynthetic', 'Lambda Labs', 'אחר']))].sort();
   const tabBtn = (t, l) => `<button onclick="spkDataManager('${t}')" style="flex:1;padding:5px;border-radius:8px;font-weight:700;${tab === t ? 'background:#c9502e;color:#fff' : 'background:#f0ede8'}">${l}</button>`;
   const heads = '<th>תמונה</th>' + (tab === 'spk' ? '<th>סוג</th><th>מותג</th><th title="מגיע עם מתקן תלייה בקופסה? כלל הבית: כל דגמי KT Audio ו-EUPHORIA כן · TILL ו-PAGAZ לא">מתקן<br>בקופסה</th><th>H°</th><th>V°</th><th>רגישות<br>dB@1W</th><th>Max<br>SPL</th><th>W<br>RMS</th><th>Ω</th><th title="פסיבי = קו אחד · Bi-amp = HI+LOW · Tri-amp = HI+MID+LOW — כל פס מקבל ערוץ מגבר משלו בפאץ׳">הגברה</th><th>קישורים<br>🔗📄📘</th>' :
-    tab === 'amp' ? '<th>מותג</th><th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th title="סוג התקע / ההזנה (IEC, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי">תקע</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : '<th>מותג</th>' + (tab === 'other' ? '<th>סוג</th>' : '<th>כניסות×יציאות</th>') + '<th>רשת / תאימות</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th title="סוג התקע / ההזנה (IEC, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי">תקע</th><th style="text-align:right">הערות</th><th>קישור</th>');
+    tab === 'amp' ? '<th>מותג</th><th>ערוצים</th><th>מינ׳ Ω</th><th>DSP</th><th title="פרוססור מובנה עם יציאות AUX מעובדות (XLR) שיכולות להזין מגברים ללא DSP — מספר היציאות (XTA DPA: 4)">AUX<br>OUT</th><th title="רשת אודיו: Dante / AES67 / OMNEO — קובע אם הסיגנל מהפרוססור יכול להגיע למגבר בכבל רשת דרך המתג">רשת אודיו</th><th title="הספק לערוץ (W) בכל עומס">8Ω</th><th title="הספק לערוץ (W)">4Ω</th><th title="הספק לערוץ (W)">2.7Ω</th><th title="הספק לערוץ (W)">2Ω</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th title="סוג התקע / ההזנה (IEC, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי">תקע</th><th style="text-align:right">הערות הספק</th><th>קישור</th>' : '<th>מותג</th>' + (tab === 'other' ? '<th>סוג</th>' : '<th>כניסות×יציאות</th>') + '<th>רשת / תאימות</th><th title="צריכת חשמל מקסימלית מהרשת (W) לפי היצרן — מופיעה בדוח החשמלאי">צריכה<br>מקס׳ W</th><th title="סוג התקע / ההזנה (IEC, פאוורקון, ספק DC, PoE…) — מופיע בדוח החשמלאי">תקע</th><th style="text-align:right">הערות</th><th>קישור</th>');
   const ov = document.createElement('div');
   ov.id = 'spkDbOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:98;display:flex;align-items:center;justify-content:center';
@@ -9341,7 +9350,7 @@ function spkDataManager(tab) {
     const c = r.ok ? '#0f8a5f' : '#c1121f';
     const bg = r.ok ? '#eef7f1' : '#fdeeee';
     const arg = r.lk ? `'${jsq(r.lk)}'` : `null,${r.bi}`;
-    const colspan = tab === 'spk' ? 14 : tab === 'amp' ? 16 : 11;
+    const colspan = tab === 'spk' ? 14 : tab === 'amp' ? 17 : 11;
     const brandHdr = (ri === 0 || rows[ri - 1].brand !== r.brand) ? `<tr style="background:#e9e4db"><td colspan="${colspan}" style="padding:4px 6px;font-weight:800;font-size:12px">🏷 ${esc(r.brand)}</td></tr>` : '';
     const fn = tab === 'spk' ? 'editSpkDb' : 'editAmpDb';
     const nmA = jsq(r.name);
@@ -9363,6 +9372,7 @@ function spkDataManager(tab) {
         `<td style="text-align:center"><select title="מותג — הבחירה מסדרת את הקיבוץ בטבלה" style="max-width:112px;border:1px solid #ccc;border-radius:4px;font-size:11px;background:#fff" onchange="if(this.value==='__new'){spkBrandNew('${nmA}')}else spkMetaSet('${nmA}','brand',this.value)">${allBrands.map(b2 => `<option ${r.brand === b2 ? 'selected' : ''}>${esc(b2)}</option>`).join('')}<option value="__new">➕ מותג חדש…</option></select></td>
        <td style="text-align:center"><input value="${cell(r.d.ch)}" style="width:40px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'ch',this.value)"></td>
        <td style="text-align:center"><input value="${cell(r.d.mo)}" placeholder="4" style="width:38px;text-align:center;border:1px solid ${c};background:${bg};border-radius:4px" onchange="${fn}(${arg},'mo',this.value)"></td>
+       <td style="text-align:center"><input value="${r.d.aux ?? ''}" placeholder="—" title="יציאות AUX מעובדות (פרוססור מובנה) — מספר; ריק = אין. מגבר עם AUX יכול לשמש פרוססור למגברים ללא DSP באותו ארון" style="width:40px;text-align:center;border:1px solid ${r.d.aux ? '#0f8a5f' : '#ddd'};border-radius:4px" onchange="${fn}(${arg},'aux',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.dsp != null ? meta.dsp : guessDsp(r.d, r.name))}" placeholder="?" title="DSP: ✓ = יש · ציין ערוצים עודפים לשליטה במוצרים ללא DSP" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','dsp',this.value)"></td>
        <td style="text-align:center"><input value="${esc(meta.net != null ? meta.net : guessNet(r.d))}" placeholder="—" title="רשת אודיו (Dante / AES67 / OMNEO) — ריק = אין" style="width:96px;text-align:center;border:1px solid #ccc;border-radius:4px;font-size:10.5px" onchange="spkMetaSet('${nmA}','net',this.value)"></td>
        ${['8', '4', '2.7', '2'].map(o => { const v = (r.d.pw || {})[o]; return `<td style="text-align:center"><input value="${v ?? ''}" placeholder="—" title="הספק לערוץ ב-${o}Ω (W)" style="width:54px;text-align:center;border:1px solid ${v != null ? c : '#ddd'};background:${v != null ? bg : '#fff'};border-radius:4px;font-size:11.5px;font-weight:${v != null ? 700 : 400}" onchange="${fn}(${arg},'pw:${o}',this.value)"></td>`; }).join('')}
@@ -9644,12 +9654,12 @@ async function editAmpLink(libKey, bi) {
 function editAmpDb(libKey, biOrField, arg3, arg4) {
   store.ampLib = store.ampLib || {};
   let key, field, val;
-  if (libKey === null) { const bi = biOrField; field = arg3; val = arg4; const bd = AMP_DATA[bi]; key = rearKey(prettyRe(bd.re)); if (!store.ampLib[key]) store.ampLib[key] = { re: null, kind: bd.kind, ch: bd.ch, mo: bd.mo, io: bd.io, w: bd.w, pw: bd.pw ? { ...bd.pw } : undefined, br: bd.br ? { ...bd.br } : undefined, url: bd.url, pdf: bd.pdf, man: bd.man, mains: bd.mains, mainsEst: bd.mainsEst, mainsEstWhy: bd.mainsEstWhy, plug: bd.plug, ok: bd.ok }; }   /* כל הנתונים עוברים לעותק הנערך — קודם טבלת ההספקים (pw) אבדה בעריכה */
+  if (libKey === null) { const bi = biOrField; field = arg3; val = arg4; const bd = AMP_DATA[bi]; key = rearKey(prettyRe(bd.re)); if (!store.ampLib[key]) store.ampLib[key] = { re: null, kind: bd.kind, ch: bd.ch, mo: bd.mo, io: bd.io, w: bd.w, pw: bd.pw ? { ...bd.pw } : undefined, br: bd.br ? { ...bd.br } : undefined, url: bd.url, pdf: bd.pdf, man: bd.man, mains: bd.mains, mainsEst: bd.mainsEst, mainsEstWhy: bd.mainsEstWhy, plug: bd.plug, aux: bd.aux, ok: bd.ok }; }   /* כל הנתונים עוברים לעותק הנערך — קודם טבלת ההספקים (pw) אבדה בעריכה */
   else { key = libKey; field = biOrField; val = arg3; }
   if (!store.ampLib[key]) return;
   if (/^pw:/.test(field)) { const o = field.slice(3), rec = store.ampLib[key]; rec.pw = { ...(rec.pw || {}) }; if (val === '' || val == null || !(+val > 0)) delete rec.pw[o]; else rec.pw[o] = +val; rec.ok = true; save(); spkDataManager(); return; }
   if (field === 'ok') store.ampLib[key].ok = (val === true || val === 'true');
-  else if (field === 'ch' || field === 'mo' || field === 'mains') { store.ampLib[key][field] = (val === '' || val == null) ? undefined : (+val || undefined); store.ampLib[key].ok = true; }
+  else if (field === 'ch' || field === 'mo' || field === 'mains' || field === 'aux') { store.ampLib[key][field] = (val === '' || val == null) ? undefined : (+val || undefined); store.ampLib[key].ok = true; }
   else { store.ampLib[key][field] = val; store.ampLib[key].ok = true; }
   save(); spkDataManager();
 }
