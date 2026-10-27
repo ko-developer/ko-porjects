@@ -12572,16 +12572,17 @@ function allKits(withHidden) {
    (scripts/erp-kits.js → PUT /api/external/kits ב-ERP). קיט ב-ERP שלא ברשימה מושבת שם — לא נמחק.
    ref יציב לכל קיט: קיט בסיס = ה-uuid שלו ב-ERP (id ב-data/erp_kits.json, scripts/erp-kit-ids.js); קיט שלי = id שנוצר לו
    כאן ונשמר עליו; גרסה שלי שמחליפה קיט בסיס (אותו שם / replaces) יורשת את ה-ref שלו.
-   רץ 3 שניות אחרי שמירה / מחיקה / הסתרה של קיט (kitSyncSoon), ומהכפתור במסך הקיטים. */
+   רץ מהכפתור במסך הקיטים, ואחרי הפרסום הידני הראשון גם לבד: 3 שניות אחרי שמירה / מחיקה / הסתרה של קיט (kitSyncSoon)
+   ובפתיחת מסך הקיטים. */
 const KIT_SYNC = { srv: null, down: false, busy: false, busyManual: false, again: '', t: null };
 const KIT_SYNC_WHY = {
-  static: 'אין כאן שרת שמפרסם (פריסה סטטית / Netlify) — מפרסמים מהשרת: במחשב או בענן',
+  static: 'זמין רק בגרסת השרת',
   env: 'פרסום ל-ERP עוד לא הוגדר בשרת',
   guest: 'פרסום הקיטים ל-ERP — לבעלים בלבד',
   down: 'אין חיבור לשרת'
 };
 /* פרסום אמיתי רק כשלכל קיט בסיס שנשלח יש id של ה-ERP (data/erp_kits.json, scripts/erp-kit-ids.js); בדיקה בלבד מותרת תמיד */
-const KIT_SYNC_NOID = 'יש להריץ קודם את סקריפט מזהי הקיטים';
+const KIT_SYNC_NOID = 'חסרים מזהי ERP לקיטים — יש לעדכן את רשימת הקיטים מה-ERP';
 function kitRefHash(s) {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
   for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
@@ -12712,6 +12713,8 @@ async function kitPublish0(auto, dry) {
   const { kits, noId, sig } = kitSyncPayload();
   if (!dry && noId) { if (!auto) uiToast('⚠ ' + KIT_SYNC_NOID); return null; }
   const prev = store.kitSync || {};
+  /* אוטומטי רק אחרי פרסום ידני אמיתי ראשון (sig נשמר רק בו; בדיקה בלבד לא נחשבת) — כדי שהבעלים יריץ קודם בדיקה ויראה מה יושבת */
+  if (auto && !prev.sig) return null;
   if (auto && prev.sig === sig) return null;   /* הרשימה לא השתנתה מאז הפרסום האחרון */
   kitSyncPaint();
   const names = Object.fromEntries(kits.map(k => [k.ref, k.name]));
@@ -12756,7 +12759,8 @@ function kitSyncPaint() {
       <button ${disReal ? 'disabled' : ''} onclick="kitPublish()" title="${esc(why || (noId ? KIT_SYNC_NOID : 'שולח ל-ERP את כל רשימת הקיטים, בלי המוסתרים. קיט ERP שלא ברשימה מושבת שם — לא נמחק'))}" style="flex:1;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0">${KIT_SYNC.busy ? '⏳ מפרסם…' : '⤴ פרסום קיטים ל-ERP'}</button>
       <button ${dis ? 'disabled' : ''} onclick="kitPublish({dry:true})" title="${esc(why || 'מה יקרה ב-ERP — בלי לשנות שם דבר')}">👁 בדיקה בלבד</button></div>
     ${why || noId ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">⚠ ${esc(why || KIT_SYNC_NOID)}</div>` : ''}
-    ${KIT_SYNC.t && !why && !noId ? '<div class="muted" style="font-size:11px;margin-top:4px">⏳ הקיטים השתנו — יפורסמו ל-ERP בעוד רגע</div>' : ''}
+    ${!why && !noId && !(store.kitSync || {}).sig ? '<div class="muted" style="font-size:11px;margin-top:4px">הפרסום הראשון נעשה מכאן — אחריו שינויים בקיטים יפורסמו לבד</div>' : ''}
+    ${KIT_SYNC.t && !why && !noId && (store.kitSync || {}).sig ? '<div class="muted" style="font-size:11px;margin-top:4px">⏳ הקיטים השתנו — יפורסמו ל-ERP בעוד רגע</div>' : ''}
     ${l ? kitSyncLastHTML(l) : ''}`;
 }
 window.kitPublish = kitPublish;
