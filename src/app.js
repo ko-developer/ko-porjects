@@ -14505,8 +14505,7 @@ function sendOffer() {
         <input id="ofNewAddr" autocomplete="off" value="" placeholder="כתובת האתר (לא חובה)" style="margin-top:4px">
         <div class="muted" style="font-size:10.5px;margin-top:2px">נוצר ב-ERP יחד עם ההצעה, על הלקוח שנבחר למטה. אם ללקוח כבר יש פרויקט בשם הזה — ההצעה נוספת אליו.</div>
       </div>
-      ${installKeys.length ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">🔒 "הצעה ללקוח בלבד" לא זמינה: בהצעה יש פריטי התקנה (${installKeys.map(esc).join(', ')}) — הצעה כזו חייבת להיות על פרויקט</div>` : ''}
-      <div id="ofPrjNote" class="muted" style="display:none;font-size:10.5px;margin-top:3px;direction:ltr;text-align:left"></div></div>
+      ${installKeys.length ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">🔒 "הצעה ללקוח בלבד" לא זמינה: בהצעה יש פריטי התקנה (${installKeys.map(esc).join(', ')}) — הצעה כזו חייבת להיות על פרויקט</div>` : ''}</div>
     <div class="fld" style="position:relative"><label>לקוח (חשבון ERP) — חובה בפרויקט חדש ובהצעה ללקוח בלבד</label>
       <input id="ofAcc" autocomplete="off" value="${esc(P.accountName || '')}" data-key="${esc(P.accountKey || '')}" data-name="${esc(P.accountKey ? P.accountName || '' : '')}" placeholder="🔍 שם לקוח או מפתח חשבון…" oninput="ofAccSearch(this)" onfocus="ofAccSearch(this)">
       <div id="ofAccList" style="display:none;position:absolute;z-index:5;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.18)"></div>
@@ -14528,8 +14527,7 @@ function sendOffer() {
       <option value="warehouse_pickup" selected>🏭 איסוף מהמחסן — הלקוח, או הטכנאי שלוקח לאתר</option>
       <option value="warehouse_delivery">🚚 משלוח מהמחסן לכתובת</option>
       <option value="pickup_now">🤝 איסוף מיידי</option>
-    </select>
-      <div id="ofShipNote" class="muted" style="display:none;font-size:10.5px;margin-top:3px;direction:ltr;text-align:left"></div></div>
+    </select></div>
     <div class="fld" id="ofAddrW" style="display:none"><label>כתובת למשלוח</label><input id="ofAddr" value="${esc(P.customer || '')}" placeholder="רחוב, עיר"></div>
     <div id="ofSrvW" style="margin-top:8px">
       <button class="primary" style="width:100%;background:#2e7d32" onclick="ofCreateSrv(this)">🚀 צור הצעה ופתח את הפרויקט ב-ERP</button>
@@ -14556,8 +14554,6 @@ function sendOffer() {
       sh.value = o.shipment_methods.some(m => m.value === was) ? was : o.shipment_methods.some(m => m.value === 'warehouse_pickup') ? 'warehouse_pickup' : o.shipment_methods[0].value;
       sh.onchange();
     }
-    /* ההערות של ה-ERP (get_offer_options) — מתי חייבים פרויקט ואיך בוחרים משלוח */
-    for (const [id, txt] of [['ofShipNote', o.shipment_note], ['ofPrjNote', o.project_note]]) { const el3 = document.getElementById(id); if (el3 && txt) { el3.textContent = 'ℹ ERP: ' + txt; el3.style.display = ''; } }
     if (o.vat_rate) { const el2 = document.querySelector('#offerOv p'); if (el2 && !el2.dataset.vat) { el2.dataset.vat = 1; el2.innerHTML = el2.innerHTML.replace('18%', Math.round(o.vat_rate * 100) + '%'); } }
   }).catch(() => {});
   /* יצירה ישירה דרך השרת; אם אין חיבור (פריסה סטטית) — נשאר מסלול קובץ ידני */
@@ -14746,7 +14742,7 @@ function sendOffer() {
           <div style="font-size:17px;font-weight:800;color:#0f6e56;margin-bottom:6px">✅ ההצעה נוצרה ב-ERP</div>
           ${code ? '<div style="font-size:15px;margin-bottom:8px">הזמנה <b style="font-size:18px;letter-spacing:.5px">' + esc(code) + '</b></div>' : ''}
           ${res.project_created === true ? '<div style="font-size:12.5px;margin-bottom:6px">📁 נוצר פרויקט חדש ב-ERP: <b>' + esc(res.project_name || payload.project_name || '') + '</b></div>' : ''}
-          ${res.project_created === false ? '<div style="color:#b7761f;font-size:12px;margin-bottom:6px">📁 ללקוח כבר היה פרויקט בשם הזה מהדקות האחרונות — ההצעה נוספה אליו</div>' : ''}
+          ${res.project_created === false ? '<div style="color:#b7761f;font-size:12px;margin-bottom:6px">📁 ללקוח כבר היה פרויקט בשם הזה שנוצר בדקות האחרונות — ההצעה נוספה אליו</div>' : ''}
           ${j.note ? '<div style="color:#b7761f;font-size:12px;margin-bottom:8px">ℹ ' + esc(j.note) + '</div>' : ''}
           ${res.service_ticket_no || res.call_setting_ticket_no ? '<div style="font-size:12.5px;margin-bottom:6px">' + [res.service_ticket_no ? '🛠 קריאת שירות <b>' + esc(res.service_ticket_no) + '</b>' : '', res.call_setting_ticket_no ? '🎛 קריאת כיוון <b>' + esc(res.call_setting_ticket_no) + '</b>' : ''].filter(Boolean).join(' · ') + '</div>' : ''}
           ${(res.ticket_errors || []).length ? '<div style="color:#c1121f;font-size:12px;margin-bottom:8px">⚠ ההצעה נוצרה, אבל קריאה לא נפתחה ב-ERP:<br>' + res.ticket_errors.map(esc).join('<br>') + '</div>' : ''}

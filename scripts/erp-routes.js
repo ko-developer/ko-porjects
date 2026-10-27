@@ -97,7 +97,7 @@ export async function handleErp(req, res, path0, isOwner) {
         let pid = p.project_id;
         if (!pid) {
           /* שם בלבד: פרויקט של הלקוח הזה בשם זהה, אחרת ה-ERP יוצר אותו עם ההצעה (new_project). לעולם לא "הראשון ברשימה" — הוא יכול להיות של לקוח אחר */
-          const found = await erpCall('list_projects', { account_key: p.account_key, search: String(p.project_name).trim().replace(/\s+/g, ' '), limit: 50 });
+          const found = await erpCall('list_projects', { account_key: p.account_key, limit: 500 });   /* כל פרויקטי הלקוח, בלי search: חיפוש ה-ERP מחליף ( ) , ברווח ולא מוצא רווח כפול — השוואת השם כאן (sameName) */
           const rows = found?.projects || found?.rows || (Array.isArray(found) ? found : []);
           const same = rows.find(r => accKey(r.account_key) === accKey(p.account_key) && sameName(r.project_name || r.name, p.project_name));
           if (same) { pid = same.id || same.project_id; note = `ללקוח כבר יש פרויקט "${(same.project_name || same.name || '').trim()}" ב-ERP — ההצעה נוספה אליו.`; }
