@@ -12449,6 +12449,7 @@ function showKits() {
   ov.style.zIndex = '140';
   const w = document.getElementById('wiz'); if (w) w.style.opacity = '0.25';
   renderKits();
+  kitPublish({ auto: true });   /* מה שהשתנה מאז הפרסום האחרון (גם עריכות של מנהלים אחרים) — רק אצל הבעלים, ורק כשיש שינוי */
   const box = ov.querySelector('#impList'); if (box) box.scrollTop = 0;
 }
 /* סגירת חלון הקיטים מחזירה את האשף */
@@ -12568,13 +12569,15 @@ function allKits(withHidden) {
    ref יציב לכל קיט: קיט בסיס = ה-uuid שלו ב-ERP (id ב-data/erp_kits.json, scripts/erp-kit-ids.js); קיט שלי = id שנוצר לו
    כאן ונשמר עליו; גרסה שלי שמחליפה קיט בסיס (אותו שם / replaces) יורשת את ה-ref שלו.
    רץ 3 שניות אחרי שמירה / מחיקה / הסתרה של קיט (kitSyncSoon), ומהכפתור במסך הקיטים. */
-const KIT_SYNC = { srv: null, down: false, busy: false, again: false, t: null, warned: false };
+const KIT_SYNC = { srv: null, down: false, busy: false, busyManual: false, again: '', t: null };
 const KIT_SYNC_WHY = {
   static: 'אין כאן שרת שמפרסם (פריסה סטטית / Netlify) — מפרסמים מהשרת: במחשב או בענן',
-  env: 'בשרת חסרים ERP_API_URL / ERP_KITS_TOKEN — אין לאן לפרסם',
+  env: 'פרסום ל-ERP עוד לא הוגדר בשרת',
   guest: 'פרסום הקיטים ל-ERP — לבעלים בלבד',
   down: 'אין חיבור לשרת'
 };
+/* פרסום אמיתי רק כשלכל קיט בסיס שנשלח יש id של ה-ERP (data/erp_kits.json, scripts/erp-kit-ids.js); בדיקה בלבד מותרת תמיד */
+const KIT_SYNC_NOID = 'יש להריץ קודם את סקריפט מזהי הקיטים';
 function kitRefHash(s) {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
   for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
@@ -12610,24 +12613,32 @@ function kitSyncPersist() {
   try { localStorage.setItem(LSKEY, JSON.stringify(store, (k, v) => k === 'bgPdf' ? undefined : v)); } catch (e) {}
   pushSrv();
 }
+/* קיט הבסיס שה-ref שלו נשלח: הקיט עצמו, או לגרסה שלי — הקיט שהיא מחליפה (אותו שם / replaces) */
+function kitSyncBaseOf(k, mine) { return mine.has(k) ? ((k.replaces && kitBaseByName(k.replaces)) || kitBaseByName(k.name)) : k; }
+/* כמה קיטי בסיס שנשלחים (גלויים, או שגרסה שלי יורשת את ה-ref שלהם) עוד בלי id של ה-ERP */
+function kitSyncNoId() {
+  const mine = new Set(store.userKits || []);
+  return allKits(true).filter(k => (k.name || '').trim() && !kitHidden(k.name) && (b => !!b && !b.id)(kitSyncBaseOf(k, mine))).length;
+}
 function kitSyncPayload() {
   if (kitEnsureIds()) kitSyncPersist();
   const all = allKits(true), mine = new Set(store.userKits || []);
-  /* קיט בסיס בלי id (data/erp_kits.json עוד לא רוענן ב-scripts/erp-kit-ids.js) — ה-ERP מתאים אותו לפי השם */
+  /* קיט בסיס בלי id (לפני scripts/erp-kit-ids.js) — רק בבדיקה בלבד, שבה ה-ERP מתאים אותו לפי השם; פרסום אמיתי נחסם (KIT_SYNC_NOID) */
   const baseRef = b => b.id || 'erp-name:' + (b.name || '').trim();
   const used = new Set(), kits = [];
   let noId = 0;
   for (const k of all) {
     const name = (k.name || '').trim();
     if (!name || kitHidden(k.name)) continue;
-    const base = mine.has(k) ? ((k.replaces && kitBaseByName(k.replaces)) || kitBaseByName(name)) : k;
+    const base = kitSyncBaseOf(k, mine);
     let ref = base ? baseRef(base) : k.id;
     if (used.has(ref) && mine.has(k)) ref = k.id;   /* שתי גרסאות שלי לאותו קיט בסיס: הראשונה יורשת, השנייה ב-id שלה */
     if (!ref || used.has(ref)) { console.warn('kit sync: no unique ref for', name); continue; }
     if (base && !base.id) noId++;
     used.add(ref);
     kits.push({
-      ref, name, category: kitErpCategory(k), system_type: String(k.sys || '').trim() || null, budget_tier: null,
+      /* "קיט שלי" היא תווית של KO Projects, לא סוג מערכת — נשלח null */
+      ref, name, category: kitErpCategory(k), system_type: (s2 => s2 && s2 !== 'קיט שלי' ? s2 : null)(String(k.sys || '').trim()), budget_tier: null,
       /* שורה בלי מק"ט נשלחת עם item_key ריק — ה-ERP מדלג עליה ומדווח, כך שרואים אותה בתוצאת הפרסום */
       items: (k.items || []).filter(x => String(x.name || '').trim() || String(x.key || '').trim()).map(x => {
         const q = Number(x.qty);
@@ -12670,19 +12681,35 @@ function kitSyncSummary(l) {
   return p.join(' · ');
 }
 async function kitPublish(opt = {}) {
-  const auto = !!opt.auto, dry = !!opt.dry;
-  if (KIT_SYNC.busy) { if (!dry) KIT_SYNC.again = true; return; }
+  /* תוך כדי ריצה: לחיצה ידנית נשלחת מיד אחריה (אלא אם גם הריצה הנוכחית ידנית — לחיצה כפולה), שינוי אוטומטי — שוב בעוד 3 שניות */
+  if (KIT_SYNC.busy) {
+    if (opt.dry) return;
+    if (!opt.auto) { if (!KIT_SYNC.busyManual) KIT_SYNC.again = 'manual'; }
+    else if (!KIT_SYNC.again) KIT_SYNC.again = 'auto';
+    return;
+  }
+  KIT_SYNC.busy = true; KIT_SYNC.busyManual = !opt.auto;   /* לפני כל await — לחיצה ידנית והטיימר האוטומטי לא שולחים פעמיים */
+  let last = null;
+  try { last = await kitPublish0(!!opt.auto, !!opt.dry); }
+  catch (e) { console.error(e); uiToast('⚠ פרסום הקיטים ל-ERP נכשל: ' + (e.message || e)); }
+  finally { KIT_SYNC.busy = false; KIT_SYNC.busyManual = false; kitSyncPaint(); }
+  /* 409 = פרסום אחר עוד רץ ב-ERP — ניסיון חוזר אחד */
+  if (last && !last.ok && last.status === 409 && opt.auto && !opt.retry) setTimeout(() => kitPublish({ auto: true, retry: true }), 8000);
+  const again = KIT_SYNC.again; KIT_SYNC.again = '';
+  if (again === 'manual') kitPublish(); else if (again === 'auto') kitSyncSoon();
+}
+async function kitPublish0(auto, dry) {
   const st = await kitSyncSrv(!auto);
   if (st !== 'ok') {
-    const why = KIT_SYNC_WHY[st] || st;
-    if (!auto) uiToast('⚠ ' + why);
-    else if (!KIT_SYNC.warned) { KIT_SYNC.warned = true; uiToast('⚠ הקיטים לא פורסמו ל-ERP — ' + why); }
-    kitSyncPaint(); return;
+    /* אוטומטי: טוסט רק כשהשרת לא ענה. לא הוגדר / סטטי / לא בעלים — מוצג בתיבה במסך הקיטים */
+    if (!auto || st === 'down') uiToast('⚠ הקיטים לא פורסמו ל-ERP — ' + (KIT_SYNC_WHY[st] || st));
+    return null;
   }
   const { kits, noId, sig } = kitSyncPayload();
+  if (!dry && noId) { if (!auto) uiToast('⚠ ' + KIT_SYNC_NOID); return null; }
   const prev = store.kitSync || {};
-  if (auto && !dry && prev.sig === sig) { kitSyncPaint(); return; }   /* הרשימה לא השתנתה מאז הפרסום האחרון */
-  KIT_SYNC.busy = true; kitSyncPaint();
+  if (auto && prev.sig === sig) return null;   /* הרשימה לא השתנתה מאז הפרסום האחרון */
+  kitSyncPaint();
   const names = Object.fromEntries(kits.map(k => [k.ref, k.name]));
   let last;
   try {
@@ -12699,14 +12726,11 @@ async function kitPublish(opt = {}) {
   } catch (e) {
     last = { at: Date.now(), dry, auto, ok: false, sent: kits.length, noId, error: String(e.message || e), status: e.status || 0 };
   }
-  KIT_SYNC.busy = false;
   store.kitSync = { ...prev, last, ...(last.ok && !dry ? { sig } : {}) };
-  kitSyncPersist(); kitSyncPaint();
+  kitSyncPersist();
   if (!last.ok) uiToast('⚠ ' + (dry ? 'בדיקת' : 'פרסום') + ' הקיטים ל-ERP נכשל' + (last.status ? ' (' + last.status + ')' : '') + ': ' + last.error);
   else uiToast((dry ? '👁 בדיקה בלבד, לא נשמר: ' : '✓ הקיטים פורסמו ל-ERP: ') + kitSyncSummary(last));
-  /* 409 = פרסום אחר עוד רץ ב-ERP — ניסיון חוזר אחד */
-  if (!last.ok && last.status === 409 && auto && !opt.retry) setTimeout(() => kitPublish({ auto: true, retry: true }), 8000);
-  if (KIT_SYNC.again) { KIT_SYNC.again = false; kitSyncSoon(); }
+  return last;
 }
 function kitSyncLastHTML(l) {
   const when = new Date(l.at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
@@ -12714,7 +12738,7 @@ function kitSyncLastHTML(l) {
   if (!l.ok) return `<div style="font-size:11.5px;color:#c1121f;margin-top:5px;font-weight:700">❌ ${what} נכשל · ${esc(when)}${l.status ? ' · ' + l.status : ''}<br><span style="font-weight:400">${esc(l.error)}</span></div>`;
   const det = (n, lbl, rows) => n ? `<details style="font-size:11px;margin-top:3px"><summary style="cursor:pointer">${lbl}</summary><div style="max-height:180px;overflow-y:auto;padding:3px 6px;background:#fff;border:1px solid #eee;border-radius:6px;margin-top:2px">${rows}</div></details>` : '';
   return `<div style="font-size:11.5px;color:#0a7a4b;margin-top:5px;font-weight:700">✓ ${what} · ${esc(when)}<br><span style="font-weight:400;color:#333">${esc(kitSyncSummary(l))}</span></div>`
-    + (l.noId ? `<div style="font-size:11px;color:#8a5a00;margin-top:3px">⚠ ${l.noId} קיטי ERP עוד בלי מזהה ERP בקובץ — נשלחו לפי השם (node scripts/erp-kit-ids.js)</div>` : '')
+    + (l.noId ? `<div style="font-size:11px;color:#8a5a00;margin-top:3px">⚠ ${l.noId} קיטי ERP עוד בלי מזהה ERP — בבדיקה הותאמו לפי השם</div>` : '')
     + det(l.deactivated.length, `${l.deactivated.length} קיטים ${l.dry ? 'יושבתו' : 'הושבתו'} ב-ERP (לא נמחקו)`, l.deactivated.map(d => '• ' + esc(d.name || d.id)).join('<br>'))
     + det(l.skipped.length, `${l.skipped.length} שורות דולגו`, l.skipped.map(s => '• <b>' + esc(s.kit) + '</b> · <code>' + esc(s.item_key || 'בלי מק"ט') + '</code> · ' + esc(s.reason || '')).join('<br>'));
 }
@@ -12722,12 +12746,13 @@ function kitSyncPaint() {
   const box = document.getElementById('kitSyncBox'); if (!box) return;
   const st = window.__AUTH && !window.__AUTH.owner ? 'guest' : KIT_SYNC.srv || (KIT_SYNC.down ? 'down' : null);
   const why = st && st !== 'ok' ? KIT_SYNC_WHY[st] : '', dis = KIT_SYNC.busy || !st || !!why;
+  const noId = st === 'ok' && kitSyncNoId() > 0, disReal = dis || noId;
   const l = (store.kitSync || {}).last;
   box.innerHTML = `<div style="display:flex;gap:6px;align-items:center">
-      <button ${dis ? 'disabled' : ''} onclick="kitPublish()" title="${esc(why || 'שולח ל-ERP את כל רשימת הקיטים, בלי המוסתרים. קיט ERP שלא ברשימה מושבת שם — לא נמחק')}" style="flex:1;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0">${KIT_SYNC.busy ? '⏳ מפרסם…' : '⤴ פרסום קיטים ל-ERP'}</button>
+      <button ${disReal ? 'disabled' : ''} onclick="kitPublish()" title="${esc(why || (noId ? KIT_SYNC_NOID : 'שולח ל-ERP את כל רשימת הקיטים, בלי המוסתרים. קיט ERP שלא ברשימה מושבת שם — לא נמחק'))}" style="flex:1;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0">${KIT_SYNC.busy ? '⏳ מפרסם…' : '⤴ פרסום קיטים ל-ERP'}</button>
       <button ${dis ? 'disabled' : ''} onclick="kitPublish({dry:true})" title="${esc(why || 'מה יקרה ב-ERP — בלי לשנות שם דבר')}">👁 בדיקה בלבד</button></div>
-    ${why ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">⚠ ${esc(why)}</div>` : ''}
-    ${KIT_SYNC.t && !why ? '<div class="muted" style="font-size:11px;margin-top:4px">⏳ הקיטים השתנו — יפורסמו ל-ERP בעוד רגע</div>' : ''}
+    ${why || noId ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">⚠ ${esc(why || KIT_SYNC_NOID)}</div>` : ''}
+    ${KIT_SYNC.t && !why && !noId ? '<div class="muted" style="font-size:11px;margin-top:4px">⏳ הקיטים השתנו — יפורסמו ל-ERP בעוד רגע</div>' : ''}
     ${l ? kitSyncLastHTML(l) : ''}`;
 }
 window.kitPublish = kitPublish;

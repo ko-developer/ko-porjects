@@ -13,8 +13,10 @@ const errText = x => typeof x === 'string' ? x : x && typeof x === 'object' ? (x
 /* מחזיר { status, body } — ה-body של ה-ERP כמו שהוא כשהצליח; בכישלון תמיד ok:false + errors (מערך מחרוזות) + erp_status */
 export async function pushKits(env, body, dry) {
   const { base, token, configured } = kitsSyncConfig(env);
-  if (!configured) return { status: 503, body: { ok: false, errors: ['חסרים ERP_API_URL / ERP_KITS_TOKEN בשרת — אין לאן לפרסם את הקיטים'] } };
+  if (!configured) return { status: 503, body: { ok: false, errors: ['פרסום ל-ERP עוד לא הוגדר בשרת'] } };
   if (!body || !Array.isArray(body.kits)) return { status: 400, body: { ok: false, errors: ['חסרה רשימת kits'] } };
+  /* רשימה ריקה הייתה משביתה ב-ERP את כל הקיטים — לא נשלחת */
+  if (!body.kits.length) return { status: 400, body: { ok: false, errors: ['רשימת הקיטים ריקה — לא נשלחה ל-ERP'] } };
   let r;
   try {
     r = await fetch(base + '/api/external/kits' + (dry ? '?dry_run=1' : ''), {
@@ -32,6 +34,7 @@ export async function pushKits(env, body, dry) {
   if (r.ok && j && j.ok !== false) return { status: 200, body: j };
   const errs = j && typeof j === 'object' ? [].concat(j.errors ?? j.error ?? j.message ?? []).map(errText) : [];
   if (errs.length && j.field) errs[0] += ' (' + j.field + ')';
+  if (errs.length && j.details != null) errs[0] += ': ' + [].concat(j.details).map(errText).join('; ');
   return {
     status: r.ok ? 502 : r.status,
     body: { ...(j && typeof j === 'object' ? j : {}), ok: false, erp_status: r.status, errors: errs.length ? errs : ['ERP HTTP ' + r.status + (text ? ': ' + text.slice(0, 200) : '')] }

@@ -34,6 +34,8 @@ function projectWebUrl(id) {
 export async function handleErp(req, res, path0, isOwner) {
   if (!path0.startsWith('/api/erp/') || path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') return false;
   if (!isOwner) { send(res, 403, { ok: false, errors: ['owner only'] }); return true; }
+  /* כתיבה רק כ-JSON: טופס מאתר אחר (text/plain / form) לא יכול לשלוח בשם הבעלים הצעה או פרסום קיטים */
+  if (req.method !== 'GET' && req.method !== 'HEAD' && !/^application\/json\b/i.test(req.headers['content-type'] || '')) { send(res, 415, { ok: false, errors: ['content-type חייב להיות application/json'] }); return true; }
   const sp = new URL(req.url, 'http://x').searchParams;
   try {
     if (path0 === '/api/erp/status') {
