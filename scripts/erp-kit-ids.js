@@ -1,7 +1,8 @@
 // מזהי ה-ERP של קיטי הבסיס (data/erp_kits.json) — ה-ref היציב שבו פרסום הקיטים (/api/erp/kits-sync) מזהה כל קיט ב-ERP.
-// קורא list_kits מה-MCP (קריאה בלבד) ומוסיף לכל קיט שכבר בקובץ את ה-id שלו. לא מוסיף ולא מוחק קיטים, ולא משנה שמות,
-// קטגוריות או פריטים — רשימת הבסיס והמיזוג עם הקיטים שלי (allKits) נשארים כמו שהם.
-// התאמה: שם זהה (אחרי trim; כשיש כמה — הפעיל היחיד); אחרת שם ה-ERP שנחתך ל-60 תווים (כך נשמרו 4 קיטים), רק כשיש התאמה אחת בדיוק.
+// קורא list_kits מה-MCP (קריאה בלבד) ומוסיף לכל קיט שכבר בקובץ את ה-id שלו. לא מוסיף ולא מוחק קיטים, ולא משנה
+// קטגוריות או פריטים — רשימת הבסיס והמיזוג עם הקיטים שלי (allKits) נשארים כמו שהם. נכתבים רק id ו-name.
+// התאמה: שם זהה (אחרי trim; כשיש כמה — הפעיל היחיד); אחרת שם ה-ERP שנחתך ל-60 תווים (כך נשמרו 4 קיטים), רק כשיש התאמה
+// אחת בדיוק — ואז גם השם המלא מה-ERP חוזר לקובץ. גרסה שלי / הסתרה שנשמרו בשם הקטוע לא חלות עליו יותר — הסקריפט מדפיס אותם לבדיקה.
 // שימוש: node scripts/erp-kit-ids.js [--dry]   (ERP_MCP_URL / ERP_MCP_TOKEN ב-.env)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { erpCall } from './erp-client.js';
@@ -30,26 +31,33 @@ function pick(cands) {
   const act = free.filter(k => k.is_active);
   return act.length === 1 ? act[0] : null;
 }
+const byPrefix = new Set();
 const match = kits.map(k => { const m = pick(rows.filter(e => norm(e.name) === norm(k.name))); if (m) used.add(m.id); return m; });
 kits.forEach((k, i) => {
   if (match[i]) return;
   const m = pick(rows.filter(e => norm(e.name).slice(0, 60).trim() === norm(k.name)));
-  if (m) { match[i] = m; used.add(m.id); console.log(`  60-char prefix: "${norm(k.name)}" → "${norm(m.name)}"`); }
+  if (m) { match[i] = m; used.add(m.id); byPrefix.add(i); console.log(`  60-char prefix: "${norm(k.name)}" → "${norm(m.name)}"`); }
 });
 
 let added = 0, changed = 0;
+const renamed = [];
 const out = kits.map((k, i) => {
   const m = match[i]; if (!m) return k;
-  if (k.id === m.id) return k;
-  if (k.id) { changed++; console.log(`  id changed: "${norm(k.name)}" ${k.id} → ${m.id}`); } else added++;
+  const full = byPrefix.has(i) && norm(m.name) !== k.name ? norm(m.name) : null;   /* השם המלא מה-ERP במקום הקטוע */
+  if (k.id === m.id && !full) return k;
+  if (k.id && k.id !== m.id) { changed++; console.log(`  id changed: "${norm(k.name)}" ${k.id} → ${m.id}`); } else if (!k.id) added++;
+  if (full) renamed.push([k.name, full]);
   const { id: _old, ...rest } = k;
-  return { id: m.id, ...rest };
+  const o = { id: m.id, ...rest };
+  if (full) o.name = full;   /* אותו מקום במפתחות — רק הערך מתחלף */
+  return o;
 });
 const miss = kits.filter((k, i) => !match[i]);
 if (miss.length) console.warn(`⚠ ${miss.length} kits not found in the ERP (no id): ` + miss.map(k => `"${norm(k.name)}"`).join(', '));
 const inactive = kits.filter((k, i) => match[i] && !match[i].is_active);
 if (inactive.length) console.log(`ℹ ${inactive.length} matched ERP kits are inactive: ` + inactive.map(k => `"${norm(k.name)}"`).join(', '));
-console.log(`ids: ${added} added, ${changed} changed, ${kits.length - miss.length} matched of ${kits.length}`);
+console.log(`ids: ${added} added, ${changed} changed, ${kits.length - miss.length} matched of ${kits.length} · ${renamed.length} full names restored`);
+if (renamed.length) console.log('ℹ שמות שהוחלפו — גרסה שלי (store.userKits) או הסתרה (store.kitHidden) שנשמרו בשם הישן כבר לא חלות על הקיט; בדוק במסך הקיטים:\n' + renamed.map(([a, b]) => `  "${a}"\n   → "${b}"`).join('\n'));
 if (dry) { console.log('--dry: nothing written'); process.exit(0); }
 writeFileSync(FILE, samePy ? py(out) : JSON.stringify(out));
 console.log('✓ wrote ' + FILE);
