@@ -12512,14 +12512,23 @@ function kitFixReels(list) {
   let n = 0;
   /* שורות ריקות שמגיעות מה-ERP (בלי מק״ט ובלי שם) נזרקות; מק״ט בלי שם מקבל את שמו מהקטלוג */
   /* שמות הפריטים בקיטים מגיעים קטועים מה-ERP ("… + מתקן תלייה KT" בלי "ARRAY 650") — משלימים לשם המלא מהקטלוג */
-  if (!kitFixReels.names && typeof ERP_ITEMS !== 'undefined') kitFixReels.names = new Map(ERP_ITEMS.map(i => [i[0], i[1] || '']));
-  const full = kitFixReels.names || new Map();
+  if (!kitFixReels.names && typeof ERP_ITEMS !== 'undefined') {
+    kitFixReels.names = new Map(ERP_ITEMS.map(i => [i[0], i[1] || '']));
+    /* מק״ט שהוקלד באותיות אחרות (l31410ko) → הכתיב של הקטלוג (L31410KO); רק כשבדיוק מק״ט אחד בקטלוג מתאים */
+    kitFixReels.lower = new Map();
+    for (const [key] of ERP_ITEMS) { const l = String(key).toLowerCase(); kitFixReels.lower.set(l, kitFixReels.lower.has(l) ? null : key); }
+  }
+  const full = kitFixReels.names || new Map(), lower = kitFixReels.lower || new Map();
   (list || []).forEach(k => {
     const before = (k.items || []).length;
     k.items = (k.items || []).filter(x => {
+      const key = String(x.key || '').trim();
+      if (key && !full.has(key)) { const c = lower.get(key.toLowerCase()); if (c && c !== x.key) { x.key = c; n++; } }
       const fn = x.key ? full.get(x.key) : '';
       if (fn && (!x.name || (fn.length > x.name.length && fn.startsWith(x.name.trim())))) { x.name = fn; n++; }
-      return !!(x.name || '').trim();
+      if (x.name == null) x.name = '';
+      /* שורה עם מק״ט נשארת גם בלי שם — גם מק״ט שלא בקטלוג: הפרסום ל-ERP שולח אותה וה-ERP מדווח עליה */
+      return !!(String(x.name).trim() || key);
     });
     if (k.items.length !== before) n++;
   });
