@@ -12528,8 +12528,12 @@ function kitFixReels(list) {
       const fn = x.key ? full.get(x.key) : '';
       if (fn && (!x.name || (fn.length > x.name.length && fn.startsWith(x.name.trim())))) { x.name = fn; n++; }
       if (x.name == null) x.name = '';
-      /* שורה עם מק״ט נשארת גם בלי שם — גם מק״ט שלא בקטלוג: הפרסום ל-ERP שולח אותה וה-ERP מדווח עליה */
-      return !!(String(x.name).trim() || key);
+      if (String(x.name).trim()) return true;
+      /* בלי שם ועם מק״ט שלא בקטלוג: לא בקיט עצמו — לא בהצעות, בתצוגה או בבונה, כמו קודם — אלא ב-erpOnly, שרק הפרסום ל-ERP
+         שולח (וה-ERP מדווח עליה כ-unknown_item_key). עריכה של הקיט שומרת את items בלבד, ולכן מורידה אותה */
+      if (key && !full.has(x.key)) { k.erpOnly = (k.erpOnly || []).concat(x); n++; }
+      else if (key) return true;
+      return false;
     });
     if (k.items.length !== before) n++;
   });
@@ -12640,7 +12644,7 @@ function kitSyncPayload() {
       /* "קיט שלי" היא תווית של KO Projects, לא סוג מערכת — נשלח null */
       ref, name, category: kitErpCategory(k), system_type: (s2 => s2 && s2 !== 'קיט שלי' ? s2 : null)(String(k.sys || '').trim()), budget_tier: null,
       /* שורה בלי מק"ט נשלחת עם item_key ריק — ה-ERP מדלג עליה ומדווח, כך שרואים אותה בתוצאת הפרסום */
-      items: (k.items || []).filter(x => String(x.name || '').trim() || String(x.key || '').trim()).map(x => {
+      items: (k.items || []).concat(k.erpOnly || []).filter(x => String(x.name || '').trim() || String(x.key || '').trim()).map(x => {
         const q = Number(x.qty);
         return { item_key: String(x.key || '').trim(), qty: x.qty == null || x.qty === '' || !Number.isFinite(q) ? 1 : q, name: String(x.name || '').trim() };
       })
