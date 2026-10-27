@@ -256,7 +256,7 @@ function wizStepHTML(s) {
     ${noKey ? `<button class="sec" style="border-color:#c1121f;color:#c1121f" onclick="dockOpen=true;dockMin=false;document.body.classList.add('wzdock');renderImp()">⚠ ${noKey} שורות בלי מק"ט — לא ייכנסו להצעה, לחץ להשלמה</button>` : ''}
     <div style="background:#f7f5f0;border-radius:9px;padding:7px 9px;font-size:11.5px;margin-bottom:7px">
       ${P.accountKey ? '👤 לקוח: <b>' + esc(P.accountName || '') + '</b> · ' + esc(P.accountKey) : '👤 טרם נבחר לקוח'}<br>
-      ${P.erpProjId ? '📂 פרויקט ERP: <b>' + esc(P.erpProjName || '') + '</b>' : '📂 בלי פרויקט ERP — ההצעה תישלח ללקוח (ה-ERP לא מאפשר ליצור פרויקט מכאן)'}
+      ${P.erpProjId ? '📂 פרויקט ERP: <b>' + esc(P.erpProjName || '') + '</b>' : '📂 עוד בלי פרויקט ERP — בשליחה: פרויקט קיים, פרויקט חדש או ללקוח בלבד'}
       ${P.erpOfferCode ? '<br>✅ נשלחה כבר: <b>' + esc(P.erpOfferCode) + '</b>' : ''}
     </div>
     <button class="sec" onclick="document.body.classList.toggle('wzdock');dockOpen=true;dockMin=false;renderImp()">🧾 הצג/הסתר את ההצעה המלאה</button>

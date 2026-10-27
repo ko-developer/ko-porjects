@@ -1,5 +1,5 @@
 // חיפוש פרויקטים קיימים ב-ERP — לבורר הפרויקט בהצעה.
-// ה-MCP לא תומך ביצירת פרויקט, ולכן חייבים לבחור פרויקט שכבר קיים (או לוותר ולשייך ללקוח).
+// פרויקט חדש לא נבחר מכאן — הוא נוצר ב-ERP יחד עם ההצעה (create_offer.new_project, ב-api/erp/offer).
 import { json } from '@sveltejs/kit';
 import { callTool } from '$lib/server/erp.js';
 

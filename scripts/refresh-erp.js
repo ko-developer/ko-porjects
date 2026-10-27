@@ -1,5 +1,7 @@
 // רענון קטלוג הפריטים מה-ERP (MCP) — כולל מחיר ומלאי חיים.
 // פורמט הפלט תואם-לאחור: [key, name, price, qty] — הקוד הקיים קורא רק [0],[1].
+// גם data/erp_filters.json: שדה Filter של כל פריט בלי ה-^ שבסוף (INSTALL^^^ → INSTALL) — erpFilter() באפליקציה;
+// פריט INSTALL מחייב שההצעה תהיה על פרויקט (create_offer מסרב אחרת), ולכן הדיאלוג חוסם עליו "הצעה ללקוח בלבד".
 // שימוש: node scripts/refresh-erp.js   (דורש ERP_MCP_URL/ERP_MCP_TOKEN ב-.env)
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -38,12 +40,16 @@ async function call(name, args) {
 await post({ jsonrpc: '2.0', id: ++seq, method: 'initialize', params: { protocolVersion: PROTO, capabilities: {}, clientInfo: { name: 'ko-refresh', version: '1.0' } } }, false);
 await post({ jsonrpc: '2.0', method: 'notifications/initialized' });
 
-const items = [];
+const items = [], filters = {};
 let page = 1, pages = 1;
 do {
   const r = await call('list_items', { page, limit: 1000 });
   pages = r.total_pages || 1;
-  for (const it of r.items || []) if (it.ItemKey && it.ItemName) items.push([it.ItemKey, it.ItemName, it.Price ?? 0, it.Quantity ?? 0]);
+  for (const it of r.items || []) {
+    if (it.ItemKey && it.ItemName) items.push([it.ItemKey, it.ItemName, it.Price ?? 0, it.Quantity ?? 0]);
+    const f = String(it.Filter ?? '').replace(/\^+$/, '').trim();
+    if (it.ItemKey && f) filters[it.ItemKey] = f;
+  }
   console.log(`page ${page}/${pages} — ${items.length} items`);
   page++;
 } while (page <= pages);
@@ -51,6 +57,8 @@ do {
 items.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 writeFileSync('data/erp_items.json', JSON.stringify(items));
 console.log(`✓ wrote ${items.length} items (with price+stock) -> data/erp_items.json`);
+writeFileSync('data/erp_filters.json', JSON.stringify(filters));
+console.log(`✓ wrote ${Object.keys(filters).length} item filters -> data/erp_filters.json (INSTALL: ${Object.keys(filters).filter(k => filters[k].toUpperCase() === 'INSTALL').join(', ')})`);
 
 /* מראת SQLite (ko.sqlite) — אותם נתונים לשימוש עתידי כ-DB אמיתי */
 const { DatabaseSync } = await import('node:sqlite');

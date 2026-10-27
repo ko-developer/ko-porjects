@@ -14273,13 +14273,16 @@ async function deleteMarked() {
   render(); save();
 }
 /* ===== שליחת הצעה ל-ERP =====
-   הדפדפן לא יכול לקרוא ל-ERP ישירות. הכפתור בונה מטען מוכן (JSON),
-   מעתיק ללוח ומוריד כקובץ — ואז מדביקים ל-Claude שיוצר את ההצעה בפועל. */
+   השרת יוצר את ההצעה ב-MCP של ה-ERP (/api/erp/offer → create_offer): על פרויקט קיים, על פרויקט חדש שנוצר איתה
+   (new_project), או ללקוח בלבד. בלי חיבור ERP בשרת — מטען JSON להורדה, ליצירה ידנית. */
 function sendOffer() {
   const rows = impItems.filter(it => it.on !== false && (+it.qty || 0) > 0 && it.dest !== 'ignore');
   if (!rows.length) { alert('אין פריטים בהצעה.'); return; }
   const withKey = rows.filter(it => it.key);
   const noKey = rows.filter(it => !it.key);
+  /* פריט התקנה (Filter INSTALL ב-ERP) מחייב פרויקט — create_offer מסרב להצעה כזו ללקוח בלבד */
+  const installKeys = [...new Set(withKey.filter(it => /^install$/i.test(erpFilter(it.key))).map(it => it.key))];
+  const mode0 = P.erpProjId ? 'existing' : installKeys.length ? 'new' : 'none';
   const total = rows.reduce((s2, it) => s2 + (+it.price || 0) * (+it.qty || 0), 0);
 
   const ov = document.createElement('div');
@@ -14292,16 +14295,26 @@ function sendOffer() {
     ${noKey.length ? `<div style="background:#fdeeee;border:1px solid #c1121f;border-radius:8px;padding:8px;margin-bottom:10px;font-size:12px">
       <b style="color:#c1121f">⚠ ${noKey.length} שורות ללא מק"ט — לא יישלחו:</b>
       <div style="margin-top:4px">${noKey.map(it => '• ' + esc(it.name.slice(0, 50))).join('<br>')}</div></div>` : ''}
-    <div class="fld" style="position:relative"><label>פרויקט ב-ERP — בחר פרויקט <b>קיים</b> (ה-ERP לא מאפשר ליצור פרויקט מכאן)</label>
-      <input id="ofPrj" autocomplete="off" value="${esc(P.erpProjName || '')}" placeholder="🔍 חפש פרויקט קיים לפי שם / לקוח / כתובת…" oninput="ofPrjSearch(this)" onfocus="ofPrjSearch(this)">
-      <div id="ofPrjList" style="display:none;position:absolute;z-index:6;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.18)"></div>
-      <div id="ofPrjSt" class="muted" style="font-size:10px;margin-top:2px">${P.erpProjId ? '✓ פרויקט משויך' : ''}</div>
-      <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin-top:4px;background:#faf8f4;border-radius:8px;padding:5px 8px">
-        <input type="checkbox" id="ofNoPrj" style="width:auto" ${P.erpProjId ? '' : 'checked'} onchange="ofPrjMode()">
-        הצעה ללקוח בלבד — בלי פרויקט (אפשר לשייך לפרויקט ב-ERP אחר כך)
-      </label></div>
-    <div class="fld" style="position:relative"><label>לקוח (חשבון ERP) — חובה כשאין פרויקט, מומלץ תמיד</label>
-      <input id="ofAcc" autocomplete="off" value="${esc(P.accountName || '')}" data-key="${esc(P.accountKey || '')}" placeholder="🔍 שם לקוח או מפתח חשבון…" oninput="ofAccSearch(this)" onfocus="ofAccSearch(this)">
+    <div class="fld" style="position:relative"><label>פרויקט ב-ERP</label>
+      <div id="ofModeW" style="display:flex;gap:4px;margin-bottom:5px">
+        <button type="button" data-ofmode="existing" style="flex:1" onclick="ofSetMode('existing')">📂 פרויקט קיים</button>
+        <button type="button" data-ofmode="new" style="flex:1" onclick="ofSetMode('new')">➕ פרויקט חדש</button>
+        <button type="button" data-ofmode="none" style="flex:1" onclick="ofSetMode('none')" ${installKeys.length ? 'disabled title="בהצעה יש פריטי התקנה — הצעה כזו חייבת להיות על פרויקט"' : ''}>👤 הצעה ללקוח בלבד</button>
+      </div>
+      <div id="ofExistW">
+        <input id="ofPrj" autocomplete="off" value="${esc(P.erpProjId ? P.erpProjName || '' : '')}" data-id="${esc(P.erpProjId || '')}" data-name="${esc(P.erpProjId ? P.erpProjName || '' : '')}" placeholder="🔍 חפש פרויקט קיים לפי שם / לקוח / כתובת…" oninput="ofPrjSearch(this)" onfocus="ofPrjSearch(this)">
+        <div id="ofPrjList" style="display:none;position:absolute;z-index:6;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.18)"></div>
+        <div id="ofPrjSt" class="muted" style="font-size:10px;margin-top:2px">${P.erpProjId ? '✓ פרויקט משויך' : ''}</div>
+      </div>
+      <div id="ofNewW" style="display:none">
+        <input id="ofNewName" autocomplete="off" value="${esc(P.erpProjName || P.name || '')}" placeholder="שם הפרויקט החדש">
+        <input id="ofNewAddr" autocomplete="off" value="" placeholder="כתובת האתר (לא חובה)" style="margin-top:4px">
+        <div class="muted" style="font-size:10.5px;margin-top:2px">נוצר ב-ERP יחד עם ההצעה, על הלקוח שנבחר למטה. אם ללקוח כבר יש פרויקט בשם הזה — ההצעה נוספת אליו.</div>
+      </div>
+      ${installKeys.length ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">🔒 "הצעה ללקוח בלבד" לא זמינה: בהצעה יש פריטי התקנה (${installKeys.map(esc).join(', ')}) — הצעה כזו חייבת להיות על פרויקט</div>` : ''}
+      <div id="ofPrjNote" class="muted" style="display:none;font-size:10.5px;margin-top:3px;direction:ltr;text-align:left"></div></div>
+    <div class="fld" style="position:relative"><label>לקוח (חשבון ERP) — חובה בפרויקט חדש ובהצעה ללקוח בלבד</label>
+      <input id="ofAcc" autocomplete="off" value="${esc(P.accountName || '')}" data-key="${esc(P.accountKey || '')}" data-name="${esc(P.accountKey ? P.accountName || '' : '')}" placeholder="🔍 שם לקוח או מפתח חשבון…" oninput="ofAccSearch(this)" onfocus="ofAccSearch(this)">
       <div id="ofAccList" style="display:none;position:absolute;z-index:5;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.18)"></div>
       <div id="ofAccSt" class="muted" style="font-size:10px;margin-top:2px">${P.accountKey ? '✓ לקוח <b>' + esc(P.accountKey) + '</b> · ' + esc(P.accountName || '') : ''}</div></div>
     <div class="fld"><label>שם ההצעה — חובה בהצעת פרויקט (מבדיל בין הצעות באותו פרויקט)</label><input id="ofName" value="${esc((P.name || 'הצעה') + ' — סאונד וחיווט')}"></div>
@@ -14318,11 +14331,11 @@ function sendOffer() {
       <option value="משותף">🤝 משותף — הלקוח צנרת, KO כבלים</option>
     </select></div>
     <div class="fld"><label>אופן משלוח הפריטים <span class="muted" style="font-size:10px">(מהאפשרויות של ה-ERP)</span></label><select id="ofShip" onchange="document.getElementById('ofAddrW').style.display=this.value==='warehouse_delivery'?'':'none'">
-      <option value="">🔧 ללא משלוח — הטכנאי מביא לאתר (גם בפרויקט)</option>
+      <option value="warehouse_pickup" selected>🏭 איסוף מהמחסן — הלקוח, או הטכנאי שלוקח לאתר</option>
       <option value="warehouse_delivery">🚚 משלוח מהמחסן לכתובת</option>
-      <option value="warehouse_pickup">🏭 איסוף מהמחסן בהמשך</option>
       <option value="pickup_now">🤝 איסוף מיידי</option>
-    </select></div>
+    </select>
+      <div id="ofShipNote" class="muted" style="display:none;font-size:10.5px;margin-top:3px;direction:ltr;text-align:left"></div></div>
     <div class="fld" id="ofAddrW" style="display:none"><label>כתובת למשלוח</label><input id="ofAddr" value="${esc(P.customer || '')}" placeholder="רחוב, עיר"></div>
     <div id="ofSrvW" style="margin-top:8px">
       <button class="primary" style="width:100%;background:#2e7d32" onclick="ofCreateSrv(this)">🚀 צור הצעה ופתח את הפרויקט ב-ERP</button>
@@ -14338,14 +14351,19 @@ function sendOffer() {
   fetch('/api/erp/options').then(r => r.json()).then(o => {
     if (!o || !o.ok) return;
     const LBL_I = { technician_install_site: '🔧 טכנאי מביא לאתר ההתקנה', one_time_delivery: '🚚 משלוח חד-פעמי לאתר', customer_pickup: '🏭 הלקוח אוסף מהמחסן', none: '— ללא העברת תשתית —' };
-    const LBL_S = { warehouse_delivery: '🚚 משלוח מהמחסן לכתובת', warehouse_pickup: '🏭 איסוף מהמחסן בהמשך', pickup_now: '🤝 איסוף מיידי' };
+    const LBL_S = { warehouse_delivery: '🚚 משלוח מהמחסן לכתובת', warehouse_pickup: '🏭 איסוף מהמחסן — הלקוח, או הטכנאי שלוקח לאתר', pickup_now: '🤝 איסוף מיידי' };
     const inf = document.getElementById('ofInfra');
     if (inf && (o.infrastructure_transfer_methods || []).length)
       inf.innerHTML = o.infrastructure_transfer_methods.map(m => `<option value="${esc(m.value)}" title="${esc(m.description || '')}">${esc(LBL_I[m.value] || m.value)}</option>`).join('');
     const sh = document.getElementById('ofShip');
-    if (sh && (o.shipment_methods || []).length)
-      sh.innerHTML = '<option value="">🔧 ללא משלוח — הטכנאי מביא לאתר (גם בפרויקט)</option>' +
-        o.shipment_methods.map(m => `<option value="${esc(m.value)}" title="${esc(m.description || '')}">${esc(LBL_S[m.value] || m.value)}</option>`).join('');
+    if (sh && (o.shipment_methods || []).length) {
+      const was = sh.value;   /* אין "ללא משלוח": בלי שיטה ה-ERP קורא את ההזמנה כקריאת שירות. ברירת המחדל — איסוף מהמחסן */
+      sh.innerHTML = o.shipment_methods.map(m => `<option value="${esc(m.value)}" title="${esc(m.description || '')}">${esc(LBL_S[m.value] || m.value)}</option>`).join('');
+      sh.value = o.shipment_methods.some(m => m.value === was) ? was : o.shipment_methods.some(m => m.value === 'warehouse_pickup') ? 'warehouse_pickup' : o.shipment_methods[0].value;
+      sh.onchange();
+    }
+    /* ההערות של ה-ERP (get_offer_options) — מתי חייבים פרויקט ואיך בוחרים משלוח */
+    for (const [id, txt] of [['ofShipNote', o.shipment_note], ['ofPrjNote', o.project_note]]) { const el3 = document.getElementById(id); if (el3 && txt) { el3.textContent = 'ℹ ERP: ' + txt; el3.style.display = ''; } }
     if (o.vat_rate) { const el2 = document.querySelector('#offerOv p'); if (el2 && !el2.dataset.vat) { el2.dataset.vat = 1; el2.innerHTML = el2.innerHTML.replace('18%', Math.round(o.vat_rate * 100) + '%'); } }
   }).catch(() => {});
   /* יצירה ישירה דרך השרת; אם אין חיבור (פריסה סטטית) — נשאר מסלול קובץ ידני */
@@ -14357,7 +14375,7 @@ function sendOffer() {
   window.__ofAccCache = window.__ofAccCache || new Map();
   const ofAccPick = (key, name) => {
     const inp = document.getElementById('ofAcc');
-    inp.value = name; inp.dataset.key = key;
+    inp.value = name; inp.dataset.key = key; inp.dataset.name = name;
     document.getElementById('ofAccList').style.display = 'none';
     const st = document.getElementById('ofAccSt');
     if (st) st.innerHTML = '✓ לקוח <b>' + esc(key) + '</b> · ' + esc(name);
@@ -14374,6 +14392,7 @@ function sendOffer() {
   window.ofAccSearch = inp => {
     const st = document.getElementById('ofAccSt');
     const q = inp.value.trim();
+    if (q === (inp.dataset.name || '') && inp.dataset.key) return;   /* פוקוס על לקוח שכבר נבחר — לא מבטל את הבחירה; רק הקלדה */
     inp.dataset.key = '';
     if (st) st.textContent = '';
     if (q.length < 2) { const el = document.getElementById('ofAccList'); if (el) el.style.display = 'none'; return; }
@@ -14413,9 +14432,8 @@ function sendOffer() {
   window.__ofPrjCache = window.__ofPrjCache || new Map();
   window.__ofPrjPick = (id, name, accKey, accName) => {
     const inp = document.getElementById('ofPrj');
-    inp.value = name; inp.dataset.id = id;
+    inp.value = name; inp.dataset.id = id; inp.dataset.name = name;
     document.getElementById('ofPrjList').style.display = 'none';
-    document.getElementById('ofNoPrj').checked = false;
     document.getElementById('ofPrjSt').innerHTML = '✓ פרויקט <b>' + esc(name) + '</b>' + (accName ? ' · לקוח ' + esc(accName) : '');
     /* הלקוח נגזר מהפרויקט — ממלאים אוטומטית */
     if (accKey) {
@@ -14423,7 +14441,7 @@ function sendOffer() {
       ai.value = accName || ai.value; ai.dataset.key = accKey;
       document.getElementById('ofAccSt').innerHTML = '✓ לקוח <b>' + esc(accKey) + '</b>' + (accName ? ' · ' + esc(accName) : '') + ' (מהפרויקט)';
     }
-    ofPrjMode();
+    ofSetMode('existing');
   };
   /* מי מעביר תשתיות — נשמר על הפרויקט ומופיע בשם ההצעה (ל-ERP אין שדה לזה) */
   window.ofInfraByChange = v => {
@@ -14432,21 +14450,28 @@ function sendOffer() {
     nm.value = nm.value.replace(/\s*·\s*תשתיות:[^·]*$/, '') + (v ? ' · תשתיות: ' + v : '');
   };
   { const s = document.getElementById('ofInfraBy'); if (s && P.infraBy) { s.value = P.infraBy; ofInfraByChange(P.infraBy); } }
-  window.ofPrjMode = () => {
-    const no = document.getElementById('ofNoPrj').checked;
-    document.getElementById('ofInfraW').style.display = no ? 'none' : '';
-    document.getElementById('ofInfraByW').style.display = no ? 'none' : '';
+  /* שיוך ההצעה: existing = פרויקט קיים מהרשימה · new = פרויקט חדש שנוצר איתה (new_project) · none = לקוח בלבד (חסום כשיש פריט התקנה) */
+  const ofBtnText = () => ({ existing: '🚀 צור הצעה ופתח את הפרויקט ב-ERP', new: '🚀 צור פרויקט והצעה ב-ERP', none: '🚀 צור הצעה ללקוח ב-ERP' })[window.__ofMode] || '🚀 צור הצעה ב-ERP';
+  window.ofSetMode = m => {
+    if (m === 'none' && installKeys.length) m = 'new';
+    window.__ofMode = m;
+    document.querySelectorAll('#ofModeW [data-ofmode]').forEach(b => { const on = b.dataset.ofmode === m; b.style.background = on ? '#0f6e56' : ''; b.style.color = on ? '#fff' : ''; b.style.fontWeight = on ? '700' : ''; });
+    document.getElementById('ofExistW').style.display = m === 'existing' ? '' : 'none';
+    document.getElementById('ofNewW').style.display = m === 'new' ? '' : 'none';
+    document.getElementById('ofInfraW').style.display = m === 'none' ? 'none' : '';
+    document.getElementById('ofInfraByW').style.display = m === 'none' ? 'none' : '';
     const b = document.getElementById('ofSrvW').querySelector('button');
-    if (b && !b.disabled) b.textContent = no ? '🚀 צור הצעה ללקוח ב-ERP' : '🚀 צור הצעה ופתח את הפרויקט ב-ERP';
+    if (b && !b.disabled) b.textContent = ofBtnText();
   };
   window.ofPrjSearch = inp => {
     const st = document.getElementById('ofPrjSt'), el = document.getElementById('ofPrjList');
     const q = inp.value.trim();
+    if (q === (inp.dataset.name || '') && inp.dataset.id) return;   /* פוקוס על פרויקט שכבר נבחר — לא מבטל את הבחירה; רק הקלדה */
     inp.dataset.id = '';
     if (q.length < 2) { el.style.display = 'none'; return; }
     const C = window.__ofPrjCache;
     const paint = list => {
-      if (!list.length) { el.style.display = 'none'; st.textContent = 'לא נמצא פרויקט — סמן "הצעה ללקוח בלבד"'; return; }
+      if (!list.length) { el.style.display = 'none'; st.textContent = 'לא נמצא פרויקט — בחר "פרויקט חדש"'; return; }
       el.innerHTML = list.slice(0, 40).map(pr => `<div onclick="__ofPrjPick('${esc(pr.id)}','${jsq(pr.name)}','${esc(pr.accountKey || '')}','${jsq(pr.account || '')}')" style="padding:6px 9px;cursor:pointer;border-bottom:1px solid #f2efe9;font-size:12.5px" onmouseover="this.style.background='#f7f5f0'" onmouseout="this.style.background=''">
         <b>${esc(pr.name)}</b>${pr.account ? ' <span class="muted" style="font-size:11px">· ' + esc(pr.account) + '</span>' : ''}${pr.address ? '<br><span class="muted" style="font-size:10.5px">📍 ' + esc(pr.address) + '</span>' : ''}</div>`).join('');
       el.style.display = ''; st.textContent = list.length + ' פרויקטים — בחר מהרשימה';
@@ -14471,19 +14496,21 @@ function sendOffer() {
   document.addEventListener('click', e => {
     if (!e.target.closest('#ofPrj') && !e.target.closest('#ofPrjList')) { const el = document.getElementById('ofPrjList'); if (el) el.style.display = 'none'; }
   });
-  setTimeout(() => { if (document.getElementById('ofNoPrj')) ofPrjMode(); }, 0);
+  setTimeout(() => { if (document.getElementById('ofModeW')) ofSetMode(mode0); }, 0);
 
   window.ofPayload = () => {
+    const mode = window.__ofMode || mode0;
     const payload = {
       action: 'create_project_offer_via_erp_mcp',
-      instructions: 'אתר את הפרויקט לפי project_name (list_projects), קרא get_offer_options עם project_id, וצור הצעה עם create_offer. החזר קוד הזמנה וקישור אישור.',
-      project_id: document.getElementById('ofNoPrj')?.checked ? undefined : (document.getElementById('ofPrj')?.dataset.id || undefined),
-      project_name: document.getElementById('ofNoPrj')?.checked ? undefined : document.getElementById('ofPrj').value.trim(),
+      instructions: 'קרא get_offer_options וצור הצעה עם create_offer: עם project_id כשהוא קיים; עם project_name בלי project_id — פרויקט של account_key בשם הזה (list_projects), ואם אין — new_project: { project_name, address }. בלי שניהם — הצעה ללקוח בלבד. החזר קוד הזמנה וקישור אישור.',
+      project_id: mode === 'existing' ? (document.getElementById('ofPrj')?.dataset.id || undefined) : undefined,
+      project_name: mode === 'existing' ? document.getElementById('ofPrj').value.trim() || undefined : mode === 'new' ? document.getElementById('ofNewName').value.trim() || undefined : undefined,
+      project_address: mode === 'new' ? document.getElementById('ofNewAddr').value.trim() || undefined : undefined,
       account_key: document.getElementById('ofAcc')?.dataset.key || undefined,
       account_name: document.getElementById('ofAcc')?.value.trim() || undefined,
       offer_name: document.getElementById('ofName').value.trim(),
       infrastructure_transfer_method: document.getElementById('ofInfra').value,
-      shipment_method: document.getElementById('ofShip').value || null,
+      shipment_method: document.getElementById('ofShip').value || 'warehouse_pickup',
       shipping_address: document.getElementById('ofShip').value === 'warehouse_delivery' ? document.getElementById('ofAddr').value.trim() : undefined,
       currency_code: 'ILS',
       items: impItems.filter(it => it.on !== false && (+it.qty || 0) > 0 && it.dest !== 'ignore' && it.key).map(it => ({
@@ -14501,8 +14528,11 @@ function sendOffer() {
 
   /* יצירה ישירה דרך שרת האפליקציה → MCP של ה-ERP */
   window.ofCreateSrv = async (btn) => {
-    const payload = ofPayload();
+    const payload = ofPayload(), mode = window.__ofMode || mode0;
     if (!payload.offer_name) { alert('שם ההצעה חובה בהצעת פרויקט.'); return; }
+    if (mode === 'existing' && !payload.project_id) { alert('בחר פרויקט מהרשימה — או "פרויקט חדש" כדי ליצור אותו עם ההצעה.'); return; }
+    if (mode === 'new' && !payload.project_name) { alert('תן שם לפרויקט החדש.'); return; }
+    if (mode !== 'existing' && !payload.account_key) { alert(mode === 'new' ? 'בחר לקוח מהרשימה — הפרויקט החדש נוצר על החשבון שלו.' : 'בחר לקוח מהרשימה.'); return; }
     const out = document.getElementById('ofSrvOut');
     btn.disabled = true; btn.textContent = '⏳ יוצר הצעה ב-ERP…';
     try {
@@ -14521,7 +14551,11 @@ function sendOffer() {
         out.innerHTML = `<div style="background:#eef7f1;border:2px solid #0f6e56;border-radius:12px;padding:14px;margin-top:4px">
           <div style="font-size:17px;font-weight:800;color:#0f6e56;margin-bottom:6px">✅ ההצעה נוצרה ב-ERP</div>
           ${code ? '<div style="font-size:15px;margin-bottom:8px">הזמנה <b style="font-size:18px;letter-spacing:.5px">' + esc(code) + '</b></div>' : ''}
+          ${res.project_created === true ? '<div style="font-size:12.5px;margin-bottom:6px">📁 נוצר פרויקט חדש ב-ERP: <b>' + esc(res.project_name || payload.project_name || '') + '</b></div>' : ''}
+          ${res.project_created === false ? '<div style="color:#b7761f;font-size:12px;margin-bottom:6px">📁 ללקוח כבר היה פרויקט בשם הזה מהדקות האחרונות — ההצעה נוספה אליו</div>' : ''}
           ${j.note ? '<div style="color:#b7761f;font-size:12px;margin-bottom:8px">ℹ ' + esc(j.note) + '</div>' : ''}
+          ${res.service_ticket_no || res.call_setting_ticket_no ? '<div style="font-size:12.5px;margin-bottom:6px">' + [res.service_ticket_no ? '🛠 קריאת שירות <b>' + esc(res.service_ticket_no) + '</b>' : '', res.call_setting_ticket_no ? '🎛 קריאת כיוון <b>' + esc(res.call_setting_ticket_no) + '</b>' : ''].filter(Boolean).join(' · ') + '</div>' : ''}
+          ${(res.ticket_errors || []).length ? '<div style="color:#c1121f;font-size:12px;margin-bottom:8px">⚠ ההצעה נוצרה, אבל קריאה לא נפתחה ב-ERP:<br>' + res.ticket_errors.map(esc).join('<br>') + '</div>' : ''}
           ${j.skipped_without_key && j.skipped_without_key.length ? '<div style="color:#c1121f;font-size:12px;margin-bottom:8px">⚠️ ' + j.skipped_without_key.length + ' פריטים ללא מק"ט לא נכללו</div>' : ''}
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             ${wa ? '<a href="#" onclick="event.preventDefault();waShare(window.__waTxt)" style="flex:1;min-width:150px;text-align:center;background:#25D366;color:#fff;font-weight:800;font-size:14px;padding:11px;border-radius:10px;text-decoration:none">📲 שלח בוואטסאפ</a>' : ''}
@@ -14535,18 +14569,19 @@ function sendOffer() {
         /* סימון הפרויקט: נשלחה הצעה + שיוך הלקוח (מוצג במנהל הפרויקטים) */
         P.offerSent = true;
         P.erpOfferCode = code || P.erpOfferCode;
-        P.erpProjId = payload.project_id || P.erpProjId;
-        P.erpProjName = payload.project_name || P.erpProjName;
+        /* הפרויקט שההצעה עליו — גם כשנוצר עכשיו (new_project) — כדי שההצעה הבאה תיפתח עליו */
+        P.erpProjId = res.project_id || payload.project_id || P.erpProjId;
+        P.erpProjName = res.project_name || payload.project_name || P.erpProjName;
         if (payload.account_name) { P.accountName = payload.account_name; P.accountKey = payload.account_key; }
         save();
         if (projUrl) window.open(projUrl, '_blank', 'noopener'); /* ניווט אוטומטי אל הפרויקט */
       } else {
         out.innerHTML = '❌ ' + (j.errors || ['שגיאה לא ידועה']).map(esc).join('<br>');
-        btn.disabled = false; btn.textContent = '🚀 צור הצעה ופתח את הפרויקט ב-ERP';
+        btn.disabled = false; btn.textContent = ofBtnText();
       }
     } catch (e) {
       out.textContent = '❌ ' + e.message;
-      btn.disabled = false; btn.textContent = '🚀 צור הצעה ופתח את הפרויקט ב-ERP';
+      btn.disabled = false; btn.textContent = ofBtnText();
     }
   };
 

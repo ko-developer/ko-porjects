@@ -1,20 +1,24 @@
-// יצירת הצעת פרויקט ב-ERP: איתור הפרויקט → create_offer, ישירות מול ה-MCP
+// יצירת הצעה ב-ERP: פרויקט קיים / פרויקט חדש (new_project) / לקוח בלבד → create_offer, ישירות מול ה-MCP
 import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { callTool } from '$lib/server/erp.js';
 
-// כתובת דף הפרויקט באפליקציית ה-ERP — תבנית עם {id}; ברירת מחדל: origin של ה-MCP + /projects/{id}
+// כתובת דף הפרויקט באפליקציית ה-ERP — תבנית עם {id}; ברירת מחדל: origin של ה-MCP + /project/{id}
 function projectWebUrl(id) {
   const tpl = env.ERP_WEB_PROJECT_URL;
   if (tpl) return tpl.replace('{id}', id);
-  try { return new URL(env.ERP_MCP_URL).origin + '/projects/' + id; } catch { return ''; }
+  try { return new URL(env.ERP_MCP_URL).origin + '/project/' + id; } catch { return ''; }
 }
+/* שם פרויקט כמו שה-ERP משווה (create_project / new_project): בלי רווחים מיותרים ובלי הבדלי אותיות */
+const sameName = (a, b) => { const n = s => String(s || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase(); return n(a) === n(b); };
+const accKey = k => String(k || '').replace(/["\s]/g, '');
 
 export async function POST({ request }) {
   const p = await request.json();
   const errors = [];
   const wantsProject = !!(p.project_id || p.project_name);
   if (!wantsProject && !p.account_key) errors.push('בחר פרויקט קיים או לקוח — הצעה חייבת שיוך');
+  if (wantsProject && !p.project_id && !p.account_key) errors.push('בחר לקוח — פרויקט חדש נוצר ב-ERP על החשבון של הלקוח');
   if (wantsProject && !p.infrastructure_transfer_method) errors.push('חסרה שיטת העברת תשתית (חובה בהצעת פרויקט)');
   if (wantsProject && !p.offer_name) errors.push('חסר שם הצעה (חובה בהצעת פרויקט)');
   const items = (p.items || []).filter(it => it.item_key && (+it.quantity || 0) >= 1);
@@ -34,33 +38,33 @@ export async function POST({ request }) {
     };
     if (p.offer_name) args.offer_name = p.offer_name;
     if (p.account_key) args.account_key = p.account_key; /* שיוך מפורש ללקוח */
+    /* אופן המשלוח נשלח תמיד — גם בהצעה ללקוח בלבד. אין "ללא משלוח": בלי שיטה ה-ERP קורא את ההזמנה כקריאת שירות והמחסן לא רואה אותה */
+    args.shipment_method = p.shipment_method || 'warehouse_pickup';
+    if (p.shipping_address) args.shipping_address = p.shipping_address;
 
     let note = '';
     if (wantsProject) {
+      args.infrastructure_transfer_method = p.infrastructure_transfer_method;
       let pid = p.project_id;
       if (!pid) {
-        /* נבחר שם בלבד — מנסים לאתר פרויקט קיים בעל אותו שם */
-        const found = await callTool('list_projects', { search: p.project_name, limit: 10 });
+        /* שם בלבד: פרויקט של הלקוח הזה בשם זהה, אחרת ה-ERP יוצר אותו עם ההצעה (new_project).
+           לעולם לא "הראשון ברשימה" — הוא יכול להיות של לקוח אחר */
+        const found = await callTool('list_projects', { account_key: p.account_key, search: String(p.project_name).trim().replace(/\s+/g, ' '), limit: 50 });
         const rows = found?.projects || found?.rows || (Array.isArray(found) ? found : []);
-        const proj = rows.find(r => (r.name || r.project_name) === p.project_name) || rows[0];
-        pid = proj && (proj.id || proj.project_id || proj.uuid);
+        const same = rows.find(r => accKey(r.account_key) === accKey(p.account_key) && sameName(r.project_name || r.name, p.project_name));
+        if (same) {
+          pid = same.id || same.project_id;
+          note = `ללקוח כבר יש פרויקט "${(same.project_name || same.name || '').trim()}" ב-ERP — ההצעה נוספה אליו.`;
+        } else {
+          args.new_project = { project_name: String(p.project_name).trim(), ...(p.project_address ? { address: String(p.project_address).trim() } : {}) };
+        }
       }
-      if (pid) {
-        args.project_id = pid;
-        args.infrastructure_transfer_method = p.infrastructure_transfer_method;
-        if (p.shipment_method) args.shipment_method = p.shipment_method;
-        if (p.shipping_address) args.shipping_address = p.shipping_address;
-      } else if (p.account_key) {
-        /* ה-ERP לא מאפשר ליצור פרויקט מכאן — במקום להיכשל, יוצרים הצעה ללקוח.
-           שדות הפרויקט אסורים בהצעה כזו ולכן לא נשלחים. */
-        note = `פרויקט "${p.project_name}" לא קיים ב-ERP — ההצעה נוצרה ללקוח בלבד. אפשר לשייך אותה לפרויקט בתוך ה-ERP.`;
-      } else {
-        return json({ ok: false, errors: [`פרויקט "${p.project_name}" לא נמצא ב-ERP, וגם לא נבחר לקוח. בחר פרויקט קיים מהרשימה, או בחר לקוח וסמן "הצעה ללקוח בלבד".`] }, { status: 404 });
-      }
+      if (pid) args.project_id = pid;
     }
 
     const result = await callTool('create_offer', args);
-    return json({ ok: true, result, note, project_web_url: args.project_id ? projectWebUrl(args.project_id) : '', skipped_without_key: p.items_without_key || [] });
+    const pid = (result && result.project_id) || args.project_id;
+    return json({ ok: true, result, note, project_web_url: pid ? projectWebUrl(pid) : '', skipped_without_key: p.items_without_key || [] });
   } catch (e) {
     return json({ ok: false, errors: [String(e.message)] }, { status: 502 });
   }
