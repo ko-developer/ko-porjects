@@ -12574,7 +12574,7 @@ function allKits(withHidden) {
    כאן ונשמר עליו; גרסה שלי שמחליפה קיט בסיס (אותו שם / replaces) יורשת את ה-ref שלו.
    רץ מהכפתור במסך הקיטים, ואחרי הפרסום הידני הראשון גם לבד: 3 שניות אחרי שמירה / מחיקה / הסתרה של קיט (kitSyncSoon)
    ובפתיחת מסך הקיטים. */
-const KIT_SYNC = { srv: null, down: false, busy: false, busyManual: false, again: '', t: null };
+const KIT_SYNC = { srv: null, down: false, busy: false, busyManual: false, again: '', againOpt: null, t: null };
 const KIT_SYNC_WHY = {
   static: 'זמין רק בגרסת השרת',
   env: 'פרסום ל-ERP עוד לא הוגדר בשרת',
@@ -12583,6 +12583,8 @@ const KIT_SYNC_WHY = {
 };
 /* פרסום אמיתי רק כשלכל קיט בסיס שנשלח יש id של ה-ERP (data/erp_kits.json, scripts/erp-kit-ids.js); בדיקה בלבד מותרת תמיד */
 const KIT_SYNC_NOID = 'חסרים מזהי ERP לקיטים — יש לעדכן את רשימת הקיטים מה-ERP';
+/* 409 would_deactivate_many: ה-ERP מסרב לפרסום שמשבית יותר מדי קיטים שבאו מכאן (גם בבדיקה). רק פעולה ידנית שולחת allow_deactivate */
+const kitManyMsg = (count, limit) => `הפרסום יכבה ${+count || 0} קיטים ב-ERP (מעל המותר: ${+limit || 0})`;
 function kitRefHash(s) {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
   for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
@@ -12689,21 +12691,21 @@ async function kitPublish(opt = {}) {
   /* תוך כדי ריצה: לחיצה ידנית נשלחת מיד אחריה (אלא אם גם הריצה הנוכחית ידנית — לחיצה כפולה), שינוי אוטומטי — שוב בעוד 3 שניות */
   if (KIT_SYNC.busy) {
     if (opt.dry) return;
-    if (!opt.auto) { if (!KIT_SYNC.busyManual) KIT_SYNC.again = 'manual'; }
+    if (!opt.auto) { if (!KIT_SYNC.busyManual) { KIT_SYNC.again = 'manual'; KIT_SYNC.againOpt = { allow: !!opt.allow }; } }
     else if (!KIT_SYNC.again) KIT_SYNC.again = 'auto';
     return;
   }
   KIT_SYNC.busy = true; KIT_SYNC.busyManual = !opt.auto;   /* לפני כל await — לחיצה ידנית והטיימר האוטומטי לא שולחים פעמיים */
   let last = null;
-  try { last = await kitPublish0(!!opt.auto, !!opt.dry); }
+  try { last = await kitPublish0(!!opt.auto, !!opt.dry, !opt.auto && !!opt.allow); }
   catch (e) { console.error(e); uiToast('⚠ פרסום הקיטים ל-ERP נכשל: ' + (e.message || e)); }
   finally { KIT_SYNC.busy = false; KIT_SYNC.busyManual = false; kitSyncPaint(); }
-  /* 409 = פרסום אחר עוד רץ ב-ERP — ניסיון חוזר אחד */
-  if (last && !last.ok && last.status === 409 && opt.auto && !opt.retry) setTimeout(() => kitPublish({ auto: true, retry: true }), 8000);
-  const again = KIT_SYNC.again; KIT_SYNC.again = '';
-  if (again === 'manual') kitPublish(); else if (again === 'auto') kitSyncSoon();
+  /* 409 sync_running = פרסום אחר עוד רץ ב-ERP — ניסיון חוזר אחד (לא ל-would_deactivate_many, שמחכה להחלטה ידנית) */
+  if (last && !last.ok && last.status === 409 && last.code !== 'would_deactivate_many' && opt.auto && !opt.retry) setTimeout(() => kitPublish({ auto: true, retry: true }), 8000);
+  const again = KIT_SYNC.again, againOpt = KIT_SYNC.againOpt || {}; KIT_SYNC.again = ''; KIT_SYNC.againOpt = null;
+  if (again === 'manual') kitPublish(againOpt); else if (again === 'auto') kitSyncSoon();
 }
-async function kitPublish0(auto, dry) {
+async function kitPublish0(auto, dry, allow) {
   const st = await kitSyncSrv(!auto);
   if (st !== 'ok') {
     /* אוטומטי: טוסט רק כשהשרת לא ענה. לא הוגדר / סטטי / לא בעלים — מוצג בתיבה במסך הקיטים */
@@ -12718,30 +12720,36 @@ async function kitPublish0(auto, dry) {
   if (auto && prev.sig === sig) return null;   /* הרשימה לא השתנתה מאז הפרסום האחרון */
   kitSyncPaint();
   const names = Object.fromEntries(kits.map(k => [k.ref, k.name]));
-  let last;
+  let last, blocked = null;
   try {
-    const r = await fetch('/api/erp/kits-sync' + (dry ? '?dry_run=1' : ''), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kits }) });
+    const q = [dry ? 'dry_run=1' : '', allow ? 'allow_deactivate=1' : ''].filter(Boolean).join('&');
+    const r = await fetch('/api/erp/kits-sync' + (q ? '?' + q : ''), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kits }) });
     const j = await r.json().catch(() => null);
     if (!j) throw Object.assign(new Error('תשובה לא תקינה מהשרת'), { status: r.status });
-    if (!r.ok || j.ok === false) throw Object.assign(new Error([].concat(j.errors || j.error || ('שגיאה ' + r.status)).join(' · ')), { status: j.erp_status || r.status });
+    if (!r.ok || j.ok === false) throw Object.assign(new Error([].concat(j.errors || j.error || ('שגיאה ' + r.status)).join(' · ')), { status: j.erp_status || r.status, code: typeof j.error === 'string' ? j.error : '', count: j.count, limit: j.limit });
     last = {
-      at: Date.now(), dry, auto, ok: true, sent: kits.length, noId,
+      at: Date.now(), dry, auto, allow, ok: true, sent: kits.length, noId,
       linked: +j.linked || 0, created: +j.created || 0, updated: +j.updated || 0, unchanged: +j.unchanged || 0,
       deactivated: (j.deactivated || []).map(d => ({ id: d.id, name: d.name })),
       skipped: (j.skipped_lines || []).map(s => ({ kit: names[s.ref] || s.ref, item_key: s.item_key, reason: s.reason }))
     };
   } catch (e) {
-    last = { at: Date.now(), dry, auto, ok: false, sent: kits.length, noId, error: String(e.message || e), status: e.status || 0 };
+    const many = e.code === 'would_deactivate_many';
+    last = { at: Date.now(), dry, auto, allow, ok: false, sent: kits.length, noId, error: many ? kitManyMsg(e.count, e.limit) : String(e.message || e), status: e.status || 0, code: e.code || '' };
+    if (many) blocked = { count: +e.count || 0, limit: +e.limit || 0 };
   }
-  store.kitSync = { ...prev, last, ...(last.ok && !dry ? { sig } : {}) };
+  /* blocked נשאר עד פרסום אמיתי שמצליח — בינתיים התיבה מציעה "פרסום בכל זאת" ובדיקה שמציגה את הרשימה */
+  store.kitSync = { ...prev, last, ...(last.ok && !dry ? { sig, blocked: null } : {}), ...(blocked ? { blocked } : {}) };
   kitSyncPersist();
-  if (!last.ok) uiToast('⚠ ' + (dry ? 'בדיקת' : 'פרסום') + ' הקיטים ל-ERP נכשל' + (last.status ? ' (' + last.status + ')' : '') + ': ' + last.error);
+  if (!last.ok && auto && last.code === 'would_deactivate_many') { /* אוטומטי: בתיבה בלבד, בלי טוסט */ }
+  else if (!last.ok) uiToast('⚠ ' + (dry ? 'בדיקת' : 'פרסום') + ' הקיטים ל-ERP נכשל' + (last.status ? ' (' + last.status + ')' : '') + ': ' + last.error);
   else uiToast((dry ? '👁 בדיקה בלבד, לא נשמר: ' : '✓ הקיטים פורסמו ל-ERP: ') + kitSyncSummary(last));
   return last;
 }
 function kitSyncLastHTML(l) {
   const when = new Date(l.at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
   const what = l.dry ? 'בדיקה בלבד (לא נשמר)' : l.auto ? 'פרסום אוטומטי' : 'פרסום';
+  if (!l.ok && l.code === 'would_deactivate_many') return '';   /* מוצג בלוח של blocked (kitSyncPaint) */
   if (!l.ok) return `<div style="font-size:11.5px;color:#c1121f;margin-top:5px;font-weight:700">❌ ${what} נכשל · ${esc(when)}${l.status ? ' · ' + l.status : ''}<br><span style="font-weight:400">${esc(l.error)}</span></div>`;
   const det = (n, lbl, rows) => n ? `<details style="font-size:11px;margin-top:3px"><summary style="cursor:pointer">${lbl}</summary><div style="max-height:180px;overflow-y:auto;padding:3px 6px;background:#fff;border:1px solid #eee;border-radius:6px;margin-top:2px">${rows}</div></details>` : '';
   return `<div style="font-size:11.5px;color:#0a7a4b;margin-top:5px;font-weight:700">✓ ${what} · ${esc(when)}<br><span style="font-weight:400;color:#333">${esc(kitSyncSummary(l))}</span></div>`
@@ -12754,13 +12762,16 @@ function kitSyncPaint() {
   const st = window.__AUTH && !window.__AUTH.owner ? 'guest' : KIT_SYNC.srv || (KIT_SYNC.down ? 'down' : null);
   const why = st && st !== 'ok' ? KIT_SYNC_WHY[st] : '', dis = KIT_SYNC.busy || !st || !!why;
   const noId = st === 'ok' && kitSyncNoId() > 0, disReal = dis || noId;
-  const l = (store.kitSync || {}).last;
+  const l = (store.kitSync || {}).last, bl = (store.kitSync || {}).blocked;
   box.innerHTML = `<div style="display:flex;gap:6px;align-items:center">
       <button ${disReal ? 'disabled' : ''} onclick="kitPublish()" title="${esc(why || (noId ? KIT_SYNC_NOID : 'שולח ל-ERP את כל רשימת הקיטים, בלי המוסתרים. קיט ERP שלא ברשימה מושבת שם — לא נמחק'))}" style="flex:1;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0">${KIT_SYNC.busy ? '⏳ מפרסם…' : '⤴ פרסום קיטים ל-ERP'}</button>
       <button ${dis ? 'disabled' : ''} onclick="kitPublish({dry:true})" title="${esc(why || 'מה יקרה ב-ERP — בלי לשנות שם דבר')}">👁 בדיקה בלבד</button></div>
     ${why || noId ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">⚠ ${esc(why || KIT_SYNC_NOID)}</div>` : ''}
     ${!why && !noId && !(store.kitSync || {}).sig ? '<div class="muted" style="font-size:11px;margin-top:4px">הפרסום הראשון נעשה מכאן — אחריו שינויים בקיטים יפורסמו לבד</div>' : ''}
     ${KIT_SYNC.t && !why && !noId && (store.kitSync || {}).sig ? '<div class="muted" style="font-size:11px;margin-top:4px">⏳ הקיטים השתנו — יפורסמו ל-ERP בעוד רגע</div>' : ''}
+    ${bl && !why ? `<div style="font-size:11.5px;color:#8a1c1c;font-weight:700;margin-top:5px;background:#fdf0f0;border:1px solid #e9b4b4;border-radius:7px;padding:5px 7px">⚠ ${esc(kitManyMsg(bl.count, bl.limit))}
+      <div style="display:flex;gap:6px;margin-top:4px"><button ${disReal ? 'disabled' : ''} onclick="kitPublish({allow:true})" title="${esc(noId ? KIT_SYNC_NOID : 'שולח את הרשימה ומאשר ל-ERP לכבות את הקיטים שלא בה')}" style="flex:1;background:#fff;color:#8a1c1c;border:1px solid #e9b4b4;font-weight:700">פרסום בכל זאת</button>
+      <button ${dis ? 'disabled' : ''} onclick="kitPublish({dry:true,allow:true})" title="בדיקה בלבד — מציגה את הקיטים שיכבו, בלי לשנות דבר ב-ERP">👁 הצג את הקיטים שיכבו</button></div></div>` : ''}
     ${l ? kitSyncLastHTML(l) : ''}`;
 }
 window.kitPublish = kitPublish;

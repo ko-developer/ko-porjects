@@ -117,7 +117,7 @@ export async function handleErp(req, res, path0, isOwner) {
       if (req.method !== 'POST') { send(res, 405, { ok: false, errors: ['POST only'] }); return true; }
       let body;
       try { body = await readBody(req); } catch { send(res, 400, { ok: false, errors: ['גוף הבקשה אינו JSON תקין'] }); return true; }
-      const out = await pushKits(process.env, body, sp.get('dry_run') === '1' || body.dry_run === true);
+      const out = await pushKits(process.env, body, sp.get('dry_run') === '1' || body.dry_run === true, sp.get('allow_deactivate') === '1' || body.allow_deactivate === true);
       send(res, out.status, out.body); return true;
     }
   } catch (e) { send(res, 502, { ok: false, errors: [String(e.message || e)] }); return true; }

@@ -19,6 +19,7 @@ export async function POST({ request, url, getClientAddress }) {
   if (!isOwner(request, getClientAddress)) return json({ ok: false, errors: ['owner only'] }, { status: 403 });
   let body;
   try { body = await request.json(); } catch { return json({ ok: false, errors: ['גוף הבקשה אינו JSON תקין'] }, { status: 400 }); }
-  const out = await pushKits(env, body, url.searchParams.get('dry_run') === '1' || body?.dry_run === true);
+  const sp = url.searchParams;
+  const out = await pushKits(env, body, sp.get('dry_run') === '1' || body?.dry_run === true, sp.get('allow_deactivate') === '1' || body?.allow_deactivate === true);
   return json(out.body, { status: out.status });
 }
