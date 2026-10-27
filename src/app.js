@@ -12464,10 +12464,32 @@ function kitMeta(name) {
   const base = (typeof KIT_META !== 'undefined' && KIT_META.kits) ? KIT_META.kits[(name || '').trim()] : null;
   return base || null;
 }
+/* שמות קטועים: 4 קיטי ERP נשמרו ב-data/erp_kits.json קטועים ל-60 תווים, ו-scripts/erp-kit-ids.js מחזיר להם את השם המלא.
+   גרסה שלי (name / replaces) והסתרה (store.kitHidden) שנשמרו בשם הקטוע ממשיכות לחול על הקיט. צר בכוונה: שם שמור חל על
+   קיט בסיס רק כשהוא בדיוק השם המלא שלו חתוך ל-60 תווים (ואחרי trim), השם המלא ארוך מ-60, ורק קיט בסיס אחד נחתך לשם הזה */
+let kitNameIdx = null;
+function kitBaseByName(name) {
+  if (!kitNameIdx) {
+    kitNameIdx = { exact: new Map(), cut: new Map() };
+    for (const k of (typeof ERP_KITS !== 'undefined' ? ERP_KITS : [])) {
+      const full = (k.name || '').trim();
+      kitNameIdx.exact.set(full, k);
+      if (full.length > 60) { const c = full.slice(0, 60).trim(); kitNameIdx.cut.set(c, kitNameIdx.cut.has(c) ? null : k); }
+    }
+  }
+  const n = (name || '').trim();
+  return kitNameIdx.exact.get(n) || (kitNameIdx.exact.has(n) ? null : kitNameIdx.cut.get(n)) || null;
+}
+/* השם שבו קיט הבסיס מופיע עכשיו — לשם שמור (גם קטוע); שם שאינו של קיט בסיס חוזר כמו שהוא */
+function kitBaseName(name) { const b = kitBaseByName(name); return b ? (b.name || '').trim() : (name || '').trim(); }
 function kitHidden(name) {
   const n = (name || '').trim();
   const my = store.kitHidden || {};
   if (my[n] != null) return !!my[n];                 /* החלטת המשתמש גוברת */
+  if (n.length > 60) {                               /* הסתרה שנשמרה בשם הקטוע של קיט בסיס */
+    const cut = n.slice(0, 60).trim(), b = kitBaseByName(n);
+    if (b && my[cut] != null && kitBaseByName(cut) === b) return !!my[cut];
+  }
   const m = kitMeta(n);
   return !!(m && m.hidden);
 }
@@ -12512,11 +12534,11 @@ if (typeof ERP_KITS !== "undefined") kitFixReels(ERP_KITS);   /* בטעינה �
    ויש בדיוק קיט ERP אחד עם אותם רמקולים+סאבים — הגרסה שלי מחליפה אותו */
 function kitLinkRenamed() {
   const mine = store.userKits || [], E = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [];
-  const taken = new Set(mine.map(k => (k.name || '').trim())); mine.forEach(k => k.replaces && taken.add(k.replaces));
+  const taken = new Set(mine.map(k => kitBaseName(k.name))); mine.forEach(k => k.replaces && taken.add(kitBaseName(k.replaces)));
   const head = k => kitStdCore(k).split(' · ').slice(0, 2).join(' · ');
   let n = 0;
   mine.forEach(u => {
-    if (u.replaces || !u.cabOk || E.some(e => (e.name || '').trim() === (u.name || '').trim()) || kitStdDiff(u) || !kitSpkCount(u)) return;
+    if (u.replaces || !u.cabOk || kitBaseByName(u.name) || kitStdDiff(u) || !kitSpkCount(u)) return;
     const c = E.filter(e => !taken.has((e.name || '').trim()) && kitSpkCount(e) && head(e) === head(u));
     if (c.length === 1) { u.replaces = c[0].name.trim(); taken.add(u.replaces); n++; }
   });
@@ -12526,8 +12548,8 @@ let kitReelsDone = false;
 function allKits(withHidden) {
   if (!kitReelsDone) { kitReelsDone = true; let ch = kitFixReels(store.userKits); try { ch += kitLinkRenamed(); } catch (e) { console.warn(e); } ch += kitEnsureIds(); if (ch) save(); }
   const mine = store.userKits || [];
-  const over = new Set(mine.map(k => (k.name || '').trim()));
-  mine.forEach(k => { if (k.replaces) over.add(k.replaces); });
+  const over = new Set(mine.map(k => kitBaseName(k.name)));   /* kitBaseName: גם גרסה שלי שנשמרה בשם הקטוע מחליפה את הקיט */
+  mine.forEach(k => { if (k.replaces) over.add(kitBaseName(k.replaces)); });
   const base = (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).filter(k => !over.has((k.name || '').trim()));
   return base.concat(mine);
 }
@@ -12582,8 +12604,6 @@ function kitSyncPersist() {
 function kitSyncPayload() {
   if (kitEnsureIds()) kitSyncPersist();
   const all = allKits(true), mine = new Set(store.userKits || []);
-  const E = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [];
-  const byName = new Map(E.map(k => [(k.name || '').trim(), k]));
   /* קיט בסיס בלי id (data/erp_kits.json עוד לא רוענן ב-scripts/erp-kit-ids.js) — ה-ERP מתאים אותו לפי השם */
   const baseRef = b => b.id || 'erp-name:' + (b.name || '').trim();
   const used = new Set(), kits = [];
@@ -12591,7 +12611,7 @@ function kitSyncPayload() {
   for (const k of all) {
     const name = (k.name || '').trim();
     if (!name || kitHidden(k.name)) continue;
-    const base = mine.has(k) ? ((k.replaces && byName.get(k.replaces.trim())) || byName.get(name)) : k;
+    const base = mine.has(k) ? ((k.replaces && kitBaseByName(k.replaces)) || kitBaseByName(name)) : k;
     let ref = base ? baseRef(base) : k.id;
     if (used.has(ref) && mine.has(k)) ref = k.id;   /* שתי גרסאות שלי לאותו קיט בסיס: הראשונה יורשת, השנייה ב-id שלה */
     if (!ref || used.has(ref)) { console.warn('kit sync: no unique ref for', name); continue; }
@@ -12902,7 +12922,7 @@ function kitPrev(gi) {
     <button style="width:100%;margin-top:6px;background:#eef7f1;color:#0f6e56;font-weight:700" onclick="kitEdit(${gi})">✎ ערוך את הקיט — השינוי נשמר לתמיד${isUser ? '' : ' (מחליף את קיט ה-ERP)'}</button>
     <button style="width:100%;margin-top:6px;background:#efecfd;color:#4b3fb8;font-weight:700" onclick="kitDup(${gi})" title="פותח עותק של הקיט בבונה הקיטים — שנה פריטים וכמויות ושמור בשם אחר; הקיט המקורי לא משתנה">📋 שכפל את הקיט — שנה פריטים ושמור בשם אחר</button>
     <button style="width:100%;margin-top:6px" onclick="kitToggleHide(${gi})">${kitHidden(k.name) ? '↺ החזר את הקיט לרשימה' : '✕ הסתר — הקיט לא רלוונטי'}</button>
-    ${isUser ? `<button style="width:100%;margin-top:6px;background:#f3d9d2" onclick="kitDelete(${gi})">🗑 ${(typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim()) ? 'בטל את העריכה — חזרה לקיט ה-ERP המקורי' : 'מחק קיט'}</button>` : ''}`;
+    ${isUser ? `<button style="width:100%;margin-top:6px;background:#f3d9d2" onclick="kitDelete(${gi})">🗑 ${kitBaseByName(k.name) ? 'בטל את העריכה — חזרה לקיט ה-ERP המקורי' : 'מחק קיט'}</button>` : ''}`;
 }
 /* שמירת הקיט — בלי חלון שאלה: כשיש שורות חסרות מוצגים שני כפתורי שמירה (עם / בלי ההוספה). withMissing=true מוסיף אותן קודם */
 /* שמירה כקיט חדש: שם אחר, בלי להחליף את המקור (קיט ERP או קיט שלי) */
@@ -12970,7 +12990,7 @@ function kitDup(gi) {
 async function kitDelete(gi) {
   const k = allKits()[gi]; if (!k) return;
   const i = (store.userKits || []).indexOf(k); if (i < 0) return;
-  const isOverride = (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim());
+  const isOverride = !!kitBaseByName(k.name);
   if (!(await uiConfirm(isOverride ? 'לבטל את העריכה ולחזור לקיט ה-ERP המקורי?' : 'למחוק את הקיט "' + k.name.slice(0, 30) + '"?'))) return;
   store.userKits.splice(i, 1); save(); renderKits(); kitSyncSoon();
   uiToast(isOverride ? '↩ העריכה בוטלה — קיט ה-ERP המקורי חזר' : '🗑 הקיט נמחק');
@@ -13183,14 +13203,14 @@ function nkDelete() {
   const d = nkDraft; if (!d) return;
   if (!d.delArm) { d.delArm = 1; renderKitNew(); return; }
   store.kitHidden = store.kitHidden || {};
-  const E = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [], isErp = n => E.some(e => (e.name || '').trim() === n);
+  const isErp = n => !!kitBaseByName(n);
   let orig = d.replaces && d.replaces.trim();
   if (d.editIdx != null && store.userKits && store.userKits[d.editIdx]) {
     const u = store.userKits[d.editIdx], un = (u.name || '').trim();
     store.userKits.splice(d.editIdx, 1);
     if (!orig && isErp(un)) orig = un;          /* גרסה שלי באותו שם של קיט ERP */
   } else if (!orig) orig = (allKits().find(k => (k.name || '').trim() === d.name.trim()) || {}).name;
-  if (orig && isErp(orig.trim())) store.kitHidden[orig.trim()] = true;
+  if (orig && isErp(orig)) store.kitHidden[kitBaseName(orig)] = true;
   const back = d.backCab; nkDraft = null; save(); back ? kitCabAll() : renderKits(); kitSyncSoon();
   uiToast('🗑 הקיט הוסר מרשימת הקיטים');
 }
@@ -13575,7 +13595,7 @@ function renderKits() {
     list2.slice(0, kitShow).map(k => {
       const gi = allKits().indexOf(k);
       const isUser = (store.userKits || []).includes(k);
-      const isOver = isUser && (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim());
+      const isOver = isUser && !!kitBaseByName(k.name);
       const st2 = kitStock(k), m = kitMeta(k.name), hid = kitHidden(k.name), dsp = kitDsp(k);
       const kPrice = (k.items || []).reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * (x.qty || 1); }, 0);
       const dot = st2.dead ? '#a32222' : st2.low ? '#b8860b' : '#0a7a4b';

@@ -2,7 +2,7 @@
 // קורא list_kits מה-MCP (קריאה בלבד) ומוסיף לכל קיט שכבר בקובץ את ה-id שלו. לא מוסיף ולא מוחק קיטים, ולא משנה
 // קטגוריות או פריטים — רשימת הבסיס והמיזוג עם הקיטים שלי (allKits) נשארים כמו שהם. נכתבים רק id ו-name.
 // התאמה: שם זהה (אחרי trim; כשיש כמה — הפעיל היחיד); אחרת שם ה-ERP שנחתך ל-60 תווים (כך נשמרו 4 קיטים), רק כשיש התאמה
-// אחת בדיוק — ואז גם השם המלא מה-ERP חוזר לקובץ. גרסה שלי / הסתרה שנשמרו בשם הקטוע לא חלות עליו יותר — הסקריפט מדפיס אותם לבדיקה.
+// אחת בדיוק — ואז גם השם המלא מה-ERP חוזר לקובץ. גרסה שלי / הסתרה שנשמרו בשם הקטוע ממשיכות לחול עליו (kitBaseByName ב-src/app.js).
 // שימוש: node scripts/erp-kit-ids.js [--dry]   (ERP_MCP_URL / ERP_MCP_TOKEN ב-.env)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { erpCall } from './erp-client.js';
@@ -57,7 +57,7 @@ if (miss.length) console.warn(`⚠ ${miss.length} kits not found in the ERP (no 
 const inactive = kits.filter((k, i) => match[i] && !match[i].is_active);
 if (inactive.length) console.log(`ℹ ${inactive.length} matched ERP kits are inactive: ` + inactive.map(k => `"${norm(k.name)}"`).join(', '));
 console.log(`ids: ${added} added, ${changed} changed, ${kits.length - miss.length} matched of ${kits.length} · ${renamed.length} full names restored`);
-if (renamed.length) console.log('ℹ שמות שהוחלפו — גרסה שלי (store.userKits) או הסתרה (store.kitHidden) שנשמרו בשם הישן כבר לא חלות על הקיט; בדוק במסך הקיטים:\n' + renamed.map(([a, b]) => `  "${a}"\n   → "${b}"`).join('\n'));
+if (renamed.length) console.log('ℹ שמות מלאים שהוחזרו (גרסה שלי / הסתרה שנשמרו בשם הקטוע ממשיכות לחול — kitBaseByName):\n' + renamed.map(([a, b]) => `  "${a}"\n   → "${b}"`).join('\n'));
 if (dry) { console.log('--dry: nothing written'); process.exit(0); }
 writeFileSync(FILE, samePy ? py(out) : JSON.stringify(out));
 console.log('✓ wrote ' + FILE);
