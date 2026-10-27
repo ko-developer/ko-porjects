@@ -92,6 +92,11 @@ adapter-node — תמונת התכנית נשלחת כ-base64 וחוצה את ב
 מהדפדפן, ולא הועבר ל-`/api/ai`.
 
 
+## ERP — הצעות וקיטים (שני ה-stacks: `scripts/erp-routes.js` = מה שרץ בענן, `src/routes/api/erp/*` = SvelteKit dev)
+- **הצעה** (`/api/erp/offer` → MCP `create_offer`, שרת ה-MCP של ה-ERP 1.3.0): פרויקט קיים (`project_id`), פרויקט חדש שנוצר עם ההצעה (`new_project`, על ה-`account_key` של ההצעה), או לקוח בלבד. שם פרויקט בלי id → פרויקט של אותו לקוח בשם זהה, אחרת `new_project` — אף פעם לא "הראשון ברשימה". פריט שה-Filter שלו INSTALL (`data/erp_filters.json`, נכתב גם ב-`scripts/refresh-erp.js`) מחייב פרויקט, ולכן "הצעה ללקוח בלבד" חסומה בדיאלוג. `shipment_method` נשלח תמיד (ברירת מחדל `warehouse_pickup`; אין "ללא משלוח").
+- **פרסום הקיטים ל-ERP** — KO Projects הוא העורך היחיד של הקיטים. `POST /api/erp/kits-sync` (בעלים בלבד; `scripts/erp-kits.js`) מעביר ל-`PUT ${ERP_API_URL}/api/external/kits` עם `ERP_KITS_TOKEN` (טוקן שירות של ה-ERP במקור ko-projects, לא טוקן ה-MCP), `?dry_run=1` עובר כמו שהוא. הדפדפן (`kitSyncPayload` ב-app.js) שולח את הרשימה המלאה: `allKits(true)` עם `kitCatOf` ותיקון הגלילים, בלי המוסתרים; קיט ERP שלא ברשימה מושבת שם (לא נמחק). רץ 3 שניות אחרי שמירה/מחיקה/הסתרה של קיט (`kitSyncSoon`) ומהכפתור "פרסום קיטים ל-ERP" במסך הקיטים, שמציג את התוצאה האחרונה (`store.kitSync`).
+- **ref של קיט**: קיט בסיס = ה-uuid שלו ב-ERP (`id` ב-`data/erp_kits.json`; `node scripts/erp-kit-ids.js` מוסיף id-ים בלי להוסיף קיטים); קיט שלי = `id` שנשמר עליו (`kitEnsureIds`, `kp-…`) ולא משתנה בעריכה או בשינוי שם; גרסה שלי שמחליפה קיט בסיס (אותו שם / `replaces`) יורשת את ה-ref שלו.
+
 ## שיתוף ומשתמשים (scripts/auth.js — רק בשרת הלגאסי `npm run dev:legacy`)
 - הבעלים (אורי) לא נרשם אף פעם: בקשה מ-localhost = בעלים אוטומטית. מבחוץ (או מאחורי פרוקסי עם
   x-forwarded-for) חייבים סשן של מוזמן, אחרת `/login`.
