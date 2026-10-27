@@ -12480,7 +12480,7 @@ function kitToggleHide(gi) {
   const n = (k.name || '').trim();
   store.kitHidden = store.kitHidden || {};
   store.kitHidden[n] = !kitHidden(n);
-  save(); renderKits();
+  save(); renderKits(); kitSyncSoon();
   uiToast(store.kitHidden[n] ? '✕ הקיט הוסתר מהרשימה' : '↺ הקיט חזר לרשימה');
 }
 /* withHidden=true מחזיר גם קיטים מוסתרים — האינדקסים חייבים להיות יציבים */
@@ -12524,13 +12524,184 @@ function kitLinkRenamed() {
 }
 let kitReelsDone = false;
 function allKits(withHidden) {
-  if (!kitReelsDone) { kitReelsDone = true; let ch = kitFixReels(store.userKits); try { ch += kitLinkRenamed(); } catch (e) { console.warn(e); } if (ch) save(); }
+  if (!kitReelsDone) { kitReelsDone = true; let ch = kitFixReels(store.userKits); try { ch += kitLinkRenamed(); } catch (e) { console.warn(e); } ch += kitEnsureIds(); if (ch) save(); }
   const mine = store.userKits || [];
   const over = new Set(mine.map(k => (k.name || '').trim()));
   mine.forEach(k => { if (k.replaces) over.add(k.replaces); });
   const base = (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).filter(k => !over.has((k.name || '').trim()));
   return base.concat(mine);
 }
+/* ===== פרסום הקיטים ל-ERP — KO Projects הוא העורך היחיד של הקיטים =====
+   הרשימה שמוצגת כאן (allKits עם kitCatOf ותיקון הגלילים, בלי המוסתרים) נשלחת מלאה דרך /api/erp/kits-sync
+   (scripts/erp-kits.js → PUT /api/external/kits ב-ERP). קיט ב-ERP שלא ברשימה מושבת שם — לא נמחק.
+   ref יציב לכל קיט: קיט בסיס = ה-uuid שלו ב-ERP (id ב-data/erp_kits.json, scripts/erp-kit-ids.js); קיט שלי = id שנוצר לו
+   כאן ונשמר עליו; גרסה שלי שמחליפה קיט בסיס (אותו שם / replaces) יורשת את ה-ref שלו.
+   רץ 3 שניות אחרי שמירה / מחיקה / הסתרה של קיט (kitSyncSoon), ומהכפתור במסך הקיטים. */
+const KIT_SYNC = { srv: null, down: false, busy: false, again: false, t: null, warned: false };
+const KIT_SYNC_WHY = {
+  static: 'אין כאן שרת שמפרסם (פריסה סטטית / Netlify) — מפרסמים מהשרת: במחשב או בענן',
+  env: 'בשרת חסרים ERP_API_URL / ERP_KITS_TOKEN — אין לאן לפרסם',
+  guest: 'פרסום הקיטים ל-ERP — לבעלים בלבד',
+  down: 'אין חיבור לשרת'
+};
+function kitRefHash(s) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+/* id לכל קיט שלי (נוצר / ישן שעוד אין לו). מגובב מהשם, כך ששני מכשירים שמקצים לאותו קיט ישן מקבלים אותו id; סיומת כשתפוס.
+   נשמר על הקיט ולא מחושב מחדש — שינוי שם לא משנה את ה-ref */
+function kitEnsureIds() {
+  const mine = store.userKits || [], seen = new Set(), all = new Set(mine.map(k => k.id).filter(Boolean));
+  let n = 0;
+  for (const k of mine) {
+    if (k.id && !seen.has(k.id)) { seen.add(k.id); continue; }
+    const b = 'kp-' + kitRefHash((k.name || '').trim());
+    let id = b, i = 2;
+    while (all.has(id) || seen.has(id)) id = b + '-' + i++;
+    k.id = id; seen.add(id); all.add(id); n++;
+  }
+  return n;
+}
+/* קטגוריות ה-ERP הן audio | lighting | video — אותן שלוש של KO Projects (הצ׳יפים במסך הקיטים), כך שהן עוברות כמו שהן.
+   ערך אחר לפי המילה (light / תאורה, video / וידאו), ובלי התאמה audio — ברירת המחדל של קיט חדש בבונה */
+function kitErpCategory(k) {
+  const c = String(kitCatOf(k) || '').trim().toLowerCase();
+  if (c === 'audio' || c === 'lighting' || c === 'video') return c;
+  if (/light|תאור/.test(c)) return 'lighting';
+  if (/video|וידא?ו/.test(c)) return 'video';
+  return 'audio';
+}
+/* שמירה של מצב הפרסום / ה-id-ים בלי save(): לא נוגעים בחותמת העריכה של הפרויקט הפתוח ולא בהיסטוריית הביטול */
+function kitSyncPersist() {
+  try { localStorage.setItem(LSKEY, JSON.stringify(store, (k, v) => k === 'bgPdf' ? undefined : v)); } catch (e) {}
+  pushSrv();
+}
+function kitSyncPayload() {
+  if (kitEnsureIds()) kitSyncPersist();
+  const all = allKits(true), mine = new Set(store.userKits || []);
+  const E = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [];
+  const byName = new Map(E.map(k => [(k.name || '').trim(), k]));
+  /* קיט בסיס בלי id (data/erp_kits.json עוד לא רוענן ב-scripts/erp-kit-ids.js) — ה-ERP מתאים אותו לפי השם */
+  const baseRef = b => b.id || 'erp-name:' + (b.name || '').trim();
+  const used = new Set(), kits = [];
+  let noId = 0;
+  for (const k of all) {
+    const name = (k.name || '').trim();
+    if (!name || kitHidden(k.name)) continue;
+    const base = mine.has(k) ? ((k.replaces && byName.get(k.replaces.trim())) || byName.get(name)) : k;
+    let ref = base ? baseRef(base) : k.id;
+    if (used.has(ref) && mine.has(k)) ref = k.id;   /* שתי גרסאות שלי לאותו קיט בסיס: הראשונה יורשת, השנייה ב-id שלה */
+    if (!ref || used.has(ref)) { console.warn('kit sync: no unique ref for', name); continue; }
+    if (base && !base.id) noId++;
+    used.add(ref);
+    kits.push({
+      ref, name, category: kitErpCategory(k), system_type: String(k.sys || '').trim() || null, budget_tier: null,
+      /* שורה בלי מק"ט נשלחת עם item_key ריק — ה-ERP מדלג עליה ומדווח, כך שרואים אותה בתוצאת הפרסום */
+      items: (k.items || []).filter(x => String(x.name || '').trim() || String(x.key || '').trim()).map(x => {
+        const q = Number(x.qty);
+        return { item_key: String(x.key || '').trim(), qty: x.qty == null || x.qty === '' || !Number.isFinite(q) ? 1 : q, name: String(x.name || '').trim() };
+      })
+    });
+  }
+  return { kits, noId, sig: kitRefHash(JSON.stringify(kits)) };
+}
+/* 'ok' | 'env' (שרת בלי טוקן) | 'static' (אין ראוט — Netlify) | 'guest' | 'down' (השרת לא ענה; לא נשמר במטמון) */
+async function kitSyncSrv(force) {
+  if (window.__AUTH && !window.__AUTH.owner) return 'guest';
+  if (KIT_SYNC.srv && !force) return KIT_SYNC.srv;
+  try {
+    const r = await fetch('/api/erp/kits-sync', { cache: 'no-store' });
+    const j = r.ok ? await r.json().catch(() => null) : null;
+    KIT_SYNC.srv = j && j.ok ? (j.configured ? 'ok' : 'env') : 'static';
+    KIT_SYNC.down = false;
+  } catch (e) {
+    if (location.protocol === 'file:') return (KIT_SYNC.srv = 'static');   /* dist/index.html נפתח כקובץ */
+    KIT_SYNC.down = true; return 'down';
+  }
+  return KIT_SYNC.srv;
+}
+function kitSyncSoon() {
+  if (window.__AUTH && !window.__AUTH.owner) return;
+  if (kitEnsureIds()) kitSyncPersist();
+  clearTimeout(KIT_SYNC.t);
+  KIT_SYNC.t = setTimeout(() => { KIT_SYNC.t = null; kitPublish({ auto: true }); }, 3000);
+  kitSyncPaint();
+}
+function kitSyncSummary(l) {
+  const p = [l.sent + ' קיטים נשלחו'];
+  if (l.linked) p.push(l.linked + ' קושרו');
+  if (l.created) p.push(l.created + (l.dry ? ' ייווצרו' : ' נוצרו'));
+  if (l.updated) p.push(l.updated + (l.dry ? ' יתעדכנו' : ' עודכנו'));
+  if (l.unchanged) p.push(l.unchanged + ' ללא שינוי');
+  if (l.deactivated.length) p.push(l.deactivated.length + (l.dry ? ' יושבתו' : ' הושבתו') + ' ב-ERP');
+  if (l.skipped.length) p.push(l.skipped.length + ' שורות דולגו');
+  return p.join(' · ');
+}
+async function kitPublish(opt = {}) {
+  const auto = !!opt.auto, dry = !!opt.dry;
+  if (KIT_SYNC.busy) { if (!dry) KIT_SYNC.again = true; return; }
+  const st = await kitSyncSrv(!auto);
+  if (st !== 'ok') {
+    const why = KIT_SYNC_WHY[st] || st;
+    if (!auto) uiToast('⚠ ' + why);
+    else if (!KIT_SYNC.warned) { KIT_SYNC.warned = true; uiToast('⚠ הקיטים לא פורסמו ל-ERP — ' + why); }
+    kitSyncPaint(); return;
+  }
+  const { kits, noId, sig } = kitSyncPayload();
+  const prev = store.kitSync || {};
+  if (auto && !dry && prev.sig === sig) { kitSyncPaint(); return; }   /* הרשימה לא השתנתה מאז הפרסום האחרון */
+  KIT_SYNC.busy = true; kitSyncPaint();
+  const names = Object.fromEntries(kits.map(k => [k.ref, k.name]));
+  let last;
+  try {
+    const r = await fetch('/api/erp/kits-sync' + (dry ? '?dry_run=1' : ''), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kits }) });
+    const j = await r.json().catch(() => null);
+    if (!j) throw Object.assign(new Error('תשובה לא תקינה מהשרת'), { status: r.status });
+    if (!r.ok || j.ok === false) throw Object.assign(new Error([].concat(j.errors || j.error || ('שגיאה ' + r.status)).join(' · ')), { status: j.erp_status || r.status });
+    last = {
+      at: Date.now(), dry, auto, ok: true, sent: kits.length, noId,
+      linked: +j.linked || 0, created: +j.created || 0, updated: +j.updated || 0, unchanged: +j.unchanged || 0,
+      deactivated: (j.deactivated || []).map(d => ({ id: d.id, name: d.name })),
+      skipped: (j.skipped_lines || []).map(s => ({ kit: names[s.ref] || s.ref, item_key: s.item_key, reason: s.reason }))
+    };
+  } catch (e) {
+    last = { at: Date.now(), dry, auto, ok: false, sent: kits.length, noId, error: String(e.message || e), status: e.status || 0 };
+  }
+  KIT_SYNC.busy = false;
+  store.kitSync = { ...prev, last, ...(last.ok && !dry ? { sig } : {}) };
+  kitSyncPersist(); kitSyncPaint();
+  if (!last.ok) uiToast('⚠ ' + (dry ? 'בדיקת' : 'פרסום') + ' הקיטים ל-ERP נכשל' + (last.status ? ' (' + last.status + ')' : '') + ': ' + last.error);
+  else uiToast((dry ? '👁 בדיקה בלבד, לא נשמר: ' : '✓ הקיטים פורסמו ל-ERP: ') + kitSyncSummary(last));
+  /* 409 = פרסום אחר עוד רץ ב-ERP — ניסיון חוזר אחד */
+  if (!last.ok && last.status === 409 && auto && !opt.retry) setTimeout(() => kitPublish({ auto: true, retry: true }), 8000);
+  if (KIT_SYNC.again) { KIT_SYNC.again = false; kitSyncSoon(); }
+}
+function kitSyncLastHTML(l) {
+  const when = new Date(l.at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+  const what = l.dry ? 'בדיקה בלבד (לא נשמר)' : l.auto ? 'פרסום אוטומטי' : 'פרסום';
+  if (!l.ok) return `<div style="font-size:11.5px;color:#c1121f;margin-top:5px;font-weight:700">❌ ${what} נכשל · ${esc(when)}${l.status ? ' · ' + l.status : ''}<br><span style="font-weight:400">${esc(l.error)}</span></div>`;
+  const det = (n, lbl, rows) => n ? `<details style="font-size:11px;margin-top:3px"><summary style="cursor:pointer">${lbl}</summary><div style="max-height:180px;overflow-y:auto;padding:3px 6px;background:#fff;border:1px solid #eee;border-radius:6px;margin-top:2px">${rows}</div></details>` : '';
+  return `<div style="font-size:11.5px;color:#0a7a4b;margin-top:5px;font-weight:700">✓ ${what} · ${esc(when)}<br><span style="font-weight:400;color:#333">${esc(kitSyncSummary(l))}</span></div>`
+    + (l.noId ? `<div style="font-size:11px;color:#8a5a00;margin-top:3px">⚠ ${l.noId} קיטי ERP עוד בלי מזהה ERP בקובץ — נשלחו לפי השם (node scripts/erp-kit-ids.js)</div>` : '')
+    + det(l.deactivated.length, `${l.deactivated.length} קיטים ${l.dry ? 'יושבתו' : 'הושבתו'} ב-ERP (לא נמחקו)`, l.deactivated.map(d => '• ' + esc(d.name || d.id)).join('<br>'))
+    + det(l.skipped.length, `${l.skipped.length} שורות דולגו`, l.skipped.map(s => '• <b>' + esc(s.kit) + '</b> · <code>' + esc(s.item_key || 'בלי מק"ט') + '</code> · ' + esc(s.reason || '')).join('<br>'));
+}
+function kitSyncPaint() {
+  const box = document.getElementById('kitSyncBox'); if (!box) return;
+  const st = window.__AUTH && !window.__AUTH.owner ? 'guest' : KIT_SYNC.srv || (KIT_SYNC.down ? 'down' : null);
+  const why = st && st !== 'ok' ? KIT_SYNC_WHY[st] : '', dis = KIT_SYNC.busy || !st || !!why;
+  const l = (store.kitSync || {}).last;
+  box.innerHTML = `<div style="display:flex;gap:6px;align-items:center">
+      <button ${dis ? 'disabled' : ''} onclick="kitPublish()" title="${esc(why || 'שולח ל-ERP את כל רשימת הקיטים, בלי המוסתרים. קיט ERP שלא ברשימה מושבת שם — לא נמחק')}" style="flex:1;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0">${KIT_SYNC.busy ? '⏳ מפרסם…' : '⤴ פרסום קיטים ל-ERP'}</button>
+      <button ${dis ? 'disabled' : ''} onclick="kitPublish({dry:true})" title="${esc(why || 'מה יקרה ב-ERP — בלי לשנות שם דבר')}">👁 בדיקה בלבד</button></div>
+    ${why ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">⚠ ${esc(why)}</div>` : ''}
+    ${KIT_SYNC.t && !why ? '<div class="muted" style="font-size:11px;margin-top:4px">⏳ הקיטים השתנו — יפורסמו ל-ERP בעוד רגע</div>' : ''}
+    ${l ? kitSyncLastHTML(l) : ''}`;
+}
+window.kitPublish = kitPublish;
 /* ---------- DSP לפי כללי הבית (data/dsp_rules.json) ---------- */
 /* לכל קיט: יש פרוססור עצמאי? DSP במגבר? מגבר ביתי (ה-DSP שלו מכוון)? או חסר */
 const DSP_STANDALONE = /פרוססור|מעבד רמקולים|DIGISYNTHETIC|NST|ICORE|מטריצ/i;
@@ -12609,7 +12780,7 @@ function kitCabRowsHTML(k, gi) {
 function kitCabApply(gi, quiet) {
   const k = allKits()[gi]; if (!k) return 0;
   const n = kitCabApplyObj(k, gi);
-  if (!quiet) { save(); kitPrev(allKits().findIndex(q => (q.name || '').trim() === (k.name || '').trim())); uiToast('🔌 נוספו ' + n + ' שורות כבלים לקיט'); }
+  if (!quiet) { save(); kitSyncSoon(); kitPrev(allKits().findIndex(q => (q.name || '').trim() === (k.name || '').trim())); uiToast('🔌 נוספו ' + n + ' שורות כבלים לקיט'); }
   return n;
 }
 /* מסך אחד לכל קיטי הסאונד שחסרים בהם כבלים — אישור קיט-קיט או הכול */
@@ -12659,7 +12830,7 @@ function kitCabApplyAll() {
   let n = 0;
   /* allKits משתנה כשקיט ERP הופך לגרסה שלי — לכן עובדים לפי האובייקטים ולא לפי האינדקסים */
   gis.forEach(gi => { n += kitCabApplyObj(ks[gi], gi); });
-  save(); kitCabAll(); uiToast('🔌 נוספו ' + n + ' שורות כבלים ב-' + gis.length + ' קיטים');
+  save(); kitSyncSoon(); kitCabAll(); uiToast('🔌 נוספו ' + n + ' שורות כבלים ב-' + gis.length + ' קיטים');
 }
 function kitCabApplyObj(k, gi) {
   const needs = kitCableNeeds(k), addIt = [];
@@ -12680,7 +12851,7 @@ function kitCabSkip(gi) {
   store.userKits = store.userKits || [];
   if (store.userKits.includes(k)) k.cabOk = true;
   else store.userKits.push({ name: k.name, cat: k.cat, sys: k.sys, items: JSON.parse(JSON.stringify(k.items)), cabOk: true });
-  save(); kitCabAll();
+  save(); kitSyncSoon(); kitCabAll();
 }
 window.kitCabApply = kitCabApply; window.kitCabAll = kitCabAll; window.kitCabApplyAll = kitCabApplyAll; window.kitCabSkip = kitCabSkip;
 /* מצב המלאי של קיט שלם — כמה פריטי ליבה אזלו */
@@ -12769,11 +12940,11 @@ function saveKitDraft0(withMissing) {
   const rec = { name: nkDraft.name.trim(), cat: nkDraft.cat || 'audio', sys: nkDraft.sys || 'קיט שלי', items: nkDraft.items, cabOk: true };
   /* קיט ERP שנערך ושמו שונה — הגרסה שלי עדיין מחליפה את המקורי (אחרת המקורי נשאר ברשימת "לתיקון") */
   if (nkDraft.replaces && nkDraft.replaces.trim() !== rec.name) rec.replaces = nkDraft.replaces.trim();   /* נשמר מהעורך = נבדק; מה שחסר הוצג שם ולא יוצע שוב במסך הכבלים */
-  if (nkDraft.editIdx != null && store.userKits[nkDraft.editIdx]) store.userKits[nkDraft.editIdx] = rec;
+  if (nkDraft.editIdx != null && store.userKits[nkDraft.editIdx]) { const old = store.userKits[nkDraft.editIdx]; if (old.id) rec.id = old.id; store.userKits[nkDraft.editIdx] = rec; }   /* ה-id נשאר — אותו קיט ב-ERP גם אחרי עריכה ושינוי שם */
   else store.userKits.push(rec);
   const wasErp = nkDraft.fromErp, backCab = nkDraft.backCab, backKit = nkDraft.backKit;
   if (nkDraft.propKeys && nkDraft.propKeys.length) { store.kitPropDismiss = store.kitPropDismiss || {}; nkDraft.propKeys.forEach(k => { store.kitPropDismiss[k] = new Date().toISOString().slice(0, 10); }); }   /* הצעה שנפתחה בבונה ונשמרה (גם אחרי שינויים) — טופלה, לא תוצע שוב */
-  save(); nkDraft = null;
+  save(); nkDraft = null; kitSyncSoon();
   if (backKit) { closeKits(); const gi = allKits().indexOf(rec); zoneKitConfirm(backKit.zname, gi >= 0 ? gi : backKit.idx, backKit.opt); }   /* נפתח מפופאפ הקיט לאזור — חוזרים אליו עם הקיט המעודכן */
   else backCab ? kitCabAll() : renderKits();
   uiToast(wasErp ? '✎ הקיט "' + rec.name.slice(0, 40) + '" נשמר — הגרסה שלך מחליפה את קיט ה-ERP בכל האפליקציה' : '✓ הקיט "' + rec.name.slice(0, 40) + '" נשמר');
@@ -12801,7 +12972,7 @@ async function kitDelete(gi) {
   const i = (store.userKits || []).indexOf(k); if (i < 0) return;
   const isOverride = (typeof ERP_KITS !== 'undefined' ? ERP_KITS : []).some(e => (e.name || '').trim() === (k.name || '').trim());
   if (!(await uiConfirm(isOverride ? 'לבטל את העריכה ולחזור לקיט ה-ERP המקורי?' : 'למחוק את הקיט "' + k.name.slice(0, 30) + '"?'))) return;
-  store.userKits.splice(i, 1); save(); renderKits();
+  store.userKits.splice(i, 1); save(); renderKits(); kitSyncSoon();
   uiToast(isOverride ? '↩ העריכה בוטלה — קיט ה-ERP המקורי חזר' : '🗑 הקיט נמחק');
 }
 /* בניית קיט חדש מאפס — שם, חיפוש בקטלוג, כמויות */
@@ -13020,7 +13191,7 @@ function nkDelete() {
     if (!orig && isErp(un)) orig = un;          /* גרסה שלי באותו שם של קיט ERP */
   } else if (!orig) orig = (allKits().find(k => (k.name || '').trim() === d.name.trim()) || {}).name;
   if (orig && isErp(orig.trim())) store.kitHidden[orig.trim()] = true;
-  const back = d.backCab; nkDraft = null; save(); back ? kitCabAll() : renderKits();
+  const back = d.backCab; nkDraft = null; save(); back ? kitCabAll() : renderKits(); kitSyncSoon();
   uiToast('🗑 הקיט הוסר מרשימת הקיטים');
 }
 window.nkDelete = nkDelete;
@@ -13282,11 +13453,11 @@ function kitProposeMore() {
     <button data-cancel style="width:100%;margin-top:6px">סגור</button>`);
   ov.firstElementChild.style.maxWidth = '560px';
   const addProp = p => { store.userKits = store.userKits || []; if (store.userKits.some(k => k.name === p.name)) return false; store.userKits.push({ name: p.name, cat: 'audio', sys: 'קיט שלי', items: JSON.parse(JSON.stringify(p.items)) }); return true; };
-  ov.querySelectorAll('[data-propadd]').forEach(b => { b.onclick = () => { const p = props[+b.dataset.propadd]; const ok = addProp(p); if (ok) { save(); uiToast('🧰 נוסף: ' + p.name, 3000); } else uiToast('כבר קיים קיט בשם הזה', 2500); /* נשמר כקיט — אין סיבה להשאיר אותו ברשימת ההצעות */ const row = b.closest('[data-prop]'); const hd = row.previousElementSibling; row.remove(); if (hd && !hd.hasAttribute('data-prop') && (!hd.nextElementSibling || !hd.nextElementSibling.hasAttribute('data-prop'))) hd.remove(); const left = ov.querySelectorAll('[data-prop]').length; const all = ov.querySelector('[data-propall]'); if (all) all.textContent = '➕ הוסף את כל המסומנים (' + left + ')'; if (!left) { ov.remove(); uiToast('כל ההצעות נשמרו כקיטים', 3000); } renderKits(); }; });
+  ov.querySelectorAll('[data-propadd]').forEach(b => { b.onclick = () => { const p = props[+b.dataset.propadd]; const ok = addProp(p); if (ok) { save(); kitSyncSoon(); uiToast('🧰 נוסף: ' + p.name, 3000); } else uiToast('כבר קיים קיט בשם הזה', 2500); /* נשמר כקיט — אין סיבה להשאיר אותו ברשימת ההצעות */ const row = b.closest('[data-prop]'); const hd = row.previousElementSibling; row.remove(); if (hd && !hd.hasAttribute('data-prop') && (!hd.nextElementSibling || !hd.nextElementSibling.hasAttribute('data-prop'))) hd.remove(); const left = ov.querySelectorAll('[data-prop]').length; const all = ov.querySelector('[data-propall]'); if (all) all.textContent = '➕ הוסף את כל המסומנים (' + left + ')'; if (!left) { ov.remove(); uiToast('כל ההצעות נשמרו כקיטים', 3000); } renderKits(); }; });
   ov.querySelectorAll('[data-propdis]').forEach(b => { b.onclick = () => { const p = props[+b.dataset.propdis]; store.kitPropDismiss = store.kitPropDismiss || {}; p.items.filter(x => x.key && isSpeakerItem(x.name || '')).forEach(x => { store.kitPropDismiss[x.key] = new Date().toISOString().slice(0, 10); }); save();   /* כל הרמקולים והסאבים שבהצעה — שלא יחזרו בצירוף אחר */ const row = b.closest('[data-prop]'); const hd = row.previousElementSibling; row.remove(); if (hd && !hd.hasAttribute('data-prop') && (!hd.nextElementSibling || !hd.nextElementSibling.hasAttribute('data-prop'))) hd.remove(); const left = ov.querySelectorAll('[data-prop]').length; const all = ov.querySelector('[data-propall]'); if (all) all.textContent = '➕ הוסף את כל המסומנים (' + left + ')'; uiToast('✕ ' + shortModel(p.items[0].name) + ' לא יוצע שוב', 2500); if (!left) ov.remove(); }; });
   const und = ov.querySelector('[data-propundis]'); if (und) und.onclick = () => { store.kitPropDismiss = {}; save(); ov.remove(); kitProposeMore(); };
   ov.querySelectorAll('[data-propedit]').forEach(b => { b.onclick = () => { const p = props[+b.dataset.propedit]; ov.remove(); nkDraft = { name: p.name, items: JSON.parse(JSON.stringify(p.items)), q: '', editIdx: null, cat: 'audio', sys: 'קיט שלי', fromErp: false, propKeys: p.items.filter(x => x.key && isSpeakerItem(x.name || '')).map(x => x.key) }; renderKitNew(); }; });
-  ov.querySelector('[data-propall]').onclick = () => { let n = 0; ov.querySelectorAll('[data-propck]:checked').forEach(c => { const p = props[+c.dataset.propck]; if (addProp(p)) n++; }); if (n) save(); ov.remove(); uiToast('🧰 נוספו ' + n + ' קיטים לרשימת הקיטים שלי', 3500); renderKits(); };
+  ov.querySelector('[data-propall]').onclick = () => { let n = 0; ov.querySelectorAll('[data-propck]:checked').forEach(c => { const p = props[+c.dataset.propck]; if (addProp(p)) n++; }); if (n) { save(); kitSyncSoon(); } ov.remove(); uiToast('🧰 נוספו ' + n + ' קיטים לרשימת הקיטים שלי', 3500); renderKits(); };
   ov.querySelector('[data-cancel]').onclick = () => ov.remove();
 }
 window.kitProposeMore = kitProposeMore;
@@ -13296,7 +13467,7 @@ async function kitFromOffer() {
   const nm = await uiPrompt('שם הקיט החדש (' + marked.length + ' פריטים):'); if (!nm) return;
   store.userKits = store.userKits || [];
   store.userKits.push({ name: nm.trim(), cat: 'audio', sys: 'קיט שלי', items: marked.map(it => ({ name: it.name, qty: it.qty || 1, key: it.key || undefined })) });
-  save();
+  save(); kitSyncSoon();
   alert('הקיט "' + nm + '" נוצר ונוסף לרשימת הקיטים (מסומן "קיט שלי").');
   renderKits();
 }
@@ -13398,6 +13569,7 @@ function renderKits() {
         href="/matrix"
         title="מי הולך עם מי — אישור ואיסור שילובים, נשמר ונקרא ע&quot;י המתכנן">🧩 מטריצת התאמות</a>
     </div>
+    <div id="kitSyncBox" style="border:1px solid #d8eadf;background:#f7fbf8;border-radius:9px;padding:6px 8px;margin-bottom:8px"></div>
     ${(() => { const nC = allKits().filter(k => !kitHidden(k.name) && kitCableNeeds(k).length).length; return nC ? '<button style="width:100%;margin-bottom:8px;background:#fdf0f0;color:#c1121f;font-weight:700;border:1px solid #e9b4b4" onclick="kitCabAll()">🔌 ב-' + nC + ' קיטי סאונד חסרים כבלים — עבור ואשר את השורות המוצעות</button>' : ''; })()}
     <p class="muted" style="margin-bottom:8px">${list2.length} קיטים · מוצגים ${Math.min(list2.length, kitShow)} · לחיצה פותחת תצוגה מקדימה${hiddenCount ? ` · ${hiddenCount} מוסתרים` : ''}:</p>` +
     list2.slice(0, kitShow).map(k => {
@@ -13421,6 +13593,8 @@ function renderKits() {
     }).join('') +
     (list2.length > kitShow ? `<button style="width:100%;margin-top:8px" onclick="kitShow+=60;renderKits()">▼ הצג עוד ${Math.min(60, list2.length - kitShow)} מתוך ${list2.length - kitShow} שנותרו</button>` : '') +
     (kitShow > 60 ? `<button style="width:100%;margin-top:5px" onclick="kitShow=60;renderKits()">▲ צמצם</button>` : '');
+  kitSyncPaint();
+  if (!KIT_SYNC.srv) kitSyncSrv().then(kitSyncPaint);
 }
 function pickKit(i) {
   const k = allKits()[i];
@@ -16333,7 +16507,7 @@ function zoneKitConfirm(zname, idx, opt) {
       const ui2 = store.userKits.indexOf(k);
       if (ui2 >= 0) k.items = items;   /* קיט שלי — מתעדכן במקום */
       else store.userKits.push({ name: k.name, cat: k.cat, sys: k.sys, items, cabOk: k.cabOk });   /* קיט ERP — הגרסה שלי מחליפה אותו (אותו שם) */
-      save();
+      save(); kitSyncSoon();
       sk.textContent = '✓ הקיט עודכן'; sk.disabled = true;
       uiToast('💾 הקיט "' + k.name.slice(0, 30) + '" עודכן ברשימת הקיטים — ' + items.length + ' שורות');
     }; }

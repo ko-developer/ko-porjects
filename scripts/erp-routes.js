@@ -1,6 +1,7 @@
 // ראוטי ה-ERP של שרת הלגאסי (מחשב + ענן) — אותם ראוטים שקיימים ב-SvelteKit (src/routes/api/erp/*),
 // שבלעדיהם דיאלוג "שלח הצעה ל-ERP" לא מצא לקוחות/פרויקטים והציג "אין חיבור ERP". בעלים בלבד.
 import { erpCall } from './erp-client.js';
+import { kitsSyncConfig, pushKits } from './erp-kits.js';
 
 const TTL = 600_000;
 const accCache = new Map(), prjCache = new Map();
@@ -107,6 +108,15 @@ export async function handleErp(req, res, path0, isOwner) {
       const result = await erpCall('create_offer', args);
       const pid = (result && result.project_id) || args.project_id;
       send(res, 200, { ok: true, result, note, project_web_url: pid ? projectWebUrl(pid) : '', skipped_without_key: p.items_without_key || [] }); return true;
+    }
+    /* פרסום הקיטים ל-ERP (scripts/erp-kits.js). GET = האם מוגדר — הכפתור במסך הקיטים מציג למה הוא מושבת */
+    if (path0 === '/api/erp/kits-sync') {
+      if (req.method === 'GET') { send(res, 200, { ok: true, configured: kitsSyncConfig(process.env).configured }); return true; }
+      if (req.method !== 'POST') { send(res, 405, { ok: false, errors: ['POST only'] }); return true; }
+      let body;
+      try { body = await readBody(req); } catch { send(res, 400, { ok: false, errors: ['גוף הבקשה אינו JSON תקין'] }); return true; }
+      const out = await pushKits(process.env, body, sp.get('dry_run') === '1' || body.dry_run === true);
+      send(res, out.status, out.body); return true;
     }
   } catch (e) { send(res, 502, { ok: false, errors: [String(e.message || e)] }); return true; }
   send(res, 404, { ok: false, errors: ['unknown ERP route'] }); return true;
