@@ -242,7 +242,7 @@ function srvSaveFail(code) {
       pushSrv(); // DB ריק — זרע אותו ממה שיש בדפדפן
     }
   } catch (e) { srvOffline(0); }
-  kitConnectReturn();   /* חזרה מדף האישור של ה-ERP (?erp_connect=…) — פותח את מסך הקיטים עם התוצאה */
+  finally { kitConnectReturn(); }   /* חזרה מדף האישור של ה-ERP (?erp_connect=…) — גם כש-/api/store נכשל */
 })();
 /* store "קל" מהשרת: תמונת הרקע / ה-PDF של פרויקטים שאינם פתוחים לא נשלחים (40MB על 113 פרויקטים) — במקומם hasBg/hasPdf.
    הגישה הראשונה ל-p.bg / p.bgPdf מביאה את החלק מ-/api/project/<id> ומציירת מחדש; עד אז undefined (התכנית בלי רקע לרגע).
@@ -12575,7 +12575,9 @@ function allKits(withHidden) {
    כאן ונשמר עליו; גרסה שלי שמחליפה קיט בסיס (אותו שם / replaces) יורשת את ה-ref שלו.
    רץ מהכפתור במסך הקיטים, ואחרי הפרסום הידני הראשון גם לבד: 3 שניות אחרי שמירה / מחיקה / הסתרה של קיט (kitSyncSoon)
    ובפתיחת מסך הקיטים. */
-const KIT_SYNC = { srv: null, status: null, down: false, busy: false, busyManual: false, again: '', againOpt: null, t: null, idsAt: 0, idsErr: '', connectMsg: null };
+const KIT_SYNC = { srv: null, status: null, down: false, busy: false, busyManual: false, again: '', againOpt: null, t: null, idsAt: 0, idsErr: '', connectMsg: null, revoked: false };
+/* 401 עם חיבור שמור: הטוקן בוטל ב-ERP. החיבור השמור נשאר עד חיבור מחדש או ניתוק; התיבה מציעה שוב "חיבור ל-ERP" */
+const KIT_REVOKED = 'החיבור ל-ERP בוטל — התחברו מחדש';
 const KIT_SYNC_WHY = {
   static: 'זמין רק בגרסת השרת',
   env: 'עוד אין חיבור ל-ERP',
@@ -12596,22 +12598,28 @@ function kitRefHash(s) {
 /* id לכל קיט שלי (נוצר / ישן שעוד אין לו). מגובב מהשם, כך ששני מכשירים שמקצים לאותו קיט ישן מקבלים אותו id; סיומת כשתפוס.
    נשמר על הקיט ולא מחושב מחדש — שינוי שם לא משנה את ה-ref */
 /* מזהי ה-ERP לקיטי הבסיס, מהשרת (/api/erp/kit-ids, שם → id). var ולא const: kitEnsureIds רץ גם מ-allKits בטעינה, לפני שהשורה הזו בוצעה */
-var KIT_ERP_IDS = null;
+var KIT_ERP_IDS = null, KIT_ERP_AMBIG = new Set();   /* KIT_ERP_AMBIG: שמות שקיימים ב-ERP אבל לא חד-משמעיים (יותר מקיט אחד) */
 /* קיט בסיס שאין לו id ב-data/erp_kits.json מקבל את ה-uuid שלו ב-ERP: מ-store.kitErpIds (מה שכבר הוקצה — נשאר גם אחרי
-   שהקיט פורסם בשם אחר), אחרת מהמפה — שם זהה, ואחרת כלל 60 התווים (שם מלא ב-ERP שחתוך ל-60 הוא שם הקיט, ורק אחד כזה) */
+   שהקיט פורסם בשם אחר), אחרת מהמפה — שם זהה, ואחרת כלל 60 התווים (שם מלא ב-ERP שחתוך ל-60 הוא שם הקיט, ורק אחד כזה).
+   קיט שנמצא בכלל 60 התווים מקבל גם את שמו המלא — גם כשה-id שלו כבר ידוע — וגרסה שלי / הסתרה שנשמרו בשם הקטוע
+   ממשיכות לחול עליו (kitBaseByName) */
 function kitApplyErpIds() {
   const E = typeof ERP_KITS !== 'undefined' ? ERP_KITS : [], saved = store.kitErpIds || {}, map = KIT_ERP_IDS || {};
   const used = new Set(E.map(k => k.id).filter(Boolean)), long = Object.keys(map).filter(x => x.length > 60);
-  let n = 0;
+  let n = 0, renamed = false;
   for (const k of E) {
+    const cut = (k.name || '').trim();
+    let full = '';
+    if (KIT_ERP_IDS && !map[cut] && cut.length <= 60) { const c = long.filter(x => x.slice(0, 60).trim() === cut); if (c.length === 1) full = c[0]; }
+    if (full) { k.name = full; renamed = true; }
     if (k.id) continue;
-    const name = (k.name || '').trim();
-    let id = saved[name] || map[name];
-    if (!id) { const c = long.filter(x => x.slice(0, 60).trim() === name); if (c.length === 1) id = map[c[0]]; }
+    const name = full || cut;
+    const id = saved[name] || saved[cut] || map[name];
     if (!id || used.has(id)) continue;
     k.id = id; used.add(id);
     if (saved[name] !== id) { store.kitErpIds = { ...(store.kitErpIds || {}), [name]: id }; n++; }
   }
+  if (renamed) kitNameIdx = null;
   return n;
 }
 function kitEnsureIds() {
@@ -12643,25 +12651,29 @@ function kitSyncPersist() {
 /* קיט הבסיס שה-ref שלו נשלח: הקיט עצמו, או לגרסה שלי — הקיט שהיא מחליפה (אותו שם / replaces) */
 function kitSyncBaseOf(k, mine) { return mine.has(k) ? ((k.replaces && kitBaseByName(k.replaces)) || kitBaseByName(k.name)) : k; }
 /* כמה קיטי בסיס שנשלחים (גלויים, או שגרסה שלי יורשת את ה-ref שלהם) עוד בלי id של ה-ERP */
+/* השם שנשלח: גרסה שלי שנשמרה בשם הקטוע של קיט בסיס נשלחת בשמו המלא */
+function kitSyncSentName(k, mine) { const n = (k.name || '').trim(); return mine.has(k) ? kitBaseName(n) : n; }
+/* קיט בסיס בלי id חוסם פרסום אמיתי — חוץ מקיט שהשם שלו קיים ב-ERP אבל לא חד-משמעי ונשלח בדיוק בשם הזה:
+   אז הוא נשלח כ-erp-name:<שם>, וה-ERP מכריע בעצמו (קטגוריה, סוג מערכת, פעיל, ותק) */
+function kitSyncNeedsId(base, sent) { const bn = base ? (base.name || '').trim() : ''; return !!base && !base.id && !(KIT_ERP_AMBIG.has(bn) && sent === bn); }
 function kitSyncNoId() {
   const mine = new Set(store.userKits || []);
-  return allKits(true).filter(k => (k.name || '').trim() && !kitHidden(k.name) && (b => !!b && !b.id)(kitSyncBaseOf(k, mine))).length;
+  return allKits(true).filter(k => (k.name || '').trim() && !kitHidden(k.name) && kitSyncNeedsId(kitSyncBaseOf(k, mine), kitSyncSentName(k, mine))).length;
 }
 function kitSyncPayload() {
   if (kitEnsureIds()) kitSyncPersist();
   const all = allKits(true), mine = new Set(store.userKits || []);
-  /* קיט בסיס בלי id (לפני scripts/erp-kit-ids.js) — רק בבדיקה בלבד, שבה ה-ERP מתאים אותו לפי השם; פרסום אמיתי נחסם (KIT_SYNC_NOID) */
+  /* קיט בסיס בלי id נשלח כ-erp-name:<שם> וה-ERP מתאים לפי השם — בבדיקה בלבד, או כשהשם לא חד-משמעי ב-ERP (kitSyncNeedsId) */
   const baseRef = b => b.id || 'erp-name:' + (b.name || '').trim();
   const used = new Set(), kits = [];
   let noId = 0;
   for (const k of all) {
-    const name = (k.name || '').trim();
-    if (!name || kitHidden(k.name)) continue;
-    const base = kitSyncBaseOf(k, mine);
+    if (!(k.name || '').trim() || kitHidden(k.name)) continue;
+    const name = kitSyncSentName(k, mine), base = kitSyncBaseOf(k, mine);
     let ref = base ? baseRef(base) : k.id;
     if (used.has(ref) && mine.has(k)) ref = k.id;   /* שתי גרסאות שלי לאותו קיט בסיס: הראשונה יורשת, השנייה ב-id שלה */
     if (!ref || used.has(ref)) { console.warn('kit sync: no unique ref for', name); continue; }
-    if (base && !base.id) noId++;
+    if (kitSyncNeedsId(base, name)) noId++;
     used.add(ref);
     kits.push({
       /* "קיט שלי" היא תווית של KO Projects, לא סוג מערכת — נשלח null */
@@ -12734,6 +12746,7 @@ async function kitPublish0(auto, dry, allow) {
     return null;
   }
   if (!KIT_SYNC.idsAt) await kitErpIdsLoad();
+  if (KIT_SYNC.revoked) { if (!auto) uiToast('⚠ ' + KIT_REVOKED); return null; }
   const { kits, noId, sig } = kitSyncPayload();
   if (!dry && noId) { if (!auto) uiToast('⚠ ' + KIT_SYNC_NOID); return null; }
   const prev = store.kitSync || {};
@@ -12748,7 +12761,7 @@ async function kitPublish0(auto, dry, allow) {
     const r = await fetch('/api/erp/kits-sync' + (q ? '?' + q : ''), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kits }) });
     const j = await r.json().catch(() => null);
     if (!j) throw Object.assign(new Error('תשובה לא תקינה מהשרת'), { status: r.status });
-    if (!r.ok || j.ok === false) throw Object.assign(new Error([].concat(j.errors || j.error || ('שגיאה ' + r.status)).join(' · ')), { status: j.erp_status || r.status, code: typeof j.error === 'string' ? j.error : '', count: j.count, limit: j.limit });
+    if (!r.ok || j.ok === false) throw Object.assign(new Error([].concat(j.errors || j.error || ('שגיאה ' + r.status)).join(' · ')), { status: j.erp_status || r.status, erpStatus: j.erp_status || 0, code: typeof j.error === 'string' ? j.error : '', count: j.count, limit: j.limit });
     last = {
       at: Date.now(), dry, auto, allow, ok: true, sent: kits.length, noId,
       linked: +j.linked || 0, created: +j.created || 0, updated: +j.updated || 0, unchanged: +j.unchanged || 0,
@@ -12756,14 +12769,16 @@ async function kitPublish0(auto, dry, allow) {
       skipped: (j.skipped_lines || []).map(s => ({ kit: names[s.ref] || s.ref, item_key: s.item_key, reason: s.reason }))
     };
   } catch (e) {
-    const many = e.code === 'would_deactivate_many';
-    last = { at: Date.now(), dry, auto, allow, ok: false, sent: kits.length, noId, error: many ? kitManyMsg(e.count, e.limit) : String(e.message || e), status: e.status || 0, code: e.code || '' };
+    const many = e.code === 'would_deactivate_many', revoked = e.erpStatus === 401 && (KIT_SYNC.status || {}).source === 'connected';   /* 401 של ה-ERP, לא של הכניסה ל-KO */
+    if (revoked) KIT_SYNC.revoked = true;
+    last = { at: Date.now(), dry, auto, allow, ok: false, sent: kits.length, noId, error: many ? kitManyMsg(e.count, e.limit) : revoked ? KIT_REVOKED : String(e.message || e), status: e.status || 0, code: revoked ? 'revoked' : e.code || '' };
     if (many) blocked = { count: +e.count || 0, limit: +e.limit || 0 };
   }
   /* blocked נשאר עד פרסום אמיתי שמצליח — בינתיים התיבה מציעה "פרסום בכל זאת" ובדיקה שמציגה את הרשימה */
   store.kitSync = { ...prev, last, ...(last.ok && !dry ? { sig, blocked: null } : {}), ...(blocked ? { blocked } : {}) };
   kitSyncPersist();
-  if (!last.ok && auto && last.code === 'would_deactivate_many') { /* אוטומטי: בתיבה בלבד, בלי טוסט */ }
+  if (!last.ok && auto && (last.code === 'would_deactivate_many' || last.code === 'revoked')) { /* אוטומטי: בתיבה בלבד, בלי טוסט */ }
+  else if (!last.ok && last.code === 'revoked') uiToast('⚠ ' + KIT_REVOKED);
   else if (!last.ok) uiToast('⚠ ' + (dry ? 'בדיקת' : 'פרסום') + ' הקיטים ל-ERP נכשל' + (last.status ? ' (' + last.status + ')' : '') + ': ' + last.error);
   else uiToast((dry ? '👁 בדיקה בלבד, לא נשמר: ' : '✓ הקיטים פורסמו ל-ERP: ') + kitSyncSummary(last));
   return last;
@@ -12782,11 +12797,14 @@ function kitSyncLastHTML(l) {
 function kitSyncPaint() {
   const box = document.getElementById('kitSyncBox'); if (!box) return;
   const st = window.__AUTH && !window.__AUTH.owner ? 'guest' : KIT_SYNC.srv || (KIT_SYNC.down ? 'down' : null);
-  const why = st && st !== 'ok' ? KIT_SYNC_WHY[st] : '', dis = KIT_SYNC.busy || !st || !!why;
+  const why = st && st !== 'ok' ? KIT_SYNC_WHY[st] : st === 'ok' && KIT_SYNC.revoked ? KIT_REVOKED : '', dis = KIT_SYNC.busy || !st || !!why;
   const noId = st === 'ok' && kitSyncNoId() > 0, disReal = dis || noId;
   const l = (store.kitSync || {}).last, bl = (store.kitSync || {}).blocked, cs = KIT_SYNC.status || {}, cm = KIT_SYNC.connectMsg;
   /* חיבור: לא מחובר → "חיבור ל-ERP"; מחובר מהכפתור → תאריך + ניתוק; טוקן מה-env של השרת → בלי ניתוק */
-  const conn = st === 'env'
+  const revoked = st === 'ok' && KIT_SYNC.revoked;
+  const conn = revoked
+    ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><button onclick="kitErpConnect()" style="background:#0f6e56;color:#fff;font-weight:700;border:0">🔗 חיבור ל-ERP</button><span style="font-size:11.5px;color:#c1121f;font-weight:700">${esc(KIT_REVOKED)}</span>${cs.source === 'connected' ? '<button onclick="kitErpDisconnect()" style="padding:0 8px;font-size:11px;background:#fff;border:1px solid #ddd;color:#777">ניתוק</button>' : ''}</div>`
+    : st === 'env'
     ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><button onclick="kitErpConnect()" style="background:#0f6e56;color:#fff;font-weight:700;border:0">🔗 חיבור ל-ERP</button><span class="muted" style="font-size:11px">אישור אחד ב-ERP, ואחריו אפשר לפרסם את הקיטים</span></div>`
     : st === 'ok' && cs.source === 'connected'
     ? `<div style="font-size:11.5px;color:#0a7a4b;margin-bottom:6px;display:flex;gap:8px;align-items:center"><span>🔗 מחובר ל-ERP${cs.connected_at ? ' · ' + esc(new Date(cs.connected_at).toLocaleDateString('he-IL')) : ''}</span><button onclick="kitErpDisconnect()" style="padding:0 8px;font-size:11px;background:#fff;border:1px solid #ddd;color:#777">ניתוק</button></div>`
@@ -12794,7 +12812,7 @@ function kitSyncPaint() {
   box.innerHTML = `${conn}${cm && !cm.ok ? `<div style="font-size:11.5px;color:#c1121f;font-weight:700;margin-bottom:6px">⚠ ${esc(cm.text)}</div>` : ''}<div style="display:flex;gap:6px;align-items:center">
       <button ${disReal ? 'disabled' : ''} onclick="kitPublish()" title="${esc(why || (noId ? KIT_SYNC_NOID : 'שולח ל-ERP את כל רשימת הקיטים, בלי המוסתרים. קיט ERP שלא ברשימה מושבת שם — לא נמחק'))}" style="flex:1;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0">${KIT_SYNC.busy ? '⏳ מפרסם…' : '⤴ פרסום קיטים ל-ERP'}</button>
       <button ${dis ? 'disabled' : ''} onclick="kitPublish({dry:true})" title="${esc(why || 'מה יקרה ב-ERP — בלי לשנות שם דבר')}">👁 בדיקה בלבד</button></div>
-    ${(why && st !== 'env') || noId ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">⚠ ${esc(why || KIT_SYNC_NOID + (KIT_SYNC.idsErr ? ' · לא ניתן לקרוא אותם מה-ERP כרגע' : ''))}</div>` : ''}
+    ${(why && st !== 'env' && !KIT_SYNC.revoked) || noId ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">⚠ ${esc(why || KIT_SYNC_NOID + (KIT_SYNC.idsErr ? ' · לא ניתן לקרוא אותם מה-ERP כרגע' : ''))}</div>` : ''}
     ${!why && !noId && !(store.kitSync || {}).sig ? '<div class="muted" style="font-size:11px;margin-top:4px">הפרסום הראשון נעשה מכאן — אחריו שינויים בקיטים יפורסמו לבד</div>' : ''}
     ${KIT_SYNC.t && !why && !noId && (store.kitSync || {}).sig ? '<div class="muted" style="font-size:11px;margin-top:4px">⏳ הקיטים השתנו — יפורסמו ל-ERP בעוד רגע</div>' : ''}
     ${bl && !why ? `<div style="font-size:11.5px;color:#8a1c1c;font-weight:700;margin-top:5px;background:#fdf0f0;border:1px solid #e9b4b4;border-radius:7px;padding:5px 7px">⚠ ${esc(kitManyMsg(bl.count, bl.limit))}
@@ -12806,8 +12824,11 @@ async function kitErpIdsLoad() {
   try {
     const r = await fetch('/api/erp/kit-ids', { cache: 'no-store' });
     const j = await r.json().catch(() => null);
-    if (j && j.ok && j.ids) { KIT_ERP_IDS = j.ids; KIT_SYNC.idsErr = ''; }
-    else KIT_SYNC.idsErr = (j && j.error) || 'HTTP ' + r.status;
+    if (j && j.ok && j.ids) { KIT_ERP_IDS = j.ids; KIT_ERP_AMBIG = new Set(j.ambiguous || []); KIT_SYNC.idsErr = ''; KIT_SYNC.revoked = false; }
+    else {
+      KIT_SYNC.idsErr = (j && j.error) || 'HTTP ' + r.status;
+      if (j && j.erp_status === 401 && j.source === 'connected') KIT_SYNC.revoked = true;
+    }
   } catch (e) { KIT_SYNC.idsErr = String(e.message || e); }
   KIT_SYNC.idsAt = Date.now();
   if (kitEnsureIds()) kitSyncPersist();
@@ -12821,13 +12842,13 @@ async function kitKitsOpened() {
 /* "חיבור ל-ERP": השרת מפנה לדף האישור ב-ERP וחוזר ל-/?erp_connect=… (scripts/erp-connect.js) */
 function kitErpConnect() { location.href = '/api/erp/connect/start'; }
 async function kitErpDisconnect() {
-  if (!(await uiConfirm('לנתק את KO Projects מה-ERP?\nהקיטים לא יתפרסמו עד שיתחברו שוב. הטוקן עצמו נשלל ב-ERP (Admin).'))) return;
+  if (!(await uiConfirm('לנתק את KO Projects מה-ERP?\nהקיטים לא יתפרסמו עד חיבור מחדש. ההרשאה ב-ERP נשארת — אפשר לבטל אותה ב-ERP.'))) return;
   try {
     const r = await fetch('/api/erp/connect/disconnect', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j || !j.ok) throw new Error([].concat((j && (j.errors || j.error)) || 'HTTP ' + r.status).join(' · '));
-    KIT_SYNC.status = j; KIT_SYNC.srv = j.configured ? 'ok' : 'env'; KIT_SYNC.connectMsg = null;
-    uiToast(j.configured ? 'החיבור השמור נמחק — השרת עדיין מחובר דרך ERP_KITS_TOKEN' : 'נותק מה-ERP');
+    KIT_SYNC.status = j; KIT_SYNC.srv = j.configured ? 'ok' : 'env'; KIT_SYNC.connectMsg = null; KIT_SYNC.revoked = false;
+    uiToast(j.configured ? 'החיבור השמור נמחק — השרת עדיין מחובר דרך הגדרות השרת' : 'נותק מה-ERP');
   } catch (e) { uiToast('⚠ הניתוק נכשל: ' + (e.message || e)); }
   kitSyncPaint();
 }
