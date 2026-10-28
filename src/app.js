@@ -16349,6 +16349,30 @@ function installKitRows(ctx) {
   if (n) save();
   return n;
 }
+/* ימי טכנאי: מחושב מהדקות (עיגול מעלה ליום שלם), ואורי יכול לקבוע מספר ימים לפרויקט (P._instDays) */
+function installDaysAuto(tMin) { return tMin > 0 ? Math.max(1, Math.ceil(tMin / 60 / 8)) : 0; }
+function installDays(tMin) { return P._instDays > 0 ? +P._instDays : installDaysAuto(tMin); }
+/* הוספת סעיף לחישוב: סעיף חופשי, או סעיף שירות/עבודה מהקטלוג (ERP) עם המחיר שלו */
+function installSvcCands(q) {
+  const toks = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  return (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([k, n, p]) => n && +p > 0 && /^\s*(שירות|התקנה|תכנות|הדרכה|הובלה|כיוונון|עבודה|תיקון)/.test(n) && !/ת\.ח|השכר/.test(n))
+    .filter(([, n]) => !toks.length || toks.every(t => n.toLowerCase().includes(t))).slice(0, 40);
+}
+function installAddPicker() {
+  const crewRate = +(store.installCrewRate ?? 650);
+  const ov = uiModal('<b style="font-size:14px">➕ הוסף סעיף לחישוב ההתקנה</b><p class="muted" style="font-size:11.5px;margin:6px 0">סעיף שירות / עבודה מהקטלוג (עם המחיר מה-ERP), או סעיף חופשי</p>' +
+    '<input data-q placeholder="חיפוש בקטלוג: תכנות, הובלה, הדרכה, קריאת שירות…" style="width:100%;margin-bottom:6px">' +
+    '<div data-list style="max-height:300px;overflow-y:auto;border:1px solid #eee;border-radius:8px"></div>' +
+    '<div style="display:flex;gap:6px;margin-top:8px"><button data-free style="flex:1">✎ סעיף חופשי</button><button data-x style="flex:0 0 auto">ביטול</button></div>');
+  const list = ov.querySelector('[data-list]'), q = ov.querySelector('[data-q]');
+  const add = (label, price, key) => { installRates().push({ k: 'row' + Date.now() % 1e5, label: String(label).slice(0, 60), unit: 'יח׳', min: price > 0 ? Math.round(price / crewRate * 60) : 15, price: Math.round(price) || 100, priceM: price > 0 ? 1 : undefined, auto: 'manual', qty: 1, key: key || undefined }); save(); ov.remove(); installTbl(); uiToast('➕ נוסף לחישוב: ' + String(label).slice(0, 40)); };
+  const draw = () => { const c = installSvcCands(q.value); list.innerHTML = c.length ? c.map(([k, n, p]) => '<div data-k="' + esc(k) + '" style="display:flex;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid #f1efe9;cursor:pointer;font-size:12px"><span style="flex:1">' + esc(n.slice(0, 80)) + '</span><b style="white-space:nowrap">₪' + Math.round(+p).toLocaleString() + '</b></div>').join('') : '<div class="muted" style="padding:10px;font-size:12px">אין סעיף מתאים — הוסף סעיף חופשי</div>';
+    list.querySelectorAll('[data-k]').forEach(d => d.onclick = () => { const r = c.find(x => x[0] === d.dataset.k); if (r) add(r[1], +r[2], r[0]); }); };
+  q.oninput = draw; draw(); setTimeout(() => q.focus(), 50);
+  ov.querySelector('[data-free]').onclick = () => add('סעיף חדש', 0);
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+}
+window.installAddPicker = installAddPicker;
 function installManager(kitCtx) {
   const old = document.getElementById('instOv'); if (old) old.remove();
   window.__instKit = kitCtx || null;
@@ -16365,7 +16389,7 @@ function installManager(kitCtx) {
     ${kitCtx ? `<p style="font-size:11.5px;margin:0 0 8px;background:#eef7f1;color:#0f6e56;border-radius:8px;padding:6px 9px">🧰 מוצג לפי הקיט <b>${esc(kitCtx.name.slice(0, 30))}</b>${addedFromKit ? ' · נוספו ' + addedFromKit + ' סעיפי עבודה מהקיט' : ' · סעיפי העבודה מהקיט כבר בטבלה'} — ערוך ולחץ "הוסף שורת התקנה להצעה"</p>` : ''}
     <div id="instTbl"></div>
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button style="flex:1" onclick="installRates().push({k:'row'+Date.now()%1e5,label:'סעיף חדש',unit:'יח׳',min:15,price:100,auto:'manual',qty:1});save();installTbl()">➕ שורה</button>
+      <button style="flex:1" onclick="installAddPicker()" title="סעיף שירות / עבודה מהקטלוג עם המחיר מה-ERP, או סעיף חופשי">➕ הוסף סעיף</button>
       <button style="flex:1" onclick="store.installRates=null;save();installManager()">↺ אפס לברירות מחדל</button>
       <button style="flex:2;background:#0f6e56;color:#fff;font-weight:700" onclick="installAddToOffer()">${kitCtx ? '🔧 עדכן את סעיף ההתקנה בקיט' : '🧾 ' + (impItems.some(it => it.iid === P._instIid) ? 'עדכן את שורת ההתקנה בהצעה' : 'הוסף שורת התקנה להצעת המחיר')}</button>
     </div></div>`;
@@ -16395,20 +16419,20 @@ function installTbl() {
   const hours = tMin / 60;
   /* המודל המסחרי: טכנאי ליום — ימים שלמים בלבד, אין חצאי ימים (עיגול מעלה) */
   const dayRate = +(store.installDayRate ?? 1500);
-  const days = tMin > 0 ? Math.max(1, Math.ceil(hours / 8)) : 0;
+  const daysAuto = installDaysAuto(tMin), days = installDays(tMin), daysManual = P._instDays > 0;
   const dayMode = store.installDayMode === true;
   const dayTotal = days * dayRate;
   el.innerHTML = `<table class="cablelist" style="font-size:11.5px"><tr><th></th><th>סעיף</th><th>יח׳</th><th>כמות</th><th>דק׳/יח׳</th><th>₪/יח׳</th><th>סה"כ</th><th></th></tr>${rows}</table>
     <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin-top:8px;background:#faf8f4;border-radius:8px;padding:6px 8px">
       <input type="checkbox" style="width:auto" ${dayMode ? 'checked' : ''} onchange="store.installDayMode=this.checked;save();installTbl()">
-      תמחור לפי ימי טכנאי שלמים · <input type="number" value="${dayRate}" style="width:64px;font-size:11.5px" onchange="store.installDayRate=+this.value||1500;save();installTbl()"> ₪ ליום · אין חצאי ימים — עיגול מעלה
+      תמחור לפי ימי טכנאי שלמים · <b>ימים:</b> <input type="number" min="0" step="1" value="${days}" style="width:52px;font-size:11.5px;${daysManual ? 'color:#9a3412;font-weight:700' : ''}" title="${daysManual ? 'נקבע ידנית לפרויקט (מחושב: ' + daysAuto + ')' : 'מחושב מהדקות — עריכה קובעת לפרויקט הזה'}" onchange="P._instDays=Math.max(0,Math.round(+this.value||0))||undefined;save();installTbl()">${daysManual ? '<button style="font-size:10.5px;padding:1px 6px" onclick="delete P._instDays;save();installTbl()" title="חזרה לחישוב אוטומטי (' + daysAuto + ' ימים)">↺ אוטו</button>' : ''} · <input type="number" value="${dayRate}" style="width:64px;font-size:11.5px" onchange="store.installDayRate=+this.value||1500;save();installTbl()"> ₪ ליום · אין חצאי ימים — עיגול מעלה
     </label>
     <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin-top:4px;background:#faf8f4;border-radius:8px;padding:6px 8px" title="שינוי הדקות בשורה מחשב מחדש את ₪/יח׳ לפי התעריף הזה; מחיר שנערך ידנית (כתום) לא מושפע">
       שעת צוות <input type="number" value="${crewRate}" style="width:64px;font-size:11.5px" onchange="store.installCrewRate=+this.value||650;save();installTbl()"> ₪ · <button style="font-size:11px;padding:2px 8px" onclick="installRates().forEach(r=>{if(!r.priceM)r.price=Math.round((+r.min||0)/60*(+(store.installCrewRate??650)))});save();installTbl()" title="מחשב מחדש את ₪/יח׳ בכל השורות שאינן ידניות לפי הדקות והתעריף">↻ חשב מחירים מהדקות</button>
     </label>
     <div style="display:flex;gap:6px;margin-top:6px">
-      <div onclick="store.installDayMode=true;save();installTbl()" title="לחץ לבחירת תמחור לפי ימי טכנאי" style="cursor:pointer;flex:1;background:${dayMode ? '#eef7f1' : '#f7f5f0'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'outline:2px solid #0f6e56' : 'opacity:.75'}"><b style="font-size:17px">${dayMode ? '✓ ' : ''}₪${dayTotal.toLocaleString()}</b><br><small class="muted">${days} ימי טכנאי × ₪${dayRate.toLocaleString()}</small></div>
-      <div style="flex:1;background:#f7f5f0;border-radius:9px;padding:8px;text-align:center"><b style="font-size:17px">${hours.toFixed(1)} שע׳</b><br><small class="muted">זמן מחושב → ${days} ימים (שלמים)</small></div>
+      <div onclick="store.installDayMode=true;save();installTbl()" title="לחץ לבחירת תמחור לפי ימי טכנאי" style="cursor:pointer;flex:1;background:${dayMode ? '#eef7f1' : '#f7f5f0'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'outline:2px solid #0f6e56' : 'opacity:.75'}"><b style="font-size:17px">${dayMode ? '✓ ' : ''}₪${dayTotal.toLocaleString()}</b><br><small class="muted">${days} ימי טכנאי × ₪${dayRate.toLocaleString()}${daysManual ? ' · נקבע ידנית' : ''}</small></div>
+      <div style="flex:1;background:#f7f5f0;border-radius:9px;padding:8px;text-align:center"><b style="font-size:17px">${hours.toFixed(1)} שע׳</b><br><small class="muted">זמן מחושב → ${daysAuto} ימים (שלמים)</small></div>
       <div onclick="store.installDayMode=false;save();installTbl()" title="לחץ לבחירת תמחור לפי פירוט הסעיפים" style="cursor:pointer;flex:1;background:${dayMode ? '#f7f5f0' : '#eef7f1'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'opacity:.75' : 'outline:2px solid #0f6e56'}"><b style="font-size:17px">${dayMode ? '' : '✓ '}₪${Math.round(tPrice).toLocaleString()}</b><br><small class="muted">לפי פירוט סעיפים</small></div>
     </div>
     <p class="muted" style="font-size:10.5px;margin:4px 0 0">לחיצה על כרטיס בוחרת את בסיס המחיר — הוא שייכנס לשורת ההתקנה בהצעה.</p>`;
@@ -16428,7 +16452,7 @@ function installAddToOffer() {
   /* המודל המסחרי: ימי טכנאי שלמים × התעריף היומי (ברירת מחדל) */
   if (store.installDayMode === true) {
     const dayRate = +(store.installDayRate ?? 1500);
-    const days = Math.max(1, Math.ceil(tMin / 60 / 8));
+    const days = Math.max(1, installDays(tMin));
     total = days * dayRate;
     det.unshift(days + ' ימי טכנאי × ₪' + dayRate.toLocaleString());
   }
