@@ -915,22 +915,50 @@ function asFoundHTML(r) {
 }
 /* ===== שדה קנה מידה ידני: "1 : N" + גיליון (לתמונה — בהנחה שהתמונה היא הגיליון המלא; ב-PDF גודל הדף ידוע) ===== */
 function asSheets() { return [['A4', 297], ['A3', 420], ['A2', 594], ['A1', 841], ['A0', 1189]]; }   /* פונקציה ולא const — הרינדור הראשון רץ לפני שהקובץ הזה נטען */
+/* קנה מידה "נחמד" (1:50, 1:100…) — הנגזר מהכיול הידני מעוגל אליו כשהוא קרוב (6%) */
+function asNiceRatios() { return [10, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000]; }
+function asSheetMm() { const r = P.autoScale || {}; return r.pageMm ? r.pageMm[0] : (r.sheetMm || 420); }
+/* 1:N שנגזר מהכיול הנוכחי (px/m) ומרוחב הגיליון — כך שאחרי כיול ידני השדה מראה את קנה המידה בפועל */
+function asDerivedRatio() {
+  if (!P.scale) return null;
+  const n = (P.bgW || 1400) * 1000 / (asSheetMm() * (1 / P.scale));
+  return asNiceRatios().find(v => Math.abs(v - n) / v < 0.06) || Math.round(n);
+}
+/* קנה מידה מתוך כיתובי התכנית: "1:50", "1 : 100", "1/200", "קנ"מ 1:50", "SCALE 1:100" — קודם כיתוב עם המילה, אחר כך כל "1:N" */
+function asScaleFromText(texts) {
+  const clean = t => String(t || '').replace(/[\u200f\u200e]/g, '').replace(/[∶：]/g, ':');
+  const rx = /(?:^|[^\d.,])1\s*[:\/]\s*(\d{2,4})(?![\d.,])/;
+  const pick = list => { for (const t of list) { const m = rx.exec(clean(t)); if (m) { const n = +m[1]; if (n >= 10 && n <= 2000) return { n, t: clean(t).trim() }; } } return null; };
+  const all = (texts || []).filter(Boolean);
+  return pick(all.filter(t => /קנ|scale|מידה/i.test(t))) || pick(all.filter(t => asNiceRatios().some(v => rx.test(clean(t)) && +rx.exec(clean(t))[1] === v))) || pick(all);
+}
 function asRatioFieldHTML() {
   const r = P.autoScale || {}, pdfMm = r.pageMm ? r.pageMm[0] : null, sheet = r.sheetMm || (pdfMm ? null : 420), custom = !!(sheet && !asSheets().some(([, mm]) => mm === sheet));
-  return `<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:6px 0;font-size:12px"><span>קנה מידה בשרטוט:</span><span style="direction:ltr;display:inline-flex;align-items:center;gap:3px;font-weight:700">1 : <input id="asRatioIn" type="number" min="1" max="5000" value="${r.ratio || ''}" placeholder="50" style="width:64px;padding:3px 5px;margin:0;font-size:12px" onkeydown="if(event.key==='Enter')asApplyRatioField()"></span>
+  const pt = P.planText || {}, found = pt.scale, busy = !!window.__ptBusy;
+  const shown = r.ratio || (P.scale ? asDerivedRatio() : '');
+  const srcTxt = r.ratio ? (r.ratioSrc === 'ocr' ? 'נקרא מהתכנית (OCR)' : r.ratioSrc === 'manual' ? 'לפי הכיול הידני' : 'הוקלד') : (P.scale ? 'לפי הכיול הידני' : '');
+  return `<button style="width:100%;margin:0 0 6px" ${busy ? 'disabled' : ''} onclick="planTextScan()" title="קורא את כל הכיתובים שעל השרטוט (OCR מקומי, בלי AI): קנה המידה (1:N) נכנס לשדה למטה ומוחל כשאין כיול ידני; שאר הכיתובים מסווגים — אזורי קהל, תפעול, שירותים, ריהוט, מפלסים">${busy ? '⏳ קורא את התכנית…' : (pt.at ? '🔤 קרא שוב קנה מידה וכיתובים (OCR)' : '🔤 קרא קנה מידה וכיתובים מהתכנית (OCR)')}</button>
+    ${pt.at ? `<div style="font-size:11px;margin:0 0 4px;color:${found ? '#0f6e56' : '#8a5a00'}">${found ? '✓ נמצא בתכנית: <b style="direction:ltr;unicode-bidi:embed">1:' + found.n + '</b>' + (found.t && found.t !== '1:' + found.n ? ' <span class="muted">(' + esc(String(found.t).slice(0, 28)) + ')</span>' : '') + (r.ratio === found.n && r.ratioSrc === 'ocr' ? ' · הוחל' : ' <button style="padding:1px 8px;font-size:11px" onclick="asApplyRatioN(' + found.n + ',null,\'ocr\')">החל</button>') : '⚠ לא נמצא כיתוב קנה מידה בתכנית — הקלד למטה או כייל לפי מידה ידועה'}</div>` : ''}
+    <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:6px 0;font-size:12px"><span>קנה מידה בשרטוט:</span><span style="direction:ltr;display:inline-flex;align-items:center;gap:3px;font-weight:700">1 : <input id="asRatioIn" type="number" min="1" max="5000" value="${shown || ''}" placeholder="50" style="width:64px;padding:3px 5px;margin:0;font-size:12px" onkeydown="if(event.key==='Enter')asApplyRatioField()"></span>
     ${pdfMm ? `<span class="muted">גיליון ${pdfMm} מ״מ (מה-PDF)</span>` : `<span>גיליון:</span><select id="asSheetSel" style="width:auto;padding:3px;font-size:12px" onchange="document.getElementById('asSheetMm').style.display=this.value==='0'?'':'none'">${asSheets().map(([n, mm]) => `<option value="${mm}" ${sheet === mm ? 'selected' : ''}>${n} (${mm} מ״מ)</option>`).join('')}<option value="0" ${custom ? 'selected' : ''}>אחר…</option></select><input id="asSheetMm" type="number" placeholder="רוחב מ״מ" value="${custom ? sheet : ''}" style="width:72px;padding:3px 5px;margin:0;font-size:12px;${custom ? '' : 'display:none'}">`}
-    <button onclick="asApplyRatioField()" style="padding:4px 10px">החל</button></div>`;
+    <button onclick="asApplyRatioField()" style="padding:4px 10px">החל</button>${srcTxt ? '<span class="muted" style="font-size:10.5px">' + srcTxt + '</span>' : ''}</div>`;
+}
+function asApplyRatioN(n, mm, src) {
+  if (!(n > 0)) return;
+  const r = P.autoScale || {}; if (!(mm > 0)) mm = asSheetMm();
+  const pxPerM = (P.bgW || 1400) / (mm / 1000 * n);
+  const r2 = { ...r, ratio: n, ratioSrc: src || 'user', sheetMm: r.pageMm ? undefined : mm, unitPerM: null, chain: null, conf: 'medium', method: 'ratio', dev: null, marks: [], note: 'לפי 1:' + n + (src === 'ocr' ? ' שנקרא מהתכנית' : '') + ' ורוחב גיליון ' + mm + ' מ״מ' + (r.pageMm ? ' (מה-PDF)' : ' — בהנחה שהתמונה היא הגיליון המלא; אם ההדפסה הותאמה לדף, אמת לפי מידה מסומנת') };
+  P.calSrc = ''; asApply(r2, pxPerM, 'ratio', true);
+  uiToast((src === 'ocr' ? '📐 קנה מידה 1:' + n + ' נקרא מהתכנית והוחל' : '✓ הוחל 1:' + n) + ' — 1 מ׳ = ' + pxPerM.toFixed(1) + 'px · אמת לפי מידה בשרטוט אם אפשר', 6000);
 }
 function asApplyRatioField() {
   const n = +((document.getElementById('asRatioIn') || {}).value); if (!(n > 0)) { uiToast('הקלד קנה מידה, למשל 50'); return; }
   const r = P.autoScale || {}; let mm = r.pageMm ? r.pageMm[0] : null;
   if (!mm) { const sel = document.getElementById('asSheetSel'), inp = document.getElementById('asSheetMm'); mm = sel && +sel.value > 0 ? +sel.value : +((inp || {}).value); }
   if (!(mm > 0)) { uiToast('בחר גיליון או הקלד את רוחב הדף במ״מ'); return; }
-  const pxPerM = (P.bgW || 1400) / (mm / 1000 * n);
-  const r2 = { ...r, ratio: n, ratioSrc: 'user', sheetMm: r.pageMm ? undefined : mm, unitPerM: null, chain: null, conf: 'medium', method: 'ratio', dev: null, marks: [], note: 'לפי 1:' + n + ' ורוחב גיליון ' + mm + ' מ״מ' + (r.pageMm ? ' (מה-PDF)' : ' — בהנחה שהתמונה היא הגיליון המלא; אם ההדפסה הותאמה לדף, אמת לפי מידה מסומנת') };
-  P.calSrc = ''; asApply(r2, pxPerM, 'ratio', true);
-  uiToast('✓ הוחל 1:' + n + ' — 1 מ׳ = ' + pxPerM.toFixed(1) + 'px · אמת לפי מידה בשרטוט אם אפשר', 6000);
+  asApplyRatioN(n, mm, 'user');
 }
+window.asApplyRatioN = asApplyRatioN; window.asDerivedRatio = asDerivedRatio; window.asScaleFromText = asScaleFromText;
 window.asDimMode = asDimMode; window.asDimAt = asDimAt; window.asDimFromToken = asDimFromToken; window.asFoundShow = asFoundShow; window.asFoundConfirm = asFoundConfirm; window.asFoundReject = asFoundReject; window.asApplyRatioField = asApplyRatioField; window.asRatioFieldHTML = asRatioFieldHTML;
 
 

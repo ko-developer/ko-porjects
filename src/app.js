@@ -11385,6 +11385,7 @@ function showCalDialog(px, p1, p2) {
       P.scale = m / px;
       P.calSrc = 'manual'; P.calOk = 1;
       P.calLine = { p1, p2 }; /* קו הכיול נשאר על התכנית */
+      if (typeof asDerivedRatio === 'function') { const n = asDerivedRatio(); if (n) P.autoScale = { ...(P.autoScale || {}), ratio: n, ratioSrc: 'manual' }; }   /* שדה "קנה מידה בשרטוט" מראה את 1:N שנגזר מהכיול */
       recalcCableLengths();
       save();
       uiToast('✓ כויל: ' + m.toFixed(2) + ' מ׳ = ' + Math.round(px) + 'px · 1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px — קו הייחוס מסומן על התכנית');

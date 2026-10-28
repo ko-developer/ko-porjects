@@ -67,7 +67,7 @@ async function ptOcr(cv, lang, frames) {
     for (const w of (res.data.words || [])) {
       const t = (w.text || '').replace(/[|_~`^]/g, '').trim();
       if (!t || w.confidence < (frame === 'h' ? 55 : 68)) continue;
-      if (!/[A-Za-z֐-׿]{2,}|^[+\-±]?\d+[.,]\d{2,3}$/.test(t)) continue;   /* מילים בלבד (או מפלס) — מספרי מידות כבר מטופלים בזיהוי קנה המידה */
+      if (!/[A-Za-z֐-׿]{2,}|^[+\-±]?\d+[.,]\d{2,3}$|^1\s*[:\/]\s*\d{2,4}$/.test(t)) continue;   /* מילים בלבד (או מפלס, או קנה מידה "1:50") — מספרי מידות לא נשמרים */
       const bb = w.bbox; const p = map((bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2);
       out.push({ t, x: p.x, y: p.y, w: bb.x1 - bb.x0, h: bb.y1 - bb.y0, frame, c: w.confidence });
     }
@@ -221,6 +221,8 @@ async function planTextScan() {
     if (P.bgPdf) { const r = await ptFromPdf(); tokens = r.tokens; SW = r.W; SH = r.H; src = 'pdf'; layers = r.layers || []; }
     else { const cv = await ptCanvas(); tokens = await ptOcr(cv); SW = cv.width; SH = cv.height; }
     window.__ptTokens = tokens;   /* לניפוי: מה נקרא */
+    /* קנה מידה מהכיתובים ("1:50", "קנ"מ 1:100") — נבדק על הטוקנים הגולמיים, לפני סינון המילים */
+    let ptScale = null; try { ptScale = typeof asScaleFromText === 'function' ? asScaleFromText([...ptGroup(tokens, 'h').map(p => p.t), ...tokens.map(p => p.t)]) : null; } catch (e) { console.warn('pt scale', e); }
     let phrases = [...ptGroup(tokens, 'h'), ...ptGroup(tokens, 'v'), ...ptGroup(tokens, 'w')].filter(ptKeep);
     /* תכנית באנגלית: "מילים" עבריות שלא במילון הן סמלי ריהוט שנקראו כאותיות — מסירים כשהעברית שולית */
     const heb = phrases.filter(p => /[֐-׿]/.test(p.t)).length;
@@ -250,6 +252,7 @@ async function planTextScan() {
     items.sort((a, b) => a.v - b.v || a.u - b.u);
     const prev = P.planText || {};
     P.planText = { layerInfo: window.__ptLayerInfo && src === 'pdf' ? window.__ptLayerInfo.filter(l => l.paths).map(l => l.name) : undefined, ocrAdded, items, at: new Date().toISOString(), src, show: prev.show !== false, cats: prev.cats || { audience: 1, ops: 1, service: 1, furniture: 0, level: 1, other: 0 }, tokens: tokens.length };
+    if (ptScale) { P.planText.scale = ptScale; if (P.calSrc !== 'manual' && typeof asApplyRatioN === 'function') asApplyRatioN(ptScale.n, null, 'ocr'); }   /* נכנס לשדה קנה המידה; מוחל כשאין כיול ידני */
     save(); render();
     const cnt = ptCounts();
     uiToast('🔤 נמצאו ' + items.length + ' פריטים' + (layers.length ? ' · ' + layers.length + ' אזורים משכבות ה-PDF (' + [...new Set(layers.map(l => l.ly))].join(', ') + ')' : '') + (ocrAdded ? ' · ' + ocrAdded + ' הושלמו ב-OCR' : '') + ': ' + Object.entries(cnt).filter(([, n]) => n).map(([c, n]) => PT_CATS[c].n + ' ' + n).join(' · '), 8000);
@@ -1125,7 +1128,7 @@ function ptHintText() {
 }
 /* הפאנל בתכנית — סריקה, ספירה לפי קטגוריה, הצגה, רשימה, יצירת אזורים */
 function ptPanelHTML() {
-  if (!P.bg || !PT_CATS) return '';
+  if (!P.bg || !PT_CATS || !P.planText) return '';   /* כפתור הקריאה הראשונה יושב בתיבת קנה המידה; כאן רק התוצאות */
   const pt = P.planText, cnt = ptCounts();
   const busy = window.__ptBusy;
   let h = `<div style="border:1.5px solid #7f77dd;border-radius:9px;padding:7px 9px;margin:0 0 8px;background:#fff;font-size:11.5px;line-height:1.5">
