@@ -15069,6 +15069,29 @@ function impModeHTML() {
 window.offerModeSet = offerModeSet; window.impModeHTML = impModeHTML;
 /* מי מתקין כל פריט בהצעה — עמודה "התקנה באחריות" (it.inst) */
 const INST_OPTS = [['', '—'], ['ko', '🔧 טכנאי KO'], ['ext', '🤝 מתקין KO חיצוני'], ['client', '👤 באחריות לקוח']];
+/* חלקי ההצעה — הסדר שבו ההצעה מוצגת: רמקולים → סאבים → ארון ואלקטרוניקה → תשתיות וכבלים → עבודה → כיוון סאונד */
+const OFFER_SECS = [['spk', '🔊 רמקולים'], ['sub', '🔈 סאבים'], ['elec', '🗄 ארון ואלקטרוניקה'], ['infra', '🔌 תשתיות, מתקנים וכבלים'], ['work', '🔧 עבודה והתקנה'], ['tune', '🎚 כיוון סאונד ותכנות']];
+function offerSectionOf(it) {
+  const n = String(it.name || ''), d = it.dest || '';
+  if (d === 'work' || /^\s*(שירות|התקנה|עבודה)\b|טכנאי|הובלה|ליום עבודה|לשעת עבודה/.test(n)) return /תכנות|כיוון|כיוונון|tuning|הדרכה/i.test(n) && !/התקנה\s+-/.test(n) ? 'tune' : 'work';
+  if (/תכנות|כיוונון|כיוון סאונד|tuning|הדרכה/i.test(n) && !/קיפד|בקר|controller|keypad|מקליט/i.test(n)) return 'tune';
+  if (d === 'cable' || d === 'reel' || d === 'conn') return 'infra';
+  if (typeof isSpeakerItem === 'function' && isSpeakerItem(n) && !/מתקן|תושבת|bracket|כיסוי|גלגל|wheel|סטנד|stand|חצובה/i.test(n)) return (typeof KIT_SUB_RX !== 'undefined' ? KIT_SUB_RX : /סאב|\bsub\b/i).test(n) ? 'sub' : 'spk';
+  if (/מגבר|פרוססור|processor|amplifier|מתג|מפצל|switch|ראוטר|רכזת|קיפד|keypad|פנל חכם|נגן|player|מיקסר|mixer|כרטיס קול|ארון|\brack\b|מגירה|מסד|מדף|פס שקעים|PDU|\bUPS\b/i.test(n)) return 'elec';
+  if (/כבל|cable|גליל|מחבר|connector|מתקן|תושבת|bracket|תליה|תלייה|סטנד|חצובה|קופסה|קופסת|צינור|תעלה|שקע|תקע|plug|מכסה|כיסוי|בורג|ברגים|אביזר/i.test(n)) return 'infra';   /* מתקנים וקופסאות — תשתית, גם כשהיעד הוא יחידה/מוקד */
+  if (d === 'rack' || d === 'unit' || d === 'panelUnit' || d === 'panelNode' || ['amp', 'proc', 'net', 'control', 'player'].includes(it.cat)) return 'elec';
+  return d === 'point' ? 'elec' : 'infra';
+}
+function offerSecRows(list, rowFn) {   /* ממיין לפי חלקי ההצעה (יציב) ומכניס כותרת לכל חלק */
+  const idx = k => Math.max(0, OFFER_SECS.findIndex(([s]) => s === k));
+  const sorted = list.map((g, j) => ({ g, j, s: idx(offerSectionOf(g.it)) })).sort((a, b) => a.s - b.s || a.j - b.j);
+  let h = '', cur = -1;
+  for (const x of sorted) {
+    if (x.s !== cur) { cur = x.s; const n = sorted.filter(y => y.s === cur).length; h += `<tr><td colspan="14" style="background:#f4f2ec;color:#5b4b8a;font-weight:700;font-size:11.5px;padding:3px 10px;border-top:1px solid #e3dfd5">${OFFER_SECS[cur][1]} <span class="muted" style="font-weight:400">· ${n}</span></td></tr>`; }
+    h += rowFn(x.g);
+  }
+  return h;
+}
 function renderImp() {
   dockOpen = true;
   const dk = $('#dock');
@@ -15139,10 +15162,10 @@ function renderImp() {
     const order = [...(P.zones || []).map(z => z.name).filter(z => groups[z]), ...Object.keys(groups).filter(z => !(P.zones || []).some(p => p.name === z))];
     for (const z of order) {
       rowsHtml += `<tr><td colspan="14" style="background:#e9ecf7;font-weight:800;padding:5px 8px">🗺 ${esc(z)} · ${groups[z].length} פריטים</td></tr>` +
-        groups[z].map(g => rowHTML(g.it, g.i, g.ov)).join('');
+        offerSecRows(groups[z], g => rowHTML(g.it, g.i, g.ov));
     }
   } else {
-    rowsHtml = impItems.map((it, i) => { it.iid = it.iid || uid('i'); return rowHTML(it, i, null); }).join('');
+    rowsHtml = offerSecRows(impItems.map((it, i) => { it.iid = it.iid || uid('i'); return { it, i, ov: null }; }), g => rowHTML(g.it, g.i, g.ov));
   }
   const body = impItems.length
     ? `<p class="muted" style="margin-bottom:8px">✓ = בתכנית (עם ניצול מלאי) · <b>גרור ⠿ ישר לתכנית</b> — מוצר למיקום/לארון, כבל מפעיל חיבור בלחיצה עם הפרטים שלו.</p>
