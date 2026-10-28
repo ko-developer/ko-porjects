@@ -751,7 +751,7 @@ function wizFillCables() {
   /* קודם משייכים למה שכבר בהצעה — רק מה שנשאר בלי כיסוי נקנה מחדש */
   if (typeof linkCablesToOffer === 'function') linkCablesToOffer({ silent: true });
   /* קווים בלי מוצר כבל — לפי סוג. פאצ'ים פנימיים בארון הם כבלים מוכנים ולא נחתכים מגליל */
-  const open = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0);
+  const open = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0 && !(c.type === 'cat' && c.srcNet));   /* קווי רשת של מכשירי PoE — כבל יצוק + 30% מבדיקת השלמות */
   const need = {};
   open.forEach(c => { need[c.type] = (need[c.type] || 0) + Math.ceil(+c.len * 1.15); /* +15% רזרבה */ });
   let added = 0, linked = 0;

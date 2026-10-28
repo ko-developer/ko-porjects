@@ -6381,7 +6381,10 @@ const patchNum = n => { const m = (n.name || '').match(/\((\d+)\)(?!.*\(\d+\))/)
 /* ===== DigiSynthetic AES67: כל מוצר של DigiSynthetic שכתוב עליו AES67 (פאנלים, קיפדים, מתאמים, כרטיס קול, DLA-04) מתחבר לשאר המוצרים ברשת —
    Cat6 למתג הרשת בארון — ומקבל הזנה PoE מהמתג (בלי נקודת חשמל). בהוספה לתכנית נוסף אוטומטית כבל הרשת למתג ה-PoE ===== */
 const DIGI_BRAND_RX = /DIGISYNTH|DIGISYNTHEIC|\bDIGI\b|דיגיסינטטיק/i, DIGI_NET_KIND_RX = /AES\s?67|DLA-?\s?04|network/i;
-function isDigiNetDev(name) { const s = String(name || ''); return DIGI_BRAND_RX.test(s) && DIGI_NET_KIND_RX.test(s); }
+/* מכשיר רשת PoE על התכנית: DigiSynthetic AES67, קיפד/פנל חכם של NST (VR1PoE), וכל מוצר שכתוב עליו PoE (לא מתג/מזרק/ספק) — חובה כבל Cat6 למתג PoE */
+function isDigiNetDev(name) { const s = String(name || ''); return (DIGI_BRAND_RX.test(s) && DIGI_NET_KIND_RX.test(s)) || (/\bPoE\b/i.test(s) && !/מתג|switch|רכזת|מפצל|ראוטר|router|מזרק|injector|ספק|adapter|hub/i.test(s)) || (/\bNST\b/i.test(s) && typeof KEYPAD_RE !== 'undefined' && KEYPAD_RE.test(s)); }
+function netDevKind(name) { return DIGI_BRAND_RX.test(String(name || '')) ? 'AES67' : 'PoE'; }
+function netDevLbl(name) { return netDevKind(name) === 'AES67' ? 'DigiSynthetic AES67' : /\bNST\b/i.test(name || '') ? 'קיפד NST (PoE)' : 'מכשיר PoE'; }
 function isDigiNetNode(n) { return !!n && (n.kind === 'point' || n.kind === 'panel') && isDigiNetDev(nodeFullName(n)); }
 function digiNetCableOf(n) { return (P.cables || []).find(c => c.type === 'cat' && !c.internal && ((c.to === n.id && byId(c.from) && byId(c.from).kind === 'rack') || (c.from === n.id && byId(c.to) && byId(c.to).kind === 'rack'))) || null; }
 /* הארון שאליו מתחבר מכשיר הרשת: ארון עם מתג PoE (הקרוב), אחרת ארון עם מתג כלשהו, אחרת הארון הקרוב */
@@ -6395,8 +6398,9 @@ function digiNetRack(n) {
 function digiNetLbl(n) { return String(n.name || '').replace(/\s*\(\d+\)\s*$/, '').slice(0, 34) + (/\(\d+\)\s*$/.test(n.name || '') ? ' ' + n.name.match(/\(\d+\)\s*$/)[0] : ''); }
 function digiNetAssign(cc, n, sw, sp) {
   const poe = /PoE/i.test(sp.label || '');
-  cc.fromUnit = sw.id; cc.pOut = sp.port; cc.spec = 'Cat6 · AES67' + (poe ? ' + PoE' : '');
-  cc.note = 'רשת AES67 — ' + digiNetLbl(n) + ' ↔ ' + shortModel(sw.name) + ' ' + sp.port + (poe ? ' · הזנה PoE מהמתג, בלי נקודת חשמל' : ' · ⚠ פורט ללא PoE — דרוש מזרק PoE או ספק');
+  const kd = netDevKind(n.name);
+  cc.fromUnit = sw.id; cc.pOut = sp.port; cc.spec = 'Cat6 · ' + kd + (poe && kd !== 'PoE' ? ' + PoE' : '');
+  cc.note = 'רשת ' + kd + ' — ' + digiNetLbl(n) + ' ↔ ' + shortModel(sw.name) + ' ' + sp.port + (poe ? ' · הזנה PoE מהמתג, בלי נקודת חשמל' : ' · ⚠ פורט ללא PoE — דרוש מזרק PoE או ספק');
 }
 /* כבלי רשת של מוצרי DigiSynthetic שנפרסו לפני שהיה מתג בארון — משובצים לפורטי ה-PoE כשהמתג נכנס */
 function digiNetRelink(rk) {
@@ -6410,10 +6414,11 @@ function digiNetAutoCable(n) {
   if (!isDigiNetNode(n) || digiNetCableOf(n)) return null;
   const t = digiNetRack(n); if (!t) return null;
   const rk = t.r, sw = t.sw, sp = sw ? netSwitchFreePort(rk, sw, true) : null, poe = !!(sp && /PoE/i.test(sp.label || ''));
-  const cc = { id: uid('c'), from: rk.id, to: n.id, type: 'cat', qty: '1', conn: 'rj45', conn2: 'rj45', spec: 'Cat6 · AES67' + (poe ? ' + PoE' : ''), srcNet: 'aes67' };
+  const kd = netDevKind(n.name);
+  const cc = { id: uid('c'), from: rk.id, to: n.id, type: 'cat', qty: '1', conn: 'rj45', conn2: 'rj45', spec: 'Cat6 · ' + kd + (poe && kd !== 'PoE' ? ' + PoE' : ''), srcNet: kd === 'AES67' ? 'aes67' : 'poe' };
   if (sw && sp) digiNetAssign(cc, n, sw, sp);
-  else if (sw) cc.note = 'רשת AES67 → ' + shortModel(sw.name) + ' · ⚠ אין פורט פנוי במתג — דרוש מתג גדול יותר';
-  else cc.note = 'רשת AES67 לארון "' + (rk.name || '') + '" · ⚠ אין מתג PoE בארון — בדיקת השלמות תציע מתג';
+  else if (sw) cc.note = 'רשת ' + kd + ' → ' + shortModel(sw.name) + ' · ⚠ אין פורט פנוי במתג — דרוש מתג גדול יותר';
+  else cc.note = 'רשת ' + kd + ' לארון "' + (rk.name || '') + '" · ⚠ אין מתג PoE בארון — בדיקת השלמות תציע מתג';
   if (P.scale) cc.len = +(Math.hypot((rk.x || 0) - (n.x || 0), (rk.y || 0) - (n.y || 0)) * P.scale).toFixed(1);
   { const hs = n.panel && n.panel.holes, hi = hs ? hs.findIndex(h => h.conn === 'rj45') : -1; if (hi >= 0) { cc.toHole = hi + 1; if (!hs[hi].label) hs[hi].label = 'NET'; } }
   P.cables.push(cc);
@@ -6422,12 +6427,12 @@ function digiNetAutoCable(n) {
 /* כל מוצרי DigiSynthetic AES67 שעל התכנית בלי כבל רשת לארון — מקבלים אחד (אחרי הוספה לתכנית / בניית מערכת) */
 function digiNetAutoAll(ids) {
   let k = 0; P.nodes.forEach(n => { if (ids && !ids.has(n.id)) return; if (digiNetAutoCable(n)) k++; });
-  if (k) setTimeout(() => uiToast('🌐 ' + k + ' כבלי רשת Cat6 (AES67 + PoE) למתג נוספו למוצרי DigiSynthetic', 5000), 300);
+  if (k) setTimeout(() => uiToast('🌐 ' + k + ' כבלי רשת Cat6 (PoE) למתג נוספו למכשירי הרשת (DigiSynthetic AES67 / קיפדי NST / PoE)', 5000), 300);
   return k;
 }
 function digiNetHintHTML(n) {
   const c = digiNetCableOf(n);
-  return '<div style="background:#eaf3ff;border:1px solid #9cc3ee;border-radius:8px;padding:6px 8px;margin:6px 0;font-size:12px;color:#164a7a"><b>🌐 DigiSynthetic AES67</b> — מתחבר ברשת (Cat6) למתג שבארון ומוזן PoE מהמתג; אין צורך בנקודת חשמל.<br>' +
+  return '<div style="background:#eaf3ff;border:1px solid #9cc3ee;border-radius:8px;padding:6px 8px;margin:6px 0;font-size:12px;color:#164a7a"><b>🌐 ' + esc(netDevLbl(n.name)) + '</b> — חובה כבל רשת Cat6 למתג PoE שבארון; מוזן PoE מהמתג, אין צורך בנקודת חשמל.<br>' +
     (c ? '<small>' + esc(c.note || c.spec || 'כבל רשת לארון') + '</small>' : '<button type="button" style="margin-top:4px;background:#185fa5;color:#fff;border:none;border-radius:7px;padding:5px 9px;font-weight:700;cursor:pointer" onclick="if(digiNetAutoCable(byId(\'' + n.id + '\'))){save();render();uiToast(\'🌐 נוסף כבל רשת למתג\')}else uiToast(\'אין ארון בתכנית\')">➕ חבר ברשת למתג ה-PoE</button>') + '</div>';
 }
 window.digiNetAutoCable = digiNetAutoCable;
@@ -8417,7 +8422,15 @@ function projGapCheck() {
     finds.push({ i: '🎛', t: 'אין סעיף כיוון/תכנות מערכת סאונד בהצעה', b: 'הוסף סעיף כיוון', fn: 'addTuneLine()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כיוון')" } });
   }
   /* 2. קווים בלי מוצר כבל בהצעה */
-  const noRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0).length;
+  const noRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0 && !(c.type === 'cat' && c.srcNet)).length;
+  /* מכשירי רשת PoE (קיפד NST / DigiSynthetic AES67 / PoE): בלי כבל רשת לארון → חיבור; כבל בלי שורת Cat6 בהצעה → כבל יצוק באורך + 30% ספייר */
+  P.nodes.filter(n => isDigiNetNode(n) && !n.hidden).forEach(n => {
+    const c = digiNetCableOf(n);
+    if (!c) { finds.push({ i: '🌐', k: 'netdev|' + n.id, t: netDevLbl(n.name) + ' "' + (n.name || '').slice(0, 28) + '" — חובה כבל רשת Cat6 למתג PoE, ואין כבל לארון', b: '➕ חבר ברשת למתג', fn: "digiNetAutoCable(byId('" + n.id + "'));render();save();gapBack()" }); return; }
+    if (c.stockRef || c.inst === 'exist' || !(+c.len > 0)) return;
+    const need = Math.ceil(+c.len * 1.3), pick = cat6Pick(need);
+    finds.push({ i: '🧵', k: 'netcab|' + c.id, t: 'כבל רשת ל' + netDevLbl(n.name) + ' "' + (n.name || '').slice(0, 24) + '": ' + (+c.len).toFixed(1) + ' מ׳ בתכנית + 30% ספייר = ' + need + ' מ׳ — אין כבל Cat6 בהצעה' + (pick ? ' · מוצע: ' + pick[1].slice(0, 40) + (pick[3] > 0 ? ' (במלאי ' + pick[3] + ')' : ' (אין מלאי)') : ''), b: pick ? '➕ כבל Cat6 ' + cat6Len(pick[1]) + ' מ׳' : '🔍 כבל רשת', fn: pick ? "gapAddCat6('" + c.id + "')" : "gapSearch('כבל רשת CAT6')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כבל רשת CAT6')" } });
+  });
   /* 2ב. פאצ'ים פנימיים בארון (פרוססור→מגבר) — כבלי XLR קצרים מוכנים, לא גליל */
   const intN = P.cables.filter(c => c.internal && c.inst !== 'exist').length;
   const shortXlr = qsum(it => /XLR/i.test(it.name) && /כבל/.test(it.name) && (/\b(0\.5|1|1\.5|2)\s*מטר|קצר|patch/i.test(it.name)));
@@ -8485,7 +8498,7 @@ function projGapCheck() {
     const netDevs = (P.cables || []).filter(c => c.type === 'cat' && !c.internal && ((c.from === rk.id && isDigiNetNode(byId(c.to))) || (c.to === rk.id && isDigiNetNode(byId(c.from)))));   /* פאנלים / קיפדים / מתאמים DigiSynthetic AES67 — ברשת + PoE */
     if (!netAmps.length && !netDevs.length) return;
     const sw = rackNetSwitch(rk);
-    const who = (netAmps.length ? netAmps.length + ' מגברים מוזנים ברשת (Dante/AES67)' : '') + (netDevs.length ? (netAmps.length ? ' + ' : '') + netDevs.length + ' מוצרי DigiSynthetic AES67 (PoE)' : '');
+    const who = (netAmps.length ? netAmps.length + ' מגברים מוזנים ברשת (Dante/AES67)' : '') + (netDevs.length ? (netAmps.length ? ' + ' : '') + netDevs.length + ' מכשירי רשת PoE (קיפד NST / DigiSynthetic AES67)' : '');
     if (!sw) { const needP = netAmps.length + 1 + (P.cables || []).filter(c => c.type === 'cat' && !c.internal && ((c.to === rk.id && c.from !== rk.id) || (c.from === rk.id && c.to !== rk.id))).length + 1, poe = netDevs.length > 0 || (P.cables || []).some(c => /PoE/i.test(c.spec || '')), cand = netSwitchCands(needP, poe)[0] || netSwitchCands(needP, false)[0];
       finds.push({ i: '🌐', k: 'netsw|' + rk.id, t: who + ' ב"' + rk.name.slice(0, 18) + '" — אין מפצל רשת' + (poe ? ' PoE' : '') + ' בארון · נדרשים ~' + needP + ' פורטים (מגברים + פרוססור + מכשירי רשת + עלייה)' + (cand ? ' · מוצע: ' + cand.r[1].slice(0, 44) + ' (' + cand.p + ' פורטים' + (cand.r[3] > 0 ? ', במלאי ' + cand.r[3] : ', אין מלאי') + ')' : ''), b: cand ? '➕ הוסף מפצל ' + cand.p + ' פורטים לארון' : '🔍 מפצל רשת', fn: cand ? "gapAddSwitch('" + rk.id + "'," + needP + ',' + (poe ? 'true' : 'false') + ')' : "gapSearch('מפצל רשת')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('מפצל רשת')" } }); return; }
     { const un = digiNetUnlinked(rk); if (un.length) finds.push({ i: '🌐', k: 'diginet|' + rk.id, t: un.length + ' מוצרי DigiSynthetic AES67 מחוברים לארון "' + rk.name.slice(0, 18) + '" בלי פורט במתג ' + shortModel(sw.name), b: '🔌 שבץ לפורטי PoE', fn: "digiNetRelink(byId('" + rk.id + "'));render();save();gapBack()" }); }
@@ -8581,6 +8594,22 @@ function gapRemoveUnit(rkId, uId) {
 }
 window.gapRemoveUnit = gapRemoveUnit;
 /* אחרי תיקון מיידי — חזרה לחלון הבדיקה, כדי לראות מה עוד פתוח */
+/* כבל רשת Cat6 יצוק מהקטלוג לפי אורך: הקצר ביותר שמכסה את הדרוש (עדיפות למלאי); מעל 30 מ׳ — לפי מטר / גליל */
+function cat6Len(nm) { const m = /(\d+(?:\.\d+)?)\s*(?:מטר|M\b|m\b)/i.exec(String(nm || '')); return m ? +m[1] : 0; }
+function cat6Pick(need) {
+  const rows = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([, n, p]) => n && +p > 0 && /כבל רשת|CAT\s?6/i.test(n) && /CAT\s?6|CAT6A/i.test(n) && /יצוק|מגשר/.test(n) && !/ממיר|מרחיק|אקסטנדר|מאריך|HDMI|KVM|מאש/i.test(n));
+  const ok = rows.map(r => [...r, cat6Len(r[1])]).filter(r => r[4] >= need).sort((a, b) => a[4] - b[4] || (b[3] > 0) - (a[3] > 0));
+  return ok.find(r => r[3] > 0) && ok.find(r => r[3] > 0)[4] <= (ok[0][4] * 1.6) ? ok.find(r => r[3] > 0) : ok[0] || null;
+}
+function gapAddCat6(cid) {
+  const c = (P.cables || []).find(x => x.id === cid); if (!c) return;
+  const need = Math.ceil((+c.len || 0) * 1.3), pick = cat6Pick(need); if (!pick) { gapSearch('כבל רשת CAT6'); return; }
+  const it = { on: true, qty: 1, len: pick[4], name: pick[1], key: pick[0], src: 'בדיקת שלמות — כבל רשת PoE (+30%)', dest: 'cable', type: 'cat', cat: 'cable', conn: 'rj45', u: 1, iid: uid('i') };
+  autoPrice(it); impItems.push(it);
+  const st = ensureStockItem(it); st.type = 'cat'; applyStockRef('cable|' + st.id, null, c);
+  render(); save(); uiToast('➕ ' + pick[1].slice(0, 44) + ' נוסף להצעה וקושר לקו (' + (+c.len).toFixed(1) + ' מ׳ + 30% = ' + need + ' מ׳)', 6000); gapBack();
+}
+window.gapAddCat6 = gapAddCat6;
 function gapBack() { if (window.__gapReopen) setTimeout(projGapCheck, 250); }
 window.gapBack = gapBack;
 /* עמדת DJ מקבלת תמיד גם כבל רשת (Cat6) מהארון — שליטה, סטרימינג, רשת לציוד העמדה */
