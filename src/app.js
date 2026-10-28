@@ -14018,8 +14018,39 @@ function erpQImport(ov, toZone) {
   if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender();   /* גם באשף V2 */
   if (z && err) uiToast('✓ ' + n + ' פריטים נטענו מהצעה ' + q.code + ' · ⚠ ההצבה באזור נכשלה: ' + (err.message || err), 6000);
   else if (z) uiToast('✓ ' + n + ' פריטים מהצעה ' + q.code + ' הוצבו ב"' + z.name + '": ' + placed + ' מוקדים על התכנית, הציוד בארון הריכוז', 6000);
-  else uiToast('✓ ' + n + ' פריטים נטענו מהצעת מחיר ' + q.code + ' — עכשיו הצב אותם על התכנית (📍 או גרירה)');
+  else { uiToast('✓ ' + n + ' פריטים נטענו מהצעת מחיר ' + q.code); erpPlaceAsk(items, q.code); }
 }
+/* אחרי משיכת הצעה מה-ERP: לשאול אם למקם מיד על התכנית את מה שרלוונטי — רמקולים, סאבים, ארון, יחידות לארון, פאנלים */
+function erpPlaceAsk(items, code) {
+  const isSubN = nm => /סאב|\bsub\b/i.test(nm || '');
+  const grp = { spk: [], sub: [], rack: [], unit: [], panel: [], pt: [] };
+  for (const it of items) {
+    if (it.on === false || it.dest === 'ignore') continue;
+    if (it.dest === 'point') (isSpeakerItem(it.name) ? (isSubN(it.name) ? grp.sub : grp.spk) : grp.pt).push(it);
+    else if (it.dest === 'rack') grp.rack.push(it);
+    else if (it.dest === 'unit' || it.dest === 'panelUnit') grp.unit.push(it);
+    else if (it.dest === 'panelNode') grp.panel.push(it);
+  }
+  const qty = a => a.reduce((s, it) => s + (+it.qty || 1), 0);
+  const parts = [[grp.spk, '🔊 רמקולים'], [grp.sub, '🔈 סאבים'], [grp.pt, '📍 מכשירים על התכנית'], [grp.rack, '🗄 ארונות'], [grp.unit, '🎛 יחידות לארון (מגברים / פרוססורים)'], [grp.panel, '🔌 פאנלים / קופסאות']].filter(([a]) => a.length);
+  if (!parts.length) return;
+  const all = [...grp.spk, ...grp.sub, ...grp.pt, ...grp.rack, ...grp.unit, ...grp.panel];
+  const ov = uiModal('<b style="font-size:14px">📍 למקם את הפריטים מהצעה ' + esc(code || '') + ' על התכנית?</b>' +
+    '<div style="font-size:12.5px;line-height:1.7;margin:8px 0">' + parts.map(([a, l]) => '<div><b>' + qty(a) + '</b> ' + l + '</div>').join('') + '</div>' +
+    '<p class="muted" style="font-size:11px;margin:0 0 8px">רמקולים, סאבים ומכשירים נכנסים כמוקדים (גרור אותם למקום הנכון); מגברים ופרוססורים נכנסים לארון (נוצר אם אין); פאנלים כקופסאות על התכנית. כבלים, מתקנים ועבודה נשארים רק בהצעה.</p>' +
+    '<div style="display:flex;gap:6px"><button class="primary" data-go style="flex:1;background:#0f6e56">📍 כן, מקם על התכנית</button><button data-x style="flex:0 0 auto">לא עכשיו</button></div>');
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  ov.querySelector('[data-go]').onclick = () => {
+    ov.remove();
+    all.forEach(it => { it.on = true; });
+    const n0 = P.nodes.length, u0 = P.nodes.filter(x => x.kind === 'rack').reduce((s, r) => s + (r.units || []).length, 0);
+    addImported(new Set(all.map(it => it.iid)));
+    const u1 = P.nodes.filter(x => x.kind === 'rack').reduce((s, r) => s + (r.units || []).length, 0);
+    renderImp(); save();
+    uiToast('📍 הוצבו: ' + (P.nodes.length - n0) + ' מוקדים על התכנית' + (u1 - u0 ? ' · ' + (u1 - u0) + ' יחידות בארון' : '') + ' — גרור אותם למקומם', 6000);
+  };
+}
+window.erpPlaceAsk = erpPlaceAsk;
 /* חיפוש תוך כדי הקלדה — ממתין 350 מ"ש אחרי התו האחרון ואז מושך מה-ERP; הסמן נשאר בשדה */
 function erpQTyped(inp) {
   erpQState.q = inp.value;
@@ -15143,7 +15174,6 @@ function renderImp() {
       ${pinMode ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 נקר על התכנית (Esc לסיום)</span>' : ''}
       ${connPin ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 לחץ ליד קצה כבל (Esc לסיום)</span>' : ''}
       ${replFor ? '<span style="background:#7aa2ff;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">🔄 חפש ובחר מוצר להחלפה (Esc לביטול)</span>' : ''}
-      <button onclick="linkCablesToOffer()" title="משייך את הכבלים והגלילים שכבר בהצעה לקווים בתכנית — לפי סוג ואורך, כולל ניצול הגליל; מה שחסר מוצג להשלמה" style="white-space:nowrap">🔗 שייך כבלים</button>
       <button onclick="showKits()" title="קיטים מוכנים (ERP)" style="white-space:nowrap">🧰 קיטים</button>
       <button onclick="showErp()" title="משיכה מפרויקטים מאושרים והצעות קיימות (ERP)" style="white-space:nowrap">🗂 פרויקטים</button>
       <button onclick="dockWide=!dockWide;renderImp()" title="${dockWide ? 'חזרה מהמסך המלא' : 'הרחב על כל המסך'}" style="${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '⤡' : '⤢'}</button>
@@ -17482,15 +17512,17 @@ function stockUsage(it) {
   if (!s) return '';
   return it.dest === 'reel' ? `${s.used || 0}/${s.total} מ׳` : `${s.used || 0}/${s.qty} בשימוש`;
 }
-function addImported() {
+function addImported(only) {   /* only = Set של iid — רק הפריטים האלה (אחרי משיכת הצעה מה-ERP) */
   let px = 150, py = 900, added = 0, lastNewRack = null;
   const before = new Set(P.nodes.map(x => x.id));
-  for (const it of impItems) {
+  /* ארונות קודם — כך שמגברים ופרוססורים מאותו ייבוא נכנסים לארון שהגיע איתם, לא לארון קיים */
+  for (const it of [...impItems].sort((a, b) => (a.dest === 'rack' ? 0 : 1) - (b.dest === 'rack' ? 0 : 1))) {
     if (!it.on || it.added || it.dest === 'ignore') continue;
+    if (only && !only.has(it.iid)) continue;
     it.iid = it.iid || uid('i');
     if (it.dest === 'unit' || it.dest === 'panelUnit') {
       /* עדיפות: הארון שנבחר בשורה → הארון שנוצר באותו ייבוא → ארון קיים/אוטומטי */
-      const r = (byId(it.rack) && byId(it.rack).kind === 'rack') ? byId(it.rack) : (lastNewRack || autoRack(undefined, undefined, it.u || 1));
+      const r = lastNewRack || ((byId(it.rack) && byId(it.rack).kind === 'rack') ? byId(it.rack) : autoRack(undefined, undefined, it.u || 1));   /* ארון שהגיע באותו ייבוא קודם לברירת המחדל של השורה */
       for (let k = 0; k < it.qty; k++) {
         const uu = it.u || 1;
         let pos = firstFree(r, uu);
