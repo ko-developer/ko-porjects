@@ -8776,10 +8776,9 @@ function gapSearch(q) {
   ov.querySelector('[data-x]').onclick = () => { ov.remove(); gapBack(); };
 }
 /* קיטי ההתקנה האמיתיים — Project Accessories Kit עם "התקנה" בשם (עמדה/ארון/סטנדרט) + קיטים אישיים */
-function installKitList() {
-  return allKits().map((k, i) => ({ k, i }))
-    .filter(x => (x.k.sys === 'Project Accessories Kit' && /התקנ/.test(x.k.name)) || (/קיט/.test(x.k.name) && /התקנ/.test(x.k.name) && !/מסך|לד\b/i.test(x.k.name)));
-}
+/* קיט התקנה (עמדה / ארון / סטנדרט / אביזרי פרויקט) — הטאב "🔧 התקנה" במסך הקיטים ובחירת קיט ההתקנה לפרויקט */
+function kitIsInstall(k) { const n = k.name || ''; return (k.sys === 'Project Accessories Kit' && /התקנ/.test(n)) || (/קיט/.test(n) && /התקנ/.test(n) && !/מסך|לד\b/i.test(n)); }
+function installKitList() { return allKits().map((k, i) => ({ k, i })).filter(x => kitIsInstall(x.k)); }
 /* אחרי חיווט: קיטים של אביזרים/התקנות שמתאימים להשלמת הפרויקט */
 function patchOfferKits(zid) {
   const z = (P.zones || []).find(x => x.id === zid) || (P.zones || [])[0];
@@ -13703,13 +13702,13 @@ const KIT_SPK_RANGES = [['', 'כל כמות'], ['1-2', '1–2'], ['3-4', '3–4'
 function kitSpkIn(n, r) { if (!r) return true; if (r === '17+') return n >= 17; const [a, b] = r.split('-').map(Number); return n >= a && n <= b; }
 function renderKits() {
   const q = kitQ.trim();
-  const CATS_K = [['', 'הכל'], ['audio', '🔊 סאונד'], ['lighting', '💡 תאורה'], ['video', '📺 וידאו'], ['hidden', '✕ מוסתרים']];
+  const CATS_K = [['', 'הכל'], ['audio', '🔊 סאונד'], ['lighting', '💡 תאורה'], ['video', '📺 וידאו'], ['install', '🔧 התקנה ' + allKits().filter(k => !kitHidden(k.name) && kitIsInstall(k)).length], ['hidden', '✕ מוסתרים']];
   const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
   const hay = k => (k.name + ' ' + kitStdName(k) + ' ' + kitCatOf(k) + ' ' + (k.sys || '') + ' ' + (k.items || []).map(x => x.name).join(' ')).toLowerCase();
   const hiddenCount = allKits().filter(k => kitHidden(k.name)).length;
   const list = allKits()
     .filter(k => kitCat === 'hidden' ? kitHidden(k.name) : !kitHidden(k.name))
-    .filter(k => !kitCat || kitCat === 'hidden' || kitCatOf(k) === kitCat)
+    .filter(k => !kitCat || kitCat === 'hidden' || (kitCat === 'install' ? kitIsInstall(k) : kitCatOf(k) === kitCat))
     .filter(k => !toks.length || toks.every(t => hay(k).includes(t)));
   /* צ׳יפים של מותג וכמות — נספרים על הרשימה אחרי סינון הקטגוריה והחיפוש, כך שרואים כמה קיטים יש בכל בחירה */
   const base = list;
