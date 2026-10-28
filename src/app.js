@@ -4371,6 +4371,9 @@ function renderNodes() {
       if (ue && n.kind === 'rack' && !n.rear) {
         const uu = n.units.find(x => x.id === ue.dataset.uid);
         pendingU = { nid: n.id, uid: ue.dataset.uid, sx: e.clientX, sy: e.clientY, name: uu ? uu.name : '' };
+        /* לחיצה על מוצר בחזית הארון בוחרת אותו בתפריט: פנל החיבורים שלו נפתח והשורה שלו ברשימת היחידות מודגשת ונגללת לתצוגה */
+        rearPick = { nodeId: n.id, unitId: ue.dataset.uid };
+        setTimeout(() => { const el = document.querySelector('#side [data-usel="' + ue.dataset.uid + '"]'); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60);
       }
       sel = n.id; ui.tab = 'node';
       if (!e.target.closest('[data-drag]')) render();
@@ -10438,7 +10441,7 @@ function renderPanel() {
     <div class="fld"><label>${n.rtype === 'elec' ? 'מספר מסילות DIN' : n.rtype === 'boxWp' ? 'גובה פנימי (שורות ציוד)' : 'גובה ארון (U)'}</label><input type="number" min="1" max="48" value="${n.ru}" onchange="byId('${n.id}').ru=+this.value;render()"></div>
       ${rackSurplusHTML(n)}${rackNetHintHTML(n)}
       <h3 class="sec">יחידות בארון — ▲▼ להזזה, או הקלד מיקום U</h3><ul class="ulist">` +
-      sorted.map(({ u, i }) => `<li>
+      sorted.map(({ u, i }) => `<li data-usel="${u.id}" style="${rearPick && rearPick.nodeId === n.id && rearPick.unitId === u.id ? 'background:#fff3e6;outline:2px solid #ff8a50;border-radius:6px' : ''}">
         <span class="sw" style="background:${(CATS[u.cat] || CATS.other).c}"></span><b>${esc(u.name)}</b>
         <input class="posin" type="number" min="1" max="${n.ru}" value="${u.pos + 1}" title="מיקום U מלמעלה" onchange="setPos('${n.id}',${i},this.value)">
         <span>${u.u}U</span>
@@ -15239,7 +15242,7 @@ function renderImp() {
         <button title="מחק את השורות המסומנות" onclick="deleteMarked()" style="padding:5px 10px;font-size:13px;line-height:1;background:#f3d9d2;color:#8c2f16">🗑</button>
       </div>
       <button style="width:100%;margin-top:6px;${P._gapOk ? 'background:#eef7f1;color:#0f6e56' : 'background:#b7761f;color:#fff;font-weight:700'}" onclick="projGapCheck()">🤔 ${P._gapOk ? '✓ אין ממצאים פתוחים — לחץ לבדיקה חוזרת' : 'האם שכחתי משהו? — בדיקת שלמות'}</button>
-      <button style="width:100%;margin-top:6px" onclick="installerReport()">📑 צפה בדוח התקנה — מתקינים וחשמלאים</button>
+      <button style="width:100%;margin-top:6px" onclick="exportReportPart('all')" title="הדוח המלא — אותו דוח כמו בתפריט ייצוא: ללקוח, לחשמלאי ולמתקין, עם תפריט בכריכה">📑 צפה בדוח — לקוח · חשמלאי · מתקין</button>
       <button style="width:100%;margin-top:8px;background:#0f6e56;color:#fff;font-weight:800;padding:10px" onclick="sendOffer()">📤 שלח הצעה ל-ERP</button>`
     : '<p class="muted">חפש למעלה מוצר או קיט, לחץ עליו — ונקר אותו על התכנית. כל נעיצה נרשמת כאן עם האזור והמחיר.</p>';
   const q = dockQ.trim();
@@ -18152,7 +18155,8 @@ function exportPDF0() {
   const shownInDisc = n => catsN > 1 && (P.cables || []).some(c => c.from === n.id || c.to === n.id);
   P.nodes.forEach(n => {
     if (n.kind === 'panel' && n.panel && !isPwPanel(n) && !shownInDisc(n)) panels.push({ t: n.name + (n.sub ? ' — ' + n.sub : ''), p: n.panel });
-    if (n.kind === 'rack') n.units.forEach(u => { if (u.panel) panels.push({ t: `${u.name} (${u.u}U, פאנל 19″) — בתוך ${n.name}`, p: u.panel, rack: true }); });
+    /* יחידה שיש לה פריסת גב שמורה (ספרייה / שרת) מוצגת כגב המוצר האמיתי — לא כקופסת מולטי, גם אם נשאר עליה פאנל מחברים ישן */
+    if (n.kind === 'rack') n.units.forEach(u => { if (u.panel && !['lib', 'srv'].includes(rearLayoutSrc(u.name).src)) panels.push({ t: `${u.name} (${u.u}U, פאנל 19″) — בתוך ${n.name}`, p: u.panel, rack: true }); });
   });
   /* שרטוט פאנל לדוח (מטריצה/חופשי) — משותף להכנות החשמל ולפאנלים */
   const panelBodyHTML = p => {
