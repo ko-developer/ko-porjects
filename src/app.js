@@ -6422,6 +6422,7 @@ function digiNetAutoCable(n) {
   if (P.scale) cc.len = +(Math.hypot((rk.x || 0) - (n.x || 0), (rk.y || 0) - (n.y || 0)) * P.scale).toFixed(1);
   { const hs = n.panel && n.panel.holes, hi = hs ? hs.findIndex(h => h.conn === 'rj45') : -1; if (hi >= 0) { cc.toHole = hi + 1; if (!hs[hi].label) hs[hi].label = 'NET'; } }
   P.cables.push(cc);
+  if (P.scale && +cc.len > 0 && typeof netCableAddCat6 === 'function') netCableAddCat6(cc, true);   /* כבל Cat6 יצוק להצעה, +30% */
   return cc;
 }
 /* כל מוצרי DigiSynthetic AES67 שעל התכנית בלי כבל רשת לארון — מקבלים אחד (אחרי הוספה לתכנית / בניית מערכת) */
@@ -8422,14 +8423,21 @@ function projGapCheck() {
     finds.push({ i: '🎛', t: 'אין סעיף כיוון/תכנות מערכת סאונד בהצעה', b: 'הוסף סעיף כיוון', fn: 'addTuneLine()', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כיוון')" } });
   }
   /* 2. קווים בלי מוצר כבל בהצעה */
-  const noRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0 && !(c.type === 'cat' && c.srcNet)).length;
+  const isNetLine = c => c.type === 'cat' && !c.internal && (c.srcNet || c.djNet || [byId(c.to), byId(c.from)].some(x => x && x.kind !== 'rack' && (isDjNode(x) || isDigiNetNode(x))));   /* גם קווים שנוצרו לפני התיוג */
+  const noRef = P.cables.filter(c => !c.stockRef && c.inst !== 'exist' && !c.internal && +c.len > 0 && !isNetLine(c)).length;
+  /* קווי רשת (קיפד / מכשיר PoE / עמדת DJ) בלי שורת Cat6 בהצעה, או עם כבל קצר מהקו + 30% */
+  P.cables.filter(c => isNetLine(c) && c.inst !== 'exist' && +c.len > 0).forEach(c => {
+    const other = byId(c.to) && byId(c.to).kind !== 'rack' ? byId(c.to) : byId(c.from); const nm = other ? (other.name || '').slice(0, 24) : '?';
+    const need = Math.ceil(+c.len * 1.3), st = netCableStock(c);
+    if (c.stockRef && st && +st.len > 0 && +st.len < need) { const pick = cat6Pick(need); finds.push({ i: '🧵', k: 'netshort|' + c.id, t: 'כבל הרשת שבהצעה ל"' + nm + '" (' + st.len + ' מ׳) קצר מהקו: ' + (+c.len).toFixed(1) + ' מ׳ + 30% = ' + need + ' מ׳' + (pick ? ' · מוצע: ' + pick[1].slice(0, 36) : ''), b: pick ? '🔁 החלף לכבל ' + cat6Len(pick[1]) + ' מ׳' : '🔍 כבל רשת', fn: pick ? "netCableReplace('" + c.id + "')" : "gapSearch('כבל רשת CAT6')" }); return; }
+    if (c.stockRef) return;
+    const pick = cat6Pick(need);
+    finds.push({ i: '🧵', k: 'netcab|' + c.id, t: 'כבל רשת ל"' + nm + '": ' + (+c.len).toFixed(1) + ' מ׳ בתכנית + 30% ספייר = ' + need + ' מ׳ — אין כבל Cat6 בהצעה' + (pick ? ' · מוצע: ' + pick[1].slice(0, 40) + (pick[3] > 0 ? ' (במלאי ' + pick[3] + ')' : ' (אין מלאי)') : ''), b: pick ? '➕ כבל Cat6 ' + cat6Len(pick[1]) + ' מ׳' : '🔍 כבל רשת', fn: pick ? "gapAddCat6('" + c.id + "')" : "gapSearch('כבל רשת CAT6')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כבל רשת CAT6')" } });
+  });
   /* מכשירי רשת PoE (קיפד NST / DigiSynthetic AES67 / PoE): בלי כבל רשת לארון → חיבור; כבל בלי שורת Cat6 בהצעה → כבל יצוק באורך + 30% ספייר */
   P.nodes.filter(n => isDigiNetNode(n) && !n.hidden).forEach(n => {
     const c = digiNetCableOf(n);
     if (!c) { finds.push({ i: '🌐', k: 'netdev|' + n.id, t: netDevLbl(n.name) + ' "' + (n.name || '').slice(0, 28) + '" — חובה כבל רשת Cat6 למתג PoE, ואין כבל לארון', b: '➕ חבר ברשת למתג', fn: "digiNetAutoCable(byId('" + n.id + "'));render();save();gapBack()" }); return; }
-    if (c.stockRef || c.inst === 'exist' || !(+c.len > 0)) return;
-    const need = Math.ceil(+c.len * 1.3), pick = cat6Pick(need);
-    finds.push({ i: '🧵', k: 'netcab|' + c.id, t: 'כבל רשת ל' + netDevLbl(n.name) + ' "' + (n.name || '').slice(0, 24) + '": ' + (+c.len).toFixed(1) + ' מ׳ בתכנית + 30% ספייר = ' + need + ' מ׳ — אין כבל Cat6 בהצעה' + (pick ? ' · מוצע: ' + pick[1].slice(0, 40) + (pick[3] > 0 ? ' (במלאי ' + pick[3] + ')' : ' (אין מלאי)') : ''), b: pick ? '➕ כבל Cat6 ' + cat6Len(pick[1]) + ' מ׳' : '🔍 כבל רשת', fn: pick ? "gapAddCat6('" + c.id + "')" : "gapSearch('כבל רשת CAT6')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('כבל רשת CAT6')" } });
   });
   /* 2ב. פאצ'ים פנימיים בארון (פרוססור→מגבר) — כבלי XLR קצרים מוכנים, לא גליל */
   const intN = P.cables.filter(c => c.internal && c.inst !== 'exist').length;
@@ -8601,14 +8609,28 @@ function cat6Pick(need) {
   const ok = rows.map(r => [...r, cat6Len(r[1])]).filter(r => r[4] >= need).sort((a, b) => a[4] - b[4] || (b[3] > 0) - (a[3] > 0));
   return ok.find(r => r[3] > 0) && ok.find(r => r[3] > 0)[4] <= (ok[0][4] * 1.6) ? ok.find(r => r[3] > 0) : ok[0] || null;
 }
-function gapAddCat6(cid) {
-  const c = (P.cables || []).find(x => x.id === cid); if (!c) return;
-  const need = Math.ceil((+c.len || 0) * 1.3), pick = cat6Pick(need); if (!pick) { gapSearch('כבל רשת CAT6'); return; }
-  const it = { on: true, qty: 1, len: pick[4], name: pick[1], key: pick[0], src: 'בדיקת שלמות — כבל רשת PoE (+30%)', dest: 'cable', type: 'cat', cat: 'cable', conn: 'rj45', u: 1, iid: uid('i') };
+/* כבל רשת יצוק להצעה בשביל קו רשת (קיפד / מכשיר PoE / עמדת DJ): אורך הקו + 30% ספייר, מקושר לקו. quiet = בלי טוסט ורינדור (מתוך יצירת הקו) */
+function netCableAddCat6(c, quiet) {
+  if (!c || !(+c.len > 0)) return null;
+  const need = Math.ceil(+c.len * 1.3), pick = cat6Pick(need); if (!pick) return null;
+  const it = { on: true, qty: 1, len: pick[4], name: pick[1], key: pick[0], src: 'כבל רשת לקו (+30% ספייר)', dest: 'cable', type: 'cat', cat: 'cable', conn: 'rj45', u: 1, iid: uid('i'), netAuto: 1 };
   autoPrice(it); impItems.push(it);
   const st = ensureStockItem(it); st.type = 'cat'; applyStockRef('cable|' + st.id, null, c);
-  render(); save(); uiToast('➕ ' + pick[1].slice(0, 44) + ' נוסף להצעה וקושר לקו (' + (+c.len).toFixed(1) + ' מ׳ + 30% = ' + need + ' מ׳)', 6000); gapBack();
+  if (!quiet) { render(); save(); uiToast('➕ ' + pick[1].slice(0, 44) + ' נוסף להצעה וקושר לקו (' + (+c.len).toFixed(1) + ' מ׳ + 30% = ' + need + ' מ׳)', 6000); }
+  return it;
 }
+function netCableStock(c) { if (!c.stockRef || !c.stockRef.startsWith('cable|')) return null; const id = c.stockRef.split('|')[1]; return ((P.stock || {}).cables || []).find(s => s.id === id) || null; }
+/* הכבל שבהצעה קצר מהקו (המוקד הוזז אחרי שהכבל נוסף) — מחליפים לכבל באורך הנכון */
+function netCableReplace(cid) {
+  const c = (P.cables || []).find(x => x.id === cid); if (!c) return;
+  const st = netCableStock(c);
+  if (st) { const k = impItems.findIndex(it => it.stockId === st.id || (it.netAuto && it.key && it.name === st.name)); if (k >= 0) impItems.splice(k, 1); P.stock.cables = P.stock.cables.filter(s => s.id !== st.id); }
+  delete c.stockRef;
+  if (!netCableAddCat6(c, false)) { render(); save(); gapSearch('כבל רשת CAT6'); return; }
+  gapBack();
+}
+function gapAddCat6(cid) { const c = (P.cables || []).find(x => x.id === cid); if (!c) return; if (!netCableAddCat6(c, false)) { gapSearch('כבל רשת CAT6'); return; } gapBack(); }
+window.netCableReplace = netCableReplace;
 window.gapAddCat6 = gapAddCat6;
 function gapBack() { if (window.__gapReopen) setTimeout(projGapCheck, 250); }
 window.gapBack = gapBack;
@@ -8630,11 +8652,12 @@ function djNetCable(rk, dj, refFn) {
   if (!isDj) return null;
   const ex = P.cables.find(c => c.type === 'cat' && ((c.from === rk.id && c.to === dj.id) || (c.from === dj.id && c.to === rk.id)));
   if (ex) return null;
-  const cc = { id: uid('c'), from: rk.id, to: dj.id, type: 'cat', qty: '1', spec: '', conn: 'rj45', conn2: 'rj45', note: 'רשת לעמדת DJ — שליטה / סטרימינג / רשת לציוד העמדה, מהארון' };
+  const cc = { id: uid('c'), from: rk.id, to: dj.id, type: 'cat', qty: '1', spec: 'Cat6', conn: 'rj45', conn2: 'rj45', djNet: 1, note: 'רשת לעמדת DJ — שליטה / סטרימינג / רשת לציוד העמדה, מהארון' };
   if (P.scale) cc.len = +(Math.hypot(rk.x - dj.x, rk.y - dj.y) * P.scale).toFixed(1);
   const ref = refFn ? refFn('cat') : null; if (ref) applyStockRef(ref, null, cc);
   { const hs = dj.panel && dj.panel.holes, hi = hs ? hs.findIndex(h => h.conn === 'rj45') : -1; if (hi >= 0) { cc.toHole = hi + 1; if (!hs[hi].label) hs[hi].label = 'NET'; } }
   P.cables.push(cc);
+  if (!cc.stockRef && P.scale && +cc.len > 0 && typeof netCableAddCat6 === 'function') netCableAddCat6(cc, true);   /* כבל רשת יצוק להצעה (+30%) — גם לעמדת DJ */
   return cc;
 }
 /* השלמת פריט חסר: קודם מגדילים שורה קיימת (המוצר הנכון כבר נבחר),
@@ -10373,6 +10396,7 @@ function renderPanel() {
       const curM = !n.mount || n.mount === 'קיר' ? 'קיר בלוק' : KP_MOUNTS.includes(n.mount) ? n.mount : 'אחר';
       html += `<div style="background:#f4f2ec;border-radius:8px;padding:7px;margin-bottom:6px">
         <div style="font-weight:700;font-size:12px;margin-bottom:4px">🎛 קיפד / פנל חכם — מוקד חופשי על התכנית (לא נצמד למוצרים אחרים)</div>
+      ${isDigiNetNode(n) ? (digiNetCableOf(n) ? '' : '<button style="width:100%;margin:2px 0 6px;background:#185fa5;color:#fff;font-weight:800;border:none;border-radius:8px;padding:8px" onclick="if(digiNetAutoCable(byId(\'' + n.id + '\'))){save();render();uiToast(\'🌐 חובר לארון בכבל רשת (PoE)\')}else uiToast(\'אין ארון בתכנית\')">🔗 חבר מוצר זה לארון — כבל רשת למתג PoE</button>') : ''}
         <div class="fld"><label>גובה התקנה (מ׳ מהרצפה) — למתגים נהוג 1.2–1.5</label><input type="number" step="0.05" min="0" max="6" value="${n.hgt ?? ''}" placeholder="1.4" onchange="byId('${n.id}').hgt=this.value?+this.value:undefined;save();render()"></div>
         <div class="fld"><label>התקנה על גבי</label><select onchange="byId('${n.id}').mount=this.value;save();render()">${KP_MOUNTS.map(m => `<option value="${m}" ${curM === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
         ${curM === 'אחר' ? `<input value="${esc(n.mount === 'אחר' ? '' : (n.mount || ''))}" placeholder="פרט על גבי מה" style="margin-top:4px" onchange="byId('${n.id}').mount=this.value.trim()||'אחר';save()">` : ''}</div>
@@ -10389,8 +10413,13 @@ function renderPanel() {
           <input type="checkbox" style="width:auto" ${on ? 'checked' : ''} onchange="const nn=byId('${n.id}');nn.cabVis=nn.cabVis||{};nn.cabVis['${k}']=this.checked;render();save()">
           <span style="flex:1">${lbl}</span><span class="muted">${cnt}</span></label>`;
       }).join('');
+      /* הכבלים עצמם — סוג, מפרט, אורך, הקצה השני, האם יש שורה בהצעה; לחיצה פותחת את פרטי הכבל */
+      const cabRows = mine.slice(0, 24).map(c => { const other = c.from === n.id ? c.to : c.from, oU = c.from === n.id ? c.toUnit : c.fromUnit, oP = c.from === n.id ? c.pIn : c.pOut;
+        const stock = c.stockRef ? '✓ בהצעה' : (c.inst === 'exist' ? 'קיים' : '⚠ אין כבל בהצעה'); const g = cabGroup(c), col = { audio: '#0f6e56', light: '#b7791f', video: '#185fa5', data: '#5b4b8a', power: '#c1121f' }[g] || '#555';
+        return '<div onclick="pickCable(\'' + c.id + '\')" title="לחץ לפרטי הכבל" style="display:flex;gap:6px;align-items:center;font-size:10.5px;padding:3px 4px;border-top:1px solid #e5e0d6;cursor:pointer;' + (selCable === c.id ? 'background:#fff3e6' : '') + '"><span style="width:8px;height:8px;border-radius:50%;background:' + col + ';flex:none"></span><span style="flex:1;min-width:0"><b>' + esc(cableKindLabel(c)) + '</b>' + (c.spec ? ' · ' + esc(String(c.spec).slice(0, 28)) : '') + '<br><span class="muted">→ ' + esc(endNameTxt(other, oU).slice(0, 30)) + (oP ? ' ' + esc(oP) : '') + (+c.len > 0 ? ' · ' + (+c.len).toFixed(1) + ' מ׳' : '') + ' · ' + stock + '</span></span></div>'; }).join('');
       if (rows) html += `<div style="background:#f4f2ec;border-radius:8px;padding:7px;margin-bottom:6px">
         <div style="font-size:11px;font-weight:700;margin-bottom:3px">🔎 הצג חיבורים במוקד זה (${mine.length})</div>${rows}
+        <div style="margin-top:4px">${cabRows}${mine.length > 24 ? '<div class="muted" style="font-size:10px">… ועוד ' + (mine.length - 24) + '</div>' : ''}</div>
         <label style="display:flex;gap:6px;align-items:center;font-size:11px;padding:3px 4px 0;cursor:pointer;border-top:1px solid #e5e0d6;margin-top:4px">
           <input type="checkbox" style="width:auto" ${!n.hideInt ? 'checked' : ''} onchange="byId('${n.id}').hideInt=!this.checked;render();save()">
           <span>הצג מסלולים פנימיים בתוך המוקד (ליבות מולטי, חיבורים פנימיים)</span></label></div>`;
@@ -10433,10 +10462,11 @@ function renderPanel() {
   } else if (n.kind === 'panel') {
     const cnt = P.cables.filter(c => c.from === n.id || c.to === n.id).length;
     const PM = ['', 'קיר', 'עמדה', 'ארון', 'במה', 'רצפה', 'תקרה', 'אחר'], curPm = !n.mount ? '' : PM.includes(n.mount) ? n.mount : 'אחר';
-    html += `<div class="fld"><label>מותקן על</label><select onchange="byId('${n.id}').mount=this.value;render();save()">
+    if (!isKeypadNode(n)) html += `<div class="fld"><label>מותקן על</label><select onchange="byId('${n.id}').mount=this.value;render();save()">
       ${PM.map(m => `<option value="${m}" ${curPm === m ? 'selected' : ''}>${m || '— בחר —'}</option>`).join('')}
     </select>${curPm === 'אחר' ? `<input value="${esc(n.mount === 'אחר' ? '' : (n.mount || ''))}" placeholder="פרט על גבי מה — שדה פתוח" style="margin-top:4px" onchange="byId('${n.id}').mount=this.value.trim()||'אחר';save();render()">` : ''}</div>
-    ${isDigiNetNode(n) ? digiNetHintHTML(n) : ''}
+`;
+    html += `${isDigiNetNode(n) ? digiNetHintHTML(n) : ''}
     <p class="muted" style="font-size:11px">🔌 ${n.panel.holes.length} חורים · ${cnt} חיבורים · <a href="#" onclick="event.preventDefault();multiView('${n.id}')">תצוגת ניתוב מלאה ⤢</a></p>
     <h3 class="sec">עיצוב הפאנל</h3>` + panelEditor(n.panel, n.id, -1) +
       `<p class="muted" style="margin-top:6px">לחיצה על חור בקנבס מחילה את המברשת. במצב חופשי — גרור חורים למיקום הרצוי.</p>`;
