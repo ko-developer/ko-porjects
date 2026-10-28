@@ -12573,8 +12573,9 @@ function allKits(withHidden) {
    (scripts/erp-kits.js → PUT /api/external/kits ב-ERP). קיט ב-ERP שלא ברשימה מושבת שם — לא נמחק.
    ref יציב לכל קיט: קיט בסיס = ה-uuid שלו ב-ERP (id ב-data/erp_kits.json, scripts/erp-kit-ids.js); קיט שלי = id שנוצר לו
    כאן ונשמר עליו; גרסה שלי שמחליפה קיט בסיס (אותו שם / replaces) יורשת את ה-ref שלו.
-   רץ מהכפתור במסך הקיטים, ואחרי הפרסום הידני הראשון גם לבד: 3 שניות אחרי שמירה / מחיקה / הסתרה של קיט (kitSyncSoon)
-   ובפתיחת מסך הקיטים. */
+   אוטומטי לגמרי, בלי כפתורים: 3 שניות אחרי שמירה / מחיקה / הסתרה של קיט (kitSyncSoon), בפתיחת מסך הקיטים ובטעינת האפליקציה —
+   רק כשהרשימה השתנתה מאז הפרסום האחרון (sig). מודיעים (טוסט + תיבה במסך הקיטים) רק על כישלון: אין חיבור, החיבור בוטל,
+   שגיאת שליחה, או ה-ERP שדורש אישור לכיבוי קיטים רבים (would_deactivate_many — רק אישור ידני שולח allow_deactivate). */
 const KIT_SYNC = { srv: null, status: null, down: false, busy: false, busyManual: false, again: '', againOpt: null, t: null, idsAt: 0, idsErr: '', connectMsg: null, revoked: false };
 /* 401 עם חיבור שמור: הטוקן בוטל ב-ERP. החיבור השמור נשאר עד חיבור מחדש או ניתוק; התיבה מציעה שוב "חיבור ל-ERP" */
 const KIT_REVOKED = 'החיבור ל-ERP בוטל — התחברו מחדש';
@@ -12742,17 +12743,16 @@ async function kitPublish0(auto, dry, allow) {
   const st = await kitSyncSrv(!auto);
   if (st !== 'ok') {
     /* אוטומטי: טוסט רק כשהשרת לא ענה. לא הוגדר / סטטי / לא בעלים — מוצג בתיבה במסך הקיטים */
-    if (!auto || st === 'down') uiToast('⚠ הקיטים לא פורסמו ל-ERP — ' + (KIT_SYNC_WHY[st] || st));
+    if (!auto || KIT_SYNC.warned !== st) { KIT_SYNC.warned = st; uiToast('⚠ הקיטים לא פורסמו ל-ERP — ' + (KIT_SYNC_WHY[st] || st), 7000); }   /* אוטומטי: פעם אחת לכל מצב */
     return null;
   }
   if (!KIT_SYNC.idsAt) await kitErpIdsLoad();
-  if (KIT_SYNC.revoked) { if (!auto) uiToast('⚠ ' + KIT_REVOKED); return null; }
+  if (KIT_SYNC.revoked) { if (!auto || KIT_SYNC.warned !== 'revoked') { KIT_SYNC.warned = 'revoked'; uiToast('⚠ ' + KIT_REVOKED, 8000); } return null; }
   const { kits, noId, sig } = kitSyncPayload();
-  if (!dry && noId) { if (!auto) uiToast('⚠ ' + KIT_SYNC_NOID); return null; }
+  if (!dry && noId) { if (!auto || KIT_SYNC.warned !== 'noid') { KIT_SYNC.warned = 'noid'; uiToast('⚠ ' + KIT_SYNC_NOID, 8000); } return null; }
   const prev = store.kitSync || {};
-  /* אוטומטי רק אחרי פרסום ידני אמיתי ראשון (sig נשמר רק בו; בדיקה בלבד לא נחשבת) — כדי שהבעלים יריץ קודם בדיקה ויראה מה יושבת */
-  if (auto && !prev.sig) return null;
   if (auto && prev.sig === sig) return null;   /* הרשימה לא השתנתה מאז הפרסום האחרון */
+  if (auto && prev.blocked) return null;   /* ה-ERP דרש אישור לכיבוי קיטים — מחכה להחלטה במסך הקיטים (התיבה מציגה) */
   kitSyncPaint();
   const names = Object.fromEntries(kits.map(k => [k.ref, k.name]));
   let last, blocked = null;
@@ -12777,10 +12777,11 @@ async function kitPublish0(auto, dry, allow) {
   /* blocked נשאר עד פרסום אמיתי שמצליח — בינתיים התיבה מציעה "פרסום בכל זאת" ובדיקה שמציגה את הרשימה */
   store.kitSync = { ...prev, last, ...(last.ok && !dry ? { sig, blocked: null } : {}), ...(blocked ? { blocked } : {}) };
   kitSyncPersist();
-  if (!last.ok && auto && (last.code === 'would_deactivate_many' || last.code === 'revoked')) { /* אוטומטי: בתיבה בלבד, בלי טוסט */ }
-  else if (!last.ok && last.code === 'revoked') uiToast('⚠ ' + KIT_REVOKED);
-  else if (!last.ok) uiToast('⚠ ' + (dry ? 'בדיקת' : 'פרסום') + ' הקיטים ל-ERP נכשל' + (last.status ? ' (' + last.status + ')' : '') + ': ' + last.error);
-  else uiToast((dry ? '👁 בדיקה בלבד, לא נשמר: ' : '✓ הקיטים פורסמו ל-ERP: ') + kitSyncSummary(last));
+  /* מודיעים רק על כישלון; פרסום אוטומטי שהצליח — בשקט */
+  if (!last.ok && last.code === 'revoked') uiToast('⚠ ' + KIT_REVOKED, 8000);
+  else if (!last.ok) uiToast('⚠ ' + (dry ? 'בדיקת' : 'פרסום') + ' הקיטים ל-ERP נכשל' + (last.status ? ' (' + last.status + ')' : '') + ': ' + last.error + (auto ? ' · פרטים במסך הקיטים' : ''), 9000);
+  else if (!auto) uiToast((dry ? '👁 בדיקה בלבד, לא נשמר: ' : '✓ הקיטים פורסמו ל-ERP: ') + kitSyncSummary(last));
+  if (last.ok) KIT_SYNC.warned = '';
   return last;
 }
 function kitSyncLastHTML(l) {
@@ -12795,30 +12796,27 @@ function kitSyncLastHTML(l) {
     + det(l.skipped.length, `${l.skipped.length} שורות דולגו`, l.skipped.map(s => '• <b>' + esc(s.kit) + '</b> · <code>' + esc(s.item_key || 'בלי מק"ט') + '</code> · ' + esc(s.reason || '')).join('<br>'));
 }
 function kitSyncPaint() {
+  /* אוטומטי לגמרי — התיבה במסך הקיטים מופיעה רק כשיש מה לתקן: אין חיבור / החיבור בוטל / פרסום נכשל / ה-ERP דורש אישור לכיבוי קיטים */
   const box = document.getElementById('kitSyncBox'); if (!box) return;
   const st = window.__AUTH && !window.__AUTH.owner ? 'guest' : KIT_SYNC.srv || (KIT_SYNC.down ? 'down' : null);
-  const why = st && st !== 'ok' ? KIT_SYNC_WHY[st] : st === 'ok' && KIT_SYNC.revoked ? KIT_REVOKED : '', dis = KIT_SYNC.busy || !st || !!why;
-  const noId = st === 'ok' && kitSyncNoId() > 0, disReal = dis || noId;
-  const l = (store.kitSync || {}).last, bl = (store.kitSync || {}).blocked, cs = KIT_SYNC.status || {}, cm = KIT_SYNC.connectMsg;
-  /* חיבור: לא מחובר → "חיבור ל-ERP"; מחובר מהכפתור → תאריך + ניתוק; טוקן מה-env של השרת → בלי ניתוק */
-  const revoked = st === 'ok' && KIT_SYNC.revoked;
-  const conn = revoked
-    ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><button onclick="kitErpConnect()" style="background:#0f6e56;color:#fff;font-weight:700;border:0">🔗 חיבור ל-ERP</button><span style="font-size:11.5px;color:#c1121f;font-weight:700">${esc(KIT_REVOKED)}</span>${cs.source === 'connected' ? '<button onclick="kitErpDisconnect()" style="padding:0 8px;font-size:11px;background:#fff;border:1px solid #ddd;color:#777">ניתוק</button>' : ''}</div>`
-    : st === 'env'
-    ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><button onclick="kitErpConnect()" style="background:#0f6e56;color:#fff;font-weight:700;border:0">🔗 חיבור ל-ERP</button><span class="muted" style="font-size:11px">אישור אחד ב-ERP, ואחריו אפשר לפרסם את הקיטים</span></div>`
-    : st === 'ok' && cs.source === 'connected'
-    ? `<div style="font-size:11.5px;color:#0a7a4b;margin-bottom:6px;display:flex;gap:8px;align-items:center"><span>🔗 מחובר ל-ERP${cs.connected_at ? ' · ' + esc(new Date(cs.connected_at).toLocaleDateString('he-IL')) : ''}</span><button onclick="kitErpDisconnect()" style="padding:0 8px;font-size:11px;background:#fff;border:1px solid #ddd;color:#777">ניתוק</button></div>`
-    : st === 'ok' && cs.source === 'env' ? '<div style="font-size:11.5px;color:#0a7a4b;margin-bottom:6px">🔗 מחובר ל-ERP (הגדרת שרת)</div>' : '';
-  box.innerHTML = `${conn}${cm && !cm.ok ? `<div style="font-size:11.5px;color:#c1121f;font-weight:700;margin-bottom:6px">⚠ ${esc(cm.text)}</div>` : ''}<div style="display:flex;gap:6px;align-items:center">
-      <button ${disReal ? 'disabled' : ''} onclick="kitPublish()" title="${esc(why || (noId ? KIT_SYNC_NOID : 'שולח ל-ERP את כל רשימת הקיטים, בלי המוסתרים. קיט ERP שלא ברשימה מושבת שם — לא נמחק'))}" style="flex:1;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0">${KIT_SYNC.busy ? '⏳ מפרסם…' : '⤴ פרסום קיטים ל-ERP'}</button>
-      <button ${dis ? 'disabled' : ''} onclick="kitPublish({dry:true})" title="${esc(why || 'מה יקרה ב-ERP — בלי לשנות שם דבר')}">👁 בדיקה בלבד</button></div>
-    ${(why && st !== 'env' && !KIT_SYNC.revoked) || noId ? `<div style="font-size:11px;color:#8a5a00;margin-top:4px">⚠ ${esc(why || KIT_SYNC_NOID + (KIT_SYNC.idsErr ? ' · לא ניתן לקרוא אותם מה-ERP כרגע' : ''))}</div>` : ''}
-    ${!why && !noId && !(store.kitSync || {}).sig ? '<div class="muted" style="font-size:11px;margin-top:4px">הפרסום הראשון נעשה מכאן — אחריו שינויים בקיטים יפורסמו לבד</div>' : ''}
-    ${KIT_SYNC.t && !why && !noId && (store.kitSync || {}).sig ? '<div class="muted" style="font-size:11px;margin-top:4px">⏳ הקיטים השתנו — יפורסמו ל-ERP בעוד רגע</div>' : ''}
-    ${bl && !why ? `<div style="font-size:11.5px;color:#8a1c1c;font-weight:700;margin-top:5px;background:#fdf0f0;border:1px solid #e9b4b4;border-radius:7px;padding:5px 7px">⚠ ${esc(kitManyMsg(bl.count, bl.limit))}
-      <div style="display:flex;gap:6px;margin-top:4px"><button ${disReal ? 'disabled' : ''} onclick="kitPublish({allow:true})" title="${esc(noId ? KIT_SYNC_NOID : 'שולח את הרשימה ומאשר ל-ERP לכבות את הקיטים שלא בה')}" style="flex:1;background:#fff;color:#8a1c1c;border:1px solid #e9b4b4;font-weight:700">פרסום בכל זאת</button>
-      <button ${dis ? 'disabled' : ''} onclick="kitPublish({dry:true,allow:true})" title="בדיקה בלבד — מציגה את הקיטים שיכבו, בלי לשנות דבר ב-ERP">👁 הצג את הקיטים שיכבו</button></div></div>` : ''}
-    ${l ? kitSyncLastHTML(l) : ''}`;
+  const cs = KIT_SYNC.status || {}, cm = KIT_SYNC.connectMsg, l = (store.kitSync || {}).last, bl = (store.kitSync || {}).blocked;
+  const revoked = st === 'ok' && KIT_SYNC.revoked, noId = st === 'ok' && kitSyncNoId() > 0;
+  const connBtn = '<button onclick="kitErpConnect()" style="background:#0f6e56;color:#fff;font-weight:700;border:0">🔗 חיבור ל-ERP</button>';
+  const parts = [];
+  if (st === 'env') parts.push('<div style="display:flex;gap:8px;align-items:center">' + connBtn + '<span class="muted" style="font-size:11px">אישור אחד ב-ERP — אחריו כל שינוי בקיטים מתפרסם לבד</span></div>');
+  else if (revoked) parts.push('<div style="display:flex;gap:8px;align-items:center">' + connBtn + '<span style="font-size:11.5px;color:#c1121f;font-weight:700">' + esc(KIT_REVOKED) + '</span>' + (cs.source === 'connected' ? '<button onclick="kitErpDisconnect()" style="padding:0 8px;font-size:11px;background:#fff;border:1px solid #ddd;color:#777">ניתוק</button>' : '') + '</div>');
+  if (cm && !cm.ok) parts.push('<div style="font-size:11.5px;color:#c1121f;font-weight:700;margin-top:4px">⚠ ' + esc(cm.text) + '</div>');
+  if (st === 'ok' && !revoked && noId) parts.push('<div style="font-size:11px;color:#8a5a00;margin-top:4px">⚠ ' + esc(KIT_SYNC_NOID) + (KIT_SYNC.idsErr ? ' · לא ניתן לקרוא אותם מה-ERP כרגע' : '') + '</div>');
+  if (st === 'ok' && !revoked && bl) {
+    parts.push('<div style="font-size:11.5px;color:#8a1c1c;font-weight:700;margin-top:4px;background:#fdf0f0;border:1px solid #e9b4b4;border-radius:7px;padding:5px 7px">⚠ ' + esc(kitManyMsg(bl.count, bl.limit)) + ' — הפרסום האוטומטי נעצר עד להחלטה'
+      + '<div style="display:flex;gap:6px;margin-top:4px"><button ' + (KIT_SYNC.busy || noId ? 'disabled' : '') + ' onclick="kitPublish({allow:true})" title="שולח את הרשימה ומאשר ל-ERP לכבות את הקיטים שלא בה" style="flex:1;background:#fff;color:#8a1c1c;border:1px solid #e9b4b4;font-weight:700">פרסום בכל זאת</button>'
+      + '<button ' + (KIT_SYNC.busy ? 'disabled' : '') + ' onclick="kitPublish({dry:true,allow:true})" title="בדיקה בלבד — מציגה את הקיטים שיכבו, בלי לשנות דבר ב-ERP">👁 הצג את הקיטים שיכבו</button></div></div>');
+    if (l && l.dry && l.ok) parts.push(kitSyncLastHTML(l));
+  } else if (st === 'ok' && !revoked && l && !l.ok) {
+    parts.push(kitSyncLastHTML(l) + '<button ' + (KIT_SYNC.busy ? 'disabled' : '') + ' onclick="kitPublish()" style="margin-top:4px;font-size:11.5px">' + (KIT_SYNC.busy ? '⏳ מפרסם…' : '🔁 נסה שוב') + '</button>');
+  }
+  box.style.display = parts.length ? '' : 'none';
+  box.innerHTML = parts.join('');
 }
 async function kitErpIdsLoad() {
   try {
@@ -18814,6 +18812,8 @@ window.addEventListener('afterprint', () => { document.body.classList.remove('pr
 
 impItems = impLoad();
 render(); viewToContent();
+/* קיטים → ERP: פרסום אוטומטי של שינויים שעוד לא פורסמו (למשל ממכשיר אחר), כמה שניות אחרי הטעינה */
+if (!(window.__AUTH && !window.__AUTH.owner) && location.protocol !== 'file:') setTimeout(() => { try { kitPublish({ auto: true }); } catch (e) { console.warn('kit auto publish', e); } }, 6000);
 /* מצב פתיחה נכנס להיסטוריה מיד, אחרת אין לאן לחזור בביטול הראשון */
 HIST.past.push(snapProject());
 renderHistBtns();
