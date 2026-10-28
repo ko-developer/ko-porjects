@@ -224,7 +224,7 @@ const handleReq = async (req, res) => {
   if (await handleBugs(req, res, path0, me)) return;
   if (path0 === '/bugs') { if (!isOwner) { res.writeHead(302, { location: '/' }); res.end(); return; } sendPage(res, AUTH_PAGES['/bugs']); return; }
   /* --- שאר ראוטי ה-ERP: סטטוס, לקוחות, פרויקטים, אפשרויות, כמויות עתידיות, יצירת הצעה (scripts/erp-routes.js) --- */
-  if (await handleErp(req, res, path0, isOwner)) return;
+  if (await handleErp(req, res, path0, isOwner, { storage, user: me })) return;
   /* --- הצעות מחיר מה-ERP (חי, דרך MCP) — בעלים בלבד --- */
   if (path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') {
     if (!isOwner) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"owner only"}'); return; }

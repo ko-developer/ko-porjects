@@ -1,7 +1,8 @@
 // ראוטי ה-ERP של שרת הלגאסי (מחשב + ענן) — אותם ראוטים שקיימים ב-SvelteKit (src/routes/api/erp/*),
 // שבלעדיהם דיאלוג "שלח הצעה ל-ERP" לא מצא לקוחות/פרויקטים והציג "אין חיבור ERP". בעלים בלבד.
 import { erpCall } from './erp-client.js';
-import { kitsSyncConfig, pushKits } from './erp-kits.js';
+import { pushKits } from './erp-kits.js';
+import { kitsStatus, kitIds, connectStart, connectCallback, deleteConnection } from './erp-connect.js';
 
 const TTL = 600_000;
 const accCache = new Map(), prjCache = new Map();
@@ -30,8 +31,12 @@ function projectWebUrl(id) {
   try { return new URL(process.env.ERP_MCP_URL).origin + '/project/' + id; } catch { return ''; }   /* דף פרויקט ב-ERP: /project/<id> */
 }
 
-/* מחזיר true אם הבקשה טופלה */
-export async function handleErp(req, res, path0, isOwner) {
+/* הכתובת שבה הדפדפן פנה אלינו — לחזרה מדף האישור של ה-ERP (כמו origin() ב-scripts/auth.js) */
+const reqOrigin = req => `${String(req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim()}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+const redirect = (res, location) => { res.writeHead(302, { location, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }); res.end(); };
+
+/* מחזיר true אם הבקשה טופלה. ctx: { storage (שכבת האחסון של השרת), user (המשתמש המחובר) } */
+export async function handleErp(req, res, path0, isOwner, ctx = {}) {
   if (!path0.startsWith('/api/erp/') || path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') return false;
   if (!isOwner) { send(res, 403, { ok: false, errors: ['owner only'] }); return true; }
   /* כתיבה רק כ-JSON: טופס מאתר אחר (text/plain / form) לא יכול לשלוח בשם הבעלים הצעה או פרסום קיטים */
@@ -111,14 +116,26 @@ export async function handleErp(req, res, path0, isOwner) {
       const pid = (result && result.project_id) || args.project_id;
       send(res, 200, { ok: true, result, note, project_web_url: pid ? projectWebUrl(pid) : '', skipped_without_key: p.items_without_key || [] }); return true;
     }
-    /* פרסום הקיטים ל-ERP (scripts/erp-kits.js). GET = האם מוגדר — הכפתור במסך הקיטים מציג למה הוא מושבת */
+    /* פרסום הקיטים ל-ERP (scripts/erp-kits.js). GET = מצב החיבור { configured, source, connected_at, connected_by } — בלי הטוקן */
     if (path0 === '/api/erp/kits-sync') {
-      if (req.method === 'GET') { send(res, 200, { ok: true, configured: kitsSyncConfig(process.env).configured }); return true; }
+      if (req.method === 'GET') { send(res, 200, await kitsStatus(process.env, ctx.storage)); return true; }
       if (req.method !== 'POST') { send(res, 405, { ok: false, errors: ['POST only'] }); return true; }
       let body;
       try { body = await readBody(req); } catch { send(res, 400, { ok: false, errors: ['גוף הבקשה אינו JSON תקין'] }); return true; }
-      const out = await pushKits(process.env, body, sp.get('dry_run') === '1' || body.dry_run === true, sp.get('allow_deactivate') === '1' || body.allow_deactivate === true);
+      const out = await pushKits(process.env, ctx.storage, body, sp.get('dry_run') === '1' || body.dry_run === true, sp.get('allow_deactivate') === '1' || body.allow_deactivate === true);
       send(res, out.status, out.body); return true;
+    }
+    /* מזהי ה-ERP לקיטי הבסיס (שם → id) — לא סודי; מה-ERP לכל היותר פעם בשעה (scripts/erp-connect.js) */
+    if (path0 === '/api/erp/kit-ids' && req.method === 'GET') { send(res, 200, await kitIds(process.env, ctx.storage)); return true; }
+    /* "חיבור ל-ERP" (scripts/erp-connect.js) */
+    if (path0 === '/api/erp/connect/start' && req.method === 'GET') { redirect(res, connectStart(process.env, reqOrigin(req))); return true; }
+    if (path0 === '/api/erp/connect/callback' && req.method === 'GET') {
+      const u = ctx.user || {};
+      redirect(res, await connectCallback(process.env, ctx.storage, sp, u.email || u.name || u.id || 'owner')); return true;
+    }
+    if (path0 === '/api/erp/connect/disconnect' && req.method === 'POST') {
+      await deleteConnection(ctx.storage);   /* רק החיבור השמור; הטוקן עצמו נשלל ב-ERP (Admin) */
+      send(res, 200, await kitsStatus(process.env, ctx.storage)); return true;
     }
   } catch (e) { send(res, 502, { ok: false, errors: [String(e.message || e)] }); return true; }
   send(res, 404, { ok: false, errors: ['unknown ERP route'] }); return true;

@@ -1,20 +1,17 @@
-// פרסום הקיטים ל-ERP: PUT ${ERP_API_URL}/api/external/kits עם טוקן שירות משלו (ERP_KITS_TOKEN, מקור ko-projects) — לא דרך MCP.
+// פרסום הקיטים ל-ERP: PUT ${ERP_BASE}/api/external/kits עם טוקן שירות במקור ko-projects — לא דרך MCP. הטוקן והכתובת
+// מ-kitsAuth (scripts/erp-connect.js): ERP_KITS_TOKEN מה-env, אחרת החיבור השמור מ"חיבור ל-ERP".
 // משותף לשרת הלגאסי (scripts/erp-routes.js, מה שרץ בענן) ולראוט SvelteKit (src/routes/api/erp/kits-sync).
 // הרשימה שנשלחת מלאה: קיט ERP שלא נמצא בה מושבת ב-ERP (is_active=false), לא נמחק. ?dry_run=1 מחזיר את אותו דוח בלי לכתוב.
 // ה-ERP מסרב (409 would_deactivate_many) לפרסום שמשבית יותר מדי קיטים שבאו מכאן — גם בבדיקה — אלא אם נשלח ?allow_deactivate=1.
 
-export function kitsSyncConfig(env) {
-  const base = String(env.ERP_API_URL || '').trim().replace(/\/+$/, '');
-  const token = String(env.ERP_KITS_TOKEN || '').trim();
-  return { base, token, configured: !!(base && token) };
-}
+import { kitsAuth } from './erp-connect.js';
 
 const errText = x => typeof x === 'string' ? x : x && typeof x === 'object' ? (x.message || JSON.stringify(x)) : String(x);
 
 /* מחזיר { status, body } — ה-body של ה-ERP כמו שהוא כשהצליח; בכישלון תמיד ok:false + errors (מערך מחרוזות) + erp_status */
-export async function pushKits(env, body, dry, allowDeactivate) {
-  const { base, token, configured } = kitsSyncConfig(env);
-  if (!configured) return { status: 503, body: { ok: false, errors: ['פרסום ל-ERP עוד לא הוגדר בשרת'] } };
+export async function pushKits(env, storage, body, dry, allowDeactivate) {
+  const { base, token } = await kitsAuth(env, storage);
+  if (!token) return { status: 503, body: { ok: false, errors: ['אין חיבור ל-ERP — מתחברים במסך הקיטים ("חיבור ל-ERP")'] } };
   if (!body || !Array.isArray(body.kits)) return { status: 400, body: { ok: false, errors: ['חסרה רשימת kits'] } };
   /* רשימה ריקה הייתה משביתה ב-ERP את כל הקיטים — לא נשלחת */
   if (!body.kits.length) return { status: 400, body: { ok: false, errors: ['רשימת הקיטים ריקה — לא נשלחה ל-ERP'] } };

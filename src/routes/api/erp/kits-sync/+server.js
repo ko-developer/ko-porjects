@@ -1,25 +1,24 @@
-// פרסום הקיטים ל-ERP — אותו ראוט כמו בשרת הלגאסי (scripts/erp-routes.js); ההעברה עצמה ב-scripts/erp-kits.js
+// פרסום הקיטים ל-ERP — אותו ראוט כמו בשרת הלגאסי (scripts/erp-routes.js); ההעברה ב-scripts/erp-kits.js, הטוקן ב-scripts/erp-connect.js
 import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
-import { kitsSyncConfig, pushKits } from '../../../../../scripts/erp-kits.js';
+import { isOwner, ownerOnly } from '$lib/server/owner.js';
+import { pushKits } from '../../../../../scripts/erp-kits.js';
+import { kitsStatus } from '../../../../../scripts/erp-connect.js';
+import { makeStorage } from '../../../../../scripts/storage.js';
 
-/* בעלים בלבד. ב-SvelteKit אין משתמשים — כמו בשרת הלגאסי (scripts/auth.js isLocal): בקשה מהמחשב עצמו = הבעלים */
-function isOwner(request, getClientAddress) {
-  if (request.headers.get('x-forwarded-for')) return false;
-  const a = String(getClientAddress() || '');
-  return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
-}
+const storage = makeStorage();
 
-export function GET({ request, getClientAddress }) {
-  if (!isOwner(request, getClientAddress)) return json({ ok: false, errors: ['owner only'] }, { status: 403 });
-  return json({ ok: true, configured: kitsSyncConfig(env).configured });
+/* מצב החיבור { configured, source, connected_at, connected_by } — בלי הטוקן */
+export async function GET({ request, getClientAddress }) {
+  if (!isOwner(request, getClientAddress)) return ownerOnly();
+  return json(await kitsStatus(env, storage));
 }
 
 export async function POST({ request, url, getClientAddress }) {
-  if (!isOwner(request, getClientAddress)) return json({ ok: false, errors: ['owner only'] }, { status: 403 });
+  if (!isOwner(request, getClientAddress)) return ownerOnly();
   let body;
   try { body = await request.json(); } catch { return json({ ok: false, errors: ['גוף הבקשה אינו JSON תקין'] }, { status: 400 }); }
   const sp = url.searchParams;
-  const out = await pushKits(env, body, sp.get('dry_run') === '1' || body?.dry_run === true, sp.get('allow_deactivate') === '1' || body?.allow_deactivate === true);
+  const out = await pushKits(env, storage, body, sp.get('dry_run') === '1' || body?.dry_run === true, sp.get('allow_deactivate') === '1' || body?.allow_deactivate === true);
   return json(out.body, { status: out.status });
 }

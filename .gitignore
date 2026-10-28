@@ -15,3 +15,5 @@ data/bugs.json
 data/bug_files/
 data/.cache-gcs/
 data/fallback-*.json
+data/erp-connection.json
+data/secrets/

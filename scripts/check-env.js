@@ -49,8 +49,8 @@ ${LINE}
 `);
 }
 
-/* פרסום הקיטים ל-ERP (אופציונלי): בלי שני אלה כפתור "פרסום קיטים ל-ERP" מושבת ומציג למה, והקיטים לא נשלחים ל-ERP */
-if (!has('ERP_API_URL') || !has('ERP_KITS_TOKEN')) console.log('  ℹ  חסרים ERP_API_URL / ERP_KITS_TOKEN ב-.env — פרסום הקיטים ל-ERP מושבת (כתובת ה-ERP + טוקן השירות שה-ERP מנפיק למקור ko-projects).');
+/* פרסום הקיטים ל-ERP: בדרך כלל בלי שום הגדרה — מתחברים מ"חיבור ל-ERP" במסך הקיטים, והחיבור נשמר בשרת (scripts/erp-connect.js) */
+if (!has('ERP_KITS_TOKEN')) console.log('  ℹ  אין ERP_KITS_TOKEN ב-.env — פרסום הקיטים ל-ERP דרך "חיבור ל-ERP" במסך הקיטים (נשמר בשרת, לא כאן).');
 
 /* אחסון: מקומי או דלי הענן המשותף */
 console.log(has('DATA_BUCKET') ? '  ☁  DATA_BUCKET מוגדר — הפרויקטים והנתונים נקראים ונכתבים בדלי הענן (אותם נתונים כמו בשרת). דורש gcloud auth login.' : '  💾 אין DATA_BUCKET ב-.env — נתונים מקומיים ב-data/ (לא משותפים עם השרת בענן).');
