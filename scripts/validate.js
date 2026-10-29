@@ -24,5 +24,6 @@ const tmpLite = join(tmpdir(), 'ko-validate-lite.js');
 writeFileSync(tmpLite, lite);
 execFileSync(process.execPath, ['--check', tmpLite], { stdio: 'inherit' });
 const cat = JSON.parse(readFileSync('data/lite_catalog.json', 'utf8'));
-if (!cat.tiers || cat.tiers.length !== 3) throw new Error('lite_catalog: expected 3 tiers');
+if (!cat.tiers || cat.tiers.length < 3) throw new Error('lite_catalog: expected at least 3 tiers');
+for (const t of cat.tiers) for (const k of ['spk', 'sub', 'amp']) if (!t[k] || !t[k].key || !(t[k].price > 0)) throw new Error('lite_catalog: tier ' + t.id + ' missing ' + k);
 console.log('validate OK — JS syntax + data JSON (app + studio)');

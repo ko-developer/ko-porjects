@@ -46,9 +46,9 @@
     "ch": 4,
     "minOhm": 2,
     "pw": {
-     "8": 175,
+     "2": 340,
      "4": 350,
-     "2": 340
+     "8": 175
     },
     "pairedWith": "מהקיטים: זיווג מאומת"
    },
@@ -72,9 +72,9 @@
     "ch": 2,
     "minOhm": 2,
     "pw": {
-     "8": 1200,
+     "2": 2400,
      "4": 2400,
-     "2": 2400
+     "8": 1200
     }
    },
    "spkCeil": {
@@ -87,7 +87,7 @@
     "w": 60,
     "ohm": 8,
     "ceil": true,
-    "price": 780.0
+    "price": 780
    },
    "spkSmall": {
     "key": "S17FUOKOWHT",
@@ -99,7 +99,7 @@
     "w": 120,
     "ohm": 8,
     "mount": "S17FUOKO2",
-    "price": 2500.0
+    "price": 2500
    },
    "subSmall": {
     "key": "S25FUOKOWHT",
@@ -107,7 +107,7 @@
     "w": 250,
     "ohm": 8,
     "inch": 8,
-    "price": 3978.0
+    "price": 3978
    }
   },
   {
@@ -155,21 +155,22 @@
     "ch": 2,
     "minOhm": 4,
     "pw": {
-     "8": 700,
-     "4": 1000
+     "4": 1000,
+     "8": 700
     },
     "pairedWith": "מהקיטים: זיווג מאומת"
    },
    "ampBig": {
-    "key": "SMAG3KO",
-    "name": "UNICORN DAP 4200 עם DSP",
-    "price": 3540,
-    "ch": 3,
+    "key": "SSDK7KO",
+    "name": "KT DYNAMIQ 4600 — 4×600W + DSP",
+    "price": 3098,
+    "ch": 4,
     "minOhm": 4,
     "pw": {
-     "8": 400,
-     "4": 800
-    }
+     "4": 900,
+     "8": 600
+    },
+    "pairedWith": "כלל הבית: KT → DYNAMIQ (4600 עם סאבים)"
    },
    "subBig": {
     "key": "STON29KO",
@@ -186,8 +187,8 @@
     "ch": 2,
     "minOhm": 4,
     "pw": {
-     "8": 200,
-     "4": 300
+     "4": 300,
+     "8": 200
     }
    },
    "spkCeil": {
@@ -200,7 +201,7 @@
     "w": 60,
     "ohm": 8,
     "ceil": true,
-    "price": 780.0
+    "price": 780
    },
    "spkSmall": {
     "key": "SEGL7KO",
@@ -212,7 +213,7 @@
     "w": 80,
     "ohm": 8,
     "mount": "GJIG4KO",
-    "price": 620.0
+    "price": 620
    },
    "subSmall": {
     "key": "SANA39KO",
@@ -220,7 +221,120 @@
     "w": 200,
     "ohm": 8,
     "inch": 10,
-    "price": 1168.0
+    "price": 1168
+   }
+  },
+  {
+   "id": "till",
+   "name": "אולם ובר",
+   "brand": "KT Unicorn TILL",
+   "why": "רמקולי עץ 8″ ו-12″ עם סאב 15″/18″ — למקומות שמנגנים חזק ולאירועים, מגברי DYNAMIQ עם DSP, במחיר ביניים.",
+   "spk": {
+    "key": "STON7KO",
+    "name": "KT TILL 8",
+    "price": 1062,
+    "h": 90,
+    "v": 60,
+    "sens": 89,
+    "max": 115,
+    "w": 250,
+    "ohm": 8,
+    "mount": "GJIG4KO"
+   },
+   "spkBig": {
+    "key": "STON28KO",
+    "name": "KT UNICORN TILL 12",
+    "price": 1770,
+    "h": 90,
+    "v": 60,
+    "sens": 92,
+    "max": 121,
+    "w": 300,
+    "ohm": 8,
+    "mount": "GJIG4KO"
+   },
+   "spkSmall": {
+    "key": "SANA2KO",
+    "name": "KT WR600 (מוגן מים IP66)",
+    "price": 654,
+    "h": 90,
+    "v": 60,
+    "sens": 88,
+    "max": 110,
+    "w": 60,
+    "ohm": 8,
+    "mount": "GJIG4KO"
+   },
+   "spkCeil": {
+    "key": "SSHD1KO",
+    "name": "KT שקוע תקרה 8\"",
+    "h": 110,
+    "v": 110,
+    "sens": 88,
+    "max": 106,
+    "w": 60,
+    "ohm": 8,
+    "ceil": true,
+    "price": 398
+   },
+   "sub": {
+    "key": "STON16KO",
+    "name": "KT UNICORN TILL 15 — סאב 15\"",
+    "price": 2301,
+    "w": 400,
+    "ohm": 8,
+    "inch": 15
+   },
+   "subBig": {
+    "key": "STON29KO",
+    "name": "KT UNICORN TILL 18 — סאב 18\"",
+    "price": 2655,
+    "w": 500,
+    "ohm": 8,
+    "inch": 18
+   },
+   "subSmall": {
+    "key": "SANA13KO",
+    "name": "KT ARRAY SUB 1000 — סאב 10\"",
+    "w": 200,
+    "ohm": 8,
+    "inch": 10,
+    "price": 867
+   },
+   "amp": {
+    "key": "SSDK2KO",
+    "name": "KT DYNAMIQ 750 עם DSP",
+    "price": 2478,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "4": 750,
+     "8": 500
+    }
+   },
+   "ampSmall": {
+    "key": "SSDK1KO",
+    "name": "KT DYNAMIQ 450 עם DSP",
+    "price": 2124,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "4": 450,
+     "8": 300
+    },
+    "pairedWith": "מהקיטים: זיווג מאומת"
+   },
+   "ampBig": {
+    "key": "SSDK7KO",
+    "name": "KT DYNAMIQ 4600 — 4×600W + DSP",
+    "price": 3098,
+    "ch": 4,
+    "minOhm": 4,
+    "pw": {
+     "4": 900,
+     "8": 600
+    },
+    "pairedWith": "כלל הבית: KT → DYNAMIQ (4600 עם סאבים)"
    }
   },
   {
@@ -268,8 +382,8 @@
     "ch": 2,
     "minOhm": 4,
     "pw": {
-     "8": 300,
-     "4": 450
+     "4": 450,
+     "8": 300
     },
     "pairedWith": "מהקיטים: זיווג מאומת"
    },
@@ -280,8 +394,8 @@
     "ch": 2,
     "minOhm": 4,
     "pw": {
-     "8": 500,
-     "4": 750
+     "4": 750,
+     "8": 500
     }
    },
    "spkBig": {
@@ -311,8 +425,8 @@
     "ch": 2,
     "minOhm": 4,
     "pw": {
-     "8": 200,
-     "4": 300
+     "4": 300,
+     "8": 200
     }
    },
    "spkCeil": {
@@ -325,7 +439,7 @@
     "w": 60,
     "ohm": 8,
     "ceil": true,
-    "price": 398.0
+    "price": 398
    },
    "subSmall": {
     "key": "SANA13KO",
@@ -333,7 +447,117 @@
     "w": 200,
     "ohm": 8,
     "inch": 10,
-    "price": 867.0
+    "price": 867
+   }
+  },
+  {
+   "id": "value",
+   "name": "חסכוני במיוחד",
+   "brand": "KT INTERPID",
+   "why": "הרמקול הכי נמכר שלנו למוזיקת רקע — מאות במלאי, מתקן בקופסה, התקנה מהירה ומחיר נמוך.",
+   "spk": {
+    "key": "SANA12KO",
+    "name": "KT INTERPID 800 V2 — 8\" שחור",
+    "price": 474,
+    "h": 90,
+    "v": 60,
+    "sens": 90,
+    "max": 109,
+    "w": 80,
+    "ohm": 8
+   },
+   "spkBig": {
+    "key": "STON7KO",
+    "name": "KT TILL 8",
+    "price": 1062,
+    "h": 90,
+    "v": 60,
+    "sens": 89,
+    "max": 115,
+    "w": 250,
+    "ohm": 8,
+    "mount": "GJIG4KO"
+   },
+   "spkSmall": {
+    "key": "SANA12KO",
+    "name": "KT INTERPID 800 V2 — 8\" שחור",
+    "price": 474,
+    "h": 90,
+    "v": 60,
+    "sens": 90,
+    "max": 109,
+    "w": 80,
+    "ohm": 8
+   },
+   "spkCeil": {
+    "key": "SSHD1KO",
+    "name": "KT שקוע תקרה 8\"",
+    "h": 110,
+    "v": 110,
+    "sens": 88,
+    "max": 106,
+    "w": 60,
+    "ohm": 8,
+    "ceil": true,
+    "price": 398
+   },
+   "sub": {
+    "key": "SANA13KO",
+    "name": "KT ARRAY SUB 1000",
+    "price": 867,
+    "w": 200,
+    "ohm": 8,
+    "inch": 10
+   },
+   "subBig": {
+    "key": "STON16KO",
+    "name": "KT UNICORN TILL 15 — סאב 15\"",
+    "price": 2301,
+    "w": 400,
+    "ohm": 8,
+    "inch": 15
+   },
+   "subSmall": {
+    "key": "SANA13KO",
+    "name": "KT ARRAY SUB 1000 — סאב 10\"",
+    "w": 200,
+    "ohm": 8,
+    "inch": 10,
+    "price": 867
+   },
+   "amp": {
+    "key": "SSDK1KO",
+    "name": "KT DYNAMIQ 450 עם DSP",
+    "price": 2124,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "4": 450,
+     "8": 300
+    },
+    "pairedWith": "מהקיטים: זיווג מאומת"
+   },
+   "ampSmall": {
+    "key": "SKOB3KOS",
+    "name": "UNICORN MX3-200 — 2×200W",
+    "price": 1593,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "4": 300,
+     "8": 200
+    }
+   },
+   "ampBig": {
+    "key": "SSDK2KO",
+    "name": "KT DYNAMIQ 750 עם DSP",
+    "price": 2478,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "4": 750,
+     "8": 500
+    }
    }
   }
  ],

@@ -1565,15 +1565,17 @@ function delZone(i) { S.zones.splice(i, 1); save(); render(); }
 /* שלב 5 — תקציב */
 /* כשהתקציב נמוך מכל שלוש האפשרויות — בונים אפשרות מקוצצת, שלב אחרי שלב,
    עד שנכנסים לתקציב או עד שמגיעים למינימום הטכני שאי אפשר לרדת מתחתיו */
-function fitTier(cut) {
-  const base = LITE_CATALOG.tiers[LITE_CATALOG.tiers.length - 1];
-  return Object.assign({}, base, { id: 'fit', name: 'מותאם לתקציב', cut });
+function fitTier(cut, baseT) {
+  const base = baseT || LITE_CATALOG.tiers[LITE_CATALOG.tiers.length - 1];
+  return Object.assign({}, base, { id: 'fit', baseId: base.id, name: base.name + ' · מותאם לתקציב', cut });
 }
-function fitInfo(budget) {
+/* גרסה מקוצצת של שכבה — ברירת המחדל השכבה הזולה (המינימום הטכני), אבל כל שכבה מעל התקציב מקבלת גרסה משלה */
+function fitInfo(budget, baseT) {
   if (!budget) return null;
-  const base = buildProposal(LITE_CATALOG.tiers[LITE_CATALOG.tiers.length - 1]);
+  const bt = baseT || LITE_CATALOG.tiers[LITE_CATALOG.tiers.length - 1];
+  const base = buildProposal(bt);
   for (let cut = 1; cut <= 3; cut++) {
-    const p = buildProposal(fitTier(cut));
+    const p = buildProposal(fitTier(cut, bt));
     if (p.total <= budget * 1.05) return { p, cut, base, floor: false };
     if (cut === 3) return { p, cut, base, floor: true, gap: p.total - budget };
   }
@@ -1636,7 +1638,7 @@ function fitRowHTML(fit) {
          והמגבר לא יחזיק את הרמקולים. אפשר להקטין את האזורים או להעלות את התקציב.`
       : `כדי להיכנס ל-${ils(S.budget)} ויתרנו על חלק מהדברים. זה עדיין פתרון עובד — אבל עם פחות עתודה.`}</p>
     ${cuts.length ? `<div class="cutlist">${cuts.map(c => `<span>${c}</span>`).join('')}</div>` : ''}
-    ${fit.floor ? '' : `<button class="ghost wide" onclick="pickTier('budget',${fit.cut})">בחר את האפשרות המותאמת ◀</button>`}
+    ${fit.floor ? '' : `<button class="ghost wide" onclick="pickTier('${fit.base.tier.id}',${fit.cut})">בחר את האפשרות המותאמת ◀</button>`}
   </div>`;
 }
 
@@ -1645,17 +1647,30 @@ function selTier() {
   const t = LITE_CATALOG.tiers.find(x => x.id === S.tier) || LITE_CATALOG.tiers[1];
   return S.cut ? Object.assign({}, t, { cut: S.cut, name: t.name + ' · מותאם לתקציב' }) : t;
 }
+function brandList() { return [...new Set(LITE_CATALOG.tiers.map(t => t.brand))]; }
 function stepOffers() {
-  const props = LITE_CATALOG.tiers.map(buildProposal);
-  const lo = Math.min(...props.map(p => p.total)), hi = Math.max(...props.map(p => p.total));
-  if (S.budget == null) S.budget = Math.round(props[1].total / 1000) * 1000;
+  const all = LITE_CATALOG.tiers.map(buildProposal);
+  const lo = Math.min(...all.map(p => p.total)), hi = Math.max(...all.map(p => p.total));
+  const midP = all.find(p => p.tier.id === 'mid') || all[1];
+  if (S.budget == null) S.budget = Math.round(midP.total / 1000) * 1000;
   /* ההצעות השתנו (שימוש/אזורים) — התקציב נשאר בתוך הטווח החדש */
   S.budget = Math.max(Math.floor(lo * 0.6 / 1000) * 1000, Math.min(Math.ceil(hi * 1.4 / 1000) * 1000, S.budget));
-  const belowAll = S.budget && props.every(p => p.total > S.budget * 1.05);
-  const fit = belowAll ? fitInfo(S.budget) : null;
-  const list = fit && !fit.floor ? props.concat([fit.p]) : props;
+  /* מותג מועדף — מסנן את ההצעות; "כל המותגים" מציג את כולן */
+  const pick = S.brandPick && brandList().includes(S.brandPick) ? S.brandPick : '';
+  const props = all.filter(p => !pick || p.tier.brand === pick);
+  /* לכל שכבה שמעל התקציב — גרסה מקוצצת משלה (עד שתיים: הקרובות ביותר לתקציב) */
+  const fits = props.filter(p => S.budget && p.total > S.budget * 1.05).map(p => fitInfo(S.budget, p.tier)).filter(f => f && !f.floor)
+    .sort((a, b) => Math.abs(a.p.total - S.budget) - Math.abs(b.p.total - S.budget)).slice(0, 2);
+  const belowAll = S.budget && all.every(p => p.total > S.budget * 1.05);
+  const fit = belowAll && !fits.length ? fitInfo(S.budget) : null;   /* גם הקיצוץ של הזולה לא נכנס — המינימום הטכני */
+  const list = props.concat(fits.map(f => f.p));
+  const brandCount = b => all.filter(p => p.tier.brand === b).length;
   return `<h2>התקציב וההצעות — במסך אחד</h2>
   <p class="sub">הזז את התקציב וההצעות מסתדרות מולו מיד. כל המחירים הם מחירי יחידה מהמלאי שלנו, לפני מע"מ.</p>
+  <div class="fchips brandpick" style="margin:0 0 12px"><span class="muted" style="font-size:12.5px;align-self:center">🏷 מותג:</span>
+    <button class="chip ${!pick ? 'on' : ''}" onclick="S.brandPick='';save();render()">כל המותגים (${all.length})</button>
+    ${brandList().map(b => `<button class="chip ${pick === b ? 'on' : ''}" onclick="S.brandPick='${b}';save();render()">${esc(b)} (${brandCount(b)})</button>`).join('')}
+  </div>
   <div class="budget">
     <div class="bignum">${ils(S.budget)}</div>
     <input type="range" min="${Math.floor(lo * 0.6 / 1000) * 1000}" max="${Math.ceil(hi * 1.4 / 1000) * 1000}" step="1000" value="${S.budget}" oninput="S.budget=+this.value;save();render()">
@@ -1664,15 +1679,16 @@ function stepOffers() {
   ${finishHTML(props)}
   ${fit && fit.floor ? fitRowHTML(fit) : ''}
   <div class="offers">${list.map((p, i) => {
-    const isFit = p.tier.id === 'fit';
-    const fits = S.budget ? p.total <= S.budget * 1.05 : true;
+    const isFit = p.tier.id === 'fit', fitOf = isFit ? fits.find(f => f.p === p) : null;
+    const inBudget = S.budget ? p.total <= S.budget * 1.05 : true;
+    const selected = isFit ? (S.tier === fitOf.base.tier.id && S.cut === fitOf.cut) : (S.tier === p.tier.id && !S.cut);
     const spl = p.zones.length ? Math.round(p.zones.reduce((s, z) => s + z.p.splCenter, 0) / p.zones.length) : 0;
-    return `<div class="offer ${(isFit ? S.cut > 0 : S.tier === p.tier.id && !S.cut) ? 'sel' : ''} ${i === 1 ? 'reco' : ''} ${isFit ? 'fitoffer' : ''}">
-      ${i === 1 ? '<div class="ribbon">הכי נבחר</div>' : ''}
+    return `<div class="offer ${selected ? 'sel' : ''} ${p.tier.id === 'mid' ? 'reco' : ''} ${isFit ? 'fitoffer' : ''}">
+      ${p.tier.id === 'mid' ? '<div class="ribbon">הכי נבחר</div>' : ''}
       ${isFit ? '<div class="ribbon fitrib">בתקציב שלך</div>' : ''}
-      <div class="oh"><b>${esc(p.tier.name)}</b><small>${isFit ? 'מקוצץ כדי להיכנס ל-' + ils(S.budget) : esc(p.tier.brand)}</small></div>
+      <div class="oh"><b>${esc(p.tier.name)}</b><small>${isFit ? esc(p.tier.brand) + ' · מקוצץ כדי להיכנס ל-' + ils(S.budget) : esc(p.tier.brand)}</small></div>
       <div class="price">${ils(p.total)}<small>כולל ציוד + התקנה, לפני מע"מ</small></div>
-      <p class="why">${isFit ? 'הכי הרבה שאפשר לקבל בתקציב הזה — ' + cutSummary(fit.base, p).join(' · ').replace(/<\/?b>/g, '') : esc(p.tier.why)}</p>
+      <p class="why">${isFit ? 'הכי הרבה שאפשר לקבל בתקציב הזה — ' + cutSummary(fitOf.base, p).join(' · ').replace(/<\/?b>/g, '') : esc(p.tier.why)}</p>
       <div class="specs">
         <div><b>${p.totalSpk}</b><small>רמקולים</small></div>
         <div><b>${p.totalSub ? p.totalSub + '×' + p.sub.inch + '"' : '—'}</b><small>סאבים</small></div>
@@ -1711,10 +1727,10 @@ function stepOffers() {
         <div class="wact"><button class="ghost sm" onclick="resetInst()">↺ אפס מחירי התקנה</button>
           <span class="hintline">אפשר לשנות כל מחיר התקנה — הסכומים והדוח מתעדכנים מיד.</span></div>
       </details>
-      <div class="badges">${fits ? '<span class="b ok">✓ בתקציב</span>' : '<span class="b over">מעל התקציב</span>'}
+      <div class="badges">${inBudget ? '<span class="b ok">✓ בתקציב</span>' : '<span class="b over">מעל התקציב</span>'}
         <span class="b">${p.days} ימי התקנה</span>
         <span class="b">${stockNote(p)}</span></div>
-      <button class="go wide" onclick="pickTier('${isFit ? LITE_CATALOG.tiers[LITE_CATALOG.tiers.length - 1].id : p.tier.id}'${isFit ? ',' + fit.cut : ''})">${(isFit ? S.cut > 0 : S.tier === p.tier.id && !S.cut) ? '✓ נבחר' : 'בחר את זה'}</button>
+      <button class="go wide" onclick="pickTier('${isFit ? fitOf.base.tier.id : p.tier.id}'${isFit ? ',' + fitOf.cut : ''})">${selected ? '✓ נבחר' : 'בחר את זה'}</button>
     </div>`;
   }).join('')}</div>`;
 }
@@ -1870,12 +1886,15 @@ function speakerPts(z, n, plan) {
     while (pts.length < n) pts.push({ x: c.x, y: c.y, aim: 0 });
     return pts;
   }
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 - Math.PI / 2 + Math.PI / n;
-    const dx = Math.cos(a), dy = Math.sin(a);
-    const t = Math.min(Math.abs((z.w / 2) / (dx || 1e-6)), Math.abs((z.h / 2) / (dy || 1e-6)));
-    pts.push({ x: c.x + dx * t * 0.94, y: c.y + dy * t * 0.94, aim: Math.round((Math.atan2(-dy, -dx) * 180 / Math.PI + 360) % 360) });
-  }
+  /* מלבן: הרמקולים על שני הקירות הארוכים, לסירוגין (זיגזג) ומכוונים פנימה בניצב לקיר — כמו תכנון מבוזר אמיתי,
+     בלי רמקולים בפינות שמבזבזים כיסוי על הקיר הסמוך */
+  const b = zoneBox(z), horiz = b.w >= b.h, inset = Math.min(18, (horiz ? b.h : b.w) * 0.06);
+  const onA = k => horiz ? { x: b.x + b.w * k, y: b.y + inset, aim: 90 } : { x: b.x + inset, y: b.y + b.h * k, aim: 0 };
+  const onB = k => horiz ? { x: b.x + b.w * k, y: b.y + b.h - inset, aim: 270 } : { x: b.x + b.w - inset, y: b.y + b.h * k, aim: 180 };
+  if (n === 1) { pts.push(onA(0.5)); return pts; }
+  const nA = Math.ceil(n / 2), nB = n - nA;
+  for (let k = 0; k < nA; k++) pts.push(onA((k + 0.5) / nA));
+  for (let k = 0; k < nB; k++) pts.push(onB(nB === nA ? (k + 1) / (nB + 1) : (k + 0.5) / nB));
   return pts;
 }
 /* מפת כיסוי: רשת נקודות עם סכימת אנרגיה מכל הרמקולים */
@@ -2035,17 +2054,16 @@ function stepReport() {
   const sched = cableSchedule(p);
   let marks = '', cones = '';
   /* קווי החיווט בפועל — מהארון אל כל רמקול, ממוספרים בדיוק כמו בטבלה */
-  let li = 0;
-  p.zones.forEach(({ z }) => {
-    const col = purposeOf(z).color;
-    [...(L[z.id].spk || []), ...(L[z.id].subs || [])].forEach(pt => {
-      const row = sched[li++]; if (!row) return;
-      const mx = (rk.x + pt.x) / 2, my = (rk.y + pt.y) / 2;
-      marks += `<line x1="${rk.x.toFixed(0)}" y1="${rk.y.toFixed(0)}" x2="${pt.x.toFixed(0)}" y2="${pt.y.toFixed(0)}"
-          stroke="${col}" stroke-width="2.5" opacity="0.55" stroke-dasharray="7 5"/>
-        <g><circle cx="${mx.toFixed(0)}" cy="${my.toFixed(0)}" r="13" fill="#fff" stroke="${col}" stroke-width="2.5" opacity="0.95"/>
-          <text x="${mx.toFixed(0)}" y="${(my + 5).toFixed(0)}" text-anchor="middle" font-size="15" font-weight="800" fill="${col}">${row.id}</text></g>`;
+  /* כל קו בלוח מצויר במסלול בזוויות ישרות: מהארון לרמקול הראשון (מקווקו), ומשם LINK לבא בשרשור (קו דק); המספר על הקטע הראשון */
+  sched.forEach(row => {
+    const col = row.col;
+    row.route.forEach((seg, si) => {
+      marks += `<polyline points="${seg.map(q => q.x.toFixed(0) + ',' + q.y.toFixed(0)).join(' ')}" fill="none" stroke="${col}" stroke-width="${si ? 2 : 2.5}" opacity="${si ? 0.75 : 0.55}" stroke-dasharray="${si ? '3 4' : '7 5'}" stroke-linejoin="round"/>`;
     });
+    const s0 = row.route[0], el = s0[1], a0 = s0[0];
+    const lx = Math.abs(el.x - a0.x) > 40 ? (a0.x + el.x) / 2 : (el.x + s0[2].x) / 2, ly = Math.abs(el.x - a0.x) > 40 ? a0.y : (el.y + s0[2].y) / 2;
+    marks += `<g><circle cx="${lx.toFixed(0)}" cy="${ly.toFixed(0)}" r="13" fill="#fff" stroke="${col}" stroke-width="2.5" opacity="0.95"/>
+      <text x="${lx.toFixed(0)}" y="${(ly + 5).toFixed(0)}" text-anchor="middle" font-size="15" font-weight="800" fill="${col}">${row.id}</text></g>`;
   });
   /* ארון הציוד */
   marks += `<g data-rack style="cursor:grab">${rackIcon(rk)}</g>`;
@@ -2111,7 +2129,7 @@ function stepReport() {
       <div class="scale">${(cov.legend || []).map(b => `<span class="sb" style="background:${b.col}">${b.from}–${b.to}</span>`).join('')}<b>dB</b></div>
       <span class="lgnote">🔊 תיבה עם ווּפר = רמקול על קיר, מסובבת לכיוון שהיא מכסה · ⬤ עיגול עם גריל = רמקול שקוע בתקרה ·
       הצללית סביבו = זווית הכיסוי בפועל · 🎙 המיקרופון במרכז כל אזור מראה את העוצמה שתתקבל שם מול היעד ·
-      הארון השחור = ארון הציוד · הקו המקווקו = מסלול הכבל, והמספר עליו הוא מספר הקו בטבלת החיווט.</span></div>
+      הארון השחור = ארון הציוד · הקו המקווקו = מסלול הכבל בזוויות ישרות מהארון, הקו הדק = שרשור (LINK) בין רמקולים על אותו ערוץ, והמספר עליו הוא מספר הקו בלוח החיווט.</span></div>
   </div>
   <div class="rsec"><h3>🔊 מה מקבלים בכל אזור</h3>
     <table class="rt"><tr><th>אזור</th><th>שימוש</th><th>שטח</th><th>רמקולים</th><th>התקנה</th><th>עוצמת יעד</th><th>יכולת המערכת</th><th>מרווח</th></tr>
@@ -2158,28 +2176,54 @@ function stepReport() {
 /* מיקום הארון: בפינה של האזור הראשון, מקום נגיש ומאוורר */
 function rackPoint() {
   if (S.rackPos && isFinite(S.rackPos.x)) return S.rackPos;   /* המשתמש גרר — המיקום שלו קובע */
-  const z = S.zones[0];
+  /* ברירת מחדל: אזור שירות (שירותים/מסדרון, כניסה) אם יש — ארון ציוד לא יושב באזור הקהל; אחרת פינת האזור הראשון */
+  const z = S.zones.find(x => x.purpose === 'toilets') || S.zones.find(x => x.purpose === 'entry') || S.zones[0];
   if (!z) return { x: 60, y: 60 };
   const b = zoneBox(z);
   return { x: b.x + 24, y: b.y + b.h - 24 };
 }
 /* לוח משיכת כבלים: קו לכל רמקול/סאב עם אורך אמיתי + רזרבה */
+/* מסלול כבל בזוויות ישרות (לאורך קירות/תקרה): אופקי ואז אנכי — כך גם מודדים צנרת בפועל */
+/* הזרוע הראשונה בכיוון שמביא את הריצה הארוכה לאורך הקיר של הרמקול: רמקול על קיר עליון/תחתון (aim 90/270) — קודם אנכי ואז אופקי לאורך הקיר;
+   רמקול על קיר צד — קודם אופקי ואז אנכי לאורך הקיר */
+function routePts(a, b) { const vFirst = b.aim === 90 || b.aim === 270; return vFirst ? [a, { x: a.x, y: b.y }, b] : [a, { x: b.x, y: a.y }, b]; }
+function routeLen(pts) { let s = 0; for (let i = 0; i + 1 < pts.length; i++) s += Math.abs(pts[i + 1].x - pts[i].x) + Math.abs(pts[i + 1].y - pts[i].y); return s; }
+/* לוח משיכת כבלים: קו לכל ערוץ מגבר — הרמקולים של אותו ערוץ בשרשור (ארון → רמקול ראשון → LINK לבא),
+   סאב תמיד בקו נפרד. האורך = המסלול בזוויות ישרות + 15% + 3 מ׳ שירות */
 function cableSchedule(p) {
   const rk = rackPoint(), sc = S.scale || 0.02, rows = [];
   const L = ensureLayout(p);
   S.wireEdits = S.wireEdits || {};
   let n = 1;
-  const mk = (z, key, dest, pt, note) => {
-    const run = Math.hypot(pt.x - rk.x, pt.y - rk.y) * sc;
-    const auto = Math.ceil(run * 1.25 + 3);            /* +25% מסלול אמיתי + 3 מ׳ שירות */
+  const mk = (z, key, dest, pts, note, chain) => {
+    const path = [rk, ...pts], route = []; let run = 0;
+    for (let i = 0; i + 1 < path.length; i++) { const seg = routePts(path[i], path[i + 1]); route.push(seg); run += routeLen(seg); }
+    const auto = Math.ceil(run * sc * 1.15 + 3);
     const e = S.wireEdits[key] || {};
-    rows.push({ id: n++, key, zone: z.name, dest: e.dest || dest,
-      type: e.type || 'כבל רמקול 2×2.5 מ"מ', conn: e.conn || 'ספיקון NL4 ↔ ספיקון NL4',
-      len: e.len != null ? e.len : auto, auto, edited: e.len != null && e.len !== auto, note: e.note || note });
+    rows.push({ id: n++, key, zone: z.name, col: purposeOf(z).color, dest: e.dest || dest,
+      type: e.type || 'כבל רמקול 2×2.5 מ"מ', conn: e.conn || 'ספיקון NL4 ↔ ספיקון NL4' + (chain && chain.length > 1 ? ' (LINK בין הרמקולים)' : ''),
+      len: e.len != null ? e.len : auto, auto, edited: e.len != null && e.len !== auto, note: e.note || note, route, chain });
   };
-  p.zones.forEach(({ z, p: pz }) => {
-    (L[z.id].spk || []).forEach((pt, i) => mk(z, z.id + '|s' + i, 'רמקול ' + (i + 1), pt, 'מהארון אל הרמקול'));
-    (L[z.id].subs || []).forEach((pt, i) => mk(z, z.id + '|b' + i, 'סאב ' + (i + 1), pt, 'קו נפרד — לא בשרשור'));
+  const per = Math.max(1, p.perCh || 1), maxLink = 12 / sc;   /* שרשור רק בין שכנים — עד 12 מ׳ בין רמקול לרמקול */
+  const d2 = (a, b2) => Math.hypot(a.x - b2.x, a.y - b2.y);
+  p.zones.forEach(({ z }) => {
+    const spk = L[z.id].spk || [];
+    /* שרשרות לפי קרבה: מתחילים מהרמקול הקרוב לארון, וממשיכים לשכן הקרוב ביותר שעוד לא חובר — לא לפי מספר סידורי שחוצה את החלל */
+    let rem = spk.map((pt, i) => ({ pt, i })), ci = 0;
+    while (rem.length) {
+      rem.sort((a, b2) => d2(a.pt, rk) - d2(b2.pt, rk));
+      const chain = [rem.shift()];
+      while (chain.length < per && rem.length) {
+        const last = chain[chain.length - 1].pt;
+        rem.sort((a, b2) => d2(a.pt, last) - d2(b2.pt, last));
+        if (d2(rem[0].pt, last) > maxLink) break;
+        chain.push(rem.shift());
+      }
+      const idx = chain.map(c => c.i + 1), grp = chain.map(c => c.pt);
+      mk(z, z.id + '|c' + (ci++), grp.length > 1 ? 'רמקולים ' + idx.join(' → ') + ' (שרשור)' : 'רמקול ' + idx[0], grp,
+        grp.length > 1 ? 'מהארון לרמקול ' + idx[0] + ', ומה-LINK שלו לבא — ערוץ מגבר אחד' : 'מהארון אל הרמקול', idx);
+    }
+    (L[z.id].subs || []).forEach((pt, i) => mk(z, z.id + '|b' + i, 'סאב ' + (i + 1), [pt], 'קו נפרד — לא בשרשור', null));
   });
   return rows;
 }
@@ -2232,7 +2276,7 @@ function wiringSection(p) {
     <div class="wsec"><h5>תשתית לצנרת</h5>
       <p>• שרוול <b>25 מ"מ</b> מהארון לכל עמדת רמקול (או תעלה משותפת + הסתעפויות).<br>
       • להימנע ממקבילות צמודות לכבלי חשמל — לפחות 30 ס"מ הפרדה או חצייה ב-90°.<br>
-      • סה"כ כבל רמקול: <b>${totalM} מ׳</b> (${reels} גלילים של 100 מ׳) — כולל רזרבה של 25%.<br>
+      • סה"כ כבל רמקול: <b>${totalM} מ׳</b> (${reels} גלילים של 100 מ׳) — לפי מסלול בזוויות ישרות + 15% רזרבה. רמקולים על אותו ערוץ בשרשור: כבל אחד מהארון, ומשם LINK קצר לבא.<br>
       • נקודת רמקול על קיר בגובה <b>${(S.ceil - 0.4).toFixed(1)} מ׳</b>, קופסה שקועה או יציאת כבל מהקיר.<br>
       ${p.zones.some(x => x.p.onCeil) ? `• באזורים עם רמקול שקוע: קצה כבל חופשי <b>50 ס"מ</b> מעל התקרה בכל נקודה,
         לפני סגירת הגבס. קוטר ניסור לפי היצרן — לוודא שאין מעליו תשתית מיזוג או ספרינקלר.<br>` : ''}
@@ -2247,7 +2291,7 @@ function wiringSection(p) {
           <small>${r.edited ? 'ידני · אוטו ' + r.auto : 'אוטו'}</small></td></tr>`).join('')}
       <tr class="tot"><td colspan="5">סה"כ ${rows.length} קווים</td><td><b>${totalM} מ׳</b></td></tr></table>
     <div class="wact"><button class="ghost sm" onclick="resetWires()">↺ אפס אורכים לחישוב אוטומטי</button>
-      <span class="hintline">האורכים מחושבים מהמרחק בתכנית +25% מסלול +3 מ׳ שירות. אפשר לתקן ידנית לפי המסלול בפועל.</span></div>
+      <span class="hintline">האורכים מחושבים לפי מסלול בזוויות ישרות בתכנית (ארון → רמקול ראשון → LINK לבא) +15% +3 מ׳ שירות. אפשר לתקן ידנית לפי המסלול בפועל.</span></div>
     <div class="wsec" style="margin-top:12px"><h5>בדיקות מסירה</h5>
       <p>1. כל קו נבדק בבודק רציפות לפני חיבור המגבר.<br>
       2. פולריות אחידה בכל הרמקולים (+ ל-+) — אחרת הבס נעלם.<br>
