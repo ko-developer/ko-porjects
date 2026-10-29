@@ -81,6 +81,53 @@ async function ptOcr(cv, lang, frames) {
   await worker.terminate();
   return tokens;
 }
+/* ===== הצעד הראשון: קנה המידה מטבלת הכותרת שבשולי הגיליון — רצועות הצד/התחתית מוגדלות פי כמה, OCR ממוקד ל-"1:N"
+   (הכיתוב בטבלת הכותרת קטן ולעיתים בפונט מתאר דק — הסריקה הכללית מפספסת אותו). הרצועות: ימין, שמאל, תחתית, עליון; רצועות הצד גם מסובבות ===== */
+async function ptScaleScan(onStep) {
+  if (!P.bg) return null;
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
+  if (!window.Tesseract) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
+  const W = img.width, H = img.height;
+  /* רצועות השוליים: ימין ותחתית קודם (שם טבלת הכותרת בדרך כלל), אחר כך שמאל ועליון */
+  const strips = [['right', W * 0.68, 0, W * 0.32, H], ['bottom', 0, H * 0.72, W, H * 0.28], ['left', 0, 0, W * 0.32, H], ['top', 0, 0, W, H * 0.22]];
+  /* פונט מתאר דק נקרא רק בהגדלה מסוימת — סורקים כמה הגדלות סביב ~3× (יחסית לרוחב 1400px) */
+  const base = 1400 / Math.max(W, H * 1.4), scales = [3, 2.75, 3.25, 2.5, 3.5, 4].map(k => +(k * base).toFixed(2));
+  const worker = await Tesseract.createWorker('eng');
+  const norm = t => String(t || '').replace(/[\u200f\u200e]/g, '').replace(/[∶：;]/g, ':').replace(/^[lI|]/, '1').replace(/[oO]/g, '0');
+  const rx = /(?:^|[^\d.,])1\s*[:\/]\s*(\d{1,4})(?![\d.,])/;
+  const nice = typeof asNiceRatios === 'function' ? asNiceRatios() : [10, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+  let best = null;
+  const crop = (sx, sy, sw, sh, k, thr, rot) => {
+    const cw = Math.round(sw * k), ch = Math.round(sh * k);
+    const c0 = document.createElement('canvas'); c0.width = cw; c0.height = ch; const g0 = c0.getContext('2d'); g0.imageSmoothingQuality = 'high';
+    g0.fillStyle = '#fff'; g0.fillRect(0, 0, cw, ch); g0.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+    const id = g0.getImageData(0, 0, cw, ch), px = id.data;
+    for (let i = 0; i < px.length; i += 4) { const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; const v = l < thr ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; }
+    g0.putImageData(id, 0, 0);
+    if (!rot) return c0;
+    const rc = document.createElement('canvas'); rc.width = ch; rc.height = cw; const g = rc.getContext('2d'); g.translate(rc.width / 2, rc.height / 2); g.rotate(rot); g.drawImage(c0, -cw / 2, -ch / 2); return rc;
+  };
+  /* "1:20" בדיוק — תבנית ספציפית מספיק כדי לקבל גם ביטחון נמוך (פונט מתאר דק נקרא ב-30%); כיתוב ארוך יותר דורש ביטחון סביר */
+  const consider = (t, c, where) => { const s2 = norm(t).trim(); const exact = /^1\s*[:\/]\s*\d{1,4}$/.test(s2); if (c < (exact ? 15 : 35)) return; const m = rx.exec(s2); if (!m) return; const n = +m[1]; if (!(n >= 5 && n <= 2000)) return; const score = (nice.includes(n) ? 100 : 0) + (exact ? 40 : 0) + c; if (!best || score > best.score) best = { n, t: s2, c: Math.round(c), where, score }; };
+  const good = () => best && best.score >= 140;
+  const pass = async (where, sx, sy, sw, sh, k, thr, rot) => {
+    const res = await worker.recognize(crop(sx, sy, sw, sh, k, thr, rot)), words = res.data.words || [];
+    words.forEach(w => consider(w.text, w.confidence, where));
+    for (let i = 0; i + 1 < words.length; i++) { const a = words[i], b = words[i + 1]; if (Math.abs(a.bbox.y0 - b.bbox.y0) < (a.bbox.y1 - a.bbox.y0) && b.bbox.x0 - a.bbox.x1 < (a.bbox.y1 - a.bbox.y0) * 2) consider(a.text + b.text, Math.min(a.confidence, b.confidence), where); }
+  };
+  try {
+    await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '6' });
+    for (const [where, sx, sy, sw, sh] of strips) {
+      if (onStep) onStep(where);
+      for (const k of scales) { for (const thr of [200, 150]) { await pass(where, sx, sy, sw, sh, k, thr, 0); if (good()) break; } if (good()) break; }
+      if (!good() && (where === 'right' || where === 'left')) for (const rot of [Math.PI / 2, -Math.PI / 2]) { await pass(where, sx, sy, sw, sh, scales[0], 200, rot); if (good()) break; }
+      if (good()) break;
+    }
+    if (!best) { await worker.setParameters({ tessedit_pageseg_mode: '11' }); for (const [where, sx, sy, sw, sh] of strips) { await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (best) break; } }
+  } finally { await worker.terminate(); }
+  return best ? { n: best.n, t: best.t, where: best.where, c: best.c } : null;
+}
+window.ptScaleScan = ptScaleScan;
 /* תמונת הרקע מוגדלת (עד ~3600px) ומחודדת לשחור-לבן — כמו בזיהוי קנה המידה */
 async function ptCanvas(maxSide) {
   const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
@@ -217,12 +264,16 @@ async function planTextScan() {
   window.__ptBusy = true; render();
   try {
     uiToast(P.bgPdf ? '🔤 קורא את הכיתובים משכבת הטקסט של ה-PDF…' : '🔤 קורא את הכיתובים בתכנית (OCR מקומי, בלי AI) — יכול לקחת כדקה, ממשיכים בינתיים…', 6000);
+    /* צעד ראשון: קנה המידה מטבלת הכותרת שבשולי הגיליון (רצועות הצד מוגדלות, OCR ממוקד) — לפני הסריקה הכללית */
+    let ptScale0 = null;
+    if (!P.bgPdf) { try { uiToast('📐 מחפש את קנה המידה בטבלת הכותרת (שולי הגיליון)…', 4000); ptScale0 = await ptScaleScan(); if (ptScale0) uiToast('📐 נמצא קנה מידה 1:' + ptScale0.n + ' בשוליים (' + ptScale0.where + ') — ממשיך לקרוא את הכיתובים…', 5000); } catch (e) { console.warn('pt scale scan', e); } }
     let tokens, SW, SH, src = 'ocr', layers = [];
     if (P.bgPdf) { const r = await ptFromPdf(); tokens = r.tokens; SW = r.W; SH = r.H; src = 'pdf'; layers = r.layers || []; }
     else { const cv = await ptCanvas(); tokens = await ptOcr(cv); SW = cv.width; SH = cv.height; }
     window.__ptTokens = tokens;   /* לניפוי: מה נקרא */
     /* קנה מידה מהכיתובים ("1:50", "קנ"מ 1:100") — נבדק על הטוקנים הגולמיים, לפני סינון המילים */
     let ptScale = null; try { ptScale = typeof asScaleFromText === 'function' ? asScaleFromText([...ptGroup(tokens, 'h').map(p => p.t), ...tokens.map(p => p.t)]) : null; } catch (e) { console.warn('pt scale', e); }
+    if (ptScale0 && (!ptScale || typeof asNiceRatios !== 'function' || !asNiceRatios().includes(ptScale.n) || asNiceRatios().includes(ptScale0.n))) ptScale = ptScale0;   /* טבלת הכותרת גוברת */
     let phrases = [...ptGroup(tokens, 'h'), ...ptGroup(tokens, 'v'), ...ptGroup(tokens, 'w')].filter(ptKeep);
     /* תכנית באנגלית: "מילים" עבריות שלא במילון הן סמלי ריהוט שנקראו כאותיות — מסירים כשהעברית שולית */
     const heb = phrases.filter(p => /[֐-׿]/.test(p.t)).length;
