@@ -617,7 +617,7 @@ function stepPlan() {
       <div class="opt hero">
         <div class="ic">🖼</div><b>יש לי תכנית</b>
         <small>צילום, סריקה או קובץ מהאדריכל — הכי מדויק</small>
-        <input type="file" accept="image/*" id="planIn" style="display:none" onchange="uploadPlan(this)">
+        <input type="file" accept="image/*,.pdf,.dxf,.dwg,.svg,.heic,.heif" id="planIn" style="display:none" onchange="uploadPlan(this)">
         <button class="go" style="width:100%" onclick="document.getElementById('planIn').click()">📤 העלה תכנית</button>
       </div>
       <div class="opt">
@@ -648,7 +648,7 @@ function stepPlan() {
     <div class="planops">
       <button class="ghost" onclick="cropPlan()">✂️ הסר שוליים אוטומטית</button>
       <button class="ghost ${CROP.on ? 'on' : ''}" onclick="${CROP.on ? 'cancelCrop()' : 'startCrop()'}">${CROP.on ? '✕ בטל גזירה' : '⬚ גזור בעצמי — סמן מסגרת'}</button>
-      <input type="file" accept="image/*" id="planIn3" style="display:none" onchange="uploadPlan(this)">
+      <input type="file" accept="image/*,.pdf,.dxf,.dwg,.svg,.heic,.heif" id="planIn3" style="display:none" onchange="uploadPlan(this)">
       <button class="ghost" onclick="document.getElementById('planIn3').click()">🔄 החלף תכנית</button>
     </div>
     <details class="fallback"><summary>אין לי מידה מדויקת — אעריך את רוחב התכנית</summary>
@@ -677,7 +677,7 @@ function stepPlan() {
       <button class="ghost" onclick="cropPlan()">✂️ הסר שוליים אוטומטית</button>
       <button class="ghost ${CROP.on ? 'on' : ''}" onclick="${CROP.on ? 'cancelCrop()' : 'startCrop()'}">${CROP.on ? '✕ בטל גזירה' : '⬚ גזור בעצמי — סמן מסגרת'}</button>
       <button class="ghost" onclick="recalibrate()">↺ המידה לא נכונה — כייל מחדש</button>
-      <input type="file" accept="image/*" id="planIn2" style="display:none" onchange="uploadPlan(this)">
+      <input type="file" accept="image/*,.pdf,.dxf,.dwg,.svg,.heic,.heif" id="planIn2" style="display:none" onchange="uploadPlan(this)">
       <button class="ghost" onclick="document.getElementById('planIn2').click()">🔄 החלף תכנית</button>
     </div>
     <div class="note">הצעד הבא: לסמן איפה צריך מוזיקה. אפשר צורה חופשית — כולל קשתות.</div>`,
@@ -905,16 +905,102 @@ function recalibrate() { S.scale = null; CAL.mode = 'two'; CAL.pts = []; save();
 const CAL = { mode: 'two', pts: [] };
 const DRAW = { on: false, from: null, cur: null, pts: [], purpose: null };
 function calMode(m) { CAL.mode = m; CAL.pts = []; render(); }
-function uploadPlan(inp) {
-  const f = inp.files && inp.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = () => {
-    S.plan = r.result; S.zones = []; S.scale = null; S.suggest = null; S.cropDone = false;
-    CAL.mode = 'two'; CAL.pts = [];
-    save(); render();
-    toast('📐 עכשיו סמן על התכנית מידה שאתה מכיר');
-  };
-  r.readAsDataURL(f);
+/* ---------- העלאת תכנית — כל קובץ: תמונה (JPG/PNG/WEBP/SVG/GIF/BMP, HEIC בספארי), PDF (הדף הראשון מרונדר; קנה המידה נקרא
+   משכבת הטקסט "1:N" וגודל הדף), DXF (משורטט מהישויות; קנה המידה מיחידות הקובץ — מדויק). DWG הוא פורמט סגור — מבקשים DXF/PDF ---------- */
+function liteLoadScript(src) { return new Promise((res, rej) => { if ([...document.scripts].some(s => s.src === src)) return res(); const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('טעינת ספרייה נכשלה')); document.head.appendChild(el); }); }
+function planSet(url, auto) {
+  S.plan = url; S.zones = []; S.suggest = null; S.cropDone = false; S.planAuto = auto || null;
+  /* קנה מידה אוטומטי: התכנית מנורמלת לרוחב 1400px (afterPlan) — מטר לפיקסל = רוחב אמיתי ÷ 1400 */
+  S.scale = auto && auto.widthM > 0 ? auto.widthM / 1400 : null;
+  CAL.mode = 'two'; CAL.pts = [];
+  save(); render();
+  toast(S.scale ? '✓ התכנית נטענה וקנה המידה זוהה לבד — ' + auto.note + ' · אפשר לאמת לפי מידה בתכנית' : '📐 עכשיו סמן על התכנית מידה שאתה מכיר');
+}
+async function uploadPlan(inp) {
+  const f = inp.files && inp.files[0]; if (!f) return; inp.value = '';
+  const ext = (f.name.split('.').pop() || '').toLowerCase();
+  toast('⏳ קורא את "' + f.name + '"…');
+  try {
+    if (ext === 'dwg') { toast('קובץ DWG הוא פורמט סגור של AutoCAD — שמור ממנו DXF (Save As → DXF) או הדפס ל-PDF, והעלה את זה. שניהם נטענים עם קנה מידה אוטומטי.'); return; }
+    if (ext === 'pdf' || f.type === 'application/pdf') { await planFromPdf(f); return; }
+    if (ext === 'dxf') { await planFromDxf(f); return; }
+    const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+    await new Promise((res, rej) => { const im = new Image(); im.onload = () => im.naturalWidth > 10 ? res() : rej(new Error('תמונה ריקה')); im.onerror = rej; im.src = url; });
+    planSet(url, null);
+  } catch (e) {
+    console.warn('uploadPlan', e);
+    toast('לא הצלחתי לקרוא את "' + f.name + '"' + (/hei[cf]/.test(ext) ? ' — HEIC נפתח רק בספארי; המר ל-JPG' : ' — נסה PDF, DXF או תמונה (JPG/PNG)'));
+  }
+}
+/* PDF: הדף הראשון → תמונה; קנה מידה = "1:N" משכבת הטקסט × רוחב הדף במ״מ */
+async function planFromPdf(f) {
+  if (!window.pdfjsLib) { await liteLoadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+  const doc = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+  const pg = await doc.getPage(1), vp1 = pg.getViewport({ scale: 1 });
+  const k = Math.min(3, 2400 / vp1.width), vp = pg.getViewport({ scale: k });
+  const cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+  const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+  await pg.render({ canvasContext: g, viewport: vp }).promise;
+  const pageWmm = vp1.width * 25.4 / 72;
+  let auto = null;
+  try {
+    const tc = await pg.getTextContent(); const txt = tc.items.map(i => i.str).join(' ').replace(/[∶：]/g, ':');
+    const m = /(?:^|[^\d.,])1\s*[:\/]\s*(\d{2,4})(?![\d.,])/.exec(txt);
+    if (m && +m[1] >= 10 && +m[1] <= 2000) auto = { widthM: pageWmm / 1000 * +m[1], note: 'PDF · 1:' + m[1] + ' על דף ' + Math.round(pageWmm) + ' מ״מ' + (doc.numPages > 1 ? ' · דף 1 מתוך ' + doc.numPages : '') };
+  } catch (e) { console.warn('pdf text', e); }
+  planSet(cv.toDataURL('image/jpeg', 0.85), auto);
+}
+/* DXF: LINE / LWPOLYLINE / POLYLINE+VERTEX / CIRCLE / ARC משורטטים בשחור על לבן; יחידות מ-$INSUNITS (4=מ״מ, 5=ס״מ, 6=מ׳, 1=אינץ׳, 2=רגל) */
+function dxfParse(text) {
+  const L = text.split(/\r?\n/), ents = []; let units = 0, i = 0;
+  const pair = () => { const c = +L[i].trim(), v = (L[i + 1] || '').trim(); i += 2; return [c, v]; };
+  let cur = null, poly = null;
+  const flush = () => { if (cur) { ents.push(cur); cur = null; } };
+  while (i + 1 < L.length) {
+    const [c, v] = pair();
+    if (c === 9 && v === '$INSUNITS') { const [c2, v2] = pair(); if (c2 === 70) units = +v2; continue; }
+    if (c === 0) {
+      flush();
+      if (v === 'LINE' || v === 'CIRCLE' || v === 'ARC') cur = { t: v };
+      else if (v === 'LWPOLYLINE') cur = { t: 'POLY', pts: [] };
+      else if (v === 'POLYLINE') poly = { t: 'POLY', pts: [] };
+      else if (v === 'VERTEX' && poly) cur = { t: 'VTX' };
+      else if (v === 'SEQEND' && poly) { ents.push(poly); poly = null; }
+      else if (v === 'EOF') break;
+      continue;
+    }
+    if (!cur) continue;
+    const n = +v;
+    if (cur.t === 'VTX') { if (c === 10) cur.x = n; if (c === 20) { cur.y = n; poly.pts.push({ x: cur.x, y: cur.y }); } continue; }
+    if (cur.t === 'POLY') { if (c === 10) cur.pts.push({ x: n }); else if (c === 20 && cur.pts.length) cur.pts[cur.pts.length - 1].y = n; else if (c === 70) cur.closed = !!(n & 1); continue; }
+    if (c === 10) cur.x1 = n; else if (c === 20) cur.y1 = n; else if (c === 11) cur.x2 = n; else if (c === 21) cur.y2 = n; else if (c === 40) cur.r = n; else if (c === 50) cur.a1 = n; else if (c === 51) cur.a2 = n;
+  }
+  flush();
+  return { ents: ents.filter(e => e.t !== 'VTX'), units };
+}
+async function planFromDxf(f) {
+  const { ents, units } = dxfParse(await f.text());
+  if (!ents.length) throw new Error('DXF בלי ישויות שרטוט');
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const px = (x, y) => { if (!isFinite(x) || !isFinite(y)) return; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+  ents.forEach(e => { if (e.t === 'LINE') { px(e.x1, e.y1); px(e.x2, e.y2); } else if (e.t === 'POLY') e.pts.forEach(p => px(p.x, p.y)); else if (e.r > 0) { px(e.x1 - e.r, e.y1 - e.r); px(e.x1 + e.r, e.y1 + e.r); } });
+  const W = x1 - x0, H = y1 - y0; if (!(W > 0 && H > 0)) throw new Error('DXF ריק');
+  const toM = { 1: 0.0254, 2: 0.3048, 4: 0.001, 5: 0.01, 6: 1 }[units] || (W > 2000 ? 0.001 : W > 200 ? 0.01 : 1);   /* בלי יחידות — ניחוש לפי גודל השרטוט */
+  const unitNote = { 1: 'אינץ׳', 2: 'רגל', 4: 'מ״מ', 5: 'ס״מ', 6: 'מטר' }[units] || ('יחידות לא מוגדרות — הנחתי ' + (toM === 0.001 ? 'מ״מ' : toM === 0.01 ? 'ס״מ' : 'מטר'));
+  const cw = 2400, pad = 0.02, k = (cw * (1 - 2 * pad)) / W, ch = Math.round(H * k / (1 - 2 * pad));
+  const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch; const g = cv.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, cw, ch); g.strokeStyle = '#111'; g.lineWidth = 1.6; g.lineJoin = 'round';
+  const X = x => cw * pad + (x - x0) * k, Y = y => ch - (ch * pad + (y - y0) * k);   /* DXF: y למעלה */
+  ents.forEach(e => {
+    g.beginPath();
+    if (e.t === 'LINE') { g.moveTo(X(e.x1), Y(e.y1)); g.lineTo(X(e.x2), Y(e.y2)); }
+    else if (e.t === 'POLY') { e.pts.forEach((p, j) => j ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); if (e.closed) g.closePath(); }
+    else if (e.t === 'CIRCLE') g.arc(X(e.x1), Y(e.y1), e.r * k, 0, Math.PI * 2);
+    else if (e.t === 'ARC') g.arc(X(e.x1), Y(e.y1), e.r * k, -(e.a2 || 0) * Math.PI / 180, -(e.a1 || 0) * Math.PI / 180);
+    g.stroke();
+  });
+  /* רוחב התכנית במטרים כולל השוליים (2% מכל צד) — כי זה מה שמנורמל ל-1400px */
+  planSet(cv.toDataURL('image/png'), { widthM: W * toM / (1 - 2 * pad), note: 'DXF · ' + ents.length + ' ישויות · ' + unitNote + ' · רוחב ' + (W * toM).toFixed(1) + ' מ׳' });
 }
 function buildFromDims() {
   if (!(S.roomW > 1 && S.roomL > 1)) { toast('הזן רוחב ואורך במטרים'); return; }
