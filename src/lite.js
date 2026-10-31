@@ -936,37 +936,69 @@ function applySheetRatio(quiet) {
 }
 function sheetName(mm) { return ({ 297: 'A4', 420: 'A3', 594: 'A2', 841: 'A1', 1189: 'A0' })[mm] || (mm + ' מ״מ'); }
 function setSheet(mm) { if (!S.planAuto) return; S.planAuto.sheetMm = +mm; applySheetRatio(false); }
+function setRatioManual(v) {
+  const n = +v; if (!(n > 0)) return;
+  S.planAuto = { ...(S.planAuto || {}), ratio: n, sheetMm: (S.planAuto && S.planAuto.sheetMm) || 420, from: 'user' };
+  applySheetRatio(false);
+}
 function sheetRatioCard() {
-  if (SCAN.busy) return '<div class="aicard" style="background:#f4f2ec"><b>📐 מחפש את קנה המידה בטבלת הכותרת…</b><small>OCR מקומי על שולי הגיליון — כמה שניות. אפשר בינתיים לסמן מידה ידנית.</small></div>';
-  const a = S.planAuto; if (!a || !(a.ratio > 0)) return '';
+  const a = S.planAuto;
+  /* הזנה ידנית — תמיד זמינה: "1:N" כמו שכתוב ליד קנ"מ בטבלת הכותרת, וגודל הגיליון */
+  const manual = () => '<div class="aicard" style="background:#fff">' + (SCAN.busy ? '<b>📐 מחפש את קנה המידה בטבלת הכותרת…</b><small>OCR מקומי על שולי הגיליון — כמה שניות. בינתיים אפשר להקליד:</small>' : '<b>📐 יודע את קנה המידה? הקלד</b><small>כמו שכתוב ליד קנ"מ בטבלת הכותרת (1:50, 1:100), וגודל הגיליון שעליו הודפסה התכנית.</small>') +
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;direction:rtl"><span style="font-size:13px">קנה מידה:</span><span style="direction:ltr;display:inline-flex;align-items:center;gap:4px;font-weight:700">1 : <input id="ratioIn" type="number" min="1" max="5000" placeholder="50" style="width:72px;padding:6px 8px;border-radius:9px;border:1.5px solid var(--line);font-size:14px" onkeydown="if(event.key===\'Enter\')setRatioManual(this.value)"></span>' +
+    '<span style="font-size:13px">גיליון:</span><select id="sheetIn" style="padding:6px 8px;border-radius:9px;border:1.5px solid var(--line);font-size:13px">' + [297, 420, 594, 841, 1189].map(mm => '<option value="' + mm + '"' + ((a && a.sheetMm) === mm || (!a && mm === 420) ? ' selected' : '') + '>' + sheetName(mm) + '</option>').join('') + '</select>' +
+    '<button class="go" style="padding:8px 14px" onclick="S.planAuto=S.planAuto||{};S.planAuto.sheetMm=+document.getElementById(\'sheetIn\').value;setRatioManual(document.getElementById(\'ratioIn\').value)">החל</button></div></div>';
+  if (!a || !(a.ratio > 0)) return manual();
   const sel = '<select onchange="setSheet(this.value)" style="padding:6px 8px;border-radius:9px;border:1.5px solid var(--line);font-size:13px">' + [297, 420, 594, 841, 1189].map(mm => '<option value="' + mm + '"' + (a.sheetMm === mm ? ' selected' : '') + '>' + sheetName(mm) + ' (' + mm + ' מ״מ)</option>').join('') + '</select>';
   return '<div class="aicard" style="background:#eef7f1;border-color:#0f6e56"><b>📐 ' + (S.scale ? '✓ קנה המידה נקרא מהתכנית' : 'קנה מידה נמצא בתכנית') + ': 1:' + a.ratio + '</b>' +
     '<small>' + (a.from === 'ocr' ? 'נקרא מטבלת הכותרת ("' + esc(String(a.t || '').slice(0, 20)) + '"). ' : '') + 'הרוחב האמיתי תלוי בגודל הגיליון שעליו הודפסה התכנית — ברירת המחדל A3.</small>' +
     '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><span style="font-size:13px">גיליון:</span>' + sel + (S.scale ? '' : '<button class="go" style="padding:8px 14px" onclick="applySheetRatio(false)">החל</button>') + '</div></div>';
 }
 /* ---------- OCR ממוקד: "1:N" בשולי הגיליון (רצועות ימין/תחתית/שמאל/עליון, כמה הגדלות, גם מסובב) — כמו ב-KO Projects ---------- */
+/* הסרת קווים ישרים ארוכים (מסגרות טבלת הכותרת, קירות) לפני OCR — טסרקט מתייחס לטבלה מסורגת כגרפיקה ומפספס את הטקסט שבתאים.
+   ריצה שחורה ארוכה מ-12% מהצלע הקצרה נצבעת לבן; משיכות אותיות קצרות בהרבה ונשארות */
+function ocrStripLines(id, cw, ch) {
+  const px = id.data, bin = new Uint8Array(cw * ch), minLen = Math.round(Math.min(cw, ch) * 0.12);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) bin[j] = px[i] < 128 ? 1 : 0;
+  for (let y = 0; y < ch; y++) { let run = 0; for (let x = 0; x <= cw; x++) { const v = x < cw ? bin[y * cw + x] : 0; if (v) run++; else { if (run >= minLen) for (let x2 = x - run; x2 < x; x2++) bin[y * cw + x2] = 2; run = 0; } } }
+  for (let x = 0; x < cw; x++) { let run = 0; for (let y = 0; y <= ch; y++) { const v = y < ch ? (bin[y * cw + x] ? 1 : 0) : 0; if (v) run++; else { if (run >= minLen) for (let y2 = y - run; y2 < y; y2++) bin[y2 * cw + x] = 2; run = 0; } } }
+  for (let j = 0, i = 0; j < bin.length; j++, i += 4) if (bin[j] === 2) px[i] = px[i + 1] = px[i + 2] = 255;
+}
 async function liteScaleScan(url) {
   const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
   if (!window.Tesseract) await liteLoadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
   const W = img.width, H = img.height;
   const strips = [['right', W * 0.68, 0, W * 0.32, H], ['bottom', 0, H * 0.72, W, H * 0.28], ['left', 0, 0, W * 0.32, H], ['top', 0, 0, W, H * 0.22]];
   const base = 1400 / Math.max(W, H * 1.4), scales = [3, 2.75, 3.25, 2.5, 3.5, 4].map(k => +(k * base).toFixed(2));
-  const worker = await Tesseract.createWorker('eng');
+  const worker = await Tesseract.createWorker('eng+heb');   /* עברית בשביל התווית "קנ"מ" / "קנמ" שליד הערך */
   const norm = t => String(t || '').replace(/[\u200f\u200e]/g, '').replace(/[∶：;]/g, ':').replace(/^[lI|]/, '1').replace(/[oO]/g, '0');
   const rx = /(?:^|[^\d.,])1\s*[:\/]\s*(\d{1,4})(?![\d.,])/, nice = [10, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+  const LABEL = /קנ\s?["״׳']?\s?מ|קנמ|SCALE|קנה\s?מידה/i;
   let best = null;
   const crop = (sx, sy, sw, sh, k, thr, rot) => {
     const cw = Math.round(sw * k), ch = Math.round(sh * k), c0 = document.createElement('canvas'); c0.width = cw; c0.height = ch;
     const g0 = c0.getContext('2d'); g0.imageSmoothingQuality = 'high'; g0.fillStyle = '#fff'; g0.fillRect(0, 0, cw, ch); g0.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
     const id = g0.getImageData(0, 0, cw, ch), px = id.data;
     for (let i = 0; i < px.length; i += 4) { const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; const v = l < thr ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; }
+    ocrStripLines(id, cw, ch);
     g0.putImageData(id, 0, 0);
     if (!rot) return c0;
     const rc = document.createElement('canvas'); rc.width = ch; rc.height = cw; const g = rc.getContext('2d'); g.translate(rc.width / 2, rc.height / 2); g.rotate(rot); g.drawImage(c0, -cw / 2, -ch / 2); return rc;
   };
   const consider = (t, c) => { const s2 = norm(t).trim(), exact = /^1\s*[:\/]\s*\d{1,4}$/.test(s2); if (c < (exact ? 15 : 35)) return; const m = rx.exec(s2); if (!m) return; const n = +m[1]; if (!(n >= 5 && n <= 2000)) return; const score = (nice.includes(n) ? 100 : 0) + (exact ? 40 : 0) + c; if (!best || score > best.score) best = { n, t: s2, score }; };
   const good = () => best && best.score >= 140;
-  const pass = async (sx, sy, sw, sh, k, thr, rot) => { const res = await worker.recognize(crop(sx, sy, sw, sh, k, thr, rot)), words = res.data.words || []; words.forEach(w => consider(w.text, w.confidence)); for (let i = 0; i + 1 < words.length; i++) { const a = words[i], b = words[i + 1]; if (Math.abs(a.bbox.y0 - b.bbox.y0) < (a.bbox.y1 - a.bbox.y0) && b.bbox.x0 - a.bbox.x1 < (a.bbox.y1 - a.bbox.y0) * 2) consider(a.text + b.text, Math.min(a.confidence, b.confidence)); } };
+  const pass = async (sx, sy, sw, sh, k, thr, rot) => {
+    const res = await worker.recognize(crop(sx, sy, sw, sh, k, thr, rot)), words = res.data.words || [];
+    words.forEach(w => consider(w.text, w.confidence));
+    for (let i = 0; i + 1 < words.length; i++) { const a = words[i], b = words[i + 1]; if (Math.abs(a.bbox.y0 - b.bbox.y0) < (a.bbox.y1 - a.bbox.y0) && b.bbox.x0 - a.bbox.x1 < (a.bbox.y1 - a.bbox.y0) * 2) consider(a.text + b.text, Math.min(a.confidence, b.confidence)); }
+    /* תווית "קנ"מ" / SCALE: מספר שיושב מתחתיה או לידה (באותו תא בטבלת הכותרת) הוא ה-N גם בלי "1:" — למשל "קנ"מ" ומתחת "20" */
+    words.filter(w => LABEL.test(w.text || '')).forEach(lb => {
+      const h = Math.max(8, lb.bbox.y1 - lb.bbox.y0), cx = (lb.bbox.x0 + lb.bbox.x1) / 2, cy = (lb.bbox.y0 + lb.bbox.y1) / 2;
+      words.forEach(w => { if (w === lb) return; const m = /^(?:1\s*[:\/]\s*)?(\d{2,4})$/.exec(norm(w.text).trim()); if (!m) return;
+        const wx = (w.bbox.x0 + w.bbox.x1) / 2, wy = (w.bbox.y0 + w.bbox.y1) / 2;
+        if (Math.abs(wx - cx) < h * 6 && wy - cy > -h && wy - cy < h * 3.5) consider('1:' + m[1], Math.max(w.confidence, 20) + 15); });
+    });
+  };
   try {
     await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '6' });
     for (const [where, sx, sy, sw, sh] of strips) {
