@@ -191,7 +191,56 @@ function chanGroups(zones, cut) {
 }
 
 /* בניית הצעה מלאה לשכבה */
+/* ---------- עוד אפשרויות לכל מותג: בחירת רמקול / סאב / מגבר מתוך הדגמים של השכבה (כולם מאומתים ובמלאי ה-ERP) ---------- */
+const SPK_SLOTS = ['spk', 'spkBig', 'spkSmall'], SUB_SLOTS = ['sub', 'subBig', 'subSmall'], AMP_SLOTS = ['amp', 'ampSmall', 'ampBig'];
+function tierVariants(tier, kind) {
+  const slots = kind === 'spk' ? SPK_SLOTS.concat(['spkCeil']) : kind === 'sub' ? SUB_SLOTS : AMP_SLOTS, seen = new Set(), out = [];
+  slots.forEach(s => { const v = tier[s]; if (v && v.key && !seen.has(v.key)) { seen.add(v.key); out.push(v); } });
+  return out;
+}
+function pickOf(tier) { return (S.pick || {})[tier.baseId || tier.id] || {}; }
+/* השכבה אחרי הבחירות: רמקול נבחר נכנס לכל תפקידי הקיר (שקוע נשאר שקוע), סאב נבחר לכל תפקידי הסאב, מגבר נבחר — היחיד שנשקל */
+function tierWithPick(tier) {
+  const pk = pickOf(tier); if (!pk.spk && !pk.sub && !pk.amp) return tier;
+  const t = { ...tier };
+  if (pk.spk) { const v = tierVariants(tier, 'spk').find(x => x.key === pk.spk); if (v) { if (v.ceil || v === tier.spkCeil) t.spkCeil = v; else { SPK_SLOTS.forEach(s => t[s] = v); } } }
+  if (pk.sub) { const v = tierVariants(tier, 'sub').find(x => x.key === pk.sub); if (v) SUB_SLOTS.forEach(s => t[s] = v); }
+  if (pk.amp) { const v = tierVariants(tier, 'amp').find(x => x.key === pk.amp); if (v) { t.amp = v; t.ampSmall = null; t.ampBig = null; } }
+  return t;
+}
+function setPick(tid, kind, key) {
+  S.pick = S.pick || {}; const pk = S.pick[tid] = S.pick[tid] || {};
+  if (!key || key === 'auto') delete pk[kind]; else pk[kind] = key;
+  if (!Object.keys(pk).length) delete S.pick[tid];
+  S.layout = {}; save(); render();
+}
+let OPT = null;   /* כרטיס שבו פתוח פאנל "עוד אפשרויות" */
+function optToggle(tid) { OPT = OPT === tid ? null : tid; render(); }
+function optionsHTML(p) {
+  const tier0 = LITE_CATALOG.tiers.find(t => t.id === (p.tier.baseId || p.tier.id)) || p.tier, tid = tier0.id, pk = pickOf(tier0);
+  const open = OPT === tid;
+  const btn = `<button class="ghost wide" style="margin-bottom:10px" onclick="optToggle('${tid}')">${open ? '▴ סגור' : '⚙ עוד אפשרויות מ-' + esc(tier0.brand)}${Object.keys(pk).length ? ' · ' + Object.keys(pk).length + ' בחירות' : ''}</button>`;
+  if (!open) return btn;
+  const cur = { spk: p.mainSpk && p.mainSpk.key, sub: p.sub && p.sub.key, amp: p.amp && p.amp.key };
+  const baseTotal = p.total;
+  const row = (kind, label, icon) => {
+    const anyCeil = S.zones.some(z => z.mount === 'ceil');
+    const vars = tierVariants(tier0, kind).filter(v => kind !== 'spk' || anyCeil || !(v.ceil || v === tier0.spkCeil));   /* דגם שקוע רק כשיש אזור בתקרה */
+    if (vars.length < 2 && !pk[kind]) return '';
+    const chips = vars.map(v => {
+      /* מה יקרה לסה"כ אם בוחרים את זה — נבנה מחדש עם הבחירה */
+      const saved = S.pick; S.pick = { ...(S.pick || {}), [tid]: { ...pk, [kind]: v.key } };
+      let tot = null; try { tot = buildProposal(p.tier.id === 'fit' ? p.tier : tier0).total; } catch (e) {} S.pick = saved;
+      const d = tot == null ? null : tot - baseTotal, on = pk[kind] ? pk[kind] === v.key : cur[kind] === v.key;
+      return `<button class="chip ${on ? 'on' : ''}" onclick="setPick('${tid}','${kind}','${v.key}')" title="${esc(v.name)}"><span>${esc(String(v.name).replace(/^(KT|UNICORN|FUNKTION-ONE|K&F|YAMAHA)\s*/i, '').slice(0, 30))}</span><small> · ${ils(v.price)}${d == null || on || Math.abs(d) < 1 ? '' : ' · ' + (d > 0 ? '+' : '−') + ils(Math.abs(d))}</small></button>`;
+    }).join('');
+    return `<div class="optrow"><b>${icon} ${label}</b><div class="chips">${chips}${pk[kind] ? `<button class="chip ghosty" onclick="setPick('${tid}','${kind}','auto')">↺ אוטומטי</button>` : ''}</div></div>`;
+  };
+  return btn + `<div class="optpanel">${row('spk', 'רמקול', '🔊')}${row('sub', 'סאב', '🔈')}${row('amp', 'מגבר', '🎚')}
+    <small class="muted">כל דגם כאן מאומת ובמלאי. הכמויות, המגברים והחיווט מחושבים מחדש לפי הבחירה; ההפרש מוצג מול ההצעה הנוכחית.</small></div>`;
+}
 function buildProposal(tier) {
+  tier = tierWithPick(tier);
   const scale = S.scale || 0.02, ceil = S.ceil || 4;
   const zones = S.zones.map(z => ({ z, p: planZone(z, tier, ceil, scale) }));
   const spkCount = {}, add = (k, n) => spkCount[k] = (spkCount[k] || 0) + n;
@@ -1875,6 +1924,7 @@ function stepOffers() {
 </div>
       ${S.finish && S.finish !== FIN_ANY ? `<div class="finline">🎨 גימור ${esc(S.finish)}${p.rows.some(r => (r.name || '').endsWith('· ' + S.finish)) ? '' : ' — לדגם הזה אין גימור כזה, נשאר במקורי'}</div>` : ''}
       <div class="prods">${prodCards(p)}</div>
+      ${optionsHTML(p)}
       <details class="incl"><summary>מה כלול בדיוק — ${p.rows.length} פריטי ציוד + ${p.inst.length} שורות התקנה</summary>
         <table class="inclt"><tr><th>ציוד</th><th>כמות</th><th>סה"כ</th><th></th></tr>
           ${p.rows.map(r => {
