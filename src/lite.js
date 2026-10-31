@@ -634,7 +634,7 @@ function stepPlan() {
   if (S.plan && !S.scale) return `
     <h2>מעולה — עכשיו נדע כמה גדול המקום</h2>
     <p class="sub">בלי זה כל החישוב לא שווה כלום. אפשר לתת ל-AI לקרוא את המידות המודפסות — או לסמן ידנית.</p>
-    ` + wb(`
+    ` + wb(sheetRatioCard() + `
     <div class="aicard">
       <b>הדרך המהירה</b>
       <small>ה-AI קורא את המידות המודפסות בתכנית (360, 380…), מכייל לבד, ומסמן את אזורי הישיבה והבר כאזורי השמעה — הכול נשאר ניתן לעריכה.</small>
@@ -662,7 +662,7 @@ function stepPlan() {
   return `
     <h2>מצוין, החלל מכויל ✓</h2>
     <p class="sub">מכאן נדע בדיוק כמה רמקולים צריך ואיפה. אפשר להמשיך — או לתקן אם המידה לא נראית לך נכונה.</p>
-    ` + wb(`
+    ` + wb((S.planAuto && S.planAuto.from === 'ocr' ? sheetRatioCard() : '') + `
     <div class="okcard">
       <div><b>${wM} מ׳</b><small>רוחב התכנית</small></div>
       <div><b>${(1 / S.scale).toFixed(0)}px</b><small>= מטר אחד</small></div>
@@ -909,12 +909,74 @@ function calMode(m) { CAL.mode = m; CAL.pts = []; render(); }
    משכבת הטקסט "1:N" וגודל הדף), DXF (משורטט מהישויות; קנה המידה מיחידות הקובץ — מדויק). DWG הוא פורמט סגור — מבקשים DXF/PDF ---------- */
 function liteLoadScript(src) { return new Promise((res, rej) => { if ([...document.scripts].some(s => s.src === src)) return res(); const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('טעינת ספרייה נכשלה')); document.head.appendChild(el); }); }
 function planSet(url, auto) {
-  S.plan = url; S.zones = []; S.suggest = null; S.cropDone = false; S.planAuto = auto || null;
+  S.plan = url; S.zones = []; S.suggest = null; S.cropDone = false; S.planAuto = auto || null; S.cropK = 1;
   /* קנה מידה אוטומטי: התכנית מנורמלת לרוחב 1400px (afterPlan) — מטר לפיקסל = רוחב אמיתי ÷ 1400 */
   S.scale = auto && auto.widthM > 0 ? auto.widthM / 1400 : null;
   CAL.mode = 'two'; CAL.pts = [];
   save(); render();
-  toast(S.scale ? '✓ התכנית נטענה וקנה המידה זוהה לבד — ' + auto.note + ' · אפשר לאמת לפי מידה בתכנית' : '📐 עכשיו סמן על התכנית מידה שאתה מכיר');
+  if (S.scale) { toast('✓ התכנית נטענה וקנה המידה זוהה לבד — ' + auto.note + ' · אפשר לאמת לפי מידה בתכנית'); return; }
+  /* בלי קנה מידה מהקובץ — מחפשים "1:N" בטבלת הכותרת שבשולי הגיליון (OCR מקומי, כמה שניות), ומחילים לפי גיליון A3 כברירת מחדל */
+  toast('📐 מחפש את קנה המידה בטבלת הכותרת של התכנית…');
+  SCAN.busy = true; SCAN.url = url; render();
+  liteScaleScan(url).then(r => {
+    if (SCAN.url !== url) return;   /* הוחלפה תכנית בינתיים */
+    SCAN.busy = false;
+    if (r) { S.planAuto = { ratio: r.n, sheetMm: 420, t: r.t, from: 'ocr' }; if (!S.scale) { applySheetRatio(true); return; } }
+    else toast('לא נמצא כיתוב קנה מידה בשוליים — סמן מידה מוכרת על התכנית');
+    save(); render();
+  }).catch(e => { console.warn('scale scan', e); SCAN.busy = false; render(); });
+}
+const SCAN = { busy: false, url: null };
+/* קנה מידה לפי "1:N" ורוחב הגיליון: רוחב אמיתי = גיליון × N; מחולק בגורם החיתוך כשהשוליים כבר הוסרו */
+function applySheetRatio(quiet) {
+  const a = S.planAuto; if (!a || !(a.ratio > 0)) return;
+  S.scale = (a.sheetMm / 1000 * a.ratio / 1400) / (S.cropK || 1);
+  CAL.pts = []; save(); render();
+  toast((quiet ? '📐 נמצא בטבלת הכותרת 1:' + a.ratio + ' — הוחל לפי גיליון ' + sheetName(a.sheetMm) : '✓ קנה מידה 1:' + a.ratio + ' על גיליון ' + sheetName(a.sheetMm)) + ' · אם הגיליון אחר, שנה אותו למטה');
+}
+function sheetName(mm) { return ({ 297: 'A4', 420: 'A3', 594: 'A2', 841: 'A1', 1189: 'A0' })[mm] || (mm + ' מ״מ'); }
+function setSheet(mm) { if (!S.planAuto) return; S.planAuto.sheetMm = +mm; applySheetRatio(false); }
+function sheetRatioCard() {
+  if (SCAN.busy) return '<div class="aicard" style="background:#f4f2ec"><b>📐 מחפש את קנה המידה בטבלת הכותרת…</b><small>OCR מקומי על שולי הגיליון — כמה שניות. אפשר בינתיים לסמן מידה ידנית.</small></div>';
+  const a = S.planAuto; if (!a || !(a.ratio > 0)) return '';
+  const sel = '<select onchange="setSheet(this.value)" style="padding:6px 8px;border-radius:9px;border:1.5px solid var(--line);font-size:13px">' + [297, 420, 594, 841, 1189].map(mm => '<option value="' + mm + '"' + (a.sheetMm === mm ? ' selected' : '') + '>' + sheetName(mm) + ' (' + mm + ' מ״מ)</option>').join('') + '</select>';
+  return '<div class="aicard" style="background:#eef7f1;border-color:#0f6e56"><b>📐 ' + (S.scale ? '✓ קנה המידה נקרא מהתכנית' : 'קנה מידה נמצא בתכנית') + ': 1:' + a.ratio + '</b>' +
+    '<small>' + (a.from === 'ocr' ? 'נקרא מטבלת הכותרת ("' + esc(String(a.t || '').slice(0, 20)) + '"). ' : '') + 'הרוחב האמיתי תלוי בגודל הגיליון שעליו הודפסה התכנית — ברירת המחדל A3.</small>' +
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><span style="font-size:13px">גיליון:</span>' + sel + (S.scale ? '' : '<button class="go" style="padding:8px 14px" onclick="applySheetRatio(false)">החל</button>') + '</div></div>';
+}
+/* ---------- OCR ממוקד: "1:N" בשולי הגיליון (רצועות ימין/תחתית/שמאל/עליון, כמה הגדלות, גם מסובב) — כמו ב-KO Projects ---------- */
+async function liteScaleScan(url) {
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+  if (!window.Tesseract) await liteLoadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
+  const W = img.width, H = img.height;
+  const strips = [['right', W * 0.68, 0, W * 0.32, H], ['bottom', 0, H * 0.72, W, H * 0.28], ['left', 0, 0, W * 0.32, H], ['top', 0, 0, W, H * 0.22]];
+  const base = 1400 / Math.max(W, H * 1.4), scales = [3, 2.75, 3.25, 2.5, 3.5, 4].map(k => +(k * base).toFixed(2));
+  const worker = await Tesseract.createWorker('eng');
+  const norm = t => String(t || '').replace(/[\u200f\u200e]/g, '').replace(/[∶：;]/g, ':').replace(/^[lI|]/, '1').replace(/[oO]/g, '0');
+  const rx = /(?:^|[^\d.,])1\s*[:\/]\s*(\d{1,4})(?![\d.,])/, nice = [10, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+  let best = null;
+  const crop = (sx, sy, sw, sh, k, thr, rot) => {
+    const cw = Math.round(sw * k), ch = Math.round(sh * k), c0 = document.createElement('canvas'); c0.width = cw; c0.height = ch;
+    const g0 = c0.getContext('2d'); g0.imageSmoothingQuality = 'high'; g0.fillStyle = '#fff'; g0.fillRect(0, 0, cw, ch); g0.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+    const id = g0.getImageData(0, 0, cw, ch), px = id.data;
+    for (let i = 0; i < px.length; i += 4) { const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; const v = l < thr ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; }
+    g0.putImageData(id, 0, 0);
+    if (!rot) return c0;
+    const rc = document.createElement('canvas'); rc.width = ch; rc.height = cw; const g = rc.getContext('2d'); g.translate(rc.width / 2, rc.height / 2); g.rotate(rot); g.drawImage(c0, -cw / 2, -ch / 2); return rc;
+  };
+  const consider = (t, c) => { const s2 = norm(t).trim(), exact = /^1\s*[:\/]\s*\d{1,4}$/.test(s2); if (c < (exact ? 15 : 35)) return; const m = rx.exec(s2); if (!m) return; const n = +m[1]; if (!(n >= 5 && n <= 2000)) return; const score = (nice.includes(n) ? 100 : 0) + (exact ? 40 : 0) + c; if (!best || score > best.score) best = { n, t: s2, score }; };
+  const good = () => best && best.score >= 140;
+  const pass = async (sx, sy, sw, sh, k, thr, rot) => { const res = await worker.recognize(crop(sx, sy, sw, sh, k, thr, rot)), words = res.data.words || []; words.forEach(w => consider(w.text, w.confidence)); for (let i = 0; i + 1 < words.length; i++) { const a = words[i], b = words[i + 1]; if (Math.abs(a.bbox.y0 - b.bbox.y0) < (a.bbox.y1 - a.bbox.y0) && b.bbox.x0 - a.bbox.x1 < (a.bbox.y1 - a.bbox.y0) * 2) consider(a.text + b.text, Math.min(a.confidence, b.confidence)); } };
+  try {
+    await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '6' });
+    for (const [where, sx, sy, sw, sh] of strips) {
+      for (const k of scales) { for (const thr of [200, 150]) { await pass(sx, sy, sw, sh, k, thr, 0); if (good()) break; } if (good()) break; }
+      if (!good() && (where === 'right' || where === 'left')) for (const rot of [Math.PI / 2, -Math.PI / 2]) { await pass(sx, sy, sw, sh, scales[0], 200, rot); if (good()) break; }
+      if (good()) break;
+    }
+    if (!best) { await worker.setParameters({ tessedit_pageseg_mode: '11' }); for (const [, sx, sy, sw, sh] of strips) { await pass(sx, sy, sw, sh, scales[0], 200, 0); if (best) break; } }
+  } finally { await worker.terminate(); }
+  return best ? { n: best.n, t: best.t } : null;
 }
 async function uploadPlan(inp) {
   const f = inp.files && inp.files[0]; if (!f) return; inp.value = '';
@@ -1260,6 +1322,7 @@ function applyCropBox(box, silent, msg) {
   });
   (S.suggest || []).forEach(r => { map(r); r.w *= k; r.h *= k; });
   if (S.scale) S.scale = S.scale / k;
+  S.cropK = (S.cropK || 1) * k;   /* כמה הגיליון המקורי גדול מהתכנית החתוכה — לקנה מידה לפי "1:N" וגודל גיליון */
   S.layout = null; S.wireEdits = null;
   S.plan = out; S.planH = Math.round(1400 * box.h / box.w); S.cropDone = true;
   CAL.pts = [];
@@ -1516,15 +1579,9 @@ function stepZones() {
   /* כל האזורים מוגדרים — סיכום ברור + שאלה אחת: עוד אזור או ממשיכים */
   return `
   <h2>${zs.length === 1 ? 'האזור מוגדר ✓' : zs.length + ' אזורים מוגדרים ✓'}</h2>
-  <p class="sub">כל אזור מקבל שליטת עוצמה נפרדת. אפשר לדייק את הצורה ישירות על התכנית:</p>
+  <p class="sub">כל אזור מקבל שליטת עוצמה נפרדת. על התכנית: גרירת פינה מזיזה אותה, גרירת אמצע צלע מעגלת, גרירת הגוף מזיזה הכול.</p>
   ` + wb(`
-  <div class="shapehelp">
-    <span>⬤ <b>פינה</b> — גרור להזזה · דאבל-קליק למחיקה</span>
-    <span>◗ <b>אמצע צלע</b> — גרור לעיגול הקשת · דאבל-קליק להוספת פינה</span>
-    <span>✥ <b>גוף האזור</b> — גרור להזזת הצורה כולה</span>
-  </div>
   ${DRAW.on ? drawHint() : ''}
-  ${forgotHTML()}
   <div class="zlist">${zs.map((z, i) => {
     const p = purposeOf(z), pl = S.scale ? planZone(z, LITE_CATALOG.tiers[1], S.ceil, S.scale) : null;
     return `<div class="zcard" style="border-right:6px solid ${p.color}">
@@ -1558,6 +1615,7 @@ function stepZones() {
         : 'מקור אחד — חיבור ישיר למערכת, בלי ציוד נוסף.';
     })()}</small>
   </div>
+  ${forgotHTML()}
   ${zs.length > 1 ? `<div class="content-q">
     <b>🎚 מה מתנגן בכל אזור?</b>
     <div class="chips">
