@@ -86,8 +86,14 @@ button{font-family:inherit;cursor:pointer;border:none}
 .fitrow b{min-width:64px}.fitrow span{color:var(--muted)}.fitrow .amt{margin-right:auto;font-weight:800;color:var(--ink);font-size:15px}
 .fitrow.ok{border-right:5px solid var(--go)}.fitrow.over{border-right:5px solid #d9534f;opacity:.75}
 .fitrow .badge{font-size:11px;font-weight:700}
-.offers{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-.offer{background:#fff;border:2px solid var(--line);border-radius:20px;padding:18px;position:relative;display:flex;flex-direction:column}
+.offers{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+@media(max-width:1260px){.offers{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:820px){.offers{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.offers{grid-template-columns:1fr}}
+.offer{background:#fff;border:2px solid var(--line);border-radius:20px;padding:14px;position:relative;display:flex;flex-direction:column;min-width:0}
+.offer .price{font-size:24px}.offer .oh b{font-size:17px}.offer .prod b{font-size:12.5px;word-break:break-word}
+.optbtn{margin-bottom:8px;font-size:12.5px;padding:9px 8px}.optbtn.on{background:var(--ink);color:#fff}
+.opthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.opthead b{font-size:14px}
 .offer.reco{border-color:var(--violet);box-shadow:0 10px 34px rgba(124,92,255,.16)}
 .offer.sel{border-color:var(--go);background:#f7fdfa}
 .ribbon{position:absolute;top:-11px;right:18px;background:var(--violet);color:#fff;font-size:11px;font-weight:800;padding:4px 12px;border-radius:20px}
@@ -99,7 +105,7 @@ button{font-family:inherit;cursor:pointer;border:none}
 .specs div{flex:1;background:#faf8f4;border-radius:11px;padding:9px 4px;text-align:center}
 .specs b{display:block;font-size:19px}.specs small{font-size:10.5px;color:var(--muted)}
 .prods{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
-.optpanel{background:#f7f5f0;border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:-4px 0 12px}
+.optpanel{background:#f7f5f0;border:2px solid var(--ink);border-radius:16px;padding:12px 14px;margin:14px 0 12px}
 .optrow{margin-bottom:8px}.optrow>b{display:block;font-size:12.5px;margin-bottom:5px}
 .optrow .chips{display:flex;flex-wrap:wrap;gap:6px}.optrow .chip{padding:5px 10px;font-size:12px;text-align:right}.optrow .chip small{opacity:.75;font-weight:500}
 .prod{display:flex;gap:9px;align-items:center;background:#faf8f4;border-radius:11px;padding:7px}

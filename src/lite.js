@@ -219,8 +219,9 @@ function optToggle(tid) { OPT = OPT === tid ? null : tid; render(); }
 function optionsHTML(p) {
   const tier0 = LITE_CATALOG.tiers.find(t => t.id === (p.tier.baseId || p.tier.id)) || p.tier, tid = tier0.id, pk = pickOf(tier0);
   const open = OPT === tid;
-  const btn = `<button class="ghost wide" style="margin-bottom:10px" onclick="optToggle('${tid}')">${open ? '▴ סגור' : '⚙ עוד אפשרויות מ-' + esc(tier0.brand)}${Object.keys(pk).length ? ' · ' + Object.keys(pk).length + ' בחירות' : ''}</button>`;
-  if (!open) return btn;
+  if (p.btnOnly) return `<button class="ghost wide optbtn ${open ? 'on' : ''}" onclick="optToggle('${tid}')">${open ? '▴ סגור את האפשרויות' : '⚙ בחר אפשרויות נוספות מאותו מותג'}${Object.keys(pk).length ? ' · ' + Object.keys(pk).length + ' בחירות' : ''}</button>`;
+  const btn = '';
+  if (!open) return '';
   const cur = { spk: p.mainSpk && p.mainSpk.key, sub: p.sub && p.sub.key, amp: p.amp && p.amp.key };
   const baseTotal = p.total;
   const row = (kind, label, icon) => {
@@ -236,7 +237,8 @@ function optionsHTML(p) {
     }).join('');
     return `<div class="optrow"><b>${icon} ${label}</b><div class="chips">${chips}${pk[kind] ? `<button class="chip ghosty" onclick="setPick('${tid}','${kind}','auto')">↺ אוטומטי</button>` : ''}</div></div>`;
   };
-  return btn + `<div class="optpanel">${row('spk', 'רמקול', '🔊')}${row('sub', 'סאב', '🔈')}${row('amp', 'מגבר', '🎚')}
+  return btn + `<div class="optpanel" id="optpanel"><div class="opthead"><b>⚙ אפשרויות נוספות — ${esc(tier0.name)} · ${esc(tier0.brand)}</b><button class="ghost sm" onclick="optToggle('${tid}')">✕ סגור</button></div>
+    ${row('spk', 'רמקול', '🔊')}${row('sub', 'סאב', '🔈')}${row('amp', 'מגבר', '🎚')}
     <small class="muted">כל דגם כאן מאומת ובמלאי. הכמויות, המגברים והחיווט מחושבים מחדש לפי הבחירה; ההפרש מוצג מול ההצעה הנוכחית.</small></div>`;
 }
 function buildProposal(tier) {
@@ -1924,7 +1926,6 @@ function stepOffers() {
 </div>
       ${S.finish && S.finish !== FIN_ANY ? `<div class="finline">🎨 גימור ${esc(S.finish)}${p.rows.some(r => (r.name || '').endsWith('· ' + S.finish)) ? '' : ' — לדגם הזה אין גימור כזה, נשאר במקורי'}</div>` : ''}
       <div class="prods">${prodCards(p)}</div>
-      ${optionsHTML(p)}
       <details class="incl"><summary>מה כלול בדיוק — ${p.rows.length} פריטי ציוד + ${p.inst.length} שורות התקנה</summary>
         <table class="inclt"><tr><th>ציוד</th><th>כמות</th><th>סה"כ</th><th></th></tr>
           ${p.rows.map(r => {
@@ -1956,9 +1957,11 @@ function stepOffers() {
       <div class="badges">${inBudget ? '<span class="b ok">✓ בתקציב</span>' : '<span class="b over">מעל התקציב</span>'}
         <span class="b">${p.days} ימי התקנה</span>
         <span class="b">${stockNote(p)}</span></div>
+      ${isFit ? '' : optionsHTML({ ...p, btnOnly: true })}
       <button class="go wide" onclick="pickTier('${isFit ? fitOf.base.tier.id : p.tier.id}'${isFit ? ',' + fitOf.cut : ''})">${selected ? '✓ נבחר' : 'בחר את זה'}</button>
     </div>`;
-  }).join('')}</div>`;
+  }).join('')}</div>
+  ${(() => { const op = OPT && list.find(p => p.tier.id !== 'fit' && (p.tier.baseId || p.tier.id) === OPT); if (!op) return ''; setTimeout(() => { const el = document.getElementById('optpanel'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50); return optionsHTML(op); })()}`;
 }
 function prodCards(p) {
   const main = p.rows.filter(r => r.note === 'רמקולים' || r.note === 'סאבים' || r.note === 'הגברה').slice(0, 4);
