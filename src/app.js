@@ -12327,6 +12327,15 @@ function importBackup() {
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m])); }
 /* מחרוזת בתוך onclick="fn('…')": גרש (אינצ') חייב להיות \' — &#39; מפוענח ל-' לפני שה-JS נקרא ושובר את הקריאה */
 function jsq(s) { return esc(String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ')); }
+/* שורת "פריט כללי" (מק"ט 1) בקיט: ה-ERP לא מחזיר את התיאור החופשי שלה, לכן השם נשמר כאן בקיט (גרסה שלי) ונשלח בפרסום.
+   kitGenericLine — זו שורה כללית · kitGenericUnnamed — עדיין בלי תיאור · kitLineNameHTML — השם לתצוגה, עם סימון כשחסר */
+function kitGenericLine(x) { return String((x && x.key) || '').trim() === '1' || /^פריט כללי\s*$/.test(String((x && x.name) || '').trim()); }
+function kitGenericUnnamed(x) { return kitGenericLine(x) && (!String(x.name || '').trim() || /^פריט כללי\s*$/.test(String(x.name || '').trim())); }
+function kitLineNameHTML(x) {
+  if (!kitGenericLine(x)) return esc(x.name);
+  if (kitGenericUnnamed(x)) return '<span style="color:#b8860b;font-weight:700" title="מק״ט 1 = פריט כללי. ה-ERP לא מוסר את התיאור שנכתב בו — תן לשורה שם ב\'ערוך את הקיט\' והוא יישמר ויתפרסם">⚠ פריט כללי — בלי תיאור (ערוך את הקיט כדי לתת שם)</span>';
+  return esc(x.name) + ' <small class="muted" title="שורה כללית (מק״ט 1) עם תיאור שנשמר בקיט">· פריט כללי</small>';
+}
 
 /* ---- ייבוא מפרט / הצעת מחיר ---- */
 let impItems = [];
@@ -13112,7 +13121,7 @@ function kitCabFullHTML(k) {
     return `<div style="display:flex;gap:8px;align-items:center;padding:3px 8px 3px 8px;border-bottom:1px solid #eee;font-size:12px;background:#fafafa">
       <b style="width:76px;text-align:center;flex:none">${x.qty || 1}×</b>
       <span style="width:84px;flex:none;direction:ltr;text-align:left;font-family:monospace;font-size:11px;color:#555">${esc(x.key || '—')}</span>
-      <span style="flex:1">${esc(x.name)}</span>
+      <span style="flex:1">${kitLineNameHTML(x)}</span>
       <span class="muted">${pr != null ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</span></div>`;
   }).join('');
   return rows + `<div style="padding:3px 8px;font-size:11.5px;font-weight:700;text-align:left;background:#fafafa;border-bottom:2px solid #e9b4b4">קיים בקיט: ${(k.items || []).length} שורות · ₪${Math.round(total).toLocaleString()} — מוצע להוסיף:</div>`;
@@ -13178,7 +13187,7 @@ function kitPrev(gi) {
     const pr = x.key && typeof ERP_PRICES !== 'undefined' && ERP_PRICES[x.key] != null ? ERP_PRICES[x.key] : null;
     if (pr != null) total += pr * (x.qty || 1);
     return `<div style="display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px solid #eee;font-size:12px">
-      <b style="width:28px;text-align:center">${x.qty || 1}×</b><span style="width:84px;flex:none;direction:ltr;text-align:left;font-family:monospace;font-size:11px;color:#555;user-select:all" title="מק״ט">${esc(x.key || '—')}</span><span style="flex:1">${esc(x.name)}</span>
+      <b style="width:28px;text-align:center">${x.qty || 1}×</b><span style="width:84px;flex:none;direction:ltr;text-align:left;font-family:monospace;font-size:11px;color:#555;user-select:all" title="מק״ט">${esc(x.key || '—')}</span><span style="flex:1">${kitLineNameHTML(x)}</span>
       ${stockBadge(x.key)}
       <span class="muted">${pr != null ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</span></div>`;
   }).join('');
@@ -13537,7 +13546,7 @@ function renderKitNew() {
       const alts = kitAltFor(x);
       return `<div style="border:1px solid ${d.replIdx === i ? '#e9a03b' : '#eee'};border-radius:6px;margin-bottom:3px;padding:3px 6px"><div style="display:flex;gap:6px;align-items:center;font-size:12px">
       <input type="number" min="1" value="${x.qty}" style="width:44px" onchange="nkDraft.items[${i}].qty=+this.value||1;renderKitNew()">
-      <span style="flex:1;min-width:0;line-height:1.35" title="${esc(x.name)}">${(() => { const cl = kitFuncClass(x.name), mdl = cl && !/^cab/.test(cl) ? shortModel(x.name) : ''; return mdl && /[A-Za-z]/.test(mdl) ? '<b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;font-size:12.5px">' + esc(mdl) + '</b> · ' : ''; })()}${esc(x.name)}</span>
+      ${kitGenericLine(x) ? `<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><input value="${kitGenericUnnamed(x) ? '' : esc(x.name)}" placeholder="תיאור הפריט הכללי — למשל: מתלה לרמקול / עבודת ריתוך" style="margin:0;padding:3px 6px;font-size:12px;border-color:${kitGenericUnnamed(x) ? '#e9a03b' : '#cfd3dc'}" onchange="nkDraft.items[${i}].name=this.value.trim()||'פריט כללי';renderKitNew()"><small class="muted">פריט כללי (מק״ט 1) — ה-ERP לא מוסר את התיאור שלו; מה שתכתוב כאן נשמר בקיט ונשלח בפרסום</small></span>` : `<span style="flex:1;min-width:0;line-height:1.35" title="${esc(x.name)}">${(() => { const cl = kitFuncClass(x.name), mdl = cl && !/^cab/.test(cl) ? shortModel(x.name) : ''; return mdl && /[A-Za-z]/.test(mdl) ? '<b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;font-size:12.5px">' + esc(mdl) + '</b> · ' : ''; })()}${esc(x.name)}</span>`}
       <code style="font-size:10px;color:#666;background:#f3f1ec;border-radius:4px;padding:1px 5px;white-space:nowrap">${esc(x.key || '—')}</code>
       <span class="muted" style="white-space:nowrap;font-size:11px">${stockBadge(x.key) || (pr ? '₪' + pr.toLocaleString() : '')}</span>
       <b style="white-space:nowrap">${pr ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—'}</b>
@@ -14722,6 +14731,7 @@ function imgCell(key, size, name) {
     : `<span style="width:${size}px;height:${size}px;display:inline-grid;place-items:center;background:#f3f1ec;border-radius:5px;flex:none;font-size:${Math.round(size * 0.45)}px">🔊</span>`;
 }
 function stockBadge(key) {
+  if (String(key || '').trim() === '1') return '<span style="color:#777">כללי</span>';   /* פריט כללי — אין לו מלאי, אין מה להתריע */
   const inf = erpInfo(key);
   if (!inf) return '';
   const st = inf.svc ? '<span style="color:#777">שירות</span>' : inf.qty > 0 ? `<span style="color:#0a7a4b">מלאי: ${inf.qty}</span>` : '<span style="color:#a32222">אין מלאי</span>';   /* סעיף התקנה/תכנות/כיוון — אין מלאי, אין מה להתריע */
