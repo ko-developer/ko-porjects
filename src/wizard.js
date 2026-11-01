@@ -241,7 +241,7 @@ function wizStepHTML(s) {
     ${(() => { const nd = sourceNeeds(z); return nd.length ? `<p class="hint" style="margin:-2px 0 8px;color:#0f6e56">נדרש בארון: ${esc(nd.join(' · '))}</p>` : ''; })()}` : ''}
     <button class="big" onclick="wizDrawZone()">➕ ${(P.zones || []).length ? 'צייר אזור נוסף' : 'צייר אזור'} — ניקור נקודות על התכנית</button>
     <button class="big" style="background:${window.__roomFill ? '#ff8a00' : '#534ab7'}" onclick="roomFillMode()">🪄 ${window.__roomFill ? 'לחץ בתוך חדר… (לחיצה כאן = סיום)' : 'לחץ בתוך חדר — האזור מתמלא עד הקירות'}</button>
-    ${window.__roomFill ? `<div class="hint" style="margin:-2px 0 6px;line-height:1.6">מבוסס על הקירות העבים בלבד (קווי מידה, ריהוט וטקסט לא עוצרים). לחיצה בתוך אזור קיים מחליפה אותו.<br>
+    ${window.__roomFill ? `<div class="hint" style="margin:-2px 0 6px;line-height:1.6">${wizSketchOnly() ? 'בשרטוט: החדר הסגור שלחצת בתוכו הופך לאזור בגבולות הקירות.' : 'מבוסס על הקירות העבים בלבד (קווי מידה, ריהוט וטקסט לא עוצרים).'} לחיצה בתוך אזור קיים מחליפה אותו.<br>
       <b>המילוי ברח למקום פתוח?</b> צייר <b>קיר וירטואלי</b> איפה שהאזור צריך להיגמר — <b>Shift + גרירה</b> על התכנית, או <a href="#" onclick="window.__vwMode=!window.__vwMode;wizRender();return false" style="${window.__vwMode ? 'font-weight:800;color:#7b2cbf' : ''}">${window.__vwMode ? '✏ מצב קיר פעיל (לחץ לביטול)' : '✏ מצב קיר'}</a> — ואז לחץ שוב בתוך החדר.
       ${(P.virtWalls || []).length ? `<a href="#" onclick="vwUndo();return false">↶ בטל קיר אחרון</a> (${P.virtWalls.length})` : ''}</div>` : ''}
     <button class="sec" onclick="autoZones()">🤖 זיהוי אזורים אוטומטי (AI)</button>

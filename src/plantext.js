@@ -1267,9 +1267,22 @@ function rfFlood(R, barrier, sx, sy, gap) {
     for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && !reg[j] && !barrier[j]) { reg[j] = 1; q[qt++] = j; } }
   return { reg, n, edge, gap };
 }
+/* חדר משורטט (קירות סגורים) שהנקודה בתוכו — הקטן ביותר שמכיל אותה; השרטוט מספיק, לא צריך תכנית רקע */
+function rfSketchRoom(pt) {
+  const walls = ((P.sketch && P.sketch.walls) || []).filter(wl => typeof skWallClosed === 'function' && skWallClosed(wl));
+  const inPoly = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) c = !c; } return c; };
+  const area = poly => Math.abs(poly.reduce((a, p, i) => { const q = poly[(i + 1) % poly.length]; return a + p.x * q.y - q.x * p.y; }, 0)) / 2;
+  let best = null;
+  for (const wl of walls) { const poly = wl.slice(0, -1).map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })); if (poly.length < 3 || !inPoly(pt, poly)) continue; const A = area(poly); if (!best || A < best.A) best = { poly, A }; }
+  if (!best) return null;
+  const { poly, A } = best, xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys), zw = Math.max(...xs) - left, zh = Math.max(...ys) - top;
+  const rect = poly.length === 4 && poly.every(p => (Math.abs(p.x - left) < 2 || Math.abs(p.x - left - zw) < 2) && (Math.abs(p.y - top) < 2 || Math.abs(p.y - top - zh) < 2));
+  return { poly, rect, left, top, zw, zh, m2: Math.round(A * (P.scale || 0) * (P.scale || 0)), edge: false, sketch: true };
+}
 /* הגאומטריה בלבד — בלי לשנות את הפרויקט: {poly, rect, left, top, zw, zh, m2, edge} או {err} */
 async function zoneFillCore(pt) {
-  if (!P.bg) { return { err: 'אין תכנית רקע' }; }
+  const sk = rfSketchRoom(pt); if (sk) return sk;   /* חדר משורטט — הקירות ידועים במדויק */
+  if (!P.bg) { return { err: ((P.sketch && P.sketch.walls) || []).length ? 'לחץ בתוך חדר סגור בשרטוט (או סגור את הקירות)' : 'אין תכנית רקע ואין שרטוט — שרטט חדר או העלה תכנית' }; }
   if (!P.scale) { return { err: '📏 כייל קודם את התכנית — לפי הכיול יודעים מה עובי קיר' }; }
   const R = await rfWalls(), { w, h, walls } = R;
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
