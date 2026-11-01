@@ -13257,6 +13257,7 @@ function saveKitDraft0(withMissing) {
   if (nkDraft.editIdx != null && store.userKits[nkDraft.editIdx]) { const old = store.userKits[nkDraft.editIdx]; if (old.id) rec.id = old.id; store.userKits[nkDraft.editIdx] = rec; }   /* ה-id נשאר — אותו קיט ב-ERP גם אחרי עריכה ושינוי שם */
   else store.userKits.push(rec);
   const wasErp = nkDraft.fromErp, backCab = nkDraft.backCab, backKit = nkDraft.backKit;
+  if (nkDraft.autoKit && nkDraft.autoKit.stem) kitLearnRecord(nkDraft.autoKit.stem, rec);   /* 🪄 מה שנשאר אחרי התיקונים = הלימוד לרמקול הזה */
   if (nkDraft.propKeys && nkDraft.propKeys.length) { store.kitPropDismiss = store.kitPropDismiss || {}; nkDraft.propKeys.forEach(k => { store.kitPropDismiss[k] = new Date().toISOString().slice(0, 10); }); }   /* הצעה שנפתחה בבונה ונשמרה (גם אחרי שינויים) — טופלה, לא תוצע שוב */
   save(); nkDraft = null; kitSyncSoon();
   if (backKit) { closeKits(); const gi = allKits().indexOf(rec); zoneKitConfirm(backKit.zname, gi >= 0 ? gi : backKit.idx, backKit.opt); }   /* נפתח מפופאפ הקיט לאזור — חוזרים אליו עם הקיט המעודכן */
@@ -13543,6 +13544,7 @@ function renderKitNew() {
       <div style="display:flex;gap:6px;align-items:center"><input id="nkStd" readonly value="${esc(std)}" placeholder="יופיע כשיהיו בקיט רמקולים / מגבר / פרוססור" style="flex:1;background:#f6f5f1;color:#333;direction:ltr;text-align:right">
       ${std ? `<button style="white-space:nowrap" title="מעתיק את השם לפי התוכן לשדה שם הקיט" onclick="nkDraft.name=document.getElementById('nkStd').value;renderKitNew()">⬆ קבע כשם הקיט</button>` : ''}</div></div>`; })()}
     ${d.replIdx != null && d.items[d.replIdx] ? `<div style="background:#fff3e0;border:1px solid #e9a03b;border-radius:8px;padding:6px 9px;margin-bottom:6px;font-size:12px;display:flex;gap:8px;align-items:center"><span style="flex:1">🔄 מחליף את: <b>${esc(d.items[d.replIdx].name.slice(0, 50))}</b> ${rPow ? '<b style="color:#0a7a4b">(' + rPow.ch + '×' + rPow.w + 'W)</b> ' : ''}— ${rCls ? 'בלי חיפוש: ' + RCLS_HE[rCls] + (rBrand ? ', קודם ' + esc(rBrand) : '') + ' · עם חיפוש: כל הקטלוג (' + RCLS_HE[rCls] + ' קודם)' : 'חפש ובחר את הפריט החדש'}</span><button style="padding:2px 9px" onclick="nkDraft.replIdx=null;nkDraft.q='';renderKitNew()">ביטול</button></div>` : ''}
+    ${(() => { const sp = kitSpkSplit(d.items); return sp.tops.length && d.replIdx == null ? `<button class="primary" style="width:100%;margin:2px 0 4px;background:#7b2cbf;font-weight:800" onclick="nkAutoKit()" title="משלים סאב (ביחס שנלמד), מגברים לפי כלל הבית, פרוססור וכבלים — לפי הרמקול ${esc(shortModel(sp.tops[0].name) || '')}. מה שתתקן אחרי זה ותשמור נלמד לפעם הבאה">🪄 הכן לי קיט — השלם סאב, מגברים, פרוססור וכבלים לפי ${esc(shortModel(sp.tops[0].name) || 'הרמקול')}</button><div style="margin:0 0 8px">${kitLearnHintHTML(sp.tops[0].name)}</div>` : ''; })()}
     <div class="fld"><label>${d.replIdx != null ? 'חיפוש הפריט המחליף' : 'חיפוש פריט בקטלוג'}</label><input id="nkQ" value="${esc(d.q)}" oninput="nkDraft.q=this.value;renderKitNew();const e2=document.getElementById('nkQ');e2.focus();e2.setSelectionRange(e2.value.length,e2.value.length)"></div>
     ${hits.map(it => { const [k, n2] = it; const stq = Math.round(+it[3] || 0), pr = +it[2] || 0;
       return `<button style="display:flex;gap:8px;align-items:center;width:100%;text-align:right;font-size:11.5px;margin-bottom:3px;line-height:1.35" onclick="${d.replIdx != null ? `nkReplace(${d.replIdx},'${k}','${jsq(n2)}')` : `nkDraft.items.push({name:'${jsq(n2)}',key:'${k}',qty:1});nkDraft.q='';renderKitNew()`}">
@@ -13682,7 +13684,7 @@ function kitAmpChoose(groups, cands, prefer) {
   if (alt) opts[0].alt = alt;
   return opts[0];
 }
-function kitProposals() {
+function kitProposals(opts) {
   if (typeof ERP_ITEMS === 'undefined') return [];
   const kits = allKits(true), inKey = new Set(), inStem = new Set();
   const brandAmps = {};   /* מותג → { sub: {name→n}, top: {name→n} } */
@@ -13744,6 +13746,8 @@ function kitProposals() {
     out.push({ name: nm, brand: br, items, why, price: items.reduce((s2, x) => { const inf = x.key ? erpInfo(x.key) : null; return s2 + (inf ? inf.price : 0) * x.qty; }, 0) });
     used.add(top.key); if (sub) used.add(sub.key);
   };
+  /* 🪄 בניה לרמקול נתון (בונה הקיטים — "הכן לי קיט"): אותו מנוע מגברים, בלי סינון מועמדים */
+  if (opts && opts.build) { const b = opts.build; mk(b.top, b.sub, b.qTop, b.qSub); return out; }
   tops.sort((a, b) => b.stock - a.stock).forEach(t => { const s = t.ceil ? null : subs.filter(x => x.brand === t.brand && !used.has(x.key)).sort((a, b) => b.stock - a.stock)[0] || kitSubOf(t.brand) || subs.filter(x => x.brand === t.brand)[0]; mk(t, s, 4, 2); });   /* סאב חדש שעוד לא שובץ, אחרת הסאב הנפוץ בקיטים של המותג */
   subs.filter(s => !used.has(s.key)).forEach(s => { /* סאב חדש בלי טופ חדש — עם הטופ הכי נפוץ בקיטים של המותג */ const cnt = {}; kits.forEach(k => { const spk = (k.items || []).filter(x => isSpeakerItem(x.name || '')); if (kitBrandOf(spk.map(x => x.name).join(' ')) !== s.brand) return; spk.forEach(x => { if (!KIT_SUB_RX.test(x.name || '') && kitFuncClass(x.name || '') === 'spk') { const id = (x.key || '') + '|' + x.name; cnt[id] = (cnt[id] || 0) + 1; } }); }); const e = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!e) return; const [key, name] = e[0].split('|'); const t = (key && erpByKey(key)) || { key: key || undefined, name, stock: 0 }; mk({ ...t, brand: s.brand, cls: 'spk', fins: [], stock: t.stock || 0 }, s, 4, 2); });
   topsA.sort((a, b) => b.stock - a.stock).forEach(t => { const s = t.ceil ? null : subsA.filter(x => x.brand === t.brand).sort((a, b) => b.stock - a.stock)[0]; mk(t, s, 4, 2); });
@@ -13752,6 +13756,95 @@ function kitProposals() {
   out.sort((a, b) => a.brand.localeCompare(b.brand, 'he') || b.price - a.price);
   return out;
 }
+/* ===== 🪄 הכן לי קיט — השלמה אוטומטית בבונה הקיטים, עם למידה =====
+   לפי הרמקול (טופ) שבטיוטה: סאב (הנפוץ לאותו רמקול / למותג) ביחס שנלמד, מגברים לפי כלל הבית (×1.5, DYNAMIQ ל-KT/Unicorn,
+   DPA/DNA ל-Funktion-One), פרוססור וכבלים (nkMissing). הלמידה: (א) סטטיסטיקה מכל הקיטים הקיימים — קודם קיטים עם אותו רמקול,
+   אחרת קיטים של המותג (יחס סאבים:טופים = חציון, סאב/מגבר/פרוססור = הנפוץ); (ב) store.kitLearn[stem] — מה שנשמר אחרי
+   "הכן לי קיט" + תיקון ידני, וגובר על הסטטיסטיקה. */
+function kitSpkSplit(items) {
+  const spk = (items || []).filter(x => isSpeakerItem(x.name || ''));
+  const tops = spk.filter(x => !KIT_SUB_RX.test(x.name || '') && !/^sub/.test(kitFuncClass(x.name || '') || ''));
+  const subs = spk.filter(x => !tops.includes(x));
+  const q = a => a.reduce((s2, x) => s2 + (+x.qty || 1), 0);
+  return { tops, subs, qTop: q(tops), qSub: q(subs) };
+}
+function kitCommonSub(br) {
+  const cnt = {};
+  allKits(true).forEach(k => { const spk = kitSpkItems(k); if (!spk.length || kitBrandOf(spk.map(x => x.name).join(' ')) !== br) return; spk.forEach(x => { if (KIT_SUB_RX.test(x.name || '') && /^sub/.test(kitFuncClass(x.name || '') || '')) { const id = (x.key || '') + '|' + x.name; cnt[id] = (cnt[id] || 0) + 1; } }); });
+  const e = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!e) return null;
+  return { key: e[0].split('|')[0] || undefined, name: e[0].slice(e[0].indexOf('|') + 1) };
+}
+function kitLearnStats(topName) {
+  const stem = finishStem(topName), br = kitBrandOf(topName);
+  const same = [], brand = [];
+  allKits(true).forEach(k => { const sp = kitSpkSplit(k.items); if (!sp.tops.length) return; const rec = { k, ...sp }; if (sp.tops.some(x => finishStem(x.name) === stem)) same.push(rec); else if (br && kitBrandOf(sp.tops.map(x => x.name).join(' ')) === br) brand.push(rec); });
+  const pool = same.length ? same : brand;
+  const mode = (arr, fn) => { const c = {}; arr.forEach(r => { const v = fn(r); if (v) c[v] = (c[v] || 0) + 1; }); const e = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return e ? e[0] : null; };
+  const med = arr => { const a = arr.filter(v => v != null).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
+  const split = id => id ? { key: id.split('|')[0] || undefined, name: id.slice(id.indexOf('|') + 1) } : null;
+  const withSub = pool.filter(r => r.qSub);
+  const firstOf = (r, cls) => (r.k.items || []).find(x => (kitFuncClass(x.name || '') || '') === cls && !offerBanned(x.name));
+  return {
+    src: same.length ? 'קיטים עם אותו רמקול' : brand.length ? 'קיטים של ' + br : '', n: pool.length, explicit: false,
+    ratio: med(withSub.map(r => r.qSub / r.qTop)), subRate: pool.length ? withSub.length / pool.length : null,
+    sub: split(mode(withSub, r => r.subs[0] ? (r.subs[0].key || '') + '|' + r.subs[0].name : null)),
+    amp: split(mode(pool, r => { const a = firstOf(r, 'amp'); return a ? (a.key || '') + '|' + a.name : null; })),
+    ampPer: med(pool.map(r => { const n = (r.k.items || []).filter(x => kitFuncClass(x.name || '') === 'amp').reduce((s2, x) => s2 + (+x.qty || 1), 0); return n ? n / r.qTop : null; })),
+    proc: split(mode(pool, r => { const p = firstOf(r, 'proc'); return p ? (p.key || '') + '|' + p.name : null; }))
+  };
+}
+function kitLearnFor(topName) {
+  const st = kitLearnStats(topName), ex = (store.kitLearn || {})[finishStem(topName)];
+  if (!ex) return st;
+  return { ...st, ...ex, explicit: true, src: 'התיקון שלך (' + String(ex.at || '').slice(0, 10) + ')' + (st.n ? ' + ' + st.src : '') };
+}
+/* אחרי שמירה של קיט שהושלם ב"הכן לי קיט" — מה שנשאר בקיט (אחרי התיקונים) הוא הלימוד לרמקול הזה */
+function kitLearnRecord(stem, rec) {
+  const its = rec.items || [], sp = kitSpkSplit(its), qTop = sp.qTop || 1;
+  const amps = its.filter(x => kitFuncClass(x.name || '') === 'amp'), nAmp = amps.reduce((s2, x) => s2 + (+x.qty || 1), 0), proc = its.find(x => kitFuncClass(x.name || '') === 'proc');
+  store.kitLearn = store.kitLearn || {};
+  store.kitLearn[stem] = { ratio: sp.qSub ? sp.qSub / qTop : 0, sub: sp.subs[0] ? { key: sp.subs[0].key, name: sp.subs[0].name } : null, amp: amps[0] ? { key: amps[0].key, name: amps[0].name } : null, ampPer: nAmp ? nAmp / qTop : null, proc: proc ? { key: proc.key, name: proc.name } : null, at: new Date().toISOString() };
+}
+function kitLearnHintHTML(topName) {
+  const L = kitLearnFor(topName); if (!L.n && !L.explicit) return '<small class="muted">אין עדיין קיטים ללמוד מהם לרמקול הזה — ישתמש בכלל הבית (4 טופים : 2 סאבים, מגבר ×1.5)</small>';
+  const r = L.explicit && L.ratio === 0 ? 'בלי סאב' : L.ratio ? 'יחס ' + Math.round(1 / L.ratio) + ' טופים : 1 סאב' : 'בלי סאב';
+  return '<small class="muted">🧠 לומד מ' + esc(L.src) + (L.n ? ' (' + L.n + ')' : '') + ': ' + r + (L.sub ? ' · סאב ' + esc(shortModel(L.sub.name) || L.sub.name.slice(0, 20)) : '') + (L.amp ? ' · מגבר ' + esc(shortModel(L.amp.name) || L.amp.name.slice(0, 20)) + (L.ampPer ? ' (' + (Math.round(L.ampPer * 100) / 100) + ' לטופ)' : '') : '') + (L.proc ? ' · ' + esc(shortModel(L.proc.name) || L.proc.name.slice(0, 20)) : '') + '</small>';
+}
+function nkAutoKit() {
+  const d = nkDraft; if (!d) return;
+  if (typeof ERP_ITEMS === 'undefined') { uiToast('הקטלוג עוד לא נטען — נסה שוב רגע'); return; }
+  const sp = kitSpkSplit(d.items);
+  if (!sp.tops.length) { uiToast('🪄 קודם הוסף רמקול (טופ) לקיט — ההשלמה נבנית לפי הרמקול'); return; }
+  const top = sp.tops[0], qTop = sp.qTop, br = kitBrandOf(top.name) || kitBrandOf(sp.tops.map(x => x.name).join(' '));
+  const L = kitLearnFor(top.name), why = [], ceil = /תקרה|ceiling|שקוע|pendant|תלוי/i.test(top.name);
+  let sub = sp.subs[0] || null, qSub = sp.qSub;
+  /* סאב — כשאין: לפי הלימוד (יחס נלמד; תיקון שלך "בלי סאב" מכובד), רמקולי תקרה בלי סאב */
+  if (!sub && !ceil && !(L.explicit && L.ratio === 0) && !(L.subRate != null && L.subRate < 0.5 && !L.explicit)) {
+    const cand = L.sub || kitCommonSub(br), ratio = L.ratio || 0.5;
+    if (cand) { qSub = Math.max(1, Math.round(qTop * ratio)); sub = { key: cand.key, name: cand.name, qty: qSub }; d.items.push(sub); why.push('סאב ' + (shortModel(cand.name) || '') + ' ×' + qSub + ' (' + qTop + ':' + qSub + ')'); }
+  }
+  const cls = kitFuncClass(top.name) || 'spk', active = /A$/.test(cls);
+  const groups = () => [{ model: shortModel(top.name), name: top.name, qty: qTop, ...kitSpkSpec(top.name) }].concat(sub ? [{ model: shortModel(sub.name), name: sub.name, qty: qSub, sub: true, ...kitSpkSpec(sub.name) }] : []);
+  if (!active && !d.items.some(x => kitFuncClass(x.name || '') === 'amp')) {
+    let lines = null;
+    if (L.explicit && L.amp) {   /* מגבר שתיקנת — אותו דגם, הכמות לפי כלל ×1.5 כשיש נתוני הספק, אחרת לפי היחס שנלמד */
+      const g = groups(), plan = g.every(x => x.w) ? kitAmpPlanFor(L.amp.name, g) : null, n = plan ? plan.amps : Math.max(1, Math.round(qTop * (L.ampPer || 0.25)));
+      lines = [{ key: L.amp.key, name: L.amp.name, qty: n }]; why.push('מגבר ' + (shortModel(L.amp.name) || '') + ' ×' + n + ' — לפי התיקון שלך' + (plan ? '' : ' (אין נתוני הספק — לפי יחס)'));
+    } else {
+      const inf = top.key ? erpInfo(top.key) : null;
+      const p = (kitProposals({ build: { top: { key: top.key, name: top.name, brand: br, cls, fins: [], stock: inf ? inf.qty : 0, ceil }, sub: sub ? { key: sub.key, name: sub.name, stock: ((sub.key && erpInfo(sub.key)) || {}).qty || 0 } : null, qTop, qSub } }) || [])[0];
+      if (p) { lines = p.items.filter(x => kitFuncClass(x.name || '') === 'amp'); p.why.filter(w => /^🎚|^⚠|DYNAMIQ|לא נמצא מגבר/.test(w)).forEach(w => why.push(w)); }
+    }
+    if (lines && lines.length) lines.forEach(a => d.items.push({ key: a.key, name: a.name, qty: a.qty || 1 }));
+  }
+  if (L.explicit && L.proc && !d.items.some(x => kitFuncClass(x.name || '') === 'proc')) { d.items.push({ key: L.proc.key, name: L.proc.name, qty: 1 }); why.push('פרוססור ' + (shortModel(L.proc.name) || '') + ' — לפי התיקון שלך'); }
+  nkMissing().forEach(c => { d.items.push({ key: c.key, name: c.name, qty: c.qty }); why.push(c.t + ' ×' + c.qty); });   /* DSP + כבלים וספיקונים לפי כללי הקיטים */
+  if (!d.name.trim()) d.name = kitStdName({ name: '', items: d.items });
+  d.autoKit = { stem: finishStem(top.name) };
+  renderKitNew();
+  uiToast('🪄 הקיט הושלם לפי ' + (L.src || 'כלל הבית') + ': ' + (why.join(' · ') || 'לא היה מה להוסיף') + ' — תקן מה שצריך ושמור; התיקון נלמד', 9000);
+}
+window.nkAutoKit = nkAutoKit;
 function kitProposeMore() {
   const props = kitProposals();
   if (!props.length) { uiToast('כל הרמקולים והסאבים שבמלאי כבר מופיעים בקיטים 👍', 3500); return; }
