@@ -13767,6 +13767,77 @@ function kitSpkCount(k) { return kitSpkItems(k).reduce((s2, x) => s2 + (+x.qty |
 function kitBrands(k) { const out = new Set(); for (const x of kitSpkItems(k)) { const b = KIT_BRANDS.find(([, re]) => re.test(x.name || '')); if (b) out.add(b[0]); } if (!out.size) { const b = KIT_BRANDS.find(([, re]) => re.test(k.name || '')); if (b) out.add(b[0]); } return [...out]; }
 const KIT_SPK_RANGES = [['', 'כל כמות'], ['1-2', '1–2'], ['3-4', '3–4'], ['5-8', '5–8'], ['9-16', '9–16'], ['17+', '17+']];
 function kitSpkIn(n, r) { if (!r) return true; if (r === '17+') return n >= 17; const [a, b] = r.split('-').map(Number); return n >= a && n <= b; }
+/* ===== החלפת פריט בכל הקיטים: פריט שמופיע בקיטים → פריט אחר מהקטלוג, בכל הקיטים שבחרת, עם עדכון שם הקיט כשהדגם כתוב בו.
+   קיט ERP שמשתנה הופך לגרסה שלי שמחליפה אותו (replaces); קיט שלי משתנה במקום. הפרסום ל-ERP רץ לבד אחרי השמירה ===== */
+let KSW = null;
+function kitSwapOpen() {
+  KSW = { from: null, to: null, q1: '', q2: '', sel: {}, rename: true };
+  const ov = uiModal('<div id="kswBox"></div>');
+  ov.querySelector('div').style.maxWidth = '720px';
+  KSW.ov = ov; kitSwapRender();
+}
+/* הפריטים שמופיעים בקיטים (לא מוסתרים), עם מספר הקיטים לכל אחד */
+function kitSwapUsed() {
+  const m = new Map();
+  allKits(true).filter(k => !kitHidden(k.name)).forEach(k => (k.items || []).forEach(it => { const key = (it.key || '').trim(); if (!key) return; const e = m.get(key) || { key, name: it.name || key, kits: 0 }; e.kits++; m.set(key, e); }));
+  return [...m.values()].sort((a, b) => b.kits - a.kits);
+}
+function kitSwapKits() {
+  if (!KSW || !KSW.from) return [];
+  return allKits(true).filter(k => !kitHidden(k.name) && (k.items || []).some(it => (it.key || '').trim() === KSW.from.key));
+}
+function kitSwapNewName(k) {
+  if (!KSW.from || !KSW.to) return k.name;
+  const a = shortModel(KSW.from.name) || '', b = shortModel(KSW.to.name) || '';
+  if (!a || !b || a === b) return k.name;
+  /* הדגם הישן בשם הקיט גם עם רווחים/מקפים אחרים ("pqm 13" = "PQM13"), וגבולות — לא בתוך מילה אחרת */
+  const rx = new RegExp('(?<![A-Za-z0-9])' + a.replace(/[\s\-_]+/g, '').split('').map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s\\-_]*') + '(?![0-9])', 'i');
+  return rx.test(k.name) ? k.name.replace(rx, b) : k.name;
+}
+function kitSwapRender() {
+  const box = document.getElementById('kswBox'); if (!box || !KSW) return;
+  const hit = (q, rows) => { const t = String(q || '').toLowerCase().split(/\s+/).filter(Boolean); return t.length ? rows.filter(r => t.every(x => (r.name + ' ' + r.key).toLowerCase().includes(x))).slice(0, 10) : []; };
+  const used = kitSwapUsed();
+  const fromList = KSW.from ? '' : (KSW.q1 ? hit(KSW.q1, used) : used.slice(0, 10)).map(r => `<div class="kswrow" onclick="KSW.from=${JSON.stringify({ key: r.key, name: r.name }).replace(/"/g, '&quot;')};KSW.sel={};kitSwapRender()"><b>${esc(r.name.slice(0, 60))}</b><span class="muted">${esc(r.key)} · ב-${r.kits} קיטים</span></div>`).join('');
+  const cat = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([k, n, p]) => n && +p > 0 && !/ת\.ח|השכר/.test(n)).map(([k, n, p, s]) => ({ key: k, name: n, price: +p, stock: +s }));
+  const toList = KSW.to ? '' : (KSW.q2 ? hit(KSW.q2, cat).sort((a, b) => (b.stock > 0) - (a.stock > 0)) : []).map(r => `<div class="kswrow" onclick="KSW.to=${JSON.stringify({ key: r.key, name: r.name }).replace(/"/g, '&quot;')};kitSwapRender()"><b>${esc(r.name.slice(0, 60))}</b><span class="muted">${esc(r.key)} · ₪${r.price.toLocaleString()} · מלאי ${r.stock}</span></div>`).join('');
+  const kits = kitSwapKits();
+  kits.forEach(k => { if (KSW.sel[k.name] == null) KSW.sel[k.name] = true; });
+  const nSel = kits.filter(k => KSW.sel[k.name]).length;
+  box.innerHTML = `<b style="font-size:14px">🔁 החלף פריט בכל הקיטים</b>
+    <div style="margin:8px 0 4px;font-weight:700">1 · הפריט שמחליפים</div>
+    ${KSW.from ? `<div class="kswpick">${esc(KSW.from.name.slice(0, 70))} <span class="muted">${esc(KSW.from.key)}</span> <button style="padding:0 8px;font-size:11px" onclick="KSW.from=null;KSW.sel={};kitSwapRender()">שנה</button></div>`
+      : `<input placeholder="חיפוש פריט שמופיע בקיטים…" value="${esc(KSW.q1)}" oninput="KSW.q1=this.value;kitSwapRender()" style="width:100%"><div class="kswlist">${fromList || '<div class="muted" style="padding:6px">אין פריט כזה בקיטים</div>'}</div>`}
+    <div style="margin:10px 0 4px;font-weight:700">2 · הפריט החדש (מהקטלוג)</div>
+    ${KSW.to ? `<div class="kswpick">${esc(KSW.to.name.slice(0, 70))} <span class="muted">${esc(KSW.to.key)}</span> <button style="padding:0 8px;font-size:11px" onclick="KSW.to=null;kitSwapRender()">שנה</button></div>`
+      : `<input placeholder="חיפוש בקטלוג: שם או מק״ט…" value="${esc(KSW.q2)}" oninput="KSW.q2=this.value;kitSwapRender()" style="width:100%"><div class="kswlist">${toList || (KSW.q2 ? '<div class="muted" style="padding:6px">אין תוצאות</div>' : '')}</div>`}
+    ${KSW.from ? `<div style="margin:10px 0 4px;font-weight:700">3 · באילו קיטים (${nSel}/${kits.length})
+        <button style="font-size:11px;padding:1px 8px" onclick="kitSwapKits().forEach(k=>KSW.sel[k.name]=true);kitSwapRender()">הכול</button>
+        <button style="font-size:11px;padding:1px 8px" onclick="kitSwapKits().forEach(k=>KSW.sel[k.name]=false);kitSwapRender()">אף אחד</button></div>
+      <div class="kswlist" style="max-height:220px">${kits.map(k => { const it = k.items.find(x => (x.key || '').trim() === KSW.from.key); const mine = (store.userKits || []).includes(k); const nn = KSW.to && KSW.rename ? kitSwapNewName(k) : k.name;
+        return `<label class="kswrow" style="cursor:pointer"><input type="checkbox" style="width:auto" ${KSW.sel[k.name] ? 'checked' : ''} onchange="KSW.sel[${JSON.stringify(k.name).replace(/"/g, '&quot;')}]=this.checked;kitSwapRender()"><span style="flex:1"><b>${esc(k.name.slice(0, 50))}</b>${nn !== k.name ? ' <span style="color:#0f6e56">→ ' + esc(nn.slice(0, 50)) + '</span>' : ''}<br><span class="muted">${it ? it.qty + ' יח׳' : ''} · ${mine ? 'קיט שלי — משתנה במקום' : 'קיט ERP — תיווצר גרסה שלי שמחליפה אותו'}</span></span></label>`; }).join('')}</div>
+      <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-top:6px"><input type="checkbox" style="width:auto" ${KSW.rename ? 'checked' : ''} onchange="KSW.rename=this.checked;kitSwapRender()">עדכן גם את שם הקיט כשהדגם הישן כתוב בו</label>` : ''}
+    <div style="display:flex;gap:6px;margin-top:10px"><button class="primary" style="flex:1;background:#0f6e56" ${KSW.from && KSW.to && nSel ? '' : 'disabled'} onclick="kitSwapApply()">🔁 החלף ב-${nSel} קיטים ושמור</button><button onclick="KSW.ov.remove();KSW=null">ביטול</button></div>`;
+}
+function kitSwapApply() {
+  if (!KSW || !KSW.from || !KSW.to) return;
+  const kits = kitSwapKits().filter(k => KSW.sel[k.name]);
+  store.userKits = store.userKits || [];
+  let n = 0, renamed = 0, created = 0;
+  kits.forEach(k => {
+    const mine = store.userKits.includes(k);
+    const rec = mine ? k : { ...k, items: JSON.parse(JSON.stringify(k.items || [])), sys: k.sys || 'קיט שלי', cabOk: true, replaces: (k.name || '').trim(), id: k.id };
+    rec.items.forEach(it => { if ((it.key || '').trim() === KSW.from.key) { it.key = KSW.to.key; it.name = KSW.to.name; n++; } });
+    /* אותו פריט פעמיים (ישן+חדש) — מאחדים לשורה אחת */
+    const dup = rec.items.filter(it => (it.key || '').trim() === KSW.to.key); if (dup.length > 1) { dup[0].qty = dup.reduce((s, it) => s + (+it.qty || 0), 0); rec.items = rec.items.filter(it => it === dup[0] || (it.key || '').trim() !== KSW.to.key); }
+    if (KSW.rename) { const nn = kitSwapNewName(k); if (nn !== rec.name) { if (!mine && !rec.replaces) rec.replaces = (k.name || '').trim(); rec.name = nn; renamed++; } }
+    if (!mine) { delete rec.id; store.userKits.push(rec); created++; }
+  });
+  kitEnsureIds(); save(); kitSyncSoon();
+  KSW.ov.remove(); KSW = null; renderKits();
+  uiToast('🔁 הוחלף ב-' + kits.length + ' קיטים (' + n + ' שורות)' + (renamed ? ' · ' + renamed + ' שמות עודכנו' : '') + (created ? ' · ' + created + ' קיטי ERP הפכו לגרסה שלך' : '') + ' — מתפרסם ל-ERP', 7000);
+}
+window.kitSwapOpen = kitSwapOpen; window.kitSwapRender = kitSwapRender; window.kitSwapApply = kitSwapApply; window.kitSwapKits = kitSwapKits;
 function renderKits() {
   const q = kitQ.trim();
   const CATS_K = [['', 'הכל'], ['audio', '🔊 סאונד'], ['lighting', '💡 תאורה'], ['video', '📺 וידאו'], ['install', '🔧 התקנה ' + allKits().filter(k => !kitHidden(k.name) && kitIsInstall(k)).length], ['hidden', '✕ מוסתרים']];
@@ -13801,6 +13872,7 @@ function renderKits() {
       <a style="flex:1;background:#efecfd;color:#6c5ce7;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:1px solid #ddd;border-radius:8px;padding:6px 10px;text-decoration:none;font-size:13px;cursor:pointer"
         href="/matrix"
         title="מי הולך עם מי — אישור ואיסור שילובים, נשמר ונקרא ע&quot;י המתכנן">🧩 מטריצת התאמות</a>
+      <button style="flex:1;background:#eaf3ff;color:#164a7a;font-weight:700;border:1px solid #9cc3ee" onclick="kitSwapOpen()" title="פריט שמופיע בקיטים → פריט אחר מהקטלוג, בכל הקיטים שתבחר, כולל עדכון שם הקיט; נשמר ומתפרסם ל-ERP">🔁 החלף פריט בכל הקיטים</button>
     </div>
     <div id="kitSyncBox" style="border:1px solid #d8eadf;background:#f7fbf8;border-radius:9px;padding:6px 8px;margin-bottom:8px"></div>
     ${(() => { const nC = allKits().filter(k => !kitHidden(k.name) && kitCableNeeds(k).length).length; return nC ? '<button style="width:100%;margin-bottom:8px;background:#fdf0f0;color:#c1121f;font-weight:700;border:1px solid #e9b4b4" onclick="kitCabAll()">🔌 ב-' + nC + ' קיטי סאונד חסרים כבלים — עבור ואשר את השורות המוצעות</button>' : ''; })()}
