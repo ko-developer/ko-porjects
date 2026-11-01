@@ -13708,7 +13708,7 @@ function kitProposals() {
   const tops = uniq.filter(c => c.cls === 'spk'), subs = uniq.filter(c => c.cls === 'sub'), topsA = uniq.filter(c => c.cls === 'spkA'), subsA = uniq.filter(c => c.cls === 'subA');
   /* סאבים של המותג שכבר בקיטים (כשאין סאב חדש) — הסאב הכי נפוץ בקיטים של המותג */
   const kitSubOf = br => { const cnt = {}; kits.forEach(k => { const spk = (k.items || []).filter(x => isSpeakerItem(x.name || '')); if (kitBrandOf(spk.map(x => x.name).join(' ')) !== br) return; spk.forEach(x => { if (KIT_SUB_RX.test(x.name || '') && kitFuncClass(x.name || '') === 'sub') { const id = (x.key || '') + '|' + x.name; cnt[id] = (cnt[id] || 0) + 1; } }); }); const e = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0]; if (!e) return null; const [key, name] = e[0].split('|'); const inf = key ? erpByKey(key) : null; return inf || { key: key || undefined, name }; };
-  const isKT = br => br === 'KT / Unicorn';
+  const isKT = br => brandIsKT(br);
   /* מועמדי מגבר למותג: KT — DYNAMIQ/MX3 שבמלאי (DYNAMIQ מועדף לפי כלל הבית); אחר — המגברים מהקיטים של המותג + מגברי המותג שבמלאי */
   const ampCands = br => { const out = [], seen = new Set(); const add = (key, name, price, stock) => { if (!key || seen.has(key) || offerBanned(name) || KIT_ALT_NO.test(name) || /board|כרטיס|לוח|מודול|module|ספק כח/i.test(name)) return;   /* לא לוח/כרטיס חילוף של מגבר */ seen.add(key); out.push({ key, name, price, stock }); };
     if (isKT(br)) ERP_ITEMS.forEach(it => { if (/DYNAMIQ|\bMX3/i.test(it[1] || '') && kitFuncClass(it[1] || '') === 'amp' && +it[3] > 0 && +it[2] > 0) add(it[0], it[1], +it[2], +it[3]); });
@@ -13810,12 +13810,15 @@ window.openMatrix = openMatrix;
 
 /* סינון קיטים לפי כמות רמקולים ומותג — כדי למצוא קיט מתאים בלי לגלול 47 שורות */
 var kitBrand = '', kitSpk = '';
-const KIT_BRANDS = [['FUNKTION ONE', /FUNKTION\s*-?\s*ONE|\bF1\b|\bF\d{2,3}\b|EVO\s?X|EVO\s?\d|RES\s?\d|SB\s?\d|BR\s?1|F218|F124/i], ['K&F', /K\s?&\s?F|KLING|SONA|\bLINE\s?212|NOMOS|SCALA|VIDA|\bGRAVIS|\bCA\s?\d/i], ['KT / Unicorn', /\bKT\b|UNICORN|PAGAZ|EUPHORIA|DYNAMIQ|\bWR\s?\d|\b1000S\b/i], ['CELTO', /CELTO|\bIFIX\s?\d/i], ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d/i], ['NST', /\bNST\b/i], ['XTA', /\bXTA\b|\bDNA\s?\d|\bDPA\s?\d/i], ['SAE', /\bSAE\b|PQM/i], ['JBL', /\bJBL\b/i], ['RCF', /\bRCF\b/i], ['QSC', /\bQSC\b/i], ['Bose', /\bBOSE\b/i], ['Martin Audio', /MARTIN\s?AUDIO/i], ['Nexo', /\bNEXO\b/i], ['d&b', /\bD&B\b/i], ['L-Acoustics', /L-?ACOUSTICS/i], ['Yamaha', /YAMAHA/i], ['dB Technologies', /\bDB\s?TECH/i], ['Turbosound', /TURBOSOUND/i], ['Pioneer', /PIONEER/i], ['EV', /ELECTRO[\s-]?VOICE|\bEV\b/i]];
+const KIT_BRANDS = [['FUNKTION ONE', /FUNKTION\s*-?\s*ONE|\bF1\b|\bF\d{2,3}\b|EVO\s?X|EVO\s?\d|RES\s?\d|SB\s?\d|BR\s?1|F218|F124/i], ['K&F', /K\s?&\s?F|KLING|SONA|\bLINE\s?212|NOMOS|SCALA|VIDA|\bGRAVIS|\bCA\s?\d/i], ['Unicorn', /UNICORN|יוניקורן|PAGAZ|EUPHORIA|\bALPHA\s?15|\bHAYA\b|\bPSS1[0-9]{3}/i], ['KT', /\bKT\b|DYNAMIQ|\bWR\s?\d|\b1000S\b|INTERPID|\bARRAY\s?\d{3,4}\b|\bBESET\b|\bNIKO\s?\d/i], ['CELTO', /CELTO|\bIFIX\s?\d/i], ['Lambda Labs', /LAMBDA|\bTX-?\d|\bCX-?\d/i], ['NST', /\bNST\b/i], ['XTA', /\bXTA\b|\bDNA\s?\d|\bDPA\s?\d/i], ['SAE', /\bSAE\b|PQM/i], ['JBL', /\bJBL\b/i], ['RCF', /\bRCF\b/i], ['QSC', /\bQSC\b/i], ['Bose', /\bBOSE\b/i], ['Martin Audio', /MARTIN\s?AUDIO/i], ['Nexo', /\bNEXO\b/i], ['d&b', /\bD&B\b/i], ['L-Acoustics', /L-?ACOUSTICS/i], ['Yamaha', /YAMAHA/i], ['dB Technologies', /\bDB\s?TECH/i], ['Turbosound', /TURBOSOUND/i], ['Pioneer', /PIONEER/i], ['EV', /ELECTRO[\s-]?VOICE|\bEV\b/i]];
 /* שם קיט אחיד, מהתוכן: דגמי הרמקולים · דגמי הסאבים · המגברים · הפרוססור — "4× PAGAZ 641 + 2× PAGAZ 115S · DYNAMIQ 750 · VMX88L".
    שם ה-ERP המקורי נשמר לזיהוי (מטא-דאטה, הסתרה, חיפוש) ומוצג בקטן מתחת */
 const KIT_SUB_RX = /סאב|\bsub\b|NOMOS|MB2|BR\s?1|\bSB\s?\d|F118|F121|F124|F218|F221|TILL\s?1[58]P?\s?SUB|\b1[1258]S\b|SUB\s?\d/i;
 /* שם לפי התוכן עם המותג המוביל בראש: "FUNKTION ONE · 6× F 5 · 2× SB 8 · DNA 20" */
-const KIT_BRAND_SHORT = { 'KT / Unicorn': 'KT' };
+/* Unicorn נבדק לפני KT (TILL נמכר כ-"KT UNICORN" → Unicorn); שניהם אותה תוכנה ואותם מגברי DYNAMIQ */
+const KIT_BRAND_SHORT = {};
+const KT_FAMILY = new Set(['KT', 'Unicorn']);
+function brandIsKT(b) { return KT_FAMILY.has(b) || b === 'KT / Unicorn'; }
 const kitStdCache = new WeakMap();
 function kitStdName(k) {
   /* מחושב פעם אחת לקיט (עד שהפריטים משתנים) — החיפוש בהצעה קורא לזה לכל קיט בכל רינדור, כולל בכל צעד זום */
@@ -13890,7 +13893,7 @@ function kitSpkSize(k) {
 function kitGroupKey(k) {
   const m = kitMainSpk(k);
   if (m) {
-    const b = kitBrands(k)[0] || '', sz = kitSpkSize(k), x = kitMainSpkItem(k);
+    const x = kitMainSpkItem(k), b = (x && kitBrandOf(x.name)) || kitBrands(k)[0] || '', sz = kitSpkSize(k);
     const lbl = '🔊 ' + (b ? (KIT_BRAND_SHORT[b] || b) + ' · ' : '') + m + (sz.inch ? ' · ' + sz.inch + '″' : '');
     return { sort: '0|' + sz.rank + String(Math.round(sz.v * 10)).padStart(5, '0') + '|' + b + '|' + m, lbl, img: x ? imgCell(x.key, 36, x.name) : '' };
   }
@@ -16097,7 +16100,9 @@ function autoZonesHint() {
 const zoneSPL = z => (z && +z.spl) || (z && typeof USAGE_SPL !== 'undefined' && USAGE_SPL[z.usage]) || 0;
 const USAGE_SPL = { 'מוזיקת רקע': 72, 'בית קפה': 85, 'חדר כושר — חלל כללי': 80, 'מסעדה': 90, 'סטודיו בחדר כושר': 90, 'מוזיקה לבר': 95, 'מסעדה + DJ': 98, 'הופעות חיות': 100, 'סטודיו ספינינג': 100, 'מוזיקת ריקודים': 110, 'מועדון על מלא': 115 };
 /* המותגים העיקריים בסינון המוצרים באזור — [שם כמו ב-KIT_BRANDS, תווית] */
-const ZONE_BRANDS = [['KT / Unicorn', 'KT / Unicorn'], ['K&F', 'Kling & Freitag'], ['FUNKTION ONE', 'Funktion One']];
+const ZONE_BRANDS = [['KT', 'KT'], ['Unicorn', 'Unicorn'], ['K&F', 'Kling & Freitag'], ['FUNKTION ONE', 'Funktion One']];
+/* ערך ישן שנשמר באזור ('KT / Unicorn') — תואם לשני המותגים */
+function zoneBrandMatch(kb, b) { return kb === 'KT / Unicorn' ? brandIsKT(b) : b === kb; }
 const USAGES = ['מוזיקת רקע', 'חדר כושר — חלל כללי', 'בית קפה', 'מסעדה', 'סטודיו בחדר כושר', 'מוזיקה לבר', 'מסעדה + DJ', 'הופעות חיות', 'סטודיו ספינינג', 'מוזיקת ריקודים', 'מועדון על מלא'];
 /* תכליות שדורשות מיקרופון מובנה בתכנון (מדריך/מנחה) */
 const USAGE_MIC = { 'סטודיו בחדר כושר': 1, 'סטודיו ספינינג': 1, 'הופעות חיות': 1 };
@@ -16158,7 +16163,7 @@ function zoneSystemBuilder(z) {
   const q = (z._sq || '').trim();
   /* סינון מותג (סאונד): KT/Unicorn · K&F · Funktion One · אחר = כל השאר. חל על המוצרים וגם על הקיטים */
   const kb = z._kcat === 'audio' ? (z._kbrand || '') : '';
-  const brandOk = nm => { if (!kb) return true; const b = kitBrandOf(nm); return kb === 'other' ? !ZONE_BRANDS.some(x => x[0] === b) : b === kb; };
+  const brandOk = nm => { if (!kb) return true; const b = kitBrandOf(nm); return kb === 'other' ? !ZONE_BRANDS.some(x => x[0] === b) : zoneBrandMatch(kb, b); };
   const res = q ? dockSearchResults(q).filter(r => r.type === 'item' && brandOk(r.name)) : [];
   return `<div style="background:#f4f2ec;border-radius:8px;padding:10px;margin-top:6px">
     <div class="fld"><label>🏷 תבנית מקום — ממלא אוטומטית את כל ההגדרות</label>
@@ -16219,7 +16224,7 @@ function zoneSystemBuilder(z) {
       const isRec = k => recRe && (recRe.test(k.name) || recRe.test(k.sys || ''));
       const kits = allKits().map((k, i) => ({ k, i, rec: isRec(k) }))
         .filter(x => !kcat || (x.k.cat || '') === kcat)
-        .filter(x => { if (!kb) return true; const bs = kitBrands(x.k); return kb === 'other' ? !bs.some(b => ZONE_BRANDS.some(y => y[0] === b)) : bs.includes(kb); })
+        .filter(x => { if (!kb) return true; const bs = kitBrands(x.k); return kb === 'other' ? !bs.some(b => ZONE_BRANDS.some(y => y[0] === b)) : bs.some(b => zoneBrandMatch(kb, b)); })
         .filter(x => !kq || x.k.name.includes(kq))
         .sort((a, b) => (b.rec ? 1 : 0) - (a.rec ? 1 : 0));
       return `<div class="fld"><label>3️⃣ חיפוש מוצר או קיט (ERP)</label>
