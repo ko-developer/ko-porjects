@@ -29,7 +29,9 @@ function specOf(name) {
   for (const { rx, v } of specRxCache) if (rx.test(n)) return v;
   return null;
 }
-function capOf(spec) { if (!spec) return null; if (spec.spl > 0) return +spec.spl; if (spec.sens > 0 && spec.w > 0) return +(spec.sens + 10 * Math.log10(spec.w)).toFixed(1); return null; }
+/* יכולת בפועל: SPL מקסימלי ב-1 מ׳ (או רגישות+הספק) פחות 10 dB — מרחק האזנה נומינלי ~3 מ׳; כך רמקול 5" (118 dB) לא נראה מתאים לרחבת ריקודים */
+const LISTEN_LOSS = 10;
+function capOf(spec) { if (!spec) return null; const at1m = spec.spl > 0 ? +spec.spl : (spec.sens > 0 && spec.w > 0 ? spec.sens + 10 * Math.log10(spec.w) : null); return at1m == null ? null : +(at1m - LISTEN_LOSS).toFixed(1); }
 function trim60(s) { return String(s || '').trim(); }
 /* הקיט שאותו הגרסה שלי מחליפה: שם זהה, replaces, או שם שנחתך ל-60 תווים */
 function baseOf(u, bases) {
