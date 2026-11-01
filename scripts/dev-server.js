@@ -12,6 +12,7 @@ import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterS
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
 import { handleBugs, initBugs } from './bugs.js';
+import { injectLogicData } from './logic-data.js';
 
 /* .env (לא בגיט): DATA_BUCKET, PUBLIC_URL, מפתחות — כמו בענן, רק מקומית */
 try { for (const line of readFileSync('.env', 'utf8').split('\n')) { const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim(); } } catch {}
@@ -472,9 +473,11 @@ const handleReq = async (req, res) => {
     try {
       const k = path.slice(1);
       const st = await readState(k);
-      const page = readFileSync(PAGES[path], 'utf8')
+      let page = readFileSync(PAGES[path], 'utf8')
         .replace(/(<script id="mstate" type="application\/json">)[\s\S]*?(<\/script>)/,
           (m, a, b) => a + st + b);
+      /* תכלית ← קיטים: הקיטים והיכולת חיים — מה-ERP + הגרסאות שלי מה-store, לפי הרמקול החלש בקיט (scripts/logic-data.js) */
+      if (k === 'logic') { try { const full = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v); page = injectLogicData(page, full); } catch (e) { console.warn('logic live data', e); } }
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       res.end(page);
     } catch (e) {
