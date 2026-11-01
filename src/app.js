@@ -10648,6 +10648,7 @@ function skRoomCreate() {
 /* חדר מלבני במידות (מטרים) במרכז התצוגה — גם מהאשף, בלי תכנית רקע */
 function skRoomMake(w, h) {
   P.sketch = P.sketch || { walls: [], objs: [] };
+  if (!sketchMode) sketchMode = { tool: 'select', cur: [] };   /* נקרא גם מהאשף כשמצב השרטוט עוד לא פעיל */
   const wrap = document.getElementById('canvasWrap'), wr = wrap.getBoundingClientRect();
   const c = canvasPt({ clientX: wr.left + wr.width / 2, clientY: wr.top + wr.height / 2 });
   const pw = w / P.scale, ph = h / P.scale, x0 = c.x - pw / 2, y0 = c.y - ph / 2;

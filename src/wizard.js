@@ -5,7 +5,7 @@
    =================================================================================== */
 let WIZ = null; /* { step } */
 
-/* סדר השלבים: תכנית → כיול → יישור תכניות (כשיש יותר מאחת) → אזור → מערכת → חיווט רמקולים → קיט התקנה →
+/* סדר השלבים: תכנית → כיול (מדולג בשרטוט בלי רקע — המידות במטרים) → יישור תכניות (כשיש יותר מאחת) → אזור → מערכת → חיווט רמקולים → קיט התקנה →
    מקורות וגב הארון (אחרי הקיט — הוא מביא את הקופסאות, הפנלים והמחברים שאליהם מחווטים) → בדיקת שלמות → הצעה → דוח */
 const WIZ_STEPS = [
   ['plan', '🖼 תכנית'], ['cal', '📏 כיול'], ['align', '📐 יישור תכניות'], ['zone', '🗺 אזור'],
@@ -71,9 +71,11 @@ function wizClose() { WIZ = null; clearInterval(window.__wizT); const w = docume
 /* יש תכנית לעבוד עליה: תמונת/PDF רקע, או שרטוט (קירות / אובייקטים) — שרטוט נחשב תכנית רקע לכל דבר */
 function wizHasSketch() { const sk = P.sketch || {}; return ((sk.walls || []).length + (sk.objs || []).length) > 0; }
 function wizHasPlan() { return !!(P.hasBg || P.hasPdf || P.bg || wizHasSketch()); }
+/* שרטוט בלבד (בלי תמונת/PDF רקע): המידות הוזנו במטרים — קנה המידה ידוע, ושלב הכיול לא רלוונטי ומדולג */
+function wizSketchOnly() { return wizHasSketch() && !(P.hasBg || P.hasPdf || P.bg); }
 function wizAutoStep() {
   if (!wizHasPlan()) return WS('plan');
-  if (!P.scale) return WS('cal');
+  if (!P.scale && !wizSketchOnly()) return WS('cal');
   if (!wizAlignDone()) return WS('align');
   if (!(P.zones || []).length) return WS('zone');
   if (!(P.zones || []).every(z => z._built)) return WS('sys');
@@ -97,10 +99,12 @@ function wizRefreshBadges() {
 function wizRender() {
   const old = document.getElementById('wiz'); if (old) old.remove();
   if (!WIZ) return;
+  if (wizSketchOnly() && P.scale && !P.calOk) { P.calOk = 1; if (!P.calSrc) P.calSrc = 'manual'; }   /* שרטוט — אין מה לאשר */
+  if (WIZ.step === WS('cal') && wizSketchOnly()) WIZ.step = wizAlignDone() ? WS('zone') : WS('align');
   const w = document.createElement('div');
   w.id = 'wiz';
   const steps = WIZ_STEPS.map(([k, l], i) =>
-    `<div class="wzstep ${i === WIZ.step ? 'on' : ''} ${wizDone(i) && i !== WIZ.step ? 'done' : ''}" onclick="wizGo(${i})">${wizDone(i) && i !== WIZ.step ? '✓ ' : ''}${l}</div>`).join('');
+    `<div class="wzstep ${i === WIZ.step ? 'on' : ''} ${wizDone(i) && i !== WIZ.step ? 'done' : ''}"${k === 'cal' && wizSketchOnly() ? ' style="display:none"' : ''} onclick="wizGo(${i})">${wizDone(i) && i !== WIZ.step ? '✓ ' : ''}${l}</div>`).join('');
   w.innerHTML = `
     <div class="wzhead" style="cursor:move" title="גרור להזזת החלון"><span style="opacity:.55">⠿</span><b>⚡ KO V2 — אשף מהיר</b>
       <span style="font-size:11px;opacity:.75">${esc(P.name.slice(0, 18))}</span>
@@ -144,9 +148,11 @@ function wizRoomByDims() {
     const w = parseFloat(ov.querySelector('#wzRoomW').value), h = parseFloat(ov.querySelector('#wzRoomH').value);
     if (!(w > 0.5) || !(h > 0.5)) { uiToast('הזן רוחב ואורך במטרים'); return; }
     ov.remove();
-    if (!P.scale) { P.scale = 1 / 40; P.calSrc = 'manual'; P.calOk = 1; }   /* בלי רקע: 1 מ׳ = 40px */
+    if (!P.scale) { P.scale = 1 / 40; P.calSrc = 'manual'; }   /* בלי רקע: 1 מ׳ = 40px */
+    P.calOk = 1;   /* המידות הוזנו במטרים — הכיול ידוע, אין שלב כיול */
     skRoomMake(w, h);
     if (!P.room) P.room = {};
+    if (WIZ && WIZ.step <= WS('cal')) WIZ.step = wizAlignDone() ? WS('zone') : WS('align');
     save(); render(); wizRender();
     uiToast('⬜ חדר ' + w + '×' + h + ' מ׳ — קנה המידה נקבע; ממשיכים לאזורים', 5000);
   };
@@ -557,11 +563,12 @@ function wizPropAll(ok) {
   render(); save(); wizRender();
 }
 function wizGo(i) {
+  if (i === WS('cal') && wizSketchOnly()) i = WS('zone');   /* שרטוט — אין כיול */
   if (i > WS('zone') && !(P.zones || []).some(z => !z.prop)) { uiToast('🗺 קודם סמן אזור (או אשר אזור מוצע) — בלי אזור אין מערכת'); WIZ.step = WS('zone'); wizRender(); return; }
   WIZ.step = i; wizRender();
 }
 /* שלב יישור התכניות מדולג אוטומטית כשיש תכנית אחת */
-function wizPrev() { let i = Math.max(0, WIZ.step - 1); if (WIZ_STEPS[i][0] === 'align' && !wizMultiSheet()) i = Math.max(0, i - 1); WIZ.step = i; wizRender(); }
+function wizPrev() { let i = Math.max(0, WIZ.step - 1); if (WIZ_STEPS[i][0] === 'align' && !wizMultiSheet()) i = Math.max(0, i - 1); if (WIZ_STEPS[i][0] === 'cal' && wizSketchOnly()) i = Math.max(0, i - 1); WIZ.step = i; wizRender(); }
 function wizNext() {
   if (WIZ.step === WS('cal') && P.scale && !P.calOk && (P.hasBg || P.hasPdf || P.bg)) {   /* שרטוט בלי רקע משורטט כבר במידות — אין מה לאשר */ uiToast('📏 אשר את הכיול לפני שממשיכים — השווה מול שולחן או דלת'); return; }
   /* שאלת חובה: אי אפשר להתקדם מהאזור בלי תכלית — היא קובעת את המערכת */
@@ -588,6 +595,7 @@ function wizNext() {
     }
   }
   WIZ.step = Math.min(WIZ_STEPS.length - 1, WIZ.step + 1);
+  if (WIZ_STEPS[WIZ.step][0] === 'cal' && wizSketchOnly()) WIZ.step++;   /* שרטוט — אין שלב כיול */
   if (WIZ_STEPS[WIZ.step][0] === 'align' && !wizMultiSheet()) WIZ.step++;
   wizRender();
 }
