@@ -12972,7 +12972,8 @@ const KIT_CAB = {
   spk: { key: 'CA1219KO', t: 'כבל רמקול' },      /* גליל 100 מ׳ 2×2.5 */
   xlr: { key: 'CA318KO', t: 'כבל XLR' },          /* XLR-XLR 1 מ׳ — חיבורים בתוך הארון */
   xlrLong: { key: 'CA2229KO', t: 'כבל XLR' },     /* גליל 100 מ׳ כבל מיקרופון — לרמקולים מוגברים */
-  pwr: { key: 'CA4120RB', t: 'כבל חשמל' }         /* כבל מתח קומקום */
+  pwr: { key: 'CA4120RB', t: 'כבל חשמל' },        /* כבל מתח קומקום */
+  spkon: { key: 'CASEE5KO', t: 'מחבר ספיקון' }     /* SL4FX-N — 2 לכל רמקול/סאב פסיבי (צד מגבר + צד רמקול), רק עם מגבר מקצועי */
 };
 const KIT_CAB_HAS = {
   spk: /כבל רמקול|כבל סאונד[^|]*[24]\s?[xX]\s?(1\.5|2\.5|4)|speaker cable/i,
@@ -12981,12 +12982,12 @@ const KIT_CAB_HAS = {
 };
 function kitCableNeeds(k) {
   if (!k || k.cabOk || !kitIsAudio(k)) return [];
-  let amps = 0, ampCh = 0, procs = 0, pas = 0, act = 0;
-  const has = { spk: false, xlr: false, pwr: false };
+  let amps = 0, ampCh = 0, procs = 0, pas = 0, act = 0, pro = 0;
+  const has = { spk: false, xlr: false, pwr: false, spkon: (k.items || []).some(x => /^\s*מחבר/.test(x.name || '') && /ספיקון|speakon/i.test(x.name || '')) };
   (k.items || []).forEach(x => {
     const n = x.name || '', q = +x.qty || 1, c = kitFuncClass(n);
     for (const h in KIT_CAB_HAS) if (KIT_CAB_HAS[h].test(n) && !/^\s*(מחבר|פנל|פאנל)|שאסי/.test(n)) has[h] = true;
-    if (kitIsAmpCls(c)) { amps += q; const m = /(\d)\s*ערוצים/.exec(n); ampCh += q * (m ? +m[1] : 2); }
+    if (kitIsAmpCls(c)) { amps += q; if (c !== 'rcv') pro += q; const m = /(\d)\s*ערוצים/.exec(n); ampCh += q * (m ? +m[1] : 2); }
     else if (c === 'proc' || c === 'procK') procs += q;
     else if (c === 'spk' || c === 'sub') pas += q;
     else if (c === 'spkA' || c === 'subA') act += q;
@@ -12996,11 +12997,63 @@ function kitCableNeeds(k) {
     if (it && qty > 0) out.push({ id, key: d.key, name: it[1], qty, price: +it[2] || 0, t: d.t, why });
   };
   if (!has.spk && pas) add('spk', 1, pas + ' רמקולים/סאבים פסיביים — גליל 100 מ׳');
+  if (!has.spkon && pas && pro) add('spkon', 2 * pas, pas + ' רמקולים/סאבים × 2 קצוות — מגבר מקצועי');
   if (!has.xlr && ampCh) add('xlr', ampCh, 'כבל לכל ערוץ כניסה של מגבר (' + amps + ' מגברים)');
   if (!has.xlr && act) add('xlrLong', 1, act + ' רמקולים מוגברים — גליל 100 מ׳ כבל סיגנל');
   if (!has.pwr && amps + procs + act) add('pwr', amps + procs + act, [amps ? amps + ' מגברים' : '', procs ? procs + ' פרוססורים' : '', act ? act + ' רמקולים מוגברים' : ''].filter(Boolean).join(' + '));
-  return out;
+  return out.filter(c => typeof kitRuleOn !== 'function' || kitRuleOn(c.id));   /* כלל שכובה ב"כללי קיטים" לא מוצע */
 }
+/* ===== כללי קיטים — ניהול השינויים האלה בכל הקיטים במסך אחד =====
+   הכלל של אורי: בכל קיט עם מגבר מקצועי (לא רסיבר ביתי כמו ימהה) ורמקולים/סאבים פסיביים — חייבים כבל רמקול (גליל) וספיקונים בקיט עצמו;
+   לכל ערוץ מגבר כבל XLR; לכל מגבר/פרוססור כבל חשמל. כאן רואים את כל הקיטים שחסר בהם משהו, מה יתווסף ובכמה, ומחילים בלחיצה אחת. */
+const KIT_RULES = [
+  { id: 'spk', ic: '🔌', n: 'כבל רמקול (גליל 100 מ׳)', d: 'לכל קיט עם רמקולים/סאבים פסיביים' },
+  { id: 'spkon', ic: '🔩', n: 'ספיקונים — 2 לכל רמקול/סאב', d: 'רק עם מגבר מקצועי (לא רסיבר ביתי)' },
+  { id: 'xlr', ic: '🎚', n: 'כבל XLR לכל ערוץ מגבר', d: 'חיבורים בתוך הארון' },
+  { id: 'xlrLong', ic: '🎚', n: 'גליל XLR לרמקולים מוגברים', d: 'קו סיגנל לכל רמקול מוגבר' },
+  { id: 'pwr', ic: '⚡', n: 'כבל חשמל למגבר / פרוססור', d: 'כבל מתח לכל יחידה בארון' }
+];
+function kitRuleOn(id) { const off = (store.kitRulesOff || []); return !off.includes(id); }
+function kitRuleToggle(id) { const off = new Set(store.kitRulesOff || []); if (off.has(id)) off.delete(id); else off.add(id); store.kitRulesOff = [...off]; save(); kitRulesOpen(); }
+let KRL = null;
+function kitRulesOpen() {
+  const old = document.getElementById('kitRulesOv'); if (old) old.remove();
+  const all = allKits(), list = all.map((k, gi) => ({ k, gi, needs: kitCableNeeds(k) })).filter(o => !kitHidden(o.k.name) && o.needs.length);
+  KRL = KRL || { sel: {} }; list.forEach(o => { if (KRL.sel[o.k.name] == null) KRL.sel[o.k.name] = true; });
+  const nSel = list.filter(o => KRL.sel[o.k.name]).length, tot = list.filter(o => KRL.sel[o.k.name]).reduce((s, o) => s + o.needs.reduce((s2, c) => s2 + c.price * c.qty, 0), 0);
+  const ov = uiModal(`<b style="font-size:14px">⚙ כללי קיטים — כבלים ומחברים בכל הקיטים</b>
+    <p class="muted" style="font-size:11px;margin:4px 0 8px">הכללים נבדקים על כל הקיטים (ERP + שלי, בלי מוסתרים). קיט ERP שמשתנה הופך לגרסה שלך שמחליפה אותו; הכול נשמר ומתפרסם ל-ERP לבד.</p>
+    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">${KIT_RULES.map(r => `<label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" style="width:auto" ${kitRuleOn(r.id) ? 'checked' : ''} onchange="kitRuleToggle('${r.id}')"><b>${r.ic} ${esc(r.n)}</b><span class="muted">${esc(r.d)}</span></label>`).join('')}</div>
+    <div style="font-weight:700;font-size:12.5px;margin-bottom:4px">${list.length ? list.length + ' קיטים חסר בהם משהו · נבחרו ' + nSel + ' · תוספת ₪' + Math.round(tot).toLocaleString() : '✓ כל הקיטים עומדים בכללים'}
+      ${list.length ? `<button style="font-size:11px;padding:1px 8px" onclick="kitRulesSel(true)">הכול</button><button style="font-size:11px;padding:1px 8px" onclick="kitRulesSel(false)">אף אחד</button>` : ''}</div>
+    <div class="kswlist" style="max-height:48vh">${list.map(o => `<label class="kswrow" style="cursor:pointer;align-items:flex-start"><input type="checkbox" style="width:auto;margin-top:3px" ${KRL.sel[o.k.name] ? 'checked' : ''} onchange="KRL.sel[${JSON.stringify(o.k.name).replace(/"/g, '&quot;')}]=this.checked;kitRulesOpen()">
+      <span style="flex:1;min-width:0"><b>${esc(o.k.name.slice(0, 50))}</b> <span class="muted">${(store.userKits || []).includes(o.k) ? 'קיט שלי' : 'קיט ERP → גרסה שלי'}</span><br>
+      <span class="muted" style="font-size:11px">${o.needs.map(c => '+' + c.qty + '× ' + esc(c.t) + ' <span style="direction:ltr;unicode-bidi:embed">' + esc(c.key) + '</span> ₪' + Math.round(c.price * c.qty).toLocaleString()).join(' · ')}</span></span></label>`).join('')}</div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><button class="primary" style="flex:1;background:#0f6e56" ${nSel ? '' : 'disabled'} onclick="kitRulesApply()">✓ החל על ${nSel} קיטים ושמור</button><button onclick="document.getElementById('kitRulesOv').remove();KRL=null;kitCabAll()" title="אישור קיט-קיט עם עריכת כמויות">קיט-קיט…</button><button onclick="document.getElementById('kitRulesOv').remove();KRL=null">סגור</button></div>`);
+  ov.id = 'kitRulesOv'; ov.firstElementChild.style.maxWidth = '720px';
+}
+function kitRulesSel(v) { if (!KRL) return; allKits().forEach(k => { if (kitCableNeeds(k).length) KRL.sel[k.name] = v; }); kitRulesOpen(); }
+/* הוספת שורות לקיט בלי מסך: קיט שלי — במקום; קיט ERP — גרסה שלי שמחליפה אותו (replaces). cabOk = נבדק */
+function kitCabApplyRows(k, rows) {
+  store.userKits = store.userKits || [];
+  const mine = store.userKits.includes(k);
+  const rec = mine ? k : { name: k.name, cat: k.cat, sys: k.sys, items: JSON.parse(JSON.stringify(k.items || [])), replaces: (k.name || '').trim() };
+  rows.forEach(c => { const ex = rec.items.find(it => (it.key || '').trim() === c.key); if (ex) ex.qty = (+ex.qty || 0) + c.qty; else rec.items.push({ key: c.key, name: c.name, qty: c.qty }); });
+  rec.cabOk = true;
+  if (!mine) store.userKits.push(rec);
+  return rows.length;
+}
+function kitRulesApply() {
+  if (!KRL) return;
+  const list = allKits().filter(k => !kitHidden(k.name) && KRL.sel[k.name] && kitCableNeeds(k).length);
+  let kits = 0, lines = 0;
+  list.forEach(k => { const needs = kitCableNeeds(k); if (!needs.length) return; lines += kitCabApplyRows(k, needs); kits++; });
+  kitEnsureIds(); save(); kitSyncSoon();
+  const ov = document.getElementById('kitRulesOv'); if (ov) ov.remove(); KRL = null; renderKits();
+  uiToast('✓ הכללים הוחלו על ' + kits + ' קיטים (' + lines + ' שורות נוספו) — נשמר ומתפרסם ל-ERP', 6000);
+}
+window.kitRulesOpen = kitRulesOpen; window.kitRuleToggle = kitRuleToggle; window.kitRulesSel = kitRulesSel; window.kitRulesApply = kitRulesApply;
+
 function kitCabRowsHTML(k, gi) {
   return kitCableNeeds(k).map(c => `<label style="display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px dashed #f0c9c9;font-size:12px;cursor:pointer">
       <input type="checkbox" checked data-cab="${gi}" data-cabid="${c.id}">
@@ -13890,10 +13943,11 @@ function renderKits() {
       <a style="flex:1;background:#efecfd;color:#6c5ce7;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:1px solid #ddd;border-radius:8px;padding:6px 10px;text-decoration:none;font-size:13px;cursor:pointer"
         href="/matrix"
         title="מי הולך עם מי — אישור ואיסור שילובים, נשמר ונקרא ע&quot;י המתכנן">🧩 מטריצת התאמות</a>
+      <button style="flex:1;background:#fff3cd;color:#7a4b00;font-weight:700;border:1px solid #e0a100" onclick="kitRulesOpen()" title="כבל רמקול, ספיקונים, XLR וחשמל — בדיקה והחלה על כל הקיטים בלחיצה אחת">⚙ כללי קיטים</button>
       <button style="flex:1;background:#eaf3ff;color:#164a7a;font-weight:700;border:1px solid #9cc3ee" onclick="kitSwapOpen()" title="פריט שמופיע בקיטים → פריט אחר מהקטלוג, בכל הקיטים שתבחר, כולל עדכון שם הקיט; נשמר ומתפרסם ל-ERP">🔁 החלף פריט בכל הקיטים</button>
     </div>
     <div id="kitSyncBox" style="border:1px solid #d8eadf;background:#f7fbf8;border-radius:9px;padding:6px 8px;margin-bottom:8px"></div>
-    ${(() => { const nC = allKits().filter(k => !kitHidden(k.name) && kitCableNeeds(k).length).length; return nC ? '<button style="width:100%;margin-bottom:8px;background:#fdf0f0;color:#c1121f;font-weight:700;border:1px solid #e9b4b4" onclick="kitCabAll()">🔌 ב-' + nC + ' קיטי סאונד חסרים כבלים — עבור ואשר את השורות המוצעות</button>' : ''; })()}
+    ${(() => { const nC = allKits().filter(k => !kitHidden(k.name) && kitCableNeeds(k).length).length; return nC ? '<button style="width:100%;margin-bottom:8px;background:#fdf0f0;color:#c1121f;font-weight:700;border:1px solid #e9b4b4" onclick="kitRulesOpen()">🔌 ב-' + nC + ' קיטים חסרים כבלים / ספיקונים — פתח את כללי הקיטים והחל על כולם</button>' : ''; })()}
     <p class="muted" style="margin-bottom:8px">${list2.length} קיטים · מוצגים ${Math.min(list2.length, kitShow)} · לחיצה פותחת תצוגה מקדימה${hiddenCount ? ` · ${hiddenCount} מוסתרים` : ''}:</p>` +
     list2.slice(0, kitShow).map(k => {
       const gi = allKits().indexOf(k);
