@@ -12614,9 +12614,13 @@ function kitLinkRenamed() {
   const taken = new Set(mine.map(k => kitBaseName(k.name))); mine.forEach(k => k.replaces && taken.add(kitBaseName(k.replaces)));
   const head = k => kitStdCore(k).split(' · ').slice(0, 2).join(' · ');
   let n = 0;
+  /* קיט שלי שנשמר בשם אחר (למשל "KT · 8× PAGAZ 641 …" במקום "kt unicorn pagaz + sub") מקושר לקיט הבסיס שלו: אותם שני פריטים ראשיים
+     וכל הפריטים של הבסיס נמצאים בו — אחרת הבסיס נשאר ברשימה ליד הגרסה הערוכה, ונראה כאילו העריכה לא נשמרה */
+  const keys = k => new Set((k.items || []).map(i => (i.key || '').trim()).filter(Boolean));
   mine.forEach(u => {
-    if (u.replaces || !u.cabOk || kitBaseByName(u.name) || kitStdDiff(u) || !kitSpkCount(u)) return;
-    const c = E.filter(e => !taken.has((e.name || '').trim()) && kitSpkCount(e) && head(e) === head(u));
+    if (u.replaces || kitBaseByName(u.name) || !kitSpkCount(u)) return;
+    const ku = keys(u);
+    const c = E.filter(e => !taken.has((e.name || '').trim()) && kitSpkCount(e) && head(e) === head(u) && [...keys(e)].every(k => ku.has(k)));
     if (c.length === 1) { u.replaces = c[0].name.trim(); taken.add(u.replaces); n++; }
   });
   return n;
