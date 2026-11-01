@@ -284,7 +284,7 @@ function wizStepHTML(s) {
       ${P.erpOfferCode ? '<br>✅ נשלחה כבר: <b>' + esc(P.erpOfferCode) + '</b>' : ''}
     </div>
     <button class="sec" onclick="document.body.classList.toggle('wzdock');dockOpen=true;dockMin=false;renderImp()">🧾 הצג/הסתר את ההצעה המלאה</button>
-    <button class="sec" style="background:#f3ede2;border-color:#e0cfae;color:#8a5a12;font-weight:700" onclick="installerReport()">🔧 דוח הכנות, תשתיות ותכנית פרויקט — לחשמלאים ולמתקינים</button>
+    <button class="sec" style="background:#f3ede2;border-color:#e0cfae;color:#8a5a12;font-weight:700" onclick="exportReportPart('all')" title="הדוח המלא — אותו דוח כמו בתפריט ייצוא: ללקוח, לחשמלאי ולמתקין, עם תפריט בכריכה">🔧 דוח הכנות, תשתיות ותכנית פרויקט — לחשמלאים ולמתקינים</button>
     <button class="big" style="background:#0f6e56" onclick="sendOffer()">📤 ${P.erpOfferCode ? 'שלח הצעה נוספת ל-ERP' : 'שלח הצעה ל-ERP'}</button>`;
   }
   return `
