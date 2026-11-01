@@ -37,7 +37,9 @@ function uid() { return 'z' + Math.random().toString(36).slice(2, 8); }
 /* ---------- מנוע אקוסטי (גרסה קומפקטית ומדויקת של המנוע המקצועי) ---------- */
 /* SPL של רמקול במרחק r: רגישות + 10log10(הספק) − 20log10(r) */
 /* עוצמה במרחק נתון. ההספק יכול להיות שברי — בחלל קטן מנגנים בשברי וואט */
-function splAt(spk, w, r) { return spk.sens + 10 * Math.log10(Math.max(0.001, w)) - 20 * Math.log10(Math.max(0.7, r)); }
+/* רגישות: מדף הנתונים; כשיש רק SPL מקסימלי והספק (K&F) — נגזרת מהם (max − 10·log(W)), כי זו בדיוק הדרך שבה היצרן מחשב את ה-max */
+function sensOf(spk) { return spk.sens != null ? spk.sens : (spk.max != null && spk.w ? spk.max - 10 * Math.log10(spk.w) : 90); }
+function splAt(spk, w, r) { return sensOf(spk) + 10 * Math.log10(Math.max(0.001, w)) - 20 * Math.log10(Math.max(0.7, r)); }
 /* מרווח מומלץ בין רמקולים בפריסה מבוזרת (תקרה→אוזן 1.2 מ׳) */
 function spacing(spk, ceil, density) {
   const drop = Math.max(1.2, (ceil || 3) - 1.2);
@@ -79,6 +81,9 @@ function planZone(zone, tier, ceil, scale) {
   const wPer = Math.min(spk.w, 250);
   /* SPL במרכז: כל הרמקולים תורמים, מרחק ממוצע ≈ חצי האלכסון */
   const rAvg = Math.max(2, Math.hypot(wM, hM) / 2);
+  /* רמקול חזק שיכולתו גבוהה בהרבה מהיעד — פחות נקודות: המרווח נמתח עד ×1.6 מהנומינלי כל עוד נשאר מרווח של 10 dB מעל היעד
+     (אין טעם ב-12 טופים של 12″ בבר של 120 מ"ר רק בגלל זווית הפיזור) */
+  if (!onCeil) { const capAt = k => splAt(spk, wPer, rAvg) + 10 * Math.log10(k); while (n - 2 >= minN && capAt(n - 2) >= zone.spl + 10 && perim / (n - 2) <= sp * 1.6) n -= 2; }
   /* בתקרה שקועה המאזין נמצא ישירות מתחת לרמקול — מרחק = גובה התקרה פחות אוזן,
      ורק השכנים הקרובים מוסיפים (≈3 dB), לא כל הרמקולים */
   const drop = Math.max(1.2, (ceil || 3) - 1.2);
@@ -110,6 +115,7 @@ function ampPowerAt(amp, ohm) {
    המוזיקה בלי שהמגבר ייכנס לקליפ (שזה מה ששורף רמקולים). מתחת ל-×1.5 לא מאשרים. */
 const PWR_TARGET = 2.0, PWR_MIN = 1.5;
 function spkPerChannel(amp, spk) {
+  if (spk.active) return { n: 1, ratio: PWR_TARGET, ok: true };   /* מוגבר — אין ערוץ מגבר */
   const minOhm = amp.minOhm || 4;
   const ohmLimit = Math.max(1, Math.floor((spk.ohm || 8) / minOhm + 1e-6));
   let best = 0, bestRatio = 0;
@@ -263,6 +269,8 @@ function buildProposal(tier) {
   const mainSpk = domKey
     ? [tier.spk, tier.spkBig, tier.spkSmall, tier.spkCeil].find(x => x && x.key === domKey[0]) || tier.spk : tier.spk;
   const cands = [tier.ampSmall, tier.amp, tier.ampBig].filter(Boolean);
+  const activeN = zones.reduce((k, { p }) => k + (p.spk.active ? p.n : 0), 0);   /* רמקולים מוגברים — בלי ערוצי מגבר, אבל חשמל + XLR לכל אחד */
+  const passiveSpk = ({ p }) => p.spk.active ? 0 : p.n;
   /* כלל 3: מגבר משולב DSP חוסך פרוססור — העלות האמיתית של מגבר בלי DSP כוללת אותו */
   const AMP_DSP = /DSP|IPX|DPA|DYNAMIQ|PLM|משולב פרוססור/i;
   const procAnyway = S.noise || (S.sameContent === false && S.zones.length > 1 && srcCount() > 1)
@@ -276,17 +284,18 @@ function buildProposal(tier) {
     /* ערוץ לא יכול לשרת שני אזורים — לכל אזור עוצמה משלו (ולפעמים גם תוכן משלו).
        בקיצוץ עמוק אזורים בעלי אותה עוצמה מתאחדים לערוץ משותף (ויסות משותף) */
     const chNeeded = (tier.cut >= 2 ? chanGroups(zones, tier.cut) : zones.map(x => [x]))
-      .reduce((n2, grp) => n2 + Math.ceil(grp.reduce((k, { p }) => k + p.n, 0) / cap.n)
+      .reduce((n2, grp) => n2 + Math.ceil(grp.reduce((k, x) => k + passiveSpk(x), 0) / cap.n)
         + grp.reduce((k, { p }) => k + p.subs, 0), 0);
-    const n = Math.max(1, Math.ceil(chNeeded / (a.ch || 2)));
+    const n = chNeeded ? Math.max(1, Math.ceil(chNeeded / (a.ch || 2))) : 0;
     /* ציון: עלות אמיתית · בונוס לזיווג מהקיטים · קנס ככל שמתרחקים מיחס ×2 */
     const pwrPenalty = cap.ok ? 1 + Math.min(0.25, Math.abs(cap.ratio - PWR_TARGET) * 0.06) : 2.5;
     const cost = n * a.price * pwrPenalty + (!procAnyway && !AMP_DSP.test(a.name || '') ? dspCost : 0);
     if (cost < bestCost) { bestCost = cost; amp = a; ampN = n; perCh = cap.n; pwrRatio = cap.ratio; pwrOk = cap.ok; }
   });
   const lines = (tier.cut >= 2 ? chanGroups(zones, tier.cut) : zones.map(x => [x]))
-    .reduce((n2, grp) => n2 + Math.ceil(grp.reduce((k, { p }) => k + p.n, 0) / perCh)
-      + grp.reduce((k, { p }) => k + p.subs, 0), 0);
+    .reduce((n2, grp) => n2 + Math.ceil(grp.reduce((k, x) => k + passiveSpk(x), 0) / perCh)
+      + grp.reduce((k, { p }) => k + p.subs, 0), 0) + activeN;   /* רמקול מוגבר = קו XLR משלו */
+  if (!ampN) { amp = { key: null, name: 'מגברים מובנים ברמקולים', price: 0, ch: 0, minOhm: 8 }; perCh = 1; pwrRatio = 1; pwrOk = true; }
   /* אורך כבל משוער: היקף כל האזורים ×1.3 + 12 מ׳ לארון */
   const meters = Math.ceil(zones.reduce((s, { z }) => s + 2 * (z.w * scale + z.h * scale), 0) * 1.3 + 12);
   const reels = Math.max(1, Math.ceil(meters / LITE_CATALOG.accessories.cableReel.meters));
@@ -301,11 +310,11 @@ function buildProposal(tier) {
   const picked = pickSub(tier, S.zones, scale);
   const sub = withFinish(picked.sub), bigSub = picked.big;
   if (totalSub) push(sub.key, sub.name, totalSub, sub.price, 'סאבים');
-  push(amp.key, amp.name, ampN, amp.price, 'הגברה');
+  if (ampN && amp.key) push(amp.key, amp.name, ampN, amp.price, 'הגברה');
   if (tier.xover && totalSub) push(tier.xover.key, tier.xover.name, ampN, tier.xover.price, 'הגברה');
   const A = LITE_CATALOG.accessories;
   push(A.cableReel.key, A.cableReel.name, reels, A.cableReel.price, 'תשתית');
-  push(A.speakon.key, A.speakon.name, (totalSpk + totalSub) * 2, A.speakon.price, 'תשתית');
+  push(A.speakon.key, A.speakon.name, (totalSpk - activeN + totalSub) * 2, A.speakon.price, 'תשתית');   /* רמקול מוגבר — XLR, לא ספיקון */
   if (!(tier.cut >= 3)) push(A.rack.key, A.rack.name, 1, A.rack.price, 'תשתית');
   /* מקורות הנגינה — הציוד האמיתי מהמלאי, וכמה כניסות בכלל צריך */
   const srcs = ensureSources().map(id => SRC_DEV.find(x => x.id === id)).filter(Boolean);
@@ -357,6 +366,7 @@ function buildProposal(tier) {
     { k: 'spkc',   label: 'ניסור תקרת גבס, התקנת רמקול שקוע וסגירה', unit: 'יח׳', qty: ceilSpk, price: 210 },
     { k: 'sub',    label: 'הצבת סאב, חיבור וכיוון', unit: 'יח׳', qty: totalSub, price: 90 },
     { k: 'rack',   label: 'הרכבת מגבר/מעבד בארון וחיווט פנימי', unit: 'יח׳', qty: ampN, price: 200 },
+    { k: 'actpw',  label: 'חיבור חשמל (16A) + קו XLR לרמקול מוגבר', unit: 'יח׳', qty: activeN, price: 140 },
     { k: 'ends',   label: 'קצוות ומחברים לכל קו רמקול', unit: 'קו', qty: lines, price: 45 },
     { k: 'tune',   label: 'כיוונון, בדיקות ומסירה', unit: 'אזור', qty: S.zones.length, price: 400 }
   ].filter(r => r.qty > 0).map(r => {
@@ -368,7 +378,7 @@ function buildProposal(tier) {
   const hours = (45 + totalSpk * 30 + totalSub * 15 + ampN * 30 + 45 * S.zones.length) / 60;
   const days = Math.max(1, Math.ceil(hours / 8));
   return { tier, zones, rows, inst, equip, install, days, hours, total: equip + install,
-    totalSpk, totalSub, ampN, amp, perCh, pwrRatio, pwrOk, lines, meters, sub, bigSub, mainSpk, util: Math.round(totalSpk / Math.max(1, ampN * (amp.ch || 2) * perCh) * 100) };
+    totalSpk, totalSub, ampN, amp, perCh, pwrRatio, pwrOk, lines, meters, sub, bigSub, mainSpk, activeN, util: ampN ? Math.round((totalSpk - activeN + totalSub * perCh) / Math.max(1, ampN * (amp.ch || 2) * perCh) * 100) : 100 };
 }
 /* ---------- גימור: אותו דגם, מראה אחר ---------- */
 /* לקוח שרוצה רמקול עץ או במבוק מקבל את אותו רמקול בדיוק — רק בגימור אחר,
@@ -1921,8 +1931,8 @@ function stepOffers() {
         <div><b>${p.totalSub ? p.totalSub + '×' + p.sub.inch + '"' : '—'}</b><small>סאבים</small></div>
         <div><b>${spl}</b><small>dB יכולת</small></div>
       </div>
-      <div class="ampline">🎚 ${p.ampN}× ${esc(p.amp.name.slice(0, 26))} · ${p.perCh} רמקולים לערוץ · ניצול ${p.util}%
-        <br><b style="color:${p.pwrOk ? '#0f6e56' : '#c1121f'}">×${p.pwrRatio} הספק מגבר מול הרמקולים</b> — היעד ×2, מרווח לפסגות בלי קליפ
+      <div class="ampline">${p.activeN ? '🔌 ' + p.activeN + ' רמקולים מוגברים — חשמל + XLR לכל נקודה' + (p.ampN ? '<br>' : '') : ''}${p.ampN ? '🎚 ' + p.ampN + '× ' + esc(p.amp.name.slice(0, 26)) + ' · ' + p.perCh + ' רמקולים לערוץ · ניצול ' + p.util + '%' : ''}
+        ${p.ampN ? '<br><b style="color:' + (p.pwrOk ? '#0f6e56' : '#c1121f') + '">×' + p.pwrRatio + ' הספק מגבר מול הרמקולים</b> — היעד ×2, מרווח לפסגות בלי קליפ' : ''}
 </div>
       ${S.finish && S.finish !== FIN_ANY ? `<div class="finline">🎨 גימור ${esc(S.finish)}${p.rows.some(r => (r.name || '').endsWith('· ' + S.finish)) ? '' : ' — לדגם הזה אין גימור כזה, נשאר במקורי'}</div>` : ''}
       <div class="prods">${prodCards(p)}</div>

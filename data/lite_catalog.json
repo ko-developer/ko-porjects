@@ -1,12 +1,11 @@
 {
- "note": "קטלוג הצעות למשתמשי קצה — נבנה מנתוני ERP אמיתיים: מלאי, מחירי יחידה וזיווגי מגבר/רמקול שנמכרו יחד בפועל.",
+ "note": "קטלוג הצעות למשתמשי קצה — חמישה מותגים (Funktion-One · Lambda Labs · Kling & Freitag · Unicorn · KT), מנתוני ERP אמיתיים: מלאי, מחירי יחידה; מפרטים מהספרייה המאומתת של KO Projects או מדפי היצרן (src). sensFrom=max: רגישות נגזרת מ-SPL מקסימלי ומהספק (אין רגישות בדף הנתונים).",
  "tiers": [
   {
    "id": "premium",
-   "name": "פרמיום",
-   "brand": "Funktion-One · Kling & Freitag",
-   "tag": "הצליל הכי טוב שיש — מותגי הבמה העולמיים",
-   "why": "רמקולים שמנגנים נקי גם בעוצמה גבוהה, עמידים לשנים ארוכות, וכל מילה מובנת גם כשהמקום מלא.",
+   "name": "Funktion-One",
+   "brand": "Funktion-One",
+   "why": "רמקולים שמנגנים נקי גם בעוצמה גבוהה, עמידים לשנים ארוכות, וכל מילה מובנת גם כשהמקום מלא. הגברה XTA.",
    "spk": {
     "key": "S18FUOKO",
     "name": "FUNKTION-ONE F81",
@@ -31,6 +30,30 @@
     "ohm": 8,
     "mount": "S19FUOKO2"
    },
+   "spkSmall": {
+    "key": "S17FUOKOWHT",
+    "name": "FUNKTION-ONE F55",
+    "h": 100,
+    "v": 60,
+    "sens": 91,
+    "max": 118,
+    "w": 120,
+    "ohm": 8,
+    "mount": "S17FUOKO2",
+    "price": 2500
+   },
+   "spkCeil": {
+    "key": "S22183SG",
+    "name": "YAMAHA NS-IC800 — שקוע תקרה 8\"",
+    "h": 120,
+    "v": 120,
+    "sens": 89,
+    "max": 109,
+    "w": 60,
+    "ohm": 8,
+    "ceil": true,
+    "price": 780
+   },
    "sub": {
     "key": "SFUO20KO",
     "name": "FUNKTION-ONE BR115 סאב",
@@ -38,6 +61,22 @@
     "w": 400,
     "ohm": 8,
     "inch": 15
+   },
+   "subBig": {
+    "key": "S30FUOKO",
+    "name": "FUNKTION-ONE BR118 סאב 18\"",
+    "price": 11422,
+    "w": 550,
+    "ohm": 8,
+    "inch": 18
+   },
+   "subSmall": {
+    "key": "S25FUOKOWHT",
+    "name": "FUNKTION-ONE SB8 סאב 8\"",
+    "w": 250,
+    "ohm": 8,
+    "inch": 8,
+    "price": 3978
    },
    "amp": {
     "key": "S36FUOKOS",
@@ -52,30 +91,76 @@
     },
     "pairedWith": "מהקיטים: זיווג מאומת"
    },
+   "ampSmall": {
+    "key": "S36FUOKOS",
+    "name": "XTA DNA 20 — מגבר 4 ערוצים 4×350W",
+    "price": 10030,
+    "ch": 4,
+    "minOhm": 2,
+    "pw": {
+     "2": 340,
+     "4": 350,
+     "8": 175
+    },
+    "pairedWith": "מהקיטים: זיווג מאומת"
+   },
+   "ampBig": {
+    "key": "SXTA1KOS",
+    "name": "XTA DNA 40 — מגבר 4 ערוצים 4×500W",
+    "price": 12301.5,
+    "ch": 4,
+    "minOhm": 2,
+    "pw": {
+     "2": 1200,
+     "4": 1000,
+     "8": 500,
+     "2.7": 1400
+    }
+   },
    "xover": {
     "key": "S36FUOKO1",
     "name": "כרטיס קרוסאובר XTA D20",
     "price": 1652
-   },
-   "subBig": {
-    "key": "S30FUOKO",
-    "name": "FUNKTION-ONE BR118 סאב 18\"",
-    "price": 11422,
-    "w": 550,
+   }
+  },
+  {
+   "id": "lambda",
+   "name": "Lambda Labs",
+   "brand": "Lambda Labs",
+   "why": "טופ 12″ מוגבר (800W+200W מובנים) — בלי מגבר לרמקולים, רק חשמל ו-XLR לכל נקודה; סאב MF-15 פסיבי עם מגבר XTA. למקומות שמנגנים חזק.",
+   "spk": {
+    "key": "SLAM2KO",
+    "name": "LAMBDA LABS TX-2A — טופ 12\" מוגבר",
+    "price": 22656,
+    "h": 80,
+    "v": 55,
+    "sens": 96,
+    "w": 800,
     "ohm": 8,
-    "inch": 18
+    "active": true,
+    "src": "lambda-labs.com: 96dB/1W/1m · 80°×55° · 800W+200W RMS amping"
    },
-   "ampSmall": {
-    "key": "SKNF54KO",
-    "name": "K&F IPX 2400 — 2 ערוצים + DSP",
-    "price": 6844,
-    "ch": 2,
-    "minOhm": 2,
-    "pw": {
-     "2": 2400,
-     "4": 2400,
-     "8": 1200
-    }
+   "spkBig": {
+    "key": "SLAM2KO",
+    "name": "LAMBDA LABS TX-2A — טופ 12\" מוגבר",
+    "price": 22656,
+    "h": 80,
+    "v": 55,
+    "sens": 96,
+    "w": 800,
+    "ohm": 8,
+    "active": true
+   },
+   "spkSmall": {
+    "key": "SLAM2KO",
+    "name": "LAMBDA LABS TX-2A — טופ 12\" מוגבר",
+    "price": 22656,
+    "h": 80,
+    "v": 55,
+    "sens": 96,
+    "w": 800,
+    "ohm": 8,
+    "active": true
    },
    "spkCeil": {
     "key": "S22183SG",
@@ -89,33 +174,180 @@
     "ceil": true,
     "price": 780
    },
-   "spkSmall": {
-    "key": "S17FUOKOWHT",
-    "name": "FUNKTION-ONE F55",
-    "h": 100,
-    "v": 60,
-    "sens": 91,
-    "max": 118,
-    "w": 120,
+   "sub": {
+    "key": "SLAM3KO",
+    "name": "LAMBDA LABS MF-15 — סאב 15\" פסיבי",
+    "price": 21329,
+    "w": 1600,
     "ohm": 8,
-    "mount": "S17FUOKO2",
-    "price": 2500
+    "inch": 15,
+    "src": "lambda-labs.com: 98dB/1W/1m · 1600W RMS · 8Ω"
+   },
+   "subBig": {
+    "key": "SLAM3KO",
+    "name": "LAMBDA LABS MF-15 — סאב 15\" פסיבי",
+    "price": 21329,
+    "w": 1600,
+    "ohm": 8,
+    "inch": 15
    },
    "subSmall": {
-    "key": "S25FUOKOWHT",
-    "name": "FUNKTION-ONE SB8 סאב 8\"",
-    "w": 250,
+    "key": "SLAM3KO",
+    "name": "LAMBDA LABS MF-15 — סאב 15\" פסיבי",
+    "price": 21329,
+    "w": 1600,
     "ohm": 8,
-    "inch": 8,
-    "price": 3978
+    "inch": 15
+   },
+   "amp": {
+    "key": "SXTA4KOS",
+    "name": "XTA DNA 120 — 2 ערוצים 2×2400W (לסאב)",
+    "price": 21420,
+    "ch": 2,
+    "minOhm": 2,
+    "pw": {
+     "8": 2400
+    }
+   },
+   "ampSmall": {
+    "key": "SXTA4KOS",
+    "name": "XTA DNA 120 — 2 ערוצים 2×2400W (לסאב)",
+    "price": 21420,
+    "ch": 2,
+    "minOhm": 2,
+    "pw": {
+     "8": 2400
+    }
+   },
+   "ampBig": {
+    "key": "SXTA4KOS",
+    "name": "XTA DNA 120 — 2 ערוצים 2×2400W (לסאב)",
+    "price": 21420,
+    "ch": 2,
+    "minOhm": 2,
+    "pw": {
+     "8": 2400
+    }
+   }
+  },
+  {
+   "id": "kf",
+   "name": "Kling & Freitag",
+   "brand": "Kling & Freitag",
+   "why": "עיצוב גרמני עדין שמשתלב בכל חלל, צליל מדויק, ומגבר IPX עם פריסטים של היצרן לכל דגם.",
+   "spk": {
+    "key": "S2277KO",
+    "name": "K&F PASSIO W — 2×5\" מוקומפקטי",
+    "price": 7080,
+    "h": 100,
+    "v": 60,
+    "max": 120,
+    "w": 200,
+    "ohm": 12,
+    "sensFrom": "max",
+    "mount": "S2277KOR1"
+   },
+   "spkBig": {
+    "key": "S2276KO",
+    "name": "K&F GRAVIS 12+ W",
+    "price": 18050,
+    "h": 90,
+    "v": 50,
+    "sens": 103,
+    "max": 133,
+    "w": 400,
+    "ohm": 8
+   },
+   "spkSmall": {
+    "key": "S2278KO",
+    "name": "K&F SONA 5 — 5\" שחור",
+    "price": 3200,
+    "h": 120,
+    "v": 90,
+    "max": 118,
+    "w": 100,
+    "ohm": 16,
+    "sensFrom": "max"
+   },
+   "spkCeil": {
+    "key": "S22183SG",
+    "name": "YAMAHA NS-IC800 — שקוע תקרה 8\"",
+    "h": 120,
+    "v": 120,
+    "sens": 89,
+    "max": 109,
+    "w": 60,
+    "ohm": 8,
+    "ceil": true,
+    "price": 780
+   },
+   "sub": {
+    "key": "S222018KO",
+    "name": "K&F PASSIO SUB 15",
+    "price": 8651.5,
+    "w": 400,
+    "ohm": 8,
+    "inch": 15
+   },
+   "subBig": {
+    "key": "S222018KO",
+    "name": "K&F PASSIO SUB 15",
+    "price": 8651.5,
+    "w": 400,
+    "ohm": 8,
+    "inch": 15
+   },
+   "subSmall": {
+    "key": "S222020KO",
+    "name": "K&F SONA SUB — 8\" שחור",
+    "price": 6200,
+    "w": 150,
+    "ohm": 8,
+    "inch": 8
+   },
+   "amp": {
+    "key": "SKNF54KO",
+    "name": "K&F IPX 2400 — 2 ערוצים + DSP",
+    "price": 6844,
+    "ch": 2,
+    "minOhm": 2,
+    "pw": {
+     "2": 2400,
+     "4": 2400,
+     "8": 1200
+    }
+   },
+   "ampSmall": {
+    "key": "SKNF54KO",
+    "name": "K&F IPX 2400 — 2 ערוצים + DSP",
+    "price": 6844,
+    "ch": 2,
+    "minOhm": 2,
+    "pw": {
+     "2": 2400,
+     "4": 2400,
+     "8": 1200
+    }
+   },
+   "ampBig": {
+    "key": "SKNF7KO",
+    "name": "K&F IX15:4 — 4 ערוצים 4×375W + DSP",
+    "price": 16904,
+    "ch": 4,
+    "minOhm": 2,
+    "pw": {
+     "2": 375,
+     "4": 375,
+     "8": 375,
+     "2.7": 375
+    }
    }
   },
   {
    "id": "mid",
-   "name": "ביניים",
-   "brand": "Unicorn Euphoria",
-   "tag": "האיזון בין מחיר לאיכות — הבחירה הנפוצה",
-   "why": "צליל נקי ומכובד בעיצוב עדין שמשתלב בכל חלל, בכשליש ממחיר הפרמיום.",
+   "name": "Unicorn",
+   "brand": "Unicorn",
+   "why": "צליל נקי ומכובד בעיצוב עדין — Euphoria לחללים מעוצבים, TILL מעץ לאולמות ולבר, במחיר ביניים.",
    "spk": {
     "key": "SEGL12KO",
     "name": "UNICORN EUPHORIA 8",
@@ -140,56 +372,17 @@
     "ohm": 8,
     "mount": "GJIG4KO"
    },
-   "sub": {
-    "key": "SEGL8KO",
-    "name": "UNICORN EUPHORIA 12 סאב",
-    "price": 1682,
-    "w": 300,
+   "spkSmall": {
+    "key": "SEGL7KO",
+    "name": "UNICORN EUPHORIA 5",
+    "h": 100,
+    "v": 70,
+    "sens": 87,
+    "max": 110,
+    "w": 80,
     "ohm": 8,
-    "inch": 12
-   },
-   "amp": {
-    "key": "SKOB4KOS",
-    "name": "UNICORN MX3-700 — 2×700W",
-    "price": 2390,
-    "ch": 2,
-    "minOhm": 4,
-    "pw": {
-     "4": 1000,
-     "8": 700
-    },
-    "pairedWith": "מהקיטים: זיווג מאומת"
-   },
-   "ampBig": {
-    "key": "SSDK7KO",
-    "name": "KT DYNAMIQ 4600 — 4×600W + DSP",
-    "price": 3098,
-    "ch": 4,
-    "minOhm": 4,
-    "pw": {
-     "4": 900,
-     "8": 600
-    },
-    "pairedWith": "כלל הבית: KT → DYNAMIQ (4600 עם סאבים)"
-   },
-   "subBig": {
-    "key": "STON29KO",
-    "name": "KT UNICORN TILL 18 — סאב 18\"",
-    "price": 2655,
-    "w": 500,
-    "ohm": 8,
-    "inch": 18
-   },
-   "ampSmall": {
-    "key": "SKOB3KOS",
-    "name": "UNICORN MX3-200 — 2×200W",
-    "price": 1593,
-    "ch": 2,
-    "minOhm": 4,
-    "pw": {
-     "4": 300,
-     "8": 200
-    }
+    "mount": "GJIG4KO",
+    "price": 620
    },
    "spkCeil": {
     "key": "S22183SG",
@@ -203,87 +396,13 @@
     "ceil": true,
     "price": 780
    },
-   "spkSmall": {
-    "key": "SEGL7KO",
-    "name": "UNICORN EUPHORIA 5",
-    "h": 100,
-    "v": 70,
-    "sens": 87,
-    "max": 110,
-    "w": 80,
-    "ohm": 8,
-    "mount": "GJIG4KO",
-    "price": 620
-   },
-   "subSmall": {
-    "key": "SANA39KO",
-    "name": "KT ARRAY SUB 1000 — סאב 10\"",
-    "w": 200,
-    "ohm": 8,
-    "inch": 10,
-    "price": 1168
-   }
-  },
-  {
-   "id": "till",
-   "name": "אולם ובר",
-   "brand": "KT Unicorn TILL",
-   "why": "רמקולי עץ 8″ ו-12″ עם סאב 15″/18″ — למקומות שמנגנים חזק ולאירועים, מגברי DYNAMIQ עם DSP, במחיר ביניים.",
-   "spk": {
-    "key": "STON7KO",
-    "name": "KT TILL 8",
-    "price": 1062,
-    "h": 90,
-    "v": 60,
-    "sens": 89,
-    "max": 115,
-    "w": 250,
-    "ohm": 8,
-    "mount": "GJIG4KO"
-   },
-   "spkBig": {
-    "key": "STON28KO",
-    "name": "KT UNICORN TILL 12",
-    "price": 1770,
-    "h": 90,
-    "v": 60,
-    "sens": 92,
-    "max": 121,
+   "sub": {
+    "key": "SEGL8KO",
+    "name": "UNICORN EUPHORIA 12 סאב",
+    "price": 1682,
     "w": 300,
     "ohm": 8,
-    "mount": "GJIG4KO"
-   },
-   "spkSmall": {
-    "key": "SANA2KO",
-    "name": "KT WR600 (מוגן מים IP66)",
-    "price": 654,
-    "h": 90,
-    "v": 60,
-    "sens": 88,
-    "max": 110,
-    "w": 60,
-    "ohm": 8,
-    "mount": "GJIG4KO"
-   },
-   "spkCeil": {
-    "key": "SSHD1KO",
-    "name": "KT שקוע תקרה 8\"",
-    "h": 110,
-    "v": 110,
-    "sens": 88,
-    "max": 106,
-    "w": 60,
-    "ohm": 8,
-    "ceil": true,
-    "price": 398
-   },
-   "sub": {
-    "key": "STON16KO",
-    "name": "KT UNICORN TILL 15 — סאב 15\"",
-    "price": 2301,
-    "w": 400,
-    "ohm": 8,
-    "inch": 15
+    "inch": 12
    },
    "subBig": {
     "key": "STON29KO",
@@ -294,35 +413,35 @@
     "inch": 18
    },
    "subSmall": {
-    "key": "SANA13KO",
-    "name": "KT ARRAY SUB 1000 — סאב 10\"",
-    "w": 200,
+    "key": "STON16KO",
+    "name": "KT UNICORN TILL 15 — סאב 15\"",
+    "price": 2301,
+    "w": 400,
     "ohm": 8,
-    "inch": 10,
-    "price": 867
+    "inch": 15
    },
    "amp": {
-    "key": "SSDK2KO",
-    "name": "KT DYNAMIQ 750 עם DSP",
-    "price": 2478,
+    "key": "SKOB4KOS",
+    "name": "UNICORN MX3-700 — 2×700W",
+    "price": 2390,
     "ch": 2,
     "minOhm": 4,
     "pw": {
-     "4": 750,
-     "8": 500
-    }
-   },
-   "ampSmall": {
-    "key": "SSDK1KO",
-    "name": "KT DYNAMIQ 450 עם DSP",
-    "price": 2124,
-    "ch": 2,
-    "minOhm": 4,
-    "pw": {
-     "4": 450,
-     "8": 300
+     "4": 1000,
+     "8": 700
     },
     "pairedWith": "מהקיטים: זיווג מאומת"
+   },
+   "ampSmall": {
+    "key": "SKOB3KOS",
+    "name": "UNICORN MX3-200 — 2×200W",
+    "price": 1593,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "4": 300,
+     "8": 200
+    }
    },
    "ampBig": {
     "key": "SSDK7KO",
@@ -339,21 +458,30 @@
   },
   {
    "id": "budget",
-   "name": "חסכוני",
-   "brand": "KT Audio",
-   "tag": "כיסוי מלא בתקציב הכי נמוך",
-   "why": "פתרון אמין למוזיקת רקע ולהכרזות — מלאי גדול, התקנה מהירה ומחיר נגיש.",
+   "name": "KT",
+   "brand": "KT",
+   "why": "פתרון אמין למוזיקת רקע ולהכרזות — INTERPID עם מתקן בקופסה, מלאי גדול, מגברי DYNAMIQ עם DSP, מחיר נגיש.",
    "spk": {
-    "key": "STON7KO",
-    "name": "KT TILL 8",
-    "price": 1062,
+    "key": "SANA12KO",
+    "name": "KT INTERPID 800 V2 — 8\" שחור",
+    "price": 474,
     "h": 90,
     "v": 60,
-    "sens": 89,
-    "max": 115,
-    "w": 250,
-    "ohm": 8,
-    "mount": "GJIG4KO"
+    "sens": 90,
+    "max": 109,
+    "w": 80,
+    "ohm": 8
+   },
+   "spkBig": {
+    "key": "SANA12KO",
+    "name": "KT INTERPID 800 V2 — 8\" שחור",
+    "price": 474,
+    "h": 90,
+    "v": 60,
+    "sens": 90,
+    "max": 109,
+    "w": 80,
+    "ohm": 8
    },
    "spkSmall": {
     "key": "SANA2KO",
@@ -367,128 +495,6 @@
     "ohm": 8,
     "mount": "GJIG4KO"
    },
-   "sub": {
-    "key": "SANA13KO",
-    "name": "KT ARRAY SUB 1000",
-    "price": 867,
-    "w": 200,
-    "ohm": 8,
-    "inch": 10
-   },
-   "amp": {
-    "key": "SSDK1KO",
-    "name": "KT DYNAMIQ 450 עם DSP",
-    "price": 2124,
-    "ch": 2,
-    "minOhm": 4,
-    "pw": {
-     "4": 450,
-     "8": 300
-    },
-    "pairedWith": "מהקיטים: זיווג מאומת"
-   },
-   "ampBig": {
-    "key": "SSDK2KO",
-    "name": "KT DYNAMIQ 750 עם DSP",
-    "price": 2478,
-    "ch": 2,
-    "minOhm": 4,
-    "pw": {
-     "4": 750,
-     "8": 500
-    }
-   },
-   "spkBig": {
-    "key": "STON7KO",
-    "name": "KT TILL 8",
-    "price": 1062,
-    "h": 90,
-    "v": 60,
-    "sens": 89,
-    "max": 115,
-    "w": 250,
-    "ohm": 8,
-    "mount": "GJIG4KO"
-   },
-   "subBig": {
-    "key": "STON16KO",
-    "name": "KT UNICORN TILL 15 — סאב 15\"",
-    "price": 2301,
-    "w": 400,
-    "ohm": 8,
-    "inch": 15
-   },
-   "ampSmall": {
-    "key": "SKOB3KOS",
-    "name": "UNICORN MX3-200 — 2×200W",
-    "price": 1593,
-    "ch": 2,
-    "minOhm": 4,
-    "pw": {
-     "4": 300,
-     "8": 200
-    }
-   },
-   "spkCeil": {
-    "key": "SSHD1KO",
-    "name": "KT שקוע תקרה 8\"",
-    "h": 110,
-    "v": 110,
-    "sens": 88,
-    "max": 106,
-    "w": 60,
-    "ohm": 8,
-    "ceil": true,
-    "price": 398
-   },
-   "subSmall": {
-    "key": "SANA13KO",
-    "name": "KT ARRAY SUB 1000 — סאב 10\"",
-    "w": 200,
-    "ohm": 8,
-    "inch": 10,
-    "price": 867
-   }
-  },
-  {
-   "id": "value",
-   "name": "חסכוני במיוחד",
-   "brand": "KT INTERPID",
-   "why": "הרמקול הכי נמכר שלנו למוזיקת רקע — מאות במלאי, מתקן בקופסה, התקנה מהירה ומחיר נמוך.",
-   "spk": {
-    "key": "SANA12KO",
-    "name": "KT INTERPID 800 V2 — 8\" שחור",
-    "price": 474,
-    "h": 90,
-    "v": 60,
-    "sens": 90,
-    "max": 109,
-    "w": 80,
-    "ohm": 8
-   },
-   "spkBig": {
-    "key": "STON7KO",
-    "name": "KT TILL 8",
-    "price": 1062,
-    "h": 90,
-    "v": 60,
-    "sens": 89,
-    "max": 115,
-    "w": 250,
-    "ohm": 8,
-    "mount": "GJIG4KO"
-   },
-   "spkSmall": {
-    "key": "SANA12KO",
-    "name": "KT INTERPID 800 V2 — 8\" שחור",
-    "price": 474,
-    "h": 90,
-    "v": 60,
-    "sens": 90,
-    "max": 109,
-    "w": 80,
-    "ohm": 8
-   },
    "spkCeil": {
     "key": "SSHD1KO",
     "name": "KT שקוע תקרה 8\"",
@@ -510,12 +516,12 @@
     "inch": 10
    },
    "subBig": {
-    "key": "STON16KO",
-    "name": "KT UNICORN TILL 15 — סאב 15\"",
-    "price": 2301,
-    "w": 400,
+    "key": "SANA13KO",
+    "name": "KT ARRAY SUB 1000",
+    "price": 867,
+    "w": 200,
     "ohm": 8,
-    "inch": 15
+    "inch": 10
    },
    "subSmall": {
     "key": "SANA13KO",
@@ -526,6 +532,17 @@
     "price": 867
    },
    "amp": {
+    "key": "SSDK2KO",
+    "name": "KT DYNAMIQ 750 עם DSP",
+    "price": 2478,
+    "ch": 2,
+    "minOhm": 4,
+    "pw": {
+     "4": 750,
+     "8": 500
+    }
+   },
+   "ampSmall": {
     "key": "SSDK1KO",
     "name": "KT DYNAMIQ 450 עם DSP",
     "price": 2124,
@@ -537,27 +554,17 @@
     },
     "pairedWith": "מהקיטים: זיווג מאומת"
    },
-   "ampSmall": {
-    "key": "SKOB3KOS",
-    "name": "UNICORN MX3-200 — 2×200W",
-    "price": 1593,
-    "ch": 2,
-    "minOhm": 4,
-    "pw": {
-     "4": 300,
-     "8": 200
-    }
-   },
    "ampBig": {
-    "key": "SSDK2KO",
-    "name": "KT DYNAMIQ 750 עם DSP",
-    "price": 2478,
-    "ch": 2,
+    "key": "SSDK7KO",
+    "name": "KT DYNAMIQ 4600 — 4×600W + DSP",
+    "price": 3098,
+    "ch": 4,
     "minOhm": 4,
     "pw": {
-     "4": 750,
-     "8": 500
-    }
+     "4": 900,
+     "8": 600
+    },
+    "pairedWith": "כלל הבית: KT → DYNAMIQ (4600 עם סאבים)"
    }
   }
  ],
