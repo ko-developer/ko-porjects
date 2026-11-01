@@ -133,6 +133,27 @@ function wizRender() {
   });
 }
 
+/* חדר לפי מידות מהאשף: רוחב × אורך במטרים → שרטוט מלבן במרכז, קנה מידה 1 מ׳ = 40px כשאין כיול, והאשף ממשיך לשלב האזורים */
+function wizRoomByDims() {
+  const ov = uiModal('<b style="font-size:14px">▭ חדר לפי מידות</b><p class="muted" style="font-size:12px;margin:6px 0">מלבן במידות שתזין; אחר כך אפשר לגרור פינות, להוסיף קירות ואובייקטים בכלי השרטוט.</p>' +
+    '<div style="display:flex;gap:8px"><label style="flex:1;font-size:12px">רוחב (מ׳)<input id="wzRoomW" type="number" step="0.1" min="1" placeholder="12" style="width:100%"></label><label style="flex:1;font-size:12px">אורך (מ׳)<input id="wzRoomH" type="number" step="0.1" min="1" placeholder="8" style="width:100%"></label></div>' +
+    '<div style="display:flex;gap:6px;margin-top:10px"><button class="primary" data-go style="flex:1">צור חדר ◀</button><button data-x>ביטול</button></div>');
+  setTimeout(() => { const e = ov.querySelector('#wzRoomW'); if (e) e.focus(); }, 50);
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  const go = () => {
+    const w = parseFloat(ov.querySelector('#wzRoomW').value), h = parseFloat(ov.querySelector('#wzRoomH').value);
+    if (!(w > 0.5) || !(h > 0.5)) { uiToast('הזן רוחב ואורך במטרים'); return; }
+    ov.remove();
+    if (!P.scale) { P.scale = 1 / 40; P.calSrc = 'manual'; P.calOk = 1; }   /* בלי רקע: 1 מ׳ = 40px */
+    skRoomMake(w, h);
+    if (!P.room) P.room = {};
+    save(); render(); wizRender();
+    uiToast('⬜ חדר ' + w + '×' + h + ' מ׳ — קנה המידה נקבע; ממשיכים לאזורים', 5000);
+  };
+  ov.querySelector('[data-go]').onclick = go;
+  ov.querySelectorAll('input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') go(); });
+}
+window.wizRoomByDims = wizRoomByDims;
 function wizStepHTML(s) {
   const z = wizZone(), k = WIZ_STEPS[s][0];
   if (k === 'align') return wizAlignHTML();
@@ -142,6 +163,9 @@ function wizStepHTML(s) {
     <p class="hint">גרור/בחר צילום או PDF-תמונה של התכנית. אפשר גם להמשיך עם התכנית הקיימת.</p>
     ${wizHasPlan() ? `<button class="sec done" onclick="wizNext()">✓ ${P.hasBg || P.hasPdf || P.bg ? 'יש תכנית בפרויקט' : 'יש שרטוט בפרויקט — הוא התכנית'} — אפשר להמשיך</button>` : ''}
     <input type="file" accept="image/*,application/pdf,.pdf,.dxf,.dwg" onchange="wizUploadBg(this)">
+    <p class="hint" style="margin-top:8px">אין תכנית? אפשר לשרטט אותה כאן:</p>
+    <button class="sec" onclick="wizRoomByDims()" title="חדר מלבני לפי רוחב ואורך במטרים — קנה המידה נקבע אוטומטית, ואפשר לעבור ישר לאזורים">▭ חדר לפי מידות — רוחב × אורך</button>
+    <button class="sec" onclick="WIZ.open=false;wizRender();sketchStart()" title="קירות, דלתות ואובייקטים חופשיים על הקנבס (האשף נסגר בינתיים; ⚡ אשף מחזיר אותו)">✏️ שרטט תכנית — קירות ואובייקטים</button>
     <button class="sec" onclick="wizNewProject()">🗂 התחל פרויקט חדש נקי</button>`;
   if (k === 'cal') {
     const curW = P.scale ? P.bgW * P.scale : 0;

@@ -10643,6 +10643,11 @@ function skRoomCreate() {
   const w = parseFloat(document.getElementById('skRoomW')?.value), h = parseFloat(document.getElementById('skRoomH')?.value);
   if (!(w > 0.2) || !(h > 0.2)) { uiToast('הזן רוחב ואורך במטרים'); return; }
   if (!P.scale) { uiToast('אין קנה מידה — כייל את התכנית קודם'); return; }
+  skRoomMake(w, h);
+}
+/* חדר מלבני במידות (מטרים) במרכז התצוגה — גם מהאשף, בלי תכנית רקע */
+function skRoomMake(w, h) {
+  P.sketch = P.sketch || { walls: [], objs: [] };
   const wrap = document.getElementById('canvasWrap'), wr = wrap.getBoundingClientRect();
   const c = canvasPt({ clientX: wr.left + wr.width / 2, clientY: wr.top + wr.height / 2 });
   const pw = w / P.scale, ph = h / P.scale, x0 = c.x - pw / 2, y0 = c.y - ph / 2;
