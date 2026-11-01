@@ -12988,7 +12988,6 @@ const KIT_CAB = {
   spk: { key: 'CA1219KO', t: 'כבל רמקול' },      /* גליל 100 מ׳ 2×2.5 */
   xlr: { key: 'CA318KO', t: 'כבל XLR' },          /* XLR-XLR 1 מ׳ — חיבורים בתוך הארון */
   xlrLong: { key: 'CA2229KO', t: 'כבל XLR' },     /* גליל 100 מ׳ כבל מיקרופון — לרמקולים מוגברים */
-  pwr: { key: 'CA4120RB', t: 'כבל חשמל' },        /* כבל מתח קומקום */
   spkon: { key: 'CASEE5KO', t: 'מחבר ספיקון' }     /* SL4FX-N — 2 לכל רמקול/סאב פסיבי (צד מגבר + צד רמקול), רק עם מגבר מקצועי */
 };
 const KIT_CAB_HAS = {
@@ -13016,18 +13015,17 @@ function kitCableNeeds(k) {
   if (!has.spkon && pas && pro) add('spkon', 2 * pas, pas + ' רמקולים/סאבים × 2 קצוות — מגבר מקצועי');
   if (!has.xlr && ampCh) add('xlr', ampCh, 'כבל לכל ערוץ כניסה של מגבר (' + amps + ' מגברים)');
   if (!has.xlr && act) add('xlrLong', 1, act + ' רמקולים מוגברים — גליל 100 מ׳ כבל סיגנל');
-  if (!has.pwr && amps + procs + act) add('pwr', amps + procs + act, [amps ? amps + ' מגברים' : '', procs ? procs + ' פרוססורים' : '', act ? act + ' רמקולים מוגברים' : ''].filter(Boolean).join(' + '));
+  /* כבל חשמל לא מוצע בכלל (אורי, 2026-11-01) — מגיע עם המגבר/הפרוססור */
   return out.filter(c => typeof kitRuleOn !== 'function' || kitRuleOn(c.id));   /* כלל שכובה ב"כללי קיטים" לא מוצע */
 }
 /* ===== כללי קיטים — ניהול השינויים האלה בכל הקיטים במסך אחד =====
    הכלל של אורי: בכל קיט עם מגבר מקצועי (לא רסיבר ביתי כמו ימהה) ורמקולים/סאבים פסיביים — חייבים כבל רמקול (גליל) וספיקונים בקיט עצמו;
-   לכל ערוץ מגבר כבל XLR; לכל מגבר/פרוססור כבל חשמל. כאן רואים את כל הקיטים שחסר בהם משהו, מה יתווסף ובכמה, ומחילים בלחיצה אחת. */
+   לכל ערוץ מגבר כבל XLR. כבל חשמל לא מוצע. כאן רואים את כל הקיטים שחסר בהם משהו, מה יתווסף ובכמה, ומחילים בלחיצה אחת. */
 const KIT_RULES = [
   { id: 'spk', ic: '🔌', n: 'כבל רמקול (גליל 100 מ׳)', d: 'לכל קיט עם רמקולים/סאבים פסיביים' },
   { id: 'spkon', ic: '🔩', n: 'ספיקונים — 2 לכל רמקול/סאב', d: 'רק עם מגבר מקצועי (לא רסיבר ביתי)' },
   { id: 'xlr', ic: '🎚', n: 'כבל XLR לכל ערוץ מגבר', d: 'חיבורים בתוך הארון' },
-  { id: 'xlrLong', ic: '🎚', n: 'גליל XLR לרמקולים מוגברים', d: 'קו סיגנל לכל רמקול מוגבר' },
-  { id: 'pwr', ic: '⚡', n: 'כבל חשמל למגבר / פרוססור', d: 'כבל מתח לכל יחידה בארון' }
+  { id: 'xlrLong', ic: '🎚', n: 'גליל XLR לרמקולים מוגברים', d: 'קו סיגנל לכל רמקול מוגבר' }
 ];
 function kitRuleOn(id) { const off = (store.kitRulesOff || []); return !off.includes(id); }
 function kitRuleToggle(id) { const off = new Set(store.kitRulesOff || []); if (off.has(id)) off.delete(id); else off.add(id); store.kitRulesOff = [...off]; save(); kitRulesOpen(); }
@@ -13090,25 +13088,25 @@ function kitCabAll() {
   const all = allKits(), list = all.map((k, gi) => ({ k, gi })).filter(o => !kitHidden(o.k.name) && kitCableNeeds(o.k).length);
   $('#impList').innerHTML = `<button onclick="renderKits()">← חזרה לרשימת הקיטים</button>
     <h3 style="margin:10px 0 4px">🔌 כבלים חסרים בקיטי הסאונד <span class="muted" style="font-size:11px">${list.length} קיטים</span></h3>
-    <p class="muted" style="margin:0 0 8px;font-size:11.5px">לכל קיט מוצעות השורות החסרות: כבל רמקול, כבלי XLR וכבלי חשמל. בטל סימון או שנה כמות — ואשר. השורות נשמרות בקיט (גרסה שלך, מחליפה את קיט ה-ERP).</p>
+    <p class="muted" style="margin:0 0 8px;font-size:11.5px">לכל קיט מוצעות השורות החסרות: כבל רמקול, ספיקונים וכבלי XLR (כבל חשמל לא מוצע). בטל סימון או שנה כמות — ואשר. השורות נשמרות בקיט (גרסה שלך, מחליפה את קיט ה-ERP).</p>
     ${list.length ? '<button class="primary" style="width:100%;margin-bottom:10px" onclick="kitCabApplyAll()">✓ אשר את כל המסומנים בכל ' + list.length + ' הקיטים</button>' : '<p style="color:#0a7a4b;font-weight:700">✓ בכל קיטי הסאונד יש כבלים</p>'}` +
     list.map(o => `<div data-cabkit="${o.gi}" style="border:1px solid #e3e3e3;border-radius:9px;margin-bottom:8px;overflow:hidden">
       <div style="display:flex;gap:8px;align-items:center;padding:6px 8px;background:#f7f7f7">
         <b style="flex:1;cursor:pointer" onclick="kitPrev(${o.gi})">${esc(o.k.name)}</b>
-        <button onclick="kitCabFull(${o.gi})" title="כל שורות הקיט הקיימות">${kitCabOpen.has(o.k.name) ? '▲ הסתר קיט' : '📋 הצג קיט מלא'}</button>
+        <button onclick="kitCabFull(${o.gi})" title="כל שורות הקיט הקיימות">${!kitCabClosed.has(o.k.name) ? '▲ הסתר קיט' : '📋 הצג קיט מלא'}</button>
         <button onclick="kitEdit(${o.gi});if(nkDraft)nkDraft.backCab=1" title="עריכת הקיט — שורות, כמויות, החלפת פריט. אחרי שמירה חוזרים למסך הזה">✎ ערוך קיט</button>
         <button onclick="kitCabApply(${o.gi},1);save();kitCabAll()" style="background:#eef7f1;color:#0f6e56;font-weight:700">✓ אשר</button>
         <button onclick="kitCabSkip(${o.gi})" title="הקיט תקין כמו שהוא — לא להציע שוב">✕ לא צריך</button>
-      </div>${kitCabOpen.has(o.k.name) ? kitCabFullHTML(o.k) : ''}${kitCabRowsHTML(o.k, o.gi)}</div>`).join('');
+      </div>${!kitCabClosed.has(o.k.name) ? kitCabFullHTML(o.k) : ''}${kitCabRowsHTML(o.k, o.gi)}</div>`).join('');
 }
 /* הקיט המלא בתוך מסך הכבלים — מה כבר יש בו, לפני שמאשרים תוספת */
-const kitCabOpen = new Set();
+const kitCabClosed = new Set();   /* כל הקיטים מוצגים מלאים כברירת מחדל; כאן רק מי שהמשתמש סגר */
 function kitCabFull(gi) {
   const k = allKits()[gi]; if (!k) return;
   /* שומרים את הסימונים והכמויות שהמשתמש כבר שינה במסך */
   const st = [...document.querySelectorAll('[data-cab]')].map(e => [e.dataset.cab + ':' + e.dataset.cabid, e.checked, (document.querySelector('[data-cabq="' + e.dataset.cab + ':' + e.dataset.cabid + '"]') || {}).value]);
   const y = ($('#impList').closest('.modal,[style*="overflow"]') || $('#impList')).scrollTop;
-  kitCabOpen.has(k.name) ? kitCabOpen.delete(k.name) : kitCabOpen.add(k.name);
+  kitCabClosed.has(k.name) ? kitCabClosed.delete(k.name) : kitCabClosed.add(k.name);
   kitCabAll();
   st.forEach(([id, on, q]) => { const [g, c] = id.split(':'); const cb = document.querySelector('[data-cab="' + g + '"][data-cabid="' + c + '"]'), qi = document.querySelector('[data-cabq="' + id + '"]'); if (cb) cb.checked = on; if (qi && q != null) qi.value = q; });
   const el = document.querySelector('[data-cabkit="' + gi + '"]'); if (el) el.scrollIntoView({ block: 'nearest' });
