@@ -13865,12 +13865,47 @@ function kitSpkItems(k) { return (k.items || []).filter(x => isSpeakerItem(x.nam
 /* קיטים כפולים: אותם דגמי רמקולים וסאבים (בלי צבע, בלי כמויות) — "אותו מוצר" בכמה קיטים. מפתח → רשימת הקיטים */
 let kitDupOnly = false;
 let kitGroupBy = 'spk';   /* 'spk' = קבוצות לפי הרמקול הראשי (ברירת מחדל) · '' = רשימה שטוחה */
-/* תווית הקבוצה של קיט ברשימה: מותג + רמקול ראשי; קיט בלי רמקולים — לפי הקטגוריה */
+/* פריט הרמקול הראשי בקיט (הכמות הגדולה; סאב רק בלי רמקולים) — לתמונה ולגודל */
+function kitMainSpkItem(k) {
+  const sp = kitSpkItems(k), top = arr => arr.slice().sort((a, b) => (+b.qty || 1) - (+a.qty || 1))[0];
+  return top(sp.filter(x => !KIT_SUB_RX.test(x.name || ''))) || top(sp) || null;
+}
+/* גודל הרמקול באינץ׳: מטבלת הנתונים (drv) → מהשם ("8 אינץ") → אין */
+function kitSpkInch(nm) {
+  const d = typeof spkData === 'function' ? spkData(nm) : null;
+  const m = d && d.drv ? /(\d{1,2}(?:\.\d)?)\s*(?:"|“|''|inch|in\b)/i.exec(d.drv) : null;
+  if (m) return +m[1];
+  return kitInch(nm) || null;
+}
+/* מפתח גודל לסידור הקבוצות מקטן לגדול: אינץ׳ ידוע → מידות הארגז (פרוקסי) → לא ידוע בסוף */
+function kitSpkSize(k) {
+  const x = kitMainSpkItem(k); if (!x) return { rank: 2, v: 0, inch: null };
+  const inch = kitSpkInch(x.name); if (inch) return { rank: 0, v: inch, inch };
+  const d = typeof spkData === 'function' ? spkData(x.name) : null;
+  const mm = d && d.dims ? (String(d.dims).match(/\d{2,4}/g) || []).map(Number) : [];
+  if (mm.length) return { rank: 1, v: Math.max(...mm) / 40, inch: null };
+  return { rank: 2, v: 0, inch: null };
+}
+/* תווית הקבוצה של קיט ברשימה: מותג + רמקול ראשי (+ אינץ׳), מסודר מרמקול קטן לגדול; קיט בלי רמקולים — לפי הקטגוריה בסוף */
 function kitGroupKey(k) {
   const m = kitMainSpk(k);
-  if (m) { const b = kitBrands(k)[0] || ''; return { sort: '0|' + b + '|' + m, lbl: '🔊 ' + (b ? (KIT_BRAND_SHORT[b] || b) + ' · ' : '') + m }; }
+  if (m) {
+    const b = kitBrands(k)[0] || '', sz = kitSpkSize(k), x = kitMainSpkItem(k);
+    const lbl = '🔊 ' + (b ? (KIT_BRAND_SHORT[b] || b) + ' · ' : '') + m + (sz.inch ? ' · ' + sz.inch + '″' : '');
+    return { sort: '0|' + sz.rank + String(Math.round(sz.v * 10)).padStart(5, '0') + '|' + b + '|' + m, lbl, img: x ? imgCell(x.key, 36, x.name) : '' };
+  }
   const c = kitCatOf(k), L = { lighting: '💡 תאורה', video: '📺 וידאו', install: '🔧 התקנה' };
-  return { sort: '1|' + c, lbl: L[c] || (kitIsInstall(k) ? '🔧 התקנה' : '📦 בלי רמקולים') };
+  return { sort: '1|' + c, lbl: L[c] || (kitIsInstall(k) ? '🔧 התקנה' : '📦 בלי רמקולים'), img: '' };
+}
+/* הרחבת קיט בתוך הרשימה — השורות שלו בלי לעזוב את הרשימה */
+const kitRowsOpen = new Set();
+function kitRowToggle(gi) { const k = allKits()[gi]; if (!k) return; const n = (k.name || '').trim(); kitRowsOpen.has(n) ? kitRowsOpen.delete(n) : kitRowsOpen.add(n); renderKits(); }
+window.kitRowToggle = kitRowToggle;
+function kitRowsInlineHTML(k, gi) {
+  const rows = (k.items || []).map(x => { const inf = x.key ? erpInfo(x.key) : null, pr = inf ? inf.price : 0;
+    return '<div style="display:flex;gap:8px;align-items:center;padding:3px 8px;border-bottom:1px dashed #eee;font-size:11.5px"><b style="width:30px;text-align:center;flex:none">' + (x.qty || 1) + '×</b>' + imgCell(x.key, 26, x.name) + '<span style="flex:1;min-width:0">' + kitLineNameHTML(x) + '</span><code style="font-size:10px;color:#666;white-space:nowrap">' + esc(x.key || '—') + '</code>' + stockBadge(x.key) + '<span class="muted" style="white-space:nowrap">' + (pr ? '₪' + (pr * (x.qty || 1)).toLocaleString() : '—') + '</span></div>'; }).join('');
+  return '<div style="border:1px solid #e3dfd3;border-top:0;border-radius:0 0 9px 9px;margin:-6px 0 6px;padding:4px 0;background:#fcfbf8" onclick="event.stopPropagation()">' + rows +
+    '<div style="display:flex;gap:6px;padding:6px 8px 2px"><button style="flex:1" onclick="kitPrev(' + gi + ')">📋 תצוגה מלאה</button><button style="flex:1;background:#eef7f1;color:#0f6e56;font-weight:700" onclick="kitEdit(' + gi + ')">✎ ערוך קיט</button><button style="flex:1" onclick="pickKit(' + gi + ')">➕ הוסף להצעה</button></div></div>';
 }
 function kitDupKey(k) { const st = [...new Set(kitSpkItems(k).map(x => finishStem(x.name)).filter(t => t && t.length >= 3))].sort(); return st.join('+'); }
 function kitDupGroups(kits) { const g = {}; kits.forEach(k => { const key = kitDupKey(k); if (!key) return; (g[key] = g[key] || []).push(k); }); return g; }
@@ -13978,7 +14013,7 @@ function renderKits() {
   if (grouped) { const gk = new Map(list2.map(k => [k, kitGroupKey(k)])); list2.sort((a, b) => gk.get(a).sort.localeCompare(gk.get(b).sort) || kitSpkCount(a) - kitSpkCount(b) || (a.name || '').localeCompare(b.name || '')); }
   const grpCount = {}; if (grouped) list2.forEach(k => { const l = kitGroupKey(k).lbl; grpCount[l] = (grpCount[l] || 0) + 1; });
   let lastGrp = null;
-  const grpHdr = k => { if (!grouped) return ''; const l = kitGroupKey(k).lbl; if (l === lastGrp) return ''; lastGrp = l; return '<div style="position:sticky;top:0;z-index:1;background:#f3f1ec;border:1px solid #e3dfd3;border-radius:8px;padding:5px 10px;margin:10px 0 4px;font-weight:800;font-size:12.5px;display:flex;gap:8px;align-items:center"><span style="flex:1;direction:ltr;unicode-bidi:embed;text-align:right">' + esc(l) + '</span><span class="muted" style="font-weight:400;font-size:11px">' + grpCount[l] + ' קיטים</span></div>'; };
+  const grpHdr = k => { if (!grouped) return ''; const l = kitGroupKey(k).lbl; if (l === lastGrp) return ''; lastGrp = l; return '<div style="position:sticky;top:0;z-index:1;background:#f3f1ec;border:1px solid #e3dfd3;border-radius:8px;padding:4px 10px;margin:10px 0 4px;font-weight:800;font-size:12.5px;display:flex;gap:8px;align-items:center">' + kitGroupKey(k).img + '<span style="flex:1;direction:ltr;unicode-bidi:embed;text-align:right">' + esc(l) + '</span><span class="muted" style="font-weight:400;font-size:11px">' + grpCount[l] + ' קיטים</span></div>'; };
   const chip = (on, lbl, onclick, col) => `<button onclick="${onclick}" style="padding:2px 10px;border-radius:14px;font-size:11.5px;border:1px solid ${on ? col : '#ccc'};background:${on ? col : '#fff'};color:${on ? '#fff' : '#333'}">${lbl}</button>`;
   const brandChips = chip(!kitBrand, 'כל המותגים', "kitBrand='';kitShow=60;renderKits()", '#534ab7') + Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).map(([b, n]) => chip(kitBrand === b, esc(b) + ' <b>' + n + '</b>', "kitBrand='" + b.replace(/'/g, "\\'") + "';kitShow=60;renderKits()", '#534ab7')).join('');
   const dupChip = dupN ? chip(kitDupOnly, '⚠ כפולים <b>' + dupN + '</b>', 'kitDupToggle()', '#c1121f') : '';
@@ -14018,9 +14053,11 @@ function renderKits() {
           ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}${(() => { const g = dupG[kitDupKey(k)] || []; return g.length > 1 ? ' <span onclick="event.stopPropagation();kitDupOnly=true;kitQ=\'\';kitShow=60;renderKits()" title="אותם רמקולים/סאבים גם ב: ' + esc(g.filter(o => o !== k).map(o => (o.name || '').slice(0, 40)).join(' · ')) + ' — לחיצה מציגה רק כפולים" style="background:#fdf0f0;color:#c1121f;border:1px solid #e9b4b4;border-radius:5px;padding:0 5px;font-size:9.5px;cursor:pointer;white-space:nowrap">⚠ כפול ×' + g.length + '</span>' : ''; })()}<br>
           <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·
             ${dsp.kind === 'na' ? '' : `<span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · `}${(() => { const cn = dsp.kind === 'na' ? [] : kitCableNeeds(k); return cn.length ? '<span style="color:#c1121f;font-weight:700">🔌 חסרים כבלים (' + cn.length + ')</span> · ' : ''; })()}${dsp.kind === 'na' ? '' : '🔊 ' + kitSpkCount(k) + ' רמקולים'}${kitBrands(k).length ? ' · ' + esc(kitBrands(k).join(' + ')) : ''} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
+        <button onclick="event.stopPropagation();kitRowToggle(${gi})" title="${kitRowsOpen.has((k.name || '').trim()) ? 'כווץ' : 'הרחב — השורות של הקיט כאן ברשימה'}"
+          style="border:1px solid #ddd;background:${kitRowsOpen.has((k.name || '').trim()) ? '#f3f1ec' : '#fff'};border-radius:7px;padding:2px 7px;font-size:11px;color:#555">${kitRowsOpen.has((k.name || '').trim()) ? '▴' : '▾'}</button>
         <button onclick="event.stopPropagation();kitToggleHide(${gi})" title="${hid ? 'החזר לרשימה' : 'הסתר — לא רלוונטי'}"
           style="border:1px solid #ddd;background:#fff;border-radius:7px;padding:2px 7px;font-size:11px;color:#777">${hid ? '↺' : '✕'}</button>
-      </div>`;
+      </div>` + (kitRowsOpen.has((k.name || '').trim()) ? kitRowsInlineHTML(k, gi) : '');
     }).join('') +
     (list2.length > kitShow ? `<button style="width:100%;margin-top:8px" onclick="kitShow+=60;renderKits()">▼ הצג עוד ${Math.min(60, list2.length - kitShow)} מתוך ${list2.length - kitShow} שנותרו</button>` : '') +
     (kitShow > 60 ? `<button style="width:100%;margin-top:5px" onclick="kitShow=60;renderKits()">▲ צמצם</button>` : '');
