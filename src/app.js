@@ -13093,6 +13093,7 @@ function kitStock(k) {
   (k.items || []).forEach(x => {
     if (!x.key) return;
     const inf = erpInfo(x.key);
+    if (inf && inf.svc) return;   /* שירות — לא נספר כחסר במלאי */
     const isCore = /רמקול|סאב|מגבר|פרוססור/.test(x.name || '') && !/כבל|מחבר|מתקן|תלי/.test(x.name || '');
     if (isCore) core++;
     if (!inf) return;
@@ -14620,7 +14621,7 @@ function stockTag(key) {
 function erpInfo(key) {
   if (!ERP_INFO) {
     ERP_INFO = new Map();
-    if (typeof ERP_ITEMS !== 'undefined') for (const it of ERP_ITEMS) ERP_INFO.set(it[0], { price: +it[2] || 0, qty: +it[3] || 0 });
+    if (typeof ERP_ITEMS !== 'undefined') for (const it of ERP_ITEMS) ERP_INFO.set(it[0], { price: +it[2] || 0, qty: +it[3] || 0, svc: isServiceItem(it[1]) });   /* svc: שירות (התקנה/תכנות/כיוון) — אין לו מלאי */
   }
   return key ? ERP_INFO.get(key) : null;
 }
@@ -14662,7 +14663,7 @@ function imgCell(key, size, name) {
 function stockBadge(key) {
   const inf = erpInfo(key);
   if (!inf) return '';
-  const st = inf.qty > 0 ? `<span style="color:#0a7a4b">מלאי: ${inf.qty}</span>` : '<span style="color:#a32222">אין מלאי</span>';
+  const st = inf.svc ? '<span style="color:#777">שירות</span>' : inf.qty > 0 ? `<span style="color:#0a7a4b">מלאי: ${inf.qty}</span>` : '<span style="color:#a32222">אין מלאי</span>';   /* סעיף התקנה/תכנות/כיוון — אין מלאי, אין מה להתריע */
   return `<span style="font-size:10.5px;white-space:nowrap">${st}${inf.price ? ' · ₪' + inf.price.toLocaleString() : ''}</span>`;
 }
 function autoPrice(it) {
@@ -15283,6 +15284,7 @@ function renderImp() {
         <td><input style="width:42px" type="number" min="0" value="${it.qty}" title="כמות — ניתנת לעריכה בכל שלב עד אישור הלקוח" onchange="setItemQty(${i},this.value)">${(() => {
           const inf = it.key ? erpInfo(it.key) : null;
           if (!inf) return '';
+          if (inf.svc || isServiceItem(it.name)) return '<div style="font-size:9px;line-height:1.5;margin-top:2px;color:#777">שירות</div>';   /* התקנה / תכנות / כיוון — בלי מלאי */
           return `<div style="font-size:9px;line-height:1.5;margin-top:2px;white-space:nowrap">
             <span title="כמות במלאי (ERP)" style="color:${inf.qty > 0 ? '#0a7a4b' : '#a32222'};font-weight:700">מלאי ${inf.qty}</span><br>
             <span title="כמות עתידית — פירוט הזמנות פתוחות ותאריכים" onclick="futureQty('${it.key}','${jsq(it.name.slice(0, 40))}')" style="color:#185fa5;cursor:pointer;text-decoration:underline">עתידי</span></div>`;

@@ -1993,7 +1993,7 @@ function prodCards(p) {
   }).join('');
 }
 function stockNote(p) {
-  const short = p.rows.filter(r => { const st = stockOf(r.key); return st != null && st < r.qty; });
+  const short = p.rows.filter(r => { if (/^\s*(תכנות|הגדרת|כיוון|כיול|תכנון|שירות|התקנה|הדרכה|תמיכה|אחריות|העברת|עבודה)/.test(r.name || '')) return false; const st = stockOf(r.key); return st != null && st < r.qty; });   /* שירותים — אין מלאי */
   return short.length ? '⏳ ' + short.length + ' פריטים בהזמנה' : '📦 הכל במלאי';
 }
 /* מחירי ההתקנה ניתנים לעריכה — נשמרים לכל שכבה בנפרד */
