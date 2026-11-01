@@ -8,6 +8,7 @@
 /*__DATA:ERP_IMAGES__*/
 /*__DATA:MODEL_IMAGES__*/
 /*__DATA:FINISHES__*/
+/*__DATA:BRAND_LOGOS__*/
 
 const $ = s => document.querySelector(s);
 const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -243,7 +244,7 @@ function optionsHTML(p) {
     }).join('');
     return `<div class="optrow"><b>${icon} ${label}</b><div class="chips">${chips}${pk[kind] ? `<button class="chip ghosty" onclick="setPick('${tid}','${kind}','auto')">↺ אוטומטי</button>` : ''}</div></div>`;
   };
-  return btn + `<div class="optpanel" id="optpanel"><div class="opthead"><b>⚙ אפשרויות נוספות — ${esc(tier0.name)} · ${esc(tier0.brand)}</b><button class="ghost sm" onclick="optToggle('${tid}')">✕ סגור</button></div>
+  return btn + `<div class="optpanel" id="optpanel"><div class="opthead"><b>${brandLogo(tier0.brand, 22)} ⚙ אפשרויות נוספות — ${esc(tier0.brand)}</b><button class="ghost sm" onclick="optToggle('${tid}')">✕ סגור</button></div>
     ${row('spk', 'רמקול', '🔊')}${row('sub', 'סאב', '🔈')}${row('amp', 'מגבר', '🎚')}
     <small class="muted">כל דגם כאן מאומת ובמלאי. הכמויות, המגברים והחיווט מחושבים מחדש לפי הבחירה; ההפרש מוצג מול ההצעה הנוכחית.</small></div>`;
 }
@@ -1885,6 +1886,15 @@ function selTier() {
   return S.cut ? Object.assign({}, t, { cut: S.cut, name: t.name + ' · מותאם לתקציב' }) : t;
 }
 function brandList() { return [...new Set(LITE_CATALOG.tiers.map(t => t.brand))]; }
+/* לוגו המותג (data/brand_logos.json: SVG מוטמע או כתובת באתר היצרן); בלי לוגו / כשלא נטען — סימן מילולי בצבע המותג */
+const BRAND_COL = { 'Funktion-One': '#111', 'Lambda Labs': '#ff8c00', 'Kling & Freitag': '#1a1a1a', 'Unicorn': '#5b3fd6', 'KT': '#0f6e56' };
+function brandWord(brand, hh) { return '<span class="bword" style="background:' + (BRAND_COL[brand] || '#333') + ';height:' + hh + 'px;line-height:' + hh + 'px">' + esc(brand === 'Unicorn' ? 'UNICORN' : brand) + '</span>'; }
+function brandLogoFail(el) { const hh = parseInt(el.style.height) || 22; el.outerHTML = brandWord(el.alt, hh); }
+function brandLogo(brand, h) {
+  const L = (typeof BRAND_LOGOS !== 'undefined' && BRAND_LOGOS[brand]) || null, hh = h || 22;
+  if (!L || !L.src) return brandWord(brand, hh);
+  return '<img class="blogo" src="' + L.src.replace(/"/g, '&quot;') + '" alt="' + esc(brand) + '" style="height:' + hh + 'px" onerror="brandLogoFail(this)">';
+}
 function stepOffers() {
   const all = LITE_CATALOG.tiers.map(buildProposal);
   const lo = Math.min(...all.map(p => p.total)), hi = Math.max(...all.map(p => p.total));
@@ -1906,7 +1916,7 @@ function stepOffers() {
   <p class="sub">הזז את התקציב וההצעות מסתדרות מולו מיד. כל המחירים הם מחירי יחידה מהמלאי שלנו, לפני מע"מ.</p>
   <div class="fchips brandpick" style="margin:0 0 12px"><span class="muted" style="font-size:12.5px;align-self:center">🏷 מותג:</span>
     <button class="chip ${!pick ? 'on' : ''}" onclick="S.brandPick='';save();render()">כל המותגים (${all.length})</button>
-    ${brandList().map(b => `<button class="chip ${pick === b ? 'on' : ''}" onclick="S.brandPick='${b}';save();render()">${esc(b)} (${brandCount(b)})</button>`).join('')}
+    ${brandList().map(b => `<button class="chip bchip ${pick === b ? 'on' : ''}" onclick="S.brandPick='${b}';save();render()">${brandLogo(b, 16)} ${esc(b)}</button>`).join('')}
   </div>
   <div class="budget">
     <div class="bignum">${ils(S.budget)}</div>
@@ -1923,7 +1933,7 @@ function stepOffers() {
     return `<div class="offer ${selected ? 'sel' : ''} ${p.tier.id === 'mid' ? 'reco' : ''} ${isFit ? 'fitoffer' : ''}">
       ${p.tier.id === 'mid' ? '<div class="ribbon">הכי נבחר</div>' : ''}
       ${isFit ? '<div class="ribbon fitrib">בתקציב שלך</div>' : ''}
-      <div class="oh"><b>${esc(p.tier.name)}</b><small>${isFit ? esc(p.tier.brand) + ' · מקוצץ כדי להיכנס ל-' + ils(S.budget) : esc(p.tier.brand)}</small></div>
+      <div class="oh"><div class="bhead">${brandLogo(p.tier.brand, 26)}<b>${esc(p.tier.name)}</b></div><small>${isFit ? esc(p.tier.brand) + ' · מקוצץ כדי להיכנס ל-' + ils(S.budget) : esc(p.tier.brand)}</small></div>
       <div class="price">${ils(p.total)}<small>כולל ציוד + התקנה, לפני מע"מ</small></div>
       <p class="why">${isFit ? 'הכי הרבה שאפשר לקבל בתקציב הזה — ' + cutSummary(fitOf.base, p).join(' · ').replace(/<\/?b>/g, '') : esc(p.tier.why)}</p>
       <div class="specs">
@@ -2380,7 +2390,7 @@ function stepReport() {
     <p class="sub" style="margin-top:6px">"מרווח" = כמה עוד יש למערכת מעבר לעוצמה שביקשת. מרווח בריא (10 dB ומעלה) אומר
     שהמערכת מנגנת רגוע, בלי עיוות ובלי להתאמץ — וזה מה שמאריך את חיי הציוד ושומר על צליל נקי.</p>
   </div>
-  <div class="rsec"><h3>🧾 הציוד — ${esc(tier.name)} (${esc(tier.brand)})</h3>
+  <div class="rsec"><h3>🧾 הציוד — ${brandLogo(tier.brand, 24)} ${esc(tier.brand)}</h3>
     ${Object.entries(groups).map(([g, rows]) => `<h4>${esc(g)}</h4>
       <table class="rt"><tr><th>פריט</th><th>מק"ט</th><th>כמות</th><th>מחיר יחידה</th><th>סה"כ</th></tr>
       ${rows.map(r => `<tr><td>${esc(r.name)}</td><td class="sku">${esc(r.key)}</td><td>${r.qty}</td><td>${ils(r.price)}</td><td><b>${ils(r.total)}</b></td></tr>`).join('')}</table>`).join('')}
