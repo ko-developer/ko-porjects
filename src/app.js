@@ -13798,11 +13798,12 @@ function kitSwapRender() {
   const box = document.getElementById('kswBox'); if (!box || !KSW) return;
   /* חיפוש: כל מילה חייבת להופיע בשם או במק"ט; רווחים/מקפים לא משנים ("pqm13" מוצא "PQM 13") */
   const flat = s => String(s || '').toLowerCase().replace(/[\s\-_"״]+/g, '');
-  const hit = (q, rows) => { const t = String(q || '').toLowerCase().split(/\s+/).filter(Boolean); return t.length ? rows.filter(r => { const hay = (r.name + ' ' + r.key).toLowerCase(), fl = flat(hay); return t.every(x => hay.includes(x) || fl.includes(flat(x))); }).slice(0, 15) : []; };
+  const hit = (q, rows) => { const t = String(q || '').toLowerCase().split(/\s+/).filter(Boolean); return t.length ? rows.filter(r => { const hay = (r.name + ' ' + r.key).toLowerCase(), fl = flat(hay); return t.every(x => hay.includes(x) || fl.includes(flat(x))); }) : []; };   /* כל התוצאות — הרשימה נגללת */
   const used = kitSwapUsed();
   const fromList = KSW.from ? '' : (KSW.q1 ? hit(KSW.q1, used) : used.slice(0, 10)).map(r => `<div class="kswrow" onclick="KSW.from=${JSON.stringify({ key: r.key, name: r.name }).replace(/"/g, '&quot;')};KSW.sel={};kitSwapRender()"><b>${esc(r.name.slice(0, 60))}</b><span class="muted">${esc(r.key)} · ב-${r.kits} קיטים</span></div>`).join('');
   const cat = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([k, n, p]) => n && +p > 0 && !/ת\.ח|השכר/.test(n)).map(([k, n, p, s]) => ({ key: k, name: n, price: +p, stock: +s }));
-  const toList = KSW.to ? '' : (KSW.q2 ? hit(KSW.q2, cat).sort((a, b) => (b.stock > 0) - (a.stock > 0)) : []).map(r => `<div class="kswrow" onclick="KSW.to=${JSON.stringify({ key: r.key, name: r.name }).replace(/"/g, '&quot;')};kitSwapRender()"><b>${esc(r.name.slice(0, 60))}</b><span class="muted">${esc(r.key)} · ₪${r.price.toLocaleString()} · מלאי ${r.stock}</span></div>`).join('');
+  const toHits = KSW.to ? [] : (KSW.q2 ? hit(KSW.q2, cat).sort((a, b) => (b.stock > 0) - (a.stock > 0) || a.price - b.price) : []);
+  const toList = (toHits.length ? '<div class="muted" style="padding:3px 8px;font-size:11px">' + toHits.length + ' תוצאות · במלאי קודם, אחר כך לפי מחיר</div>' : '') + toHits.slice(0, 400).map(r => `<div class="kswrow" onclick="KSW.to=${JSON.stringify({ key: r.key, name: r.name }).replace(/"/g, '&quot;')};kitSwapRender()"><b>${esc(r.name.slice(0, 60))}</b><span class="muted">${esc(r.key)} · ₪${r.price.toLocaleString()} · מלאי ${r.stock}</span></div>`).join('');
   const kits = kitSwapKits();
   kits.forEach(k => { if (KSW.sel[k.name] == null) KSW.sel[k.name] = true; });
   const nSel = kits.filter(k => KSW.sel[k.name]).length;
@@ -13812,7 +13813,7 @@ function kitSwapRender() {
       : `<input id="kswQ1" placeholder="חיפוש פריט שמופיע בקיטים…" value="${esc(KSW.q1)}" oninput="KSW.q1=this.value;KSW.focus='kswQ1';kitSwapRender()" style="width:100%"><div class="kswlist">${fromList || '<div class="muted" style="padding:6px">אין פריט כזה בקיטים</div>'}</div>`}
     <div style="margin:10px 0 4px;font-weight:700">2 · הפריט החדש (מהקטלוג)</div>
     ${KSW.to ? `<div class="kswpick">${esc(KSW.to.name.slice(0, 70))} <span class="muted">${esc(KSW.to.key)}</span> <button style="padding:0 8px;font-size:11px" onclick="KSW.to=null;kitSwapRender()">שנה</button></div>`
-      : `<input id="kswQ2" placeholder="חיפוש בקטלוג: שם או מק״ט…" value="${esc(KSW.q2)}" oninput="KSW.q2=this.value;KSW.focus='kswQ2';kitSwapRender()" style="width:100%"><div class="kswlist">${toList || (KSW.q2 ? '<div class="muted" style="padding:6px">אין תוצאות</div>' : '')}</div>`}
+      : `<input id="kswQ2" placeholder="חיפוש בקטלוג: שם או מק״ט…" value="${esc(KSW.q2)}" oninput="KSW.q2=this.value;KSW.focus='kswQ2';kitSwapRender()" style="width:100%"><div class="kswlist" style="max-height:300px">${toList || (KSW.q2 ? '<div class="muted" style="padding:6px">אין תוצאות</div>' : '')}</div>`}
     ${KSW.from ? `<div style="margin:10px 0 4px;font-weight:700">3 · באילו קיטים (${nSel}/${kits.length})
         <button style="font-size:11px;padding:1px 8px" onclick="kitSwapKits().forEach(k=>KSW.sel[k.name]=true);kitSwapRender()">הכול</button>
         <button style="font-size:11px;padding:1px 8px" onclick="kitSwapKits().forEach(k=>KSW.sel[k.name]=false);kitSwapRender()">אף אחד</button></div>
