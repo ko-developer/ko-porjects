@@ -73,6 +73,24 @@ function wizHasSketch() { const sk = P.sketch || {}; return ((sk.walls || []).le
 function wizHasPlan() { return !!(P.hasBg || P.hasPdf || P.bg || wizHasSketch()); }
 /* שרטוט בלבד (בלי תמונת/PDF רקע): המידות הוזנו במטרים — קנה המידה ידוע, ושלב הכיול לא רלוונטי ומדולג */
 function wizSketchOnly() { return wizHasSketch() && !(P.hasBg || P.hasPdf || P.bg); }
+/* חדרים סגורים בשרטוט שעדיין אין עליהם אזור (מרכז החדר לא בתוך אף אזור) — אפשר למלא אותם באזור בלחיצה אחת */
+function wizSketchRoomsFree() {
+  const walls = ((P.sketch && P.sketch.walls) || []).filter(wl => typeof skWallClosed === 'function' && skWallClosed(wl));
+  const inPoly = (pt, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > pt.y) !== (b.y > pt.y) && pt.x < (b.x - a.x) * (pt.y - a.y) / (b.y - a.y) + a.x) c = !c; } return c; };
+  return walls.filter(wl => {
+    const poly = wl.slice(0, -1), cx = poly.reduce((a, p) => a + p.x, 0) / poly.length, cy = poly.reduce((a, p) => a + p.y, 0) / poly.length;
+    return !(P.zones || []).some(z => inPoly({ x: cx, y: cy }, z.poly || [{ x: 2200 - z.x - z.w, y: z.y }, { x: 2200 - z.x, y: z.y }, { x: 2200 - z.x, y: z.y + z.h }, { x: 2200 - z.x - z.w, y: z.y + z.h }]));
+  });
+}
+/* החדר המשורטט → אזור בלחיצה אחת (autoZonesSketch של האפליקציה), והאזור החדש נבחר באשף */
+function wizZonesFromSketch(quiet) {
+  if (typeof autoZonesSketch !== 'function') return 0;
+  const before = (P.zones || []).length, n = autoZonesSketch();
+  if (n) { const z = P.zones[before]; if (z) { WIZ.zid = z.id; selZone = z.id; delete z.prop; } }
+  if (!quiet) { render(); wizRender(); }
+  return n;
+}
+window.wizZonesFromSketch = wizZonesFromSketch;
 function wizAutoStep() {
   if (!wizHasPlan()) return WS('plan');
   if (!P.scale && !wizSketchOnly()) return WS('cal');
@@ -153,8 +171,9 @@ function wizRoomByDims() {
     skRoomMake(w, h);
     if (!P.room) P.room = {};
     if (WIZ && WIZ.step <= WS('cal')) WIZ.step = wizAlignDone() ? WS('zone') : WS('align');
+    const nz = WIZ ? wizZonesFromSketch(true) : 0;   /* החדר שצויר הוא מיד אזור — נשאר רק לבחור תכלית ומקורות */
     save(); render(); wizRender();
-    uiToast('⬜ חדר ' + w + '×' + h + ' מ׳ — קנה המידה נקבע; ממשיכים לאזורים', 5000);
+    uiToast(nz ? '⬜ חדר ' + w + '×' + h + ' מ׳ נוצר ומסומן כאזור — בחר שם, תכלית ומה מנגן בו' : '⬜ חדר ' + w + '×' + h + ' מ׳ — קנה המידה נקבע; ממשיכים לאזורים', 5000);
   };
   ov.querySelector('[data-go]').onclick = go;
   ov.querySelectorAll('input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') go(); });
@@ -191,8 +210,10 @@ function wizStepHTML(s) {
   }
   if (k === 'zone') {
     const usages2 = typeof USAGES !== 'undefined' ? USAGES : [];
+    const freeRooms = wizSketchRoomsFree();
     return `
     <h4>סימון אזור סאונד</h4>
+    ${freeRooms.length ? `<button class="big" style="background:#0f6e56" onclick="wizZonesFromSketch()" title="כל חדר סגור בשרטוט שעדיין אין עליו אזור הופך לאזור בגבולות הקירות">⬜ ${freeRooms.length === 1 ? 'החדר המשורטט → אזור בלחיצה אחת' : freeRooms.length + ' חדרים משורטטים → אזורים בלחיצה אחת'}</button>` : ''}
     ${(P.zones || []).map(zz => `<button class="sec ${zz.id === (WIZ.zid || (P.zones[0] || {}).id) ? 'done' : ''}" style="border-inline-start:6px solid ${zColor(zz)}" onclick="WIZ.zid='${zz.id}';selZone='${zz.id}';render();wizRender()">🗺 ${esc(zz.name)} · ${zoneAreaM(zz).toFixed(0)} מ"ר${zz.usage ? ' · ' + esc(zz.usage) : ''}${typeof zoneSPL === 'function' && zoneSPL(zz) ? ' · ' + zoneSPL(zz) + 'dB' : ''}</button>`).join('')}
     ${typeof ztCur === 'function' && (P.hasBg || P.bg) && (P.zones || []).length ? (() => { const ex = ztCur(), dirty = typeof ztDirty === 'function' && ztDirty(); return `<button class="sec" style="${dirty ? 'background:#c9502e;color:#fff;font-weight:800;border-color:#c9502e' : ex ? 'color:#0f6e56' : ''}" onclick="ztSave()" title="החלוקה שעל המסך נשמרת כדוגמה לאימון הזיהוי האוטומטי">${ex ? (dirty ? '🎓 עדכן אימון — החלוקה השתנתה מאז השמירה' : '✓ נשמר לאימון · לחץ לעדכון') : '🎓 שמור חלוקה זו לאימון'}</button>`; })() : ''}
     ${z ? `<label style="font-size:12px;font-weight:700;display:block;margin:6px 0 2px">✏ שם האזור הנבחר</label>
