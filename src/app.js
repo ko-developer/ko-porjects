@@ -2877,6 +2877,7 @@ function renderHeader() {
   /* 📚 נתונים — הטבלאות והספריות שמאחורי התכנון (לא פעולות על הפרויקט) */
   const dm = document.getElementById('dataMenu'); if (dm) dm.innerHTML = `
     <a class="ddlink" href="/logic">🎯 לוגיקת תכלית ← מערכת — טבלאות ההיגיון</a>
+    <a class="ddlink" href="/reports">📊 דוחות KO — מכירות, לקוחות, פריטים והצעות מה-ERP</a>
     <button onclick="verManager()">🕘 היסטוריית גרסאות — שחזור מצב קודם</button>
     <button onclick="installManager()">🔧 התקנה ותמחור — טבלה נערכת</button>
     <button onclick="rearLibManager()">🛠 ספריית גבי מוצרים</button>

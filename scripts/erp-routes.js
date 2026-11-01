@@ -3,6 +3,7 @@
 import { erpCall } from './erp-client.js';
 import { pushKits } from './erp-kits.js';
 import { kitsStatus, kitIds, connectStart, connectCallback, deleteConnection } from './erp-connect.js';
+import { erpReport, reportInvalidate } from './erp-report.js';
 
 const TTL = 600_000;
 const accCache = new Map(), prjCache = new Map();
@@ -54,6 +55,12 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
     if (path0 === '/api/erp/options') {
       if (!optCache || Date.now() - optCache.at > 3_600_000) optCache = { at: Date.now(), body: { ok: true, ...((await erpCall('get_offer_options', {})) || {}) } };
       send(res, 200, optCache.body); return true;
+    }
+    /* דוחות KO (דף /reports): הזמנות, שורות פריטים ופרויקטים לתקופה — הצבירה בדף (scripts/erp-report.js) */
+    if (path0 === '/api/erp/report') {
+      const d = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '';
+      if (sp.get('fresh') === '1') reportInvalidate();
+      send(res, 200, await erpReport({ from: d(sp.get('from')), to: d(sp.get('to')) })); return true;
     }
     if (path0 === '/api/erp/accounts') {
       const q = (sp.get('q') || '').trim(); if (q.length < 2) { send(res, 200, { ok: true, accounts: [] }); return true; }

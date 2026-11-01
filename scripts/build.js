@@ -14,7 +14,7 @@ console.log(`build OK -> dist/index.html (${Math.round(out.length / 1024)}KB)`);
 
 /* טבלאות העבודה — מטריצת ההתאמות וטבלאות ההיגיון: עמודים מקומיים של האפליקציה.
    המצב השמור מוזרק לתוך העמוד, כך ש-dist עומד בפני עצמו גם בלי השרת. */
-for (const k of ['matrix', 'logic']) {
+for (const k of ['matrix', 'logic', 'reports']) {
   let state = '{}';
   try { state = readFileSync(`data/page_state/${k}.json`, 'utf8'); } catch {}
   const page = readFileSync(`src/pages/${k}.html`, 'utf8')

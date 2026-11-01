@@ -156,7 +156,7 @@ await initAuth(storage); await initBugs(storage);
 const readCurated = (key, repoPath) => readCached(key, async () => (await storage.read(key)) || (existsSync(repoPath) ? readFileSync(repoPath) : null), key.startsWith('rear_images/') ? 3600e3 : CUR_TTL);
 const injectData = (html, name, json) => json ? html.replace(new RegExp('const ' + name + ' = [\\s\\S]*?;/\\*__END:' + name + '__\\*/'), () => 'const ' + name + ' = ' + json + ';/*__END:' + name + '__*/') : html;
 /* טבלאות העבודה — חיות בתוך הריפו, לא בענן */
-const PAGES = { '/matrix': 'src/pages/matrix.html', '/logic': 'src/pages/logic.html' };
+const PAGES = { '/matrix': 'src/pages/matrix.html', '/logic': 'src/pages/logic.html', '/reports': 'src/pages/reports.html' };   /* /reports = דוחות KO מה-ERP (scripts/erp-report.js) */
 /* דפי כניסה וניהול משתמשים — נגישים גם בלי סשן (הכניסה עצמה) */
 const AUTH_PAGES = { '/login': 'src/pages/auth.html', '/admin': 'src/pages/admin.html', '/bugs': 'src/pages/bugs.html' };
 const sendPage = (res, file, code = 200) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(readFileSync(file)); };
