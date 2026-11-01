@@ -13097,8 +13097,21 @@ function kitCabAll() {
         <button onclick="kitEdit(${o.gi});if(nkDraft)nkDraft.backCab=1" title="עריכת הקיט — שורות, כמויות, החלפת פריט. אחרי שמירה חוזרים למסך הזה">✎ ערוך קיט</button>
         <button onclick="kitCabApply(${o.gi},1);save();kitCabAll()" style="background:#eef7f1;color:#0f6e56;font-weight:700">✓ אשר</button>
         <button onclick="kitCabSkip(${o.gi})" title="הקיט תקין כמו שהוא — לא להציע שוב">✕ לא צריך</button>
+        <button onclick="kitCabDelete(${o.gi})" style="background:#fdf0f0;color:#8a1c1c;border:1px solid #e9b4b4" title="קיט שלי נמחק (עריכה של קיט ERP — חוזרים למקורי); קיט ERP מוסתר מהרשימה">🗑 מחק</button>
       </div>${!kitCabClosed.has(o.k.name) ? kitCabFullHTML(o.k) : ''}${kitCabRowsHTML(o.k, o.gi)}</div>`).join('');
 }
+/* מחיקת קיט מתוך מסך הכבלים: קיט שלי נמחק (גרסה של קיט ERP — המקורי חוזר), קיט ERP מוסתר. נשאר באותו מסך */
+async function kitCabDelete(gi) {
+  const k = allKits()[gi]; if (!k) return;
+  const mine = store.userKits || [], i = mine.indexOf(k), n = (k.name || '').trim(), nm = n.slice(0, 30);
+  const isOverride = i >= 0 && !!kitBaseByName(k.name);
+  const msg = i >= 0 ? (isOverride ? 'לבטל את הגרסה שלך ולחזור לקיט ה-ERP המקורי "' + nm + '"?' : 'למחוק את הקיט "' + nm + '"?') : 'להסיר את קיט ה-ERP "' + nm + '" מהרשימה? (מוסתר — אפשר להחזיר דרך המסנן ✕ מוסתרים)';
+  if (!(await uiConfirm(msg, { okText: '🗑 ' + (i >= 0 ? (isOverride ? 'בטל גרסה' : 'מחק') : 'הסתר'), cancelText: 'ביטול' }))) return;
+  if (i >= 0) mine.splice(i, 1); else { store.kitHidden = store.kitHidden || {}; store.kitHidden[n] = true; }
+  save(); kitSyncSoon(); kitCabAll();
+  uiToast(i >= 0 ? (isOverride ? '↩ הגרסה בוטלה — קיט ה-ERP המקורי חזר' : '🗑 הקיט נמחק') : '✕ הקיט הוסתר מהרשימה');
+}
+window.kitCabDelete = kitCabDelete;
 /* הקיט המלא בתוך מסך הכבלים — מה כבר יש בו, לפני שמאשרים תוספת */
 const kitCabClosed = new Set();   /* כל הקיטים מוצגים מלאים כברירת מחדל; כאן רק מי שהמשתמש סגר */
 function kitCabFull(gi) {
@@ -13881,7 +13894,8 @@ function kitSwapRender() {
   const hit = (q, rows) => { const t = String(q || '').toLowerCase().split(/\s+/).filter(Boolean); return t.length ? rows.filter(r => { const hay = (r.name + ' ' + r.key).toLowerCase(), fl = flat(hay); return t.every(x => hay.includes(x) || fl.includes(flat(x))); }) : []; };   /* כל התוצאות — הרשימה נגללת */
   const used = kitSwapUsed();
   const fromList = KSW.from ? '' : (KSW.q1 ? hit(KSW.q1, used) : used.slice(0, 10)).map(r => `<div class="kswrow" onclick="KSW.from=${JSON.stringify({ key: r.key, name: r.name }).replace(/"/g, '&quot;')};KSW.sel={};kitSwapRender()"><b>${esc(r.name.slice(0, 60))}</b><span class="muted">${esc(r.key)} · ב-${r.kits} קיטים</span></div>`).join('');
-  const cat = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([k, n, p]) => n && +p > 0 && !/ת\.ח|השכר/.test(n)).map(([k, n, p, s]) => ({ key: k, name: n, price: +p, stock: +s }));
+  /* פריטי שירות (התקנה / תכנות / כיוון) נכללים גם במחיר 0 — למשל 214 "התקנה לפי הצעת מחיר" */
+  const cat = (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([k, n, p]) => n && (+p > 0 || isServiceItem(n)) && !/ת\.ח|השכר/.test(n)).map(([k, n, p, s]) => ({ key: k, name: n, price: +p, stock: +s }));
   const toHits = KSW.to ? [] : (KSW.q2 ? hit(KSW.q2, cat).sort((a, b) => (b.stock > 0) - (a.stock > 0) || a.price - b.price) : []);
   const toList = (toHits.length ? '<div class="muted" style="padding:3px 8px;font-size:11px">' + toHits.length + ' תוצאות · במלאי קודם, אחר כך לפי מחיר</div>' : '') + toHits.slice(0, 400).map(r => `<div class="kswrow" onclick="KSW.to=${JSON.stringify({ key: r.key, name: r.name }).replace(/"/g, '&quot;')};kitSwapRender()"><b>${esc(r.name.slice(0, 60))}</b><span class="muted">${esc(r.key)} · ₪${r.price.toLocaleString()} · מלאי ${r.stock}</span></div>`).join('');
   const kits = kitSwapKits();
