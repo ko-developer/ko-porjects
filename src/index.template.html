@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
+<!-- 🌐 שפה: נקבעת לפני כל רינדור כדי שלא יהיה הבהוב; הקנבס נשאר RTL כי הגלילה שלו בנויה על scrollLeft שלילי (ראו src/i18n.js) -->
+<script>try{if(localStorage.getItem('ko_lang')==='en'){var h=document.documentElement;h.lang='en';h.dir='ltr';h.className+=' lang-en';}}catch(e){}</script>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -275,11 +277,14 @@ body.shared #actionsMenu button:nth-child(n+3), body.shared [onclick*='sendOffer
 .rearimg .rmk.blk.sel .g{border-radius:4px}
 .rearimg .cap{position:absolute;left:4px;bottom:2px;font-size:9px;color:#ddd;background:rgba(0,0,0,.55);padding:1px 6px;border-radius:4px;line-height:1.4;direction:rtl}
 .rearimg .cap a{color:#9ec5ff}
+html.lang-en #canvasWrap{direction:rtl}
+html.lang-en #langBtn{font-family:inherit}
 </style>
 </head>
 <body>
 <header>
   <div class="logo"><div class="mark">KO</div><div><b>KO Projects</b><small>מתכנן הקמות וחיווט</small></div></div>
+  <button id="langBtn" onclick="i18nToggle()" title="English" style="font-weight:800;padding:4px 9px;min-width:36px">EN</button>
   <button id="studioLink" title="KO Studio — הגרסה ללקוחות: תכנון מודרך, שלוש הצעות ודוח ברור" onclick="window.open(location.protocol==='file:'?'studio.html':'/studio','_blank','noopener')">🎧 KO Studio</button>
   <select id="projSel" onchange="switchProj(this.value)"></select>
   <div class="dd">

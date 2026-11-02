@@ -50,6 +50,7 @@ function cableSpecShort(c) {
 const UPX = 15;
 const LSKEY = 'installPlanner_v1';
 /*__DATA:ERP_ITEMS__*/
+/*__DATA:I18N_EN__*/
 
 /*__DATA:CONDUIT_RULES__*/
 /* קוטר צינור מומלץ לקו: מולטי / קופסת מולטי / פאנל → 50; רמקול לפי גידים×שטח חתך (data/conduit_rules.json) */

@@ -13,6 +13,7 @@ const tmp = join(tmpdir(), 'ko-validate.js');
 writeFileSync(tmp, app);
 execFileSync(process.execPath, ['--check', tmp], { stdio: 'inherit' });
 JSON.parse(readFileSync('data/erp_items.json', 'utf8'));
+JSON.parse(readFileSync('data/i18n_en.json', 'utf8'));   /* 🌐 מילון אנגלית */
 
 /* KO Studio (גרסת משתמשי הקצה) — נבדקת בנפרד, אותה רמת בדיקה */
 let lite = readFileSync('src/lite.js', 'utf8');
