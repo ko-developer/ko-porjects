@@ -27,7 +27,14 @@ a.erp{display:block;text-align:center;padding:11px;border-radius:10px;background
   <div id="erpMsg" class="err"></div>
   <div id="erpBox" style="display:none">
     <a id="erpBtn" class="erp" href="/api/auth/erp/start" title="עם החשבון שלך במערכת ה-ERP של KO">כניסה עם KO ERP</a>
-    <div class="or">או עם מייל וסיסמה</div>
+    <div id="erpNew" style="display:none">
+      <div class="or">אין לך עדיין חשבון KO?</div>
+      <label>שם</label><input id="nName" autocomplete="name">
+      <label>מייל</label><input id="nEmail" type="email" autocomplete="email">
+      <div class="err" id="nErr"></div>
+      <button id="nGo" class="sec">צור חשבון KO</button>
+    </div>
+    <div class="or" id="pwOr">או עם מייל וסיסמה</div>
   </div>
   <div id="tabs" class="tabs"><span data-t="login" class="on">כניסה</span><span data-t="register">הרשמה</span></div>
   <form id="f" onsubmit="return false">
@@ -71,7 +78,13 @@ a.erp{display:block;text-align:center;padding:11px;border-radius:10px;background
     if (me.user && !token) { location.href = '/'; return; }
     if (me.erpLogin) {
       $('erpBox').style.display = '';
-      if (token) $('erpBtn').href = '/api/auth/erp/start?join=' + encodeURIComponent(token);
+      if (token) {
+        $('erpBtn').href = '/api/auth/erp/start?join=' + encodeURIComponent(token);
+        /* מוזמן בלי חשבון KO: החשבון נוצר ב-ERP (מוגבל ל-KO Projects), ואחריו חוזרים לכאן עם ההרשאות שבקישור */
+        $('erpNew').style.display = '';
+        var rt2 = document.querySelector('#tabs span[data-t="register"]'); if (rt2) rt2.style.display = 'none';
+        $('pwOr').textContent = 'כבר נרשמת כאן עם סיסמה? היכנס איתה';
+      }
     }
     if (token) {
       fetch('/api/invite?t=' + encodeURIComponent(token)).then(function (r) { return r.json(); }).then(function (inv) {
@@ -80,13 +93,20 @@ a.erp{display:block;text-align:center;padding:11px;border-radius:10px;background
         if (!inv.ok) { $('invBox').innerHTML = '⚠ הקישור ' + (inv.used ? 'כבר נוצל' : inv.revoked ? 'בוטל' : 'פג תוקף') + ' — בקש קישור חדש מ' + (inv.by || 'בעל המערכת') + '. אם כבר נרשמת — עבור ל"כניסה".'; setMode('login'); return; }
         $('invBox').innerHTML = '<b>' + (inv.by || 'בעל המערכת') + '</b> שיתף איתך ' + inv.projects.length + ' פרויקט' + (inv.projects.length > 1 ? 'ים' : '') + ' בהרשאת <b>' + (inv.perm === 'view' ? 'צפייה' : 'עריכה') + '</b>:<br>' +
           inv.projects.map(function (n) { return '• ' + n; }).join('<br>') + '<br>הירשם עם מייל וסיסמה כדי להיכנס.';
-        if (inv.email) $('email').value = inv.email;
-        setMode('register');
+        if (inv.email) { $('email').value = inv.email; $('nEmail').value = inv.email; }
+        if (!me.erpLogin) setMode('register');
       });
     }
     if (!token) { setMode('login'); var rt = document.querySelector('#tabs span[data-t="register"]'); if (rt) rt.style.display = 'none'; }
     $('hint').textContent = token ? 'יש לך כבר חשבון? עבור ל"כניסה" והתחבר — ההרשאות שבקישור יתווספו לך.' : 'הכניסה למוזמנים בלבד — הרשמה רק דרך קישור שיתוף שמגיע מבעל המערכת. כבר נרשמת? התחבר עם המייל והסיסמה.';
   });
+  $('nGo').onclick = function () {
+    var e2 = $('nErr'); e2.style.display = 'none';
+    fetch('/api/auth/erp/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: token, email: $('nEmail').value, name: $('nName').value }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j.error) { e2.textContent = j.error; e2.style.display = 'block'; return; } location.href = j.go; })
+      .catch(function (e) { e2.textContent = String(e); e2.style.display = 'block'; });
+  };
   $('f').onsubmit = function () {
     var err = $('err'); err.style.display = 'none';
     var payload = { email: $('email').value, password: $('pw').value, name: $('name').value, token: token };

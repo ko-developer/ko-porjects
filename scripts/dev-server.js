@@ -8,8 +8,8 @@ import { execFile } from 'node:child_process';
 import { stat, readdir, readFile, writeFile } from 'node:fs/promises';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
-import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks } from './auth.js';
-import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers, accessTokenFor } from './erp-login.js';
+import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks, inviteForSignup } from './auth.js';
+import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers, accessTokenFor, requestSignupLink } from './erp-login.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
 import { handleBugs, initBugs } from './bugs.js';
@@ -223,6 +223,24 @@ const handleReq = async (req, res) => {
     }
     const set = [].concat(res.getHeader('set-cookie') || [], `${BIND_COOKIE}=; Path=/api/auth/erp; HttpOnly; Max-Age=0`);
     res.writeHead(302, { location, 'set-cookie': set, 'cache-control': 'no-store' }); res.end(); return;
+  }
+  /* מוזמן בלי חשבון ERP: קישור יצירת חשבון מה-ERP, ואחריו חזרה לכאן עם ההזמנה (/api/auth/erp/start?join=) */
+  if (path0 === '/api/auth/erp/signup' && req.method === 'POST') {
+    const out = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
+    if (!/^application\/json\b/i.test(req.headers['content-type'] || '')) return out(415, { error: 'JSON only' });
+    let b = {};
+    try { b = JSON.parse(await new Promise((ok, no) => { const ch = []; req.on('data', c => ch.push(c)); req.on('end', () => ok(Buffer.concat(ch).toString('utf8') || '{}')); req.on('error', no); })); } catch { return out(400, { error: 'גוף הבקשה אינו JSON תקין' }); }
+    const join = String(b.token || ''), email = String(b.email || '').trim().toLowerCase(), name = String(b.name || '').trim().slice(0, 100);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return out(400, { error: 'כתובת מייל לא תקינה' });
+    const chk = inviteForSignup(join, email);
+    if (!chk.ok) return out(403, { error: chk.error });
+    if (!(await erpLoginAvailable(process.env, storage))) return out(409, { error: 'הכניסה דרך ה-ERP עוד לא זמינה — הירשם עם מייל וסיסמה' });
+    const back = reqOrigin(req) + '/api/auth/erp/start?join=' + encodeURIComponent(join);
+    try {
+      const r = await requestSignupLink(process.env, storage, { email, name, returnUrl: back });
+      if (!r.ok) return out(409, { error: 'KO Projects עוד לא מחובר ל-ERP — פנה לבעל המערכת' });
+      return out(200, { go: r.existing ? '/api/auth/erp/start?join=' + encodeURIComponent(join) : r.url, existing: r.existing });
+    } catch (e) { console.warn('[erp-login] sign-up link failed:', e.message); return out(502, { error: 'ה-ERP לא השיב — נסה שוב בעוד רגע' }); }
   }
   /* --- משתמשים, הזמנות שיתוף, חסימה (scripts/auth.js) --- */
   if (path0.startsWith('/api/auth/') || path0 === '/api/share' || path0 === '/api/invite' || path0.startsWith('/api/admin/')) {

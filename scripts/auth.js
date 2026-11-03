@@ -261,6 +261,13 @@ export async function erpSignIn(req, res, profile, joinToken) {
   await persist();
   return { outcome: 'pending' };
 }
+/* הזמנה שמותר ליצור איתה חשבון ERP: בתוקף, ונעולה (אם בכלל) לאותו מייל */
+export function inviteForSignup(joinToken, email) {
+  const db = load(), inv = db.invites.find(i => i.token === joinToken);
+  if (!inv || !inviteValid(inv)) return { ok: false, error: 'קישור ההזמנה לא בתוקף — בקש קישור חדש מבעל המערכת' };
+  if (inv.email && inv.email !== normEmail(email)) return { ok: false, error: 'הקישור הזה יועד לכתובת מייל אחרת' };
+  return { ok: true };
+}
 /* למסנכרן מול ה-ERP (erp-login.js startErpSync): המשתמשים המקושרים, ומי מהם עם סשן חי */
 export function erpLinkedUsers() {
   const db = load(), t = now(), live = new Set(), liveErp = new Set();
@@ -307,6 +314,8 @@ export async function handleAuth(req, res, path, store) {
       return json(res, 200, { enabled: true, erpLogin, user: publicUser(me), owner: isOw, local: isLocal(req), publicUrl: isOw ? publicUrl() : undefined, ownerLink: isOw ? origin(req) + '/owner/' + db.config.ownerKey : undefined, localOnly: isOw ? isLocalUrl(origin(req)) : undefined }), true;
     }
     if (path === '/api/auth/register' && method === 'POST') {
+      /* מרגע שהכניסה עם KO ERP פעילה, חשבון חדש נוצר ב-ERP (משתמשים אחד לשתי המערכות) — לא כאן */
+      if (HOOKS.erpLoginAvailable && await HOOKS.erpLoginAvailable().catch(() => false)) return json(res, 409, { error: 'יצירת חשבון עוברת דרך KO ERP — לחץ "צור חשבון KO"' }), true;
       const b = await body(req);
       const email = normEmail(b.email), pw = String(b.password || ''), name = String(b.name || '').trim().slice(0, 60);
       if (!validEmail(email)) return json(res, 400, { error: 'כתובת מייל לא תקינה' }), true;

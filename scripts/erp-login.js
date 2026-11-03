@@ -171,6 +171,13 @@ async function serviceFetch(env, storage, path, init = {}) {
   if (!r.ok) throw new Error('ERP HTTP ' + r.status + (j && j.error ? ' ' + j.error : ''));
   return j;
 }
+/* מוזמן בלי חשבון ERP: ה-ERP מנפיק קישור חד-פעמי ליצירת חשבון (מוגבל ל-KO Projects), ואחריו חוזרים ל-returnUrl.
+   { existing: true } = כבר יש למייל חשבון — נכנסים איתו */
+export async function requestSignupLink(env, storage, { email, name, returnUrl }) {
+  const j = await serviceFetch(env, storage, '/api/external/ko-projects/signups', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, name, return_url: returnUrl }) });
+  if (!j) return { ok: false, error: 'not_connected' };
+  return { ok: true, existing: !!j.existing, url: j.url || '' };
+}
 /* חיפוש בספריית האנשים של ה-ERP לדף /admin ("הוסף מה-ERP") */
 export async function searchErpUsers(env, storage, q) {
   const j = await serviceFetch(env, storage, '/api/external/ko-projects/users?q=' + encodeURIComponent(q));
