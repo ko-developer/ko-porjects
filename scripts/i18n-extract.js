@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 /* acorn (מגיע עם svelte, תלות פיתוח): ב-JS מוחקים לפני החיתוך ביטויים רגולריים, הערות ואזורי i18n-ignore — הם לא טקסט ממשק,
    ובלי זה כל regex עברי (/מגבר|amplifier/i…) נכנס למילון כ"חסר". בלי acorn — החיתוך הישן, כמו קודם */
 let acorn = null; try { acorn = createRequire(import.meta.url)('acorn'); } catch {}
+export const PRECISE = !!acorn;
 const blank = s => s.replace(/[^\n]/g, ' ');
 function blankJsNonUi(t) {
   if (!acorn) return null;

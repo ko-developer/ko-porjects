@@ -7,7 +7,7 @@
 // /* i18n-ignore */ … /* i18n-ignore-end */ במקור, או ב-data/i18n_ignore.json.
 // מעקף לחירום בלבד: I18N_ALLOW_MISSING=1 — מדפיס את הרשימה ולא נכשל.
 import { readFileSync, existsSync } from 'node:fs';
-import { extract } from './i18n-extract.js';
+import { extract, PRECISE } from './i18n-extract.js';
 
 const DICT = 'data/i18n_en.json', IGNORE = 'data/i18n_ignore.json';
 const HEB = /[֐-׿]/;
@@ -32,6 +32,8 @@ export function check() {
 }
 
 if (process.argv[1] && /i18n-check\.js$/.test(process.argv[1])) {
+  /* בלי acorn (npm ci בלי תלויות פיתוח) החילוץ נופל לחיתוך הישן, שסופר כל regex עברי כ"חסר" — אז לא נכשלים על רעש */
+  if (!PRECISE) { console.warn('i18n check skipped — acorn is not installed (npm ci without dev dependencies)'); process.exit(0); }
   const { missing, bad } = check();
   if (!missing.length && !bad.length) { console.log('i18n OK — every UI text has English'); process.exit(0); }
   if (missing.length) {
