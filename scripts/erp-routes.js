@@ -1,5 +1,9 @@
 // ראוטי ה-ERP של שרת הלגאסי (מחשב + ענן) — אותם ראוטים שקיימים ב-SvelteKit (src/routes/api/erp/*),
-// שבלעדיהם דיאלוג "שלח הצעה ל-ERP" לא מצא לקוחות/פרויקטים והציג "אין חיבור ERP". בעלים בלבד.
+// שבלעדיהם דיאלוג "שלח הצעה ל-ERP" לא מצא לקוחות/פרויקטים והציג "אין חיבור ERP".
+// מי: הבעלים, וגם אדמין / מנהל פרויקטים שנכנס עם KO ERP. בשם מי: הטוקן של האדם (ctx.caller → scripts/erp-login.js),
+// כך שהצעה ופרויקט נוצרים ב-ERP על שמו ועם התחילית שלו. יצירת הצעה — רק בטוקן של האדם, מרגע שהכניסה עם KO ERP פעילה
+// (לפני כן: הטוקן המשותף, כמו קודם). חיפושים: הטוקן של האדם, ולבעלים בלי כניסה ל-ERP גם הטוקן המשותף.
+// קיטים, חיבור ל-ERP ודוחות — בעלים בלבד.
 import { erpCall } from './erp-client.js';
 import { pushKits } from './erp-kits.js';
 import { kitsStatus, kitIds, connectStart, connectCallback, deleteConnection } from './erp-connect.js';
@@ -36,24 +40,48 @@ function projectWebUrl(id) {
 const reqOrigin = req => `${String(req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim()}://${req.headers['x-forwarded-host'] || req.headers.host}`;
 const redirect = (res, location) => { res.writeHead(302, { location, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }); res.end(); };
 
-/* מחזיר true אם הבקשה טופלה. ctx: { storage (שכבת האחסון של השרת), user (המשתמש המחובר) } */
+/* למה אי אפשר לשלוח בשם האדם — מוצג על כפתור "צור הצעה" (מושבת עם הסיבה) */
+export const SENDER_REASON = {
+  not_signed_in: 'כדי לשלוח הצעה ל-ERP היכנס עם KO ERP — ההצעה תיווצר בשמך',
+  signin_again: 'הכניסה ל-ERP פגה — היכנס שוב עם KO ERP',
+  google_workspace_required: 'שליחת הצעות דורשת כניסה ל-ERP עם חשבון Google של KO (kot.co.il)',
+  sales_app_required: 'לחשבון ה-ERP שלך אין הרשאת מכירות — פנה למנהל ה-ERP',
+  account_not_allowed: 'חשבון ה-ERP שלך לא יכול ליצור הצעות — פנה למנהל ה-ERP',
+  erp_unreachable: 'ה-ERP לא השיב — נסה שוב בעוד רגע'
+};
+const OWNER_ONLY = p => p.startsWith('/api/erp/kits-sync') || p.startsWith('/api/erp/kit-ids') || p.startsWith('/api/erp/connect/') || p === '/api/erp/report';
+
+/* מחזיר true אם הבקשה טופלה. ctx: { storage, user (המשתמש המחובר), caller() → { personal, auth?, name, reason? },
+   erpLoginLive() → האם הכניסה עם KO ERP פעילה } */
 export async function handleErp(req, res, path0, isOwner, ctx = {}) {
   if (!path0.startsWith('/api/erp/') || path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') return false;
-  if (!isOwner) { send(res, 403, { ok: false, errors: ['owner only'] }); return true; }
+  const u = ctx.user || {}, staffErp = !!(u.erpId && (u.role === 'admin' || u.role === 'pm'));
+  if (!isOwner && (!staffErp || OWNER_ONLY(path0))) { send(res, 403, { ok: false, errors: ['owner only'] }); return true; }
+  /* הטוקן לחיפושים: של האדם; לבעלים בלי כניסה ל-ERP — המשותף (undefined); לאחר — אין */
+  const lookAuth = async () => {
+    const c = ctx.caller ? await ctx.caller() : { personal: false };
+    if (c.personal) return c.auth;
+    if (isOwner) return undefined;
+    throw Object.assign(new Error(SENDER_REASON[c.reason] || SENDER_REASON.not_signed_in), { status: 401, needSignin: true });
+  };
   /* כתיבה רק כ-JSON: טופס מאתר אחר (text/plain / form) לא יכול לשלוח בשם הבעלים הצעה או פרסום קיטים */
   if (req.method !== 'GET' && req.method !== 'HEAD' && !/^application\/json\b/i.test(req.headers['content-type'] || '')) { send(res, 415, { ok: false, errors: ['content-type חייב להיות application/json'] }); return true; }
   const sp = new URL(req.url, 'http://x').searchParams;
   try {
     if (path0 === '/api/erp/status') {
+      /* sender: בשם מי תישלח הצעה מכאן — לדיאלוג ("שולח בשם…" או הכפתור מושבת עם הסיבה). לא נשמר במטמון — לכל אדם שלו */
+      const live = ctx.erpLoginLive ? await ctx.erpLoginLive() : false;
+      const c = ctx.caller ? await ctx.caller() : { personal: false, reason: 'not_signed_in' };
+      const sender = { live, personal: !!c.personal, name: c.name || '', reason: c.personal ? null : (c.reason || 'not_signed_in'), reason_text: c.personal ? '' : (SENDER_REASON[c.reason] || SENDER_REASON.not_signed_in) };
       /* טוען .env דרך erp-client בקריאה הראשונה — לכן בודקים configured אחרי ניסיון */
-      if (statusCache && Date.now() - statusCache.at < 60_000) { send(res, 200, statusCache.body); return true; }
+      if (statusCache && Date.now() - statusCache.at < 60_000) { send(res, 200, { ...statusCache.body, sender }); return true; }
       let body;
-      try { await erpCall('get_offer_options', {}); body = { configured: true, ok: true }; }
-      catch (e) { body = { configured: configured(), ok: false, error: String(e.message) }; }
-      statusCache = { at: Date.now(), body }; send(res, 200, body); return true;
+      try { await erpCall('get_offer_options', {}, c.personal ? c.auth : undefined); body = { configured: true, ok: true }; }
+      catch (e) { body = { configured: configured() || !!c.personal, ok: false, error: String(e.message) }; }
+      statusCache = { at: Date.now(), body }; send(res, 200, { ...body, sender }); return true;
     }
     if (path0 === '/api/erp/options') {
-      if (!optCache || Date.now() - optCache.at > 3_600_000) optCache = { at: Date.now(), body: { ok: true, ...((await erpCall('get_offer_options', {})) || {}) } };
+      if (!optCache || Date.now() - optCache.at > 3_600_000) optCache = { at: Date.now(), body: { ok: true, ...((await erpCall('get_offer_options', {}, await lookAuth())) || {}) } };
       send(res, 200, optCache.body); return true;
     }
     /* דוחות KO (דף /reports): הזמנות, שורות פריטים ופרויקטים לתקופה — הצבירה בדף (scripts/erp-report.js) */
@@ -65,7 +93,7 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
     if (path0 === '/api/erp/accounts') {
       const q = (sp.get('q') || '').trim(); if (q.length < 2) { send(res, 200, { ok: true, accounts: [] }); return true; }
       const body = await cachedSearch(accCache, q, 'accounts', a => a.name + ' ' + a.key, async () => {
-        const r = await erpCall('list_accounts', { search: q, limit: 60 }); const seen = new Set();
+        const r = await erpCall('list_accounts', { search: q, limit: 60 }, await lookAuth()); const seen = new Set();
         return (r?.accounts || []).map(a => ({ key: String(a.AccountKey || '').replace(/["\s]/g, ''), name: (a.FullName || '').trim() }))
           .filter(a => { if (!a.key || !a.name) return false; const k = a.key + '|' + a.name; if (seen.has(k)) return false; seen.add(k); return true; });
       });
@@ -74,7 +102,7 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
     if (path0 === '/api/erp/projects') {
       const q = (sp.get('q') || '').trim(); if (q.length < 2) { send(res, 200, { ok: true, projects: [] }); return true; }
       const body = await cachedSearch(prjCache, q, 'projects', p => p.name + ' ' + (p.account || '') + ' ' + (p.address || ''), async () => {
-        const r = await erpCall('list_projects', { search: q, limit: 40 }); const rows = r?.projects || r?.rows || (Array.isArray(r) ? r : []); const seen = new Set();
+        const r = await erpCall('list_projects', { search: q, limit: 40 }, await lookAuth()); const rows = r?.projects || r?.rows || (Array.isArray(r) ? r : []); const seen = new Set();
         return rows.map(p => ({ id: p.id || p.project_id || p.uuid || '', name: (p.name || p.project_name || '').trim(), account: (p.account_name || p.account || '').trim(), accountKey: String(p.account_key || '').replace(/["\s]/g, ''), address: (p.address || '').trim() }))
           .filter(p => { if (!p.id || !p.name || seen.has(p.id)) return false; seen.add(p.id); return true; });
       });
@@ -82,7 +110,7 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
     }
     if (path0 === '/api/erp/item-future') {
       const key = (sp.get('key') || '').trim(); if (!key) { send(res, 400, { ok: false, errors: ['חסר מק"ט'] }); return true; }
-      const r = await erpCall('list_order_items', { search: key, exclude_cancelled: true, limit: 500 });
+      const r = await erpCall('list_order_items', { search: key, exclude_cancelled: true, limit: 500 }, await lookAuth());
       const items = r?.items || r?.rows || (Array.isArray(r) ? r : []); const CLOSED = /completed|delivered|cancelled|closed/i;
       const rows = items.filter(it => it.item_key === key && !it.is_cancelled && !CLOSED.test(it.order?.status || '') && ((+it.quantity || 0) - (+it.installed_qty || 0)) > 0)
         .map(it => ({ order_code: it.order?.order_code || '', account: it.order?.account_name || '', quantity: (+it.quantity || 0) - (+it.installed_qty || 0), status: it.order?.status || '', date: it.created_at || null }))
@@ -99,6 +127,13 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
       const items = (p.items || []).filter(it => it.item_key && (+it.quantity || 0) >= 1);
       if (!items.length) errors.push('אין פריטים עם מק"ט ליצירת הצעה');
       if (errors.length) { send(res, 400, { ok: false, errors }); return true; }
+      /* בשם מי: מרגע שהכניסה עם KO ERP פעילה — רק הטוקן של האדם (בלי נפילה לטוקן המשותף ולתחילית MCP-) */
+      let auth;
+      if (ctx.erpLoginLive && await ctx.erpLoginLive()) {
+        const c = ctx.caller ? await ctx.caller() : { personal: false, reason: 'not_signed_in' };
+        if (!c.personal) { send(res, 403, { ok: false, need_signin: c.reason === 'not_signed_in' || c.reason === 'signin_again', errors: [SENDER_REASON[c.reason] || SENDER_REASON.not_signed_in] }); return true; }
+        auth = c.auth;
+      } else if (!isOwner) { send(res, 403, { ok: false, errors: [SENDER_REASON.not_signed_in] }); return true; }
       const args = { currency_code: p.currency_code || 'ILS', items: items.map(it => ({ item_key: it.item_key, item_name: it.item_name, quantity: Math.max(1, Math.round(+it.quantity)), ...(it.unit_price != null ? { unit_price: +it.unit_price } : {}), ...(it.notes ? { notes: it.notes } : {}) })) };
       if (p.offer_name) args.offer_name = p.offer_name;
       if (p.account_key) args.account_key = p.account_key;
@@ -111,7 +146,7 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
         let pid = p.project_id;
         if (!pid) {
           /* שם בלבד: פרויקט של הלקוח הזה בשם זהה, אחרת ה-ERP יוצר אותו עם ההצעה (new_project). לעולם לא "הראשון ברשימה" — הוא יכול להיות של לקוח אחר */
-          const found = await erpCall('list_projects', { account_key: p.account_key, limit: 500 });   /* כל פרויקטי הלקוח, בלי search: חיפוש ה-ERP מחליף ( ) , ברווח ולא מוצא רווח כפול — השוואת השם כאן (sameName) */
+          const found = await erpCall('list_projects', { account_key: p.account_key, limit: 500 }, auth);   /* כל פרויקטי הלקוח, בלי search: חיפוש ה-ERP מחליף ( ) , ברווח ולא מוצא רווח כפול — השוואת השם כאן (sameName) */
           const rows = found?.projects || found?.rows || (Array.isArray(found) ? found : []);
           const same = rows.find(r => accKey(r.account_key) === accKey(p.account_key) && sameName(r.project_name || r.name, p.project_name));
           if (same) { pid = same.id || same.project_id; note = `ללקוח כבר יש פרויקט "${(same.project_name || same.name || '').trim()}" ב-ERP — ההצעה נוספה אליו.`; }
@@ -119,7 +154,7 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
         }
         if (pid) args.project_id = pid;
       }
-      const result = await erpCall('create_offer', args);
+      const result = await erpCall('create_offer', args, auth);
       const pid = (result && result.project_id) || args.project_id;
       send(res, 200, { ok: true, result, note, project_web_url: pid ? projectWebUrl(pid) : '', skipped_without_key: p.items_without_key || [] }); return true;
     }
@@ -144,6 +179,6 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
       await deleteConnection(ctx.storage);   /* רק החיבור השמור; הטוקן עצמו נשלל ב-ERP (Admin) */
       send(res, 200, await kitsStatus(process.env, ctx.storage)); return true;
     }
-  } catch (e) { send(res, 502, { ok: false, errors: [String(e.message || e)] }); return true; }
+  } catch (e) { send(res, e.needSignin ? 401 : 502, { ok: false, need_signin: !!e.needSignin, errors: [String(e.message || e)] }); return true; }
   send(res, 404, { ok: false, errors: ['unknown ERP route'] }); return true;
 }

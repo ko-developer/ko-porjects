@@ -9,7 +9,7 @@ import { stat, readdir, readFile, writeFile } from 'node:fs/promises';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
 import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks } from './auth.js';
-import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers } from './erp-login.js';
+import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers, accessTokenFor } from './erp-login.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
 import { handleBugs, initBugs } from './bugs.js';
@@ -160,6 +160,16 @@ setAuthHooks({
   erpLoginAvailable: () => erpLoginAvailable(process.env, storage),
   searchErpUsers: q => searchErpUsers(process.env, storage, q)
 });
+/* בשם מי פונים ל-ERP: הטוקן של האדם שנכנס עם KO ERP (גם הבעלים, אם נכנס כך). בלעדיו — { personal:false, reason } */
+async function erpCaller(me) {
+  const uidT = me.role === 'owner' ? (me.erpId ? 'owner' : '') : (me.erpId ? me.id : '');
+  const name = me.name || me.email || '';
+  if (!uidT) return { personal: false, name, reason: 'not_signed_in' };
+  if (me.erpCanOffer === false) return { personal: false, name, reason: me.erpOffersRefusal || 'account_not_allowed' };
+  const t = await accessTokenFor(process.env, storage, uidT);
+  if (!t.ok) return { personal: false, name, reason: t.reason === 'signin' ? 'signin_again' : 'erp_unreachable' };
+  return { personal: true, name, auth: { url: t.base + '/api/mcp', token: t.token } };
+}
 const reqOrigin = req => `${String(req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim()}://${req.headers['x-forwarded-host'] || req.headers.host}`;
 const reqCookie = (req, name) => { for (const part of String(req.headers.cookie || '').split(';')) { const i = part.indexOf('='); if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim()); } return ''; };
 /* קבצים שנערכים באפליקציה ויש להם גם גרסת ריפו (זריעה): קודם האחסון, אחרת הריפו */
@@ -259,15 +269,18 @@ const handleReq = async (req, res) => {
   if (await handleBugs(req, res, path0, me)) return;
   if (path0 === '/bugs') { if (!isOwner) { res.writeHead(302, { location: '/' }); res.end(); return; } sendPage(res, AUTH_PAGES['/bugs']); return; }
   /* --- שאר ראוטי ה-ERP: סטטוס, לקוחות, פרויקטים, אפשרויות, כמויות עתידיות, יצירת הצעה (scripts/erp-routes.js) --- */
-  if (await handleErp(req, res, path0, isOwner, { storage, user: me })) return;
+  let callerOnce = null;   /* מחושב פעם אחת לבקשה, רק כשראוט צריך אותו */
+  const caller = () => (callerOnce = callerOnce || erpCaller(me));
+  if (await handleErp(req, res, path0, isOwner, { storage, user: me, caller, erpLoginLive: () => erpLoginAvailable(process.env, storage) })) return;
   /* --- הצעות מחיר מה-ERP (חי, דרך MCP) — בעלים בלבד --- */
   if (path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') {
     if (!isOwner) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"owner only"}'); return; }
     const sp = new URL(req.url, 'http://x').searchParams;
     try {
+      const c = await caller(), auth = c.personal ? c.auth : undefined;   /* בעלים בלבד: של האדם אם נכנס עם KO ERP, אחרת המשותף */
       const out = path0 === '/api/erp/quotes'
-        ? { quotes: await erpQuotes({ q: sp.get('q') || '', all: sp.get('all') === '1' }) }
-        : { items: await erpQuoteItems(sp.get('order_id') || '') };
+        ? { quotes: await erpQuotes({ q: sp.get('q') || '', all: sp.get('all') === '1' }, auth) }
+        : { items: await erpQuoteItems(sp.get('order_id') || '', auth) };
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
       res.end(JSON.stringify(out));
     } catch (e) {

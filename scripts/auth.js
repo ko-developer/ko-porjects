@@ -121,7 +121,7 @@ export function sessionUser(req) {
   if (!sid || !db.sessions[sid]) return null;
   const s = db.sessions[sid];
   if (s.exp < now()) return null;   /* ינוקה בשמירה הבאה */
-  if (s.uid === 'owner') return { ...OWNER, local: false, erpId: s.erp || '' };   /* הבעלים שנכנס עם KO ERP */
+  if (s.uid === 'owner') { const c = db.config; return { ...OWNER, local: false, erpId: s.erp || '', erpCanOffer: c.ownerErpCanOffer !== false, erpOffersRefusal: c.ownerErpOffersRefusal || null }; }   /* הבעלים שנכנס עם KO ERP */
   const u = db.users.find(x => x.id === s.uid);
   if (!u || u.blocked) return null;
   return u;
@@ -224,8 +224,10 @@ export async function erpSignIn(req, res, profile, joinToken) {
   const db = load();
   const sub = String(profile.sub || ''), email = normEmail(profile.email), name = String(profile.name || '').trim().slice(0, 60);
   if (!sub) return { outcome: 'blocked' };
+  /* מה שה-ERP אמר עכשיו: האם הטוקן של האדם יכול ליצור הצעות (Google של KO + הרשאת מכירות) — לסיבה על כפתור "שלח" */
+  const canOffer = profile.can_create_offers === true, refusal = canOffer ? null : String(profile.offers_refusal || 'account_not_allowed');
   if (profile.kind === 'staff' && email && ownerEmails().includes(email)) {
-    db.config.ownerErpId = sub;
+    db.config.ownerErpId = sub; db.config.ownerErpCanOffer = canOffer; db.config.ownerErpOffersRefusal = refusal;
     await setSession(res, OWNER, req, { erp: sub });
     return { outcome: 'session', uid: 'owner' };
   }
@@ -235,7 +237,7 @@ export async function erpSignIn(req, res, profile, joinToken) {
   const invOk = !!inv && inviteValid(inv) && (!inv.email || inv.email === email);
   if (u) {
     if (u.blocked) return { outcome: 'blocked' };
-    u.erpId = sub;
+    u.erpId = sub; u.erpCanOffer = canOffer; u.erpOffersRefusal = refusal;
     if (email && email !== u.email && !db.users.some(x => x !== u && x.email === email)) u.email = email;   /* המייל של ה-ERP הוא המעודכן */
     if (!u.name && name) u.name = name;
     if (invOk) {
@@ -249,13 +251,13 @@ export async function erpSignIn(req, res, profile, joinToken) {
   }
   if (invOk) {
     const grants = {}; inv.projects.forEach(pid => { grants[pid] = inv.perm; });
-    const nu = { id: uid('u'), email, name: name || email.split('@')[0], role: ROLES.includes(inv.role) ? inv.role : 'user', grants, blocked: false, erpId: sub, createdAt: new Date().toISOString(), invitedBy: inv.by };
+    const nu = { id: uid('u'), email, name: name || email.split('@')[0], role: ROLES.includes(inv.role) ? inv.role : 'user', grants, blocked: false, erpId: sub, erpCanOffer: canOffer, erpOffersRefusal: refusal, createdAt: new Date().toISOString(), invitedBy: inv.by };
     db.users.push(nu); inviteUse(inv, nu);
     await setSession(res, nu, req);
     return { outcome: 'session', uid: nu.id };
   }
   /* לא מוכר, בלי הזמנה: בקשת גישה — מנהל מאשר ב-/admin ובוחר תפקיד; עד אז אין סשן */
-  db.users.push({ id: uid('u'), email, name: name || (email ? email.split('@')[0] : 'ERP'), role: 'user', grants: {}, blocked: false, pending: true, erpId: sub, createdAt: new Date().toISOString(), invitedBy: null });
+  db.users.push({ id: uid('u'), email, name: name || (email ? email.split('@')[0] : 'ERP'), role: 'user', grants: {}, blocked: false, pending: true, erpId: sub, erpCanOffer: canOffer, erpOffersRefusal: refusal, createdAt: new Date().toISOString(), invitedBy: null });
   await persist();
   return { outcome: 'pending' };
 }

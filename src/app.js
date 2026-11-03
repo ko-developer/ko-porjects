@@ -15139,6 +15139,18 @@ function sendOffer() {
   /* יצירה ישירה דרך השרת; אם אין חיבור (פריסה סטטית) — נשאר מסלול קובץ ידני */
   fetch('/api/erp/status').then(r => r.json()).then(s => {
     if (!s || !s.ok) { document.getElementById('ofSrvW').style.display = 'none'; document.getElementById('ofNoSrvW').style.display = ''; }
+    /* בשם מי: מרגע שהכניסה עם KO ERP פעילה ההצעה נוצרת על שם האדם; בלי כניסה הכפתור מושבת עם הסיבה (scripts/erp-routes.js) */
+    const snd = s && s.sender, w = document.getElementById('ofSrvW');
+    if (snd && snd.live && w && !w.querySelector('.ofSender')) {
+      const btn = w.querySelector('button'), note = document.createElement('div');
+      note.className = 'ofSender'; note.style.cssText = 'font-size:12px;margin-top:5px;color:' + (snd.personal ? '#0f6e56' : '#c1121f');
+      if (snd.personal) note.textContent = '👤 ההצעה תיווצר ב-ERP בשם: ' + snd.name;
+      else {
+        if (btn) { btn.disabled = true; btn.title = snd.reason_text; btn.style.opacity = '.55'; }
+        note.innerHTML = esc(snd.reason_text) + (snd.reason === 'not_signed_in' || snd.reason === 'signin_again' ? ' <a href="/api/auth/erp/start" style="font-weight:700">כניסה עם KO ERP</a>' : '');
+      }
+      w.appendChild(note);
+    }
   }).catch(() => { document.getElementById('ofSrvW').style.display = 'none'; document.getElementById('ofNoSrvW').style.display = ''; });
   /* חיפוש לקוח מהיר: מטמון מקומי לכל שאילתה + סינון מיידי מתוצאה קודמת
      (הקלדת תו נוסף לא יוצאת לשרת), חיפוש גם לפי מפתח חשבון, ורשימה עם המפתח גלוי */
@@ -15346,7 +15358,7 @@ function sendOffer() {
         save();
         if (projUrl) window.open(projUrl, '_blank', 'noopener'); /* ניווט אוטומטי אל הפרויקט */
       } else {
-        out.innerHTML = '❌ ' + (j.errors || ['שגיאה לא ידועה']).map(esc).join('<br>');
+        out.innerHTML = '❌ ' + (j.errors || ['שגיאה לא ידועה']).map(esc).join('<br>') + (j.need_signin ? ' <a href="/api/auth/erp/start" style="font-weight:700">כניסה עם KO ERP</a>' : '');
         btn.disabled = false; btn.textContent = ofBtnText();
       }
     } catch (e) {
