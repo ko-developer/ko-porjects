@@ -8,7 +8,8 @@ import { execFile } from 'node:child_process';
 import { stat, readdir, readFile, writeFile } from 'node:fs/promises';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
-import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin } from './auth.js';
+import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks } from './auth.js';
+import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers } from './erp-login.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
 import { handleBugs, initBugs } from './bugs.js';
@@ -151,6 +152,16 @@ function hydrateStore(full, posted) {
     return ordered; }).filter(Boolean) };
 }
 await initAuth(storage); await initBugs(storage);
+/* כניסה עם KO ERP (scripts/erp-login.js): רשימת המשתמשים נשלחת ל-ERP אחרי כל שינוי, וחשבונות ERP שהושבתו מנתקים את הסשנים שלהם */
+const erpSync = startErpSync({ env: process.env, getStorage: () => storage, auth: { erpLinkedUsers, endErpSessions } });
+setAuthHooks({
+  onChange: erpSync.pushSoon,
+  onLogout: uid => forgetUserTokens(storage, uid),
+  erpLoginAvailable: () => erpLoginAvailable(process.env, storage),
+  searchErpUsers: q => searchErpUsers(process.env, storage, q)
+});
+const reqOrigin = req => `${String(req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim()}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+const reqCookie = (req, name) => { for (const part of String(req.headers.cookie || '').split(';')) { const i = part.indexOf('='); if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim()); } return ''; };
 /* קבצים שנערכים באפליקציה ויש להם גם גרסת ריפו (זריעה): קודם האחסון, אחרת הריפו */
 /* תמונות גב/חזית — מזוהות בכתובת עם ?v= ומתחלפות רק דרך /api/rear-image (שמנקה את המטמון), לכן נשמרות בזיכרון שעה ולא נקראות מהדלי כל 15 שניות */
 const readCurated = (key, repoPath) => readCached(key, async () => (await storage.read(key)) || (existsSync(repoPath) ? readFileSync(repoPath) : null), key.startsWith('rear_images/') ? 3600e3 : CUR_TTL);
@@ -180,6 +191,29 @@ const handleReq = async (req, res) => {
   const path0 = (req.url || '').split('?')[0].replace(/\/$/, '') || '/';
   await authRefresh();   /* סשנים/הזמנות שנוצרו בצד השני (מחשב↔ענן) — עד 10 שניות */
   if (path0 === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, storage: storage.kind, label: storage.label, warn: storageWarn || undefined, prebuilt: !!process.env.PREBUILT })); return; }
+  /* --- כניסה עם KO ERP (scripts/erp-login.js → auth.js erpSignIn) --- */
+  if (path0 === '/api/auth/erp/start' && req.method === 'GET') {
+    const join = new URLSearchParams((req.url || '').split('?')[1] || '').get('join') || '';
+    const back = '/login?erp=unavailable' + (join ? '&t=' + encodeURIComponent(join) : '');
+    if (!(await erpLoginAvailable(process.env, storage))) { res.writeHead(302, { location: back, 'cache-control': 'no-store' }); res.end(); return; }
+    const { url, bind } = loginStart(process.env, reqOrigin(req), { join });
+    const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') ? '; Secure' : '';
+    res.writeHead(302, { location: url, 'set-cookie': `${BIND_COOKIE}=${bind}; Path=/api/auth/erp; HttpOnly; SameSite=Lax; Max-Age=600${secure}`, 'cache-control': 'no-store' }); res.end(); return;
+  }
+  if (path0 === '/api/auth/erp/callback' && req.method === 'GET') {
+    const r = await loginCallback(process.env, storage, new URLSearchParams((req.url || '').split('?')[1] || ''), reqCookie(req, BIND_COOKIE));
+    let location;
+    if (!r.ok) location = '/login?erp=' + r.reason + (r.join ? '&t=' + encodeURIComponent(r.join) : '');
+    else {
+      const out = await erpSignIn(req, res, r.profile, r.join);
+      if (out.outcome === 'session') {
+        try { await saveUserTokens(storage, out.uid, r.tokens); } catch (e) { console.warn('[erp-login] saving the ERP sign-in failed:', e.message); }
+        location = '/';
+      } else location = '/login?erp=' + out.outcome;
+    }
+    const set = [].concat(res.getHeader('set-cookie') || [], `${BIND_COOKIE}=; Path=/api/auth/erp; HttpOnly; Max-Age=0`);
+    res.writeHead(302, { location, 'set-cookie': set, 'cache-control': 'no-store' }); res.end(); return;
+  }
   /* --- משתמשים, הזמנות שיתוף, חסימה (scripts/auth.js) --- */
   if (path0.startsWith('/api/auth/') || path0 === '/api/share' || path0 === '/api/invite' || path0.startsWith('/api/admin/')) {
     let storeNow = {}; try { storeNow = await readStore(db); } catch {}

@@ -19,10 +19,16 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
 <h2>גישה מבחוץ</h2>
 <div id="cfg" style="background:#fff;border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.7">
   <div>כתובת חיצונית של השרת (הקישורים ייבנו ממנה): <input id="pubUrl" placeholder="https://ko.example.com" style="width:320px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;direction:ltr"> <button id="pubSave" class="ok">שמור</button> <span id="pubNote" class="muted"></span></div>
+  <div style="margin-top:6px">כניסה עם KO ERP במייל הזה = בעל המערכת: <input id="ownerEmails" placeholder="name@kot.co.il" title="אפשר כמה, מופרדים בפסיק" style="width:260px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;direction:ltr"> <button id="ownerEmailsSave" class="ok">שמור</button> <span id="ownerEmailsNote" class="muted"></span></div>
   <div id="ownerLinkRow" style="margin-top:6px">הקישור שלך לגישה מבחוץ (בלי הרשמה — שומר עוגייה לשנה, אל תשלח לאף אחד): <span id="ownerLink" class="url"></span> <button id="ownerCopy">העתק</button></div>
 </div>
 <h2>משתמשים</h2>
 <div id="users">טוען…</div>
+<div id="erpAdd" style="background:#fff;border-radius:10px;padding:12px 14px;font-size:12.5px;margin-top:10px">
+  <b>הוסף מה-ERP</b> <span class="muted">— אנשי KO עם חשבון ב-ERP; אחרי ההוספה הם נכנסים עם "כניסה עם KO ERP"</span><br>
+  <input id="erpQ" placeholder="שם או מייל" style="width:260px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;margin-top:6px"> <span id="erpNote" class="muted"></span>
+  <div id="erpRes"></div>
+</div>
 <h2>קישורי שיתוף</h2>
 <div id="invites"></div>
 <script>
@@ -34,11 +40,36 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
     fetch('/api/admin/config').then(function (r) { return r.json(); }).then(function (c) {
       document.getElementById('pubUrl').value = c.publicUrl || c.envPublicUrl || '';
       document.getElementById('ownerLink').textContent = c.ownerLink || '';
+      document.getElementById('ownerEmails').value = (c.ownerEmails || []).join(', ');
+      document.getElementById('ownerEmailsNote').textContent = c.envOwnerEmail ? 'וגם מהשרת: ' + c.envOwnerEmail : '';
       document.getElementById('pubNote').textContent = c.localOnly ? '⚠ כרגע הקישורים נבנים על localhost — מוזמנים מבחוץ לא יוכלו לפתוח אותם. הגדר כאן (או ב-PUBLIC_URL ב-.env) את כתובת השרת בענן, למשל https://ko-projects-226076433415.me-west1.run.app' : '✓ קישורים נבנים על ' + c.effective;
     });
   }
   document.getElementById('pubSave').onclick = function () {
     post('/api/admin/config', { publicUrl: document.getElementById('pubUrl').value }).then(function (j) { if (j.error) alert(j.error); loadCfg(); load(); });
+  };
+  document.getElementById('ownerEmailsSave').onclick = function () {
+    var list = document.getElementById('ownerEmails').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+    post('/api/admin/config', { ownerEmails: list }).then(function (j) { if (j.error) alert(j.error); loadCfg(); });
+  };
+  /* הוסף מה-ERP: חיפוש (מושהה) בספריית האנשים של ה-ERP */
+  var ROLE_OPTS = [['user', 'משתמש חיצוני — רק מה ששותף'], ['pm', 'מנהל פרויקטים KO — רואה הכול, עורך את שלו'], ['admin', 'אדמין — צופה ועורך הכול']];
+  var roleSelect = function (attr, cur) { return '<select ' + attr + '>' + ROLE_OPTS.map(function (r) { return '<option value="' + r[0] + '"' + ((cur || 'pm') === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('') + '</select>'; };
+  var erpTimer = 0, erpFound = {};
+  document.getElementById('erpQ').oninput = function () {
+    var q = this.value.trim(); clearTimeout(erpTimer);
+    if (q.length < 2) { document.getElementById('erpRes').innerHTML = ''; document.getElementById('erpNote').textContent = ''; return; }
+    erpTimer = setTimeout(function () {
+      fetch('/api/admin/erp-search?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (j) {
+        document.getElementById('erpNote').textContent = j.error || (j.users.length ? '' : 'לא נמצא');
+        erpFound = {};
+        document.getElementById('erpRes').innerHTML = (j.users || []).map(function (u) {
+          erpFound[u.id] = u;
+          return '<div style="margin-top:6px"><b>' + esc(u.name) + '</b> <span class="muted">' + esc(u.email || '') + '</span> ' +
+            (u.linked ? '<span class="b">כבר ברשימה</span>' : roleSelect('data-erprole="' + esc(u.id) + '"', 'pm') + '<button class="ok" data-erpadd="' + esc(u.id) + '">הוסף</button>') + '</div>';
+        }).join('');
+      });
+    }, 300);
   };
   document.getElementById('ownerCopy').onclick = function () { navigator.clipboard.writeText(document.getElementById('ownerLink').textContent); this.textContent = 'הועתק ✓'; };
   loadCfg();
@@ -47,13 +78,14 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
       var uh = '<table><tr><th>שם</th><th>מייל</th><th>תפקיד</th><th>פרויקטים והרשאה</th><th>נרשם</th><th>כניסה אחרונה</th><th>מצב</th><th></th></tr>';
       d.users.forEach(function (u) {
         var own = u.role === 'owner';
-        uh += '<tr><td><b>' + esc(u.name) + '</b></td><td>' + esc(u.email) + '</td><td>' + (own ? '<span class="b own">בעלים</span>' : '<select data-role="' + esc(u.id) + '" title="אדמין: צופה ועורך הכול · מנהל פרויקטים KO: רואה הכול, עורך את שלו ומה שהוענק לו · משתמש חיצוני: רק מה ששותף איתו">' + [['user', 'משתמש חיצוני — רק מה ששותף'], ['pm', 'מנהל פרויקטים KO — רואה הכול, עורך את שלו'], ['admin', 'אדמין — צופה ועורך הכול']].map(function (r) { return '<option value="' + r[0] + '"' + ((u.role || 'user') === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('') + '</select>') + '</td>' +
+        uh += '<tr><td><b>' + esc(u.name) + '</b>' + (u.erp ? ' <span class="b own" title="נכנס עם KO ERP">ERP</span>' : '') + (u.pending ? ' <span class="b v">ממתין לאישור</span>' : '') + '</td><td>' + esc(u.email) + '</td><td>' + (own ? '<span class="b own">בעלים</span>' : '<select data-role="' + esc(u.id) + '" title="אדמין: צופה ועורך הכול · מנהל פרויקטים KO: רואה הכול, עורך את שלו ומה שהוענק לו · משתמש חיצוני: רק מה ששותף איתו">' + [['user', 'משתמש חיצוני — רק מה ששותף'], ['pm', 'מנהל פרויקטים KO — רואה הכול, עורך את שלו'], ['admin', 'אדמין — צופה ועורך הכול']].map(function (r) { return '<option value="' + r[0] + '"' + ((u.role || 'user') === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('') + '</select>') + '</td>' +
           '<td>' + (own ? '<span class="muted">הכל</span>' : (u.projects.length ? u.projects.map(function (p) {
             return '<div style="margin-bottom:3px"><a href="/?open=' + encodeURIComponent(p.id) + '" style="color:#185fa5;font-weight:700;text-decoration:none" title="פתח את הפרויקט באפליקציה">📂 ' + esc(p.name) + '</a>' + (p.created ? ' <span class="b own">נוצר על ידו</span>' : ' <span class="b v">שותף איתו</span>') + ' <span class="muted">' + (p.nodes || 0) + ' מוקדים' + (p.upd > 1e12 ? ' · עודכן ' + fmt(p.upd) : '') + '</span> <select data-grant="' + esc(u.id) + '|' + esc(p.id) + '"><option value="edit"' + (p.perm === 'edit' ? ' selected' : '') + '>עריכה</option><option value="view"' + (p.perm === 'view' ? ' selected' : '') + '>צפייה</option><option value="none">הסר</option></select></div>';
           }).join('') : '<span class="muted">אין</span>')) + '</td>' +
           '<td>' + fmt(u.createdAt) + '</td><td>' + fmt(u.lastLogin) + '</td>' +
           '<td>' + (u.blocked ? '<span class="b no">חסום</span>' : '<span class="b">פעיל</span>') + '</td>' +
-          '<td>' + (own ? '' : (u.blocked ? '<button class="ok" data-act="unblock" data-id="' + esc(u.id) + '">בטל חסימה</button>' : '<button class="warn" data-act="block" data-id="' + esc(u.id) + '">🚫 חסום</button>') +
+          '<td>' + (own ? '' : u.pending ? '<button class="ok" data-approve="' + esc(u.id) + '" title="מקבל את התפקיד שנבחר בעמודת התפקיד ונכנס בפעם הבאה">✓ אשר גישה</button><button class="warn" data-act="reject" data-id="' + esc(u.id) + '">דחה</button>' :
+            (u.blocked ? '<button class="ok" data-act="unblock" data-id="' + esc(u.id) + '">בטל חסימה</button>' : '<button class="warn" data-act="block" data-id="' + esc(u.id) + '">🚫 חסום</button>') +
             '<button data-act="delete" data-id="' + esc(u.id) + '">מחק</button>') + '</td></tr>';
       });
       document.getElementById('users').innerHTML = uh + '</table>';
@@ -70,6 +102,14 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
   }
   document.addEventListener('click', function (e) {
     var t = e.target;
+    if (t.dataset.approve) {
+      var sel = document.querySelector('select[data-role="' + t.dataset.approve + '"]');
+      post('/api/admin/user', { id: t.dataset.approve, action: 'approve', role: sel ? sel.value : 'user' }).then(load); return;
+    }
+    if (t.dataset.erpadd) {
+      var f = erpFound[t.dataset.erpadd] || {}, rs = document.querySelector('select[data-erprole="' + t.dataset.erpadd + '"]');
+      post('/api/admin/erp-add', { erpId: f.id, email: f.email, name: f.name, role: rs ? rs.value : 'pm' }).then(function (j) { if (j.error) alert(j.error); document.getElementById('erpQ').dispatchEvent(new Event('input')); load(); }); return;
+    }
     if (t.dataset.act) {
       if (t.dataset.act === 'delete' && !confirm('למחוק את המשתמש? הוא לא יוכל להיכנס יותר.')) return;
       post('/api/admin/user', { id: t.dataset.id, action: t.dataset.act }).then(load);
@@ -78,7 +118,11 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
-    if (t.dataset.role) { post('/api/admin/user', { id: t.dataset.role, action: 'role', role: t.value }).then(load); return; }
+    if (t.dataset.role) {
+      if (document.querySelector('button[data-approve="' + t.dataset.role + '"]')) return;   /* בקשה ממתינה: התפקיד נשלח עם "אשר" */
+      post('/api/admin/user', { id: t.dataset.role, action: 'role', role: t.value }).then(load); return;
+    }
+    if (t.dataset.erprole) return;
     if (!t.dataset.grant) return;
     var p = t.dataset.grant.split('|');
     post('/api/admin/user', { id: p[0], action: 'grant', project: p[1], perm: t.value }).then(load);

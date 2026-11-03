@@ -6,6 +6,9 @@
 // מסוימים בהרשאת צפייה/עריכה; המוזמן נרשם עם מייל וסיסמה, והבעלים רואה את כולם
 // בדף /admin ויכול לחסום / לבטל חסימה / למחוק. בקשה מבחוץ בלי סשן → מסך כניסה.
 //
+// כניסה עם KO ERP (scripts/erp-login.js → erpSignIn כאן): ה-ERP מוכיח מי האדם; כאן מוחלט אם נכנס ובאיזה תפקיד — לפי
+// erpId, אחרת אימוץ משתמש קיים לא-מקושר באותו מייל, אחרת הזמנה בתוקף, אחרת בקשת גישה שממתינה לאישור ב-/admin.
+// מייל ב-OWNER_EMAIL / config.ownerEmails שנכנס דרך ה-ERP = הבעלים (סשן uid 'owner'). קישור הבעלים נשאר לחירום.
 // אחסון: users.json על שכבת האחסון (storage.js — קבצים מקומיים או דלי הענן): users, invites, sessions.
 // סיסמאות ב-scrypt+salt. השרת המקומי והענן חולקים את אותו קובץ, ולכן כל שמירה ממזגת את
 // הגרסה באחסון עם הזיכרון (איחוד סשנים/משתמשים/הזמנות; מחיקות נרשמות ולא חוזרות).
@@ -16,6 +19,10 @@ const FILE = 'users.json';
 const SESSION_DAYS = 30, INVITE_DAYS = 14;
 
 let DB = null, ST = null, loadedAt = 0;
+/* חיבורים ל-scripts/erp-login.js (נקבעים ב-dev-server): onChange — שליחת רשימת המשתמשים ל-ERP; onLogout(uid) — מחיקת
+   הכניסה השמורה ל-ERP כשנסגר הסשן האחרון; erpLoginAvailable() — האם להציג "כניסה עם KO ERP"; searchErpUsers(q) — חיפוש ב-ERP */
+const HOOKS = { onChange: null, onLogout: null, erpLoginAvailable: null, searchErpUsers: null };
+export function setAuthHooks(h) { Object.assign(HOOKS, h || {}); }
 function normalize(j) {
   const db = j && typeof j === 'object' ? j : { users: [], invites: [], sessions: {} };
   db.users = db.users || []; db.invites = db.invites || []; db.sessions = db.sessions || {};
@@ -62,11 +69,12 @@ function persist() {
       }
       const toks = new Set(mem.invites.map(i => i.token));
       for (const i of fresh.invites) { if (delI.has(i.token)) continue; const m = mem.invites.find(x => x.token === i.token); if (!m) mem.invites.push(i); else if ((i.uses || []).length > (m.uses || []).length) { m.uses = i.uses; m.usedBy = m.usedBy || i.usedBy; m.usedAt = m.usedAt || i.usedAt; } }
-      for (const [sid, sess] of Object.entries(fresh.sessions)) { if (mem.sessions[sid] || delS.has(sid) || sess.exp < t) continue; const u = mem.users.find(x => x.id === sess.uid); if (u && !u.blocked) mem.sessions[sid] = sess; }   /* התחבר בצד השני */
+      for (const [sid, sess] of Object.entries(fresh.sessions)) { if (mem.sessions[sid] || delS.has(sid) || sess.exp < t) continue; const u = sess.uid === 'owner' ? OWNER : mem.users.find(x => x.id === sess.uid); if (u && !u.blocked) mem.sessions[sid] = sess; }   /* התחבר בצד השני */
     }
     for (const [sid, sess] of Object.entries(mem.sessions)) if (sess.exp < t) delete mem.sessions[sid];
     if (mem.deleted.sessions.length > 500) mem.deleted.sessions = mem.deleted.sessions.slice(-200);
     await ST.writeJson(FILE, mem); loadedAt = Date.now();
+    if (HOOKS.onChange) try { HOOKS.onChange(); } catch {}
   }).catch(e => console.warn('users.json persist failed:', e.message));
   return chain;
 }
@@ -95,6 +103,11 @@ export function isLocal(req) {
   return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
 }
 export function authEnabled() { return true; }
+/* מיילים שכניסה איתם דרך ה-ERP היא הבעלים: OWNER_EMAIL (אפשר כמה, בפסיקים) + מה שהבעלים הגדיר ב-/admin */
+function ownerEmails() {
+  const env = String(process.env.OWNER_EMAIL || '').split(',');
+  return [...env, ...(load().config.ownerEmails || [])].map(normEmail).filter(Boolean);
+}
 export function owner() { return OWNER; }
 
 /* --- עוגיות וסשנים --- */
@@ -108,6 +121,7 @@ export function sessionUser(req) {
   if (!sid || !db.sessions[sid]) return null;
   const s = db.sessions[sid];
   if (s.exp < now()) return null;   /* ינוקה בשמירה הבאה */
+  if (s.uid === 'owner') return { ...OWNER, local: false, erpId: s.erp || '' };   /* הבעלים שנכנס עם KO ERP */
   const u = db.users.find(x => x.id === s.uid);
   if (!u || u.blocked) return null;
   return u;
@@ -129,23 +143,25 @@ export function handleOwnerLink(req, res, path) {
   res.writeHead(302, { location: '/', 'set-cookie': `ko_owner=${m[1]}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 86400}${secure}` });
   res.end(); return true;
 }
-async function setSession(res, user, req) {
+async function setSession(res, user, req, extra) {
   const db = load(), sid = token();
-  db.sessions[sid] = { uid: user.id, exp: now() + SESSION_DAYS * 864e5, at: now(), ua: String(req.headers['user-agent'] || '').slice(0, 80) };
-  user.lastLogin = new Date().toISOString();
+  db.sessions[sid] = { uid: user.id, exp: now() + SESSION_DAYS * 864e5, at: now(), ua: String(req.headers['user-agent'] || '').slice(0, 80), ...(extra || {}) };
+  if (user.id === 'owner') db.config.ownerLastLogin = new Date().toISOString(); else user.lastLogin = new Date().toISOString();
   await persist();
   const secure = (req.headers['x-forwarded-proto'] || '').includes('https') ? '; Secure' : '';
   res.setHeader('set-cookie', `ko_sid=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}${secure}`);
 }
 async function clearSession(req, res) {
   const db = load(), sid = cookies(req).ko_sid;
+  const uidOut = sid && db.sessions[sid] ? db.sessions[sid].uid : null;
   if (sid) { delete db.sessions[sid]; db.deleted.sessions.push(sid); await persist(); }
+  if (uidOut && HOOKS.onLogout && !Object.values(db.sessions).some(x => x.uid === uidOut && x.exp >= now())) try { await HOOKS.onLogout(uidOut); } catch {}
   res.setHeader('set-cookie', 'ko_sid=; Path=/; HttpOnly; Max-Age=0');
 }
 
 /* --- מה משתמש רואה --- */
 export function publicUser(u) {
-  return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local } : null;
+  return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local, erp: !!u.erpId, pending: !!u.pending } : null;
 }
 /* store מסונן למשתמש מוזמן: רק הפרויקטים שהוענקו לו (עם דגל הרשאה בכל פרויקט) */
 /* תפקידים: owner = הגישה המקומית (הכול) · admin = צופה ועורך הכול · pm = מנהל פרויקטים KO: רואה הכול, עורך את שלו ומה שהוענק לו
@@ -200,6 +216,67 @@ export function mergeStore(full, posted, user) {
   return { ...full, projects: [...byId.values()] };
 }
 
+/* --- כניסה עם KO ERP --- */
+/* profile = מה ש-/oauth/userinfo של ה-ERP החזיר: { sub, email, name, kind, erp_admin, can_create_offers, offers_refusal }.
+   מחזיר { outcome: 'session' | 'pending' | 'blocked', uid } — 'session' כבר קבע עוגיית סשן */
+export async function erpSignIn(req, res, profile, joinToken) {
+  await authRefresh(true);
+  const db = load();
+  const sub = String(profile.sub || ''), email = normEmail(profile.email), name = String(profile.name || '').trim().slice(0, 60);
+  if (!sub) return { outcome: 'blocked' };
+  if (profile.kind === 'staff' && email && ownerEmails().includes(email)) {
+    db.config.ownerErpId = sub;
+    await setSession(res, OWNER, req, { erp: sub });
+    return { outcome: 'session', uid: 'owner' };
+  }
+  let u = db.users.find(x => x.erpId === sub);
+  if (!u && email) u = db.users.find(x => !x.erpId && x.email === email);   /* חשבון סיסמה קיים באותו מייל — מאמצים אותו (תפקיד, הרשאות, פרויקטים) */
+  const inv = joinToken ? db.invites.find(i => i.token === joinToken) : null;
+  const invOk = !!inv && inviteValid(inv) && (!inv.email || inv.email === email);
+  if (u) {
+    if (u.blocked) return { outcome: 'blocked' };
+    u.erpId = sub;
+    if (email && email !== u.email && !db.users.some(x => x !== u && x.email === email)) u.email = email;   /* המייל של ה-ERP הוא המעודכן */
+    if (!u.name && name) u.name = name;
+    if (invOk) {
+      u.grants = u.grants || {}; inv.projects.forEach(pid => { if (u.grants[pid] !== 'edit') u.grants[pid] = inv.perm; });
+      if (u.pending) { u.pending = false; if (ROLES.includes(inv.role)) u.role = inv.role; }   /* הזמנה בתוקף = אישור */
+      inviteUse(inv, u);
+    }
+    if (u.pending) { await persist(); return { outcome: 'pending' }; }
+    await setSession(res, u, req);
+    return { outcome: 'session', uid: u.id };
+  }
+  if (invOk) {
+    const grants = {}; inv.projects.forEach(pid => { grants[pid] = inv.perm; });
+    const nu = { id: uid('u'), email, name: name || email.split('@')[0], role: ROLES.includes(inv.role) ? inv.role : 'user', grants, blocked: false, erpId: sub, createdAt: new Date().toISOString(), invitedBy: inv.by };
+    db.users.push(nu); inviteUse(inv, nu);
+    await setSession(res, nu, req);
+    return { outcome: 'session', uid: nu.id };
+  }
+  /* לא מוכר, בלי הזמנה: בקשת גישה — מנהל מאשר ב-/admin ובוחר תפקיד; עד אז אין סשן */
+  db.users.push({ id: uid('u'), email, name: name || (email ? email.split('@')[0] : 'ERP'), role: 'user', grants: {}, blocked: false, pending: true, erpId: sub, createdAt: new Date().toISOString(), invitedBy: null });
+  await persist();
+  return { outcome: 'pending' };
+}
+/* למסנכרן מול ה-ERP (erp-login.js startErpSync): המשתמשים המקושרים, ומי מהם עם סשן חי */
+export function erpLinkedUsers() {
+  const db = load(), t = now(), live = new Set(), liveErp = new Set();
+  for (const s of Object.values(db.sessions)) if (s.exp >= t) { live.add(s.uid); if (s.erp) liveErp.add(s.erp); }
+  const out = db.users.filter(u => u.erpId).map(u => ({ erpId: u.erpId, role: u.role, pending: !!u.pending, blocked: !!u.blocked, lastLogin: u.lastLogin || null, projectCount: Object.keys(u.grants || {}).length, live: live.has(u.id) }));
+  if (db.config.ownerErpId) out.push({ erpId: db.config.ownerErpId, role: 'owner', pending: false, blocked: false, lastLogin: db.config.ownerLastLogin || null, projectCount: 0, live: liveErp.has(db.config.ownerErpId) });
+  return out;
+}
+/* חשבון ERP שהושבת / נמחק: כל הסשנים שלו כאן נסגרים (גם של הבעלים שנכנס דרכו). קישור הבעלים לא נוגע */
+export async function endErpSessions(erpIds) {
+  await authRefresh(true);
+  const db = load(), ids = new Set(erpIds), uids = new Set(db.users.filter(u => ids.has(u.erpId)).map(u => u.id));
+  let n = 0;
+  for (const [sid, s] of Object.entries(db.sessions)) if (uids.has(s.uid) || (s.uid === 'owner' && s.erp && ids.has(s.erp))) { delete db.sessions[sid]; db.deleted.sessions.push(sid); n++; }
+  if (n) await persist();
+  return n;
+}
+
 /* --- API --- */
 function json(res, code, obj) { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); }
 function body(req) {
@@ -224,7 +301,8 @@ export async function handleAuth(req, res, path, store) {
   try {
     if (path === '/api/auth/me' && method === 'GET') {
       const isOw = !!(me && me.role === 'owner');
-      return json(res, 200, { enabled: true, user: publicUser(me), owner: isOw, local: isLocal(req), publicUrl: isOw ? publicUrl() : undefined, ownerLink: isOw ? origin(req) + '/owner/' + db.config.ownerKey : undefined, localOnly: isOw ? isLocalUrl(origin(req)) : undefined }), true;
+      const erpLogin = HOOKS.erpLoginAvailable ? await HOOKS.erpLoginAvailable().catch(() => false) : false;
+      return json(res, 200, { enabled: true, erpLogin, user: publicUser(me), owner: isOw, local: isLocal(req), publicUrl: isOw ? publicUrl() : undefined, ownerLink: isOw ? origin(req) + '/owner/' + db.config.ownerKey : undefined, localOnly: isOw ? isLocalUrl(origin(req)) : undefined }), true;
     }
     if (path === '/api/auth/register' && method === 'POST') {
       const b = await body(req);
@@ -252,6 +330,7 @@ export async function handleAuth(req, res, path, store) {
     if (path === '/api/auth/login' && method === 'POST') {
       const b = await body(req), email = normEmail(b.email);
       const u = db.users.find(x => x.email === email);
+      if (u && !u.hash) return json(res, 401, { error: 'החשבון הזה נכנס עם KO ERP — לחץ "כניסה עם KO ERP"' }), true;
       if (!u || !checkPw(u, b.password || '')) return json(res, 401, { error: 'מייל או סיסמה לא נכונים' }), true;
       if (u.blocked) return json(res, 403, { error: 'החשבון חסום — פנה לבעל המערכת' }), true;
       /* כניסה דרך קישור הזמנה של משתמש קיים — ההרשאות שבקישור מתווספות לו */
@@ -296,6 +375,31 @@ export async function handleAuth(req, res, path, store) {
         invites: db.invites.map(i => ({ token: i.token, url: origin(req) + '/join/' + i.token, uses: (i.uses || []).length, valid: inviteValid(i), projects: i.projects.map(id => pn[id] || id), perm: i.perm, email: i.email, label: i.label, createdAt: i.createdAt, exp: i.exp, usedBy: i.usedBy ? (db.users.find(u => u.id === i.usedBy) || {}).email : null, revoked: !!i.revoked })),
       }), true;
     }
+    /* "הוסף מה-ERP": חיפוש בספריית האנשים של ה-ERP, והוספה לפני שהאדם נכנס בכלל */
+    if (path === '/api/admin/erp-search' && method === 'GET') {
+      if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
+      const q = String(new URL(req.url, 'http://x').searchParams.get('q') || '').trim();
+      if (q.length < 2) return json(res, 200, { ok: true, users: [] }), true;
+      if (!HOOKS.searchErpUsers) return json(res, 503, { error: 'החיבור ל-ERP לא זמין' }), true;
+      try {
+        const r = await HOOKS.searchErpUsers(q);
+        if (!r.ok) return json(res, 409, { error: 'KO Projects עוד לא מחובר ל-ERP — "חיבור ל-ERP" במסך הקיטים' }), true;
+        const known = new Map(db.users.filter(x => x.erpId).map(x => [x.erpId, x.id]));
+        return json(res, 200, { ok: true, users: r.users.map(x => ({ ...x, linked: known.has(x.id) })) }), true;
+      } catch (e) { return json(res, 502, { error: 'ה-ERP לא השיב — נסה שוב' }), true; }
+    }
+    if (path === '/api/admin/erp-add' && method === 'POST') {
+      if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
+      const b = await body(req);
+      const sub = String(b.erpId || ''), email = normEmail(b.email), role = ROLES.includes(b.role) ? b.role : 'user';
+      if (!/^[0-9a-f-]{36}$/i.test(sub) || !validEmail(email)) return json(res, 400, { error: 'משתמש ERP לא תקין' }), true;
+      if (db.users.some(x => x.erpId === sub)) return json(res, 409, { error: 'כבר ברשימה' }), true;
+      const ex = db.users.find(x => !x.erpId && x.email === email);
+      if (ex) { ex.erpId = sub; ex.pending = false; ex.role = role; }
+      else db.users.push({ id: uid('u'), email, name: String(b.name || '').trim().slice(0, 60) || email.split('@')[0], role, grants: {}, blocked: false, erpId: sub, createdAt: new Date().toISOString(), invitedBy: me.id });
+      await persist();
+      return json(res, 200, { ok: true }), true;
+    }
     if (path === '/api/admin/user' && method === 'POST') {
       if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
       const b = await body(req); const u = db.users.find(x => x.id === b.id);
@@ -305,7 +409,9 @@ export async function handleAuth(req, res, path, store) {
       if (b.action === 'block') { u.blocked = true; dropSessions(); }
       else if (b.action === 'unblock') u.blocked = false;
       else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); db.deleted.users.push(u.id); dropSessions(); }
-      else if (b.action === 'role') { u.role = ROLES.includes(b.role) ? b.role : 'user'; dropSessions(); }   /* admin רואה את כל הפרויקטים; הסשן מתחדש כדי שהתפקיד ייכנס לתוקף */
+      else if (b.action === 'role') { u.role = ROLES.includes(b.role) ? b.role : 'user'; dropSessions(); }
+      else if (b.action === 'approve') { u.pending = false; u.role = ROLES.includes(b.role) ? b.role : 'user'; }   /* בקשת גישה מ-KO ERP: נכנס בפעם הבאה */
+      else if (b.action === 'reject') { db.users = db.users.filter(x => x.id !== u.id); db.deleted.users.push(u.id); dropSessions(); }   /* admin רואה את כל הפרויקטים; הסשן מתחדש כדי שהתפקיד ייכנס לתוקף */
       else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') { delete u.grants[b.project]; if (u.cur === b.project) delete u.cur; } else { u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; u.cur = b.project; /* ייפתח אצלו בכניסה הבאה */ } }
       else return json(res, 400, { error: 'unknown action' }), true;
       await persist();
@@ -313,11 +419,17 @@ export async function handleAuth(req, res, path, store) {
     }
     if (path === '/api/admin/config' && method === 'GET') {
       if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
-      return json(res, 200, { publicUrl: db.config.publicUrl || '', envPublicUrl: process.env.PUBLIC_URL || '', effective: publicUrl(), ownerLink: origin(req) + '/owner/' + db.config.ownerKey, localOnly: isLocalUrl(origin(req)) }), true;
+      return json(res, 200, { publicUrl: db.config.publicUrl || '', envPublicUrl: process.env.PUBLIC_URL || '', effective: publicUrl(), ownerLink: origin(req) + '/owner/' + db.config.ownerKey, localOnly: isLocalUrl(origin(req)), ownerEmails: db.config.ownerEmails || [], envOwnerEmail: process.env.OWNER_EMAIL || '' }), true;
     }
     if (path === '/api/admin/config' && method === 'POST') {
       if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
       const b = await body(req);
+      if (Array.isArray(b.ownerEmails)) {   /* מיילים שכניסה איתם דרך KO ERP היא הבעלים */
+        const list = b.ownerEmails.map(normEmail).filter(Boolean);
+        if (list.some(e => !validEmail(e))) return json(res, 400, { error: 'מייל לא תקין ברשימת הבעלים' }), true;
+        db.config.ownerEmails = [...new Set(list)].slice(0, 10); await persist();
+        return json(res, 200, { ok: true, ownerEmails: db.config.ownerEmails }), true;
+      }
       const u = String(b.publicUrl || '').trim().replace(/\/$/, '');
       if (u && !/^https?:\/\/[^\s/]+/.test(u)) return json(res, 400, { error: 'כתובת לא תקינה — למשל https://ko.example.com' }), true;
       db.config.publicUrl = u; await persist();
