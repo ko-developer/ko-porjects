@@ -2742,6 +2742,9 @@ window.shareDialog = shareDialog; window.authLogout = authLogout;
 function applySharedMode() {
   if (!AUTH || !AUTH.user || AUTH.user.role === 'owner') return;
   document.body.classList.add('shared');
+  /* לפי data-guest-hide* ולא לפי הטקסט: באנגלית שכבת התרגום כבר החליפה אותו (src/i18n.js). הטקסט נשאר גיבוי לכפתורים ישנים */
+  document.querySelectorAll('header [data-guest-hide-menu]').forEach(b => { b.parentElement.style.display = 'none'; });
+  document.querySelectorAll('header [data-guest-hide]').forEach(b => { b.style.display = 'none'; });
   document.querySelectorAll('header .dd > button').forEach(b => { if (/^(ייצוא|ייבוא)/.test(b.textContent.trim())) b.parentElement.style.display = 'none'; });
   const st = document.getElementById('studioLink'); if (st) st.style.display = 'none';
   document.querySelectorAll('header button').forEach(b => { if (/הדפסה|הגדרות תכנית/.test(b.textContent)) b.style.display = 'none'; });

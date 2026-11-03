@@ -27,4 +27,7 @@ execFileSync(process.execPath, ['--check', tmpLite], { stdio: 'inherit' });
 const cat = JSON.parse(readFileSync('data/lite_catalog.json', 'utf8'));
 if (!cat.tiers || cat.tiers.length < 3) throw new Error('lite_catalog: expected at least 3 tiers');
 for (const t of cat.tiers) for (const k of ['spk', 'sub', 'amp']) if (!t[k] || !t[k].key || !(t[k].price > 0)) throw new Error('lite_catalog: tier ' + t.id + ' missing ' + k);
-console.log('validate OK — JS syntax + data JSON (app + studio)');
+/* 🌐 אנגלית: כל טקסט ממשק בעברית צריך אנגלית ב-data/i18n_en.json — בלי זה הבילד נכשל (scripts/i18n-check.js מסביר מה לעשות).
+   רץ גם בזרימת הפריסה ב-GitHub, כך שזה חל על כולם */
+execFileSync(process.execPath, ['scripts/i18n-check.js'], { stdio: 'inherit' });
+console.log('validate OK — JS syntax + data JSON (app + studio) + English for every UI text');

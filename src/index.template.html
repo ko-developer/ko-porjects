@@ -317,7 +317,7 @@ html.lang-en #langBtn{font-family:inherit}
       <button onclick="this.closest('.dd').classList.remove('open');routeManager()">🛤 צנרת — צינורות, תעלות ומסלולי הכבלים</button>
     </div>
   </div>
-  <button onclick="openPlanSettings()" title="תכנית רקע, כיול, אזורים ופרטי חלל">🗺 הגדרות תכנית</button>
+  <button data-guest-hide onclick="openPlanSettings()" title="תכנית רקע, כיול, אזורים ופרטי חלל">🗺 הגדרות תכנית</button>
   <div class="dd">
     <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()" title="הצגה/הסתרה של מוצרים מהתכנית — כולל הכבלים שלהם">👁 תצוגה ▾</button>
     <div class="ddm" id="viewMenu"></div>
@@ -339,7 +339,7 @@ html.lang-en #langBtn{font-family:inherit}
     <button onclick="fitView()" title="הצג את כל התכנית">⤢</button>
   </div>
   <div class="dd">
-    <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייצוא ▾</button>
+    <button data-guest-hide-menu onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייצוא ▾</button>
     <div class="ddm">
       <button onclick="exportDXF();this.closest('.dd').classList.remove('open')" title="DXF נפתח ישירות ב-AutoCAD (File → Open); שמירה כ-DWG משם">📐 שרטוט ל-AutoCAD (DXF)</button>
       <button onclick="exportPlanPDF();this.closest('.dd').classList.remove('open')" title="דף ה-PDF המקורי של התכנית + האזורים, הכבלים והמוקדים כקווים וקטוריים — לייבוא ב-AutoCAD (PDFIMPORT)">📄 תכנית ל-AutoCAD (PDF וקטורי)</button>
@@ -353,7 +353,7 @@ html.lang-en #langBtn{font-family:inherit}
     </div>
   </div>
   <div class="dd">
-    <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייבוא ▾</button>
+    <button data-guest-hide-menu onclick="this.parentElement.classList.toggle('open');event.stopPropagation()">ייבוא ▾</button>
     <div class="ddm">
       <button onclick="importJSON();this.closest('.dd').classList.remove('open')">📄 ייבוא פרויקט (JSON)</button>
       <button onclick="importBackup();this.closest('.dd').classList.remove('open')">🗄 שחזור מגיבוי מלא · Restore Backup</button>
@@ -369,7 +369,7 @@ html.lang-en #langBtn{font-family:inherit}
     <button id="zoneDdBtn" onclick="if(this.parentElement.dataset.n>1){this.parentElement.classList.toggle('open');event.stopPropagation()}else{zoneGo(this.dataset.zid)}" style="background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0">📍 אזור</button>
     <div class="ddm" id="zoneMenu"></div>
   </div>
-  <button onclick="window.print()">הדפסה</button>
+  <button data-guest-hide onclick="window.print()">הדפסה</button>
 </header>
 <main>
   <div id="shTabsHost"></div>

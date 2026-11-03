@@ -1282,6 +1282,7 @@ async function installerReport() {
     <iframe id="repIfr" style="flex:1;border:none;width:100%"></iframe></div>`;
   document.body.appendChild(ov);
   const ifr = ov.querySelector('#repIfr');
+  ifr.onload = () => { try { if (window.i18nDoc) window.i18nDoc(ifr.contentDocument); } catch (e) {} };   /* באנגלית: שכבת התרגום לא רואה מסמך נפרד */
   ifr.srcdoc = repHtml;
   ov.querySelector('#repPrint').onclick = () => { try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch (e) { window.print(); } };
   ov.querySelector('#repClose').onclick = () => ov.remove();

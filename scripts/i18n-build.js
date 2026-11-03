@@ -7,7 +7,8 @@ const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? proces
 const SERVER = arg('--server', 'http://localhost:4177'), BATCH = +arg('--batch', 60), LIMIT = +arg('--limit', 0), CONC = +arg('--conc', 4);
 const DICT = 'data/i18n_en.json';
 const dict = existsSync(DICT) ? JSON.parse(readFileSync(DICT, 'utf8')) : {};
-const keys = [...extract().keys()].filter(k => !(k in dict));
+const IGNORE = existsSync('data/i18n_ignore.json') ? new Set(JSON.parse(readFileSync('data/i18n_ignore.json', 'utf8'))) : new Set();   /* עברית שאינה ממשק — לא מתרגמים */
+const keys = [...extract().keys()].filter(k => !(k in dict) && !IGNORE.has(k));
 const todo = LIMIT ? keys.slice(0, LIMIT) : keys;
 console.log('missing', keys.length, 'translating', todo.length, 'in batches of', BATCH);
 const GLOSSARY = 'Glossary (Hebrew → English): ארון=rack · מוקד=device (a placed item on the plan) · אזור=zone · קיט=kit · הצעת מחיר=quote · הצעה=quote · תכנית=plan · רמקול=speaker · סאב=sub · מגבר=amplifier · פרוססור=processor · ספיקון=Speakon · כבל=cable · חיווט=wiring · תשתיות=infrastructure · שרטוט=sketch · כיול=calibration · קנה מידה=scale · מתקין=installer · חשמלאי=electrician · כיוון סאונד=sound tuning · מלאי=stock · מק"ט=SKU · תכלית=purpose · עוצמה=level (SPL) · קומה=floor · מבנה=building · פאנל=panel · קיפד=keypad · מטריצה=matrix · מסלול=route · צנרת=conduit · תעלה=cable tray · הכנת חשמל=power point · שקע=outlet · מוגבר=powered · פאסיבי=passive · גב ארון=rack rear · יחידה=unit · דוח=report · טופ=top (full-range speaker) · רחבה=dance floor · פינת ישיבה=lounge · בר=bar.';

@@ -133,6 +133,7 @@ adapter-node — תמונת התכנית נשלחת כ-base64 וחוצה את ב
 5. The app runs client-side from globals in `app.js` — migration to Svelte components should be incremental (carve pieces into `src/lib/`), keeping the legacy build green at every step.
 6. Storage model: with a server (dev/adapter-node) projects live in `data/projects.sqlite` via `/api/store`, mirrored to localStorage; on static deploys (Netlify) localStorage only, with 🗄 Full Backup / Restore in the ייצוא/ייבוא menus for moving data.
 7. מפתח AI: אם ב-.env אין `ANTHROPIC_API_KEY` — בקש מפתח מהמשתמש (הקישור והכפתורים בבאנר בראש הקובץ), כתוב אותו ל-.env והפעל מחדש את השרת בעצמך. אסור לקמט או להדפיס מפתח.
+8. 🌐 English: every new Hebrew UI text gets its English entry in the same commit — `npm run validate` fails without it (see the 🌐 section: `npm run i18n`, `data/i18n_en.json`, ignore markers for non-UI Hebrew). Never read UI text back from the DOM to decide anything; use ids / `data-*`.
 
 ## Current product state (handoff from Cowork sessions, Aug 2026)
 Single-page AV planner, Hebrew RTL. Core flows working: plan upload+calibration, sound zones
@@ -185,3 +186,10 @@ here is the seed), ERP write-back. Use .claude/skills/spec-harvester when adding
 - `src/i18n.js` (מצורף ל-bundle ב-assemble): שכבת תרגום בזמן ריצה — כל צומת טקסט / title / placeholder / aria-label / alt מפוצל במפרידים (· — | : ( ) שורה), מספרים → `#`, קצוות (מספרים/סימנים) נשמרים, והליבה מתורגמת לפי המילון `I18N_EN` (`data/i18n_en.json`, מוזרק כ-DATA). MutationObserver מתרגם כל רינדור. לא מתורגם: TEXTAREA/CODE/PRE/contenteditable, ערכי input, ומה שלא במילון (שמות פריטי ERP, שמות פרויקטים/אזורים).
 - **המילון נבנה מהמקור**: `scripts/i18n-extract.js` מחלץ מקטעי עברית מכל קובצי src (אותה נורמליזציה ופיצול כמו בזמן ריצה) ; `npm run i18n` (`scripts/i18n-build.js`) מתרגם את מה שחסר דרך שרת הפיתוח הרץ (`/api/ai`, המפתח נשאר בשרת) ושומר. **אחרי הוספת טקסטים חדשים בעברית — להריץ `npm run i18n`** (רק החסרים מתורגמים; `npm run i18n:check` מראה כמה חסרים). תיקון תרגום ידני: לערוך את הערך ב-`data/i18n_en.json`.
 - KO Studio ודפי /logic /matrix — עדיין עברית בלבד.
+- **כל בילד חייב לכלול את האנגלית — `npm run validate` נכשל בלעדיה** (`scripts/i18n-check.js`, רץ גם בזרימת הפריסה ב-GitHub, כך שזה חל על כל מי שדוחף):
+  - **טקסט ממשק חדש בעברית** (כפתור, תווית, הודעה, tooltip, placeholder, הודעת שרת שמוצגת באפליקציה) — באותו קומיט: `npm run i18n` (שרת הפיתוח רץ עם `ANTHROPIC_API_KEY`) או ערך ידני ב-`data/i18n_en.json`. הבדיקה מכירה מפתח כמו שכבת התרגום: גרש/גרשיים, אימוג'י בתחילה, חלקים סביב מספר.
+  - **עברית שאינה ממשק** — פרומפט ל-AI, אוצר מילים של OCR, regex שנכתב כמחרוזת, ערך שנשמר או שמשווים אליו — בין `/* i18n-ignore */` … `/* i18n-ignore-end */` במקור, או ב-`data/i18n_ignore.json`. ביטויים רגולריים (`/…/`) והערות לא נספרים בכלל (החילוץ מנתח את ה-JS עם acorn).
+  - **אסור לקרוא טקסט ממשק בחזרה מה-DOM** (`textContent`/`innerText` מול עברית) ולהחליט לפיו: באנגלית הוא כבר מתורגם. מזהים לפי `id` / `data-*` (כמו `data-guest-hide` ב-`applySharedMode`). ערכים שנשמרים (שימוש האזור, סוג ההתקנה, חומרי קירות…) נשארים בעברית בנתונים — רק התצוגה מתורגמת.
+  - **מסמך נפרד** (iframe srcdoc, חלון חדש) לא נראה ל-MutationObserver — לקרוא ל-`i18nDoc(doc)` כשהוא נטען (כמו דוח ההתקנה ב-wizard.js).
+  - מטען ל-ERP, אוצר מילים של OCR ופרומפטים ל-AI — לא מתרגמים.
+  - חירום בלבד: `I18N_ALLOW_MISSING=1 npm run validate` מדפיס את הרשימה ולא נכשל. `npm run i18n:check` מראה מה חסר.

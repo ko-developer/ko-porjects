@@ -89,6 +89,18 @@ function i18nToggle() {
   try { localStorage.setItem('ko_lang', next); } catch {}
   location.reload();
 }
-window.i18nToggle = i18nToggle; window.i18nText = i18nText;
+/* מסמך נפרד (דוח ההתקנה ב-iframe srcdoc, wizard.js): ה-MutationObserver לא רואה אותו — מתרגמים פעם אחת כשנטען */
+function i18nDoc(doc) {
+  if (I18N.lang !== 'en' || !doc || !doc.body) return;
+  doc.documentElement.lang = 'en'; doc.documentElement.dir = 'ltr';
+  const w = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  let c;
+  while ((c = w.nextNode())) {
+    if (c.nodeType === 3) { const p = c.parentNode; if (p && !I18N_SKIP[p.nodeName] && I18N_HEB.test(c.nodeValue)) { const out = i18nText(c.nodeValue); if (out !== c.nodeValue) c.nodeValue = out; } }
+    else for (const a of I18N_ATTRS) { const v = c.getAttribute(a); if (v && I18N_HEB.test(v)) c.setAttribute(a, i18nText(v)); }
+  }
+  if (doc.title && I18N_HEB.test(doc.title)) doc.title = i18nText(doc.title);
+}
+window.i18nToggle = i18nToggle; window.i18nText = i18nText; window.i18nDoc = i18nDoc;
 /* מתחילים אחרי שה-DOM מוכן; render() הראשון של האפליקציה נתפס ע"י ה-observer */
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', i18nStart); else i18nStart();

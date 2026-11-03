@@ -15,7 +15,7 @@
     "import-backup": "node scripts/import-backup.js",
     "build:studio": "node scripts/build-lite.js",
     "i18n": "node scripts/i18n-build.js",
-    "i18n:check": "node scripts/i18n-extract.js"
+    "i18n:check": "node scripts/i18n-check.js"
   },
   "private": true,
   "devDependencies": {
