@@ -8,7 +8,11 @@ const I18N_HEB = /[֐-׿]/;
 const I18N_SEP = /(\s[·—|•]\s|\s[-–]\s|\n|:\s|\(|\)|\[|\]|\s\/\s|\.\s|\?\s|!\s|…)/;
 const I18N_EDGE = '[\\s#%₪$:,.;!?…\\-–—()\\[\\]{}"\'«»×*•·|/+=&~\\d]*';
 const I18N_PIECE_RX = new RegExp('^(' + I18N_EDGE + ')([\\s\\S]*?)(' + I18N_EDGE + ')$');
-function i18nLang() { try { return localStorage.getItem('ko_lang') || 'he'; } catch { return 'he'; } }
+function i18nLang() {
+  /* קישור דוח (/r/<token>) בתוך ה-ERP: השפה של ה-ERP (?lang=), בלי לשמור */
+  try { if (location.pathname.indexOf('/r/') === 0) { const q = new URLSearchParams(location.search).get('lang'); if (q === 'en' || q === 'he') return q; } } catch {}
+  try { return localStorage.getItem('ko_lang') || 'he'; } catch { return 'he'; }
+}
 function i18nDict() { if (I18N.dict) return I18N.dict; I18N.dict = typeof I18N_EN !== 'undefined' && I18N_EN ? I18N_EN : {}; return I18N.dict; }
 /* מקטע אחד: קצוות (מספרים, סימנים) נשמרים, הליבה מתורגמת, # מוחלף חזרה במספרים לפי הסדר */
 function i18nPiece(p) {

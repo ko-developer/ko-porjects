@@ -106,6 +106,12 @@ adapter-node — תמונת התכנית נשלחת כ-base64 וחוצה את ב
   - **מוזמן בלי חשבון KO** (`/join/<token>` → "צור חשבון KO" → `POST /api/auth/erp/signup` → `requestSignupLink`): ה-ERP מנפיק קישור חד-פעמי (`/public/ko-projects-signup/<token>` שם; שם + סיסמה, בלי Google), יוצר חשבון ERP מוגבל ל-KO Projects (אפליקציית `planner`) ומחזיר ל-`/api/auth/erp/start?join=` — ההרשאות שבקישור חלות. כבר יש למייל חשבון ERP → ישר לכניסה. מרגע שהכניסה עם KO ERP פעילה `/api/auth/register` (חשבון סיסמה של KO Projects) מסורב.
   - כניסה עם סיסמה נשארת בינתיים למי שלא מקושר; חשבון שנוצר דרך ה-ERP (בלי סיסמה) מופנה ל"כניסה עם KO ERP".
 
+- **קישור דוח לקריאה בלבד — הדוח בתוך ה-ERP** (`scripts/report-links.js`; `/r/<token>`, שרת הלגאסי): הדוח עצמו (ללקוח / לחשמלאי / למתקין, כולל השרטוטים) בלי האפליקציה סביבו ובלי עריכה — `reportViewerStart` ב-app.js פותח את `reportPreview` ומסיר סדר הדוח / ביטול / שתף / הדפס. ה-ERP מטמיע אותו (`?embed=1&lang=he|en&parent=<מקור ה-ERP>`) בכרטיס הפרויקט, בדף הפרויקט, בהזמנה ובקישור להצעות קבלנים (באג 724708e1 ב-ERP; החוזה: `docs/external-api.md` §14.4 שם).
+  - הטוקן הוא ההרשאה (24 בתים, נוצר בשרת; `data/report-links.json` gitignored / `secrets/report-links.json` בדלי; לא בפרויקט, שהדפדפן יכול לשנות). `POST /api/report-link {projectId, regenerate?}` — למי שיכול לערוך את הפרויקט; regenerate מבטל את הקודם.
+  - זהות הצופה בלי עוגיות (בתוך iframe אין עוגיות צד שלישי): הדף לפי הנתיב, fetch לפי `x-ko-report` (`REPORT_SHIM` מוסיף אותו, ושמירת store לא יוצאת), תמונות לפי Referer מאותו מקור. הצופה רואה פרויקט אחד בצפייה בלבד ולא נוגע בשום ראוט אחר — הבדיקה רצה לפני כל ראוט, גם לפני הבעלים המקומי. `save()` ו-localStorage לא נוגעים בעותק המקומי בדף הזה.
+  - כותרות: `frame-ancestors` לפי `ERP_FRAME_ORIGINS` (ברירת מחדל `https://erp.kot.co.il,http://localhost:5890`), `noindex`, `Referrer-Policy: same-origin`, `no-store`. הגובה נשלח ל-ERP ב-`postMessage({type:'ko-projects:height'})` רק ל-`parent` מהרשימה. `?lang=` גובר על `ko_lang` רק בדפי `/r/`.
+  - שליחת הצעה: `ofPayload` שולח `plan_id`/`plan_name`, והשרת (`ctx.reportLink` ב-erp-routes) מצרף `source_plan` עם הקישורים — רק כש-`get_offer_options.supports_source_plan`. בהצעת פרויקט ה-ERP פותח את כרטיס הפרויקט כבר עכשיו.
+
 ## שיתוף ומשתמשים (scripts/auth.js — רק בשרת הלגאסי `npm run dev:legacy`)
 - הבעלים (אורי) לא נרשם אף פעם: בקשה מ-localhost = בעלים אוטומטית. מבחוץ (או מאחורי פרוקסי עם
   x-forwarded-for) חייבים סשן של מוזמן, אחרת `/login`.

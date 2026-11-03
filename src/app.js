@@ -233,8 +233,10 @@ function srvSaveFail(code) {
       P = store.projects.find(p => p.id === store.cur) || store.projects[0];
       sel = null; selCable = null; selMulti.clear(); normalizeAll();
       if (typeof impItems !== 'undefined') impItems = impLoad();
-      try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
+      /* קישור דוח (/r/): פרויקט אחד לקריאה בלבד — לא נכנס לעותק המקומי של הדפדפן (שבו אולי ה-store המלא של המשתמש) */
+      if (!(window.__AUTH && window.__AUTH.report)) try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
       render(); if (typeof viewToContent === 'function') viewToContent();
+      if (window.__AUTH && window.__AUTH.report) reportViewerStart().catch(e => console.warn('report viewer', e));
       if (typeof sharedWatch === 'function') sharedWatch();
       /* ?open=<id> — פתיחת פרויקט ישירות (מדף המשתמשים / מנהל הפרויקטים) */
       const op = new URLSearchParams(location.search).get('open');
@@ -351,6 +353,7 @@ function renderHistBtns() {
   if (r) { r.disabled = !HIST.future.length; r.style.opacity = r.disabled ? .35 : 1; }
 }
 function save() {
+  if (window.__AUTH && window.__AUTH.report) return;   /* קישור דוח: קריאה בלבד — אין מה לשמור, ולא נוגעים בעותק המקומי */
   store.cur = P.id;
   P.upd = Date.now();   /* חותמת עריכה — השרת לא ידרוס עותק חדש יותר (של משתמש אחר) בעותק ישן מלשונית פתוחה */
   thumbSync();
@@ -12729,6 +12732,7 @@ function kitErpCategory(k) {
 }
 /* שמירה של מצב הפרסום / ה-id-ים בלי save(): לא נוגעים בחותמת העריכה של הפרויקט הפתוח ולא בהיסטוריית הביטול */
 function kitSyncPersist() {
+  if (window.__AUTH && window.__AUTH.report) return;   /* קישור דוח: קריאה בלבד */
   try { localStorage.setItem(LSKEY, JSON.stringify(store, (k, v) => k === 'bgPdf' ? undefined : v)); } catch (e) {}
   pushSrv();
 }
@@ -15291,6 +15295,8 @@ function sendOffer() {
       account_key: document.getElementById('ofAcc')?.dataset.key || undefined,
       account_name: document.getElementById('ofAcc')?.value.trim() || undefined,
       offer_name: document.getElementById('ofName').value.trim(),
+      /* התכנית מאחורי ההצעה: השרת מצרף ל-ERP קישור לדוח לקריאה בלבד (scripts/erp-routes.js → source_plan) */
+      plan_id: P.id, plan_name: P.name,
       infrastructure_transfer_method: document.getElementById('ofInfra').value,
       shipment_method: document.getElementById('ofShip').value || 'warehouse_pickup',
       shipping_address: document.getElementById('ofShip').value === 'warehouse_delivery' ? document.getElementById('ofAddr').value.trim() : undefined,
@@ -15336,6 +15342,7 @@ function sendOffer() {
           ${res.project_created === true ? '<div style="font-size:12.5px;margin-bottom:6px">📁 נוצר פרויקט חדש ב-ERP: <b>' + esc(res.project_name || payload.project_name || '') + '</b></div>' : ''}
           ${res.project_created === false ? '<div style="color:#b7761f;font-size:12px;margin-bottom:6px">📁 ללקוח כבר היה פרויקט בשם הזה שנוצר בדקות האחרונות — ההצעה נוספה אליו</div>' : ''}
           ${j.note ? '<div style="color:#b7761f;font-size:12px;margin-bottom:8px">ℹ ' + esc(j.note) + '</div>' : ''}
+          ${res.ko_projects_plan_saved ? '<div style="font-size:12.5px;margin-bottom:6px">📄 הדוח של התכנית מוצג ב-ERP' + (res.project_ticket_no ? ' — בכרטיס הפרויקט <b>' + esc(res.project_ticket_no) + '</b> ובקישור לקבלנים' : '') + '</div>' : ''}
           ${res.service_ticket_no || res.call_setting_ticket_no ? '<div style="font-size:12.5px;margin-bottom:6px">' + [res.service_ticket_no ? '🛠 קריאת שירות <b>' + esc(res.service_ticket_no) + '</b>' : '', res.call_setting_ticket_no ? '🎛 קריאת כיוון <b>' + esc(res.call_setting_ticket_no) + '</b>' : ''].filter(Boolean).join(' · ') + '</div>' : ''}
           ${(res.ticket_errors || []).length ? '<div style="color:#c1121f;font-size:12px;margin-bottom:8px">⚠ ההצעה נוצרה, אבל קריאה לא נפתחה ב-ERP:<br>' + res.ticket_errors.map(esc).join('<br>') + '</div>' : ''}
           ${j.skipped_without_key && j.skipped_without_key.length ? '<div style="color:#c1121f;font-size:12px;margin-bottom:8px">⚠️ ' + j.skipped_without_key.length + ' פריטים ללא מק"ט לא נכללו</div>' : ''}
@@ -19303,7 +19310,31 @@ function reportPreview() {
     waShare(txt + '\n(הדוח המלא מצורף כ-PDF — הדפס ושמור קודם)');
     uiToast('📲 נפתח וואטסאפ — צרף את ה-PDF ששמרת');
   };
-  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  ov.addEventListener('click', e => { if (e.target === ov && !document.body.classList.contains('rpViewer')) ov.remove(); });
+}
+/* ===== 📄 קישור דוח לקריאה בלבד (/r/<token>, scripts/report-links.js) =====
+   אותו דוח בדיוק — ללקוח / לחשמלאי / למתקין — בלי האפליקציה סביבו ובלי עריכה. ה-ERP מטמיע אותו (?embed=1) בכרטיס, בדף
+   הפרויקט, בהזמנה ובקישור לקבלנים, ומקבל את הגובה (postMessage 'ko-projects:height') כדי שהדף שלו ייגלל כאחד.
+   תמונות הרקע נטענות לפני בניית הדוח, אחרת השרטוטים יוצאים ריקים */
+async function reportViewerStart() {
+  const R = AUTH && AUTH.report; if (!R) return;
+  document.body.classList.add('rpViewer'); if (R.embed) document.body.classList.add('rpEmbed');
+  const css = document.createElement('style');
+  css.textContent = 'body.rpViewer>*:not(#rpPrev):not(#report):not(script){display:none!important}body.rpViewer #rpPrev{background:#f4f2ec!important}'
+    + 'body.rpEmbed{background:transparent!important;margin:0}body.rpEmbed #rpPrev{position:static!important;inset:auto!important;background:transparent!important;padding:0!important}'
+    + 'body.rpEmbed #rpPage{overflow:visible!important;width:100%!important;box-sizing:border-box;box-shadow:none!important}';
+  document.head.appendChild(css);
+  try { await Promise.all((P.sheets || [curSheet(P)]).map(sh => sheetFetchBg(P, sh))); } catch (e) {}
+  window.__rpTab = R.part || 'all';
+  exportPDF();
+  const ov = document.getElementById('rpPrev'); if (!ov) return;
+  ['#rpEdit', '#rpClose', '#rpShare', '#rpPrint'].forEach(s => { const b = ov.querySelector(s); if (b) b.remove(); });
+  if (R.embed && R.parent && window.parent !== window) {
+    let last = 0;
+    const post = () => { const h = Math.ceil(document.documentElement.scrollHeight); if (h !== last) { last = h; window.parent.postMessage({ type: 'ko-projects:height', height: h }, R.parent); } };
+    new ResizeObserver(post).observe(document.body);
+    post();
+  }
 }
 window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); try { rpTabMark($('#report'), 'all'); } catch {} });
 

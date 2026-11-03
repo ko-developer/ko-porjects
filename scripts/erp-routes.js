@@ -154,6 +154,15 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
         }
         if (pid) args.project_id = pid;
       }
+      /* התכנית מאחורי ההצעה (באג 724708e1 ב-ERP): קישור לדוח לקריאה בלבד ולפתיחת התכנית — ה-ERP מטמיע את הדוח בכרטיס, בפרויקט,
+         בהזמנה ובקישור לקבלנים, ובהצעת פרויקט פותח את הכרטיס כבר עכשיו. רק כשה-ERP מכריז שהוא מכיר את השדה */
+      if (p.plan_id && ctx.reportLink) {
+        if (!optCache || Date.now() - optCache.at > 3_600_000) { try { optCache = { at: Date.now(), body: { ok: true, ...((await erpCall('get_offer_options', {}, auth)) || {}) } }; } catch {} }
+        if (optCache && optCache.body && optCache.body.supports_source_plan) {
+          const rl = await ctx.reportLink(String(p.plan_id)).catch(() => null);
+          if (rl) args.source_plan = { plan_id: String(p.plan_id), ...(p.plan_name ? { plan_name: String(p.plan_name).slice(0, 200) } : {}), report_url: rl.report_url, open_url: rl.open_url };
+        }
+      }
       const result = await erpCall('create_offer', args, auth);
       const pid = (result && result.project_id) || args.project_id;
       send(res, 200, { ok: true, result, note, project_web_url: pid ? projectWebUrl(pid) : '', skipped_without_key: p.items_without_key || [] }); return true;

@@ -17,4 +17,5 @@ data/.cache-gcs/
 data/fallback-*.json
 data/erp-connection.json
 data/erp-user-tokens.json
+data/report-links.json
 data/secrets/

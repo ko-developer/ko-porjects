@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <!-- 🌐 שפה: נקבעת לפני כל רינדור כדי שלא יהיה הבהוב; הקנבס נשאר RTL כי הגלילה שלו בנויה על scrollLeft שלילי (ראו src/i18n.js) -->
-<script>try{if(localStorage.getItem('ko_lang')==='en'){var h=document.documentElement;h.lang='en';h.dir='ltr';h.className+=' lang-en';}}catch(e){}</script>
+<script>try{var ql=location.pathname.indexOf('/r/')===0?new URLSearchParams(location.search).get('lang'):null;if(ql?ql==='en':localStorage.getItem('ko_lang')==='en'){var h=document.documentElement;h.lang='en';h.dir='ltr';h.className+=' lang-en';}}catch(e){}</script>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

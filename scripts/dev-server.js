@@ -12,6 +12,7 @@ import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterS
 import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers, accessTokenFor, requestSignupLink } from './erp-login.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
+import { reportTokenFor, projectForReportToken } from './report-links.js';
 import { handleBugs, initBugs } from './bugs.js';
 import { injectLogicData } from './logic-data.js';
 
@@ -171,6 +172,27 @@ async function erpCaller(me) {
   return { personal: true, name, auth: { url: t.base + '/api/mcp', token: t.token } };
 }
 const reqOrigin = req => `${String(req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim()}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+/* קישור דוח לקריאה בלבד (/r/<token>, scripts/report-links.js): מי שמחזיק בטוקן רואה את הדוח של פרויקט אחד, בלי כניסה —
+   גם בתוך iframe של ה-ERP, שבו אין עוגיות של צד שלישי. הזהות: הדף עצמו לפי הנתיב; קריאות fetch מהדף לפי x-ko-report (ראו
+   REPORT_SHIM); תמונות לפי ה-Referer מאותו מקור (Referrer-Policy: same-origin בדף). הצופה רואה רק את הפרויקט, בהרשאת צפייה,
+   ולא נוגע בשום ראוט אחר — גם מ-localhost, שבו אחרת הבעלים */
+const ERP_FRAME_ORIGINS = String(process.env.ERP_FRAME_ORIGINS || 'https://erp.kot.co.il,http://localhost:5890').split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean);
+const VIEWER_PATHS = [/^\/r\/[A-Za-z0-9_-]+$/, /^\/api\/store$/, /^\/api\/project\/[A-Za-z0-9_-]+(\/thumb)?$/, /^\/rear-img\//, /^\/img-proxy$/];
+async function reportViewer(req, path0) {
+  let token = '';
+  const m = /^\/r\/([A-Za-z0-9_-]+)$/.exec(path0);
+  if (m) token = m[1];
+  else if (req.headers['x-ko-report']) token = String(req.headers['x-ko-report']);
+  else if (/^\/(rear-img\/|img-proxy$|api\/project\/[A-Za-z0-9_-]+\/thumb$)/.test(path0)) {
+    try { const ref = new URL(String(req.headers.referer || '')); const rm = /^\/r\/([A-Za-z0-9_-]+)$/.exec(ref.pathname); if (rm && ref.host === req.headers.host) token = rm[1]; } catch {}
+  }
+  if (!token) return null;
+  const pid = await projectForReportToken(storage, token);
+  if (!pid) return null;
+  return { id: 'viewer', role: 'user', name: '', email: '', grants: { [pid]: 'view' }, viewer: true, projectId: pid, token };
+}
+/* בדף הצופה: כל fetch לאותו מקור נושא את הטוקן; שמירה של ה-store לא יוצאת בכלל (הדוח לקריאה בלבד) */
+const REPORT_SHIM = token => `<script>(function(){var T=${JSON.stringify(token)},F=window.fetch;window.fetch=function(u,o){try{var url=new URL(typeof u==='string'?u:u.url,location.href);if(url.origin===location.origin){o=Object.assign({},o||{});var m=String(o.method||'GET').toUpperCase();if(m!=='GET'&&m!=='HEAD'&&url.pathname==='/api/store')return Promise.resolve(new Response('{"ok":true}',{status:200,headers:{'content-type':'application/json'}}));var h=new Headers(o.headers||(typeof u!=='string'&&u.headers)||{});h.set('x-ko-report',T);o.headers=h;}}catch(e){}return F.call(this,u,o);};})();</script>`;
 const reqCookie = (req, name) => { for (const part of String(req.headers.cookie || '').split(';')) { const i = part.indexOf('='); if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim()); } return ''; };
 /* קבצים שנערכים באפליקציה ויש להם גם גרסת ריפו (זריעה): קודם האחסון, אחרת הריפו */
 /* תמונות גב/חזית — מזוהות בכתובת עם ?v= ומתחלפות רק דרך /api/rear-image (שמנקה את המטמון), לכן נשמרות בזיכרון שעה ולא נקראות מהדלי כל 15 שניות */
@@ -201,6 +223,11 @@ const handleReq = async (req, res) => {
   const path0 = (req.url || '').split('?')[0].replace(/\/$/, '') || '/';
   await authRefresh();   /* סשנים/הזמנות שנוצרו בצד השני (מחשב↔ענן) — עד 10 שניות */
   if (path0 === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, storage: storage.kind, label: storage.label, warn: storageWarn || undefined, prebuilt: !!process.env.PREBUILT })); return; }
+  /* קישור דוח (/r/<token>): צופה בפרויקט אחד — לפני כל ראוט אחר (גם הכניסה והניהול), וגם לפני הבעלים המקומי */
+  const viewer = await reportViewer(req, path0);
+  if (viewer && !VIEWER_PATHS.some(rx => rx.test(path0))) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"read-only report link"}'); return; }
+  if (viewer && req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"read-only report link"}'); return; }
+  if (!viewer && /^\/r\/[^/]+$/.test(path0)) { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }); res.end('הקישור לדוח לא תקף או בוטל'); return; }
   /* --- כניסה עם KO ERP (scripts/erp-login.js → auth.js erpSignIn) --- */
   if (path0 === '/api/auth/erp/start' && req.method === 'GET') {
     const join = new URLSearchParams((req.url || '').split('?')[1] || '').get('join') || '';
@@ -255,8 +282,8 @@ const handleReq = async (req, res) => {
     sendPage(res, AUTH_PAGES['/admin']); return;
   }
   /* מקומי = הבעלים, בלי כניסה. מבחוץ — חייב סשן של מוזמן (בדיקה מקומית: סשן גובר) */
-  const me = requestUser(req);
-  const gated = !!sessionUser(req) || !isLocal(req);
+  const me = viewer || requestUser(req);
+  const gated = !!viewer || !!sessionUser(req) || !isLocal(req);
   if (!me) {
     if (path0.startsWith('/api/')) { res.writeHead(401, { 'content-type': 'application/json' }); res.end('{"error":"login required"}'); return; }
     res.writeHead(302, { location: '/login' }); res.end(); return;
@@ -287,9 +314,30 @@ const handleReq = async (req, res) => {
   if (await handleBugs(req, res, path0, me)) return;
   if (path0 === '/bugs') { if (!isOwner) { res.writeHead(302, { location: '/' }); res.end(); return; } sendPage(res, AUTH_PAGES['/bugs']); return; }
   /* --- שאר ראוטי ה-ERP: סטטוס, לקוחות, פרויקטים, אפשרויות, כמויות עתידיות, יצירת הצעה (scripts/erp-routes.js) --- */
+  /* קישור הדוח של פרויקט (לשליחה ל-ERP / העתקה): בעלים, אדמין, או מי שיכול לערוך את הפרויקט. regenerate = ביטול הקודם */
+  if (path0 === '/api/report-link' && req.method === 'POST') {
+    const out = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
+    if (!/^application\/json\b/i.test(req.headers['content-type'] || '')) return out(415, { error: 'JSON only' });
+    let b = {}; try { b = JSON.parse(await new Promise((ok, no) => { const ch = []; req.on('data', c => ch.push(c)); req.on('end', () => ok(Buffer.concat(ch).toString('utf8') || '{}')); req.on('error', no); })); } catch { return out(400, { error: 'גוף הבקשה אינו JSON תקין' }); }
+    const pid = String(b.projectId || '');
+    const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v);
+    const p = (st.projects || []).find(x => x.id === pid);
+    const canEdit = !!p && (isOwner || me.role === 'admin' || p.by === me.id || (me.grants || {})[pid] === 'edit');
+    if (!canEdit) return out(403, { error: 'אין הרשאת עריכה לפרויקט הזה' });
+    const token = await reportTokenFor(storage, pid, { regenerate: b.regenerate === true });
+    return out(200, { ok: true, url: (process.env.PUBLIC_URL || reqOrigin(req)).replace(/\/+$/, '') + '/r/' + token });
+  }
   let callerOnce = null;   /* מחושב פעם אחת לבקשה, רק כשראוט צריך אותו */
   const caller = () => (callerOnce = callerOnce || erpCaller(me));
-  if (await handleErp(req, res, path0, isOwner, { storage, user: me, caller, erpLoginLive: () => erpLoginAvailable(process.env, storage) })) return;
+  /* קישור הדוח לפרויקט שההצעה עליו — רק למי שיכול לערוך את הפרויקט (כמו /api/report-link) */
+  const reportLink = async pid => {
+    const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v);
+    const p = (st.projects || []).find(x => x.id === pid);
+    if (!p || !(isOwner || me.role === 'admin' || p.by === me.id || (me.grants || {})[pid] === 'edit')) return null;
+    const base = (process.env.PUBLIC_URL || reqOrigin(req)).replace(/\/+$/, '');
+    return { report_url: base + '/r/' + await reportTokenFor(storage, pid), open_url: base + '/?open=' + encodeURIComponent(pid) };
+  };
+  if (await handleErp(req, res, path0, isOwner, { storage, user: me, caller, reportLink, erpLoginLive: () => erpLoginAvailable(process.env, storage) })) return;
   /* --- הצעות מחיר מה-ERP (חי, דרך MCP) — בעלים בלבד --- */
   if (path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') {
     if (!isOwner) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"owner only"}'); return; }
@@ -553,6 +601,7 @@ const handleReq = async (req, res) => {
   }
   /* KO Studio — נתיב /studio מגיש את גרסת משתמשי הקצה (build:studio) */
   const isStudio = path === '/studio';
+  const isReport = !!viewer && path.startsWith('/r/');
   try {
     /* בענן (PREBUILT=1) ה-dist נבנה פעם אחת בבניית התמונה; מקומית — נבנה מחדש בכל בקשה כדי שהדף תמיד עדכני */
     await ensureBuilt(isStudio);
@@ -560,9 +609,17 @@ const handleReq = async (req, res) => {
     /* נתונים שנערכים באפליקציה (פריסות/תמונות גב) — הגרסה העדכנית מהאחסון במקום זו שנאפתה בבנייה */
     if (!isStudio) for (const [name, key] of [['REAR_LAYOUTS', 'rear_layouts.json'], ['REAR_IMAGES', 'rear_images.json']]) { const j = await readCached(key, () => storage.read(key)); if (j) html = injectData(html, name, j.toString('utf8')); }
     /* מצב המשתמש מוזרק לדף — הכותרת מציגה שיתוף/ניהול לבעלים, שם ויציאה למוזמן */
-    const authState = JSON.stringify({ enabled: true, user: publicUser(me), owner: !!isOwner, gated, storage: { kind: storage.kind, label: storage.label, warn: storageWarn } });
+    let report = null, headers = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' };
+    if (isReport) {
+      /* דף הדוח: ?embed=1 (בתוך ה-ERP), ?lang=he|en, ?parent=<מקור ה-ERP> — רק מקור מהרשימה מקבל הודעות גובה (postMessage) */
+      const q = new URLSearchParams((req.url || '').split('?')[1] || ''), parent = (q.get('parent') || '').replace(/\/+$/, '');
+      report = { projectId: viewer.projectId, embed: q.get('embed') === '1', lang: q.get('lang') === 'en' ? 'en' : q.get('lang') === 'he' ? 'he' : '', parent: ERP_FRAME_ORIGINS.includes(parent) ? parent : '', part: ['all', 'cust', 'elec', 'inst'].includes(q.get('part')) ? q.get('part') : '' };
+      headers = { ...headers, 'content-security-policy': "frame-ancestors 'self' " + ERP_FRAME_ORIGINS.join(' '), 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'same-origin' };
+      html = html.replace('<script', REPORT_SHIM(viewer.token) + '<script');
+    }
+    const authState = JSON.stringify({ enabled: true, user: publicUser(me), owner: !!isOwner, gated, storage: { kind: storage.kind, label: storage.label, warn: storageWarn }, ...(report ? { report } : {}) });
     html = html.replace('<script', '<script>window.__AUTH=' + authState + ';</script><script');
-    sendText(req, res, 200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }, html);
+    sendText(req, res, 200, headers, html);
   } catch (e) {
     res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('build failed:\n' + e.message);
