@@ -6085,4 +6085,14 @@
 "חסר שם הצעה":"The offer name is missing",
 "אין פריטים עם מק\"ט ליצירת הצעה":"No items with a SKU to create an offer from",
 "ללקוח כבר יש פרויקט":"The customer already has a project",
-"גוף הבקשה אינו JSON תקין":"The request body isn't valid JSON"}
+"גוף הבקשה אינו JSON תקין":"The request body isn't valid JSON",
+"מחובר כ":"Signed in as",
+"קשר את החשבון ל-KO ERP":"Link the account to KO ERP",
+"אם יש לך חשבון שם, או":"if you have an account there, or",
+"צור חשבון KO":"Create KO account",
+"אם אין":"if you don't",
+"המשך בלי לקשר":"Continue without linking",
+"מייל לא מאומת":"Email not verified",
+"חשבון ERP חיצוני":"Outside ERP account",
+"המייל הוא מה שהאדם הקליד בהרשמה, ואיש לא בדק שהוא שלו":"the email is what the person typed at sign-up, and nobody checked it is theirs",
+"קישורי הדוחות לא נקראו מהאחסון":"The report links could not be read from storage"}

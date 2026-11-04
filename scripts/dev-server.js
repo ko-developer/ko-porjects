@@ -8,7 +8,7 @@ import { execFile } from 'node:child_process';
 import { stat, readdir, readFile, writeFile } from 'node:fs/promises';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
-import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks, inviteForSignup } from './auth.js';
+import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks, inviteForSignup, signupEmailCheck, erpTokenKey } from './auth.js';
 import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers, accessTokenFor, requestSignupLink } from './erp-login.js';
 import { erpQuotes, erpQuoteItems } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
@@ -161,9 +161,9 @@ setAuthHooks({
   erpLoginAvailable: () => erpLoginAvailable(process.env, storage),
   searchErpUsers: q => searchErpUsers(process.env, storage, q)
 });
-/* בשם מי פונים ל-ERP: הטוקן של האדם שנכנס עם KO ERP (גם הבעלים, אם נכנס כך). בלעדיו — { personal:false, reason } */
+/* בשם מי פונים ל-ERP: הטוקן של האדם שנכנס עם KO ERP (גם הבעלים, אם נכנס כך — לכל מייל בעלים טוקן משלו, 'owner:'+erp). בלעדיו — { personal:false, reason } */
 async function erpCaller(me) {
-  const uidT = me.role === 'owner' ? (me.erpId ? 'owner' : '') : (me.erpId ? me.id : '');
+  const uidT = erpTokenKey(me);
   const name = me.name || me.email || '';
   if (!uidT) return { personal: false, name, reason: 'not_signed_in' };
   if (me.erpCanOffer === false) return { personal: false, name, reason: me.erpOffersRefusal || 'account_not_allowed' };
@@ -176,7 +176,8 @@ const reqOrigin = req => `${String(req.headers['x-forwarded-proto'] || 'http').s
    גם בתוך iframe של ה-ERP, שבו אין עוגיות של צד שלישי. הזהות: הדף עצמו לפי הנתיב; קריאות fetch מהדף לפי x-ko-report (ראו
    REPORT_SHIM); תמונות לפי ה-Referer מאותו מקור (Referrer-Policy: same-origin בדף). הצופה רואה רק את הפרויקט, בהרשאת צפייה,
    ולא נוגע בשום ראוט אחר — גם מ-localhost, שבו אחרת הבעלים */
-const ERP_FRAME_ORIGINS = String(process.env.ERP_FRAME_ORIGINS || 'https://erp.kot.co.il,http://localhost:5890').split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean);
+/* ה-ERP המקומי (localhost:5890) רק כשהשרת רץ על המחשב — בענן (K_SERVICE) רק מה שמוגדר */
+const ERP_FRAME_ORIGINS = String(process.env.ERP_FRAME_ORIGINS || ('https://erp.kot.co.il' + (process.env.K_SERVICE ? '' : ',http://localhost:5890'))).split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean);
 const VIEWER_PATHS = [/^\/r\/[A-Za-z0-9_-]+$/, /^\/api\/store$/, /^\/api\/project\/[A-Za-z0-9_-]+(\/thumb)?$/, /^\/rear-img\//, /^\/img-proxy$/];
 async function reportViewer(req, path0) {
   let token = '';
@@ -193,6 +194,46 @@ async function reportViewer(req, path0) {
 }
 /* בדף הצופה: כל fetch לאותו מקור נושא את הטוקן; שמירה של ה-store לא יוצאת בכלל (הדוח לקריאה בלבד) */
 const REPORT_SHIM = token => `<script>(function(){var T=${JSON.stringify(token)},F=window.fetch;window.fetch=function(u,o){try{var url=new URL(typeof u==='string'?u:u.url,location.href);if(url.origin===location.origin){o=Object.assign({},o||{});var m=String(o.method||'GET').toUpperCase();if(m!=='GET'&&m!=='HEAD'&&url.pathname==='/api/store')return Promise.resolve(new Response('{"ok":true}',{status:200,headers:{'content-type':'application/json'}}));var h=new Headers(o.headers||(typeof u!=='string'&&u.headers)||{});h.set('x-ko-report',T);o.headers=h;}}catch(e){}return F.call(this,u,o);};})();</script>`;
+/* מה שהצופה מקבל: קישור הדוח הולך לקבלנים בלי כניסה, ולכן הדף לא נושא מחירים, קיטים, הזמנות או נתוני מכירה.
+   הדוח עצמו (exportPDF0) קורא מהקטלוג רק שמות פריטים (תמונות לפי דגם, אביזרי תלייה) ואת הסדר "קודם הכי הרבה במלאי, אחר כך
+   מה שנמכר לאחרונה" שבו mountProductFor בוחר אביזר תלייה לטבלת המתקין — לכן ERP_ITEMS נשאר עם שמות ודירוג מלאי במקום מחיר
+   וכמות, ו-ERP_SOLD עם דירוג במקום תאריכים וכמויות: אותו סדר בדיוק (byStockThenSold), בלי המספרים. השאר — ריק */
+const rankOf = vals => { const m = new Map([...new Set(vals)].sort((a, b) => a - b).map((v, i) => [v, i + 1])); return v => m.get(v); };
+const VIEWER_DATA = {
+  ERP_PRICES: () => ({}),
+  ERP_KITS: () => [],
+  ERP_CATALOG: () => [],
+  ERP_FILTERS: () => ({}),
+  KIT_META: () => ({}),
+  ERP_ITEMS: rows => { const r = rankOf(rows.map(x => +x[3] || 0).filter(q => q > 0)); return rows.map(([k, n, , q]) => [k, n, 0, +q > 0 ? r(+q) : 0]); },
+  /* stockRank: פריט שאזל — לפי תאריך המכירה האחרונה ואז מספר השורות. דירוג אחד לזוג, כתאריך מלאכותי (2000-01-01 + הדירוג בימים) */
+  ERP_SOLD: sold => {
+    const keyOf = v => [Date.parse(v[0] + 'T00:00:00') || 0, +v[1] || 0];
+    const idx = new Map();
+    Object.values(sold).map(keyOf).filter(p => p[0]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).forEach(p => { if (!idx.has(p.join())) idx.set(p.join(), idx.size + 1); });
+    const out = {};
+    for (const [k, v] of Object.entries(sold)) { const i = idx.get(keyOf(v).join()); out[k] = [i ? new Date(Date.UTC(2000, 0, 1) + i * 864e5).toISOString().slice(0, 10) : '', 0, 0]; }
+    return out;
+  },
+  LIGHT_FIXTURES: lf => ({ ...lf, items: (lf.items || []).map(({ price, ...it }) => it) })
+};
+const viewerCache = new Map();   /* NAME → { src, out } */
+function viewerPage(html) {
+  for (const [name, fn] of Object.entries(VIEWER_DATA)) {
+    const m = new RegExp('const ' + name + ' = ([\\s\\S]*?);/\\*__END:' + name + '__\\*/').exec(html);
+    if (!m) throw new Error('report page: data block ' + name + ' not found');   /* לא מגישים את הדף עם הנתונים המלאים */
+    let c = viewerCache.get(name);
+    if (!c || c.src !== m[1]) { c = { src: m[1], out: JSON.stringify(fn(JSON.parse(m[1]))) }; viewerCache.set(name, c); }
+    html = injectData(html, name, c.out);
+  }
+  return html;
+}
+/* הפרויקט לצופה: בלי היסטוריית הגרסאות ובלי המחירים שבשורות ההצעה (הדוח לא מציג מחיר) */
+function viewerProject(p) {
+  const { vers, versN, ...q } = p;
+  if (Array.isArray(q.impSaved)) q.impSaved = q.impSaved.map(({ price, ...it }) => it);
+  return q;
+}
 const reqCookie = (req, name) => { for (const part of String(req.headers.cookie || '').split(';')) { const i = part.indexOf('='); if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim()); } return ''; };
 /* קבצים שנערכים באפליקציה ויש להם גם גרסת ריפו (זריעה): קודם האחסון, אחרת הריפו */
 /* תמונות גב/חזית — מזוהות בכתובת עם ?v= ומתחלפות רק דרך /api/rear-image (שמנקה את המטמון), לכן נשמרות בזיכרון שעה ולא נקראות מהדלי כל 15 שניות */
@@ -224,7 +265,9 @@ const handleReq = async (req, res) => {
   await authRefresh();   /* סשנים/הזמנות שנוצרו בצד השני (מחשב↔ענן) — עד 10 שניות */
   if (path0 === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, storage: storage.kind, label: storage.label, warn: storageWarn || undefined, prebuilt: !!process.env.PREBUILT })); return; }
   /* קישור דוח (/r/<token>): צופה בפרויקט אחד — לפני כל ראוט אחר (גם הכניסה והניהול), וגם לפני הבעלים המקומי */
-  const viewer = await reportViewer(req, path0);
+  let viewer;
+  try { viewer = await reportViewer(req, path0); }
+  catch (e) { console.warn('[report-links] ' + e.message); res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }); res.end('Report temporarily unavailable — try again shortly'); return; }   /* קובץ הקישורים לא נקרא — לא "קישור לא תקף" */
   if (viewer && !VIEWER_PATHS.some(rx => rx.test(path0))) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"read-only report link"}'); return; }
   if (viewer && req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"read-only report link"}'); return; }
   if (!viewer && /^\/r\/[^/]+$/.test(path0)) { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }); res.end('הקישור לדוח לא תקף או בוטל'); return; }
@@ -233,7 +276,10 @@ const handleReq = async (req, res) => {
     const join = new URLSearchParams((req.url || '').split('?')[1] || '').get('join') || '';
     const back = '/login?erp=unavailable' + (join ? '&t=' + encodeURIComponent(join) : '');
     if (!(await erpLoginAvailable(process.env, storage))) { res.writeHead(302, { location: back, 'cache-control': 'no-store' }); res.end(); return; }
-    const { url, bind } = loginStart(process.env, reqOrigin(req), { join });
+    /* כבר מחובר כאן עם סיסמה, בלי קישור ל-ERP: זה הדרך הבטוחה לקשר — הרשומה נקבעת לפי הסשן (ונבדקת שוב בחזרה), לא לפי המייל */
+    const cur = sessionUser(req);
+    const linkUid = cur && cur.id !== 'owner' && !cur.erpId ? cur.id : '';
+    const { url, bind } = loginStart(process.env, reqOrigin(req), { join, linkUid });
     const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') ? '; Secure' : '';
     res.writeHead(302, { location: url, 'set-cookie': `${BIND_COOKIE}=${bind}; Path=/api/auth/erp; HttpOnly; SameSite=Lax; Max-Age=600${secure}`, 'cache-control': 'no-store' }); res.end(); return;
   }
@@ -242,9 +288,9 @@ const handleReq = async (req, res) => {
     let location;
     if (!r.ok) location = '/login?erp=' + r.reason + (r.join ? '&t=' + encodeURIComponent(r.join) : '');
     else {
-      const out = await erpSignIn(req, res, r.profile, r.join);
+      const out = await erpSignIn(req, res, r.profile, r.join, { linkUid: r.linkUid });
       if (out.outcome === 'session') {
-        try { await saveUserTokens(storage, out.uid, r.tokens); } catch (e) { console.warn('[erp-login] saving the ERP sign-in failed:', e.message); }
+        try { await saveUserTokens(storage, out.tokenKey, r.tokens); } catch (e) { console.warn('[erp-login] saving the ERP sign-in failed:', e.message); }
         location = '/';
       } else location = '/login?erp=' + out.outcome;
     }
@@ -259,8 +305,11 @@ const handleReq = async (req, res) => {
     try { b = JSON.parse(await new Promise((ok, no) => { const ch = []; req.on('data', c => ch.push(c)); req.on('end', () => ok(Buffer.concat(ch).toString('utf8') || '{}')); req.on('error', no); })); } catch { return out(400, { error: 'גוף הבקשה אינו JSON תקין' }); }
     const join = String(b.token || ''), email = String(b.email || '').trim().toLowerCase(), name = String(b.name || '').trim().slice(0, 100);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return out(400, { error: 'כתובת מייל לא תקינה' });
-    const chk = inviteForSignup(join, email);
-    if (!chk.ok) return out(403, { error: chk.error });
+    /* מייל של רשומה קיימת כאן: רק מי שכבר מחובר כאותה רשומה (ואז ההזמנה לא נדרשת — הוא כבר משתמש; הקישור נעשה לפי הסשן).
+       ההזמנה נבדקת קודם, כדי שבלי קישור בתוקף אי אפשר לברר אילו מיילים רשומים */
+    const own = await signupEmailCheck(req, email);
+    if (!own.linking) { const chk = inviteForSignup(join, email); if (!chk.ok) return out(403, { error: chk.error }); }
+    if (!own.ok) return out(409, { error: own.error });
     if (!(await erpLoginAvailable(process.env, storage))) return out(409, { error: 'הכניסה דרך ה-ERP עוד לא זמינה — הירשם עם מייל וסיסמה' });
     const back = reqOrigin(req) + '/api/auth/erp/start?join=' + encodeURIComponent(join);
     try {
@@ -324,7 +373,9 @@ const handleReq = async (req, res) => {
     const p = (st.projects || []).find(x => x.id === pid);
     const canEdit = !!p && (isOwner || me.role === 'admin' || p.by === me.id || (me.grants || {})[pid] === 'edit');
     if (!canEdit) return out(403, { error: 'אין הרשאת עריכה לפרויקט הזה' });
-    const token = await reportTokenFor(storage, pid, { regenerate: b.regenerate === true });
+    let token;
+    try { token = await reportTokenFor(storage, pid, { regenerate: b.regenerate === true }); }
+    catch (e) { console.warn('[report-links] ' + e.message); return out(503, { error: 'קישורי הדוחות לא נקראו מהאחסון — נסה שוב בעוד רגע' }); }   /* בלי קריאה תקינה לא כותבים — אחרת נמחקים הקישורים של כל הפרויקטים */
     return out(200, { ok: true, url: (process.env.PUBLIC_URL || reqOrigin(req)).replace(/\/+$/, '') + '/r/' + token });
   }
   let callerOnce = null;   /* מחושב פעם אחת לבקשה, רק כשראוט צריך אותו */
@@ -373,7 +424,7 @@ const handleReq = async (req, res) => {
         const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v);
         const p = (filterStore(st, me).projects || []).find(x => x.id === pm[1]);
         if (!p) { res.writeHead(404); res.end('no project'); return; }
-        const want = (pm[2] || 'bg').split(',').filter(f => HEAVY.includes(f)), out = {};
+        const want = (pm[2] || 'bg').split(',').filter(f => HEAVY.includes(f) && !(viewer && f === 'vers')), out = {};   /* צופה בקישור דוח: בלי היסטוריית הגרסאות */
         for (const f of want) if (p[f] != null) out[f] = p[f];
         sendText(req, res, 200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }, JSON.stringify(out));
       } catch (e) { res.writeHead(500); res.end(String(e.message)); }
@@ -386,7 +437,9 @@ const handleReq = async (req, res) => {
         const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v);
         const full = /[?&]full=1/.test(req.url || '');   /* גיבוי מלא — לפי בקשה מפורשת בלבד */
         const vis = filterStore(st, me);
-        sendText(req, res, 200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-ko-store': storage.label }, JSON.stringify(full ? vis : liteStore(vis, vis.cur)));
+        let body = full ? vis : liteStore(vis, vis.cur);
+        if (viewer) body = { ...body, projects: (body.projects || []).map(viewerProject) };   /* קישור דוח: בלי גרסאות ומחירים, ובלי שם הדלי בכותרת */
+        sendText(req, res, 200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...(viewer ? {} : { 'x-ko-store': storage.label }) }, JSON.stringify(body));
       } catch (e) { res.writeHead(500); res.end(String(e.message)); }
       return;
     }
@@ -615,9 +668,10 @@ const handleReq = async (req, res) => {
       const q = new URLSearchParams((req.url || '').split('?')[1] || ''), parent = (q.get('parent') || '').replace(/\/+$/, '');
       report = { projectId: viewer.projectId, embed: q.get('embed') === '1', lang: q.get('lang') === 'en' ? 'en' : q.get('lang') === 'he' ? 'he' : '', parent: ERP_FRAME_ORIGINS.includes(parent) ? parent : '', part: ['all', 'cust', 'elec', 'inst'].includes(q.get('part')) ? q.get('part') : '' };
       headers = { ...headers, 'content-security-policy': "frame-ancestors 'self' " + ERP_FRAME_ORIGINS.join(' '), 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'same-origin' };
-      html = html.replace('<script', REPORT_SHIM(viewer.token) + '<script');
+      html = viewerPage(html).replace('<script', REPORT_SHIM(viewer.token) + '<script');
     }
-    const authState = JSON.stringify({ enabled: true, user: publicUser(me), owner: !!isOwner, gated, storage: { kind: storage.kind, label: storage.label, warn: storageWarn }, ...(report ? { report } : {}) });
+    /* לצופה בקישור דוח — בלי פרטי האחסון (שם הדלי) */
+    const authState = JSON.stringify({ enabled: true, user: publicUser(me), owner: !!isOwner, gated, ...(report ? { report } : { storage: { kind: storage.kind, label: storage.label, warn: storageWarn } }) });
     html = html.replace('<script', '<script>window.__AUTH=' + authState + ';</script><script');
     sendText(req, res, 200, headers, html);
   } catch (e) {

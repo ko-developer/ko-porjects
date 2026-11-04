@@ -19,12 +19,12 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
 <h2>גישה מבחוץ</h2>
 <div id="cfg" style="background:#fff;border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.7">
   <div>כתובת חיצונית של השרת (הקישורים ייבנו ממנה): <input id="pubUrl" placeholder="https://ko.example.com" style="width:320px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;direction:ltr"> <button id="pubSave" class="ok">שמור</button> <span id="pubNote" class="muted"></span></div>
-  <div style="margin-top:6px">כניסה עם KO ERP במייל הזה = בעל המערכת: <input id="ownerEmails" placeholder="name@kot.co.il" title="אפשר כמה, מופרדים בפסיק" style="width:260px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;direction:ltr"> <button id="ownerEmailsSave" class="ok">שמור</button> <span id="ownerEmailsNote" class="muted"></span></div>
+  <div id="ownerEmailsRow" style="margin-top:6px;display:none">כניסה עם KO ERP במייל הזה = בעל המערכת: <input id="ownerEmails" placeholder="name@kot.co.il" title="אפשר כמה, מופרדים בפסיק" style="width:260px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;direction:ltr"> <button id="ownerEmailsSave" class="ok">שמור</button> <span id="ownerEmailsNote" class="muted"></span></div>
   <div id="ownerLinkRow" style="margin-top:6px">הקישור שלך לגישה מבחוץ (בלי הרשמה — שומר עוגייה לשנה, אל תשלח לאף אחד): <span id="ownerLink" class="url"></span> <button id="ownerCopy">העתק</button></div>
 </div>
 <h2>משתמשים</h2>
 <div id="users">טוען…</div>
-<div id="erpAdd" style="background:#fff;border-radius:10px;padding:12px 14px;font-size:12.5px;margin-top:10px">
+<div id="erpAdd" style="background:#fff;border-radius:10px;padding:12px 14px;font-size:12.5px;margin-top:10px;display:none">
   <b>הוסף מה-ERP</b> <span class="muted">— אנשי KO עם חשבון ב-ERP; אחרי ההוספה הם נכנסים עם "כניסה עם KO ERP"</span><br>
   <input id="erpQ" placeholder="שם או מייל" style="width:260px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;margin-top:6px"> <span id="erpNote" class="muted"></span>
   <div id="erpRes"></div>
@@ -42,6 +42,9 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
       document.getElementById('ownerLink').textContent = c.ownerLink || '';
       document.getElementById('ownerEmails').value = (c.ownerEmails || []).join(', ');
       document.getElementById('ownerEmailsNote').textContent = c.envOwnerEmail ? 'וגם מהשרת: ' + c.envOwnerEmail : '';
+      /* רדום עד שהכניסה עם KO ERP פעילה — כמו הכפתור בדף הכניסה */
+      document.getElementById('ownerEmailsRow').style.display = c.erpLogin ? '' : 'none';
+      document.getElementById('erpAdd').style.display = c.erpLogin ? '' : 'none';
       document.getElementById('pubNote').textContent = c.localOnly ? '⚠ כרגע הקישורים נבנים על localhost — מוזמנים מבחוץ לא יוכלו לפתוח אותם. הגדר כאן (או ב-PUBLIC_URL ב-.env) את כתובת השרת בענן, למשל https://ko-projects-226076433415.me-west1.run.app' : '✓ קישורים נבנים על ' + c.effective;
     });
   }
@@ -78,7 +81,7 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
       var uh = '<table><tr><th>שם</th><th>מייל</th><th>תפקיד</th><th>פרויקטים והרשאה</th><th>נרשם</th><th>כניסה אחרונה</th><th>מצב</th><th></th></tr>';
       d.users.forEach(function (u) {
         var own = u.role === 'owner';
-        uh += '<tr><td><b>' + esc(u.name) + '</b>' + (u.erp ? ' <span class="b own" title="נכנס עם KO ERP">ERP</span>' : '') + (u.pending ? ' <span class="b v">ממתין לאישור</span>' : '') + '</td><td>' + esc(u.email) + '</td><td>' + (own ? '<span class="b own">בעלים</span>' : '<select data-role="' + esc(u.id) + '" title="אדמין: צופה ועורך הכול · מנהל פרויקטים KO: רואה הכול, עורך את שלו ומה שהוענק לו · משתמש חיצוני: רק מה ששותף איתו">' + [['user', 'משתמש חיצוני — רק מה ששותף'], ['pm', 'מנהל פרויקטים KO — רואה הכול, עורך את שלו'], ['admin', 'אדמין — צופה ועורך הכול']].map(function (r) { return '<option value="' + r[0] + '"' + ((u.role || 'user') === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('') + '</select>') + '</td>' +
+        uh += '<tr><td><b>' + esc(u.name) + '</b>' + (u.erp ? ' <span class="b own" title="נכנס עם KO ERP">ERP</span>' : '') + (u.pending ? ' <span class="b v">ממתין לאישור</span>' : '') + '</td><td>' + esc(u.email) + (u.emailUnverified ? ' <span class="b no" title="חשבון ERP חיצוני: המייל הוא מה שהאדם הקליד בהרשמה, ואיש לא בדק שהוא שלו">מייל לא מאומת</span>' : '') + '</td><td>' + (own ? '<span class="b own">בעלים</span>' : '<select data-role="' + esc(u.id) + '" title="אדמין: צופה ועורך הכול · מנהל פרויקטים KO: רואה הכול, עורך את שלו ומה שהוענק לו · משתמש חיצוני: רק מה ששותף איתו">' + [['user', 'משתמש חיצוני — רק מה ששותף'], ['pm', 'מנהל פרויקטים KO — רואה הכול, עורך את שלו'], ['admin', 'אדמין — צופה ועורך הכול']].map(function (r) { return '<option value="' + r[0] + '"' + ((u.role || 'user') === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('') + '</select>') + '</td>' +
           '<td>' + (own ? '<span class="muted">הכל</span>' : (u.projects.length ? u.projects.map(function (p) {
             return '<div style="margin-bottom:3px"><a href="/?open=' + encodeURIComponent(p.id) + '" style="color:#185fa5;font-weight:700;text-decoration:none" title="פתח את הפרויקט באפליקציה">📂 ' + esc(p.name) + '</a>' + (p.created ? ' <span class="b own">נוצר על ידו</span>' : ' <span class="b v">שותף איתו</span>') + ' <span class="muted">' + (p.nodes || 0) + ' מוקדים' + (p.upd > 1e12 ? ' · עודכן ' + fmt(p.upd) : '') + '</span> <select data-grant="' + esc(u.id) + '|' + esc(p.id) + '"><option value="edit"' + (p.perm === 'edit' ? ' selected' : '') + '>עריכה</option><option value="view"' + (p.perm === 'view' ? ' selected' : '') + '>צפייה</option><option value="none">הסר</option></select></div>';
           }).join('') : '<span class="muted">אין</span>')) + '</td>' +

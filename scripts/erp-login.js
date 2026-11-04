@@ -21,41 +21,47 @@ const b64url = buf => Buffer.from(buf).toString('base64url');
 
 /* ---------- זמינות: ה-ERP מפרסם userinfo_endpoint רק כשהכניסה דרכו פעילה ----------
    וגם טוקן השירות ("חיבור ל-ERP"): ה-ERP דורש אותו בהחלפת הקוד וברענון — בלי מסך אישור, קוד שדלף לא שווה כלום בלעדיו */
-let META = { at: 0, base: '', ok: false };
+let META = { at: 0, base: '', ok: false }, META_RUN = null;   /* META_RUN = { base, p } — בדיקה אחת בדרך, כל הבקשות שמגיעות בינתיים מחכות לה */
 export async function erpLoginAvailable(env, storage) {
   const svc = await kitsAuth(env, storage);
   if (!svc.token) return false;
   const base = erpBase(env);
   if (META.base === base && Date.now() - META.at < (META.ok ? META_TTL : META_FAIL_TTL)) return META.ok;
-  let ok = false;
-  try {
-    const r = await fetch(base + '/.well-known/oauth-authorization-server', { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8e3) });
-    const j = await r.json().catch(() => null);
-    ok = !!(r.ok && j && j.userinfo_endpoint);
-  } catch {}
-  META = { at: Date.now(), base, ok };
-  return ok;
+  if (META_RUN && META_RUN.base === base) return META_RUN.p;
+  const p = (async () => {
+    let ok = false;
+    try {
+      const r = await fetch(base + '/.well-known/oauth-authorization-server', { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8e3) });
+      const j = await r.json().catch(() => null);
+      ok = !!(r.ok && j && j.userinfo_endpoint);
+    } catch {}
+    META = { at: Date.now(), base, ok };
+    return ok;
+  })().finally(() => { if (META_RUN && META_RUN.p === p) META_RUN = null; });
+  META_RUN = { base, p };
+  return p;
 }
 
 /* ---------- הזרימה ---------- */
-const PENDING = new Map();   /* state → { verifier, bind, redirect_uri, base, join, created_at } */
+const PENDING = new Map();   /* state → { verifier, bind, redirect_uri, base, join, linkUid, created_at } */
 export const _pending = PENDING;   /* לבדיקות בלבד */
 function prune() {
   for (const [k, v] of PENDING) if (Date.now() - v.created_at > STATE_TTL) PENDING.delete(k);
   while (PENDING.size > 200) PENDING.delete(PENDING.keys().next().value);
 }
-/* origin = הכתובת שבה הדפדפן גולש עכשיו (ה-ERP מקבל רק redirect_uri רשום: שתי כתובות הענן ו-localhost:4177) */
-export function loginStart(env, origin, { join } = {}) {
+/* origin = הכתובת שבה הדפדפן גולש עכשיו (ה-ERP מקבל רק redirect_uri רשום: שתי כתובות הענן ו-localhost:4177).
+   linkUid = משתמש סיסמה לא-מקושר שהסשן שלו כבר בדפדפן כשהכניסה מתחילה — הוא שיקושר לחשבון ה-ERP (נבדק שוב ב-callback) */
+export function loginStart(env, origin, { join, linkUid } = {}) {
   prune();
   const state = b64url(randomBytes(32)), verifier = b64url(randomBytes(32)), bind = b64url(randomBytes(18));
   const challenge = b64url(createHash('sha256').update(verifier).digest());
   const redirect_uri = String(origin).replace(/\/+$/, '') + '/api/auth/erp/callback';
   const base = erpBase(env);
-  PENDING.set(state, { verifier, bind, redirect_uri, base, join: String(join || '').slice(0, 200), created_at: Date.now() });
+  PENDING.set(state, { verifier, bind, redirect_uri, base, join: String(join || '').slice(0, 200), linkUid: String(linkUid || ''), created_at: Date.now() });
   const url = base + '/oauth/authorize?' + new URLSearchParams({ client_id: CLIENT_ID, response_type: 'code', redirect_uri, code_challenge: challenge, code_challenge_method: 'S256', state });
   return { url, bind };
 }
-/* { ok:true, profile, tokens, join } או { ok:false, reason, join } — reason: state | not_allowed | denied | busy | grant | erp | unreachable */
+/* { ok:true, profile, tokens, join, linkUid } או { ok:false, reason, join } — reason: state | not_allowed | denied | busy | grant | erp | unreachable */
 export async function loginCallback(env, storage, query, bindCookie) {
   const state = query.get('state') || '';
   const p = state ? PENDING.get(state) : null;
@@ -87,7 +93,7 @@ export async function loginCallback(env, storage, query, bindCookie) {
     if (!r.ok || !profile || typeof profile.sub !== 'string' || !profile.sub) return fail('erp');
   } catch { return fail('unreachable'); }
   return {
-    ok: true, join: p.join, profile,
+    ok: true, join: p.join, linkUid: p.linkUid, profile,
     tokens: { base: p.base, access_token: tok.access_token, refresh_token: String(tok.refresh_token || ''), expires_at: Date.now() + (Number(tok.expires_in) || 3600) * 1000 }
   };
 }
@@ -97,9 +103,14 @@ const tokKey = storage => storage.kind === 'fs' ? 'erp-user-tokens.json' : 'secr
 const ACCESS = new Map();   /* uid → { token, exp, base } — בזיכרון בלבד */
 let TOK_CHAIN = Promise.resolve();
 const serial = fn => { const p = TOK_CHAIN.then(fn, fn); TOK_CHAIN = p.catch(() => {}); return p; };
+/* הקובץ משותף לכל האנשים, וכל שמירה כותבת את כולו: קריאה שנכשלה (רשת, הרשאה, קובץ פגום) זורקת ולא נחשבת "ריק" —
+   אחרת השמירה הבאה הייתה דורסת את הכניסות של כולם באדם אחד. רק קובץ שלא קיים (הרצה ראשונה) = ריק. storage.read מחזיר null רק כשאין קובץ */
 async function readTokens(storage) {
-  try { const j = await storage.readJson(tokKey(storage), null); return j && typeof j === 'object' ? j : {}; }
-  catch (e) { console.warn('[erp-login] reading stored ERP sign-ins failed:', e.message); return {}; }
+  const buf = await storage.read(tokKey(storage));
+  if (!buf) return {};
+  const j = JSON.parse(buf.toString('utf8'));
+  if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('erp-user-tokens: unexpected content');
+  return j;
 }
 async function writeTokens(storage, all) {
   const key = tokKey(storage), data = JSON.stringify(all);
@@ -144,7 +155,9 @@ export function accessTokenFor(env, storage, uid) {
     if (!svc.token) return { ok: false, reason: 'signin' };
     let tried = '';
     for (let attempt = 0; attempt < 2; attempt++) {
-      const all = await readTokens(storage), rec = all[uid];
+      let all;
+      try { all = await readTokens(storage); } catch (e) { console.warn('[erp-login] reading stored ERP sign-ins failed:', e.message); return { ok: false, reason: 'unreachable' }; }
+      const rec = all[uid];
       if (!rec || !rec.refresh_token || rec.refresh_token === tried) break;
       tried = rec.refresh_token;
       let out;
@@ -192,6 +205,9 @@ export function startErpSync({ env, getStorage, auth }) {
     const members = auth.erpLinkedUsers().map(u => ({ erp_user_id: u.erpId, role: u.pending ? 'pending' : (u.role === 'owner' ? 'admin' : u.role), blocked: !!u.blocked, last_login: u.lastLogin || null, project_count: u.projectCount || 0 }));
     const body = JSON.stringify({ members });
     if (body === lastPush) return;
+    /* רדום עד שהכניסה עם KO ERP פעילה, ובלי אף משתמש מקושר אין מה לשלוח — רשימה ריקה יוצאת רק כדי לנקות רשימה שנשלחה קודם */
+    if (!members.length && !lastPush) return;
+    if (!(await erpLoginAvailable(env, getStorage()))) return;
     try { const j = await serviceFetch(env, getStorage(), '/api/external/ko-projects/members', { method: 'PUT', headers: { 'content-type': 'application/json' }, body }); if (j) lastPush = body; }
     catch (e) { console.warn('[erp-login] sending the user list to the ERP failed:', e.message); }
   };

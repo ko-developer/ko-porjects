@@ -7,8 +7,9 @@
 // בדף /admin ויכול לחסום / לבטל חסימה / למחוק. בקשה מבחוץ בלי סשן → מסך כניסה.
 //
 // כניסה עם KO ERP (scripts/erp-login.js → erpSignIn כאן): ה-ERP מוכיח מי האדם; כאן מוחלט אם נכנס ובאיזה תפקיד — לפי
-// erpId, אחרת אימוץ משתמש קיים לא-מקושר באותו מייל, אחרת הזמנה בתוקף, אחרת בקשת גישה שממתינה לאישור ב-/admin.
-// מייל ב-OWNER_EMAIL / config.ownerEmails שנכנס דרך ה-ERP = הבעלים (סשן uid 'owner'). קישור הבעלים נשאר לחירום.
+// erpId, אחרת קישור משתמש הסיסמה שכבר מחובר בדפדפן הזה, אחרת אימוץ משתמש לא-מקושר באותו מייל — רק כשהמייל מאומת (חשבון צוות
+// ב-ERP; מייל של חשבון חיצוני הוא מה שהוקלד בהרשמה), אחרת הזמנה בתוקף, אחרת בקשת גישה שממתינה לאישור ב-/admin.
+// מייל מאומת ב-OWNER_EMAIL / config.ownerEmails שנכנס דרך ה-ERP = הבעלים (סשן uid 'owner', לכל אחד erp משלו). קישור הבעלים נשאר לחירום.
 // אחסון: users.json על שכבת האחסון (storage.js — קבצים מקומיים או דלי הענן): users, invites, sessions.
 // סיסמאות ב-scrypt+salt. השרת המקומי והענן חולקים את אותו קובץ, ולכן כל שמירה ממזגת את
 // הגרסה באחסון עם הזיכרון (איחוד סשנים/משתמשים/הזמנות; מחיקות נרשמות ולא חוזרות).
@@ -63,7 +64,8 @@ function persist() {
       for (const u of fresh.users) {
         if (delU.has(u.id)) continue;
         const m = mem.users.find(x => x.id === u.id);
-        if (!m) { if (!mails.has(u.email)) { mem.users.push(u); ids.add(u.id); mails.add(u.email); } continue; }   /* נרשם בצד השני */
+        /* נרשם בצד השני. מייל כפול נדחה (שתי הרשמות סיסמה במקביל) — חוץ ממשתמש ERP חדש: מייל של חשבון חיצוני לא מאומת ויכול להיות זהה לשל משתמש קיים */
+        if (!m) { if (!mails.has(u.email) || (u.erpId && !mem.users.some(x => x.erpId === u.erpId))) { mem.users.push(u); ids.add(u.id); mails.add(u.email); } continue; }
         if (u.lastLogin && (!m.lastLogin || u.lastLogin > m.lastLogin)) m.lastLogin = u.lastLogin;
         if (u.cur && !m.cur) m.cur = u.cur;
       }
@@ -121,7 +123,10 @@ export function sessionUser(req) {
   if (!sid || !db.sessions[sid]) return null;
   const s = db.sessions[sid];
   if (s.exp < now()) return null;   /* ינוקה בשמירה הבאה */
-  if (s.uid === 'owner') { const c = db.config; return { ...OWNER, local: false, erpId: s.erp || '', erpCanOffer: c.ownerErpCanOffer !== false, erpOffersRefusal: c.ownerErpOffersRefusal || null }; }   /* הבעלים שנכנס עם KO ERP */
+  if (s.uid === 'owner') {   /* הבעלים שנכנס עם KO ERP — כל מייל בעלים הוא אדם אחר ב-ERP: השם, ההרשאה להצעות והטוקן לפי ה-erp של הסשן */
+    const o = (s.erp && (db.config.ownerErp || {})[s.erp]) || {};
+    return { ...OWNER, name: o.name || OWNER.name, email: o.email || OWNER.email, local: false, erpId: s.erp || '', erpCanOffer: o.canOffer !== false, erpOffersRefusal: o.refusal || null };
+  }
   const u = db.users.find(x => x.id === s.uid);
   if (!u || u.blocked) return null;
   return u;
@@ -151,17 +156,20 @@ async function setSession(res, user, req, extra) {
   const secure = (req.headers['x-forwarded-proto'] || '').includes('https') ? '; Secure' : '';
   res.setHeader('set-cookie', `ko_sid=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}${secure}`);
 }
+/* המפתח שתחתיו נשמרת הכניסה ל-ERP של אדם (scripts/erp-login.js): המשתמש, ולבעלים 'owner:'+<erp sub> — לכל מייל בעלים טוקן משלו */
+const sessTokenKey = s => s.uid === 'owner' ? (s.erp ? 'owner:' + s.erp : '') : s.uid;
+export function erpTokenKey(u) { return !u || !u.erpId ? '' : u.role === 'owner' ? 'owner:' + u.erpId : u.id; }
 async function clearSession(req, res) {
   const db = load(), sid = cookies(req).ko_sid;
-  const uidOut = sid && db.sessions[sid] ? db.sessions[sid].uid : null;
+  const keyOut = sid && db.sessions[sid] ? sessTokenKey(db.sessions[sid]) : '';
   if (sid) { delete db.sessions[sid]; db.deleted.sessions.push(sid); await persist(); }
-  if (uidOut && HOOKS.onLogout && !Object.values(db.sessions).some(x => x.uid === uidOut && x.exp >= now())) try { await HOOKS.onLogout(uidOut); } catch {}
+  if (keyOut && HOOKS.onLogout && !Object.values(db.sessions).some(x => sessTokenKey(x) === keyOut && x.exp >= now())) try { await HOOKS.onLogout(keyOut); } catch {}
   res.setHeader('set-cookie', 'ko_sid=; Path=/; HttpOnly; Max-Age=0');
 }
 
 /* --- מה משתמש רואה --- */
 export function publicUser(u) {
-  return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local, erp: !!u.erpId, pending: !!u.pending } : null;
+  return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local, erp: !!u.erpId, pending: !!u.pending, emailUnverified: !!u.emailUnverified } : null;
 }
 /* store מסונן למשתמש מוזמן: רק הפרויקטים שהוענקו לו (עם דגל הרשאה בכל פרויקט) */
 /* תפקידים: owner = הגישה המקומית (הכול) · admin = צופה ועורך הכול · pm = מנהל פרויקטים KO: רואה הכול, עורך את שלו ומה שהוענק לו
@@ -217,28 +225,39 @@ export function mergeStore(full, posted, user) {
 }
 
 /* --- כניסה עם KO ERP --- */
-/* profile = מה ש-/oauth/userinfo של ה-ERP החזיר: { sub, email, name, kind, erp_admin, can_create_offers, offers_refusal }.
-   מחזיר { outcome: 'session' | 'pending' | 'blocked', uid } — 'session' כבר קבע עוגיית סשן */
-export async function erpSignIn(req, res, profile, joinToken) {
+/* profile = מה ש-/oauth/userinfo של ה-ERP החזיר: { sub, email, email_verified, name, kind, erp_admin, can_create_offers, offers_refusal }.
+   email_verified = true רק לחשבון צוות (נוצר ע"י מנהל ב-ERP); בחשבון חיצוני המייל הוא מה שהאדם הקליד בהרשמה, בלי הוכחה. ERP ישן
+   בלי השדה: לפי kind === 'staff'. מייל לא מאומת לא מאמץ אף רשומה קיימת ולא הופך לבעלים — אחרת כל מי שמחזיק קישור הזמנה היה פותח
+   חשבון ERP במייל של מישהו אחר ונכנס כאותו אדם.
+   opts.linkUid — משתמש הסיסמה שהסשן שלו היה בדפדפן כשהכניסה התחילה (scripts/erp-login.js loginStart); מקושר רק אם הסשן עדיין שלו.
+   מחזיר { outcome: 'session' | 'pending' | 'blocked', uid, tokenKey } — 'session' כבר קבע עוגיית סשן; tokenKey = איפה לשמור את הטוקן של האדם */
+export async function erpSignIn(req, res, profile, joinToken, opts = {}) {
   await authRefresh(true);
   const db = load();
   const sub = String(profile.sub || ''), email = normEmail(profile.email), name = String(profile.name || '').trim().slice(0, 60);
   if (!sub) return { outcome: 'blocked' };
+  const verified = typeof profile.email_verified === 'boolean' ? profile.email_verified : profile.kind === 'staff';
   /* מה שה-ERP אמר עכשיו: האם הטוקן של האדם יכול ליצור הצעות (Google של KO + הרשאת מכירות) — לסיבה על כפתור "שלח" */
   const canOffer = profile.can_create_offers === true, refusal = canOffer ? null : String(profile.offers_refusal || 'account_not_allowed');
-  if (profile.kind === 'staff' && email && ownerEmails().includes(email)) {
-    db.config.ownerErpId = sub; db.config.ownerErpCanOffer = canOffer; db.config.ownerErpOffersRefusal = refusal;
+  if (profile.kind === 'staff' && verified && email && ownerEmails().includes(email)) {
+    db.config.ownerErp = db.config.ownerErp || {};
+    db.config.ownerErp[sub] = { email, name, canOffer, refusal, lastLogin: new Date().toISOString() };
     await setSession(res, OWNER, req, { erp: sub });
-    return { outcome: 'session', uid: 'owner' };
+    return { outcome: 'session', uid: 'owner', tokenKey: 'owner:' + sub };
   }
   let u = db.users.find(x => x.erpId === sub);
-  if (!u && email) u = db.users.find(x => !x.erpId && x.email === email);   /* חשבון סיסמה קיים באותו מייל — מאמצים אותו (תפקיד, הרשאות, פרויקטים) */
+  if (!u && opts.linkUid) {   /* מי שכבר מחובר כאן עם סיסמה ונכנס עכשיו עם KO ERP — זה הוא, לפי הסשן ולא לפי המייל */
+    const cur = sessionUser(req);
+    if (cur && cur.id === opts.linkUid && cur.id !== 'owner' && !cur.erpId && db.users.includes(cur)) u = cur;
+  }
+  if (!u && email && verified) u = db.users.find(x => !x.erpId && x.email === email);   /* חשבון סיסמה קיים באותו מייל מאומת — מאמצים אותו (תפקיד, הרשאות, פרויקטים) */
   const inv = joinToken ? db.invites.find(i => i.token === joinToken) : null;
   const invOk = !!inv && inviteValid(inv) && (!inv.email || inv.email === email);
   if (u) {
     if (u.blocked) return { outcome: 'blocked' };
     u.erpId = sub; u.erpCanOffer = canOffer; u.erpOffersRefusal = refusal;
-    if (email && email !== u.email && !db.users.some(x => x !== u && x.email === email)) u.email = email;   /* המייל של ה-ERP הוא המעודכן */
+    /* מייל מאומת של ה-ERP הוא המעודכן; מייל לא מאומת לא מחליף את מה שברשומה */
+    if (verified) { delete u.emailUnverified; if (email && email !== u.email && !db.users.some(x => x !== u && x.email === email)) u.email = email; }
     if (!u.name && name) u.name = name;
     if (invOk) {
       u.grants = u.grants || {}; inv.projects.forEach(pid => { if (u.grants[pid] !== 'edit') u.grants[pid] = inv.perm; });
@@ -247,19 +266,35 @@ export async function erpSignIn(req, res, profile, joinToken) {
     }
     if (u.pending) { await persist(); return { outcome: 'pending' }; }
     await setSession(res, u, req);
-    return { outcome: 'session', uid: u.id };
+    return { outcome: 'session', uid: u.id, tokenKey: u.id };
   }
+  /* מכאן — רשומה חדשה לאדם הזה, גם כשהמייל (הלא מאומת) שלו זהה לשל משתמש קיים: ב-/admin מסומן "מייל לא מאומת" */
+  const unv = verified ? {} : { emailUnverified: true };
   if (invOk) {
     const grants = {}; inv.projects.forEach(pid => { grants[pid] = inv.perm; });
-    const nu = { id: uid('u'), email, name: name || email.split('@')[0], role: ROLES.includes(inv.role) ? inv.role : 'user', grants, blocked: false, erpId: sub, erpCanOffer: canOffer, erpOffersRefusal: refusal, createdAt: new Date().toISOString(), invitedBy: inv.by };
+    const nu = { id: uid('u'), email, name: name || email.split('@')[0], role: ROLES.includes(inv.role) ? inv.role : 'user', grants, blocked: false, erpId: sub, erpCanOffer: canOffer, erpOffersRefusal: refusal, ...unv, createdAt: new Date().toISOString(), invitedBy: inv.by };
     db.users.push(nu); inviteUse(inv, nu);
     await setSession(res, nu, req);
-    return { outcome: 'session', uid: nu.id };
+    return { outcome: 'session', uid: nu.id, tokenKey: nu.id };
   }
   /* לא מוכר, בלי הזמנה: בקשת גישה — מנהל מאשר ב-/admin ובוחר תפקיד; עד אז אין סשן */
-  db.users.push({ id: uid('u'), email, name: name || (email ? email.split('@')[0] : 'ERP'), role: 'user', grants: {}, blocked: false, pending: true, erpId: sub, erpCanOffer: canOffer, erpOffersRefusal: refusal, createdAt: new Date().toISOString(), invitedBy: null });
+  db.users.push({ id: uid('u'), email, name: name || (email ? email.split('@')[0] : 'ERP'), role: 'user', grants: {}, blocked: false, pending: true, erpId: sub, erpCanOffer: canOffer, erpOffersRefusal: refusal, ...unv, createdAt: new Date().toISOString(), invitedBy: null });
   await persist();
   return { outcome: 'pending' };
+}
+/* דף הכניסה (src/pages/auth.html) לא עובר דרך שכבת התרגום — ההודעה בשתי השפות */
+const SIGNUP_TAKEN = 'למייל הזה כבר יש חשבון ב-KO Projects — היכנס קודם עם הכניסה הקיימת שלך, ואז לחץ שוב "צור חשבון KO" כדי לקשר אותו. / This email already has a KO Projects account — sign in with your existing login first, then press "Create KO account" again to link it.';
+/* "צור חשבון KO" (/api/auth/erp/signup) למייל שכבר שייך לרשומה כאן: מותר רק למי שמחובר כבר כאותה רשומה (לא מקושרת) —
+   הוא יוצר לעצמו חשבון ERP וחוזר לקישור לפי הסשן. אחרת מסרבים: חשבון ERP חדש במייל של רשומה קיימת הוא בדיוק דרך ההשתלטות.
+   { ok:true, linking } או { ok:false, error } */
+export async function signupEmailCheck(req, email) {
+  await authRefresh(true);
+  const db = load(), e = normEmail(email);
+  const holders = db.users.filter(x => x.email === e);
+  if (!holders.length && !ownerEmails().includes(e)) return { ok: true, linking: false };
+  const cur = sessionUser(req);
+  if (cur && cur.id !== 'owner' && !cur.erpId && holders.includes(cur)) return { ok: true, linking: true };
+  return { ok: false, error: SIGNUP_TAKEN };
 }
 /* הזמנה שמותר ליצור איתה חשבון ERP: בתוקף, ונעולה (אם בכלל) לאותו מייל */
 export function inviteForSignup(joinToken, email) {
@@ -273,7 +308,7 @@ export function erpLinkedUsers() {
   const db = load(), t = now(), live = new Set(), liveErp = new Set();
   for (const s of Object.values(db.sessions)) if (s.exp >= t) { live.add(s.uid); if (s.erp) liveErp.add(s.erp); }
   const out = db.users.filter(u => u.erpId).map(u => ({ erpId: u.erpId, role: u.role, pending: !!u.pending, blocked: !!u.blocked, lastLogin: u.lastLogin || null, projectCount: Object.keys(u.grants || {}).length, live: live.has(u.id) }));
-  if (db.config.ownerErpId) out.push({ erpId: db.config.ownerErpId, role: 'owner', pending: false, blocked: false, lastLogin: db.config.ownerLastLogin || null, projectCount: 0, live: liveErp.has(db.config.ownerErpId) });
+  for (const [erpId, o] of Object.entries(db.config.ownerErp || {})) out.push({ erpId, role: 'owner', pending: false, blocked: false, lastLogin: o.lastLogin || null, projectCount: 0, live: liveErp.has(erpId) });
   return out;
 }
 /* חשבון ERP שהושבת / נמחק: כל הסשנים שלו כאן נסגרים (גם של הבעלים שנכנס דרכו). קישור הבעלים לא נוגע */
@@ -307,6 +342,8 @@ export async function handleAuth(req, res, path, store) {
   const db = load();
   const me = requestUser(req);
   const method = req.method;
+  /* כתיבה רק כ-JSON: טופס או text/plain מאתר אחר לא יכול לשנות כאן כלום (מ-localhost כל בקשה היא הבעלים) — JSON מאתר אחר דורש preflight שלא יעבור */
+  if (method === 'POST' && !/^application\/json\b/i.test(req.headers['content-type'] || '')) return json(res, 415, { error: 'JSON only' }), true;
   try {
     if (path === '/api/auth/me' && method === 'GET') {
       const isOw = !!(me && me.role === 'owner');
@@ -340,7 +377,7 @@ export async function handleAuth(req, res, path, store) {
     }
     if (path === '/api/auth/login' && method === 'POST') {
       const b = await body(req), email = normEmail(b.email);
-      const u = db.users.find(x => x.email === email);
+      const u = db.users.find(x => x.email === email && x.hash) || db.users.find(x => x.email === email);   /* חשבון ERP חיצוני יכול לשאת מייל זהה (לא מאומת) — הסיסמה של בעל המייל קודמת */
       if (u && !u.hash) return json(res, 401, { error: 'החשבון הזה נכנס עם KO ERP — לחץ "כניסה עם KO ERP"' }), true;
       if (!u || !checkPw(u, b.password || '')) return json(res, 401, { error: 'מייל או סיסמה לא נכונים' }), true;
       if (u.blocked) return json(res, 403, { error: 'החשבון חסום — פנה לבעל המערכת' }), true;
@@ -430,7 +467,9 @@ export async function handleAuth(req, res, path, store) {
     }
     if (path === '/api/admin/config' && method === 'GET') {
       if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;
-      return json(res, 200, { publicUrl: db.config.publicUrl || '', envPublicUrl: process.env.PUBLIC_URL || '', effective: publicUrl(), ownerLink: origin(req) + '/owner/' + db.config.ownerKey, localOnly: isLocalUrl(origin(req)), ownerEmails: db.config.ownerEmails || [], envOwnerEmail: process.env.OWNER_EMAIL || '' }), true;
+      /* erpLogin — מיילי הבעלים ו"הוסף מה-ERP" מוצגים רק כשהכניסה עם KO ERP פעילה (כמו הכפתור בדף הכניסה) */
+      const erpLogin = HOOKS.erpLoginAvailable ? await HOOKS.erpLoginAvailable().catch(() => false) : false;
+      return json(res, 200, { publicUrl: db.config.publicUrl || '', envPublicUrl: process.env.PUBLIC_URL || '', effective: publicUrl(), ownerLink: origin(req) + '/owner/' + db.config.ownerKey, localOnly: isLocalUrl(origin(req)), ownerEmails: db.config.ownerEmails || [], envOwnerEmail: process.env.OWNER_EMAIL || '', erpLogin }), true;
     }
     if (path === '/api/admin/config' && method === 'POST') {
       if (!isOwner) return json(res, 403, { error: 'forbidden' }), true;

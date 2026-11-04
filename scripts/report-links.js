@@ -15,11 +15,26 @@ let CHAIN = Promise.resolve();
 const serial = fn => { const p = CHAIN.then(fn, fn); CHAIN = p.catch(() => {}); return p; };
 const TOKEN_RX = /^[A-Za-z0-9_-]{24,64}$/;
 
+/* הקובץ מחזיק את הטוקנים של כל הפרויקטים, וכל שמירה כותבת את כולו: קריאה שנכשלה (רשת, הרשאה, קובץ פגום) לא נחשבת "אין קישורים" —
+   אחרת הטוקן הבא היה מחליף את כל הקישורים שכבר שמורים ב-ERP. רק קובץ שלא קיים (הרצה ראשונה) = ריק; storage.read מחזיר null רק אז.
+   force (לפני כתיבה) — קריאה שנכשלה זורקת. בלי force (חיפוש טוקן) — העותק האחרון שנקרא בהצלחה, אם יש; אחרת זורקת. תוצאה שנכשלה לא נשמרת במטמון */
 async function readAll(st, force) {
-  if (!force && CACHE.data && CACHE.label === st.label && Date.now() - CACHE.at < TTL) return CACHE.data;
-  let j = null;
-  try { j = await st.readJson(key(st), null); } catch (e) { console.warn('[report-links] read failed:', e.message); if (CACHE.data && CACHE.label === st.label) return CACHE.data; }
-  const data = j && typeof j === 'object' && j.byProject ? j : { byProject: {} };
+  const cached = CACHE.data && CACHE.label === st.label;
+  if (!force && cached && Date.now() - CACHE.at < TTL) return CACHE.data;
+  let data;
+  try {
+    const buf = await st.read(key(st));
+    data = { byProject: {} };
+    if (buf) {
+      const j = JSON.parse(buf.toString('utf8'));
+      if (!j || typeof j !== 'object' || !j.byProject || typeof j.byProject !== 'object') throw new Error('unexpected content');
+      data = j;
+    }
+  } catch (e) {
+    console.warn('[report-links] read failed:', e.message);
+    if (!force && cached) return CACHE.data;
+    throw new Error('report links could not be read: ' + e.message);
+  }
   CACHE = { at: Date.now(), label: st.label, data };
   return data;
 }
@@ -42,9 +57,9 @@ export function reportTokenFor(st, projectId, { regenerate = false } = {}) {
     const data = await readAll(st, true);
     const cur = data.byProject[projectId];
     if (cur && !regenerate) return cur;
-    data.byProject[projectId] = randomBytes(24).toString('base64url');
-    await writeAll(st, data);
-    return data.byProject[projectId];
+    const tok = randomBytes(24).toString('base64url');
+    await writeAll(st, { ...data, byProject: { ...data.byProject, [projectId]: tok } });   /* עותק: אם הכתיבה נכשלת, המטמון לא מחזיק טוקן שלא נשמר */
+    return tok;
   });
 }
 /* הפרויקט של טוקן, או null. בהחמצה קוראים שוב — אולי נוצר בשרת השני (מחשב ↔ ענן) — אבל לכל היותר פעם ב-10 שניות,

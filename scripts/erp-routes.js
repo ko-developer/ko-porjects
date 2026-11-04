@@ -10,22 +10,25 @@ import { kitsStatus, kitIds, connectStart, connectCallback, deleteConnection } f
 import { erpReport, reportInvalidate } from './erp-report.js';
 
 const TTL = 600_000;
-const accCache = new Map(), prjCache = new Map();
-let statusCache = null, optCache = null;
+/* המטמונים לפי מי ששאל: 'erp:<sub>' לטוקן של האדם, 'shared' לטוקן המשותף — אף אחד לא מקבל תוצאה שנשלפה בטוקן של מישהו אחר
+   (מה שה-ERP מחזיר תלוי בהרשאות של בעל הטוקן) */
+const accCache = new Map(), prjCache = new Map(), statusCache = new Map(), optCache = new Map();
 const configured = () => !!(process.env.ERP_MCP_URL && process.env.ERP_MCP_TOKEN);
 function send(res, code, obj) { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); }
 function readBody(req) { return new Promise((ok, no) => { const ch = []; req.on('data', c => ch.push(c)); req.on('end', () => { try { ok(JSON.parse(Buffer.concat(ch).toString('utf8') || '{}')); } catch (e) { no(e); } }); req.on('error', no); }); }
-/* חיפוש עם מטמון לפי שאילתה; קידומת שכבר נשלפה מסוננת מקומית במקום סבב נוסף מול ה-ERP */
-async function cachedSearch(cache, q, listKey, textOf, fetcher) {
-  const hit = cache.get(q); if (hit && Date.now() - hit.at < TTL) return hit.body;
+const capSet = (cache, k, v, max) => { cache.delete(k); cache.set(k, v); if (cache.size > max) cache.delete(cache.keys().next().value); };
+/* חיפוש עם מטמון לפי (מי, שאילתה); קידומת שכבר נשלפה לאותו אדם מסוננת מקומית במקום סבב נוסף מול ה-ERP */
+async function cachedSearch(cache, who, q, listKey, textOf, fetcher) {
+  const K = s => who + '\n' + s;
+  const hit = cache.get(K(q)); if (hit && Date.now() - hit.at < TTL) return hit.body;
   for (let n = q.length - 1; n >= 2; n--) {
-    const pre = cache.get(q.slice(0, n)); if (!pre || Date.now() - pre.at > TTL) continue;
+    const pre = cache.get(K(q.slice(0, n))); if (!pre || Date.now() - pre.at > TTL) continue;
     const t = q.toLowerCase(), sub = (pre.body[listKey] || []).filter(x => textOf(x).toLowerCase().includes(t));
-    if (sub.length) { const body = { ok: true, [listKey]: sub }; cache.set(q, { at: Date.now(), body }); return body; }
+    if (sub.length) { const body = { ok: true, [listKey]: sub }; capSet(cache, K(q), { at: Date.now(), body }, 500); return body; }
     break;
   }
   const body = { ok: true, [listKey]: await fetcher() };
-  cache.set(q, { at: Date.now(), body }); if (cache.size > 200) cache.delete(cache.keys().next().value);
+  capSet(cache, K(q), { at: Date.now(), body }, 500);
   return body;
 }
 /* שם פרויקט כמו שה-ERP משווה (create_project / new_project): בלי רווחים מיותרים ובלי הבדלי אותיות */
@@ -57,12 +60,18 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
   if (!path0.startsWith('/api/erp/') || path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') return false;
   const u = ctx.user || {}, staffErp = !!(u.erpId && (u.role === 'admin' || u.role === 'pm'));
   if (!isOwner && (!staffErp || OWNER_ONLY(path0))) { send(res, 403, { ok: false, errors: ['owner only'] }); return true; }
-  /* הטוקן לחיפושים: של האדם; לבעלים בלי כניסה ל-ERP — המשותף (undefined); לאחר — אין */
+  /* הטוקן לחיפושים: של האדם; לבעלים בלי כניסה ל-ERP — המשותף (auth undefined); לאחר — אין. who = מפתח המטמון */
+  const personalWho = 'erp:' + (u.erpId || u.id || '');
   const lookAuth = async () => {
     const c = ctx.caller ? await ctx.caller() : { personal: false };
-    if (c.personal) return c.auth;
-    if (isOwner) return undefined;
+    if (c.personal) return { auth: c.auth, who: personalWho };
+    if (isOwner) return { auth: undefined, who: 'shared' };
     throw Object.assign(new Error(SENDER_REASON[c.reason] || SENDER_REASON.not_signed_in), { status: 401, needSignin: true });
+  };
+  const offerOptions = async (auth, who) => {
+    let oc = optCache.get(who);
+    if (!oc || Date.now() - oc.at > 3_600_000) { oc = { at: Date.now(), body: { ok: true, ...((await erpCall('get_offer_options', {}, auth)) || {}) } }; capSet(optCache, who, oc, 100); }
+    return oc.body;
   };
   /* כתיבה רק כ-JSON: טופס מאתר אחר (text/plain / form) לא יכול לשלוח בשם הבעלים הצעה או פרסום קיטים */
   if (req.method !== 'GET' && req.method !== 'HEAD' && !/^application\/json\b/i.test(req.headers['content-type'] || '')) { send(res, 415, { ok: false, errors: ['content-type חייב להיות application/json'] }); return true; }
@@ -74,15 +83,16 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
       const c = ctx.caller ? await ctx.caller() : { personal: false, reason: 'not_signed_in' };
       const sender = { live, personal: !!c.personal, name: c.name || '', reason: c.personal ? null : (c.reason || 'not_signed_in'), reason_text: c.personal ? '' : (SENDER_REASON[c.reason] || SENDER_REASON.not_signed_in) };
       /* טוען .env דרך erp-client בקריאה הראשונה — לכן בודקים configured אחרי ניסיון */
-      if (statusCache && Date.now() - statusCache.at < 60_000) { send(res, 200, { ...statusCache.body, sender }); return true; }
+      const who = c.personal ? personalWho : 'shared', sc = statusCache.get(who);
+      if (sc && Date.now() - sc.at < 60_000) { send(res, 200, { ...sc.body, sender }); return true; }
       let body;
       try { await erpCall('get_offer_options', {}, c.personal ? c.auth : undefined); body = { configured: true, ok: true }; }
       catch (e) { body = { configured: configured() || !!c.personal, ok: false, error: String(e.message) }; }
-      statusCache = { at: Date.now(), body }; send(res, 200, { ...body, sender }); return true;
+      capSet(statusCache, who, { at: Date.now(), body }, 100); send(res, 200, { ...body, sender }); return true;
     }
     if (path0 === '/api/erp/options') {
-      if (!optCache || Date.now() - optCache.at > 3_600_000) optCache = { at: Date.now(), body: { ok: true, ...((await erpCall('get_offer_options', {}, await lookAuth())) || {}) } };
-      send(res, 200, optCache.body); return true;
+      const la = await lookAuth();
+      send(res, 200, await offerOptions(la.auth, la.who)); return true;
     }
     /* דוחות KO (דף /reports): הזמנות, שורות פריטים ופרויקטים לתקופה — הצבירה בדף (scripts/erp-report.js) */
     if (path0 === '/api/erp/report') {
@@ -92,8 +102,9 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
     }
     if (path0 === '/api/erp/accounts') {
       const q = (sp.get('q') || '').trim(); if (q.length < 2) { send(res, 200, { ok: true, accounts: [] }); return true; }
-      const body = await cachedSearch(accCache, q, 'accounts', a => a.name + ' ' + a.key, async () => {
-        const r = await erpCall('list_accounts', { search: q, limit: 60 }, await lookAuth()); const seen = new Set();
+      const la = await lookAuth();
+      const body = await cachedSearch(accCache, la.who, q, 'accounts', a => a.name + ' ' + a.key, async () => {
+        const r = await erpCall('list_accounts', { search: q, limit: 60 }, la.auth); const seen = new Set();
         return (r?.accounts || []).map(a => ({ key: String(a.AccountKey || '').replace(/["\s]/g, ''), name: (a.FullName || '').trim() }))
           .filter(a => { if (!a.key || !a.name) return false; const k = a.key + '|' + a.name; if (seen.has(k)) return false; seen.add(k); return true; });
       });
@@ -101,8 +112,9 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
     }
     if (path0 === '/api/erp/projects') {
       const q = (sp.get('q') || '').trim(); if (q.length < 2) { send(res, 200, { ok: true, projects: [] }); return true; }
-      const body = await cachedSearch(prjCache, q, 'projects', p => p.name + ' ' + (p.account || '') + ' ' + (p.address || ''), async () => {
-        const r = await erpCall('list_projects', { search: q, limit: 40 }, await lookAuth()); const rows = r?.projects || r?.rows || (Array.isArray(r) ? r : []); const seen = new Set();
+      const la = await lookAuth();
+      const body = await cachedSearch(prjCache, la.who, q, 'projects', p => p.name + ' ' + (p.account || '') + ' ' + (p.address || ''), async () => {
+        const r = await erpCall('list_projects', { search: q, limit: 40 }, la.auth); const rows = r?.projects || r?.rows || (Array.isArray(r) ? r : []); const seen = new Set();
         return rows.map(p => ({ id: p.id || p.project_id || p.uuid || '', name: (p.name || p.project_name || '').trim(), account: (p.account_name || p.account || '').trim(), accountKey: String(p.account_key || '').replace(/["\s]/g, ''), address: (p.address || '').trim() }))
           .filter(p => { if (!p.id || !p.name || seen.has(p.id)) return false; seen.add(p.id); return true; });
       });
@@ -110,7 +122,7 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
     }
     if (path0 === '/api/erp/item-future') {
       const key = (sp.get('key') || '').trim(); if (!key) { send(res, 400, { ok: false, errors: ['חסר מק"ט'] }); return true; }
-      const r = await erpCall('list_order_items', { search: key, exclude_cancelled: true, limit: 500 }, await lookAuth());
+      const r = await erpCall('list_order_items', { search: key, exclude_cancelled: true, limit: 500 }, (await lookAuth()).auth);
       const items = r?.items || r?.rows || (Array.isArray(r) ? r : []); const CLOSED = /completed|delivered|cancelled|closed/i;
       const rows = items.filter(it => it.item_key === key && !it.is_cancelled && !CLOSED.test(it.order?.status || '') && ((+it.quantity || 0) - (+it.installed_qty || 0)) > 0)
         .map(it => ({ order_code: it.order?.order_code || '', account: it.order?.account_name || '', quantity: (+it.quantity || 0) - (+it.installed_qty || 0), status: it.order?.status || '', date: it.created_at || null }))
@@ -157,8 +169,8 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
       /* התכנית מאחורי ההצעה (באג 724708e1 ב-ERP): קישור לדוח לקריאה בלבד ולפתיחת התכנית — ה-ERP מטמיע את הדוח בכרטיס, בפרויקט,
          בהזמנה ובקישור לקבלנים, ובהצעת פרויקט פותח את הכרטיס כבר עכשיו. רק כשה-ERP מכריז שהוא מכיר את השדה */
       if (p.plan_id && ctx.reportLink) {
-        if (!optCache || Date.now() - optCache.at > 3_600_000) { try { optCache = { at: Date.now(), body: { ok: true, ...((await erpCall('get_offer_options', {}, auth)) || {}) } }; } catch {} }
-        if (optCache && optCache.body && optCache.body.supports_source_plan) {
+        const opts = await offerOptions(auth, auth ? personalWho : 'shared').catch(() => null);
+        if (opts && opts.supports_source_plan) {
           const rl = await ctx.reportLink(String(p.plan_id)).catch(() => null);
           if (rl) args.source_plan = { plan_id: String(p.plan_id), ...(p.plan_name ? { plan_name: String(p.plan_name).slice(0, 200) } : {}), report_url: rl.report_url, open_url: rl.open_url };
         }

@@ -25,6 +25,7 @@ a.erp{display:block;text-align:center;padding:11px;border-radius:10px;background
   <div class="logo"><div class="mark">KO</div><div><h1>KO Projects</h1><small>מתכנן הקמות וחיווט</small></div></div>
   <div id="invBox" class="inv" style="display:none"></div>
   <div id="erpMsg" class="err"></div>
+  <div id="linkBox" class="inv" style="display:none">מחובר כ-<b id="linkMe"></b>. קשר את החשבון ל-KO ERP: "כניסה עם KO ERP" אם יש לך חשבון שם, או "צור חשבון KO" אם אין. <a href="/">המשך בלי לקשר</a></div>
   <div id="erpBox" style="display:none">
     <a id="erpBtn" class="erp" href="/api/auth/erp/start" title="עם החשבון שלך במערכת ה-ERP של KO">כניסה עם KO ERP</a>
     <div id="erpNew" style="display:none">
@@ -74,8 +75,17 @@ a.erp{display:block;text-align:center;padding:11px;border-radius:10px;background
     var mm = ERP_MSG[erpCode] || ['err', 'ה-ERP לא השיב — נסה שוב בעוד רגע.'];
     $('erpMsg').className = mm[0]; $('erpMsg').textContent = mm[1]; $('erpMsg').style.display = 'block';
   }
+  var erpOn = false;
   fetch('/api/auth/me').then(function (r) { return r.json(); }).then(function (me) {
     if (me.user && !token) { location.href = '/'; return; }
+    erpOn = !!me.erpLogin;
+    /* כבר מחובר עם סיסמה, עם קישור הזמנה, בלי קישור ל-ERP: כאן מקשרים — השרת מקשר את הרשומה של הסשן הזה (לא לפי המייל) */
+    var linking = !!(me.erpLogin && token && me.user && !me.user.erp && me.user.role !== 'owner');
+    if (linking) {
+      $('linkMe').textContent = me.user.email; $('linkBox').style.display = '';
+      $('nEmail').value = me.user.email; $('nName').value = me.user.name || '';
+      ['tabs', 'f', 'pwOr', 'hint'].forEach(function (id) { $(id).style.display = 'none'; });
+    }
     if (me.erpLogin) {
       $('erpBox').style.display = '';
       if (token) {
@@ -93,7 +103,7 @@ a.erp{display:block;text-align:center;padding:11px;border-radius:10px;background
         if (!inv.ok) { $('invBox').innerHTML = '⚠ הקישור ' + (inv.used ? 'כבר נוצל' : inv.revoked ? 'בוטל' : 'פג תוקף') + ' — בקש קישור חדש מ' + (inv.by || 'בעל המערכת') + '. אם כבר נרשמת — עבור ל"כניסה".'; setMode('login'); return; }
         $('invBox').innerHTML = '<b>' + (inv.by || 'בעל המערכת') + '</b> שיתף איתך ' + inv.projects.length + ' פרויקט' + (inv.projects.length > 1 ? 'ים' : '') + ' בהרשאת <b>' + (inv.perm === 'view' ? 'צפייה' : 'עריכה') + '</b>:<br>' +
           inv.projects.map(function (n) { return '• ' + n; }).join('<br>') + '<br>הירשם עם מייל וסיסמה כדי להיכנס.';
-        if (inv.email) { $('email').value = inv.email; $('nEmail').value = inv.email; }
+        if (inv.email && !linking) { $('email').value = inv.email; $('nEmail').value = inv.email; }
         if (!me.erpLogin) setMode('register');
       });
     }
@@ -112,7 +122,12 @@ a.erp{display:block;text-align:center;padding:11px;border-radius:10px;background
     var payload = { email: $('email').value, password: $('pw').value, name: $('name').value, token: token };
     fetch(mode === 'register' ? '/api/auth/register' : '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
       .then(function (r) { return r.json(); })
-      .then(function (j) { if (j.error) { err.textContent = j.error; err.style.display = 'block'; return; } location.href = '/'; })
+      .then(function (j) {
+        if (j.error) { err.textContent = j.error; err.style.display = 'block'; return; }
+        /* נכנס עם סיסמה מקישור הזמנה ועוד לא מקושר ל-ERP: נשארים כאן כדי לקשר (תיבת "מחובר כ…") */
+        if (erpOn && token && j.user && !j.user.erp) { location.reload(); return; }
+        location.href = '/';
+      })
       .catch(function (e) { err.textContent = String(e); err.style.display = 'block'; });
     return false;
   };

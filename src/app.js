@@ -2647,7 +2647,7 @@ function authBoxHTML() {
   const perm = (P && P._perm) === 'view' ? ' <small style="opacity:.8">· צפייה בלבד</small>' : '';
   return `<button onclick="authLogout()" title="${esc(u.email)} · יציאה" style="background:#efecfd;color:#4b3fb8">👤 ${esc(u.name || '')}${perm}</button>`;
 }
-async function authLogout() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {} location.href = '/login'; }
+async function authLogout() { try { await fetch('/api/auth/logout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); } catch (e) {} location.href = '/login'; }   /* השרת מקבל כתיבה רק כ-JSON */
 function shareDialog() {
   const rows = store.projects.map(p => `<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;padding:2px 0;cursor:pointer"><input type="checkbox" class="shP" value="${p.id}" ${p.id === P.id ? 'checked' : ''} style="width:auto"> ${esc(p.name)}</label>`).join('');
   const ov = uiModal(`<b style="font-size:15px">🔗 שיתוף פרויקטים</b>
@@ -19354,6 +19354,7 @@ checkStudioHandoff();
    בטעינה — הודעה על פרויקטים שלא נראו קודם; ובזמן שהדף פתוח — בדיקה כל דקה מול השרת, עם כפתור לפתיחה (בלי להחליף את מה שנערך עכשיו) */
 function sharedWatch() {
   if (!store || !store._shared) return;
+  if (window.__AUTH && window.__AUTH.report) return;   /* קישור דוח: אין פרויקטים "חדשים" לצופה — בלי בדיקה כל דקה ובלי לגעת ב-localStorage */
   const K = 'koSharedSeen';
   let seen = []; try { seen = JSON.parse(localStorage.getItem(K) || '[]'); } catch (e) {}
   const ids = store.projects.map(p => p.id);
