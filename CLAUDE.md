@@ -195,3 +195,9 @@ here is the seed), ERP write-back. Use .claude/skills/spec-harvester when adding
   - **מסמך נפרד** (iframe srcdoc, חלון חדש) לא נראה ל-MutationObserver — לקרוא ל-`i18nDoc(doc)` כשהוא נטען (כמו דוח ההתקנה ב-wizard.js).
   - מטען ל-ERP, אוצר מילים של OCR ופרומפטים ל-AI — לא מתרגמים.
   - חירום בלבד: `I18N_ALLOW_MISSING=1 npm run validate` מדפיס את הרשימה ולא נכשל. `npm run i18n:check` מראה מה חסר.
+
+## 🧰 הגנה על הקיטים שלי ועל ה-store מעותק ישן (2026-11-05, אחרי אובדן 44 קיטים ב-2.11)
+- **מה קרה**: השרת הגיש בהפעלה קרה "עותק דיסק" ישן (`data/.cache-gcs`) כשהדלי היה איטי; לשונית שנטענה ממנו שמרה (`allKits` → `kitEnsureIds` → `save()`), והחליפה את `userKits` בדלי ברשימה הישנה. השחזור: גרסאות האובייקט `projects/meta.json` בדלי (versioning פעיל) — נבחרה הגרסה 2026-11-02T06:31 (48 קיטים) ומוזגה עם הנוכחית דרך `POST /api/store`.
+- **מיזוג לכל קיט בשרת** (`POST /api/store` ב-`scripts/dev-server.js`): קיט שלי שחסר ברשימה שנשלחה ולא ב-`_delKits` נשאר; קיט שקיים בשניהם — החדש לפי `upd`. בדפדפן `kitStamp()` (ב-`save()`) נותן `upd` לכל קיט שהשתנה ורושם מחיקות ב-`store._delKits` עד שהשרת אישר; הבסיס להשוואה נקבע אחרי הטעינה מהשרת.
+- **עותק זמני = קריאה בלבד**: `db.stale` ('disk'/'mem') ב-`scripts/db.js` כשהוגש עותק שאינו מהדלי → כותרת `x-ko-stale` ב-`GET /api/store` ו-`GET /api/store/state`; הדפדפן (`srvStaleCopy`) מציג באנר, חוסם `pushSrvNow`, בודק כל 8 שניות וטוען מחדש כשהענן חזר (אם אין שינויים שלא נשמרו).
+- **בדיקות בלשונית**: תמיד לעקר `save`/`pushSrv`/`pushSrvNow`/`kitSyncSoon` לפני כל פעולה — גם טעינה "נקייה" של הדף שומרת (kitEnsureIds), ולכן גם `location.reload()` בלשונית בדיקה חייב להיות אחרי העיקור בטעינה הבאה.

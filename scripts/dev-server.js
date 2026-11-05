@@ -430,11 +430,14 @@ const handleReq = async (req, res) => {
       } catch (e) { res.writeHead(500); res.end(String(e.message)); }
       return;
     } }
+  /* מצב העותק שהשרת מגיש: stale = עותק זמני (דיסק/זיכרון) כי הדלי איטי — הדפדפן מחכה ולא שומר ממנו */
+  if ((req.url || '').split('?')[0] === '/api/store/state') { sendText(req, res, 200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }, JSON.stringify({ ok: true, stale: !!db.stale, kind: db.stale || '', label: storage.label })); return; }
   if ((req.url || '').split('?')[0] === '/api/store') {
     if (req.method === 'GET') {
       try {
         /* עד 8 שניות מהקריאה הקודמת — אותו store בלי לפנות לדלי שוב (טעינת דף = כמה בקשות) */
-        const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.v);
+        const st = (window_store.t > Date.now() - 8e3 && window_store.v) ? window_store.v : (window_store.v = await readStore(db), window_store.t = Date.now(), window_store.stale = db.stale || '', window_store.v);
+        if (window_store.stale) res.setHeader('x-ko-stale', window_store.stale);
         const full = /[?&]full=1/.test(req.url || '');   /* גיבוי מלא — לפי בקשה מפורשת בלבד */
         const vis = filterStore(st, me);
         let body = full ? vis : liteStore(vis, vis.cur);

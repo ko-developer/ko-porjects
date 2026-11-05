@@ -108,16 +108,18 @@ async function readJsonStore(h) {
   if (!h.cache.size) {
     if (!h.refreshing) h.refreshing = readJsonStoreFresh(h).finally(() => { h.refreshing = null; });
     const cold = await Promise.race([h.refreshing.catch(() => null), new Promise(res => setTimeout(() => res(null), 3000))]);
-    if (cold) return cold;
-    const d = storeFromDisk(h); if (d) { h.partial = true; console.warn('store: bucket slow on cold start — serving the local disk copy, refresh continues in background'); return d; }
-    return h.refreshing || readJsonStoreFresh(h);
+    if (cold) { h.stale = ''; return cold; }
+    /* h.stale — העותק שהוגש אינו הדלי: 'disk' = מטמון הדיסק (יכול להיות ישן בימים!), 'mem' = העותק האחרון בזיכרון. השרת מדווח
+       לדפדפן (x-ko-stale) והדפדפן לא שומר ממנו — כך לשונית שנטענה מעותק ישן לא דורסת את הענן */
+    const d = storeFromDisk(h); if (d) { h.partial = true; h.stale = 'disk'; console.warn('store: bucket slow on cold start — serving the local disk copy, refresh continues in background'); return d; }
+    const fr = await (h.refreshing || readJsonStoreFresh(h)); h.stale = ''; return fr;
   }
   if (!h.refreshing) h.refreshing = readJsonStoreFresh(h).then(v => { h.lastGood = v; return v; }).finally(() => { h.refreshing = null; });
   const slow = new Promise(res => setTimeout(() => res(null), 2500));
   const v = await Promise.race([h.refreshing.catch(() => null), slow]);
-  if (v) return v;
-  if (h.lastGood) { h.partial = true; console.warn('store: bucket slow — serving the in-memory copy, refresh continues in background'); return h.lastGood; }
-  return h.refreshing;
+  if (v) { h.stale = ''; return v; }
+  if (h.lastGood) { h.partial = true; h.stale = 'mem'; console.warn('store: bucket slow — serving the in-memory copy, refresh continues in background'); return h.lastGood; }
+  const fr = await h.refreshing; h.stale = ''; return fr;
 }
 /* גרסאות בלי תמונות: צילומי גרסה ישנים שנשמרו עם תמונות הרקע (5MB × 30) — נחתכים כבר בקריאה, כדי שהזיכרון בענן לא יתפוצץ */
 function slimVers(p) {

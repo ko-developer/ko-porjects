@@ -228,6 +228,7 @@ function srvSaveFail(code) {
     if (!r.ok) { srvOffline(r.status); return; }
     const s = await r.json();
     SRV = true; SRV_STORE = r.headers.get('x-ko-store') || '';
+    if (r.headers.get('x-ko-stale')) srvStaleCopy(r.headers.get('x-ko-stale'));   /* עותק זמני — לא שומרים ממנו */
     if (s && Array.isArray(s.projects) && s.projects.length) {
       store = s; liteWire(store); sheetsBindAll(store); __kitSig = null; try { kitStamp(); } catch (e) {}   /* בסיס להשוואת הקיטים — מה שנטען מהשרת */
       P = store.projects.find(p => p.id === store.cur) || store.projects[0];
@@ -269,8 +270,22 @@ function liteWire(st) {
 /* שמירה לשרת: מקובצת ל-400ms. srvDirty = יש שינוי שעוד לא אושר ע"י השרת — ריענון/סגירה באמצע
    שולחים מיד ומבקשים מהדפדפן אישור יציאה, כדי שהשינוי האחרון לא ילך לאיבוד */
 let srvDirty = false, srvInFlight = null;
+/* ⏳ העותק שנטען הוא זמני (הדלי היה איטי): שמירה לשרת חסומה — אחרת לשונית עם נתונים ישנים דורסת את הענן (כך אבדו קיטים ב-2.11).
+   בודקים כל 8 שניות; כשהענן חזר — טוענים מחדש אוטומטית (אם אין שינויים שלא נשמרו), אחרת מציעים כפתור */
+let SRV_STALE = '';
+function srvStaleCopy(kind) {
+  SRV_STALE = kind || 'disk';
+  const msg = '⏳ הנתונים נטענו מעותק זמני כי הענן איטי — <u>שינויים לא נשמרים</u> עד שהדף ייטען מחדש עם הנתונים העדכניים (בדיקה כל כמה שניות)';
+  srvBanner(msg);
+  const tick = async () => {
+    try { const j = await fetch('/api/store/state', { cache: 'no-store' }).then(r => r.json()); if (j && !j.stale) { if (!srvDirty) { location.reload(); return; } srvBanner('✓ הענן חזר — <button onclick="location.reload()" style="padding:1px 8px">טען מחדש</button> (השינויים שעשית מאז הטעינה הזמנית יאבדו — הם נעשו על נתונים ישנים)'); return; } } catch (e) {}
+    setTimeout(tick, 8000);
+  };
+  setTimeout(tick, 8000);
+}
 function pushSrvNow() {
   if (!SRV) return Promise.resolve();
+  if (SRV_STALE) { srvDirty = true; return Promise.resolve(); }   /* עותק זמני — לא דורסים את הענן */
   clearTimeout(srvT); srvT = null;
   const body = JSON.stringify(store);
   srvDirty = true;

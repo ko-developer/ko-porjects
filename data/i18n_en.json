@@ -6819,4 +6819,12 @@
 "במיקומי ה-R":"at the R positions",
 "גרור לתיקון":"drag to adjust",
 "הלקוח נשמר על הפרויקט":"the customer is saved on the project",
-"↔ החלף לקוח":"↔ Change customer"}
+"↔ החלף לקוח":"↔ Change customer",
+"⏳ הנתונים נטענו מעותק זמני כי הענן איטי":"⏳ The data was loaded from a temporary copy because the cloud is slow",
+"שינויים לא נשמרים":"changes are not being saved",
+"עד שהדף ייטען מחדש עם הנתונים העדכניים":"until the page reloads with the current data",
+"בדיקה כל כמה שניות":"checking every few seconds",
+"✓ הענן חזר":"✓ The cloud is back",
+"טען מחדש":"Reload",
+"השינויים שעשית מאז הטעינה הזמנית יאבדו":"the changes you made since the temporary load will be lost",
+"הם נעשו על נתונים ישנים":"they were made on old data"}
