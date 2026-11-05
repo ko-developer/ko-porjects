@@ -229,7 +229,7 @@ function srvSaveFail(code) {
     const s = await r.json();
     SRV = true; SRV_STORE = r.headers.get('x-ko-store') || '';
     if (s && Array.isArray(s.projects) && s.projects.length) {
-      store = s; liteWire(store); sheetsBindAll(store);
+      store = s; liteWire(store); sheetsBindAll(store); __kitSig = null; try { kitStamp(); } catch (e) {}   /* בסיס להשוואת הקיטים — מה שנטען מהשרת */
       P = store.projects.find(p => p.id === store.cur) || store.projects[0];
       sel = null; selCable = null; selMulti.clear(); normalizeAll();
       if (typeof impItems !== 'undefined') impItems = impLoad();
@@ -275,7 +275,7 @@ function pushSrvNow() {
   const body = JSON.stringify(store);
   srvDirty = true;
   const p = srvInFlight = fetch('/api/store', { method: 'POST', headers: { 'content-type': 'application/json', 'x-ko-store': SRV_STORE }, body, keepalive: body.length < 60000 })
-    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; } if (r.ok) { if (document.getElementById('srvBanner') && !srvOfflineT) srvBanner(''); } else if (r.status === 409) srvStale(); else { console.warn('שמירה לשרת נכשלה', r.status); srvSaveFail(r.status); } })
+    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; delete store._delKits; } if (r.ok) { if (document.getElementById('srvBanner') && !srvOfflineT) srvBanner(''); } else if (r.status === 409) srvStale(); else { console.warn('שמירה לשרת נכשלה', r.status); srvSaveFail(r.status); } })
     .catch(() => { srvSaveFail(0); });
   return p;
 }
@@ -352,10 +352,25 @@ function renderHistBtns() {
   if (u) { u.disabled = HIST.past.length < 2; u.style.opacity = u.disabled ? .35 : 1; }
   if (r) { r.disabled = !HIST.future.length; r.style.opacity = r.disabled ? .35 : 1; }
 }
+/* 🧰 הגנה על הקיטים שלי מפני לשונית עם עותק ישן: לכל קיט שהשתנה חותמת upd, וקיט שנמחק נרשם ב-store._delKits עד שהשרת אישר.
+   השרת ממזג לפי זה (scripts/dev-server.js POST /api/store): קיט שחסר ברשימה שנשלחה ולא נמחק במפורש נשאר, ובקיט שקיים בשניהם החדש מנצח. */
+let __kitSig = null;
+function kitStamp() {
+  const mine = store.userKits || [];
+  if (typeof kitEnsureIds === 'function') { try { kitEnsureIds(); } catch (e) {} }
+  const cur = new Map();
+  for (const k of mine) { if (!k.id) continue; const { upd, ...rest } = k; cur.set(k.id, JSON.stringify(rest)); }
+  if (__kitSig) {
+    for (const [id, sig] of cur) if (__kitSig.get(id) !== sig) { const k = mine.find(x => x.id === id); if (k) k.upd = Date.now(); }
+    for (const id of __kitSig.keys()) if (!cur.has(id)) store._delKits = [...new Set([...(store._delKits || []), id])];
+  }
+  __kitSig = cur;
+}
 function save() {
   if (window.__AUTH && window.__AUTH.report) return;   /* קישור דוח: קריאה בלבד — אין מה לשמור, ולא נוגעים בעותק המקומי */
   store.cur = P.id;
-  P.upd = Date.now();   /* חותמת עריכה — השרת לא ידרוס עותק חדש יותר (של משתמש אחר) בעותק ישן מלשונית פתוחה */
+  P.upd = Date.now();
+  try { kitStamp(); } catch (e) { console.warn('kitStamp', e); }   /* חותמת עריכה — השרת לא ידרוס עותק חדש יותר (של משתמש אחר) בעותק ישן מלשונית פתוחה */
   thumbSync();
   impStore();
   verSnapshot();
@@ -5861,7 +5876,7 @@ function renderWires() {
       <text x="${bx + barPx / 2}" y="${by + fzp + 6}" text-anchor="middle" font-size="${fzp}" font-weight="800" fill="#c9502e">5 מ׳ — השווה לשולחן (1.5 מ׳) או לדלת (0.9 מ׳)</text>`;
   }
   /* קו הכיול הקבוע — תזכורת קנה המידה על התכנית */
-  if (P.calLine && P.scale && !calMode) {
+  if (P.calLine && P.scale && !calMode && !P.calLineHide) {   /* P.calLineHide — הוסתר בהגדרות התכנית */
     const { p1, p2 } = P.calLine;
     const px = Math.hypot(p1.x - p2.x, p1.y - p2.y);
     const Zc = getZ() || 1;   /* עובי/גודל קבועים על המסך — בזום גבוה הסימון לא מכסה את התכנית */
@@ -6286,7 +6301,7 @@ function multiWinOpen() {
 function multiWinRender() {
   const ov = document.getElementById('multiWin'); if (!ov) return; const box = ov.querySelector('[data-box]');
   const ns = [...selMulti].map(byId).filter(n => n && n.kind === 'point'); if (!ns.length) { multiWinClose(); return; }
-  const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'טראס/הנפה', 'רצפה', 'סטאק', 'בתוך ארון', 'אחר'];
+  const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'טראס/הנפה', 'רצפה', 'סטאק', 'עמוד', 'בתוך ארון', 'אחר'];
   const num = (id, k, v, w, ph) => `<input type="number" step="any" value="${v ?? ''}" placeholder="${ph || ''}" style="width:${w || 56}px;font-size:11px;padding:2px 3px" onchange="multiSet('${id}','${k}',this.value)">`;
   const mountSel = (id, v) => `<select style="font-size:11px;padding:1px 2px" onchange="multiSet('${id}','mount',this.value)">${MOUNTS.map(m => `<option ${v === m ? 'selected' : ''}>${m}</option>`).join('')}</select>`;
   const rows = ns.map((n, i) => { const d = typeof spkDataN === 'function' ? (spkDataN(n) || {}) : {}, gd = typeof guessDisp === 'function' ? guessDisp(n.name) : null;
@@ -10266,6 +10281,7 @@ function renderPanel() {
           <div style="font-weight:800;color:${P.scale ? '#0f6e56' : '#c9502e'};margin-bottom:4px">${P.scale ? '✓ קנה מידה מכויל' : '⚠ התכנית עדיין לא מכוילת'}</div>
           <p class="muted" style="margin:0 0 8px">${P.scale ? `1 מ׳ = ${(1 / P.scale).toFixed(1)}px · מרחקי כבלים נמדדים אוטומטית מהתכנית` : 'בלי כיול מרחקי הכבלים לא יחושבו נכון. כייל פעם אחת לפי מידה ידועה בתכנית.'}</p>
           ${typeof asSummaryHTML === 'function' ? asSummaryHTML() : ''}
+          ${P.calLine ? `<label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin:4px 0;cursor:pointer"><input type="checkbox" style="width:auto;margin:0" ${P.calLineHide ? '' : 'checked'} onchange="P.calLineHide=!this.checked;save();render()">📏 הצג את קו הייחוס של הכיול עם המידה על התכנית</label>` : ''}
           <button class="primary" style="width:100%;margin-top:6px;${calMode && !calMode.smart ? 'background:#ff8a50;color:#1a1e28' : ''}" onclick="calMode={pts:[]};render()">📏 ${calMode && !calMode.smart ? 'לחץ על 2 נקודות שהמרחק ביניהן ידוע…' : 'בצע כיול ידני (2 נקודות)'}</button>
           ${!P.autoScale && typeof asStepButtonsHTML === 'function' ? asStepButtonsHTML() : ''}
         </div>
@@ -10344,7 +10360,7 @@ function renderPanel() {
     <div class="fld"><label>תיאור</label><input value="${esc(n.sub || '')}" onchange="byId('${n.id}').sub=this.value;render()"></div>`;
   if (n.kind === 'point') {
     const isMini = n.mini || (n.srcIid && !n.full);
-    const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'בתוך ארון', 'אחר'];
+    const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'עמוד', 'בתוך ארון', 'אחר'];
     /* סוג המוקד — לא בהכרח רמקול */
     const PTYPES = [['speaker', '🔊 רמקול'], ['sub', '🔈 סאב'], ['amp', '🎚 מגבר'], ['proc', '🎛 פרוססור / DSP / מטריצה'], ['player', '💿 נגן / סטרימר / מחשב מוזיקה'], ['mic', '🎤 מיקרופון'], ['screen', '📺 מסך/מקרן'], ['light', '💡 גוף תאורה'], ['camera', '📷 מצלמה'], ['ap', '📶 נקודת רשת/AP'], ['device', '📦 מכשיר אחר'], ['other', '📍 נקודת קצה']];
     const dbT = dbSpkType(n.name);
@@ -10354,6 +10370,7 @@ function renderPanel() {
     const isSpk = pt === 'speaker' || pt === 'sub';
     const isSub = pt === 'sub';
     const curM = n.mount || (isSub ? 'רצפה' : /שקוע|ceiling/i.test(n.name || '') ? 'תקרת גבס' : 'קיר בלוק');
+    const mStd = MOUNTS.includes(curM) ? curM : 'אחר';   /* טקסט חופשי שהוקלד ב"אחר" — הבורר מציג "אחר" והשדה את הטקסט */
     html += `<div class="fld"><label>סוג המוקד</label><select onchange="byId('${n.id}').ptype=this.value;render();save()">
       ${PTYPES.map(([v, l]) => `<option value="${v}" ${pt === v ? 'selected' : ''}>${l}</option>`).join('')}
     </select></div>
@@ -10361,7 +10378,8 @@ function renderPanel() {
       <input type="checkbox" style="width:auto" ${isMini ? 'checked' : ''} onchange="toggleMini('${n.id}',this.checked)"> סמן ממוזער על התכנית (אייקון + מספר)</label></div>
     <div class="row2">
       <div class="fld"><label>גובה (מ׳)</label><input type="number" step="0.1" min="0" value="${n.hgt ?? (isSub ? 0 : 2.6)}" onchange="byId('${n.id}').hgt=+this.value;save()"></div>
-      <div class="fld"><label>התקנה על גבי</label><select onchange="byId('${n.id}').mount=this.value;save()">${MOUNTS.map(m => `<option value="${m}" ${curM === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+      <div class="fld"><label>התקנה על גבי</label><select onchange="byId('${n.id}').mount=this.value;save();if(this.value==='אחר')render()">${MOUNTS.map(m => `<option value="${m}" ${mStd === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
+        ${mStd === 'אחר' ? `<input value="${esc(curM === 'אחר' ? '' : curM)}" placeholder="פרט על גבי מה — למשל: עמוד עץ, מעקה, פרגולה" style="margin-top:4px" onchange="byId('${n.id}').mount=this.value.trim()||'אחר';save()">` : ''}</div>
       ${isSpk ? `<div class="fld" style="min-width:0"><label>כיוון ההתקנה</label><select style="width:100%;min-width:0" title="מאונך (רגיל): הארון עומד, הפיזור האופקי לרוחב · מאוזן (שוכב): השופר מסובב 90°, הפיזור האנכי לרוחב" onchange="mountSet('${n.id}','orient',this.value);render()"><option value="" ${!spkFlat(n) ? 'selected' : ''}>↕ מאונך (רגיל)</option><option value="flat" ${spkFlat(n) ? 'selected' : ''}>↔ מאוזן · סובב שופר</option></select>
         ${spkFlat(n) ? '<p style="font-size:10.5px;margin:3px 0 0;color:#9a3412">🔁 התקנה מאוזנת: יש לסובב את השופר ב-90° — מופיע בדוח ההתקנה; הכיסוי מחושב לפי V לרוחב</p>' : ''}</div>` : ''}
     </div>
@@ -11194,7 +11212,7 @@ function mountAddAll(onlyId) {
 }
 function mountManager() {
   const old = document.getElementById('mountOv'); if (old) (old.closest('.uiDlgOv') || old).remove();   /* ה-id על התוכן — מסירים את השכבה כולה, לא רק אותו (אחרת נשארת קופסה ריקה) */
-  const rows = mountRows(); const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'בתוך ארון', 'אחר'];
+  const rows = mountRows(); const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'עמוד', 'בתוך ארון', 'אחר'];
   const inOffer = key => { const it = impItems.find(x => x.key === key && x.on !== false); return it ? (+it.qty || 0) : 0; };
   const tr = rows.map(({ n, kind, pr }) => { const nm = nodeFullName(n); const have = pr && pr.key ? inOffer(pr.key) : 0; return `<tr>
     <td><b>${esc(shortModel(nm))}</b><br><small class="muted">${esc(nm.slice(0, 44))}</small></td>
@@ -15056,6 +15074,29 @@ async function deleteMarked() {
 /* ===== שליחת הצעה ל-ERP =====
    השרת יוצר את ההצעה ב-MCP של ה-ERP (/api/erp/offer → create_offer): על פרויקט קיים, על פרויקט חדש שנוצר איתה
    (new_project), או ללקוח בלבד. בלי חיבור ERP בשרת — מטען JSON להורדה, ליצירה ידנית. */
+/* 👤 לקוח לפרויקט מתוך לקוחות ה-ERP — גם מחוץ לדיאלוג השליחה (האשף); נשמר על הפרויקט ומוצע בשליחת ההצעה */
+function erpPickAccount() {
+  const ov = uiModal(`<b style="font-size:14px">👤 לקוח לפרויקט</b>
+    <p class="muted" style="font-size:11px;margin:4px 0 8px">חיפוש בלקוחות ה-ERP (שם או מספר לקוח). לקוח חדש נפתח ב-ERP עצמו ואז מופיע כאן.</p>
+    <input data-q placeholder="שם לקוח / מספר לקוח…" style="width:100%">
+    <div data-st class="muted" style="font-size:11px;margin:4px 0;min-height:14px"></div>
+    <div data-list style="max-height:40vh;overflow-y:auto"></div>
+    ${P.accountKey ? `<button data-clear style="width:100%;margin-top:8px;background:#fdf0f0;color:#8a1c1c;border:1px solid #e9b4b4">✕ הסר את הלקוח (${esc(P.accountName || P.accountKey)})</button>` : ''}
+    <button data-x style="width:100%;margin-top:6px">סגור</button>`);
+  const q = ov.querySelector('[data-q]'), st = ov.querySelector('[data-st]'), list = ov.querySelector('[data-list]');
+  const after = () => { save(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender(); if (typeof renderImp === 'function') renderImp(); };
+  const paint = accs => {
+    list.innerHTML = accs.slice(0, 40).map(a => `<div data-acc="${esc(a.key)}" data-nm="${esc(a.name)}" style="display:flex;gap:8px;align-items:center;padding:6px 9px;cursor:pointer;border-bottom:1px solid #f2efe9;font-size:12.5px"><span style="flex:1">${esc(a.name)}</span><span style="background:#f0ede8;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:700;white-space:nowrap">${esc(a.key)}</span></div>`).join('') || '<div class="muted" style="padding:6px">לא נמצאו לקוחות</div>';
+    list.querySelectorAll('[data-acc]').forEach(d => { d.onclick = () => { P.accountKey = d.dataset.acc; P.accountName = d.dataset.nm; ov.remove(); after(); uiToast('👤 לקוח הפרויקט: ' + P.accountName, 3000); }; });
+  };
+  let t = 0;
+  q.oninput = () => { const v = q.value.trim(); clearTimeout(t); if (v.length < 2) { list.innerHTML = ''; st.textContent = ''; return; } st.textContent = '⏳ מחפש…';
+    t = setTimeout(async () => { try { const j = await fetch('/api/erp/accounts?q=' + encodeURIComponent(v)).then(r => r.json()); if (q.value.trim() !== v) return; if (!j.ok) { st.textContent = (j.errors || ['אין חיבור ל-ERP']).join('; '); return; } st.textContent = j.accounts.length ? j.accounts.length + ' לקוחות — בחר מהרשימה' : 'לא נמצאו לקוחות'; paint(j.accounts); } catch (e) { st.textContent = 'החיפוש נכשל — בדוק את החיבור ל-ERP'; } }, 160); };
+  setTimeout(() => q.focus(), 50);
+  const cl = ov.querySelector('[data-clear]'); if (cl) cl.onclick = () => { delete P.accountKey; delete P.accountName; ov.remove(); after(); };
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+}
+window.erpPickAccount = erpPickAccount;
 function sendOffer() {
   const rows = impItems.filter(it => it.on !== false && (+it.qty || 0) > 0 && it.dest !== 'ignore');
   if (!rows.length) { alert('אין פריטים בהצעה.'); return; }
@@ -16465,6 +16506,19 @@ function nodeInZone(n, z) {
   if ((n.sub || '').includes(z.name)) return true;
   return inZone(z, { x: 2200 - n.x - 20, y: n.y + 24 });
 }
+/* סימוני רמקולים שמצוירים בתכנית עצמה — "R" (רמקול) ו-"sub" בשכבת הטקסט של ה-PDF או ב-OCR — בתוך האזור, בקואורדינטות הקנבס */
+function ptSpkMarks(z) {
+  const its = ((P.planText || {}).items || []), tops = [], subs = [];
+  if (typeof ptPos !== 'function') return { tops, subs };
+  for (const it of its) {
+    const t = String(it.t || '').trim().replace(/[.:]+$/, '');
+    const isSub = /^(sub|subs|sw|סאב)$/i.test(t), isTop = /^(R|SP|SPK|SPKR|LS|רמקול)$/i.test(t);
+    if (!isSub && !isTop) continue;
+    const p = ptPos(it); if (!inZone(z, { x: p.x, y: p.y })) continue;
+    (isSub ? subs : tops).push({ x: p.x, y: p.y });
+  }
+  return { tops, subs };
+}
 function inZone(z, pt) {
   if (z.poly) { let inside = false, p = z.poly; for (let i = 0, j = p.length - 1; i < p.length; j = i++) if ((p[i].y > pt.y) !== (p[j].y > pt.y) && pt.x < (p[j].x - p[i].x) * (pt.y - p[i].y) / (p[j].y - p[i].y) + p[i].x) inside = !inside; return inside; }
   const L = 2200 - z.x - z.w; return pt.x >= L && pt.x <= L + z.w && pt.y >= z.y && pt.y <= z.y + z.h;
@@ -17520,6 +17574,28 @@ function buildZoneSystem(zid) {
     P.showCoverage = true;
     z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
     zoneBuildBar(`נבנתה מערכת קלאסטרים ל"${z.name}": ${pts.length} צבירים × ${N} רמקולים = ${idx}× ${spk}${subMsgC} · מרווח בין צבירים ~${spM.toFixed(1)} מ׳ (${sdC.why})${sdC.warn ? '\n' + sdC.warn : ''}`, () => undoZoneBuild(z));
+    return;
+  }
+  /* סימוני רמקולים בתכנית ("R" / "sub" שהאדריכל/המתכנן צייר) — נקודת ההתחלה של ההצבה: טופ בכל R, סאב בכל sub, מכוונים למרכז האזור */
+  const marks = mode !== 'live' && mode !== 'corners' && !z._noMarks ? ptSpkMarks(z) : null;
+  if (marks && marks.tops.length >= 2) {
+    const b = zoneBounds(z), cx0 = b.L + b.W / 2, cy0 = b.T + b.H / 2, pts = marks.tops;
+    const it = { on: true, qty: pts.length, name: spk, src: 'מערכת אוטו · ' + z.name, key: z._spkKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i'), zones: { [z.name]: pts.length }, placed: pts.length, added: true };
+    autoPrice(it); impItems.push(it);
+    pts.forEach((p, k) => P.nodes.push({ id: uid('n'), kind: 'point', name: spk + ' (' + (k + 1) + ')', sub: 'לפי סימון R בתכנית · ' + z.name, x: 2200 - p.x - 20, y: p.y - 24, srcIid: it.iid, mini: true, mount: 'קיר בלוק', hgt: 2.6, aim: Math.round(Math.atan2(cy0 - p.y, cx0 - p.x) * 180 / Math.PI), disp, spl }));
+    let subMsgM = '';
+    if (z._sub) {
+      const sit = { on: true, qty: 1, name: z._sub, src: 'מערכת אוטו · ' + z.name, key: z._subKey || '', dest: 'point', cat: 'other', u: 1, iid: uid('i') };
+      autoPrice(sit); impItems.push(sit);
+      if (marks.subs.length) {
+        marks.subs.forEach((p, k) => P.nodes.push({ id: uid('n'), kind: 'point', name: z._sub + ' (' + (k + 1) + ')', sub: 'לפי סימון sub בתכנית · ' + z.name, x: 2200 - p.x - 20, y: p.y - 24, srcIid: sit.iid, mini: true, mount: 'רצפה', hgt: 0.5, ptype: 'sub' }));
+        sit.qty = marks.subs.length; sit.placed = marks.subs.length; sit.zones = { [z.name]: marks.subs.length }; sit.added = true;
+        subMsgM = ' + ' + marks.subs.length + '× ' + z._sub + ' במיקומי ה-sub';
+      } else subMsgM = sdPlaceSubs(z, z._sub, sdSubCount(z, [{ name: spk, qty: pts.length }], z._sub, area), sit);
+    }
+    P.showCoverage = true;
+    z._built = Date.now(); dockOpen = true; dockMin = false; render(); save();
+    zoneBuildBar(`נבנתה מערכת ל"${z.name}" לפי סימוני הרמקולים שבתכנית: ${pts.length}× ${spk} במיקומי ה-R${subMsgM} — גרור לתיקון`, () => undoZoneBuild(z));
     return;
   }
   if (mode === 'ring') {

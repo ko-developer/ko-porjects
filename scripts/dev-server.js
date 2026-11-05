@@ -463,6 +463,16 @@ const handleReq = async (req, res) => {
             posted.projects = (posted.projects || []).map(p => { seen.add(p.id); const o = srv.get(p.id); return o && (+o.upd || 0) > (+p.upd || 0) ? o : p; });
             if (isAdmin(me)) for (const o of fullSt.projects || []) if (!seen.has(o.id) && !del.has(o.id)) posted.projects.push(o);
             posted._del = [...del]; }   /* מועבר ל-writeStore: מחיקה מפורשת בלבד */
+          /* 🧰 הקיטים שלי (userKits): מיזוג לכל קיט — קיט שחסר ברשימה שנשלחה ולא נמחק במפורש (_delKits) נשאר, כך שלשונית שנטענה
+             מעותק ישן (למשל בזמן שהדלי היה איטי) לא מוחקת קיטים; קיט שקיים בשניהם — החדש לפי upd (חותמת מהדפדפן) */
+          if (Array.isArray(raw.userKits)) {
+            const sk = fullSt.userKits || [], pk = posted.userKits || [], del = new Set((raw._delKits || []).map(String));
+            const keyOf = k => k.id || ('n:' + String(k.name || '').trim()), pm = new Map(pk.map(k => [keyOf(k), k])), out = pk.slice(); let kept = 0;
+            for (const o of sk) { const key = keyOf(o), p = pm.get(key); if (!p) { if (!del.has(key) && !(o.id && del.has(String(o.id)))) { out.push(o); kept++; } continue; } if ((+o.upd || 0) > (+p.upd || 0)) out[out.indexOf(p)] = o; }
+            if (kept) console.warn('[store] ' + kept + ' קיטים שלי חסרו ברשימה שנשלחה ולא נמחקו במפורש — נשמרו');
+            posted.userKits = out;
+          }
+          delete posted._delKits;
           /* מוזמן: רק הפרויקטים שלו בהרשאת עריכה נכתבים; השאר של הבעלים לא נגעו */
           const merged = me.role !== 'owner' ? mergeStore(fullSt, posted, me) : posted;
           const n = await writeStore(db, merged);
