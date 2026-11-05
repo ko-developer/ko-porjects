@@ -3,8 +3,10 @@
    לאנגלית. כל צומת טקסט / title / placeholder מפוצל במפרידים (· — | : ( ) שורה), מספרים → #, ומתורגם מקטע-מקטע; מה שלא
    במילון נשאר בעברית (שמות פריטים מה-ERP, שמות פרויקטים ואזורים של המשתמש). MutationObserver מתרגם כל רינדור חדש.
    הבחירה נשמרת ב-localStorage (ko_lang); החלפה טוענת את הדף מחדש. באנגלית הדף LTR. */
-const I18N = { lang: 'he', dict: null, obs: null, last: new WeakMap(), pending: new Set(), raf: 0 };
+const I18N = { lang: 'he', dict: null, obs: null, last: new WeakMap(), pending: new Set(), raf: 0, touched: new Set() };
 const I18N_HEB = /[֐-׿]/;
+const I18N_MIRROR = /[()[\]{}<>«»]/;
+const I18N_INLINE = { B: 1, STRONG: 1, I: 1, EM: 1, SPAN: 1, A: 1, SMALL: 1, U: 1, LABEL: 1, SUB: 1, SUP: 1, MARK: 1, FONT: 1 };
 const I18N_SEP = /(\s[·—|•]\s|\s[-–]\s|\n|:\s|\(|\)|\[|\]|\s\/\s|\.\s|\?\s|!\s|…)/;
 const I18N_EDGE = '[\\s#%₪$:,.;!?…\\-–—()\\[\\]{}"\'«»×*•·|/+=&~\\d]*';
 const I18N_PIECE_RX = new RegExp('^(' + I18N_EDGE + ')([\\s\\S]*?)(' + I18N_EDGE + ')$');
@@ -47,7 +49,7 @@ function i18nNode(n) {
   if (n.nodeType === 3) {
     const p = n.parentNode; if (!p || I18N_SKIP[p.nodeName] || (p.isContentEditable && p.nodeName !== 'BODY')) return;
     const cur = n.nodeValue; if (!I18N_HEB.test(cur) || I18N.last.get(n) === cur) return;
-    const out = i18nText(cur); if (out !== cur) { n.nodeValue = out; I18N.last.set(n, out); }
+    const out = i18nText(cur); if (out !== cur) { n.nodeValue = out; I18N.last.set(n, out); I18N.touched.add(I18N_INLINE[p.nodeName] && p.parentNode ? p.parentNode : p); }
     return;
   }
   if (n.nodeType !== 1) return;
@@ -60,10 +62,23 @@ function i18nNode(n) {
   for (const e of els) { for (const a of I18N_ATTRS) { const v = e.getAttribute(a); if (v && I18N_HEB.test(v)) { const out = i18nText(v); if (out !== v) e.setAttribute(a, out); } } if (e.nodeName === 'INPUT' && /^(button|submit|reset)$/i.test(e.type || '') && I18N_HEB.test(e.value)) e.value = i18nText(e.value); }
   for (const t of txt) i18nNode(t);
 }
+/* Chrome משאיר סוגריים הפוכים — "(6)" מוצג ")6(" — בצומת טקסט שלא השתנה, כשהטקסט העברי לידו נפרס ורק אחר כך תורגם:
+   הצורה שחושבה בהקשר ימין-לשמאל נשמרת, וגם קביעת הטקסט מחדש לאותו ערך לא מתקנת. צומת טקסט חדש מחושב מחדש — לכן אחרי כל
+   תרגום מחליפים בעותק את השכנים (באותו אלמנט, או בהורה של אלמנט שורה כמו <b>) שיש בהם סוגריים ואין בהם עברית */
+function i18nReshape() {
+  const roots = [...I18N.touched]; I18N.touched.clear();
+  for (const r of roots) {
+    if (!r.isConnected || r === document.body || r.isContentEditable || I18N_SKIP[r.nodeName]) continue;
+    const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT), stale = [];
+    let c; while ((c = w.nextNode())) { const v = c.nodeValue; if (I18N_MIRROR.test(v) && !I18N_HEB.test(v) && !I18N_SKIP[c.parentNode.nodeName] && !c.parentNode.isContentEditable) stale.push(c); }
+    for (const t of stale) t.replaceWith(document.createTextNode(t.nodeValue));
+  }
+}
 function i18nFlush() {
   I18N.raf = 0;
   const list = [...I18N.pending]; I18N.pending.clear();
   for (const n of list) { if (n.isConnected) i18nNode(n); }
+  i18nReshape();
   if (document.title && I18N_HEB.test(document.title)) { const t = i18nText(document.title); if (t !== document.title) document.title = t; }
 }
 function i18nQueue(n) { I18N.pending.add(n); if (!I18N.raf) I18N.raf = requestAnimationFrame(i18nFlush); }
@@ -73,7 +88,7 @@ function i18nStart() {
   if (I18N.lang !== 'en') return;
   document.documentElement.lang = 'en'; document.documentElement.dir = 'ltr'; document.documentElement.classList.add('lang-en');
   const cw = document.getElementById('canvasWrap'); if (cw) cw.style.direction = 'rtl';   /* הקנבס: scrollLeft שלילי = גלילה שמאלה, המקור בפינה הימנית — כמו בעברית */
-  i18nNode(document.body);
+  i18nNode(document.body); i18nReshape();
   if (document.title) document.title = i18nText(document.title);
   I18N.obs = new MutationObserver(muts => {
     for (const m of muts) {

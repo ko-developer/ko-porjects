@@ -57,7 +57,13 @@ export function extract() {
       if (/\.js$/.test(f)) t = t.replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1 ');
     }
     /* גבולות: ציטוטים, גרשיים, backtick, ${ }, תגיות HTML, ישויות — גרש/גרשיים בין אותיות עבריות (מק"ט, סה"כ) אינם גבול */
-    const segs = t.split(/\$\{|\}|<\/?[a-zA-Z][^<>]*>|(?<![֐-׿])["']|["'](?![֐-׿])|`|&[a-z]+;|\\n/);
+    const BOUND = /\$\{|\}|<\/?[a-zA-Z][^<>]*>|(?<![֐-׿])["']|["'](?![֐-׿])|`|&[a-z]+;|\\n/;
+    /* תגית שלמה היא גבול, ולכן title / placeholder / aria-label / alt / data-tip שבתוכה (I18N_ATTRS ב-src/i18n.js) — טקסט שהשכבה
+       מתרגמת — נאספים כאן קודם, אחרת הם יוצאים מהבדיקה ונשארים בעברית באנגלית */
+    for (const m of t.matchAll(/<[a-zA-Z][^<>]*>/g))
+      for (const a of m[0].matchAll(/\s(?:title|placeholder|aria-label|alt|data-tip)\s*=\s*(?:"([^"]*)"|'([^']*)')/g))
+        for (const s of (a[1] ?? a[2]).split(BOUND)) if (HEB.test(s)) add(s, f);
+    const segs = t.split(BOUND);
     for (const s of segs) if (HEB.test(s)) add(s, f);
   }
   return keys;
