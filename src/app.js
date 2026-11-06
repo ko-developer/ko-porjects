@@ -115,7 +115,24 @@ const isActiveSub = s => /סאב|sub|וופר/i.test(s || '') && /מוגבר|א�
 /* רמקול מוגבר (אקטיבי) — דורש נקודת חשמל ליד הרמקול וקו סיגנל XLR (כבל מוכן או גליל + מחברים) במקום קו הגברה. ALPHA 15x של Unicorn, Res 2A, "רמקול מוגבר" בשם, או סימון "מוגבר" בטבלת הנתונים */
 const ACTIVE_SPK_RE = /מוגבר|אקטיבי|\bactive\b|\bpowered\b|UNICORN\s?ALPHA\s?\d|\bALPHA\s?15\s?X?\b/i;
 function isActiveSpk(s) { s = String(s || ''); if (!s) return false; if (isActiveSub(s) || ACTIVE_SPK_RE.test(s)) return true; try { return typeof spkAmpMode === 'function' && spkAmpMode(s) === 'active'; } catch { return false; } }
-function isActivePoint(n) { return !!n && n.kind === 'point' && (n.ptype == null || n.ptype === 'speaker' || n.ptype === 'sub') && isActiveSpk(typeof nodeFullName === 'function' ? nodeFullName(n) : n.name); }
+/* סוג המוקד לפי השם כשלא נקבע ידנית (n.ptype) — אותו שרשור כמו בפאנל המוקד. כרטיס קול / נגן / סטרימר / מיקסר הם מקור, לא רמקול */
+function autoPtype(name) {
+  const s = String(name || '');
+  if (/כרטיס קול|sound\s?card|audio\s?interface|נגן|סטרימר|streamer|player|מחשב מוזיקה|מיקסר|\bmixer\b|בורר כניסות|מקלט בלוטו/i.test(s) && !/רמקול|speaker|קולונה/i.test(s)) return 'player';
+  if (typeof dbSpkType === 'function' && dbSpkType(s) === 'סאב') return 'sub';
+  if (/מגבר|amplifier/i.test(s)) return 'amp';
+  if (/פרוססור|processor|קרוסאובר|xover|מטריצ|\bDSP\b/i.test(s)) return 'proc';
+  if (/סאב|\bsub\b/i.test(s)) return 'sub';
+  if (/רמקול|speaker|קולונה/i.test(s)) return 'speaker';
+  if (/מסך|מקרן|screen|projector|led/i.test(s)) return 'screen';
+  if (/תאורה|light|par|לד/i.test(s)) return 'light';
+  if (/מצלמה|camera/i.test(s)) return 'camera';
+  if (/מיקרופון|mic/i.test(s)) return 'mic';
+  return null;
+}
+/* מוקד שהוא רמקול/סאב לצורכי חיווט, כיסוי, קיטים ובדיקות — לפי n.ptype, ובלעדיו לפי השם (מוקד בלי סוג ובלי רמז בשם נחשב רמקול, כמו קודם) */
+function isSpkPtype(n) { const t = n && (n.ptype || autoPtype(n.name)); return t == null || t === 'speaker' || t === 'sub'; }
+function isActivePoint(n) { return !!n && n.kind === 'point' && isSpkPtype(n) && isActiveSpk(typeof nodeFullName === 'function' ? nodeFullName(n) : n.name); }
 /* מתקן תלייה בקופסה — כלל הבית (אורי, 10/2026): כל דגמי KT Audio וסדרת EUPHORIA של Unicorn מגיעים עם מתקן; TILL ו-PAGAZ לא. ניתן לדריסה בטבלת הנתונים ("מתקן בקופסה") */
 const BRACKET_INC_RULES = [[false, /TILL|PAGAZ/i], [true, /EUPHORIA|KT\s?AUDIO|WR\s?600|KT\s?ARRAY|MINIRAY|\bKT\s?\d{3,4}\b/i]];
 function spkBracketInc(name) { const m = typeof spkMetaFor === 'function' ? spkMetaFor(name) : null; if (m && m.inc) return m.inc === 'yes'; for (const [v, re] of BRACKET_INC_RULES) if (re.test(name || '')) return v; return null; }
@@ -8406,7 +8423,7 @@ function addTuneLine() {
 function projGapCheck() {
   const finds = [];
   purgeServiceUnits();
-  const spkN = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/עמדת נגינה|מגבר|פרוססור/i.test(n.name));
+  const spkN = P.nodes.filter(n => n.kind === 'point' && isSpkPtype(n) && !/עמדת נגינה|מגבר|פרוססור/i.test(n.name));
   const rows = impItems.filter(it => it.on !== false);
   const qsum = f => rows.filter(f).reduce((s2, it) => s2 + (+it.qty || 0), 0);
   /* 1. רמקולים לא מחווטים */
@@ -8892,7 +8909,7 @@ async function smartWire(zid) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   const inZone = n => nodeInZone(n, z);
   const fed = new Set(); P.cables.forEach(c => { if (c.type === 'nl4' && c.to) fed.add(c.to); });
-  const spks = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && inZone(n) && !fed.has(n.id) && !/עמדת נגינה/.test(n.name));
+  const spks = P.nodes.filter(n => n.kind === 'point' && isSpkPtype(n) && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && inZone(n) && !fed.has(n.id) && !/עמדת נגינה/.test(n.name));
   const noNew = !spks.length; /* הכול מחווט? עדיין נפתח לעריכת הניתוב הקיים */
   /* כל המגברים: קודם מריכוז האזור, אחר-כך שאר הארונות */
   /* מגבר אמיתי — לא כרטיס/מתקן/כבל שהמילה "מגבר" מופיעה בשמם */
@@ -8915,7 +8932,7 @@ async function smartWire(zid) {
       for (const c of sh.cables || []) { if (!ids.has(c.from) || c.fromUnit !== a.u.id || !c.pOut) continue; const m = c.pOut.match(/OUT (\d+)/); if (!m) continue; const ch = +m[1];
         const to = (sh.nodes || []).find(n => n.id === c.to); a.used.add(ch); const F = (a.foreign[ch] = a.foreign[ch] || { sheet: sh.name, names: [], nodes: [] }); F.names.push(to ? to.name : '?'); if (to && !F.nodes.includes(to)) F.nodes.push(to); } } });
   /* רמקולים בתכנית שאינם באזור (ננעצו מחוץ לו) — מצטרפים למאגר, לא מוקצים אוטומטית */
-  const others = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && !inZone(n) && !fed.has(n.id) && !/עמדת נגינה|מיקרופון/.test(n.name));   /* גם רמקולים של אזורים אחרים שעוד לא חווטו — הארון משותף, רואים את כולם */
+  const others = P.nodes.filter(n => n.kind === 'point' && isSpkPtype(n) && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && !inZone(n) && !fed.has(n.id) && !/עמדת נגינה|מיקרופון/.test(n.name));   /* גם רמקולים של אזורים אחרים שעוד לא חווטו — הארון משותף, רואים את כולם */
   if (noNew && !others.length && !amps.some(a => a.used.size)) { alert('אין רמקולים באזור.'); return; }
   if (noNew && window.__autoFlow) return;
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -8997,7 +9014,7 @@ async function pickAmpDialog() {
 async function autoChainFrom(nid, forceAmp) {
   const start = byId(nid); if (!start || start.kind !== 'point') return;
   const groupKey = n => start.srcIid ? n.srcIid === start.srcIid : (n.sub || '').split('·').pop() === (start.sub || '').split('·').pop();
-  const isSpk = n => n.kind === 'point' && !/סאב|\bsub\b/i.test(n.name);
+  const isSpk = n => n.kind === 'point' && isSpkPtype(n) && !/סאב|\bsub\b/i.test(n.name);
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   /* כל הרמקולים בקבוצה (כולל ההתחלה) שאינם כבר מחוברים לשרשרת/מגבר */
   const fedNL4 = new Set(); P.cables.forEach(c => { if (c.type === 'nl4' && c.to) fedNL4.add(c.to); });
@@ -10380,7 +10397,7 @@ function renderPanel() {
     const PTYPES = [['speaker', '🔊 רמקול'], ['sub', '🔈 סאב'], ['amp', '🎚 מגבר'], ['proc', '🎛 פרוססור / DSP / מטריצה'], ['player', '💿 נגן / סטרימר / מחשב מוזיקה'], ['mic', '🎤 מיקרופון'], ['screen', '📺 מסך/מקרן'], ['light', '💡 גוף תאורה'], ['camera', '📷 מצלמה'], ['ap', '📶 נקודת רשת/AP'], ['device', '📦 מכשיר אחר'], ['other', '📍 נקודת קצה']];
     const dbT = dbSpkType(n.name);
     if (!n.ptype && typeof fxIsLightItem === 'function' && (n.fx || (linkedIt && fxIsLightItem(linkedIt)) || fxIsLightItem({ name: n.name }))) { n.ptype = 'light'; if (!n.fx) fxInitNode(n, linkedIt || { name: n.name, key: null }); }   /* מוקד ישן שננקר מפריט תאורה — הופך לגוף תאורה */
-    const autoT = dbT === 'סאב' ? 'sub' : /מגבר|amplifier/i.test(n.name) ? 'amp' : /פרוססור|processor|קרוסאובר|xover|מטריצ|\bDSP\b/i.test(n.name) ? 'proc' : /נגן|סטרימר|streamer|player|מחשב מוזיקה/i.test(n.name) ? 'player' : /סאב|\bsub\b/i.test(n.name) ? 'sub' : /רמקול|speaker|קולונה/i.test(n.name) ? 'speaker' : /מסך|מקרן|screen|projector|led/i.test(n.name) ? 'screen' : /תאורה|light|par|לד/i.test(n.name) ? 'light' : /מצלמה|camera/i.test(n.name) ? 'camera' : /מיקרופון|mic/i.test(n.name) ? 'mic' : null;
+    const autoT = autoPtype(n.name);   /* אותו שרשור כמו isSpkPtype — כרטיס קול/נגן = מקור, לא רמקול */
     const pt = n.ptype || autoT || 'speaker';
     const isSpk = pt === 'speaker' || pt === 'sub';
     const isSub = pt === 'sub';
@@ -11211,7 +11228,7 @@ function mountProductFor(n, kind) {
   return null;
 }
 function mountRows() {
-  return P.nodes.filter(n => n.kind === 'point' && !n.hidden && (n.srcIid ? isSpeakerItem(nodeFullName(n)) : /רמקול|סאב|speaker|sub/i.test(n.name || '')) && (n.ptype == null || n.ptype === 'speaker' || n.ptype === 'sub')).map(n => { const kind = hangKindOf(n); return { n, kind, pr: mountProductFor(n, kind) }; });
+  return P.nodes.filter(n => n.kind === 'point' && !n.hidden && (n.srcIid ? isSpeakerItem(nodeFullName(n)) : /רמקול|סאב|speaker|sub/i.test(n.name || '')) && isSpkPtype(n)).map(n => { const kind = hangKindOf(n); return { n, kind, pr: mountProductFor(n, kind) }; });
 }
 function mountSet(id, f, v) { const n = byId(id); if (!n) return; if (f === 'orient') { if (v === 'flat') n.orient = 'flat'; else delete n.orient; } else if (f === 'hang') { if (v === 'auto') delete n.hang; else n.hang = v; } else if (f === 'straight') n.straight = !!v; else if (f === 'mount') n.mount = v; else if (f === 'orient') n.orient = v; save(); mountManager(); }
 function mountAddAll(onlyId) {
@@ -12221,7 +12238,7 @@ document.addEventListener('pointerup', e => {
         return;
       }
     }
-    if (movedFar && n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub')) {
+    if (movedFar && n.kind === 'point' && isSpkPtype(n)) {
       const z = (P.zones || []).find(zz => (n.sub || '').includes(zz.name));
       if (z) {
         const cx = 2200 - n.x - 20, cy = n.y + 24;
@@ -12479,6 +12496,8 @@ function isSpeakerItem(name) {
   if (typeof ACCESSORY_RE !== 'undefined' && ACCESSORY_RE.test(n) && !/^(רמקול|סאב|קולונ)/.test(n.trim())) return false;   /* "בורג … לרמקול" = אביזר, לא רמקול */
   /* מגבר/פרוססור אינם רמקול — גם אם בשם מוזכר "קרוס בין סאבים" וכד' */
   if (/מגבר|\bamp(lifier)?\b|פרוססור|processor|קרוסאובר|crossover|מטריצ|matrix|\bDSP\b/i.test(n)) return false;
+  /* כרטיס קול / נגן / סטרימר / מיקסר / בורר — מקור נגינה, לא רמקול (גם כשבשם מוזכרים "רמקולים") */
+  if (/כרטיס קול|sound\s?card|audio\s?interface|^\s*נגן|סטרימר|streamer|\bplayer\b|מיקסר|\bmixer\b|בורר כניסות|מקלט בלוטו/i.test(n) && !/^\s*(רמקול|סאב|קולונ)/.test(n.trim())) return false;
   return /רמקול|סאב|קולונה|speaker|sub|woofer|monitor/i.test(n);
 }
 function classifyStock(name) {
@@ -16435,7 +16454,7 @@ function zoneSystemBuilder(z) {
     <button style="width:100%;margin-top:6px;${z._built ? 'background:#eef7f1;color:#0f6e56' : 'background:#534ab7;color:#fff;font-weight:700'}" onclick="autoLayoutAI('${zid}')">🤖 ${z._built ? '✓ ' : ''}פריסה חכמה מהתכנית (AI) — מתחשבת בריהוט ובקירות</button>
     ${(() => {
       const fed2 = new Set(P.cables.map(c => c.to));
-      const zs = P.nodes.filter(n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && nodeInZone(n, z) && !/עמדת נגינה|מגבר|פרוססור/i.test(n.name));
+      const zs = P.nodes.filter(n => n.kind === 'point' && isSpkPtype(n) && nodeInZone(n, z) && !/עמדת נגינה|מגבר|פרוססור/i.test(n.name));
       const wd = zs.length > 0 && zs.every(n => fed2.has(n.id));
       return `<button style="width:100%;margin-top:6px;${wd ? 'background:#eef7f1;color:#0f6e56' : 'background:#0f6e56;color:#fff;font-weight:700'}" onclick="smartWire('${zid}')">5️⃣ 🔌 ${wd ? '✓ מחווט — לחץ לעריכת הניתוב' : 'חיווט חכם למגבר — פרימיום/סאב קו בודד · רקע בשרשור'}</button>`;
     })()}
@@ -18150,7 +18169,7 @@ function bomHTML() {
   const dimsOf = nm => { const d = typeof spkData === 'function' ? spkData(nm) : null; if (d && d.dims) return d.dims; const m = /(\d{2,4})\s*[x×]\s*(\d{2,4})\s*[x×]\s*(\d{2,4})/i.exec(nm); if (m) return m[1] + ' × ' + m[2] + ' × ' + m[3] + ' מ״מ'; const u = unitU(nm) || (typeof rackCabU === 'function' ? rackCabU(nm) : 0); return u ? u + 'U' : ''; };
   const zoneOf = n => { const zn = typeof zoneAt === 'function' ? zoneAt({ x: 2200 - n.x - 20, y: n.y + 20 }) : null; return zn ? zn.name : ''; };
   /* גובה והתקנה: מה שהוזן, אחרת ברירת המחדל של האפליקציה (רמקול 2.6 מ׳ על קיר בלוק, סאב 0 על הרצפה, שקוע — בתקרה) — מסומן כברירת מחדל */
-  const isSpkNode = n => n.kind === 'point' && (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && isSpeakerItem(n.name || '');
+  const isSpkNode = n => n.kind === 'point' && isSpkPtype(n) && isSpeakerItem(n.name || '');
   const hgtTxt = n => { if (n.hgt != null && n.hgt !== '') return String(n.hgt); if (!isSpkNode(n)) return '—'; const sub = /סאב|\bsub\b|וופר/i.test(n.name || ''), ceil = /שקוע|ceiling/i.test(n.name || '') || /תקרה/.test(n.mount || ''); return '<span style="color:#777" title="ברירת מחדל — לא הוזן גובה במוקד">' + (sub ? '0' : ceil ? (P.room && P.room.ceil ? P.room.ceil : '2.6') : '2.6') + '*</span>'; };
   const mountTxt = n => { if (n.mount) return esc(n.mount); if (!isSpkNode(n)) return '—'; const sub = /סאב|\bsub\b|וופר/i.test(n.name || ''), ceil = /שקוע|ceiling/i.test(n.name || ''); return '<span style="color:#777" title="ברירת מחדל — לא הוזנה התקנה במוקד">' + (sub ? 'רצפה' : ceil ? 'תקרה' : 'קיר בלוק') + '*</span>'; };
   const COLS = 11;
@@ -18856,7 +18875,7 @@ holder.classList.add('rp-zoomable');
     try { const crA = $('#canvas').getBoundingClientRect(), ZA = getZ(), hostA = $('#nodes');
       const cabShort = c => { const t = String((c.spec || '') + ' ' + (cableKindLabel(c) || '')); const m = /(\d)\s?[xX×]\s?(\d+(?:\.\d+)?)/.exec(t); if (m) return m[1] + '×' + m[2]; if (/cat\s?6a/i.test(t)) return 'Cat6a'; if (/cat\s?6/i.test(t)) return 'Cat6'; if (/cat\s?5/i.test(t)) return 'Cat5e'; if (/xlr/i.test(t)) return 'XLR'; if (/hdmi/i.test(t)) return 'HDMI'; if (/dmx/i.test(t)) return 'DMX'; if (/אופטי|fiber/i.test(t)) return 'אופטי'; if (/חשמל|power|מתח/i.test(t)) return 'חשמל'; return (cableKindLabel(c) || '').split(' ')[0]; };
       P.nodes.filter(n => n.kind === 'point' && !n.hidden).forEach(n => { const el = document.getElementById('ndo_' + n.id) || document.getElementById('nd_' + n.id); if (!el) return; const rr = el.getBoundingClientRect(); if (!rr.width) return;
-        const sub = /סאב|\bsub\b|וופר/i.test(n.name || ''), isSpk = (!n.ptype || n.ptype === 'speaker' || n.ptype === 'sub') && isSpeakerItem(n.name || '');
+        const sub = /סאב|\bsub\b|וופר/i.test(n.name || ''), isSpk = isSpkPtype(n) && isSpeakerItem(n.name || '');
         const hg = n.hgt != null && n.hgt !== '' ? +n.hgt : (isSpk ? (sub ? 0 : 2.6) : null);
         const cabs = [...new Set((P.cables || []).filter(c => c.from === n.id || c.to === n.id).map(cabShort).filter(Boolean))];
         const parts = []; if (hg != null) parts.push('↕' + hg + ' מ׳'); if (cabs.length) parts.push(cabs.join(' · ')); if (!parts.length) return;
