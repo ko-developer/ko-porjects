@@ -2064,6 +2064,78 @@ function firstFree(rack, u) {
 }
 /* ＋ על שטח פנוי בארון — בוחר את הארון, מסמן את מיקום ההוספה וממקד את טופס היחידה */
 function addUnitAt(nid, pos) { rackAddProduct(nid, pos); }
+/* 🌐 מגבר שלא בקטלוג — מדף מוצר באינטרנט: scripts/harvest.js (דרך /api/harvest) קוצר הספק לפי עכבה, גשר וערוצים;
+   הנתונים נשמרים ב-store.ampLib (אותה צורה כמו AMP_DATA: pw/br/ch/mo) ומשמשים את כלל ×1.5 והחיווט; המגבר נכנס לארון כיחידה
+   ולהצעה כפריט כללי (מק״ט 1) עם המחיר שהוזן. לעולם לא ממציאים נתונים — מה שלא נקצר נשאר ריק עד שמוזן ידנית. */
+function rackAddFromWeb(nid, pos) {
+  const rk = byId(nid); if (!rk || rk.kind !== 'rack') return;
+  let H = null;
+  const ov = uiModal(`<b style="font-size:14px">🌐 מגבר מהאינטרנט → "${esc(rk.name)}"</b>
+    <p class="muted" style="font-size:11px;margin:4px 0 8px">הדבק קישור לדף המוצר או ל-PDF של היצרן. הנתונים שנקצרים מוצגים עם הציטוט מהדף — בדוק אותם לפני ההוספה. מה שלא נמצא אפשר להקליד.</p>
+    <div class="fld"><label>שם הדגם (כמו שיופיע בארון ובהצעה)</label><input data-nm placeholder="למשל: XTA DPA 100" style="width:100%"></div>
+    <div class="fld"><label>קישור לדף המוצר / דף הנתונים</label><input data-url placeholder="https://…" style="width:100%;direction:ltr"></div>
+    <button data-go style="width:100%;background:#eaf3ff;color:#164a7a;border:1px solid #9cc3ee;font-weight:700">🔎 קצור נתונים מהדף</button>
+    <div data-st class="muted" style="font-size:11px;margin:5px 0;min-height:14px"></div>
+    <div data-ev style="font-size:10.5px;max-height:120px;overflow:auto;background:#f7f5f0;border-radius:7px;padding:0 8px"></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px">
+      <div class="fld"><label>ערוצים</label><input data-ch type="number" min="1" max="16" style="width:100%"></div>
+      <div class="fld"><label>W @ 8Ω</label><input data-w8 type="number" min="1" style="width:100%"></div>
+      <div class="fld"><label>W @ 4Ω</label><input data-w4 type="number" min="1" style="width:100%"></div>
+      <div class="fld"><label>W @ 2Ω</label><input data-w2 type="number" min="1" style="width:100%"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+      <div class="fld"><label>גשר W (אופציונלי)</label><input data-br type="number" min="1" style="width:100%"></div>
+      <div class="fld"><label>גובה בארון (U)</label><input data-u type="number" min="1" max="6" value="2" style="width:100%"></div>
+      <div class="fld"><label>מחיר ללקוח (₪)</label><input data-pr type="number" min="0" style="width:100%"></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button class="primary" data-add style="flex:1;background:#0f6e56" disabled>➕ הוסף לארון ולהצעה</button><button data-x style="flex:0 0 auto">ביטול</button></div>`);
+  ov.firstElementChild.style.maxWidth = '620px';
+  const q = s => ov.querySelector(s), st = q('[data-st]'), ev = q('[data-ev]');
+  const ready = () => { q('[data-add]').disabled = !(q('[data-nm]').value.trim() && (+q('[data-ch]').value > 0)); };
+  ov.querySelectorAll('input').forEach(i => i.oninput = ready);
+  q('[data-go]').onclick = async () => {
+    const url = q('[data-url]').value.trim(), model = q('[data-nm]').value.trim();
+    if (!/^https?:\/\//i.test(url)) { st.textContent = 'הדבק קישור מלא שמתחיל ב-https://'; return; }
+    if (!model) { st.textContent = 'כתוב קודם את שם הדגם — הקציר מחפש אותו בדף'; q('[data-nm]').focus(); return; }
+    st.textContent = '⏳ קורא את הדף…'; ev.innerHTML = '';
+    try {
+      const r = await fetch('/api/harvest', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url, model, kind: 'amp' }) });
+      const j = await r.json();
+      if (!r.ok || j.error) { st.textContent = '⚠ ' + (j.error || ('שגיאה ' + r.status)); return; }
+      H = j;
+      const pw = j.pw || {}, ohms = Object.keys(pw).map(Number).sort((a, b) => a - b);
+      if (pw[8]) q('[data-w8]').value = pw[8]; if (pw[4]) q('[data-w4]').value = pw[4]; if (pw[2]) q('[data-w2]').value = pw[2];
+      const brv = j.br && Object.values(j.br)[0]; if (brv) q('[data-br]').value = brv;
+      if (j.ch) q('[data-ch]').value = j.ch;
+      st.innerHTML = j.found ? '✓ נקצר: ' + ohms.map(o => pw[o] + 'W@' + o + 'Ω').join(' · ') + (j.ch ? ' · ' + j.ch + ' ערוצים' : ' · <b style="color:#c1121f">ערוצים לא נמצאו — הקלד</b>') + (j.ambiguous ? ' · ⚠ בדף יש כמה דגמים (' + esc((j.others || []).join(', ')) + ') — ודא שהנתונים של הדגם הנכון' : '') : '⚠ לא נמצאו הספקים בדף — הקלד ידנית מדף הנתונים';
+      ev.innerHTML = (j.evidence || []).map(e => '<div style="padding:3px 0;border-bottom:1px dashed #e5e0d5">' + esc(e) + '</div>').join('');
+      ready();
+    } catch (e) { st.textContent = '⚠ הקריאה נכשלה: ' + e.message; }
+  };
+  q('[data-add]').onclick = () => {
+    const name = q('[data-nm]').value.trim(), ch = +q('[data-ch]').value || 0, u = Math.max(1, Math.min(6, +q('[data-u]').value || 2)), price = +q('[data-pr]').value || 0, url = q('[data-url]').value.trim();
+    const pw = {}; [['8', '[data-w8]'], ['4', '[data-w4]'], ['2', '[data-w2]']].forEach(([o, s]) => { const v = +q(s).value; if (v > 0) pw[o] = v; });
+    const brv = +q('[data-br]').value || 0, mo = Object.keys(pw).length ? Math.min(...Object.keys(pw).map(Number)) : 4;
+    /* טבלת המגברים — כמו רשומת AMP_DATA; ok רק כשיש הספק נמדד */
+    store.ampLib = store.ampLib || {};
+    const key = rearKey(name);
+    store.ampLib[key] = { ...(store.ampLib[key] || {}), kind: 'amp', ch, mo, pw, br: brv ? { [mo]: brv } : {}, ok: Object.keys(pw).length > 0, url, src: 'web', at: new Date().toISOString().slice(0, 10) };
+    /* שורה בהצעה: פריט כללי בשם המגבר, עם מחיר אם הוזן */
+    const gen = typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS.find(x => x[0] === '1') : null;
+    const full = /מגבר|amp/i.test(name) ? name : 'מגבר ' + name;
+    const it = { on: true, qty: 1, name: full, key: gen ? gen[0] : undefined, src: 'מהאינטרנט', dest: 'unit', rack: rk.name, cat: 'other', u, iid: uid('i'), price, web: url, placed: 1, added: true };
+    impItems.push(it);
+    /* יחידה בארון */
+    let p = pos >= 0 && fits(rk, pos, u, -1) ? pos : firstFree(rk, u);
+    if (p < 0) { const std = [6, 9, 12, 16, 18, 20, 24, 27, 32, 42].find(v => v > rk.ru) || rk.ru + u; rk.ru = std; p = firstFree(rk, u); uiToast('🗄 הארון גדל ל-' + std + 'U — ודא ארון בגודל הזה בהצעה'); }
+    rk.units.push({ id: uid('u'), name: full.slice(0, 40), u, cat: 'amp', pos: p, srcIid: it.iid }); rackArrange(rk);
+    ov.remove(); sel = rk.id; ui.tab = 'node'; save(); render();
+    uiToast('🌐 ' + name + ' נוסף לארון ולהצעה · ' + ch + ' ערוצים' + (Object.keys(pw).length ? ' · ' + Object.entries(pw).map(([o, w]) => w + 'W@' + o + 'Ω').join(' · ') : ' · ⚠ בלי הספקים — כלל ×1.5 לא ייבדק') + (price ? ' · ₪' + price.toLocaleString() : ' · קבע מחיר בטבלת ההצעה'), 7000);
+  };
+  q('[data-x]').onclick = () => ov.remove();
+  setTimeout(() => q('[data-nm]').focus(), 50);
+}
+window.rackAddFromWeb = rackAddFromWeb;
 /* הוספה לארון מהקטלוג: הפריט נכנס להצעת המחיר (כמות 1, יחידה בארון) וגם כיחידה בארון במיקום שנבחר — או יחידה בשם חופשי (בלי הצעה) */
 function rackAddProduct(nid, pos) {
   const rk = byId(nid); if (!rk || rk.kind !== 'rack') return;
@@ -2075,8 +2147,10 @@ function rackAddProduct(nid, pos) {
       <input id="rkNm" placeholder="או יחידה בשם חופשי (לא נכנסת להצעה)" style="flex:1;min-width:0">
       <input id="rkU" type="number" min="1" max="12" value="1" style="width:46px" title="גובה U">
       <button data-free style="white-space:nowrap">הוסף יחידה</button></div>
+    <button data-web style="width:100%;margin-top:8px;background:#eaf3ff;color:#164a7a;border:1px solid #9cc3ee;font-weight:700" title="מגבר שאינו בקטלוג: הדבק קישור לדף המוצר — ההספקים לפי עכבה, הערוצים והמינימום נקצרים מהדף, ונכנסים לטבלת המגברים, לארון ולהצעה">🌐 מגבר שלא בקטלוג — מהאינטרנט (קישור לדף המוצר)</button>
     <div style="display:flex;gap:6px;margin-top:8px"><button data-x style="flex:1">סגור</button></div>`);
   ov.firstElementChild.style.maxWidth = '640px';
+  ov.querySelector('[data-web]').onclick = () => { ov.remove(); rackAddFromWeb(nid, pos); };
   const inp = ov.querySelector('#rkQ'), box = ov.querySelector('#rkRes');
   const draw = () => {
     const res = dockSearchResults(inp.value.trim()).slice(0, 60);
