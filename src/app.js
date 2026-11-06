@@ -10113,7 +10113,7 @@ function renderCoverage() {
        הצליל יורד אנכית, ההנחתה היא מרחק הגובה, והעיגול = קונוס הפיזור על רצפת ההאזנה */
     let srcSpl = spl, srcCap;
     if (isCeil) {
-      const hh = n.hgt ?? zc?.ceil ?? P.room?.ceil ?? 3;
+      const hh = n.hgt ?? ((ceilingOfNode(n) || {}).ch) ?? zc?.ceil ?? P.room?.ceil ?? 3;
       const drop = Math.max(0.5, hh - 1.2); /* עד גובה אוזן */
       srcSpl = spl - 20 * Math.log10(Math.max(1, drop));
       const effD = disp >= 300 ? 90 : Math.min(disp, 150); /* שקוע טיפוסי ~90° */
@@ -10255,7 +10255,7 @@ function renderPanel() {
       p.innerHTML = `<h3 class="sec" data-zoneid="${z.id}">🗺 עריכת אזור סאונד</h3>
         <div class="fld"><label>שם האזור</label><input value="${esc(z.name)}" onchange="(P.zones.find(x=>x.id==='${z.id}')).name=this.value;render()"></div>
         <div class="row2">
-          <div class="fld"><label>גובה תקרה באזור (מ׳)</label><input type="number" step="0.1" value="${z.ceil ?? (P.room?.ceil ?? '')}" placeholder="${P.room?.ceil ?? ''}" onchange="(P.zones.find(x=>x.id==='${z.id}')).ceil=+this.value;save()"></div>
+          <div class="fld"><label>גובה תקרה באזור (מ׳)${(() => { const o = ceilingOfZone(z); return o ? ' <small class="muted">לפי התקרה המשורטטת: ' + ((CEIL_TYPES[o.ct] || {}).n || 'תקרה') + (o.ch ? ' · ' + o.ch + ' מ׳' : '') + '</small>' : ''; })()}</label><input type="number" step="0.1" value="${z.ceil ?? ''}" placeholder="${zoneCeil(z, '') || (P.room?.ceil ?? '')}" onchange="(P.zones.find(x=>x.id==='${z.id}')).ceil=+this.value;save()"></div>
           <div class="fld"><label>ספיגה אקוסטית 0-10</label><input type="number" min="0" max="10" value="${z.absorb ?? (P.room?.absorb ?? '')}" placeholder="${P.room?.absorb ?? ''}" onchange="(P.zones.find(x=>x.id==='${z.id}')).absorb=+this.value;save()"></div>
         </div>
         <h3 class="sec">🧱 קירות האזור — פתוח/סגור וחומר</h3>
@@ -10401,7 +10401,8 @@ function renderPanel() {
     const pt = n.ptype || autoT || 'speaker';
     const isSpk = pt === 'speaker' || pt === 'sub';
     const isSub = pt === 'sub';
-    const curM = n.mount || (isSub ? 'רצפה' : /שקוע|ceiling/i.test(n.name || '') ? 'תקרת גבס' : 'קיר בלוק');
+    const cObj = ceilingOfNode(n), cType = cObj && CEIL_TYPES[cObj.ct];
+    const curM = n.mount || (isSub ? 'רצפה' : /שקוע|ceiling|תלוי|pendant/i.test(n.name || '') ? ((cType && cType.mount) || 'תקרת גבס') : 'קיר בלוק');   /* רמקול תקרה — לפי סוג התקרה המשורטטת */
     const mStd = MOUNTS.includes(curM) ? curM : 'אחר';   /* טקסט חופשי שהוקלד ב"אחר" — הבורר מציג "אחר" והשדה את הטקסט */
     html += `<div class="fld"><label>סוג המוקד</label><select onchange="byId('${n.id}').ptype=this.value;render();save()">
       ${PTYPES.map(([v, l]) => `<option value="${v}" ${pt === v ? 'selected' : ''}>${l}</option>`).join('')}
@@ -10596,13 +10597,39 @@ const SK_OBJS = {
   lounge: { n: 'פינת ישיבה', w: 3, h: 3, c: '#7a4ab7', deco: 'lounge' },
   kitchen: { n: 'מטבח', w: 4, h: 3, c: '#5d6b7a', deco: 'kitchen' },
   barStools: { n: 'בר + כסאות', w: 3, h: 1.4, c: '#8b5a2b', deco: 'barStools' },
-  dj: { n: 'עמדת DJ', w: 2, h: 0.8, c: '#6c5ce7', deco: 'dj' },   /* שולחן DJ: האשף מציב בו את מוקד "עמדת נגינה (DJ)" */
+  dj: { n: 'עמדת DJ', w: 2, h: 0.8, c: '#6c5ce7', deco: 'dj' },
+  /* תקרה: אזור עם סוג תקרה (o.ct) וגובה (o.ch, מ׳) — קובע גובה תקרה לאזור, ברירת מחדל להתקנה וגובה לרמקולי תקרה, וספיגה */
+  ceiling: { n: 'תקרה', w: 6, h: 4, c: '#2a7f9e', dash: 1, deco: 'ceiling' },   /* שולחן DJ: האשף מציב בו את מוקד "עמדת נגינה (DJ)" */
   outKitchen: { n: 'מטבח חוץ', w: 3, h: 0.7, c: '#5d6b7a', deco: 'outKitchen' },
   grass: { n: 'דשא', w: 6, h: 4, c: '#3f9b46', deco: 'grass' },
   /* תאורה: עמדות תלייה — טראס ישר (אורך × 29 ס״מ) וטראס עגול (קוטר). o.pos = שם העמדה (T1 / טראס עגול) */
   truss: { n: 'טראס', w: 3, h: 0.29, c: '#3a3f4a' },
   trussCircle: { n: 'טראס עגול', w: 4, h: 4, c: '#3a3f4a', round: 1 }
 };
+/* סוגי תקרה: תווית, ברירת מחדל ל"התקנה על גבי" של רמקול תקרה, וספיגה אקוסטית משוערת (0-10) */
+const CEIL_TYPES = {
+  gyps: { n: 'תקרת גבס', mount: 'תקרת גבס', absorb: 4 },
+  conc: { n: 'בטון חשוף', mount: 'תקרה', absorb: 2 },
+  acous: { n: 'תקרה אקוסטית', mount: 'תקרת גבס', absorb: 7 },
+  wood: { n: 'עץ / פרגולה', mount: 'תקרה', absorb: 5 },
+  open: { n: 'פתוח — טראסים / צנרת', mount: 'טראס/הנפה', absorb: 3 },
+  none: { n: 'ללא תקרה (חוץ)', mount: 'עמוד', absorb: 0 }
+};
+/* אובייקט התקרה שהנקודה (קואורדינטות קנבס) בתוכו — הקטן ביותר; מתחשב בסיבוב */
+function ceilingAt(pt) {
+  if (!pt) return null;
+  let best = null;
+  for (const o of ((P.sketch && P.sketch.objs) || [])) {
+    if (o.t !== 'ceiling') continue;
+    const a = -(o.r || 0) * Math.PI / 180, dx = pt.x - o.x, dy = pt.y - o.y, lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+    if (Math.abs(lx) <= o.w / 2 && Math.abs(ly) <= o.h / 2 && (!best || o.w * o.h < best.w * best.h)) best = o;
+  }
+  return best;
+}
+function ceilingOfZone(z) { if (!z) return null; const b = zoneBounds(z); return ceilingAt({ x: b.L + b.W / 2, y: b.T + b.H / 2 }); }
+function ceilingOfNode(n) { return n ? ceilingAt({ x: 2200 - n.x - 20, y: n.y + 24 }) : null; }
+/* גובה תקרה לאזור: מה שהוזן באזור → התקרה המשורטטת במרכזו → ברירת המחדל של החלל → dflt */
+function zoneCeil(z, dflt) { const c = z && z.ceil; if (c != null && c !== '') return +c; const o = ceilingOfZone(z); if (o && o.ch) return +o.ch; const r = P.room && P.room.ceil; return r != null && r !== '' ? +r : dflt; }
 /* ציור פנימי לאובייקטים מורכבים — בתוך המלבן של האובייקט (x,y = מרכז; w,h = גודל בפיקסלי קנבס) */
 function skObjDeco(o, d) {
   const L = o.x - o.w / 2, T = o.y - o.h / 2, W = o.w, H = o.h, c = d.c, sw = Math.max(1, Math.min(W, H) * 0.012);
@@ -10628,6 +10655,14 @@ function skObjDeco(o, d) {
     return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + H + '" rx="' + H * 0.1 + '" fill="' + c + '2a" stroke="' + c + '" stroke-width="' + sw * 1.3 + '"/>' +
       '<rect x="' + (L + pad) + '" y="' + (T + pad) + '" width="' + gW + '" height="' + (H - 2 * pad) + '" rx="3" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/>' + gr +
       '<rect x="' + (L + W - pad - H * 0.75) + '" y="' + (T + pad) + '" width="' + H * 0.75 + '" height="' + (H - 2 * pad) + '" rx="' + H * 0.14 + '" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/><circle cx="' + (L + W - pad - H * 0.375) + '" cy="' + (T + H / 2) + '" r="' + H * 0.07 + '" fill="' + c + '"/>';
+  }
+  if (d.deco === 'ceiling') {   /* תקרה: מסגרת מקווקוות, אלכסונים עדינים ותווית סוג + גובה */
+    const ct = CEIL_TYPES[o.ct] || null, fz = Math.max(9, Math.min(H * 0.18, W * 0.07, 22));
+    const lbl = '⬒ ' + (ct ? ct.n : 'תקרה') + (o.ch ? ' · ' + o.ch + ' מ׳' : '');
+    const sp = Math.max(12, Math.min(W, H) / 6); let hatch = '';
+    for (let k = -H; k < W; k += sp) hatch += '<line x1="' + (L + Math.max(0, k)) + '" y1="' + (T + Math.max(0, -k)) + '" x2="' + (L + Math.min(W, k + H)) + '" y2="' + (T + Math.min(H, H - (k + H - W > 0 ? k + H - W : 0))) + '" stroke="' + c + '" stroke-width="' + sw * 0.6 + '" opacity="0.25"/>';
+    return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + H + '" fill="' + c + '12" stroke="' + c + '" stroke-width="' + sw * 1.2 + '" stroke-dasharray="' + sw * 6 + ' ' + sw * 4 + '"/>' + hatch +
+      '<rect x="' + (L + W / 2 - fz * lbl.length * 0.3 - 6) + '" y="' + (T + 4) + '" width="' + (fz * lbl.length * 0.6 + 12) + '" height="' + (fz + 8) + '" rx="5" fill="#fff" opacity="0.9"/><text x="' + (L + W / 2) + '" y="' + (T + 4 + fz) + '" text-anchor="middle" font-size="' + fz + '" font-weight="700" fill="' + c + '">' + lbl + '</text>';
   }
   if (d.deco === 'dj') {   /* שולחן DJ: משטח + שני פטיפונים/נגנים + מיקסר באמצע + "DJ" */
     const r = Math.min(H * 0.3, W * 0.14), cy = T + H * 0.5, fz = Math.max(8, Math.min(H * 0.42, W * 0.16));
@@ -10808,6 +10843,8 @@ function sketchBar() {
       <button title="הקטנה 15%" style="${bs(false)}" onclick="const o2=P.sketch.objs[sketchSel];o2.w/=1.15;o2.h/=1.15;save();sketchBar();renderWires()">－</button>
       ${P.scale ? `<label style="font-size:11px;display:flex;align-items:center;gap:3px">רוחב <input type="number" step="0.05" min="0.1" value="${(o.w * P.scale).toFixed(2)}" style="width:58px;font-size:11px;padding:3px" onchange="const o2=P.sketch.objs[sketchSel];o2.w=Math.max(0.1,+this.value)/P.scale;save();renderWires()"> מ׳</label>
       <label style="font-size:11px;display:flex;align-items:center;gap:3px">אורך <input type="number" step="0.05" min="0.1" value="${(o.h * P.scale).toFixed(2)}" style="width:58px;font-size:11px;padding:3px" onchange="const o2=P.sketch.objs[sketchSel];o2.h=Math.max(0.1,+this.value)/P.scale;save();renderWires()"> מ׳</label>` : `<span style="font-size:11px;opacity:.8">${Math.round(o.w)}×${Math.round(o.h)}px (כייל את התכנית למידות במטרים)</span>`}
+      ${o.t === 'ceiling' ? `<span style="opacity:.35">|</span><label style="font-size:11px;display:flex;align-items:center;gap:3px">סוג תקרה <select style="font-size:11px;padding:2px" onchange="P.sketch.objs[sketchSel].ct=this.value;save();renderWires()"><option value="">— בחר —</option>${Object.entries(CEIL_TYPES).map(([k, t]) => '<option value="' + k + '" ' + (o.ct === k ? 'selected' : '') + '>' + t.n + '</option>').join('')}</select></label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:3px">גובה <input type="number" step="0.1" min="1" value="${o.ch || ''}" placeholder="מ׳" style="width:52px;font-size:11px;padding:3px" onchange="P.sketch.objs[sketchSel].ch=+this.value||undefined;save();renderWires();render()"> מ׳</label>` : ''}
       <button title="מחיקת האובייקט המסומן" style="${bs(false)}" onclick="P.sketch.objs.splice(sketchSel,1);sketchSel=null;save();sketchBar();renderWires()">🗑</button>` : '') +
     (sketchMode.tool === 'rect' ? `<span style="opacity:.35">|</span><span style="font-size:11px;display:flex;align-items:center;gap:4px;background:#2d3444;border-radius:8px;padding:3px 7px">חדר: רוחב <input id="skRoomW" type="number" step="0.1" min="0.3" placeholder="מ׳" style="width:54px;font-size:11px;padding:3px;color:#111"> × אורך <input id="skRoomH" type="number" step="0.1" min="0.3" placeholder="מ׳" style="width:54px;font-size:11px;padding:3px;color:#111" onkeydown="if(event.key==='Enter')skRoomCreate()"> מ׳ <button style="${bs(false)};background:#0f6e56" onclick="skRoomCreate()">➕ צור חדר</button> <span style="opacity:.7">או סמן 4 פינות על התכנית</span></span>` : '') +
     (sketchMode.tool === 'select' && sketchWallSel == null && sketchSel == null && (P.sketch.walls || []).length ? `<span style="font-size:11px;background:#2d3444;border-radius:8px;padding:5px 9px;color:#ffd9a8">✋ לחץ על קיר של חדר כדי לערוך: מידות, גרירת פינות, הזזה, מחיקה</span>` : '') +
@@ -17133,7 +17170,7 @@ function zoneKitConfirm(zname, idx, opt) {
     </div>
     <div data-finwrap>${kitFinishBarHTML(cur)}</div>
     <div data-kitrows style="max-height:44vh;overflow-y:auto;margin:6px 0"></div>
-    <div style="display:flex;align-items:center;gap:8px;margin:0 2px 8px"><button data-savekit style="padding:3px 10px;font-size:11.5px;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0" title="הכמויות והפריטים כפי שהם כאן נשמרים בקיט עצמו — לכל הפרויקטים">💾 עדכן את הקיט ברשימת הקיטים</button><div data-ktot style="flex:1;text-align:left;font-weight:800;font-size:13px"></div></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:0 2px 8px;flex-wrap:wrap"><button data-newkit style="padding:3px 10px;font-size:11.5px;background:#efecfd;color:#4b3fb8;font-weight:700;border:1px solid #c9c0f5" title="שומר את השורות והכמויות שבחלון כקיט חדש בשם אחר — הקיט המקורי לא משתנה">➕ בנה קיט חדש לפי רשימה זו</button><button data-savekit style="padding:3px 10px;font-size:11.5px;background:#eef7f1;color:#0f6e56;font-weight:700;border:1px solid #bfe3d0" title="הכמויות והפריטים כפי שהם כאן נשמרים בקיט עצמו — לכל הפרויקטים">💾 עדכן את הקיט ברשימת הקיטים</button><div data-ktot style="flex:1;text-align:left;font-weight:800;font-size:13px"></div></div>
     ${!kitHasSpk && INSTALL_ITEM_RE.test(k.items.map(x => x.name || '').join(' ')) ? `<button data-inst style="width:100%;margin-bottom:6px;background:#eef7f1;color:#0f6e56;border:1px solid #bfe0cd;font-weight:700">🔧 טבלת התקנה ותמחור — לפי הקיט הזה</button>` : ''}
     ${z && kitHasSpk ? `<div style="background:#f4f2ec;border-radius:8px;padding:7px 9px;margin-bottom:7px">
       <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px">🔊 סוג פריסה ב"${esc(z.name)}" — קובע איך יוצבו הרמקולים</label>
@@ -17273,6 +17310,21 @@ function zoneKitConfirm(zname, idx, opt) {
       save(); kitSyncSoon();
       sk.textContent = '✓ הקיט עודכן'; sk.disabled = true;
       uiToast('💾 הקיט "' + k.name.slice(0, 30) + '" עודכן ברשימת הקיטים — ' + items.length + ' שורות');
+    }; }
+  /* ➕ קיט חדש מהרשימה שבחלון (אחרי עריכת כמויות/החלפות) — בשם חדש; המקור לא משתנה */
+  { const nk = ov.querySelector('[data-newkit]');
+    if (nk) nk.onclick = async () => {
+      const items = cur.filter(x => x.qty > 0 && x.name).map(x => ({ key: x.key || undefined, name: x.name, qty: x.qty }));
+      if (!items.length) { uiToast('אין שורות לשמור — כל הכמויות 0'); return; }
+      const sug = (typeof kitStdName === 'function' && kitStdName({ name: '', items })) || (k.name + ' (חדש)');
+      const nm = (await uiPrompt('שם הקיט החדש:', sug) || '').trim(); if (!nm) return;
+      store.userKits = store.userKits || [];
+      if (store.userKits.some(x => (x.name || '').trim() === nm) || (typeof ERP_KITS !== 'undefined' && ERP_KITS.some(x => (x.name || '').trim() === nm))) { uiToast('⚠ כבר יש קיט בשם הזה — בחר שם אחר'); return; }
+      store.userKits.push({ name: nm, cat: k.cat || 'audio', sys: 'קיט שלי', items, cabOk: k.cabOk });
+      if (typeof kitEnsureIds === 'function') kitEnsureIds();
+      save(); kitSyncSoon();
+      nk.textContent = '✓ נוצר: ' + nm.slice(0, 30); nk.disabled = true;
+      uiToast('🧰 קיט חדש "' + nm.slice(0, 40) + '" נוסף לרשימת הקיטים — ' + items.length + ' שורות', 4000);
     }; }
   /* מהחיפוש בהצעת המחיר: רק מוסיף את השורות (בכמויות שנערכו) — בלי בנייה והצבה על התכנית */
   const onlyBtn = ov.querySelector('[data-only]');
@@ -17502,7 +17554,7 @@ function buildZoneSystem(zid) {
   if (!z._spk) { zoneSpkPicker(zid); return; } /* בלי רמקול נבחר — בוחרים מוצר אמיתי, לא ממציאים */
   const mPerPx = P.scale, pxPerM = 1 / mPerPx;
   const spk = z._spk || 'רמקול התקנה', disp = guessDisp(spk), spl = (guessSpl(spk) || 120) - 20 /* רמת תכנון התחלתית: מקס−20dB */;
-  const ceil = z.ceil ?? P.room?.ceil ?? 3, ear = 1.2;
+  const ceil = zoneCeil(z, 3), ear = 1.2;   /* כולל תקרה משורטטת */
   const mode = z._place || 'ring';
   const wall = mode === 'wall';
   const factor = { edge: 1.0, min: 0.7, full: 0.5, sparse: 1.35 }[z._dens || 'edge'] || 1.0;
@@ -17737,7 +17789,7 @@ async function autoLayoutAI(zid) {
   const b = zoneBounds(z);
   const rz = { rx: +((b.L - imgLeft) / imgW).toFixed(3), ry: +((b.T - imgTop) / imgH).toFixed(3), rw: +(b.W / imgW).toFixed(3), rh: +(b.H / imgH).toFixed(3) };
   const spk = z._spk || 'רמקול התקנה', disp = guessDisp(spk);
-  const areaM = zoneAreaM(z).toFixed(0), ceil = z.ceil ?? P.room?.ceil ?? 3;
+  const areaM = zoneAreaM(z).toFixed(0), ceil = zoneCeil(z, 3);
   const spread = z._spread || 'surround';
   const tgt = zoneSPL(z) || 88;
   alert('שולח את התכנית לניתוח… (~20 שניות). לחץ OK והמתן.');
@@ -18223,7 +18275,7 @@ function isoViewHTML() {
   const used = new Map();
   const out = zones.map(z => {
     const b = zoneBounds(z), W = b.W * m, H = b.H * m; if (!(W > 0.5 && H > 0.5)) return '';
-    const ceil = +z.ceil || +(P.room && P.room.ceil) || 0;
+    const ceil = zoneCeil(z, 0) || 0;
     const s = (VW - 80) / ((W + H) * C), VZ = 1.2;
     const pts = P.nodes.filter(n => n.kind === 'point' && !n.hidden && n.ptype !== 'mic' && nodeInZone(n, z));   /* מיקרופון מדידה לא בהדמיה */
     const wallH = Math.min(ceil || 0, 3.5), topZ = Math.max(wallH, 3.2);
@@ -18309,7 +18361,7 @@ function isoViewHTML() {
     /* ריהוט מהשרטוט — אפור שקוף, לא מסתיר את מפת העוצמה */
     const solids = [];
     const inZ = (x, y) => x >= b.L - 2 && x <= b.L + b.W + 2 && y >= b.T - 2 && y <= b.T + b.H + 2;
-    ((P.sketch && P.sketch.objs) || []).filter(o => inZ(o.x, o.y)).forEach(o => { const d = SK_OBJS[o.t] || {}, cx = wX(o.x), cy = wY(o.y), w = o.w * m, dd = o.h * m;
+    ((P.sketch && P.sketch.objs) || []).filter(o => o.t !== 'ceiling' && inZ(o.x, o.y)).forEach(o => { const d = SK_OBJS[o.t] || {}, cx = wX(o.x), cy = wY(o.y), w = o.w * m, dd = o.h * m;
       if (o.t === 'grass' || o.t === 'dance' || o.t === 'pool') { g += poly(rectBase(cx, cy, w, dd, o.r).map(p => [p[0], p[1], 0.01]), o.t === 'pool' ? '#8fc6e8' : o.t === 'grass' ? '#bfe3b0' : '#ffffff', 'stroke="#9a948a" stroke-width="1" stroke-dasharray="6 4" opacity="0.55"'); return; }
       const h = (typeof SIDE_OBJ_H !== 'undefined' && SIDE_OBJ_H[o.t]) || 0.8, base = d.round ? ngon(cx, cy, Math.min(w, dd) / 2, 14) : rectBase(cx, cy, w, dd, o.r);
       solids.push({ d: cx + cy, svg: prism(base, 0, h, '#aeb4c0', 0.55) + (() => { const lp = pr(cx, cy, h); return '<text x="' + f1(lp[0]) + '" y="' + f1(lp[1] + 3) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#2d3340" opacity="0.8">' + esc(d.n || '') + '</text>'; })() }); });
@@ -18371,7 +18423,7 @@ function sideViewHTML() {
   const out = zones.map(z => {
     const b = zoneBounds(z), alongX = b.W >= b.H, L = (alongX ? b.W : b.H) * m;
     if (!(L > 0.5)) return '';
-    const ceil = +z.ceil || +(P.room && P.room.ceil) || 0;
+    const ceil = zoneCeil(z, 0) || 0;
     const uOf = (x, y) => ((alongX ? x - b.L : y - b.T) * m);
     const inZ = (x, y) => x >= b.L - 2 && x <= b.L + b.W + 2 && y >= b.T - 2 && y <= b.T + b.H + 2;
     /* מוקדים */
@@ -18392,7 +18444,7 @@ function sideViewHTML() {
       return { n, u, hgt, assumed, kind, num: mm ? mm[1] : '', lbl: shortModel(nodeFullName(n)) || shortModel(n.name) || (n.name || '').slice(0, 14), dir, tilt: kind === 'top' ? spkTiltDeg(n, hgt, z, gx.x, gx.y) : 0, vd: kind === 'top' ? spkVdisp(n) : 0 };
     });
     /* ריהוט מהשרטוט */
-    const objs = ((P.sketch && P.sketch.objs) || []).filter(o => inZ(o.x, o.y)).map(o => {
+    const objs = ((P.sketch && P.sketch.objs) || []).filter(o => o.t !== 'ceiling' && inZ(o.x, o.y)).map(o => {
       const a = (o.r || 0) * Math.PI / 180, ext = alongX ? Math.abs(o.w * Math.cos(a)) + Math.abs(o.h * Math.sin(a)) : Math.abs(o.w * Math.sin(a)) + Math.abs(o.h * Math.cos(a));
       return { t: o.t, name: (SK_OBJS[o.t] || {}).n || o.t, c: (SK_OBJS[o.t] || {}).c || '#777', u: uOf(o.x, o.y), w: ext * m, h: SIDE_OBJ_H[o.t] };
     });

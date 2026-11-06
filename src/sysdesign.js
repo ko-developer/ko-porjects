@@ -14,7 +14,7 @@ function sdGain(z) { const t = (typeof zoneSPL === 'function' ? zoneSPL(z) : USA
 function sdSpl(name) { const d = spkData(name); return d && d.max ? { spl: d.max, known: true } : { spl: guessSpl(name), known: false }; }
 /* מרווח בין טופים לפי כיסוי. mode: 'ring' | 'wall' | 'ceiling' */
 function sdSpacing(z, spk, mode) {
-  const ceil = z.ceil ?? P.room?.ceil ?? 3, ear = 1.2;
+  const ceil = typeof zoneCeil === 'function' ? zoneCeil(z, 3) : (z.ceil ?? P.room?.ceil ?? 3), ear = 1.2;
   const disp = Math.min(guessDisp(spk), 150);
   const factor = { edge: 1.0, min: 0.7, full: 0.5, sparse: 1.35 }[z._dens || 'edge'] || 1.0;
   const target = (typeof zoneSPL === 'function' ? zoneSPL(z) : USAGE_SPL[z.usage]) || 90, top = sdSpl(spk);
