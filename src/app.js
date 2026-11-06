@@ -1977,6 +1977,24 @@ function pickRackType() {
   ov.querySelector('[data-close]').onclick = () => ov.remove();
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
+/* שם המוקד: כשהשורה שלו בהצעה היא פריט כללי (מוקד חדש) — השם בהצעה עוקב אחרי שם המוקד */
+function nodeSetName(id, v) {
+  const n = byId(id); if (!n) return; n.name = v;
+  const it = n.srcIid && typeof impItems !== 'undefined' ? impItems.find(x => x.iid === n.srcIid) : null;
+  if (it && (String(it.key || '') === '1' || it.src === 'מוקד בתכנית')) it.name = v;
+  save(); render();
+}
+/* מוקד שאין לו שורה בהצעה (יובא, שוכפל, או שהשורה נמחקה) → שורה חדשה כפריט כללי בשם המוקד */
+function nodeOpenOfferRow(id) {
+  const n = byId(id); if (!n || typeof impItems === 'undefined') return;
+  const gen = typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS.find(x => x[0] === '1') : null;
+  const it = { on: true, qty: 1, name: n.name || 'מוקד', key: gen ? gen[0] : undefined, src: 'מוקד בתכנית', dest: 'point', cat: 'other', u: 1, iid: uid('i'), placed: 1, added: true, price: 0, zones: {} };
+  const z = (P.zones || []).find(zz => inZone(zz, { x: 2200 - n.x - 20, y: n.y + 24 })); if (z) it.zones[z.name] = 1;
+  impItems.push(it); n.srcIid = it.iid;
+  save(); render(); if (typeof renderImp === 'function') renderImp();
+  uiToast('🧾 נפתחה שורה בהצעה: "' + (n.name || '').slice(0, 30) + '" — פריט כללי, קבע מחיר בטבלת ההצעה', 4500);
+}
+window.nodeSetName = nodeSetName; window.nodeOpenOfferRow = nodeOpenOfferRow;
 function addNode(kind, rtype) {
   const id = uid('n'), c = viewCenterPt(), w = kind === 'rack' ? 240 : kind === 'panel' || kind === 'power' ? 300 : 172;   /* רוחב הכרטיס בקנבס — כדי שמרכזו יהיה במרכז המסך */
   const x = Math.max(0, Math.round(2200 - c.x - w / 2)), y = Math.max(0, c.y - 20);   /* n.x נמדד מימין (right) — כמו toNodeX */
@@ -10015,7 +10033,8 @@ function renderCovBar(bar) {
       <div style="width:18px;height:${h}px;border-radius:3px;overflow:hidden;display:flex;flex-direction:column">${grad}</div>
       <div style="position:relative;height:${h}px;font-size:9px;width:26px">${ticks.map(db => `<span style="position:absolute;top:${((COV_TOP - db) / (COV_TOP - COV_FLOOR) * h - 5).toFixed(0)}px">${db}</span>`).join('')}</div>
     </div>
-    <div style="font-size:9px;color:#666;text-align:center;margin-top:2px">dB</div>`;
+    <div style="font-size:9px;color:#666;text-align:center;margin-top:2px">dB</div>
+    <input type="range" min="10" max="100" value="${Math.round((P.covAlpha ?? 1) * 100)}" title="שקיפות מפת הפיזור — כדי לראות את התכנית מתחת" style="width:100%;margin:4px 0 0;padding:0" oninput="P.covAlpha=+this.value/100;const c=document.getElementById('coverage');if(c)c.style.opacity=P.covAlpha" onchange="save()">`;
 }
 const SPL_LEGEND = [115, 110, 105, 100, 95, 90, 85, 80, 75, 70].map(db => [db + '', splColorAbs(db), db === 115 ? 'חזק' : db === 70 ? 'קצה' : '']);
 /* גבולות אזור לחיתוך הכיסוי — קירות סגורים עוצרים את הקול, קירות פתוחים מרחיבים החוצה */
@@ -10048,7 +10067,8 @@ function renderCoverage() {
   const svg = $('#coverage'), bar = $('#covbar');
   if (!svg) return;
   if (!P.showCoverage) { svg.innerHTML = ''; if (bar) bar.style.display = 'none'; return; }
-  svg.style.opacity = P.covAlpha ?? 1;   /* שקיפות מפת הפיזור (תצוגה ▾) */
+  { const sn = sel && byId(sel), boost = sn && sn.kind === 'point' && isSpkPtype(sn);   /* רמקול מסומן — המפה מתחזקת כדי לראות את הכיסוי שלו */
+    svg.style.opacity = boost ? Math.min(1, (P.covAlpha ?? 1) + 0.4) : (P.covAlpha ?? 1); }
   [COV_FLOOR, COV_TOP] = covRange();
   if (bar) renderCovBar(bar);
   const mPerPx = P.scale || (1 / 40);
@@ -10388,7 +10408,8 @@ function renderPanel() {
   const linkedIt = n.srcIid ? impItems.find(x => x.iid === n.srcIid) : null;
   let html = `<h3 class="sec">עריכת מוקד</h3>
     ${linkedIt ? `<div class="fld"><label>שם המוצר (מהצעת המחיר)</label><textarea rows="2" style="width:100%;resize:vertical;font-family:inherit;font-size:13px;line-height:1.3" onchange="const it=impItems.find(x=>x.iid==='${n.srcIid}');if(it){it.name=this.value;save();render();}">${esc(linkedIt.name)}</textarea></div>` : ''}
-    <div class="fld"><label>שם</label><textarea rows="2" style="width:100%;resize:vertical;font-family:inherit;font-size:13px;line-height:1.3" onchange="byId('${n.id}').name=this.value;render()">${esc(n.name)}</textarea></div>
+    <div class="fld"><label>שם</label><textarea rows="2" style="width:100%;resize:vertical;font-family:inherit;font-size:13px;line-height:1.3" onchange="nodeSetName('${n.id}',this.value)">${esc(n.name)}</textarea></div>
+    ${!linkedIt && n.kind === 'point' && !n.srcKind && n.ptype !== 'power' ? `<button style="width:100%;margin:-2px 0 8px;background:#fff7e6;color:#8a5a00;border:1px solid #f0d9a6;font-weight:700" onclick="nodeOpenOfferRow('${n.id}')" title="שורה חדשה בהצעת המחיר כפריט כללי (מק״ט 1) בשם המוקד — הכמות 1, המחיר נערך בטבלת ההצעה">🧾 פתח שורה בהצעה — פריט כללי "${esc((n.name || '').slice(0, 30))}"</button>` : ''}
     <div class="fld"><label>תיאור</label><input value="${esc(n.sub || '')}" onchange="byId('${n.id}').sub=this.value;render()"></div>`;
   if (n.kind === 'point') {
     const isMini = n.mini || (n.srcIid && !n.full);

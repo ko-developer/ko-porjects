@@ -6841,4 +6841,13 @@
 "⚠ כבר יש קיט בשם הזה":"⚠ A kit with this name already exists",
 "✓ נוצר":"✓ Created",
 "🧰 קיט חדש":"🧰 New kit",
-"נוסף לרשימת הקיטים":"added to the kit list"}
+"נוסף לרשימת הקיטים":"added to the kit list",
+"שקיפות מפת הפיזור":"Coverage map opacity",
+"שורה חדשה בהצעת המחיר כפריט כללי":"A new row in the quote as a generic item",
+"בשם המוקד":"named after the device",
+"הכמות #, המחיר נערך בטבלת ההצעה":"quantity #, the price is edited in the quote table",
+"🧾 נפתחה שורה בהצעה":"🧾 Row opened in the quote",
+"פריט כללי, קבע מחיר בטבלת ההצעה":"generic item, set the price in the quote table",
+"🧾 פתח שורה בהצעה":"🧾 Open a row in the quote",
+"סימון בתכנית":"Mark on the plan",
+"קירות / תקרה":"walls / ceiling"}
