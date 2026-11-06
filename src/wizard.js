@@ -711,7 +711,10 @@ function wizPlaceSources(z) {
     if (!onPlan) { if (n) wizUnplaceSource(z, k); else delete z[sp.f]; return; }
     if (n) { if (!n.srcKind) n.srcKind = k; return; }
     let pt;
-    if (sp.pos === 'wall') pt = onWall(0.5, m) || { x: b.L + 46, y: b.T + 34 };
+    /* עמדת DJ משורטטת בתוך האזור — המוקד של ה-DJ מוצב עליה (ולא על הקיר) */
+    const djObj = k === 'dj' ? ((P.sketch && P.sketch.objs) || []).find(o => o.t === 'dj' && inZone(z, { x: o.x, y: o.y })) : null;
+    if (djObj) pt = { x: djObj.x, y: djObj.y };
+    else if (sp.pos === 'wall') pt = onWall(0.5, m) || { x: b.L + 46, y: b.T + 34 };
     else if (sp.pos === 'wall2') pt = onWall(own.includes('dj') ? 0.5 + Math.min(0.25, 2 * m / (seg ? seg.len : 1)) : 0.5, m * 0.8) || { x: b.L + b.W / 2, y: b.T + 34 };
     else { pt = rk ? { x: 2200 - rk.x - 20 - (2 + near * 1.3) * m, y: rk.y + 24 } : { x: b.L + b.W / 2 + near * 1.3 * m, y: b.T + 34 }; near++; }
     if (!inZone(z, pt)) pt = { x: b.L + b.W / 2, y: b.T + b.H / 2 };

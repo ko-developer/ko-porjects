@@ -10596,6 +10596,7 @@ const SK_OBJS = {
   lounge: { n: 'פינת ישיבה', w: 3, h: 3, c: '#7a4ab7', deco: 'lounge' },
   kitchen: { n: 'מטבח', w: 4, h: 3, c: '#5d6b7a', deco: 'kitchen' },
   barStools: { n: 'בר + כסאות', w: 3, h: 1.4, c: '#8b5a2b', deco: 'barStools' },
+  dj: { n: 'עמדת DJ', w: 2, h: 0.8, c: '#6c5ce7', deco: 'dj' },   /* שולחן DJ: האשף מציב בו את מוקד "עמדת נגינה (DJ)" */
   outKitchen: { n: 'מטבח חוץ', w: 3, h: 0.7, c: '#5d6b7a', deco: 'outKitchen' },
   grass: { n: 'דשא', w: 6, h: 4, c: '#3f9b46', deco: 'grass' },
   /* תאורה: עמדות תלייה — טראס ישר (אורך × 29 ס״מ) וטראס עגול (קוטר). o.pos = שם העמדה (T1 / טראס עגול) */
@@ -10627,6 +10628,13 @@ function skObjDeco(o, d) {
     return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + H + '" rx="' + H * 0.1 + '" fill="' + c + '2a" stroke="' + c + '" stroke-width="' + sw * 1.3 + '"/>' +
       '<rect x="' + (L + pad) + '" y="' + (T + pad) + '" width="' + gW + '" height="' + (H - 2 * pad) + '" rx="3" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/>' + gr +
       '<rect x="' + (L + W - pad - H * 0.75) + '" y="' + (T + pad) + '" width="' + H * 0.75 + '" height="' + (H - 2 * pad) + '" rx="' + H * 0.14 + '" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/><circle cx="' + (L + W - pad - H * 0.375) + '" cy="' + (T + H / 2) + '" r="' + H * 0.07 + '" fill="' + c + '"/>';
+  }
+  if (d.deco === 'dj') {   /* שולחן DJ: משטח + שני פטיפונים/נגנים + מיקסר באמצע + "DJ" */
+    const r = Math.min(H * 0.3, W * 0.14), cy = T + H * 0.5, fz = Math.max(8, Math.min(H * 0.42, W * 0.16));
+    const deck = cx => '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#fff" stroke="' + c + '" stroke-width="' + sw * 1.2 + '"/><circle cx="' + cx + '" cy="' + cy + '" r="' + r * 0.3 + '" fill="' + c + '"/>';
+    return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + H + '" rx="' + H * 0.12 + '" fill="' + c + '22" stroke="' + c + '" stroke-width="' + sw * 1.4 + '"/>' + deck(L + W * 0.22) + deck(L + W * 0.78) +
+      '<rect x="' + (L + W * 0.4) + '" y="' + (T + H * 0.28) + '" width="' + W * 0.2 + '" height="' + H * 0.44 + '" rx="' + sw * 2 + '" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/>' +
+      '<text x="' + (L + W / 2) + '" y="' + (T + H * 0.5 + fz * 0.36) + '" text-anchor="middle" font-size="' + fz + '" font-weight="800" fill="' + c + '">DJ</text>';
   }
   if (d.deco === 'barStools') {   /* דלפק בר + שורת כסאות בר לאורכו (כסא כל ~60 ס"מ) */
     const bh = H * 0.5, n = Math.max(2, Math.round((P.scale ? W * P.scale : 3) / 0.6)), r = Math.min(H * 0.17, W / n * 0.36), cy = T + bh + (H - bh) * 0.55;
@@ -16233,8 +16241,8 @@ function autoZonesSketch() {
   const walls = ((P.sketch && P.sketch.walls) || []).filter(skWallClosed);
   if (!walls.length) { uiToast('אין חדר סגור בשרטוט — שרטט חדר (קירות סגורים) או העלה תכנית רקע', 4000); return 0; }
   const inPoly = (pt, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > pt.y) !== (b.y > pt.y) && pt.x < (b.x - a.x) * (pt.y - a.y) / (b.y - a.y) + a.x) c = !c; } return c; };
-  const KIND = { pool: ['בריכה', 'מוזיקת רקע'], dance: ['רחבת ריקודים', 'מוזיקת ריקודים'], stage: ['במה', 'הופעות חיות'], bar: ['בר', 'מוזיקה לבר'], barStools: ['בר', 'מוזיקה לבר'], lounge: ['פינת ישיבה', 'מוזיקת רקע'], sofa: ['פינת ישיבה', 'מוזיקת רקע'], table: ['אזור ישיבה', 'מסעדה'], tableR: ['אזור ישיבה', 'מסעדה'] };
-  const PRI = ['stage', 'dance', 'pool', 'bar', 'barStools', 'lounge', 'sofa', 'table', 'tableR'];
+  const KIND = { pool: ['בריכה', 'מוזיקת רקע'], dance: ['רחבת ריקודים', 'מוזיקת ריקודים'], dj: ['רחבת ריקודים', 'מוזיקת ריקודים'], stage: ['במה', 'הופעות חיות'], bar: ['בר', 'מוזיקה לבר'], barStools: ['בר', 'מוזיקה לבר'], lounge: ['פינת ישיבה', 'מוזיקת רקע'], sofa: ['פינת ישיבה', 'מוזיקת רקע'], table: ['אזור ישיבה', 'מסעדה'], tableR: ['אזור ישיבה', 'מסעדה'] };
+  const PRI = ['stage', 'dance', 'dj', 'pool', 'bar', 'barStools', 'lounge', 'sofa', 'table', 'tableR'];
   P.zones = P.zones || [];
   let n = 0, k = P.zones.length;
   for (const wl of walls) {
@@ -18140,7 +18148,7 @@ function cableTableHTML() {
 /* ===== היטל צד לדוח: חתך לאורך הציר הארוך של כל אזור — רצפה, תקרה (אם הוגדרה), אנשים בגובה 1.75 מ׳, הריהוט מהשרטוט,
    והרמקולים בגובה ההתקנה שלהם. גובה שלא הוגדר למוקד מסומן "?" ומצויר בקו מקווקו (הנחה לתצוגה בלבד).
    גובהי הריהוט טיפוסיים — להמחשה, לא מדידה. */
-const SIDE_OBJ_H = { bar: 1.1, barStools: 1.1, counter: 1.1, outKitchen: 0.9, kitchen: 0.9, table: 0.75, tableR: 0.75, sofa: 0.8, lounge: 0.8, stage: 0.6, plant: 1.2, door: 2.1 };
+const SIDE_OBJ_H = { dj: 1.0, bar: 1.1, barStools: 1.1, counter: 1.1, outKitchen: 0.9, kitchen: 0.9, table: 0.75, tableR: 0.75, sofa: 0.8, lounge: 0.8, stage: 0.6, plant: 1.2, door: 2.1 };
 /* כתב כמויות לדוח — כל פריטי ההצעה (רמקולים, אלקטרוניקה, כבלים, אביזרים) עם כמות; שורות זהות מאוחדות */
 function bomHTML() {
   if (typeof impItems === 'undefined' || !impItems.length) return '';
