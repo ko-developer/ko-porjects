@@ -4107,7 +4107,7 @@
 "אבל אין לו מוקד":"But it has no device",
 "מקם אותו לפני החיווט":"Place it before wiring",
 "✓ התכנית נטענה":"✓ Plan loaded",
-"עכשיו כיול":"Now calibration",
+"עכשיו כיול":"now calibrate",
 "לא נבחר":"Not selected",
 "לאזור":"For zone",
 "⏹ הנקירה הסתיימה":"⏹ Point marking finished",
@@ -6897,4 +6897,11 @@
 "✓ סיים קיר":"✓ Finish wall",
 "גודל האותיות = אורך":"letter size = length",
 "נקודה אחת בלבד":"Only one point",
-"הקו בוטל":"the line was cancelled"}
+"הקו בוטל":"the line was cancelled",
+"החל את הערכים של השורה הזו":"Apply this row's values",
+"גובה, על גבי, פיזור, רגישות, הספק, Ω":"height, mounted on, dispersion, sensitivity, power, Ω",
+"על כל המסומנים":"to all selected",
+"📋 התכנית הודבקה מהלוח כרקע":"📋 The plan was pasted from the clipboard as the background",
+"⇊ הערכים של":"⇊ The values of",
+"הוחלו על":"were applied to",
+"⇊ לכולם":"⇊ To all"}

@@ -2479,6 +2479,16 @@ function fitBgW(w, h) {
   const MAXW = 1400, MAXH = 1000;
   return Math.max(320, Math.round(Math.min(MAXW, MAXH * (w / h))));
 }
+/* 📋 הדבקה (Ctrl+V) של תמונה / PDF מהלוח = העלאת תכנית רקע — כשאין שדה טקסט בפוקוס ואין דיאלוג פתוח (הדיאלוגים של באג / גב מוצר מטפלים בעצמם) */
+document.addEventListener('paste', e => {
+  if (e.defaultPrevented) return;
+  const ae = document.activeElement; if (ae && (/INPUT|TEXTAREA|SELECT/.test(ae.tagName) || ae.isContentEditable)) return;
+  if (document.getElementById('rearEdPanel')) return;   /* דיאלוג הבאגים מטפל בהדבקה בעצמו ומסמן defaultPrevented */
+  const files = [...(e.clipboardData?.files || [])], f = files.find(x => /^image\//.test(x.type) || /pdf/i.test(x.type) || /\.(png|jpe?g|webp|gif|bmp|pdf|dxf)$/i.test(x.name || ''));
+  if (!f) return;
+  e.preventDefault();
+  uploadBg({ files: [f], value: '' }, () => { save(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender(); uiToast('📋 התכנית הודבקה מהלוח כרקע — עכשיו כיול', 4000); });
+});
 function uploadBg(inp, onDone) {
   const file = inp.files[0]; inp.value = '';
   if (!file) return;
@@ -6414,6 +6424,13 @@ function showMultiBar() {
    שדות: גובה, התקנה על גבי, פיזור H/V, רגישות, הספק, אימפדנס. ערך ריק = לא משנים. */
 function multiWinClose() { const w = document.getElementById('multiWin'); if (w) w.remove(); if (typeof floatSync === 'function') floatSync(); }
 function multiSet(id, k, v) { const n = byId(id); if (!n) return; if (v === '' || v == null) delete n[k]; else n[k] = isNaN(+v) || k === 'mount' ? v : +v; save(); render(); multiWinRender(); }
+/* ⇊ השורה הזו לכולם: כל הערכים שהוזנו במוקד הזה (ערך ריק = ברירת מחדל, ולכן נמחק גם אצל האחרים) מועתקים לכל המסומנים */
+function multiApplyRow(id) {
+  const src = byId(id); if (!src) return; let n = 0;
+  [...selMulti].forEach(sid => { const t = byId(sid); if (!t || t.kind !== 'point' || t === src) return; ['hgt', 'mount', 'disp', 'vdisp', 'sens', 'pow', 'ohm'].forEach(k => { if (src[k] === '' || src[k] == null) delete t[k]; else t[k] = src[k]; }); n++; });
+  save(); render(); multiWinRender(); uiToast('⇊ הערכים של "' + (src.name || '').slice(0, 30) + '" הוחלו על ' + n + ' מוקדים', 3000);
+}
+window.multiApplyRow = multiApplyRow;
 function multiSetAll(k, v) { if (v === '' || v == null) return; [...selMulti].forEach(id => { const n = byId(id); if (n && n.kind === 'point') n[k] = isNaN(+v) || k === 'mount' ? v : +v; }); save(); render(); multiWinRender(); uiToast('✓ ' + selMulti.size + ' מוקדים עודכנו'); }
 function multiWinOpen() {
   if (!selMulti.size) return;
@@ -6436,7 +6453,8 @@ function multiWinRender() {
       <td>${num(n.id, 'hgt', n.hgt, 50, '2.6')}</td><td>${mountSel(n.id, n.mount || 'קיר בלוק')}</td>
       <td>${num(n.id, 'disp', n.disp, 50, gd != null ? gd : '')}</td><td>${num(n.id, 'vdisp', n.vdisp, 50, '')}</td>
       <td>${num(n.id, 'sens', n.sens, 56, d.sens != null ? d.sens : '')}</td><td>${num(n.id, 'pow', n.pow, 56, d.w != null ? d.w : '')}</td><td>${num(n.id, 'ohm', n.ohm, 46, d.o != null ? d.o : '8')}</td>
-      <td><button style="padding:1px 5px;font-size:10.5px" title="הוצא מהבחירה" onclick="selMulti.delete('${n.id}');render();showMultiBar();multiWinRender()">✕</button></td></tr>`; }).join('');
+      <td style="white-space:nowrap"><button style="padding:1px 6px;font-size:10.5px;background:#fff8f0;border:1px solid #e9c9a0" title="החל את הערכים של השורה הזו (גובה, על גבי, פיזור, רגישות, הספק, Ω) על כל המסומנים" onclick="multiApplyRow('${n.id}')">⇊ לכולם</button>
+      <button style="padding:1px 5px;font-size:10.5px" title="הוצא מהבחירה" onclick="selMulti.delete('${n.id}');render();showMultiBar();multiWinRender()">✕</button></td></tr>`; }).join('');
   const allNum = (k, w, ph) => `<input type="number" step="any" data-all="${k}" placeholder="${ph || 'לכולם'}" style="width:${w || 56}px;font-size:11px;padding:2px 3px;background:#fff8f0" onchange="multiSetAll('${k}',this.value);this.value=''">`;
   box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1;font-size:14px">📋 ${ns.length} מוקדים מסומנים</b>
       ${ns.filter(n => !/סאב|\bsub\b/i.test(n.name)).length >= 2 ? '<button style="background:#0f6e56;color:#fff;font-weight:700" onclick="chainSelectedToAmp()">🔗 שרשר למגבר</button>' : ''}
