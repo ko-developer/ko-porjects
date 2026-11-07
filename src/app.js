@@ -2983,7 +2983,7 @@ function bugRenderBody(ov) {
     const allList = all ? (d.bugs || []) : (d.bugs || []).filter(b => b.mine || !d.owner), nDone = allList.filter(b => DONE(b.status)).length;
     const mine = all && !BUG.showDone ? allList.filter(b => !DONE(b.status)) : allList;   /* ברשימת כולם: מה שטופל יורד מהרשימה (אפשר להציג) */
     const stSel = b => all ? `${DONE(b.status) ? '' : `<button type="button" style="padding:1px 8px;font-size:11px;font-weight:700;background:#0f6e56;color:#fff;border-color:#0f6e56" title="סמן כטופל — יורד מהרשימה" onclick="bugStatus('${b.id}','fixed',this.closest('.uiDlgOv'))">✓ טופל</button>`}<select style="font-size:11px;padding:1px 4px" title="סטטוס" onchange="bugStatus('${b.id}',this.value,this.closest('.uiDlgOv'))">${(d.statuses || []).map(s => `<option value="${s}" ${b.status === s ? 'selected' : ''}>${esc(HE[s] || s)}</option>`).join('')}</select><button type="button" style="padding:1px 6px;font-size:11px;color:#c1121f" title="מחק" onclick="bugDelete('${b.id}',this.closest('.uiDlgOv'))">🗑</button>` : '';
-    const att = a => /^image\//.test(a.type) ? `<a href="/api/bugs/file/${a.id}" target="_blank"><img src="/api/bugs/file/${a.id}" style="height:56px;border-radius:6px;border:1px solid #ddd"></a>` : /^video\//.test(a.type) ? `<video src="/api/bugs/file/${a.id}" controls style="height:90px;border-radius:6px"></video>` : `<a href="/api/bugs/file/${a.id}" target="_blank" style="font-size:11px">📎 ${esc(a.name)}</a>`;
+    const att = a => /^image\//.test(a.type) ? `<img src="/api/bugs/file/${a.id}" title="לחיצה מגדילה — ✕ או לחיצה סוגרים" style="height:56px;border-radius:6px;border:1px solid #ddd;cursor:zoom-in" onclick="bugZoom('/api/bugs/file/${a.id}')">` : /^video\//.test(a.type) ? `<video src="/api/bugs/file/${a.id}" controls style="height:90px;border-radius:6px"></video>` : `<a href="/api/bugs/file/${a.id}" target="_blank" style="font-size:11px">📎 ${esc(a.name)}</a>`;
     body.innerHTML = (d.owner && !all ? `<p class="muted" style="font-size:12px">אתה הבעלים — כל הדיווחים של כולם בלשונית "כל הבאגים" (וגם ב-<a href="/bugs">/bugs</a>). כאן: הדיווחים שפתחת בעצמך.</p>` : all ? `<p class="muted" style="font-size:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span>${mine.length} פתוחים · ${mine.filter(b => b.status === 'new').length} חדשים — ✓ טופל מוריד מהרשימה</span><label style="display:flex;gap:4px;align-items:center;cursor:pointer;margin-inline-start:auto"><input type="checkbox" style="width:auto" ${BUG.showDone ? 'checked' : ''} onchange="BUG.showDone=this.checked;bugRenderBody(this.closest('.uiDlgOv'))"> הצג גם מה שטופל (${nDone})</label></p>` : '') +
       (mine.length ? mine.map(b => `<div style="border:1px solid #eee;border-radius:9px;padding:8px 10px;margin-bottom:8px">
         <div style="display:flex;gap:6px;align-items:center">${stSel(b)}${all ? `<span style="font-size:11.5px;font-weight:700;color:#534ab7;white-space:nowrap" title="מי דיווח">👤 ${esc((b.by && (b.by.name || b.by.email)) || 'לא ידוע')}</span>` : ''}<span style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:${b.status === 'fixed' ? '#eef7f1' : b.status === 'new' ? '#fdeee8' : '#fff3cd'}">${esc(HE[b.status] || b.status)}</span><b style="flex:1;font-size:13px">${esc(b.title)}</b><small class="muted">${new Date(b.createdAt).toLocaleDateString('he-IL')}</small></div>
@@ -6414,7 +6414,7 @@ function showMultiBar() {
   bar.id = 'multiBar';
   bar.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:70;background:#1a1e28;color:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 6px 24px rgba(0,0,0,.4);display:flex;gap:10px;align-items:center;direction:rtl';
   bar.innerHTML = `<b style="font-size:13px">${selMulti.size} מסומנים</b>
-    ${spk.length >= 2 ? `<button style="background:#0f6e56;color:#fff;font-weight:700;padding:6px 12px;border-radius:8px" onclick="chainSelectedToAmp()">🔗 שרשר ${spk.length} רמקולים למגבר</button>` : ''}
+    ${spk.length >= 2 ? `<button style="background:#0f6e56;color:#fff;font-weight:700;padding:6px 12px;border-radius:8px" onclick="chainSelectedToAmp()" title="טבלת החיווט נפתחת עם המסומנים ב״רמקולים ללא ערוץ״ — גוררים לערוצי המגבר">🔗 ${spk.length} רמקולים לטבלת החיווט</button>` : ''}
     <button style="background:#534ab7;color:#fff;font-weight:700;padding:6px 12px;border-radius:8px" onclick="multiWinOpen()" title="טבלת המסומנים — גובה, פיזור, רגישות, הספק, אימפדנס לכולם">📋 טבלה</button>
     <button style="background:#f3d9d2;color:#8c2f16;padding:6px 12px;border-radius:8px" onclick="delNodes([...selMulti])">🗑 מחק</button>
     <button style="background:#3a4152;color:#fff;padding:6px 10px;border-radius:8px" onclick="selMulti.clear();render();document.getElementById('multiBar').remove();multiWinClose()">✕</button>`;
@@ -6457,7 +6457,7 @@ function multiWinRender() {
       <button style="padding:1px 5px;font-size:10.5px" title="הוצא מהבחירה" onclick="selMulti.delete('${n.id}');render();showMultiBar();multiWinRender()">✕</button></td></tr>`; }).join('');
   const allNum = (k, w, ph) => `<input type="number" step="any" data-all="${k}" placeholder="${ph || 'לכולם'}" style="width:${w || 56}px;font-size:11px;padding:2px 3px;background:#fff8f0" onchange="multiSetAll('${k}',this.value);this.value=''">`;
   box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="flex:1;font-size:14px">📋 ${ns.length} מוקדים מסומנים</b>
-      ${ns.filter(n => !/סאב|\bsub\b/i.test(n.name)).length >= 2 ? '<button style="background:#0f6e56;color:#fff;font-weight:700" onclick="chainSelectedToAmp()">🔗 שרשר למגבר</button>' : ''}
+      ${ns.filter(n => !/סאב|\bsub\b/i.test(n.name)).length >= 2 ? '<button style="background:#0f6e56;color:#fff;font-weight:700" onclick="chainSelectedToAmp()" title="טבלת החיווט נפתחת עם המוקדים המסומנים ב״רמקולים ללא ערוץ״ — גוררים לערוצי המגבר">🔗 לטבלת החיווט</button>' : ''}
       <button style="color:#c0392b" onclick="delNodes([...selMulti]).then(()=>multiWinClose())">🗑 מחק</button><button onclick="multiWinClose()">✕</button></div>
     <p class="muted" style="font-size:10.5px;margin:0 0 6px">שורה לכל מוקד; השורה הכתומה למעלה מחילה ערך על כולם. ערך ריק = ברירת המחדל מטבלת הנתונים (מוצג באפור). לחיצה על המספר ממרכזת את התכנית.</p>
     <div style="overflow:auto;max-height:52vh"><table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="background:#f3f1ec;position:sticky;top:0"><th>#</th><th style="text-align:right">מוקד</th><th>גובה מ׳</th><th>על גבי</th><th>פיזור H°</th><th>פיזור V°</th><th>רגישות dB</th><th>הספק W</th><th>Ω</th><th></th></tr>
@@ -6466,6 +6466,14 @@ function multiWinRender() {
 }
 /* שרשור הרמקולים המסומנים (בחירת ריבוע) לערוצי מגבר */
 async function chainSelectedToAmp(forceAmp) {
+  /* ברירת המחדל (אורי, 7.11): לא פופאפים של שרשור אוטומטי — טבלת החיווט נפתחת עם המסומנים במאגר, מוכנים לניתוב ידני */
+  if (!forceAmp) {
+    const sel2 = [...selMulti].map(byId).filter(n => n && n.kind === 'point');
+    if (!sel2.length) return;
+    const zid = ((P.zones || []).find(z => sel2.some(n => nodeInZone(n, z))) || {}).id || wireZoneId() || ((P.zones || [])[0] || {}).id;
+    if (!zid) { uiToast('🗺 אין אזור בתכנית — סמן אזור קודם, ואז טבלת החיווט נפתחת'); return; }
+    multiWinClose(); smartWire(zid, { only: selMulti }); return;
+  }
   const spk = [...selMulti].map(byId).filter(n => n && n.kind === 'point' && !/סאב|\bsub\b/i.test(n.name));
   if (spk.length < 2) return;
   /* בחירת מגבר */
@@ -9017,11 +9025,13 @@ function patchOfferKits(zid) {
   ov.querySelector('[data-skip]').onclick = () => ov.remove();
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
 }
-async function smartWire(zid) {
+/* opts.only = קבוצת מזהי מוקדים (בחירה מרובה): טבלת החיווט נפתחת רק איתם במאגר "רמקולים ללא ערוץ", בלי הקצאה אוטומטית — מנתבים ביד */
+async function smartWire(zid, opts) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
-  const inZone = n => nodeInZone(n, z);
+  const only = opts && opts.only ? new Set([...opts.only]) : null;
+  const inZone = n => only ? only.has(n.id) : nodeInZone(n, z);
   const fed = new Set(); P.cables.forEach(c => { if (c.type === 'nl4' && c.to) fed.add(c.to); });
-  const spks = P.nodes.filter(n => n.kind === 'point' && isSpkPtype(n) && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && inZone(n) && !fed.has(n.id) && !/עמדת נגינה/.test(n.name));
+  const spks = P.nodes.filter(n => n.kind === 'point' && isSpkPtype(n) && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && inZone(n) && (only || !fed.has(n.id)) && !/עמדת נגינה/.test(n.name));
   const noNew = !spks.length; /* הכול מחווט? עדיין נפתח לעריכת הניתוב הקיים */
   /* כל המגברים: קודם מריכוז האזור, אחר-כך שאר הארונות */
   /* מגבר אמיתי — לא כרטיס/מתקן/כבל שהמילה "מגבר" מופיעה בשמם */
@@ -9044,7 +9054,7 @@ async function smartWire(zid) {
       for (const c of sh.cables || []) { if (!ids.has(c.from) || c.fromUnit !== a.u.id || !c.pOut) continue; const m = c.pOut.match(/OUT (\d+)/); if (!m) continue; const ch = +m[1];
         const to = (sh.nodes || []).find(n => n.id === c.to); a.used.add(ch); const F = (a.foreign[ch] = a.foreign[ch] || { sheet: sh.name, names: [], nodes: [] }); F.names.push(to ? to.name : '?'); if (to && !F.nodes.includes(to)) F.nodes.push(to); } } });
   /* רמקולים בתכנית שאינם באזור (ננעצו מחוץ לו) — מצטרפים למאגר, לא מוקצים אוטומטית */
-  const others = P.nodes.filter(n => n.kind === 'point' && isSpkPtype(n) && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && !inZone(n) && !fed.has(n.id) && !/עמדת נגינה|מיקרופון/.test(n.name));   /* גם רמקולים של אזורים אחרים שעוד לא חווטו — הארון משותף, רואים את כולם */
+  const others = only ? [] : P.nodes.filter(n => n.kind === 'point' && isSpkPtype(n) && !/מגבר|פרוססור|amplifier|processor/i.test(n.name) && !inZone(n) && !fed.has(n.id) && !/עמדת נגינה|מיקרופון/.test(n.name));   /* גם רמקולים של אזורים אחרים שעוד לא חווטו — הארון משותף, רואים את כולם */
   if (noNew && !others.length && !amps.some(a => a.used.size)) { alert('אין רמקולים באזור.'); return; }
   if (noNew && window.__autoFlow) return;
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -9052,7 +9062,7 @@ async function smartWire(zid) {
   /* הצעה התחלתית — המקצה המאוזן (מנצל את כל הערוצים עד האום המינימלי) */
   const freeSlots = [];
   amps.forEach(a => { for (let ch = 1; ch <= a.chTotal; ch++) if (!a.used.has(ch)) freeSlots.push({ a, ch }); });
-  const { assigned, leftover } = allocByMatch(freeSlots, spks, zoneDelayRef(z));
+  const { assigned, leftover } = only ? { assigned: [], leftover: spks.map(n => n.id) } : allocByMatch(freeSlots, spks, zoneDelayRef(z));   /* בחירה מרובה: הכול במאגר, בלי הקצאה */
   others.forEach(n => { if (!leftover.includes(n.id)) leftover.push(n.id); });
   const lines = assigned.map(x => {
     const nodes = x.ids.map(byId).filter(Boolean);
@@ -15338,6 +15348,19 @@ function erpPickAccount() {
   ov.querySelector('[data-x]').onclick = () => ov.remove();
 }
 window.erpPickAccount = erpPickAccount;
+/* תצוגה מוגדלת לצילום מסך של באג — בתוך האפליקציה, עם ✕ ו-Esc, במקום ניווט לקובץ שאין ממנו דרך חזרה */
+function bugZoom(url) {
+  const old = document.getElementById('bugZoom'); if (old) old.remove();
+  const d = document.createElement('div'); d.id = 'bugZoom';
+  d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100000;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+  d.innerHTML = '<img src="' + esc(url) + '" style="max-width:96vw;max-height:94vh;border-radius:8px;box-shadow:0 8px 40px #000"><button style="position:absolute;top:14px;left:14px;font-size:16px;padding:6px 14px;border-radius:10px;background:#fff;border:none;cursor:pointer;font-weight:800">✕ סגור</button><a href="' + esc(url) + '" target="_blank" style="position:absolute;top:14px;right:14px;font-size:13px;padding:6px 12px;border-radius:10px;background:#fff;color:#111;text-decoration:none">⤓ פתח בלשונית חדשה</a>';
+  const close = () => { d.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  d.onclick = e => { if (e.target.tagName !== 'A') close(); };
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(d);
+}
+window.bugZoom = bugZoom;
 function sendOffer() {
   const rows = impItems.filter(it => it.on !== false && (+it.qty || 0) > 0 && it.dest !== 'ignore');
   if (!rows.length) { alert('אין פריטים בהצעה.'); return; }
