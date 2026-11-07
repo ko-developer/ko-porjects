@@ -2919,7 +2919,10 @@ async function bugRecord() {
   if (BUG.rec) { BUG.rec.stop(); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { uiToast('הדפדפן לא תומך בהקלטת מסך — צרף צילום מסך במקום'); return; }
   try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: true });
+    /* בורר המקור של הדפדפן נפתח עם "כל המסך" כברירת מחדל (displaySurface: monitor) ומציע גם חלונות ולשוניות אחרות —
+       כך מקליטים את כל המסכים ולא רק את הלשונית הזו; הדגלים מתעלמים בדפדפנים שלא מכירים אותם */
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15, displaySurface: "monitor" }, audio: true, selfBrowserSurface: "include", surfaceSwitching: "include", monitorTypeSurfaces: "include", systemAudio: "include", preferCurrentTab: false });
+    uiToast("🎥 מקליט — בבורר אפשר לבחור מסך שלם, חלון או לשונית; הקלטה של כל המסך מראה את כל החלונות", 5000);
     const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
     const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1500000 });
     BUG.rec = rec; BUG.chunks = [];
