@@ -3011,16 +3011,31 @@ async function bugReply(id, text, ov) {
   if (ov) bugRenderBody(ov);
 }
 /* תג על הכפתור: לבעלים — באגים חדשים; למדווח — תגובות שעוד לא ראה */
+/* 💬 התראה למדווח: הבעלים הגיב / שינה סטטוס בדיווח שלו — כרטיס בפינה עם "פתח" (וגם התראת דפדפן אם כבר אושרה), פעם אחת לכל אירוע */
+function bugNotify(latest) {
+  const old = document.getElementById('bugNotif'); if (old) old.remove();
+  const d = document.createElement('div'); d.id = 'bugNotif';
+  d.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:99990;max-width:360px;background:#1a1e28;color:#fff;border-radius:12px;padding:10px 12px;box-shadow:0 8px 30px rgba(0,0,0,.35);font-size:12.5px;line-height:1.5;direction:rtl';
+  const what = latest.kind === 'status' ? 'הסטטוס של הדיווח שלך עודכן ל-<b>' + esc(latest.text || '') + '</b>' : '<b>' + esc(latest.who || 'אורי') + '</b> הגיב על הדיווח שלך: ' + esc(String(latest.text || '').slice(0, 120));
+  d.innerHTML = '<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:18px">💬</span><div style="flex:1;min-width:0"><div style="font-weight:800;margin-bottom:2px">🐞 ' + esc(String(latest.title || '').slice(0, 60)) + '</div><div>' + what + '</div></div><button data-x style="background:none;border:none;color:#aaa;font-size:14px;cursor:pointer;padding:0 2px">✕</button></div>' +
+    '<button data-open style="margin-top:8px;width:100%;background:#0f6e56;color:#fff;border:none;border-radius:8px;padding:6px;font-weight:700;cursor:pointer">פתח את הבאגים שלי</button>';
+  d.querySelector('[data-x]').onclick = () => d.remove();
+  d.querySelector('[data-open]').onclick = () => { d.remove(); bugDialog('mine'); };
+  document.body.appendChild(d);
+  setTimeout(() => { if (d.isConnected) d.remove(); }, 60000);
+  try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification('KO Projects · 🐞 ' + String(latest.title || '').slice(0, 60), { body: latest.kind === 'status' ? 'הסטטוס עודכן: ' + (latest.text || '') : (latest.who || 'אורי') + ': ' + String(latest.text || '').slice(0, 120) }); } catch (e) {}
+}
 async function bugBadge() {
   try {
     const r = await fetch('/api/bugs/count'); if (!r.ok) return; const j = await r.json();
     const el = document.getElementById('bugBadge'); if (!el) return;
     el.textContent = j.n || ''; el.style.display = j.n ? 'inline-block' : 'none';
+    if (j.latest && j.latest.at) { let k = ''; try { k = localStorage.getItem('koBugNotifAt') || ''; } catch (e) {} if (j.latest.at > k) { try { localStorage.setItem('koBugNotifAt', j.latest.at); } catch (e) {} if (!document.querySelector('.uiDlgOv #bugBody')) bugNotify(j.latest); } }
     /* גם לבעלים: הכפתור פותח את חלון הדיווח (עם טופס דיווח חדש); הניהול המלא בקישור /bugs שבתוך החלון */
   } catch (e) {}
 }
 window.bugDialog = bugDialog; window.bugAddFiles = bugAddFiles; window.bugRenderAtts = bugRenderAtts; window.bugReply = bugReply;
-setTimeout(bugBadge, 1500); setInterval(bugBadge, 120000);
+setTimeout(bugBadge, 1500); setInterval(bugBadge, 60000);   /* כל דקה — התראה על תגובה/סטטוס מגיעה מהר */
 function renderHeader() {
   const ab = document.getElementById('authBox'); if (ab) ab.innerHTML = authBoxHTML();
   { const lb = document.getElementById('layerBar'); if (lb) lb.innerHTML = layerBarHTML(); }

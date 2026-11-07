@@ -64,8 +64,19 @@ export async function handleBugs(req, res, path, me, ctx) {
     if (path === '/api/bugs/count' && method === 'GET') {
       const mine = db.bugs.filter(b => canSee(me, b));
       /* לבעלים: באגים חדשים; למדווח: תגובות של הבעלים שעוד לא נראו */
-      const n = isOwner(me) ? mine.filter(b => b.status === 'new').length : mine.filter(b => (b.comments || []).some(c => c.owner && !(b.seenBy || {})[me.id] )).length;
-      return json(res, 200, { n }), true;
+      if (isOwner(me)) return json(res, 200, { n: mine.filter(b => b.status === 'new').length }), true;
+      /* למדווח: תגובה של הבעלים או שינוי סטטוס אחרי הפעם האחרונה שפתח את "הבאגים שלי" — כולל האירוע האחרון, להתראה בדפדפן */
+      let latest = null, n = 0;
+      for (const b of mine) {
+        const seen = (b.seenBy || {})[me.id] || '';
+        const ev = [...(b.comments || []).filter(c => c.owner && (c.at || '') > seen).map(c => ({ at: c.at, kind: 'comment', text: c.text, who: c.name })),
+          ...(b.statusAt && b.statusAt > seen && b.status !== 'new' ? [{ at: b.statusAt, kind: 'status', text: STATUS_HE[b.status] || b.status }] : [])];
+        if (!ev.length) continue;
+        n++;
+        const last = ev.sort((a, c) => (c.at || '').localeCompare(a.at || ''))[0];
+        if (!latest || (last.at || '') > (latest.at || '')) latest = { ...last, id: b.id, title: b.title };
+      }
+      return json(res, 200, { n, latest }), true;
     }
     if (path === '/api/bugs' && method === 'POST') {
       const b = await body(req);
@@ -93,7 +104,7 @@ export async function handleBugs(req, res, path, me, ctx) {
       } else if (m[2] === 'status') {
         if (!isOwner(me)) return json(res, 403, { error: 'רק הבעלים משנה סטטוס' }), true;
         if (!STATUSES.includes(b.status)) return json(res, 400, { error: 'סטטוס לא חוקי' }), true;
-        bug.status = b.status; bug.updatedAt = nowIso();
+        bug.status = b.status; bug.updatedAt = nowIso(); bug.statusAt = nowIso();   /* למדווח: שינוי סטטוס = אירוע חדש */
       } else if (m[2] === 'seen') {
         bug.seenBy = { ...(bug.seenBy || {}), [me.id]: nowIso() };
       } else if (m[2] === 'delete') {

@@ -126,6 +126,7 @@ adapter-node — תמונת התכנית נשלחת כ-base64 וחוצה את ב
   הקלטת סרטון מסך בדפדפן (getDisplayMedia→webm), קבצים/הדבקת צילום מסך; `POST /api/bugs`. הבעלים: סטטוסים
   (חדש/בטיפול/תוקן/סגור/לא יתוקן), תגובות, מחיקה; המדווח רואה תגובות תחת 🐞 → "הבאגים שלי". אחסון
   `data/bugs.json` + `data/bug_files/` (gitignored).
+  **התראה למדווח** (7.11): `/api/bugs/count` מחזיר למדווח `n` + `latest` — תגובה של הבעלים או שינוי סטטוס (`bug.statusAt`) שאחרי `seenBy[me]`; הדפדפן (`bugBadge` כל דקה) מציג כרטיס `#bugNotif` עם "פתח את הבאגים שלי" פעם אחת לכל אירוע (`localStorage.koBugNotifAt`) והתראת דפדפן אם כבר אושרה; פתיחת "הבאגים שלי" מסמנת seen. אין שליחת מייל (אין תשתית דואר).
 
 ## Rules for Claude sessions
 1. Edit `src/` and `data/` — never `dist/`.
