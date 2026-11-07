@@ -2006,8 +2006,9 @@ function addNode(kind, rtype) {
     ? { id, kind: 'panel', name:'הכנת חשמל', sub:'שקעים / סיקונים', x, y, ptype: 'power', panel: defPanel(4, 1, 'si16') }
     : (P.layer === 'light' && typeof fxAddNode === 'function') ? null : P.layer === 'video' ? { id, kind, name: 'מסך / מקרן חדש', sub: '', x, y, ptype: 'screen' } : { id, kind, name:'מוקד חדש', sub:'', x, y });
   if (kind === 'point' && P.layer === 'light' && typeof fxAddNode === 'function') { P.nodes = P.nodes.filter(Boolean); fxPicker({}); return; }
-  /* מוקד חדש = שורה חדשה בהצעה: פריט כללי עם שם ומחיר לעריכה (השם נערך בכרטיס המוקד, המחיר בטבלת ההצעה) */
-  if (kind === 'point') { const nd = P.nodes[P.nodes.length - 1]; if (nd && nd.id === id && typeof impItems !== 'undefined') {
+  /* מוקד / פאנל / קופסה חדשים = שורה חדשה בהצעה: פריט כללי עם שם ומחיר לעריכה (השם עוקב אחרי שם המוקד, המחיר בטבלת ההצעה) —
+     גם לפני שהאובייקט מקושר למוצר, כדי שההצעה תשקף את כל מה שבתכנית ואפשר יהיה לתמחר */
+  if (kind === 'point' || kind === 'panel' || kind === 'power') { const nd = P.nodes[P.nodes.length - 1]; if (nd && nd.id === id && typeof impItems !== 'undefined') {
     const gen = typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS.find(x => x[0] === '1') : null;
     const it = { on: true, qty: 1, name: nd.name, key: gen ? gen[0] : undefined, src: 'מוקד בתכנית', dest: 'point', cat: 'other', u: 1, iid: uid('i'), placed: 1, added: true, price: 0 };
     impItems.push(it); nd.srcIid = it.iid; } }
@@ -5777,7 +5778,7 @@ function renderWires() {
         (d.round ? `<ellipse cx="${o.x}" cy="${o.y}" rx="${o.w / 2}" ry="${o.h / 2}" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`
           : d.deco ? `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="transparent" stroke="${d.c}" stroke-width="${selO ? 2.5 : 0}" stroke-dasharray="6 5"/>` + skObjDeco(o, d)
           : `<rect x="${o.x - o.w / 2}" y="${o.y - o.h / 2}" width="${o.w}" height="${o.h}" rx="4" fill="${d.c}22" stroke="${d.c}" stroke-width="${selO ? 3.5 : 1.8}"${d.dash ? ' stroke-dasharray="7 5"' : ''}/>`) +
-        (o.t === 'text' ? '' : `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${o.pos ? esc(o.pos) + ' · ' : ''}${d.n}</text>`) +
+        (o.t === 'text' || o.t === 'door' ? '' : `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${o.pos ? esc(o.pos) + ' · ' : ''}${d.n}</text>`) +
         (P.scale && o.t !== 'text' ? `<text x="${o.x}" y="${o.y + o.h / 2 + fs * 0.95}" text-anchor="middle" font-size="${(fs * 0.72).toFixed(1)}" fill="${d.c}" opacity="0.85" style="user-select:none">${(o.w * P.scale).toFixed(2)}×${(o.h * P.scale).toFixed(2)} מ׳</text>` : '') +
         (selO ? (() => { const z = getZ() || 1, hy = o.y - o.h / 2 - 26 / z; return `<line x1="${o.x}" y1="${o.y - o.h / 2}" x2="${o.x}" y2="${hy}" stroke="#c9502e" stroke-width="${1.5 / z}"/><g data-skrot="${oi}" style="cursor:grab;pointer-events:all"><title>גרור לסיבוב (הצמדה ל-15°, Shift = חופשי)</title><circle cx="${o.x}" cy="${hy}" r="${9 / z}" fill="#c9502e" stroke="#fff" stroke-width="${1.5 / z}"/><text x="${o.x}" y="${hy + 4 / z}" text-anchor="middle" font-size="${11 / z}" fill="#fff" style="user-select:none">⟳</text></g>`; })() : '') +
         (selO ? (() => { const z = getZ() || 1, s = 12 / z; return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => `<rect data-skcorner="${oi}:${sx}:${sy}" x="${o.x + sx * o.w / 2 - s / 2}" y="${o.y + sy * o.h / 2 - s / 2}" width="${s}" height="${s}" rx="${2 / z}" fill="#fff" stroke="#c9502e" stroke-width="${1.5 / z}" style="cursor:${sx * sy > 0 ? 'nwse' : 'nesw'}-resize;pointer-events:all"><title>גרור לשינוי גודל — הפינה הנגדית נשארת במקום (Shift = שומר יחס)</title></rect>`).join(''); })() : '') +
@@ -10484,7 +10485,7 @@ function renderPanel() {
   let html = `<h3 class="sec">עריכת מוקד</h3>
     ${linkedIt ? `<div class="fld"><label>שם המוצר (מהצעת המחיר)</label><textarea rows="2" style="width:100%;resize:vertical;font-family:inherit;font-size:13px;line-height:1.3" onchange="const it=impItems.find(x=>x.iid==='${n.srcIid}');if(it){it.name=this.value;save();render();}">${esc(linkedIt.name)}</textarea></div>` : ''}
     <div class="fld"><label>שם</label><textarea rows="2" style="width:100%;resize:vertical;font-family:inherit;font-size:13px;line-height:1.3" onchange="nodeSetName('${n.id}',this.value)">${esc(n.name)}</textarea></div>
-    ${!linkedIt && n.kind === 'point' && !n.srcKind && n.ptype !== 'power' ? `<button style="width:100%;margin:-2px 0 8px;background:#fff7e6;color:#8a5a00;border:1px solid #f0d9a6;font-weight:700" onclick="nodeOpenOfferRow('${n.id}')" title="שורה חדשה בהצעת המחיר כפריט כללי (מק״ט 1) בשם המוקד — הכמות 1, המחיר נערך בטבלת ההצעה">🧾 פתח שורה בהצעה — פריט כללי "${esc((n.name || '').slice(0, 30))}"</button>` : ''}
+    ${!linkedIt && (n.kind === 'point' || n.kind === 'panel') && !n.srcKind ? `<button style="width:100%;margin:-2px 0 8px;background:#fff7e6;color:#8a5a00;border:1px solid #f0d9a6;font-weight:700" onclick="nodeOpenOfferRow('${n.id}')" title="שורה חדשה בהצעת המחיר כפריט כללי (מק״ט 1) בשם המוקד — הכמות 1, המחיר נערך בטבלת ההצעה">🧾 פתח שורה בהצעה — פריט כללי "${esc((n.name || '').slice(0, 30))}"</button>` : ''}
     <div class="fld"><label>תיאור</label><input value="${esc(n.sub || '')}" onchange="byId('${n.id}').sub=this.value;render()"></div>`;
   if (n.kind === 'point') {
     const isMini = n.mini || (n.srcIid && !n.full);
@@ -10687,7 +10688,7 @@ const SK_OBJS = {
   tableR: { n: 'שולחן עגול', w: 1.2, h: 1.2, c: '#4a6ab7', round: 1 },
   stage: { n: 'במה', w: 4, h: 3, c: '#c9502e' },
   dance: { n: 'רחבה', w: 4, h: 4, c: '#b7761f', dash: 1 },
-  door: { n: 'דלת', w: 0.9, h: 0.18, c: '#666' },
+  door: { n: 'דלת', w: 0.9, h: 0.18, c: '#555', deco: 'door' },   /* סמל אדריכלי: פתח בקיר, כנף וקשת פתיחה (סיבוב ⟳ קובע לאן נפתחת) */
   plant: { n: 'צמח', w: 0.6, h: 0.6, c: '#2e7d32', round: 1 },
   pool: { n: 'בריכה', w: 8, h: 4, c: '#1e88c9', deco: 'pool' },
   lounge: { n: 'פינת ישיבה', w: 3, h: 3, c: '#7a4ab7', deco: 'lounge' },
@@ -10753,6 +10754,13 @@ function skObjDeco(o, d) {
     return '<rect x="' + L + '" y="' + T + '" width="' + W + '" height="' + H + '" rx="' + H * 0.1 + '" fill="' + c + '2a" stroke="' + c + '" stroke-width="' + sw * 1.3 + '"/>' +
       '<rect x="' + (L + pad) + '" y="' + (T + pad) + '" width="' + gW + '" height="' + (H - 2 * pad) + '" rx="3" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/>' + gr +
       '<rect x="' + (L + W - pad - H * 0.75) + '" y="' + (T + pad) + '" width="' + H * 0.75 + '" height="' + (H - 2 * pad) + '" rx="' + H * 0.14 + '" fill="#fff" stroke="' + c + '" stroke-width="' + sw + '"/><circle cx="' + (L + W - pad - H * 0.375) + '" cy="' + (T + H / 2) + '" r="' + H * 0.07 + '" fill="' + c + '"/>';
+  }
+  if (d.deco === 'door') {   /* דלת: פתח (מחיקת הקיר ברוחב הדלת), כנף ניצבת לקיר באורך הפתח, וקשת פתיחה מקווקוות */
+    const hy = T + H / 2, R = W, lw = Math.max(1.2, W * 0.035);
+    return '<line x1="' + L + '" y1="' + hy + '" x2="' + (L + W) + '" y2="' + hy + '" stroke="#fff" stroke-width="' + Math.max(H, 3) + '"/>' +
+      '<line x1="' + L + '" y1="' + hy + '" x2="' + L + '" y2="' + (hy - R) + '" stroke="' + c + '" stroke-width="' + lw * 1.6 + '" stroke-linecap="round"/>' +
+      '<path d="M ' + L + ' ' + (hy - R) + ' A ' + R + ' ' + R + ' 0 0 1 ' + (L + W) + ' ' + hy + '" fill="none" stroke="' + c + '" stroke-width="' + lw + '" stroke-dasharray="' + lw * 3 + ' ' + lw * 2.5 + '"/>' +
+      '<circle cx="' + L + '" cy="' + hy + '" r="' + lw * 1.4 + '" fill="' + c + '"/>';
   }
   if (d.deco === 'text') {   /* טקסט חופשי: רק האותיות, בגודל גובה האובייקט */
     const fz = H * 0.78, lines = String(o.txt || 'טקסט').split('\n');
