@@ -5780,6 +5780,7 @@ function renderWires() {
         `<text x="${o.x}" y="${o.y + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${d.c}" style="user-select:none">${o.pos ? esc(o.pos) + ' · ' : ''}${d.n}</text>` +
         (P.scale ? `<text x="${o.x}" y="${o.y + o.h / 2 + fs * 0.95}" text-anchor="middle" font-size="${(fs * 0.72).toFixed(1)}" fill="${d.c}" opacity="0.85" style="user-select:none">${(o.w * P.scale).toFixed(2)}×${(o.h * P.scale).toFixed(2)} מ׳</text>` : '') +
         (selO ? (() => { const z = getZ() || 1, hy = o.y - o.h / 2 - 26 / z; return `<line x1="${o.x}" y1="${o.y - o.h / 2}" x2="${o.x}" y2="${hy}" stroke="#c9502e" stroke-width="${1.5 / z}"/><g data-skrot="${oi}" style="cursor:grab;pointer-events:all"><title>גרור לסיבוב (הצמדה ל-15°, Shift = חופשי)</title><circle cx="${o.x}" cy="${hy}" r="${9 / z}" fill="#c9502e" stroke="#fff" stroke-width="${1.5 / z}"/><text x="${o.x}" y="${hy + 4 / z}" text-anchor="middle" font-size="${11 / z}" fill="#fff" style="user-select:none">⟳</text></g>`; })() : '') +
+        (selO ? (() => { const z = getZ() || 1, s = 12 / z; return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => `<rect data-skcorner="${oi}:${sx}:${sy}" x="${o.x + sx * o.w / 2 - s / 2}" y="${o.y + sy * o.h / 2 - s / 2}" width="${s}" height="${s}" rx="${2 / z}" fill="#fff" stroke="#c9502e" stroke-width="${1.5 / z}" style="cursor:${sx * sy > 0 ? 'nwse' : 'nesw'}-resize;pointer-events:all"><title>גרור לשינוי גודל — הפינה הנגדית נשארת במקום (Shift = שומר יחס)</title></rect>`).join(''); })() : '') +
         `<title>${d.n}${P.scale ? ` · ${(o.w * P.scale).toFixed(1)}×${(o.h * P.scale).toFixed(1)} מ׳` : ''} — לחיצה פותחת את כלי השרטוט: גרירה מזיזה, ידית ⟳ מסובבת, ובסרגל: זווית, הגדלה/הקטנה ומידות במטרים</title></g>`;
     });
     if (sketchMode && sketchMode.cur && sketchMode.cur.length) {
@@ -10955,6 +10956,27 @@ function sketchEnd() {
   renderWires(); skFit();
   uiToast('✓ השרטוט נשמר — "🖊 ערוך שרטוט" בפאנל ההגדרות מחזיר את הכלים');
 }
+/* שינוי גודל אובייקט שרטוט בגרירת פינה: הפינה הנגדית נשארת במקומה (גם כשהאובייקט מסובב); Shift שומר יחס; מינימום 0.2 מ׳ */
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest && e.target.closest('[data-skcorner]'); if (!h) return;
+  e.stopPropagation(); e.preventDefault();
+  const [oi, sx, sy] = h.dataset.skcorner.split(':').map(Number);
+  const o = (P.sketch.objs || [])[oi]; if (!o) return;
+  const r = (o.r || 0) * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+  const rot = (x, y) => ({ x: x * cs - y * sn, y: x * sn + y * cs });   /* מקומי → קנבס */
+  const op = rot(-sx * o.w / 2, -sy * o.h / 2), opp = { x: o.x + op.x, y: o.y + op.y };   /* הפינה הנגדית — קבועה */
+  const ratio = o.w / o.h, minPx = P.scale ? 0.2 / P.scale : 8;
+  const mv = ev => {
+    const p = canvasPt(ev), dx = p.x - opp.x, dy = p.y - opp.y;
+    let lw = (dx * cs + dy * sn) * sx, lh = (-dx * sn + dy * cs) * sy;   /* קנבס → מקומי, ביחס לפינה הנגדית */
+    if (ev.shiftKey) { const k = Math.max(lw / ratio, lh); lw = k * ratio; lh = k; }
+    o.w = Math.max(minPx, lw); o.h = Math.max(minPx, lh);
+    const c = rot(sx * o.w / 2, sy * o.h / 2); o.x = opp.x + c.x; o.y = opp.y + c.y;
+    renderWires();
+  };
+  const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); sketchBar(); };
+  document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+}, true);
 /* סיבוב אובייקט שרטוט בגרירת הידית ⟳ */
 document.addEventListener('pointerdown', e => {
   const h = e.target.closest && e.target.closest('[data-skrot]'); if (!h) return;
@@ -10967,7 +10989,7 @@ document.addEventListener('pointerdown', e => {
 /* גרירת אובייקט שרטוט + בחירה */
 document.addEventListener('pointerdown', e => {
   const el = e.target.closest('[data-skobj]');
-  if (!el || e.target.closest('[data-skrot]')) return;
+  if (!el || e.target.closest('[data-skrot]') || e.target.closest('[data-skcorner]')) return;
   if (!sketchMode) { if (wireMode || pinMode || calMode || zoneMode) return; sketchMode = { tool: 'select', cur: [] }; }   /* לחיצה על אובייקט מחוץ למצב שרטוט — פותחת את הכלים עם האובייקט מסומן */
   sketchSel = +el.dataset.skobj; sketchBar();
   const o = (P.sketch.objs || [])[sketchSel]; if (!o) return;
