@@ -6888,4 +6888,13 @@
 "קישור לדף המוצר / דף הנתונים":"Link to the product page / datasheet",
 "גובה בארון (U)":"Rack height (U)",
 "הפינה הנגדית נשארת במקום":"the opposite corner stays in place",
-"Shift = שומר יחס":"Shift = keeps the aspect ratio"}
+"Shift = שומר יחס":"Shift = keeps the aspect ratio",
+"סיום הקיר הנוכחי במקום שבו הוא נמצא":"Finish the current wall where it is",
+"גם Enter, או לחיצה על הנקודה האחרונה":"also Enter, or a click on the last point",
+"הטקסט שיוצג על התכנית":"the text to show on the plan",
+"צבע הטקסט":"Text color",
+"טקסט":"Text",
+"✓ סיים קיר":"✓ Finish wall",
+"גודל האותיות = אורך":"letter size = length",
+"נקודה אחת בלבד":"Only one point",
+"הקו בוטל":"the line was cancelled"}
