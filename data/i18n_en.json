@@ -6918,4 +6918,9 @@
 "טבלת החיווט נפתחת עם המוקדים המסומנים ב״רמקולים ללא ערוץ״":"The wiring table opens with the selected devices under “speakers without a channel”",
 "טבלת החיווט נפתחת עם המסומנים ב״רמקולים ללא ערוץ״":"The wiring table opens with the selection under “speakers without a channel”",
 "🎥 מקליט":"🎥 Recording",
-"בבורר אפשר לבחור מסך שלם, חלון או לשונית; הקלטה של כל המסך מראה את כל החלונות":"in the picker you can choose the entire screen, a window or a tab; recording the entire screen shows all windows"}
+"בבורר אפשר לבחור מסך שלם, חלון או לשונית; הקלטה של כל המסך מראה את כל החלונות":"in the picker you can choose the entire screen, a window or a tab; recording the entire screen shows all windows",
+"הקלטה עם שמע מבקשת מהדפדפן גישה לשמע; בחלון הדפדפן המובנה של Claude זה חסום":"Recording with audio asks the browser for audio access; in Claude's built-in browser pane this is blocked",
+"שם מקליטים בלי שמע או פותחים בכרום":"there, record without audio or open in Chrome",
+"🎙 כולל שמע":"🎙 With audio",
+"🎙 השמע נחסם":"🎙 Audio was blocked",
+"מקליט בלי שמע":"recording without audio"}

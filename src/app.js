@@ -2921,7 +2921,12 @@ async function bugRecord() {
   try {
     /* בורר המקור של הדפדפן נפתח עם "כל המסך" כברירת מחדל (displaySurface: monitor) ומציע גם חלונות ולשוניות אחרות —
        כך מקליטים את כל המסכים ולא רק את הלשונית הזו; הדגלים מתעלמים בדפדפנים שלא מכירים אותם */
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15, displaySurface: "monitor" }, audio: true, selfBrowserSurface: "include", surfaceSwitching: "include", monitorTypeSurfaces: "include", systemAudio: "include", preferCurrentTab: false });
+    /* שמע רק לפי בקשה (תיבת "כולל שמע") — בלי שמע אין בקשת הרשאה למיקרופון, שבחלון המובנה נחסמת; אם הבקשה עם שמע נכשלת, מנסים שוב בלי */
+    const wantAudio = !!(document.getElementById('bugRecAudio') || {}).checked;
+    const opts = { video: { frameRate: 15, displaySurface: "monitor" }, selfBrowserSurface: "include", surfaceSwitching: "include", monitorTypeSurfaces: "include", preferCurrentTab: false };
+    let stream;
+    try { stream = await navigator.mediaDevices.getDisplayMedia(wantAudio ? { ...opts, audio: true, systemAudio: "include" } : opts); }
+    catch (e1) { if (!wantAudio) throw e1; uiToast('🎙 השמע נחסם — מקליט בלי שמע', 4000); stream = await navigator.mediaDevices.getDisplayMedia(opts); }
     uiToast("🎥 מקליט — בבורר אפשר לבחור מסך שלם, חלון או לשונית; הקלטה של כל המסך מראה את כל החלונות", 5000);
     const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
     const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1500000 });
@@ -2961,7 +2966,7 @@ function bugRenderBody(ov) {
   if (BUG.tab === 'new') {
     body.innerHTML = `<div class="fld"><label>מה קרה? (כותרת קצרה)</label><input id="bugTitle" placeholder="למשל: הכיול קופץ אחרי העלאת PDF" maxlength="140"></div>
       <div class="fld"><label>תיאור — מה עשית, מה קרה, מה היה צריך לקרות</label><textarea id="bugDesc" rows="4" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:13px;padding:7px;border:1px solid #ddd;border-radius:8px"></textarea></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="bugRecBtn">🎥 הקלט סרטון מסך</button><button type="button" onclick="document.getElementById('bugFile').click()">📎 צרף קובץ / צילום מסך</button><input id="bugFile" type="file" multiple accept="image/*,video/*,.pdf,.txt" style="display:none" onchange="bugAddFiles([...this.files]);this.value=''"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="bugRecBtn">🎥 הקלט סרטון מסך</button><label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer" title="הקלטה עם שמע מבקשת מהדפדפן גישה לשמע; בחלון הדפדפן המובנה של Claude זה חסום — שם מקליטים בלי שמע או פותחים בכרום"><input type="checkbox" id="bugRecAudio" style="width:auto;margin:0"> 🎙 כולל שמע</label><button type="button" onclick="document.getElementById('bugFile').click()">📎 צרף קובץ / צילום מסך</button><input id="bugFile" type="file" multiple accept="image/*,video/*,.pdf,.txt" style="display:none" onchange="bugAddFiles([...this.files]);this.value=''"></div>
       <div id="bugAtts" style="margin:8px 0;min-height:22px"></div>
       <button class="primary" id="bugSend" style="width:100%">📨 שלח דיווח</button>`;
     bugRenderAtts();
