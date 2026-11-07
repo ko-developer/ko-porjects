@@ -10171,8 +10171,10 @@ function renderCoverage() {
   const svg = $('#coverage'), bar = $('#covbar');
   if (!svg) return;
   if (!P.showCoverage) { svg.innerHTML = ''; if (bar) bar.style.display = 'none'; return; }
-  { const sn = sel && byId(sel), boost = sn && sn.kind === 'point' && isSpkPtype(sn);   /* רמקול מסומן — המפה מתחזקת כדי לראות את הכיסוי שלו */
-    svg.style.opacity = boost ? Math.min(1, (P.covAlpha ?? 1) + 0.4) : (P.covAlpha ?? 1); }
+  svg.style.opacity = P.covAlpha ?? 1;   /* שקיפות מפת הפיזור (תצוגה ▾ / סליידר ה-SPL) */
+  /* רמקול מסומן: הכיסוי שלו בולט ב-30% (×1.3) ושל שאר הרמקולים מונמך (×0.7) — רואים את הלובה שלו על רקע השאר */
+  const covSel = (() => { const sn = sel && byId(sel); return sn && sn.kind === 'point' && isSpkPtype(sn) ? sn.id : null; })();
+  const covF = n => covSel ? (n.id === covSel ? 1.3 : 0.7) : 1;
   [COV_FLOOR, COV_TOP] = covRange();
   if (bar) renderCovBar(bar);
   const mPerPx = P.scale || (1 / 40);
@@ -10243,7 +10245,7 @@ function renderCoverage() {
       const effD = disp >= 300 ? 90 : Math.min(disp, 150); /* שקוע טיפוסי ~90° */
       srcCap = Math.max(1.5, drop * Math.tan(effD / 2 * Math.PI / 180) * 1.6);
     }
-    const R = drawSrc(cx, cy, aim, srcSpl, 'cov' + i, 1, srcCap);
+    const R = drawSrc(cx, cy, aim, srcSpl, 'cov' + i, covF(n), srcCap);
     /* החזרות מסדר ראשון מקירות סגורים — מקור-מראה מוחלש לפי חומר הקיר וספיגת החלל */
     if (zc && P.covRefl !== false) {
       const RLOSS = { 'בטון': 3, 'בלוק': 4, 'זכוכית': 2, 'גבס': 5, 'עץ': 5, 'וילון': 12, 'ספיגה אקוסטית': 15 };
@@ -10265,7 +10267,7 @@ function renderCoverage() {
         const mx = 2 * px2 - cx, my = 2 * py2 - cy;
         const wallAng = Math.atan2(dy, dx);
         const rAim = 2 * wallAng - aim;
-        drawSrc(mx, my, rAim, rSpl, 'covr' + i + '_' + ri, 0.55);
+        drawSrc(mx, my, rAim, rSpl, 'covr' + i + '_' + ri, 0.55 * covF(n));
         ri++;
       }
     }
