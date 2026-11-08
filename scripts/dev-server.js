@@ -320,7 +320,12 @@ const handleReq = async (req, res) => {
   }
   /* --- משתמשים, הזמנות שיתוף, חסימה (scripts/auth.js) --- */
   if (path0.startsWith('/api/auth/') || path0 === '/api/share' || path0 === '/api/invite' || path0.startsWith('/api/admin/')) {
-    let storeNow = {}; try { storeNow = await readStore(db); } catch {}
+    /* שמות הפרויקטים וההרשאות — מהעותק האחרון (עד 30 שניות), בלי להמתין לדלי בכל בקשה; מעבר ל-8 שניות מתרענן ברקע */
+    let storeNow = {};
+    try {
+      if (window_store.v && window_store.t > Date.now() - 30e3) { storeNow = window_store.v; if (window_store.t < Date.now() - 8e3 && !window_store.bg) window_store.bg = readStore(db).then(v => { window_store.v = v; window_store.t = Date.now(); window_store.stale = db.stale || ''; }).catch(() => {}).finally(() => { window_store.bg = null; }); }
+      else { storeNow = window_store.v = await readStore(db); window_store.t = Date.now(); window_store.stale = db.stale || ''; }
+    } catch {}
     if (await handleAuth(req, res, path0, storeNow)) return;
   }
   if (path0 === '/login' || path0.startsWith('/join/')) { sendPage(res, AUTH_PAGES['/login']); return; }

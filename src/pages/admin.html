@@ -89,7 +89,8 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
           '<td>' + (u.blocked ? '<span class="b no">חסום</span>' : '<span class="b">פעיל</span>') + '</td>' +
           '<td>' + (own ? '' : u.pending ? '<button class="ok" data-approve="' + esc(u.id) + '" title="מקבל את התפקיד שנבחר בעמודת התפקיד ונכנס בפעם הבאה">✓ אשר גישה</button><button class="warn" data-act="reject" data-id="' + esc(u.id) + '">דחה</button>' :
             (u.blocked ? '<button class="ok" data-act="unblock" data-id="' + esc(u.id) + '">בטל חסימה</button>' : '<button class="warn" data-act="block" data-id="' + esc(u.id) + '">🚫 חסום</button>') +
-            '<button data-act="delete" data-id="' + esc(u.id) + '">מחק</button>') + '</td></tr>';
+            '<button data-act="delete" data-id="' + esc(u.id) + '">מחק</button>' +
+            (u.hasPw ? '<button data-pw="' + esc(u.id) + '" data-pwname="' + esc(u.name) + '" title="הסיסמה שמורה מוצפנת ואי אפשר להציג אותה — כאן קובעים סיסמה חדשה (או מקבלים אקראית) ומוסרים לו">🔑 סיסמה</button><div data-pwout="' + esc(u.id) + '" class="muted" style="margin-top:4px"></div>' : '')) + '</td></tr>';
       });
       document.getElementById('users').innerHTML = uh + '</table>';
       var ih = '<table><tr><th>למי</th><th>פרויקטים</th><th>הרשאה</th><th>נוצר</th><th>תוקף</th><th>מצב</th><th>קישור</th><th></th></tr>';
@@ -112,6 +113,16 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
     if (t.dataset.erpadd) {
       var f = erpFound[t.dataset.erpadd] || {}, rs = document.querySelector('select[data-erprole="' + t.dataset.erpadd + '"]');
       post('/api/admin/erp-add', { erpId: f.id, email: f.email, name: f.name, role: rs ? rs.value : 'pm' }).then(function (j) { if (j.error) alert(j.error); document.getElementById('erpQ').dispatchEvent(new Event('input')); load(); }); return;
+    }
+    if (t.dataset.pw) {
+      var v = prompt('סיסמה חדשה ל-' + t.dataset.pwname + ' (6–64 תווים; ריק = סיסמה אקראית):', '');
+      if (v === null) return;
+      post('/api/admin/user', { id: t.dataset.pw, action: 'password', password: v }).then(function (j) {
+        if (j.error) return alert(j.error);
+        var o = document.querySelector('div[data-pwout="' + t.dataset.pw + '"]');
+        if (o) o.innerHTML = 'הסיסמה החדשה: <code style="font-size:14px;user-select:all">' + esc(j.password) + '</code> <button data-copy="' + esc(j.password) + '">העתק</button> <span class="muted">מוצגת פעם אחת — העבר לו עכשיו</span>';
+      });
+      return;
     }
     if (t.dataset.act) {
       if (t.dataset.act === 'delete' && !confirm('למחוק את המשתמש? הוא לא יוכל להיכנס יותר.')) return;

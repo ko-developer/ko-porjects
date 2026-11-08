@@ -169,7 +169,7 @@ async function clearSession(req, res) {
 
 /* --- מה משתמש רואה --- */
 export function publicUser(u) {
-  return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local, erp: !!u.erpId, pending: !!u.pending, emailUnverified: !!u.emailUnverified } : null;
+  return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local, erp: !!u.erpId, pending: !!u.pending, emailUnverified: !!u.emailUnverified, hasPw: !!u.hash } : null;
 }
 /* store מסונן למשתמש מוזמן: רק הפרויקטים שהוענקו לו (עם דגל הרשאה בכל פרויקט) */
 /* תפקידים: owner = הגישה המקומית (הכול) · admin = צופה ועורך הכול · pm = מנהל פרויקטים KO: רואה הכול, עורך את שלו ומה שהוענק לו
@@ -461,6 +461,16 @@ export async function handleAuth(req, res, path, store) {
       else if (b.action === 'approve') { u.pending = false; u.role = ROLES.includes(b.role) ? b.role : 'user'; }   /* בקשת גישה מ-KO ERP: נכנס בפעם הבאה */
       else if (b.action === 'reject') { db.users = db.users.filter(x => x.id !== u.id); db.deleted.users.push(u.id); dropSessions(); }   /* admin רואה את כל הפרויקטים; הסשן מתחדש כדי שהתפקיד ייכנס לתוקף */
       else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') { delete u.grants[b.project]; if (u.cur === b.project) delete u.cur; } else { u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; u.cur = b.project; /* ייפתח אצלו בכניסה הבאה */ } }
+      else if (b.action === 'password') {
+        /* הסיסמה שמורה כ-scrypt ואי אפשר להציג אותה — הבעלים קובע חדשה (או מקבל אקראית) והיא מוצגת פעם אחת בתשובה בלבד */
+        if (u.erpId && !u.hash) return json(res, 400, { error: 'המשתמש נכנס עם KO ERP בלבד — אין לו סיסמה כאן' }), true;
+        let pw = String(b.password || '').trim();
+        if (pw && (pw.length < 6 || pw.length > 64)) return json(res, 400, { error: 'סיסמה: 6 עד 64 תווים' }), true;
+        if (!pw) { const A = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'; pw = Array.from(randomBytes(10), x => A[x % A.length]).join(''); }
+        u.salt = randomBytes(16).toString('hex'); u.hash = hashPw(pw, u.salt);
+        await persist();
+        return json(res, 200, { ok: true, password: pw }), true;
+      }
       else return json(res, 400, { error: 'unknown action' }), true;
       await persist();
       return json(res, 200, { ok: true }), true;

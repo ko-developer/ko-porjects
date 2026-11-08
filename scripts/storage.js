@@ -13,16 +13,37 @@ import { homedir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { createSign } from 'node:crypto';
 import { request as httpsRequest, Agent } from 'node:https';
+import { Resolver, lookup as sysLookup } from 'node:dns';
+
+/* פתרון שמות ל-Google דרך 8.8.8.8 / 1.1.1.1 ולא דרך ה-DNS של הרשת: ה-DNS של הראוטר במשרד (FortiGuard 208.91.112.x) החזיר
+   ל-storage.googleapis.com כתובות בסינגפור — 340–400 מילישניות לכל סיבוב ו-150KB/s, במקום 6 מילישניות לשרת של גוגל בישראל.
+   בענן (K_SERVICE) ו-GCS_DNS=system — פתרון השמות של המערכת. כישלון (UDP 53 חסום) → נפילה למערכת, ונזכר לדקה כדי לא לחכות שוב */
+const FAST_DNS = !process.env.K_SERVICE && process.env.GCS_DNS !== 'system';
+const RESOLVER = FAST_DNS ? new Resolver({ timeout: 1500, tries: 1 }) : null;
+if (RESOLVER) RESOLVER.setServers((process.env.GCS_DNS || '8.8.8.8,1.1.1.1').split(',').map(s => s.trim()).filter(Boolean));
+const DNS_CACHE = new Map();   /* host → { ips, exp } (ips ריק = נכשל, למערכת) */
+function fastLookup(host, opts, cb) {
+  if (typeof opts === 'function') { cb = opts; opts = {}; }
+  opts = opts || {};
+  const done = ips => opts.all ? cb(null, ips.map(address => ({ address, family: 4 }))) : cb(null, ips[0], 4);
+  const c = DNS_CACHE.get(host);
+  if (c && c.exp > Date.now()) return c.ips.length ? done(c.ips) : sysLookup(host, opts, cb);
+  RESOLVER.resolve4(host, (err, ips) => {
+    if (err || !ips || !ips.length) { DNS_CACHE.set(host, { ips: [], exp: Date.now() + 60e3 }); return sysLookup(host, opts, cb); }
+    DNS_CACHE.set(host, { ips, exp: Date.now() + 120e3 }); done(ips);
+  });
+}
+const AGENT_LOOKUP = RESOLVER ? { lookup: fastLookup } : {};
 
 /* HTTP עם חיבור חי (keep-alive): ה-fetch המובנה פותח TLS חדש לכל בקשה (~3 שניות ממחשב רחוק);
    עם חיבור חי כל קריאה = סיבוב אחד לשרת (~0.4 שניות מהמחשב, מילישניות בענן) */
-const agent = new Agent({ keepAlive: true, keepAliveMsecs: 30e3, maxSockets: 24, timeout: 60e3, scheduling: 'lifo' });
+const agent = new Agent({ keepAlive: true, keepAliveMsecs: 30e3, maxSockets: 24, timeout: 60e3, scheduling: 'lifo', ...AGENT_LOOKUP });
 /* timeout קצר לקריאות/רשימות (חיבור תקוע לא עוצר את הדף לדקה), ארוך להעלאות של פרויקטים גדולים */
 function http(url, { method = 'GET', headers = {}, body, timeout, fresh } = {}) {
   const tmo = timeout || (body && body.length > 65536 ? 120e3 : 15e3);
   return new Promise((resolve, reject) => {
     /* fresh — ניסיון חוזר על חיבור חדש: חיבור חי "מת" (אחרי שינה/החלפת רשת) נתקע עד ה-timeout, וחזרה לאותו מאגר חיבורים רק חוזרת על התקיעה */
-    const r = httpsRequest(url, { method, headers, agent: fresh ? new Agent({ keepAlive: false }) : agent }, res => {
+    const r = httpsRequest(url, { method, headers, agent: fresh ? new Agent({ keepAlive: false, ...AGENT_LOOKUP }) : agent }, res => {
       const ch = []; res.on('data', c => ch.push(c));
       res.on('end', () => { const buf = Buffer.concat(ch); resolve({ status: res.statusCode, ok: res.statusCode >= 200 && res.statusCode < 300, arrayBuffer: async () => buf, text: async () => buf.toString('utf8'), json: async () => JSON.parse(buf.toString('utf8') || 'null') }); });
       res.on('error', reject);

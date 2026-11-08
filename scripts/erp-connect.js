@@ -17,13 +17,17 @@ export const erpBase = env => String(env.ERP_API_URL || '').trim().replace(/\/+$
 const connKey = storage => storage.kind === 'fs' ? 'erp-connection.json' : 'secrets/erp-connection.json';
 
 /* ---------- החיבור השמור ---------- */
+let CONN = { v: null, at: 0, key: '' };   /* מטמון 30 שניות: נקרא בכל דף כניסה / בקשת /admin, והדלי רחוק */
 export async function readConnection(storage) {
   if (!storage) return null;
-  try { const c = await storage.readJson(connKey(storage), null); return c && typeof c.token === 'string' && c.token ? c : null; }
-  catch (e) { console.warn('[erp-connect] reading the stored connection failed:', e.message); return null; }
+  const key = connKey(storage);
+  if (CONN.key === key && Date.now() - CONN.at < 30e3) return CONN.v;
+  try { const c = await storage.readJson(key, null); CONN = { v: c && typeof c.token === 'string' && c.token ? c : null, at: Date.now(), key }; return CONN.v; }
+  catch (e) { console.warn('[erp-connect] reading the stored connection failed:', e.message); return CONN.key === key ? CONN.v : null; }
 }
 export async function saveConnection(storage, rec) {
   const key = connKey(storage), data = JSON.stringify({ token: rec.token, erp_base: rec.erp_base, connected_at: rec.connected_at, connected_by: rec.connected_by }, null, 1);
+  CONN = { v: null, at: 0, key: '' };
   if (storage.kind !== 'fs') return storage.writeJson(key, JSON.parse(data));
   /* מקומית: הקובץ נוצר מראש ב-600 (לא נכתב ב-644 ומוגבל אחר כך), ומחליף את הקודם בהעברה אטומית */
   const path = join(storage.label, key), tmp = path + '.tmp-' + process.pid;
@@ -33,7 +37,7 @@ export async function saveConnection(storage, rec) {
   try { await fh.writeFile(data); } finally { await fh.close(); }
   await rename(tmp, path);
 }
-export async function deleteConnection(storage) { await storage.delete(connKey(storage)); IDS = { ...NO_IDS }; }
+export async function deleteConnection(storage) { await storage.delete(connKey(storage)); IDS = { ...NO_IDS }; CONN = { v: null, at: 0, key: '' }; }
 
 /* הטוקן לפרסום: ERP_KITS_TOKEN מה-env, אחרת החיבור השמור (עם כתובת ה-ERP שאליה התחבר) */
 export async function kitsAuth(env, storage) {
