@@ -45,18 +45,20 @@ function i18nText(s) {
 }
 const I18N_SKIP = { SCRIPT: 1, STYLE: 1, TEXTAREA: 1, CODE: 1, PRE: 1, NOSCRIPT: 1 };
 const I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'alt', 'data-tip'];
+/* [data-i18n-skip] — תת-עץ שהשכבה לא נוגעת בו (הדוח: נשאר בעברית, ומתורגם במפורש ב-i18nEl לפי שפת הדוח שנבחרה) */
+const i18nSkipped = el => !!(el && el.closest && el.closest('[data-i18n-skip]'));
 function i18nNode(n) {
   if (n.nodeType === 3) {
-    const p = n.parentNode; if (!p || I18N_SKIP[p.nodeName] || (p.isContentEditable && p.nodeName !== 'BODY')) return;
+    const p = n.parentNode; if (!p || I18N_SKIP[p.nodeName] || (p.isContentEditable && p.nodeName !== 'BODY') || i18nSkipped(p)) return;
     const cur = n.nodeValue; if (!I18N_HEB.test(cur) || I18N.last.get(n) === cur) return;
     const out = i18nText(cur); if (out !== cur) { n.nodeValue = out; I18N.last.set(n, out); I18N.touched.add(I18N_INLINE[p.nodeName] && p.parentNode ? p.parentNode : p); }
     return;
   }
   if (n.nodeType !== 1) return;
-  if (I18N_SKIP[n.nodeName]) return;
+  if (I18N_SKIP[n.nodeName] || i18nSkipped(n)) return;
   for (const a of I18N_ATTRS) { const v = n.getAttribute && n.getAttribute(a); if (v && I18N_HEB.test(v)) { const out = i18nText(v); if (out !== v) n.setAttribute(a, out); } }
   if ((n.nodeName === 'INPUT') && /^(button|submit|reset)$/i.test(n.type || '') && I18N_HEB.test(n.value)) n.value = i18nText(n.value);
-  const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, { acceptNode: c => c.nodeType === 1 && c.hasAttribute('data-i18n-skip') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
   const els = [], txt = [];
   let c; while ((c = w.nextNode())) { if (c.nodeType === 3) txt.push(c); else if (!I18N_SKIP[c.nodeName]) els.push(c); }
   for (const e of els) { for (const a of I18N_ATTRS) { const v = e.getAttribute(a); if (v && I18N_HEB.test(v)) { const out = i18nText(v); if (out !== v) e.setAttribute(a, out); } } if (e.nodeName === 'INPUT' && /^(button|submit|reset)$/i.test(e.type || '') && I18N_HEB.test(e.value)) e.value = i18nText(e.value); }
@@ -116,6 +118,17 @@ function i18nDoc(doc) {
   }
   if (doc.title && I18N_HEB.test(doc.title)) doc.title = i18nText(doc.title);
 }
-window.i18nToggle = i18nToggle; window.i18nText = i18nText; window.i18nDoc = i18nDoc;
+/* תרגום מפורש של תת-עץ, בלי קשר לשפת האפליקציה (עותק הדוח בתצוגה המקדימה כשנבחר דוח באנגלית) */
+function i18nEl(el) {
+  if (!el) return;
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT), txt = [];
+  let c;
+  while ((c = w.nextNode())) {
+    if (c.nodeType === 3) txt.push(c);
+    else if (!I18N_SKIP[c.nodeName]) for (const a of I18N_ATTRS) { const v = c.getAttribute(a); if (v && I18N_HEB.test(v)) { const out = i18nText(v); if (out !== v) c.setAttribute(a, out); } }
+  }
+  for (const t of txt) { const p = t.parentNode; if (!p || I18N_SKIP[p.nodeName]) continue; const v = t.nodeValue; if (I18N_HEB.test(v)) { const out = i18nText(v); if (out !== v) t.nodeValue = out; } }
+}
+window.i18nToggle = i18nToggle; window.i18nText = i18nText; window.i18nDoc = i18nDoc; window.i18nEl = i18nEl; window.i18nLang = i18nLang;
 /* מתחילים אחרי שה-DOM מוכן; render() הראשון של האפליקציה נתפס ע"י ה-observer */
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', i18nStart); else i18nStart();

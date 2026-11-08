@@ -1860,6 +1860,29 @@ async function pmDeleteSel() {
   uiToast('✓ נמחקו ' + ids.length + ' פרויקטים');
 }
 function renameProj(v) { P.name = v; render(); }
+/* 🔍 חיפוש פרויקט בכותרת: שדה חיפוש עם רשימה נפתחת — שם / לקוח / מק״ט לקוח, האחרונים שנערכו קודם; ↑↓ לבחירה, Enter לפתיחה, Esc לסגירה.
+   הרשימה המלאה עם מחיקה/שכפול/העברה — ב"ניהול פרויקטים" */
+let __ppIdx = 0, __ppList = [];
+function projPickOpen() { const d = $('#projPick'); if (!d) return; d.classList.add('open'); projPickRender($('#projSel').value); }
+function projPickClose() { const d = $('#projPick'); if (d) d.classList.remove('open'); }
+function projPickRender(q, reset) {
+  const el = $('#projPickList'); if (!el) return;
+  if (reset) { __ppIdx = 0; const d = $('#projPick'); if (d) d.classList.add('open'); }
+  const toks = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const list = (store.projects || []).filter(p => { const s = (p.name + ' ' + (p.accountName || '') + ' ' + (p.accountKey || '') + ' ' + (p.customer || '')).toLowerCase(); return toks.every(t => s.includes(t)); })
+    .sort((a, b) => (+b.upd || 0) - (+a.upd || 0));
+  __ppList = list.slice(0, 40); __ppIdx = Math.min(__ppIdx, Math.max(0, __ppList.length - 1));
+  const fmtT = t => t > 1e12 ? new Date(t).toLocaleDateString('he-IL') : '';
+  el.innerHTML = (__ppList.map((p, i) => `<div class="pprow${i === __ppIdx ? ' on' : ''}${p.id === P.id ? ' cur' : ''}" onmousedown="event.preventDefault();projPickGo('${p.id}')"><b>${esc(p.name)}${p.id === P.id ? ' ←' : ''}</b><small>👤 ${esc(p.accountName || p.customer || '—')}</small><small>${fmtT(+p.upd)}</small></div>`).join('') || '<div class="pprow"><small>אין פרויקט מתאים</small></div>')
+    + (list.length > __ppList.length ? `<div class="pprow" onmousedown="event.preventDefault();projPickClose();projManager()"><small>… עוד ${list.length - __ppList.length} — 🗂 ניהול פרויקטים</small></div>` : '');
+}
+function projPickKey(e) {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const n = __ppList.length; if (!n) return; __ppIdx = (__ppIdx + (e.key === 'ArrowDown' ? 1 : n - 1)) % n; projPickRender(e.target.value); const on = $('#projPickList .pprow.on'); if (on) on.scrollIntoView({ block: 'nearest' }); }
+  else if (e.key === 'Enter') { e.preventDefault(); const p = __ppList[__ppIdx]; if (p) projPickGo(p.id); }
+  else if (e.key === 'Escape') { e.target.value = ''; projPickClose(); e.target.blur(); }
+}
+function projPickGo(id) { projPickClose(); const i = $('#projSel'); if (i) { i.value = ''; i.blur(); } __ppIdx = 0; if (id !== P.id) switchProj(id); }
+window.projPickOpen = projPickOpen; window.projPickClose = projPickClose; window.projPickRender = projPickRender; window.projPickKey = projPickKey; window.projPickGo = projPickGo;
 
 const $ = s => document.querySelector(s);
 const BAND_LBL = { hi: 'HI', mid: 'MID', low: 'LOW' };
@@ -3040,8 +3063,7 @@ function renderHeader() {
   const ab = document.getElementById('authBox'); if (ab) ab.innerHTML = authBoxHTML();
   { const lb = document.getElementById('layerBar'); if (lb) lb.innerHTML = layerBarHTML(); }
   applySharedMode();
-  $('#projSel').innerHTML = store.projects.map(p =>
-    `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  { const ps = $('#projSel'); if (ps) ps.placeholder = '🔍 חפש פרויקט… (' + store.projects.length + ')'; }
   $('#projName').value = P.name;
   $('#viewMenu').innerHTML = viewMenuHTML();
   const auto = P.autoIds && P.autoIds.length;
@@ -19594,6 +19616,13 @@ function rpTabMark(root, act) {
 }
 const RP_TAB_DESC = { cust: 'הדמיות, תכנית פריסה, היטל צד וכתב כמויות', elec: 'הכנות חשמל, ארונות, צריכה ותקעים, שרטוט חשמל', inst: 'חיווט, כבלים, קופסאות, מוקדים ומתקנים' };
 /* העותק שמוצג בתצוגה המקדימה (וממנו יורד ה-PDF) — נבנה מחדש אחרי כל שינוי במבנה או מעבר בין חלקים */
+/* שפת הדוח בפועל: הבחירה בסרגל (נשמרת ב-localStorage ko_rplang), אחרת שפת האפליקציה; בקישור דוח (/r/) — ?lang= של ה-ERP בלבד */
+function rpLangEff() {
+  const app = window.i18nLang ? i18nLang() : 'he';
+  if (typeof AUTH !== 'undefined' && AUTH && AUTH.report) return app;
+  if (!window.__rpLang) { try { window.__rpLang = localStorage.getItem('ko_rplang') || ''; } catch {} }
+  return window.__rpLang || app;
+}
 function rpPrevFill(ov) {
   const r = $('#report'), page = ov.querySelector('#rpPage'), st = page.scrollTop, act = window.__rpTab || 'cust';
   page.innerHTML = '';
@@ -19606,6 +19635,8 @@ function rpPrevFill(ov) {
   clone.querySelectorAll('.rp-toc a[data-rppart]').forEach(a => a.onclick = e => { e.preventDefault(); const d = clone.querySelector('.rp-partttl[data-rppart="' + a.dataset.rppart + '"]'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); else { window.__rpTab = a.dataset.rppart; rpPrevFill(ov); } });
   clone.querySelectorAll('.rp-sec, .rp-partttl').forEach(s => { if (s.style.pageBreakBefore === 'always' && !s.classList.contains('rp-hid') && !s.classList.contains('rp-tabhid')) { const m = document.createElement('div'); m.className = 'rp-pvonly'; m.style.cssText = 'border-top:2px dashed #c9c2b5;margin:4px 0 14px;text-align:center;font-size:10px;color:#a39c90;line-height:0'; m.innerHTML = '<span style="background:#fff;padding:0 8px">— עמוד חדש —</span>'; s.prepend(m); } });
   page.appendChild(clone);
+  /* 🌐 שפת הדוח: #report נשאר בעברית (data-i18n-skip); העותק מתורגם כאן לפי הבחירה, בלי קשר לשפת האפליקציה */
+  { const en = rpLangEff() === 'en'; if (en && window.i18nEl) i18nEl(clone); page.dir = en ? 'ltr' : 'rtl'; page.lang = en ? 'en' : 'he'; }
   /* 🔍 זום: לחיצה על שרטוט (תכנית / גב ארון / קופסה / היטל צד) פותחת אותו מוגדל, עם + / − / גלגלת וגרירה */
   clone.querySelectorAll('.rp-zoomable, .rp-sec svg[viewBox]').forEach(z => { if (z.closest('.rp-zoomable') && !z.classList.contains('rp-zoomable')) return; z.style.cursor = 'zoom-in'; z.title = 'לחץ להגדלה'; z.onclick = () => rpZoomOpen(z); });
   page.scrollTop = st;
@@ -19666,6 +19697,7 @@ function reportPreview() {
       <b style="font-size:15px;flex:1;white-space:nowrap">📑 תצוגה מקדימה — ${esc(P.name.slice(0, 24))}</b>
       <span class="muted" style="font-size:11.5px"><span data-rpcount>${pages}</span> מקטעים · גלול לראות הכול · 🔍 לחיצה על שרטוט מגדילה אותו</span>
       <button id="rpEdit" style="background:#534ab7;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer" title="סדר המקטעים, הסתרה, כותרות ועמוד חדש — נשמר לכל הדוחות">🧩 סדר הדוח</button>
+      <button id="rpLang" style="background:#fff;color:#1a1e28;font-weight:800;border:1px solid #ccc;border-radius:9px;padding:9px 12px;cursor:pointer" title="שפת הדוח — עברית / אנגלית. לא משנה את שפת האפליקציה; חל על התצוגה, ההדפסה וה-PDF"></button>
       <button id="rpPrint" style="background:#0f6e56;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer">🖨 הדפס / שמור PDF</button>
       <button id="rpDl" style="background:#185fa5;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 16px;cursor:pointer" title="יוצר קובץ PDF ומוריד אותו למחשב — בלי חלון ההדפסה">⬇ הורד PDF למחשב</button>
       <button id="rpDxf" style="background:#5b4b8a;color:#fff;font-weight:800;border:none;border-radius:9px;padding:9px 14px;cursor:pointer" title="שרטוט וקטורי ל-AutoCAD בפורמט DXF (נפתח ב-AutoCAD ונשמר משם כ-DWG): מוקדים, כבלים לפי דיסציפלינה, צנרת, אזורים — במטרים" onclick="exportDXF()">📐 AutoCAD (DXF/DWG)</button>
@@ -19679,10 +19711,14 @@ function reportPreview() {
   ov.querySelectorAll('[data-rpview]').forEach(b => b.onclick = () => { window.__rpTab = b.dataset.rpview; rpPrevFill(ov); });
   rpPrevFill(ov);   /* עותק של הדוח — המקור נשאר מוכן להדפסה; נבנה מחדש אחרי כל שינוי בעורך המבנה או מעבר חלק */
   ov.querySelector('#rpEdit').onclick = () => rpLayoutEditor(ov);
+  const rpLangBtn = () => { const b = ov.querySelector('#rpLang'); if (b) b.textContent = rpLangEff() === 'en' ? '🌐 עברית' : '🌐 English'; };
+  ov.querySelector('#rpLang').onclick = () => { window.__rpLang = rpLangEff() === 'en' ? 'he' : 'en'; try { localStorage.setItem('ko_rplang', window.__rpLang); } catch {} rpPrevFill(ov); rpLangBtn(); };
+  rpLangBtn();
   ov.querySelector('#rpClose').onclick = () => ov.remove();
   ov.querySelector('#rpPrint').onclick = () => {
     ov.remove();
     try { rpTabMark($('#report'), window.__rpTab || 'cust'); } catch {}   /* מדפיסים רק את החלק המוצג; חוזר למלא אחרי ההדפסה */
+    { const r = $('#report'), en = rpLangEff() === 'en'; if (en && window.i18nEl) i18nEl(r); r.dir = en ? 'ltr' : 'rtl'; r.lang = en ? 'en' : 'he'; }   /* 🌐 שפת הדוח — גם בהדפסה (הדוח נבנה מחדש בעברית בפתיחה הבאה) */
     document.body.classList.add('printing');
     setTimeout(() => window.print(), 80);
   };

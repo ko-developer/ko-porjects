@@ -31,7 +31,14 @@
   header button:hover { transform: translateY(-1px); }
   .node { transition: box-shadow .15s; }
   .node:hover { box-shadow: 0 4px 14px rgba(0,0,0,.14); }
-  select#projSel { background:#2d3444; border:1px solid #444d61; color:#fff; border-radius:6px; padding:5px 10px; font-size:14px; max-width:240px; }
+  input#projSel { background:#2d3444; border:1px solid #444d61; color:#fff; border-radius:6px; padding:5px 10px; font-size:14px; width:210px; }
+  input#projSel::placeholder { color:#aab3c5; }
+  #projPickList { min-width:360px; max-width:480px; padding:4px; }
+  #projPickList .pprow { display:flex; gap:8px; align-items:center; padding:6px 8px; border-radius:6px; cursor:pointer; color:#fff; font-size:12.5px; }
+  #projPickList .pprow.on, #projPickList .pprow:hover { background:#3a4258; }
+  #projPickList .pprow.cur b { color:#8fd3a8; }
+  #projPickList .pprow b { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #projPickList .pprow small { color:#aab3c5; white-space:nowrap; font-size:11px; }
   header input#projName { background:#2d3444; border:1px solid #444d61; color:#fff; border-radius:6px; padding:4px 10px; font-size:14px; width:180px; }
   header .spacer { flex: 1; }
   button { cursor: pointer; border: none; border-radius: 6px; padding: 6px 12px; font-size: 13px; background: #e3e1da; }
@@ -286,7 +293,7 @@ html.lang-en #langBtn{font-family:inherit}
   <div class="logo"><div class="mark">KO</div><div><b>KO Projects</b><small>מתכנן הקמות וחיווט</small></div></div>
   <button id="langBtn" onclick="i18nToggle()" title="English" style="font-weight:800;padding:4px 9px;min-width:36px">EN</button>
   <button id="studioLink" title="KO Studio — הגרסה ללקוחות: תכנון מודרך, שלוש הצעות ודוח ברור" onclick="window.open(location.protocol==='file:'?'studio.html':'/studio','_blank','noopener')">🎧 KO Studio</button>
-  <select id="projSel" onchange="switchProj(this.value)"></select>
+  <div class="dd" id="projPick"><input id="projSel" autocomplete="off" placeholder="🔍 חפש פרויקט…" title="הקלד שם פרויקט או לקוח — ↑↓ לבחירה, Enter לפתיחה, Esc לסגירה" oninput="projPickRender(this.value, true)" onfocus="projPickOpen()" onblur="setTimeout(projPickClose, 150)" onkeydown="projPickKey(event)"><div class="ddm" id="projPickList"></div></div>
   <div class="dd">
     <button onclick="this.parentElement.classList.toggle('open');event.stopPropagation()" title="פעולות פרויקט">🗂 ▾</button>
     <div class="ddm">
@@ -406,7 +413,7 @@ html.lang-en #langBtn{font-family:inherit}
 <div id="legend"></div>
 <div id="cablekey" style="display:none;position:fixed;left:14px;bottom:14px;z-index:40;background:rgba(255,255,255,.92);border:1px solid rgba(150,150,150,.35);border-radius:9px;padding:8px 10px;direction:rtl;font-size:11px;box-shadow:0 2px 10px rgba(0,0,0,.12)"></div>
 <div id="covbar" style="display:none;position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:40;background:rgba(255,255,255,.35);border:1px solid rgba(150,150,150,.25);border-radius:8px;padding:8px 8px 6px;direction:rtl;pointer-events:none"></div>
-<div id="report"></div>
+<div id="report" data-i18n-skip></div>
 <div id="impOv"><div class="ibox">
   <div style="display:flex;justify-content:flex-end"><button onclick="closeKits()">✕ סגור</button></div>
   <div id="impList"></div>
