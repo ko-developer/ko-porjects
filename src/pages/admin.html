@@ -36,8 +36,10 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
   var fmt = function (t) { if (!t) return '—'; var d = new Date(t); return isNaN(d) ? '—' : d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }); };
   function post(url, b) { return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then(function (r) { return r.json(); }); }
+  var PUB = '';   /* כתובת השרת בענן — לקישור הכניסה שנשלח עם סיסמה חדשה */
   function loadCfg() {
     fetch('/api/admin/config').then(function (r) { return r.json(); }).then(function (c) {
+      PUB = c.effective || '';
       document.getElementById('pubUrl').value = c.publicUrl || c.envPublicUrl || '';
       document.getElementById('ownerLink').textContent = c.ownerLink || '';
       document.getElementById('ownerEmails').value = (c.ownerEmails || []).join(', ');
@@ -90,7 +92,7 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
           '<td>' + (own ? '' : u.pending ? '<button class="ok" data-approve="' + esc(u.id) + '" title="מקבל את התפקיד שנבחר בעמודת התפקיד ונכנס בפעם הבאה">✓ אשר גישה</button><button class="warn" data-act="reject" data-id="' + esc(u.id) + '">דחה</button>' :
             (u.blocked ? '<button class="ok" data-act="unblock" data-id="' + esc(u.id) + '">בטל חסימה</button>' : '<button class="warn" data-act="block" data-id="' + esc(u.id) + '">🚫 חסום</button>') +
             '<button data-act="delete" data-id="' + esc(u.id) + '">מחק</button>' +
-            (u.hasPw ? '<button data-pw="' + esc(u.id) + '" data-pwname="' + esc(u.name) + '" title="הסיסמה שמורה מוצפנת ואי אפשר להציג אותה — כאן קובעים סיסמה חדשה (או מקבלים אקראית) ומוסרים לו">🔑 סיסמה</button><div data-pwout="' + esc(u.id) + '" class="muted" style="margin-top:4px"></div>' : '')) + '</td></tr>';
+            (u.hasPw ? '<button data-pw="' + esc(u.id) + '" data-pwname="' + esc(u.name) + '" data-pwmail="' + esc(u.email) + '" title="הסיסמה שמורה מוצפנת ואי אפשר להציג אותה — כאן קובעים סיסמה חדשה ושולחים לו אותה עם קישור הכניסה">🔑 סיסמה</button><div data-pwout="' + esc(u.id) + '" style="margin-top:4px;font-size:12px"></div>' : '')) + '</td></tr>';
       });
       document.getElementById('users').innerHTML = uh + '</table>';
       var ih = '<table><tr><th>למי</th><th>פרויקטים</th><th>הרשאה</th><th>נוצר</th><th>תוקף</th><th>מצב</th><th>קישור</th><th></th></tr>';
@@ -114,13 +116,35 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
       var f = erpFound[t.dataset.erpadd] || {}, rs = document.querySelector('select[data-erprole="' + t.dataset.erpadd + '"]');
       post('/api/admin/erp-add', { erpId: f.id, email: f.email, name: f.name, role: rs ? rs.value : 'pm' }).then(function (j) { if (j.error) alert(j.error); document.getElementById('erpQ').dispatchEvent(new Event('input')); load(); }); return;
     }
+    /* 🔑 סיסמה חדשה: פאנל בתוך השורה — סיסמה מוצעת (אפשר לשנות) → "קבע" → הסיסמה + קישור הכניסה + שליחה בוואטסאפ / במייל / העתקה */
     if (t.dataset.pw) {
-      var v = prompt('סיסמה חדשה ל-' + t.dataset.pwname + ' (6–64 תווים; ריק = סיסמה אקראית):', '');
-      if (v === null) return;
-      post('/api/admin/user', { id: t.dataset.pw, action: 'password', password: v }).then(function (j) {
+      var o = document.querySelector('div[data-pwout="' + t.dataset.pw + '"]'); if (!o) return;
+      if (o.innerHTML) { o.innerHTML = ''; return; }
+      var A = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789', sug = '', r = new Uint8Array(10); crypto.getRandomValues(r);
+      for (var k = 0; k < 10; k++) sug += A[r[k] % A.length];
+      o.innerHTML = '<div style="background:#fff8e6;border:1px solid #f0d58a;border-radius:8px;padding:8px;margin-top:4px">' +
+        '<div class="muted" style="margin-bottom:4px">הסיסמה הקיימת שמורה מוצפנת ואי אפשר להציג אותה. קבע סיסמה חדשה ל-<b>' + esc(t.dataset.pwname) + '</b> ושלח לו:</div>' +
+        '<input data-pwin="' + esc(t.dataset.pw) + '" value="' + esc(sug) + '" style="font-family:monospace;font-size:14px;width:150px;direction:ltr"> ' +
+        '<button class="ok" data-pwset="' + esc(t.dataset.pw) + '">✓ קבע סיסמה</button></div>';
+      return;
+    }
+    if (t.dataset.pwset) {
+      var btn = t, uid = t.dataset.pwset, inp = document.querySelector('input[data-pwin="' + uid + '"]'), pb = document.querySelector('button[data-pw="' + uid + '"]');
+      var name = pb ? pb.dataset.pwname : '', mail = pb ? pb.dataset.pwmail : '';
+      btn.disabled = true;
+      post('/api/admin/user', { id: uid, action: 'password', password: inp ? inp.value.trim() : '' }).then(function (j) {
+        btn.disabled = false;
         if (j.error) return alert(j.error);
-        var o = document.querySelector('div[data-pwout="' + t.dataset.pw + '"]');
-        if (o) o.innerHTML = 'הסיסמה החדשה: <code style="font-size:14px;user-select:all">' + esc(j.password) + '</code> <button data-copy="' + esc(j.password) + '">העתק</button> <span class="muted">מוצגת פעם אחת — העבר לו עכשיו</span>';
+        var o = document.querySelector('div[data-pwout="' + uid + '"]'), link = (PUB || location.origin) + '/login';
+        var msg = 'שלום ' + name + ',\nהכניסה שלך ל-KO Projects:\n' + link + '\nמייל: ' + mail + '\nסיסמה: ' + j.password;
+        if (o) o.innerHTML = '<div style="background:#eefaf1;border:1px solid #bfe6c8;border-radius:8px;padding:8px;margin-top:4px">' +
+          '<div>✓ הסיסמה החדשה: <code style="font-size:15px;user-select:all;direction:ltr;display:inline-block">' + esc(j.password) + '</code> <button data-copy="' + esc(j.password) + '">העתק</button></div>' +
+          '<div class="muted" style="margin:4px 0">קישור הכניסה: <span style="direction:ltr;unicode-bidi:embed">' + esc(link) + '</span> · מייל: ' + esc(mail) + '</div>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">' +
+          '<a href="https://wa.me/?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener"><button style="background:#25D366;color:#fff;border:none">📲 שלח בוואטסאפ</button></a>' +
+          '<a href="mailto:' + encodeURIComponent(mail) + '?subject=' + encodeURIComponent('הכניסה שלך ל-KO Projects') + '&body=' + encodeURIComponent(msg) + '"><button>✉️ שלח במייל</button></a>' +
+          '<button data-copy="' + esc(msg) + '">📋 העתק הודעה מוכנה</button></div>' +
+          '<div class="muted" style="margin-top:4px">מוצגת פעם אחת — אחרי רענון הדף לא תראה אותה יותר</div></div>';
       });
       return;
     }
