@@ -250,7 +250,8 @@ const readState = async k => { const b = await readCurated(`page_state/${k}.json
 /* שומר-סף: בקשה שלא נענתה תוך 40 שניות מקבלת 503 (הדף לא נתקע), ובקשה איטית מ-3 שניות נרשמת בלוג עם הנתיב — כדי שנראה מה תוקע */
 const guard = handle => (req, res) => {
   const t0 = Date.now(), path0 = (req.url || '').split('?')[0];
-  const wd = setTimeout(() => { if (!res.headersSent) { console.warn('[watchdog] ' + path0 + ' — אין תשובה אחרי 40s, מחזיר 503'); try { res.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end('{"error":"השרת עסוק — נסה שוב בעוד רגע"}'); } catch {} } }, 40e3);
+  const wdMs = req.method === 'POST' && (path0 === '/api/store' || path0.startsWith('/api/project/')) ? 180e3 : 40e3;   /* העלאת store עם תמונות — עד 3 דקות */
+  const wd = setTimeout(() => { if (!res.headersSent) { console.warn('[watchdog] ' + path0 + ' — אין תשובה אחרי ' + wdMs / 1e3 + 's, מחזיר 503'); try { res.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end('{"error":"השרת עסוק — נסה שוב בעוד רגע"}'); } catch {} } }, wdMs);
   res.on('finish', () => { clearTimeout(wd); const ms = Date.now() - t0; if (ms > 3000) console.warn('[slow] ' + path0 + ' ' + (ms / 1000).toFixed(1) + 's'); });
   res.on('close', () => clearTimeout(wd));
   Promise.resolve().then(() => handle(req, res)).catch(e => { console.error('[request error] ' + path0, e); if (!res.headersSent) { try { res.writeHead(500); res.end(String(e && e.message || e)); } catch {} } });

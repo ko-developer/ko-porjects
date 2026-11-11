@@ -107,7 +107,7 @@ function storeFromDisk(h) {
 async function readJsonStore(h) {
   if (!h.cache.size) {
     if (!h.refreshing) h.refreshing = readJsonStoreFresh(h).finally(() => { h.refreshing = null; });
-    const cold = await Promise.race([h.refreshing.catch(() => null), new Promise(res => setTimeout(() => res(null), 3000))]);
+    const cold = await Promise.race([h.refreshing.catch(() => null), new Promise(res => setTimeout(() => res(null), 8000))]);   /* 8s (היה 3): עותק דיסק = לשונית שלא שומרת */
     if (cold) { h.stale = ''; return cold; }
     /* h.stale — העותק שהוגש אינו הדלי: 'disk' = מטמון הדיסק (יכול להיות ישן בימים!), 'mem' = העותק האחרון בזיכרון. השרת מדווח
        לדפדפן (x-ko-stale) והדפדפן לא שומר ממנו — כך לשונית שנטענה מעותק ישן לא דורסת את הענן */

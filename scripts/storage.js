@@ -72,7 +72,13 @@ function http(url, { method = 'GET', headers = {}, body, timeout, fresh } = {}) 
       res.on('end', () => { const buf = Buffer.concat(ch); resolve({ status: res.statusCode, ok: res.statusCode >= 200 && res.statusCode < 300, arrayBuffer: async () => buf, text: async () => buf.toString('utf8'), json: async () => JSON.parse(buf.toString('utf8') || 'null') }); });
       res.on('error', reject);
     });
-    r.on('error', e => { if (RESOLVER && /ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|timeout|stalled/i.test(String(e && e.message))) { try { dnsBust(new URL(url).hostname); } catch {} } reject(e); });
+    r.on('error', e => {
+      if (/ECONNREFUSED|ETIMEDOUT|ECONNRESET|EHOSTUNREACH|ENETUNREACH|timeout|stalled/i.test(String(e && e.message))) {
+        /* חיבור חי שמת (שינה / החלפת רשת / ניתוק רגעי): כל המאגר נזרק — הבקשות הבאות על חיבורים חדשים, לא על 24 חיבורים מתים */
+        if (!fresh) { try { agent.destroy(); } catch {} }
+        if (RESOLVER) { try { dnsBust(new URL(url).hostname); } catch {} }
+      }
+      reject(e); });
     r.setTimeout(tmo, () => r.destroy(new Error('GCS: timeout after ' + tmo / 1000 + 's')));
     /* deadline כולל: בקשה שממתינה בתור ל-socket (כל 24 החיבורים תקועים אחרי שינה) לא מקבלת setTimeout — וחיכתה לנצח */
     const dead = setTimeout(() => r.destroy(new Error('GCS: no socket / stalled after ' + ((tmo + 5e3) / 1000) + 's')), tmo + 5e3);
@@ -130,7 +136,8 @@ function gcsStorage(bucket) {
     for (let i = 0; i < tries; i++) {
       try {
         /* קריאות (בלי גוף): timeout קצר שעולה בהדרגה — 5, 8, 12 שניות — והניסיונות החוזרים על חיבור חדש; קודם כל תקיעה עלתה 3×15 שניות והדף חיכה לה */
-        const quick = !opts.body && !opts.timeout ? { timeout: [5e3, 8e3, 12e3][Math.min(i, 2)], fresh: i > 0 } : { fresh: i > 0 && !opts.body };
+        const quick = !opts.body && !opts.timeout ? { timeout: [5e3, 8e3, 12e3][Math.min(i, 2)], fresh: i > 0 }
+          : { fresh: i > 0, timeout: opts.timeout || (opts.body ? Math.min(180e3, 20e3 + Math.round(opts.body.length / 100)) : undefined) };   /* כתיבה: 20s + שנייה לכל 100KB */
         const r = await http(url, { ...opts, ...quick, headers: { ...(opts.headers || {}), authorization: 'Bearer ' + await token() } });
         if (r.status === 401 && i === 0) { tok = null; continue; }
         if ((r.status >= 500 || r.status === 429) && i < tries - 1) { await sleep(300 * 2 ** i); continue; }
