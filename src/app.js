@@ -1633,7 +1633,39 @@ function importStudioProject(d) {
   if (typeof fitView === 'function') fitView();
   uiToast('🎧 יובא מ-KO Studio: תכנית, ' + p.zones.length + ' אזורים, ' + p.nodes.length + ' נקודות ורשימת ציוד מלאה');
 }
-function newProj() { const p = { id: uid('p'), name: 'פרויקט חדש', nodes: [], cables: [], route: 'ortho' }; ensureStock(p); sheetsInit(p); store.projects.push(p); P = p; sel = selCable = null; impItems = []; render(); }
+/* ➕ פרויקט חדש: דיאלוג עם שם (חובה) ולקוח מה-ERP (לא חובה) — במקום פרויקט בשם "פרויקט חדש" בלי לקוח */
+function newProj() {
+  const ov = uiModal(`<b style="font-size:15px">➕ פרויקט חדש</b>
+    <div class="fld" style="margin-top:10px"><label>שם הפרויקט <span style="color:#c1121f">*</span></label><input data-name placeholder="למשל: בר יין — רמת גן" style="width:100%" maxlength="80"></div>
+    <div class="fld"><label>👤 לקוח מה-ERP (אפשר גם אחר כך)</label><input data-q placeholder="שם לקוח / מספר לקוח…" style="width:100%" autocomplete="off">
+      <div data-st class="muted" style="font-size:11px;margin:3px 0;min-height:14px"></div>
+      <div data-list style="max-height:30vh;overflow-y:auto;border:1px solid #eee;border-radius:7px;display:none"></div></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button class="primary" data-go style="flex:1">➕ צור פרויקט</button><button data-x style="flex:1">ביטול</button></div>`);
+  const nm = ov.querySelector('[data-name]'), q = ov.querySelector('[data-q]'), st = ov.querySelector('[data-st]'), list = ov.querySelector('[data-list]');
+  let acc = null;
+  const paint = accs => {
+    list.innerHTML = accs.slice(0, 40).map(a => `<div data-acc="${esc(a.key)}" data-nm="${esc(a.name)}" style="display:flex;gap:8px;align-items:center;padding:6px 9px;cursor:pointer;border-bottom:1px solid #f2efe9;font-size:12.5px"><span style="flex:1">${esc(a.name)}</span><span style="background:#f0ede8;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:700;white-space:nowrap">${esc(a.key)}</span></div>`).join('');
+    list.style.display = accs.length ? '' : 'none';
+    list.querySelectorAll('[data-acc]').forEach(d => { d.onclick = () => { acc = { key: d.dataset.acc, name: d.dataset.nm }; q.value = acc.name; list.style.display = 'none'; st.innerHTML = '✓ לקוח <b>' + esc(acc.key) + '</b> · ' + esc(acc.name); if (!nm.value.trim()) nm.focus(); }; });
+  };
+  let t = 0;
+  q.oninput = () => { const v = q.value.trim(); acc = null; clearTimeout(t); if (v.length < 2) { list.style.display = 'none'; st.textContent = ''; return; } st.textContent = '⏳ מחפש…';
+    t = setTimeout(async () => { try { const j = await fetch('/api/erp/accounts?q=' + encodeURIComponent(v)).then(r => r.json()); if (q.value.trim() !== v) return; if (!j.ok) { st.textContent = (j.errors || ['אין חיבור ל-ERP']).join('; '); return; } st.textContent = j.accounts.length ? j.accounts.length + ' לקוחות — בחר מהרשימה' : 'לא נמצאו לקוחות'; paint(j.accounts); } catch (e) { st.textContent = 'החיפוש נכשל — בדוק את החיבור ל-ERP'; } }, 160); };
+  const go = () => {
+    const name = nm.value.trim();
+    if (!name) { nm.style.borderColor = '#c1121f'; nm.focus(); uiToast('תן שם לפרויקט — זה שדה חובה'); return; }
+    const p = { id: uid('p'), name, nodes: [], cables: [], route: 'ortho', upd: Date.now() };
+    if (acc) { p.accountKey = acc.key; p.accountName = acc.name; }
+    ensureStock(p); sheetsInit(p); store.projects.push(p); P = p; sel = selCable = null; impItems = [];
+    ov.remove(); render(); save();
+    uiToast('➕ נוצר "' + name + '"' + (acc ? ' · 👤 ' + acc.name : ''), 4000);
+  };
+  ov.querySelector('[data-go]').onclick = go;
+  ov.querySelector('[data-x]').onclick = () => ov.remove();
+  nm.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+  q.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const d = list.querySelector('[data-acc]'); if (list.style.display !== 'none' && d) d.onclick(); else go(); } };
+  setTimeout(() => nm.focus(), 50);
+}
 /* שכפול פרויקט — עד איזה שלב: הכול · עד סימון האזורים (תכניות, כיול, אזורים — בלי מערכת) · תכנית וכיול בלבד */
 async function dupProj() {
   const nZ = (P.sheets || []).reduce((s, sh) => s + (sh.zones || []).length, 0), nN = (P.sheets || []).reduce((s, sh) => s + (sh.nodes || []).filter(n => !n.hidden).length, 0), nI = (P.impSaved || []).length;
@@ -10780,7 +10812,7 @@ function renderPanel() {
 function renderLegend() {
   /* כיווץ הטבלה התחתונה — הבחירה נשמרת בדפדפן */
   let minL = false; try { minL = localStorage.getItem('koLegendMin') === '1'; } catch (e) {}
-  const L = $('#legend'); L.classList.toggle('min', minL);
+  const L = $('#legend'); L.classList.toggle('min', minL); document.body.classList.toggle('legendOff', legendOff());
   const btn = `<button onclick="try{localStorage.setItem('koLegendMin','${minL ? '0' : '1'}')}catch(e){};renderLegend()" title="${minL ? 'הרחב את מפתח הכבלים' : 'כווץ את מפתח הכבלים — נשארת רק הכותרת'}" style="padding:1px 9px;font-size:12px;flex:none">${minL ? '▴ הרחב' : '▾ כווץ'}</button>`;
   if (minL) { L.innerHTML = `<h3 style="display:flex;align-items:center;gap:8px;margin:0">${btn}<span>KO Projects · מפתח כבלים — ${esc(P.name)} <small style="font-weight:400;color:#777">(${(P.cables || []).length} כבלים)</small></span></h3>`; return; }
   $('#legend').innerHTML = `<h3 style="display:flex;align-items:center;gap:8px">${btn}<span>KO Projects · מפתח כבלים — ${esc(P.name)}</span></h3>
@@ -15930,12 +15962,14 @@ function renderImp() {
   dockOpen = true;
   const dk = $('#dock');
   dk.style.display = 'block';
+  dk.classList.toggle('min', dockMin);
   if (dockMin) {
-    dk.style.width = '42px';
-    dk.innerHTML = `<button onclick="dockMin=false;renderImp()" title="הרחב הצעת מחיר" style="writing-mode:vertical-rl;height:150px;padding:8px 4px;font-weight:700">🧾 הצעת מחיר ⮟</button>`;
+    dk.style.height = '';
+    dk.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><button onclick="dockMin=false;renderImp()" title="הרחב הצעת מחיר" style="padding:1px 9px;font-size:12px">▴ הרחב</button><b style="font-size:13px">🧾 הצעת מחיר · פריטים (${impItems.length})</b><span style="flex:1"></span>${legendBtnHTML()}</div>`;
     return;
   }
-  dk.style.width = dockWide ? 'calc(100vw - 60px)' : '480px';
+  let dh = 300; try { dh = Math.max(120, Math.min(innerHeight - 160, +localStorage.getItem('koDockH') || 300)); } catch (e) {}
+  dk.style.height = dockWide ? 'calc(100vh - 150px)' : dh + 'px';
   try { syncItemZonesFromNodes(); } catch (e) { console.warn(e); }
   impItems.forEach(it => { autoPrice(it); clampItemZones(it); });
   const racks = P.nodes.filter(n => n.kind === 'rack');
@@ -16027,15 +16061,16 @@ function renderImp() {
   let lastCat = null;
   const catBar = q && allRes.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin:-2px 0 6px"><button onclick="dockCat='';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat ? '' : 'background:#1a1e28;color:#fff'}">הכל ${allRes.length}</button>${kitN ? `<button onclick="dockCat='kit';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat === 'kit' ? 'background:#1a1e28;color:#fff' : ''}">🧰 קיטים ${kitN}</button>` : ''}${SRCH_CATS.filter(([c]) => catN[c]).map(([c, l]) => `<button onclick="dockCat='${c}';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat === c ? 'background:#1a1e28;color:#fff' : ''}">${l} ${catN[c]}</button>`).join('')}</div>` : '';
   const catHdr = r => { if (dockCat || !r.cat || r.cat === lastCat) return ''; lastCat = r.cat; return `<div style="font-size:11px;font-weight:800;color:#666;margin:6px 2px 2px">${(SRCH_CATS.find(x => x[0] === r.cat) || [])[1] || ''}</div>`; };
-  dk.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:6px">
+  dk.innerHTML = `<div id="dockGrip" title="גרור לשינוי הגובה"></div><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:6px">
       <h3 style="font-size:14px;flex:1;margin:0">🧾 הצעת מחיר · פריטים (${impItems.length})</h3>
       ${pinMode ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 נקר על התכנית (Esc לסיום)</span>' : ''}
       ${connPin ? '<span style="background:#ff8a50;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">📌 לחץ ליד קצה כבל (Esc לסיום)</span>' : ''}
       ${replFor ? '<span style="background:#7aa2ff;color:#1a1e28;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">🔄 חפש ובחר מוצר להחלפה (Esc לביטול)</span>' : ''}
       <button onclick="showKits()" title="קיטים מוכנים (ERP)" style="white-space:nowrap">🧰 קיטים</button>
       <button onclick="showErp()" title="משיכה מפרויקטים מאושרים והצעות קיימות (ERP)" style="white-space:nowrap">🗂 פרויקטים</button>
-      <button onclick="dockWide=!dockWide;renderImp()" title="${dockWide ? 'חזרה מהמסך המלא' : 'הרחב על כל המסך'}" style="${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '⤡' : '⤢'}</button>
-      <button onclick="dockMin=true;renderImp()" title="צמצם הצידה">◀</button>
+      ${legendBtnHTML()}
+      <button onclick="dockWide=!dockWide;renderImp()" title="${dockWide ? 'חזרה לגובה הרגיל' : 'הגבה על רוב המסך'}" style="${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '⤡' : '⤢'}</button>
+      <button onclick="dockMin=true;renderImp()" title="כווץ לשורה אחת">▾</button>
     </div>${impModeHTML()}
     <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` + catBar +
     (results.length ? results.map(r => r.type === 'kit'
@@ -16043,8 +16078,22 @@ function renderImp() {
       : catHdr(r) + `<div class="crow" onclick="pickSearchItem('${jsq(r.name)}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span>${imgCell(r.key, 28)}<span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`
     ).join('') + '<div style="border-bottom:1px solid #eee;margin:8px 0"></div>' : '') +
     body;
+  dockGripWire(dk);
 }
 function openImported() { dockOpen = true; dockMin = false; renderImp(); }
+/* 🔌 מפתח הכבלים בתחתית המסך מוסתר כברירת מחדל (הצעת המחיר במקומו) — כפתור בכותרת ההצעה מציג/מסתיר; בהדפסה תמיד מודפס */
+const legendOff = () => { try { return localStorage.getItem('koLegendOff') !== '0'; } catch (e) { return true; } };
+function legendToggle() { try { localStorage.setItem('koLegendOff', legendOff() ? '0' : '1'); } catch (e) {} renderLegend(); if (dockOpen) renderImp(); }
+function legendBtnHTML() { const off = legendOff(); return `<button onclick="legendToggle()" title="${off ? 'הצג את מפתח הכבלים מתחת להצעה' : 'הסתר את מפתח הכבלים'}" style="white-space:nowrap;${off ? '' : 'background:#1a1e28;color:#fff'}">🔌 מפתח כבלים</button>`; }
+window.legendToggle = legendToggle;
+/* גרירת הפס העליון של ההצעה — שינוי הגובה, נשמר בדפדפן */
+function dockGripWire(dk) {
+  const g = dk.querySelector('#dockGrip'); if (!g) return;
+  g.onmousedown = e => { e.preventDefault(); const y0 = e.clientY, h0 = dk.getBoundingClientRect().height; dockWide = false;
+    const mv = ev => { const h = Math.max(120, Math.min(innerHeight - 150, h0 + (y0 - ev.clientY))); dk.style.height = h + 'px'; };
+    const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); try { localStorage.setItem('koDockH', String(Math.round(dk.getBoundingClientRect().height))); } catch (e2) {} };
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up); };
+}
 function itemZones(it) { return it.zones ? Object.entries(it.zones).filter(([z, n]) => n > 0) : []; }
 /* הכמות לאזורים לא יכולה לעלות על כמות הפריט (ייבוא ואז הצבה רשמו פעמיים) — אזור יחיד = הכמות; כמה אזורים = מקוצצים יחסית */
 /* האזור של מוקד לפי מיקומו בפועל (הקטן מבין האזורים שמכילים אותו), או null */

@@ -172,6 +172,12 @@ function guessType(k) {
 }
 
 /* ---------- אסימון גישה ל-Google ---------- */
+/* הבקשה לאסימון הולכת דרך http() (ה-agent עם ה-DNS המהיר + timeout) ולא דרך fetch הגלובלי שמשתמש ב-DNS של המערכת:
+   במשרד oauth2.googleapis.com מתורגם לשרת רחוק (400ms) ולפעמים נכשל — ואז כל הקריאות לדלי נפלו ("ADC token failed") */
+function tokenPost(params) {
+  const body = params.toString();
+  return http('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(body) }, body, timeout: 15e3 });
+}
 async function fetchToken() {
   if (process.env.GOOGLE_ACCESS_TOKEN) return { v: process.env.GOOGLE_ACCESS_TOKEN, exp: Date.now() + 3600e3 };
   /* Cloud Run / GCE — שרת המטא-דאטה */
@@ -186,14 +192,14 @@ async function fetchToken() {
     try {
       const c = JSON.parse(readFileSync(adc, 'utf8'));
       if (c.type === 'authorized_user') {
-        const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: c.client_id, client_secret: c.client_secret, refresh_token: c.refresh_token, grant_type: 'refresh_token' }) });
+        const r = await tokenPost(new URLSearchParams({ client_id: c.client_id, client_secret: c.client_secret, refresh_token: c.refresh_token, grant_type: 'refresh_token' }));
         if (r.ok) { const j = await r.json(); return { v: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1e3 }; }
       } else if (c.type === 'service_account') {
         const now = Math.floor(Date.now() / 1e3);
         const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
         const unsigned = b64({ alg: 'RS256', typ: 'JWT' }) + '.' + b64({ iss: c.client_email, scope: 'https://www.googleapis.com/auth/devstorage.read_write', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 });
         const sig = createSign('RSA-SHA256').update(unsigned).sign(c.private_key, 'base64url');
-        const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: unsigned + '.' + sig }) });
+        const r = await tokenPost(new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: unsigned + '.' + sig }));
         if (r.ok) { const j = await r.json(); return { v: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1e3 }; }
         adcErr = 'HTTP ' + r.status + ' ' + (await r.text()).slice(0, 120);
       }
