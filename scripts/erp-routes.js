@@ -57,7 +57,7 @@ const OWNER_ONLY = p => p.startsWith('/api/erp/kits-sync') || p.startsWith('/api
 /* מחזיר true אם הבקשה טופלה. ctx: { storage, user (המשתמש המחובר), caller() → { personal, auth?, name, reason? },
    erpLoginLive() → האם הכניסה עם KO ERP פעילה } */
 export async function handleErp(req, res, path0, isOwner, ctx = {}) {
-  if (!path0.startsWith('/api/erp/') || path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') return false;
+  if (!path0.startsWith('/api/erp/') || path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items' || path0 === '/api/erp/orders-index') return false;
   const u = ctx.user || {}, staffErp = !!(u.erpId && (u.role === 'admin' || u.role === 'pm'));
   if (!isOwner && (!staffErp || OWNER_ONLY(path0))) { send(res, 403, { ok: false, errors: ['owner only'] }); return true; }
   /* הטוקן לחיפושים: של האדם; לבעלים בלי כניסה ל-ERP — המשותף (auth undefined); לאחר — אין. who = מפתח המטמון */

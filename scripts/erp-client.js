@@ -94,6 +94,20 @@ export async function erpQuotes({ q = '', all = false, limit = 200 } = {}, auth)
     date: (o.created_at || '').slice(0, 10), project: o.project_id || null, projectName: (o.project_id && pn.get(o.project_id)) || '',
   }));
 }
+/* אינדקס ההצעות למנהל הפרויקטים: כל ההזמנות (חדשות קודם, דפים של 500) — קוד, תאריך, סטטוס, אישור לקוח, פרויקט ב-ERP */
+export async function erpOrdersIndex(auth) {
+  const out = [], seen = new Set(); let before = '';
+  for (let page = 0; page < 4; page++) {
+    const args = { limit: 500 }; if (before) args.created_before = before;
+    const r = await erpCall('list_orders', args, auth);
+    const rows = r.orders || [];
+    for (const o of rows) { if (!o.id || seen.has(o.id)) continue; seen.add(o.id);
+      out.push({ id: o.id, code: o.order_code || '', status: o.status || '', confirmed: !!o.customer_confirmed, confirmedAt: (o.customer_confirmed_at || '').slice(0, 10), date: (o.created_at || '').slice(0, 10), project: o.project_id || null, accountKey: o.account_key || '', total: o.total_amount || 0, track: o.offer_name || '' }); }
+    if (rows.length < 500) break;
+    const last = rows[rows.length - 1].created_at; if (!last || last === before) break; before = last;
+  }
+  return out;
+}
 export async function erpQuoteItems(orderId, auth) {
   const r = await erpCall('list_order_items', { order_id: orderId, limit: 1000, exclude_cancelled: true }, auth);
   return (r.items || []).filter(x => !x.is_cancelled).map(x => ({

@@ -1684,6 +1684,7 @@ function projManager() {
     <input id="pmQ" placeholder="🔍 חיפוש לפי שם פרויקט / לקוח / מספר לקוח…" style="width:100%" oninput="pmRender(this.value)">
     <div style="display:flex;gap:6px;margin:8px 0">
       <button style="flex:1" onclick="pmToggleAll()">☑ סמן/נקה את המסוננים</button>
+      <button style="flex:1" onclick="pmSelEmpty()" title="מסמן את כל הפרויקטים בשם 'פרויקט חדש' שאין בהם שום תוכן — בלי מוקדים, תכנית, פריטים, לקוח או הצעה">🧹 סמן ריקים</button>
       <button style="flex:1;background:#f3d9d2;color:#8c2f16" onclick="pmDeleteSel()">🗑 מחק את המסומנים</button>
     </div>
     <div id="pmUsers"></div>
@@ -1692,6 +1693,7 @@ function projManager() {
   window.__pmSel = new Set();
   pmRender('');
   pmLoadUsers();
+  pmLoadErp();
   setTimeout(() => { const q = document.getElementById('pmQ'); if (q) q.focus(); }, 50);
 }
 /* 👥 משתמשים חיצוניים (בעלים בלבד): מי עובד על איזה פרויקט — מ-/api/admin/users */
@@ -1728,6 +1730,60 @@ function pmTransfer(pid) {
     } catch (e) { uiToast('⚠ ההעברה נכשלה: ' + (e.message || e)); }
   };
 }
+/* 🧾 ההצעות של הפרויקט ב-ERP (לשורת הפרויקט ולסינון "מאושרים"): לפי ההצעה שנוצרה מכאן (erpOfferCode), ההצעה שיובאה (erpQuoteFrom)
+   או כל ההצעות של פרויקט ה-ERP המקושר (erpProjId). נטען פעם אחת לפתיחת המנהל מ-/api/erp/orders-index (בעלים בלבד) */
+let PM_ERP = null;
+const pmApprovedSt = o => !!(o.confirmed || /^(confirmed|approved|completed|delivered|closed|invoiced|paid)$/i.test(o.status || ''));
+function pmErpOf(p) {
+  if (!PM_ERP) return null;
+  const set = new Map();
+  for (const c of [p.erpOfferCode, p.erpQuoteFrom]) { const o = c && PM_ERP.byCode.get(String(c)); if (o) set.set(o.id, o); }
+  if (p.erpProjId) for (const o of PM_ERP.byProj.get(p.erpProjId) || []) set.set(o.id, o);
+  if (!set.size) return null;
+  const all = [...set.values()].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const appr = all.filter(pmApprovedSt).sort((a, b) => (b.confirmedAt || b.date || '').localeCompare(a.confirmedAt || a.date || ''));
+  return { last: all[0], n: all.length, approved: appr[0] || null };
+}
+async function pmLoadErp(force) {
+  if (!pmIsAdmin() || (PM_ERP && !force)) return;
+  try {
+    const r = await fetch('/api/erp/orders-index' + (force ? '?fresh=1' : ''), { cache: 'no-store' }); if (!r.ok) return;
+    const j = await r.json(); if (!Array.isArray(j.orders)) return;
+    const byCode = new Map(), byProj = new Map();
+    for (const o of j.orders) { if (o.code) byCode.set(String(o.code), o); if (o.project) { if (!byProj.has(o.project)) byProj.set(o.project, []); byProj.get(o.project).push(o); } }
+    PM_ERP = { byCode, byProj, at: Date.now() };
+  } catch (e) { return; }
+  if (document.getElementById('pmList')) pmRender(window.__pmQ || '');
+}
+const pmFmtD = d => d && /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(8, 10) + '.' + d.slice(5, 7) + '.' + d.slice(0, 4) : '';
+/* תאריך ההצעה האחרונה בשורת הפרויקט: מאושרת ב-ERP (✅ + תאריך האישור), אחרת ההצעה האחרונה עם הסטטוס שלה; בלי חיבור ל-ERP — מה שנרשם בשליחה */
+function pmOfferHTML(p) {
+  const e = pmErpOf(p);
+  if (e) {
+    const ap = e.approved, o = ap || e.last, st = ap ? ['מאושרת', '#0f6e56'] : erpStatus(e.last);
+    return `<span style="font-size:10.5px;white-space:nowrap;color:${st[1]};font-weight:${ap ? 700 : 400}" title="${ap ? 'הצעה שאושרה ב-ERP' : 'ההצעה האחרונה ב-ERP'}${e.n > 1 ? ' · ' + e.n + ' הצעות' : ''}${o.track ? ' · ' + esc(o.track) : ''}">${ap ? '✅' : '🧾'} ${esc(o.code)} · ${pmFmtD(ap ? (ap.confirmedAt || ap.date) : e.last.date)} · ${esc(st[0])}</span>`;
+  }
+  if (p.offerSent) return `<span title="נשלחה הצעה ל-ERP${p.erpOfferCode ? ' · ' + esc(p.erpOfferCode) : ''}" style="font-size:10.5px;white-space:nowrap">📤${+p.offerAt > 1e12 ? ' ' + new Date(+p.offerAt).toLocaleDateString('he-IL') : ''}</span>`;
+  return '';
+}
+/* 🧹 פרויקט ריק: בשם ברירת המחדל "פרויקט חדש", בלי מוקדים/כבלים/אזורים בשום תכנית, בלי תכנית רקע, בלי פריטים בהצעה, בלי לקוח ובלי הצעה ב-ERP */
+function pmIsEmptyNew(p) {
+  if (String(p.name || '').trim() !== 'פרויקט חדש') return false;
+  const A = ['nodes', 'cables', 'zones', 'conduits'];
+  const own = f => { const d = Object.getOwnPropertyDescriptor(p, f); return d && 'value' in d && Array.isArray(d.value) ? d.value.length : 0; };
+  if ((p.sheets || []).reduce((s, sh) => s + A.reduce((t, f) => t + (sh[f] || []).length, 0), 0) + A.reduce((t, f) => t + own(f), 0)) return false;
+  if ((p.sheets || []).some(sh => sh.hasBg || sh.hasPdf) || p.hasBgs || p.hasPdfs || p.hasThumb || p.thumb) return false;
+  for (const m of ['bgs', 'bgPdfs']) { const v = bgMapVal(p, m); if (v && Object.keys(v).length) return false; }
+  if ((p.impSaved || []).length || p.offerSent || p.erpOfferCode || p.erpQuoteFrom || p.erpProjId || p.accountKey || p.accountName || p.customer || p.sketch) return false;
+  return true;
+}
+function pmSelEmpty() {
+  const ids = store.projects.filter(pmIsEmptyNew).map(p => p.id);
+  if (!ids.length) { uiToast('אין פרויקטים ריקים בשם "פרויקט חדש"'); return; }
+  window.__pmSel = new Set(ids); pmUser = ''; pmRender(window.__pmQ || '');
+  uiToast('🧹 סומנו ' + ids.length + ' פרויקטים ריקים בשם "פרויקט חדש" — לחץ "מחק את המסומנים"', 6000);
+}
+window.pmSelEmpty = pmSelEmpty; window.pmIsEmptyNew = pmIsEmptyNew;
 function pmUsersOf(pid) { return (PM_USERS || []).map(u => ({ u, p: (u.projects || []).find(x => x.id === pid) })).filter(x => x.p); }
 function pmUsersBar() {
   const mine = store.projects.filter(pmMine).length, shared = store.projects.filter(p => !pmMine(p)).length;
@@ -1737,7 +1793,7 @@ function pmUsersBar() {
   /* ברירת המחדל לכולם: הפרויקטים שלי. בעלים / admin יכולים לעבור להכול, לפרויקטים של משתמשים חיצוניים, או למשתמש מסוים */
   return `<div style="background:#f4f2fb;border-radius:9px;padding:7px 8px;margin-bottom:8px">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><b style="font-size:12px;flex:1">👥 ${pmIsAdmin() ? 'הפרויקטים לפי משתמש' : 'הפרויקטים שלי ומה ששותף איתי'}</b>${pmIsAdmin() ? '<a href="/admin" target="_blank" style="font-size:11px;color:#534ab7">ניהול משתמשים והרשאות ←</a>' : ''}</div>
-    <div style="display:flex;gap:4px;flex-wrap:wrap">${chip('*mine', '🙋 שלי', mine)}${pmIsAdmin() ? chip('', 'כל הפרויקטים', store.projects.length) + (PM_USERS && PM_USERS.length ? chip('*ext', 'של משתמשים אחרים', ext.size) + PM_USERS.map(u => chip(u.id, (u.blocked ? '🚫 ' : u.role === 'admin' ? '🛡 ' : '👤 ') + esc(u.name || u.email), (u.projects || []).length)).join('') : '') : chip('*shared', '🔗 שותפו איתי', shared) + chip('', 'הכול', store.projects.length)}</div></div>`;
+    <div style="display:flex;gap:4px;flex-wrap:wrap">${chip('*mine', '🙋 שלי', mine)}${pmIsAdmin() ? chip('', 'כל הפרויקטים', store.projects.length) + (PM_ERP ? chip('*approved', '✅ מאושרים ב-ERP', store.projects.filter(p => (pmErpOf(p) || {}).approved).length) : '') + (PM_USERS && PM_USERS.length ? chip('*ext', 'של משתמשים אחרים', ext.size) + PM_USERS.map(u => chip(u.id, (u.blocked ? '🚫 ' : u.role === 'admin' ? '🛡 ' : '👤 ') + esc(u.name || u.email), (u.projects || []).length)).join('') : '') : chip('*shared', '🔗 שותפו איתי', shared) + chip('', 'הכול', store.projects.length)}</div></div>`;
 }
 function pmFiltered(q) {
   const toks = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
@@ -1746,6 +1802,7 @@ function pmFiltered(q) {
   return store.projects.filter(p => {
     if (pmUser === '*mine' && !pmMine(p)) return false;
     if (pmUser === '*shared' && pmMine(p)) return false;
+    if (pmUser === '*approved' && !(pmErpOf(p) || {}).approved) return false;
     if (byU && !byU.has(p.id)) return false;
     const s = (p.name + ' ' + (p.accountName || '') + ' ' + (p.accountKey || '') + ' ' + (p.customer || '')).toLowerCase();
     return toks.every(t => s.includes(t));
@@ -1757,7 +1814,8 @@ function pmRender(q) {
   const ub = document.getElementById('pmUsers'); if (ub) ub.innerHTML = pmUsersBar();
   const fmtT = t => t > 1e12 ? new Date(t).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '';
   const list = pmFiltered(q);
-  if (pmUser) list.sort((a, b) => (+b.upd || 0) - (+a.upd || 0));   /* בסינון לפי משתמש — האחרונים שנערכו קודם */
+  if (pmUser === '*approved') list.sort((a, b) => { const x = pmErpOf(a).approved, y = pmErpOf(b).approved; return (y.confirmedAt || y.date || '').localeCompare(x.confirmedAt || x.date || ''); });   /* מאושרים — לפי תאריך האישור */
+  else if (pmUser) list.sort((a, b) => (+b.upd || 0) - (+a.upd || 0));   /* בסינון לפי משתמש — האחרונים שנערכו קודם */
   /* משפחות: שכפולים (dupOf / "(עותק)" של שם קיים) ופרויקטים עם אותה תכנית (אותה תמונת רקע) — מוצגים יחד במסגרת צבעונית */
   const fam = pmFamilies(store.projects || []), FAM_COL = ['#534ab7', '#0f6e56', '#c96a13', '#1d4f91', '#a32222', '#7a2a6b', '#0b7285', '#8a6a00'];
   const famOf = new Map(), famMeta = new Map(); fam.forEach((g, gi) => { g.ids.forEach(id => famOf.set(id, gi)); famMeta.set(gi, { col: FAM_COL[gi % FAM_COL.length], why: g.why, n: g.ids.length }); });
@@ -1769,7 +1827,7 @@ function pmRender(q) {
       <b style="flex:1;font-size:12.5px;cursor:pointer" title="עבור לפרויקט" onclick="switchProj('${p.id}');document.getElementById('pmOv').remove()">${esc(p.name)}${p.id === P.id ? ' ←' : ''}</b>
       <span class="muted" style="font-size:11px;white-space:nowrap">👤 ${esc(p.accountName || p.customer || '—')}${p.accountKey ? ' · ' + esc(p.accountKey) : ''}</span>
       <span class="muted" style="font-size:10px;white-space:nowrap">${(p.nodes || []).length} מוקדים</span>
-      ${p.offerSent ? '<span title="נשלחה הצעה ל-ERP" style="font-size:12px">📤</span>' : ''}
+      ${pmOfferHTML(p)}
       ${pmIsAdmin() && PM_USERS && PM_USERS.length ? `<button onclick="pmTransfer('${p.id}')" title="העברת בעלות — הפרויקט יירשם על שם משתמש אחר (יופיע אצלו ב'שלי' עם הרשאת עריכה)" style="padding:2px 7px;font-size:11px">👑</button>` : ''}
     </div>${(() => { const us = pmUsersOf(p.id); return us.length ? `<div style="margin:-3px 0 5px;padding:0 34px 0 8px;font-size:10.5px;display:flex;gap:4px;flex-wrap:wrap">${us.map(({ u, p: g }) => `<span style="background:${g.created ? '#efecfd' : '#f4f2ec'};color:${g.created ? '#4b3fb8' : '#556'};border-radius:999px;padding:1px 8px" title="${esc(u.email)}">${g.created ? '✏️ נוצר ע״י' : '🔗 משותף עם'} ${esc(u.name || u.email)} · ${g.perm === 'view' ? 'צפייה' : 'עריכה'}</span>`).join('')}${+p.upd > 1e12 ? `<span class="muted">עודכן ${fmtT(+p.upd)}</span>` : ''}</div>` : ''; })()}`;
   el.innerHTML = ordered.map(g => {
@@ -15711,7 +15769,7 @@ function sendOffer() {
           </div></div>`;
         btn.textContent = '✓ נוצרה — נפתח ב-ERP';
         /* סימון הפרויקט: נשלחה הצעה + שיוך הלקוח (מוצג במנהל הפרויקטים) */
-        P.offerSent = true;
+        P.offerSent = true; P.offerAt = Date.now();
         P.erpOfferCode = code || P.erpOfferCode;
         /* הפרויקט שההצעה עליו — גם כשנוצר עכשיו (new_project) — כדי שההצעה הבאה תיפתח עליו */
         P.erpProjId = res.project_id || payload.project_id || P.erpProjId;

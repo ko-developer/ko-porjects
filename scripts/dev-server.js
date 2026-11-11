@@ -10,7 +10,7 @@ import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
 import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks, inviteForSignup, signupEmailCheck, erpTokenKey } from './auth.js';
 import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers, accessTokenFor, requestSignupLink } from './erp-login.js';
-import { erpQuotes, erpQuoteItems } from './erp-client.js';
+import { erpQuotes, erpQuoteItems, erpOrdersIndex } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
 import { reportTokenFor, projectForReportToken } from './report-links.js';
 import { handleBugs, initBugs } from './bugs.js';
@@ -102,6 +102,7 @@ async function ensureBuilt(isStudio) {
    רק הפרויקט הפתוח מקבל את תמונת הרקע שלו; השאר מסומנים hasBg/hasPdf/versN ונטענים לפי דרישה מ-/api/project/<id>.
    בשמירה (POST) הדפדפן מחזיר את הפרויקטים בלי הכבדים — hydrateStore משלים אותם מהעותק השמור */
 const HEAVY = ['bg', 'bgPdf', 'bgs', 'bgPdfs', 'vers', 'thumb', 'sndImg'];
+const ORD_IDX = new Map();   /* אינדקס ההצעות מה-ERP למנהל הפרויקטים — לפי מי שמחובר */
 /* גרסה = תוכן בלבד: תמונות שנכנסו לצילום גרסה (דפדפן ישן) נמחקות — 30 גרסאות × 5MB תמונות הפילו את השרת בענן */
 function slimVers(p) {
   if (!p || !Array.isArray(p.vers)) return p;
@@ -394,6 +395,19 @@ const handleReq = async (req, res) => {
     return { report_url: base + '/r/' + await reportTokenFor(storage, pid), open_url: base + '/?open=' + encodeURIComponent(pid) };
   };
   if (await handleErp(req, res, path0, isOwner, { storage, user: me, caller, reportLink, erpLoginLive: () => erpLoginAvailable(process.env, storage) })) return;
+  /* --- 🧾 אינדקס ההצעות למנהל הפרויקטים (תאריך הצעה אחרונה + אישור) — בעלים בלבד, מטמון 5 דקות (?fresh=1 מרענן) --- */
+  if (path0 === '/api/erp/orders-index') {
+    if (!isOwner) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"owner only"}'); return; }
+    try {
+      const c = await caller(), auth = c.personal ? c.auth : undefined, key = c.personal ? 'me:' + (me.id || '') : 'shared';
+      const hit = ORD_IDX.get(key);
+      const orders = hit && hit.at > Date.now() - 5 * 60e3 && !/[?&]fresh=1/.test(req.url || '') ? hit.v : await erpOrdersIndex(auth);
+      ORD_IDX.set(key, { at: hit && hit.v === orders ? hit.at : Date.now(), v: orders });
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ orders }));
+    } catch (e) { res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: String(e.message || e) })); }
+    return;
+  }
   /* --- הצעות מחיר מה-ERP (חי, דרך MCP) — בעלים בלבד --- */
   if (path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') {
     if (!isOwner) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"owner only"}'); return; }

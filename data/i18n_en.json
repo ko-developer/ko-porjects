@@ -6938,5 +6938,16 @@
  "לא משנה את שפת האפליקציה; חל על התצוגה, ההדפסה וה-PDF": "Does not change the app language; applies to the preview, printing and the PDF",
  "אין פרויקט מתאים": "No matching project",
  "🌐 עברית": "🌐 Hebrew",
- "ניהול פרויקטים": "Project manager"
+ "ניהול פרויקטים": "Project manager",
+ "מסמן את כל הפרויקטים בשם": "Selects every project named",
+ "שאין בהם שום תוכן": "that has no content at all",
+ "בלי מוקדים, תכנית, פריטים, לקוח או הצעה": "no points, plan, items, customer or quote",
+ "🧹 סמן ריקים": "🧹 Select empty",
+ "אין פרויקטים ריקים בשם": "No empty projects named",
+ "פרויקטים ריקים בשם": "empty projects named",
+ "מחק את המסומנים": "Delete selected",
+ "✅ מאושרים ב-ERP": "✅ Approved in ERP",
+ "🧹 סומנו": "🧹 Selected",
+ "הצעה שאושרה ב-ERP": "Quote approved in ERP",
+ "ההצעה האחרונה ב-ERP": "Latest quote in ERP"
 }
