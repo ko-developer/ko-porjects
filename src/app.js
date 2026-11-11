@@ -6973,12 +6973,15 @@ function delayDistM(n, ref) { return (ref && P.scale) ? Math.hypot(n.x - ref.x, 
 /* מקור עיקרי אמיתי לדיליי — במה/עמדת נגינה/DJ בלבד. ארון מגברים אינו מקור קול. */
 /* איחוד שורות כפולות בהצעה: אותו מק"ט/שם ואותו יעד → שורה אחת עם סכימת כמויות
    ופירוט לפי אזור — כך שאותו פריט בשני אזורים לא מופיע פעמיים ב-ERP. */
-function mergeOfferDupes(silent) {
+/* only — קבוצת שורות (Set) שרק בתוכה מאחדים: ייבוא הצעה מה-ERP מאחד כפילויות בתוך ההצעה שיובאה בלבד, ולא בולע את השורות
+   החדשות לתוך שורות ותיקות עם אותו מק״ט (אז "הפריטים נעלמו" — 13 שורות הפכו ל-2) */
+function mergeOfferDupes(silent, only) {
   const keyOf = it => (it.key ? 'k:' + it.key : 'n:' + (it.name || '').trim()) + '|' + (it.dest || '') + '|' + (it.type || '');
   const first = new Map();
   let merged = 0;
   for (let i = 0; i < impItems.length; i++) {
     const it = impItems[i], k = keyOf(it);
+    if (only && !only.has(it)) continue;
     const a = first.get(k);
     if (!a) { first.set(k, it); continue; }
     if (it.stockId || a.stockId) continue; /* קשור למלאי/גליל — נשאר בנפרד */
@@ -14823,7 +14826,7 @@ function erpQImport(ov, toZone) {
       if (items.some(x => isSpeakerItem(x.name))) buildZoneFromItems(z.id);
       placeZoneRackItems(z);
       placed = P.nodes.length - nBefore;
-      mergeOfferDupes(true);
+      mergeOfferDupes(true, new Set(items));
       z._built = Date.now();
     } catch (e) { err = e; }
   }
