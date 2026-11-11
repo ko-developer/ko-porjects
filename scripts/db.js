@@ -115,7 +115,8 @@ async function readJsonStore(h) {
     const fr = await (h.refreshing || readJsonStoreFresh(h)); h.stale = ''; return fr;
   }
   if (!h.refreshing) h.refreshing = readJsonStoreFresh(h).then(v => { h.lastGood = v; return v; }).finally(() => { h.refreshing = null; });
-  const slow = new Promise(res => setTimeout(() => res(null), 2500));
+  /* 4 שניות (היה 2.5): עדיף לחכות עוד שנייה-שתיים מאשר לשונית עם "עותק זמני" שחוסמת שמירה עד טעינה מחדש */
+  const slow = new Promise(res => setTimeout(() => res(null), 4000));
   const v = await Promise.race([h.refreshing.catch(() => null), slow]);
   if (v) { h.stale = ''; return v; }
   if (h.lastGood) { h.partial = true; h.stale = 'mem'; console.warn('store: bucket slow — serving the in-memory copy, refresh continues in background'); return h.lastGood; }

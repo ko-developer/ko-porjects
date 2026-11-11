@@ -7,7 +7,7 @@
 // קובץ ADC (gcloud auth application-default login / חשבון שירות) → gcloud auth print-access-token.
 // ===================================================================================
 import { readFile, writeFile, readdir, unlink, mkdir, stat, rename } from 'node:fs/promises';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { execFile } from 'node:child_process';
@@ -19,20 +19,44 @@ import { Resolver, lookup as sysLookup } from 'node:dns';
    ל-storage.googleapis.com כתובות בסינגפור — 340–400 מילישניות לכל סיבוב ו-150KB/s, במקום 6 מילישניות לשרת של גוגל בישראל.
    בענן (K_SERVICE) ו-GCS_DNS=system — פתרון השמות של המערכת. כישלון (UDP 53 חסום) → נפילה למערכת, ונזכר לדקה כדי לא לחכות שוב */
 const FAST_DNS = !process.env.K_SERVICE && process.env.GCS_DNS !== 'system';
-const RESOLVER = FAST_DNS ? new Resolver({ timeout: 1500, tries: 1 }) : null;
-if (RESOLVER) RESOLVER.setServers((process.env.GCS_DNS || '8.8.8.8,1.1.1.1').split(',').map(s => s.trim()).filter(Boolean));
-const DNS_CACHE = new Map();   /* host → { ips, exp } (ips ריק = נכשל, למערכת) */
+/* כל שרת DNS נשאל במקביל (1.1.1.1 קרוב יותר מ-8.8.8.8 מישראל) — הראשון שעונה מנצח; תשובה טובה נשמרת שעה בזיכרון,
+   ו"הכתובת הטובה האחרונה" נשמרת גם על הדיסק (data/.cache-gcs/dns.json) ומשמשת כשכל השרתים לא עונים (ETIMEOUT/ENOTFOUND של
+   ה-DNS במשרד) — כך תקלת DNS רגעית לא מפילה את הדלי ולא גוררת "עותק זמני". שגיאת חיבור לכתובת → הכתובת נזרקת ונשאלים מחדש */
+const DNS_SERVERS = (process.env.GCS_DNS || '1.1.1.1,8.8.8.8').split(',').map(s => s.trim()).filter(Boolean);
+const RESOLVERS = FAST_DNS ? DNS_SERVERS.map(s => { const r = new Resolver({ timeout: 1200, tries: 1 }); r.setServers([s]); return r; }) : [];
+const RESOLVER = RESOLVERS.length ? RESOLVERS[0] : null;
+const DNS_FILE = process.env.K_SERVICE ? '' : 'data/.cache-gcs/dns.json';
+const DNS_CACHE = new Map();   /* host → { ips, exp, good, inflight } — good = הכתובות הטובות האחרונות (לא פגות) */
+try { if (DNS_FILE && existsSync(DNS_FILE)) for (const [h, ips] of Object.entries(JSON.parse(readFileSync(DNS_FILE, 'utf8')))) if (Array.isArray(ips) && ips.length) DNS_CACHE.set(h, { ips: [], exp: 0, good: ips }); } catch {}
+function dnsPersist() { if (!DNS_FILE) return; try { mkdirSync(dirname(DNS_FILE), { recursive: true }); writeFileSync(DNS_FILE, JSON.stringify(Object.fromEntries([...DNS_CACHE].filter(([, c]) => c.good && c.good.length).map(([h, c]) => [h, c.good])))); } catch {} }
+function dnsResolveAll(host) {
+  return new Promise(res => {
+    let left = RESOLVERS.length, done = false;
+    const fin = ips => { if (done) return; done = true; res(ips); };
+    for (const r of RESOLVERS) r.resolve4(host, (err, ips) => { if (!err && ips && ips.length) return fin(ips); if (!--left) fin(null); });
+    if (!left) fin(null);
+  });
+}
 function fastLookup(host, opts, cb) {
   if (typeof opts === 'function') { cb = opts; opts = {}; }
   opts = opts || {};
   const done = ips => opts.all ? cb(null, ips.map(address => ({ address, family: 4 }))) : cb(null, ips[0], 4);
-  const c = DNS_CACHE.get(host);
-  if (c && c.exp > Date.now()) return c.ips.length ? done(c.ips) : sysLookup(host, opts, cb);
-  RESOLVER.resolve4(host, (err, ips) => {
-    if (err || !ips || !ips.length) { DNS_CACHE.set(host, { ips: [], exp: Date.now() + 60e3 }); return sysLookup(host, opts, cb); }
-    DNS_CACHE.set(host, { ips, exp: Date.now() + 120e3 }); done(ips);
+  let c = DNS_CACHE.get(host);
+  if (c && c.exp > Date.now() && c.ips.length) return done(c.ips);
+  if (!c) { c = { ips: [], exp: 0, good: null, inflight: null }; DNS_CACHE.set(host, c); }
+  if (!c.inflight) c.inflight = dnsResolveAll(host).then(ips => {
+    if (ips) { c.ips = ips; c.good = ips; c.exp = Date.now() + 3600e3; dnsPersist(); return ips; }
+    c.ips = []; c.exp = Date.now() + 30e3;   /* נכשל — לא שואלים שוב ב-30 השניות הקרובות, משתמשים בכתובת הטובה האחרונה */
+    return null;
+  }).finally(() => { c.inflight = null; });
+  c.inflight.then(ips => {
+    if (ips) return done(ips);
+    if (c.good && c.good.length) { if (!c.warned) { c.warned = true; console.warn('[dns] ' + host + ': DNS לא עונה — ממשיכים עם הכתובת הטובה האחרונה ' + c.good[0]); } return done(c.good); }
+    sysLookup(host, opts, cb);
   });
 }
+/* שגיאת חיבור (timeout / refused) לכתובת מהמטמון — נזרקת, הבקשה הבאה שואלת מחדש */
+function dnsBust(host) { const c = DNS_CACHE.get(host); if (c) { c.exp = 0; c.warned = false; } }
 const AGENT_LOOKUP = RESOLVER ? { lookup: fastLookup } : {};
 
 /* HTTP עם חיבור חי (keep-alive): ה-fetch המובנה פותח TLS חדש לכל בקשה (~3 שניות ממחשב רחוק);
@@ -48,7 +72,7 @@ function http(url, { method = 'GET', headers = {}, body, timeout, fresh } = {}) 
       res.on('end', () => { const buf = Buffer.concat(ch); resolve({ status: res.statusCode, ok: res.statusCode >= 200 && res.statusCode < 300, arrayBuffer: async () => buf, text: async () => buf.toString('utf8'), json: async () => JSON.parse(buf.toString('utf8') || 'null') }); });
       res.on('error', reject);
     });
-    r.on('error', reject);
+    r.on('error', e => { if (RESOLVER && /ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|timeout|stalled/i.test(String(e && e.message))) { try { dnsBust(new URL(url).hostname); } catch {} } reject(e); });
     r.setTimeout(tmo, () => r.destroy(new Error('GCS: timeout after ' + tmo / 1000 + 's')));
     /* deadline כולל: בקשה שממתינה בתור ל-socket (כל 24 החיבורים תקועים אחרי שינה) לא מקבלת setTimeout — וחיכתה לנצח */
     const dead = setTimeout(() => r.destroy(new Error('GCS: no socket / stalled after ' + ((tmo + 5e3) / 1000) + 's')), tmo + 5e3);
