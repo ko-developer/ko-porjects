@@ -6965,5 +6965,9 @@
  "תן שם לפרויקט": "Give the project a name",
  "זה שדה חובה": "this field is required",
  "➕ נוצר": "➕ Created",
- "🔌 מפתח כבלים": "🔌 Cable index"
+ "🔌 מפתח כבלים": "🔌 Cable index",
+ "קיט מרשימת AppSheet הישנה": "Kit from the old AppSheet list",
+ "נשאר כאן כנקודת התחלה ולא נשלח ל-ERP": "Stays here as a starting point and is not sent to the ERP",
+ "עריכה שלו יוצרת קיט שלך, והוא כן נשלח": "Editing it creates your own kit, which is sent",
+ "לא ב-ERP": "Not in ERP"
 }

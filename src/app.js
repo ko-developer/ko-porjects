@@ -13067,10 +13067,12 @@ function allKits(withHidden) {
   return base.concat(mine);
 }
 /* ===== פרסום הקיטים ל-ERP — KO Projects הוא העורך היחיד של הקיטים =====
-   הרשימה שמוצגת כאן (allKits עם kitCatOf ותיקון הגלילים, בלי המוסתרים) נשלחת מלאה דרך /api/erp/kits-sync
+   נשלחים רק הקיטים שלי (store.userKits, עם kitCatOf ותיקון הגלילים, בלי המוסתרים) דרך /api/erp/kits-sync
    (scripts/erp-kits.js → PUT /api/external/kits ב-ERP). קיט ב-ERP שלא ברשימה מושבת שם — לא נמחק.
-   ref יציב לכל קיט: קיט בסיס = ה-uuid שלו ב-ERP (id ב-data/erp_kits.json, scripts/erp-kit-ids.js); קיט שלי = id שנוצר לו
-   כאן ונשמר עליו; גרסה שלי שמחליפה קיט בסיס (אותו שם / replaces) יורשת את ה-ref שלו.
+   קיטי הבסיס (data/erp_kits.json — רשימת AppSheet הישנה) נשארים כאן כנקודת התחלה ולא נשלחים: ב-ERP מופיעים רק קיטים
+   מכאן (החלטה 2026-11-12). עריכה של קיט בסיס יוצרת גרסה שלי — והיא כן נשלחת.
+   ref יציב לכל קיט: קיט שלי = id שנוצר לו כאן ונשמר עליו; גרסה שלי שמחליפה קיט בסיס (אותו שם / replaces) יורשת את ה-ref
+   שלו — ה-uuid של קיט הבסיס ב-ERP (id ב-data/erp_kits.json, scripts/erp-kit-ids.js).
    אוטומטי לגמרי, בלי כפתורים: 3 שניות אחרי שמירה / מחיקה / הסתרה של קיט (kitSyncSoon), בפתיחת מסך הקיטים ובטעינת האפליקציה —
    רק כשהרשימה השתנתה מאז הפרסום האחרון (sig). מודיעים (טוסט + תיבה במסך הקיטים) רק על כישלון: אין חיבור, החיבור בוטל,
    שגיאת שליחה, או ה-ERP שדורש אישור לכיבוי קיטים רבים (would_deactivate_many — רק אישור ידני שולח allow_deactivate). */
@@ -13150,7 +13152,7 @@ function kitSyncPersist() {
 }
 /* קיט הבסיס שה-ref שלו נשלח: הקיט עצמו, או לגרסה שלי — הקיט שהיא מחליפה (אותו שם / replaces) */
 function kitSyncBaseOf(k, mine) { return mine.has(k) ? ((k.replaces && kitBaseByName(k.replaces)) || kitBaseByName(k.name)) : k; }
-/* כמה קיטי בסיס שנשלחים (גלויים, או שגרסה שלי יורשת את ה-ref שלהם) עוד בלי id של ה-ERP */
+/* כמה קיטי בסיס שגרסה שלי (גלויה) יורשת את ה-ref שלהם עוד בלי id של ה-ERP */
 /* השם שנשלח: גרסה שלי שנשמרה בשם הקטוע של קיט בסיס נשלחת בשמו המלא */
 function kitSyncSentName(k, mine) { const n = (k.name || '').trim(); return mine.has(k) ? kitBaseName(n) : n; }
 /* קיט בסיס בלי id חוסם פרסום אמיתי — חוץ מקיט שהשם שלו קיים ב-ERP אבל לא חד-משמעי ונשלח בדיוק בשם הזה:
@@ -13158,7 +13160,7 @@ function kitSyncSentName(k, mine) { const n = (k.name || '').trim(); return mine
 function kitSyncNeedsId(base, sent) { const bn = base ? (base.name || '').trim() : ''; return !!base && !base.id && !(KIT_ERP_AMBIG.has(bn) && sent === bn); }
 function kitSyncNoId() {
   const mine = new Set(store.userKits || []);
-  return allKits(true).filter(k => (k.name || '').trim() && !kitHidden(k.name) && kitSyncNeedsId(kitSyncBaseOf(k, mine), kitSyncSentName(k, mine))).length;
+  return allKits(true).filter(k => mine.has(k) && (k.name || '').trim() && !kitHidden(k.name) && kitSyncNeedsId(kitSyncBaseOf(k, mine), kitSyncSentName(k, mine))).length;
 }
 function kitSyncPayload() {
   if (kitEnsureIds()) kitSyncPersist();
@@ -13168,7 +13170,7 @@ function kitSyncPayload() {
   const used = new Set(), kits = [];
   let noId = 0;
   for (const k of all) {
-    if (!(k.name || '').trim() || kitHidden(k.name)) continue;
+    if (!mine.has(k) || !(k.name || '').trim() || kitHidden(k.name)) continue;
     const name = kitSyncSentName(k, mine), base = kitSyncBaseOf(k, mine);
     let ref = base ? baseRef(base) : k.id;
     if (used.has(ref) && mine.has(k)) ref = k.id;   /* שתי גרסאות שלי לאותו קיט בסיס: הראשונה יורשת, השנייה ב-id שלה */
@@ -14565,7 +14567,7 @@ function renderKits() {
       return grpHdr(k) + `<div class="crow" onclick="kitPrev(${gi})" style="${hid ? 'opacity:.55' : ''}">
         <span class="badge" style="background:${isUser ? '#0f6e56' : '#534ab7'}">${k.items.length}</span>
         <b style="font-size:11px;white-space:nowrap;color:#333">₪${Math.round(kPrice).toLocaleString()}</b>
-        <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${kitStdDiff(k) ? ` <span style="color:#999">—</span> <b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;${hid ? 'text-decoration:line-through' : ''}" title="שם לפי התוכן: רמקולים · סאבים · מגברים · פרוססור">${esc(kitStdName(k))}</b>` : ''}${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ''}
+        <span class="txt"><b style="${hid ? 'text-decoration:line-through' : ''}">${esc(k.name)}</b>${kitStdDiff(k) ? ` <span style="color:#999">—</span> <b style="color:#4b3fb8;direction:ltr;unicode-bidi:embed;${hid ? 'text-decoration:line-through' : ''}" title="שם לפי התוכן: רמקולים · סאבים · מגברים · פרוססור">${esc(kitStdName(k))}</b>` : ''}${isOver ? ' <span style="font-size:9.5px;color:#0f6e56">✎ נערך</span>' : isUser ? ' <span style="font-size:9.5px;color:#0f6e56">קיט שלי</span>' : ' <span style="font-size:9.5px;color:#888" title="קיט מרשימת AppSheet הישנה — נשאר כאן כנקודת התחלה ולא נשלח ל-ERP. עריכה שלו יוצרת קיט שלך, והוא כן נשלח">לא ב-ERP</span>'}
           ${m && m.cat ? ' <span style="font-size:9.5px;color:#a8650f">↹ קטגוריה תוקנה</span>' : ''}${(() => { const g = dupG[kitDupKey(k)] || []; return g.length > 1 ? ' <span onclick="event.stopPropagation();kitDupOnly=true;kitQ=\'\';kitShow=60;renderKits()" title="אותם רמקולים/סאבים גם ב: ' + esc(g.filter(o => o !== k).map(o => (o.name || '').slice(0, 40)).join(' · ')) + ' — לחיצה מציגה רק כפולים" style="background:#fdf0f0;color:#c1121f;border:1px solid #e9b4b4;border-radius:5px;padding:0 5px;font-size:9.5px;cursor:pointer;white-space:nowrap">⚠ כפול ×' + g.length + '</span>' : ''; })()}<br>
           <span class="muted" style="font-size:10px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot}"></span> ${stTxt} ·
             ${dsp.kind === 'na' ? '' : `<span style="color:${dsp.cls === 'good' ? '#0a7a4b' : dsp.cls === 'mid' ? '#b8860b' : '#c1121f'};font-weight:700">${dsp.label}</span> · `}${(() => { const cn = dsp.kind === 'na' ? [] : kitCableNeeds(k); return cn.length ? '<span style="color:#c1121f;font-weight:700">🔌 חסרים כבלים (' + cn.length + ')</span> · ' : ''; })()}${dsp.kind === 'na' ? '' : '🔊 ' + kitSpkCount(k) + ' רמקולים'}${kitBrands(k).length ? ' · ' + esc(kitBrands(k).join(' + ')) : ''} · ${esc(kitCatOf(k))} · ${esc(k.sys || '')}</span></span>
