@@ -6582,7 +6582,7 @@ function multiWinOpen() {
 function multiWinRender() {
   const ov = document.getElementById('multiWin'); if (!ov) return; const box = ov.querySelector('[data-box]');
   const ns = [...selMulti].map(byId).filter(n => n && n.kind === 'point'); if (!ns.length) { multiWinClose(); return; }
-  const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'טראס/הנפה', 'רצפה', 'סטאק', 'עמוד', 'בתוך ארון', 'אחר'];
+  const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'טראס/הנפה', 'רצפה', 'סטאק', 'עמוד', 'בתוך ארון', 'אדנית', 'אחר'];
   const num = (id, k, v, w, ph) => `<input type="number" step="any" value="${v ?? ''}" placeholder="${ph || ''}" style="width:${w || 56}px;font-size:11px;padding:2px 3px" onchange="multiSet('${id}','${k}',this.value)">`;
   const mountSel = (id, v) => `<select style="font-size:11px;padding:1px 2px" onchange="multiSet('${id}','mount',this.value)">${MOUNTS.map(m => `<option ${v === m ? 'selected' : ''}>${m}</option>`).join('')}</select>`;
   const rows = ns.map((n, i) => { const d = typeof spkDataN === 'function' ? (spkDataN(n) || {}) : {}, gd = typeof guessDisp === 'function' ? guessDisp(n.name) : null;
@@ -10660,7 +10660,7 @@ function renderPanel() {
     <div class="fld"><label>תיאור</label><input value="${esc(n.sub || '')}" onchange="byId('${n.id}').sub=this.value;render()"></div>`;
   if (n.kind === 'point') {
     const isMini = n.mini || (n.srcIid && !n.full);
-    const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'עמוד', 'בתוך ארון', 'אחר'];
+    const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'עמוד', 'בתוך ארון', 'אדנית', 'אחר'];
     /* סוג המוקד — לא בהכרח רמקול */
     const PTYPES = [['speaker', '🔊 רמקול'], ['sub', '🔈 סאב'], ['amp', '🎚 מגבר'], ['proc', '🎛 פרוססור / DSP / מטריצה'], ['player', '💿 נגן / סטרימר / מחשב מוזיקה'], ['mic', '🎤 מיקרופון'], ['screen', '📺 מסך/מקרן'], ['light', '💡 גוף תאורה'], ['camera', '📷 מצלמה'], ['ap', '📶 נקודת רשת/AP'], ['device', '📦 מכשיר אחר'], ['other', '📍 נקודת קצה']];
     const dbT = dbSpkType(n.name);
@@ -11560,7 +11560,7 @@ function spkModelTok(name) { const m = String(name || '').match(/\b(F\s?1201|F\s
 function hangKindOf(n) {
   if (n.hang) return n.hang;
   const m = n.mount || '';
-  if (/רצפה|סטאק|ארון|במה/.test(m)) return 'none';
+  if (/רצפה|סטאק|ארון|במה|אדנית/.test(m)) return 'none';
   if (/מוט הברגה/.test(m)) return n.straight ? 'yoke' : 'adj';
   if (/תקרה/.test(m)) return 'rings';
   if (/קיר/.test(m)) return n.straight ? 'yoke' : 'adj';
@@ -11603,7 +11603,7 @@ function mountAddAll(onlyId) {
 }
 function mountManager() {
   const old = document.getElementById('mountOv'); if (old) (old.closest('.uiDlgOv') || old).remove();   /* ה-id על התוכן — מסירים את השכבה כולה, לא רק אותו (אחרת נשארת קופסה ריקה) */
-  const rows = mountRows(); const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'עמוד', 'בתוך ארון', 'אחר'];
+  const rows = mountRows(); const MOUNTS = ['קיר בלוק', 'קיר בטון', 'תקרה', 'תקרת גבס', 'תקרה מוט הברגה', 'רצפה', 'סטאק', 'עמוד', 'בתוך ארון', 'אדנית', 'אחר'];
   const inOffer = key => { const it = impItems.find(x => x.key === key && x.on !== false); return it ? (+it.qty || 0) : 0; };
   const tr = rows.map(({ n, kind, pr }) => { const nm = nodeFullName(n); const have = pr && pr.key ? inOffer(pr.key) : 0; return `<tr>
     <td><b>${esc(shortModel(nm))}</b><br><small class="muted">${esc(nm.slice(0, 44))}</small></td>
