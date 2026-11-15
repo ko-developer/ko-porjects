@@ -1098,8 +1098,13 @@ function xlinkReportHTML() {
    הקרנה איזומטרית: כל תכנית היא מלבן במקומה בעולם (לפי היישור) ובגובה המפלס שלה,
    עם תמונת הרקע, המוקדים, האזורים וקווי התשתית שעוברים ביניהן. */
 function sheetsView3D() {
-  const shs = (P.sheets || []).filter(sh => sh.scale || (sh.nodes || []).length);
+  const shs = (P.sheets || []).slice();
   if (!shs.length) { uiToast('אין תכניות להצגה'); return; }
+  /* תכנית שלא כוילה עדיין מוצגת בקנה מידה משוער (של תכנית מכוילת אחרת) כדי שאפשר יהיה לקבוע לה מפלס ומיקום; הכיול האמיתי נעשה בתכנית עצמה */
+  const refScale = (shs.find(sh => sh.scale) || {}).scale || 0.01;
+  const scOf = sh => sh.scale || refScale;
+  const worldOf = (sh, pt) => sh.scale ? sheetWorld(sh, pt) : sheetWorld(Object.assign({}, sh, { scale: refScale }), pt);
+  const fromWorldOf = (sh, w) => sh.scale ? sheetFromWorld(sh, w) : sheetFromWorld(Object.assign({}, sh, { scale: refScale }), w);
   document.getElementById('v3dOv')?.remove();
   const ov = document.createElement('div');
   ov.id = 'v3dOv';
@@ -1138,9 +1143,9 @@ function sheetsView3D() {
   let vz = 1, vpx = 0, vpy = 0, pickMode = 0, pick = null;
   const bgCenter = sh => { const W = sh.bgW || 1400; return { x: shBgL(sh) + W / 2, y: shBgT(sh) + W * (sh.bgAsp || 0.64) / 2 }; };
   /* סיבוב תכנית סביב מרכזה (מרכז התמונה נשאר במקומו) */
-  const rotSheet = (sh, rot) => { const c0 = sheetWorld(sh, bgCenter(sh)); rot = (((rot % 360) + 540) % 360) - 180; if (Math.abs(rot) > 0.01) sh.rot = +rot.toFixed(2); else delete sh.rot; const c1 = sheetWorld(sh, bgCenter(sh)), o = shOrg(sh); sh.org = { x: +(o.x + c0.x - c1.x).toFixed(3), y: +(o.y + c0.y - c1.y).toFixed(3) }; sh.alignBy = 'מוקמה בתצוגת המבנה (תלת־ממד)' + (sh.rot ? ' · סיבוב ' + sh.rot + '°' : ''); save(); paint(); };
+  const rotSheet = (sh, rot) => { const c0 = worldOf(sh, bgCenter(sh)); rot = (((rot % 360) + 540) % 360) - 180; if (Math.abs(rot) > 0.01) sh.rot = +rot.toFixed(2); else delete sh.rot; const c1 = worldOf(sh, bgCenter(sh)), o = shOrg(sh); sh.org = { x: +(o.x + c0.x - c1.x).toFixed(3), y: +(o.y + c0.y - c1.y).toFixed(3) }; sh.alignBy = 'מוקמה בתצוגת המבנה (תלת־ממד)' + (sh.rot ? ' · סיבוב ' + sh.rot + '°' : ''); save(); paint(); };
   /* הזזת תכנית כך שנקודה בה (ptB) תתלכד עם נקודה בתכנית אחרת (ptA) */
-  const snapSheets = (shA, ptA, shB, ptB, by) => { const wA = sheetWorld(shA, ptA), wB = sheetWorld(shB, ptB), o = shOrg(shB); shB.org = { x: +(o.x + wA.x - wB.x).toFixed(3), y: +(o.y + wA.y - wB.y).toFixed(3) }; shB.alignBy = by; selSh = shB.id; save(); paint(); uiToast('📐 "' + shB.name + '" יושרה מול "' + shA.name + '" — ' + by, 5000); };
+  const snapSheets = (shA, ptA, shB, ptB, by) => { const wA = worldOf(shA, ptA), wB = worldOf(shB, ptB), o = shOrg(shB); shB.org = { x: +(o.x + wA.x - wB.x).toFixed(3), y: +(o.y + wA.y - wB.y).toFixed(3) }; shB.alignBy = by; selSh = shB.id; save(); paint(); uiToast('📐 "' + shB.name + '" יושרה מול "' + shA.name + '" — ' + by, 5000); };
   /* כיתובים זהים שמופיעים (פעם אחת) בשתי תכניות — מועמדים ליישור */
   const ptItems = sh => { const pt = sh.planText || (sh.id === P.curSheet ? P.planText : null), W = sh.bgW || 1400, H = W * (sh.bgAsp || 0.64), m = {};
     ((pt && pt.items) || []).forEach(it => { if (it.cat === 'level' || it.ly) return;   /* שם שנוצר משכבת PDF ("אזור ישיבה") אינו כיתוב שכתוב בתכנית */
@@ -1150,12 +1155,12 @@ function sheetsView3D() {
   const lev1 = (a, b) => { if (a === b) return true; let i = 0, j = 0, d = 0; while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++d > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } } return d + (a.length - i) + (b.length - j) <= 1; };
   let showPairs = false;
   /* שינוי קנה המידה של תכנית אחת (סביב מרכזה): מ׳ לפיקסל × f */
-  const scaleSheet = (sh, f) => { if (!(f > 0) || !sh.scale) return; const c0 = sheetWorld(sh, bgCenter(sh)), ns = sh.scale * f; if (sh.id === P.curSheet) P.scale = ns; sh.scale = ns; const c1 = sheetWorld(sh, bgCenter(sh)), o = shOrg(sh); sh.org = { x: +(o.x + c0.x - c1.x).toFixed(3), y: +(o.y + c0.y - c1.y).toFixed(3) }; sh.calSrc = 'manual'; };
+  const scaleSheet = (sh, f) => { if (!(f > 0) || !sh.scale) return; const c0 = sheetWorld(sh, bgCenter(sh)), ns = sh.scale * f; if (sh.id === P.curSheet) P.scale = ns; sh.scale = ns; const c1 = worldOf(sh, bgCenter(sh)), o = shOrg(sh); sh.org = { x: +(o.x + c0.x - c1.x).toFixed(3), y: +(o.y + c0.y - c1.y).toFixed(3) }; sh.calSrc = 'manual'; };
   /* מיקום אוטומטי לפי כיתובים זהים: כיתוב אחד → הזזה; שניים ומעלה → גם קנה מידה וסיבוב (בהתאמה של שני הכיתובים הרחוקים ביותר) */
   const autoPlace = async () => { const all = labelPairs(); if (!all.length) { uiToast('לא נמצא כיתוב זהה שמופיע בשתי תכניות — נסה "🎯 אובייקט משותף"', 6000); return; }
     const A = all[0].A, B = all.find(p => p.A === A).B, ps = all.filter(p => p.A === A && p.B === B); let msg = [];
     if (ps.length >= 2) { let best = null; for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) { const d = Math.hypot(ps[i].pa.x - ps[j].pa.x, ps[i].pa.y - ps[j].pa.y); if (!best || d > best.d) best = { d, p: ps[i], q: ps[j] }; }
-      const wa1 = sheetWorld(A, best.p.pa), wa2 = sheetWorld(A, best.q.pa), wb1 = sheetWorld(B, best.p.pb), wb2 = sheetWorld(B, best.q.pb);
+      const wa1 = worldOf(A, best.p.pa), wa2 = worldOf(A, best.q.pa), wb1 = worldOf(B, best.p.pb), wb2 = worldOf(B, best.q.pb);
       const dA = Math.hypot(wa2.x - wa1.x, wa2.y - wa1.y), dB = Math.hypot(wb2.x - wb1.x, wb2.y - wb1.y), f = dB > 0.2 ? dA / dB : 1;
       let dAng = (Math.atan2(wa2.y - wa1.y, wa2.x - wa1.x) - Math.atan2(wb2.y - wb1.y, wb2.x - wb1.x)) * 180 / Math.PI; dAng = (((dAng % 360) + 540) % 360) - 180;
       if (Math.abs(f - 1) > 0.02) { const ok = await uiConfirm('לפי הכיתובים "' + best.p.t + '" ו"' + best.q.t + '", המרחק ביניהם ב"' + A.name + '" הוא ' + dA.toFixed(1) + ' מ׳ וב"' + B.name + '" ' + dB.toFixed(1) + ' מ׳.\nקנה המידה של "' + B.name + '" נראה שונה פי ' + f.toFixed(2) + '. לתקן אותו כך שהתכניות יתאימו?', { okText: 'תקן קנה מידה ומקם', cancelText: 'מקם בלי לשנות קנה מידה' }); if (ok) { scaleSheet(B, f); msg.push('קנה מידה ×' + f.toFixed(2)); } }
@@ -1176,13 +1181,13 @@ function sheetsView3D() {
     const rad = ang * Math.PI / 180, cosA = Math.cos(rad), sinA = Math.sin(rad);
     /* מטרים → פיקסלים: כל התכניות באותו קנה מידה */
     const aspOf = sh => sh.bgAsp || 0.64;   /* יחס גובה/רוחב של תכנית הרקע */
-    const spans = shs.map(sh => ({ sh, w: (sh.bgW || 1400) * (sh.scale || 0.01), h: (sh.bgW || 1400) * aspOf(sh) * (sh.scale || 0.01) }));
+    const spans = shs.map(sh => ({ sh, w: (sh.bgW || 1400) * scOf(sh), h: (sh.bgW || 1400) * aspOf(sh) * scOf(sh) }));
     const wMax = Math.max(...spans.map(s => s.w)), k = 620 / Math.max(6, wMax);
     const iso = (x, y, z) => ({ X: (x - y) * cosA * k, Y: ((x + y) * sinA * k) - z * zGap });
     lastK = k; lastA = { cos: cosA, sin: sinA, z: zGap };
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9, body = '';
     const pts = [];
-    const isoW = (sh, x, y) => { const w = sheetWorld(sh, { x, y }); return iso(w.x, w.y, sh.level || 0); };
+    const isoW = (sh, x, y) => { const w = worldOf(sh, { x, y }); return iso(w.x, w.y, sh.level || 0); };
     const cornersOf = sh => { const L = shBgL(sh), T = shBgT(sh), W = sh.bgW || 1400, H = W * aspOf(sh); return [[L, T], [L + W, T], [L + W, T + H], [L, T + H]].map(([x, y]) => isoW(sh, x, y)); };
     const order = spans.slice().sort((a, b) => (a.sh.level || 0) - (b.sh.level || 0));
     for (const { sh, w, h } of order) {
@@ -1208,7 +1213,7 @@ function sheetsView3D() {
         body += `<circle cx="${q.X.toFixed(1)}" cy="${q.Y.toFixed(1)}" r="${n.kind === 'rack' ? 5 : 3.4}" fill="${col}" stroke="#fff" stroke-width="1"><title>${esc(n.name)} · ${esc(sh.name)}</title></circle>`; }
       /* תווית התכנית */
       const lbl = iso(shOrg(sh).x, shOrg(sh).y + h, sh.level || 0);
-      body += `<rect data-sh="${sh.id}" data-lv="1" x="${(lbl.X - 60).toFixed(1)}" y="${(lbl.Y + 6).toFixed(1)}" width="120" height="19" rx="9" fill="${selSh === sh.id ? '#e08a00' : '#1a1e28'}" style="cursor:ns-resize"><title>גרור למעלה/למטה לשינוי המפלס</title></rect><text x="${lbl.X.toFixed(1)}" y="${(lbl.Y + 19).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${esc(sh.name)}${sh.level != null ? ' · ' + sh.level + ' מ׳' : ''}</text>`;
+      body += `<rect data-sh="${sh.id}" data-lv="1" x="${(lbl.X - 60).toFixed(1)}" y="${(lbl.Y + 6).toFixed(1)}" width="120" height="19" rx="9" fill="${selSh === sh.id ? '#e08a00' : '#1a1e28'}" style="cursor:ns-resize"><title>גרור למעלה/למטה לשינוי המפלס</title></rect><text x="${lbl.X.toFixed(1)}" y="${(lbl.Y + 19).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${esc(sh.name)}${sh.level != null ? ' · ' + sh.level + ' מ׳' : ''}${sh.scale ? '' : ' · לא כוילה'}</text>`;
     }
     /* קווי התשתית בין התכניות */
     for (const l of xlinks()) {
@@ -1244,7 +1249,7 @@ function sheetsView3D() {
   { const box = ov.querySelector('#v3dBox'); let dr = null;
     const svgPt = e => { const svg = box.querySelector('svg'), p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
     /* נקודת מסך → נקודה בקנבס של התכנית (היפוך ההיטל האיזומטרי במפלס שלה) */
-    const toSheetPt = (sh, q) => { const a = q.x / (lastA.cos * lastK), b = (q.y + (sh.level || 0) * lastA.z) / (lastA.sin * lastK); return sheetFromWorld(sh, { x: (a + b) / 2, y: (b - a) / 2 }); };
+    const toSheetPt = (sh, q) => { const a = q.x / (lastA.cos * lastK), b = (q.y + (sh.level || 0) * lastA.z) / (lastA.sin * lastK); return fromWorldOf(sh, { x: (a + b) / 2, y: (b - a) / 2 }); };
     box.addEventListener('wheel', e => { e.preventDefault(); const q = svgPt(e), f = e.deltaY < 0 ? 1.2 : 1 / 1.2, z2 = Math.max(0.3, Math.min(30, vz * f)), [x0, y0, w0, h0] = ov._vb.split(' ').map(Number), cx = x0 + w0 / 2, cy = y0 + h0 / 2, k2 = vz / z2;
       vpx += (q.x + (cx - q.x) * k2) - cx; vpy += (q.y + (cy - q.y) * k2) - cy; vz = z2; paint(); }, { passive: false });
     box.addEventListener('pointerdown', e => { const t = e.target.closest && e.target.closest('[data-sh]');
@@ -1290,6 +1295,8 @@ function sheetsView3D() {
       const n = (document.getElementById('v3dOv') && document.querySelectorAll('#v3dPairs [data-pair]').length) || 0; uiToast(n ? '🔤 נמצאו ' + n + ' כיתובים זהים בין התכניות' : '🔤 הכיתובים נקראו — לא נמצא כיתוב זהה שמופיע בשתי תכניות', 6000); }; }
   ['#v3dA', '#v3dZ', '#v3dImg'].forEach(k => ov.querySelector(k).oninput = paint);
   paint();
+  /* תכניות רקע שעוד לא בזיכרון (תכנית שלא ביקרו בה) — מובאות מהשרת ומצוירות כשמגיעות */
+  if (typeof sheetFetchBg === 'function') { const need = shs.filter(sh => !(P.bgs && P.bgs[sh.id]) && sh.hasBg !== false); if (need.length) Promise.all(need.map(sh => sheetFetchBg(P, sh, false).catch(() => {}))).then(() => { if (document.getElementById('v3dOv') === ov) paint(); }); }
 }
 /* שורת הלשוניות של התכניות — מעל הקנבס */
 /* ===== 🗄 ארון משותף בין תכניות + ⇡ פיר עלייה =====
