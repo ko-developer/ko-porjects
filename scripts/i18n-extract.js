@@ -32,7 +32,7 @@ function blankJsNonUi(t) {
   return out + t.slice(at);
 }
 /* scripts/erp-routes.js: ההודעות שלו מוצגות בתוך האפליקציה (דיאלוג ההצעה) — ולכן מתורגמות כמו כל טקסט אחר */
-export const SRC = ['src/index.template.html', 'src/app.js', 'src/wizard.js', 'src/autoscale.js', 'src/plantext.js', 'src/sysdesign.js', 'src/soundreport.js', 'src/zonetrain.js', 'src/lighting.js', 'src/bgsharp.js', 'scripts/erp-routes.js'];
+export const SRC = ['src/index.template.html', 'src/app.js', 'src/wizard.js', 'src/autoscale.js', 'src/plantext.js', 'src/sysdesign.js', 'src/soundreport.js', 'src/zonetrain.js', 'src/lighting.js', 'src/bgsharp.js', 'src/dsppreset.js', 'scripts/erp-routes.js'];
 const HEB = /[֐-׿]/;
 /* אותה נורמליזציה כמו בזמן ריצה: רווחים, מספרים → #, קיצוץ סימני פיסוק בקצוות */
 export function normKey(s) {

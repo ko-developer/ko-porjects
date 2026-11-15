@@ -29,6 +29,7 @@ export function assembleAppJs() {
   try { app += '\n' + readFileSync('src/wizard.js', 'utf8'); } catch (e) { /* אשף אופציונלי */ }
   try { app += '\n' + readFileSync('src/zonetrain.js', 'utf8'); } catch (e) { /* אימון אזורים אופציונלי */ }
   try { app += '\n' + readFileSync('src/lighting.js', 'utf8'); } catch (e) { /* תאורה מקצועית אופציונלי */ }
+  try { app += '\n' + readFileSync('src/dsppreset.js', 'utf8'); } catch (e) { /* 🎛 פריסטים ל-DSP אופציונלי */ }
   try { app += '\n' + readFileSync('src/i18n.js', 'utf8'); } catch (e) { /* 🌐 אנגלית אופציונלי */ }
   return app;
 }

@@ -254,6 +254,7 @@ function srvSaveFail(code) {
       /* קישור דוח (/r/): פרויקט אחד לקריאה בלבד — לא נכנס לעותק המקומי של הדפדפן (שבו אולי ה-store המלא של המשתמש) */
       if (!(window.__AUTH && window.__AUTH.report)) try { localStorage.setItem(LSKEY, JSON.stringify(store)); } catch (e) {}
       render(); if (typeof viewToContent === 'function') viewToContent();
+      if (!(window.__AUTH && window.__AUTH.report)) setTimeout(() => { if (typeof pmLoadErp === 'function') pmLoadErp(); }, 6000);   /* סטטוס ההצעות ב-ERP (בעלים) — לתזכורת הפריסטים ל-DSP ולמנהל הפרויקטים */
       if (window.__AUTH && window.__AUTH.report) reportViewerStart().catch(e => console.warn('report viewer', e));
       if (typeof sharedWatch === 'function') sharedWatch();
       /* ?open=<id> — פתיחת פרויקט ישירות (מדף המשתמשים / מנהל הפרויקטים) */
@@ -1703,7 +1704,7 @@ async function delProj() {
   P = store.projects[0]; sel = selCable = null; impItems = impLoad(); render();
 }
 function switchProj(id) { const was = P && P.id; P = store.projects.find(p => p.id === id) || P; sheetsInit(P); sel = selCable = null; impItems = impLoad(); render(); viewToContent();
-  if (P.id !== was) { HIST.past.length = 0; HIST.future.length = 0; HIST.busy = false; pushHistory(); renderHistBtns(); } }   /* היסטוריה לכל פרויקט בנפרד — ביטול לא מערבב פרויקטים */
+  if (P.id !== was) { HIST.past.length = 0; HIST.future.length = 0; HIST.busy = false; pushHistory(); renderHistBtns(); if (typeof dspApprovalNudge === 'function') setTimeout(dspApprovalNudge, 800); } }   /* היסטוריה לכל פרויקט בנפרד — ביטול לא מערבב פרויקטים */
 /* ===== מנהל פרויקטים — חיפוש, לקוח, בחירה מרובה ומחיקה ===== */
 function projManager() {
   const old = document.getElementById('pmOv'); if (old) old.remove();
@@ -1786,6 +1787,7 @@ async function pmLoadErp(force) {
     PM_ERP = { byCode, byProj, at: Date.now() };
   } catch (e) { return; }
   if (document.getElementById('pmList')) pmRender(window.__pmQ || '');
+  if (typeof dspApprovalNudge === 'function') dspApprovalNudge();   /* ההצעה אושרה → תזכורת ליצור פריסטים ל-DSP */
 }
 const pmFmtD = d => d && /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(8, 10) + '.' + d.slice(5, 7) + '.' + d.slice(0, 4) : '';
 /* תאריך ההצעה האחרונה בשורת הפרויקט: מאושרת ב-ERP (✅ + תאריך האישור), אחרת ההצעה האחרונה עם הסטטוס שלה; בלי חיבור ל-ERP — מה שנרשם בשליחה */
@@ -3163,6 +3165,7 @@ function renderHeader() {
     <button onclick="openInWire()">🎧 טבלת החיווט — כניסות (מקורות ↔ פרוססור)</button>
     <button onclick="designBrief()">🎯 תכנן לי מערכת לחלל זה</button>
     <button onclick="showBom()">🧾 כתב כמויות / הצעת מחיר</button>
+    <button onclick="dspPresetDialog();this.closest('.dd').classList.remove('open')" title="דף הגדרות לפרוססור מתוך החיווט: שמות ערוצים, כניסות, יציאות→מגברים→רמקולים, חיתוך מוצע, דיליי, ניתוב — JSON / הדפסה">🎛 פריסטים ל-DSP</button>
     <button onclick="showKits()">🧰 קיטים — רשימה, עריכה ויצירה</button>
     <button onclick="routeManager()">🛤 מסלולי העברה — תעלות וצינורות (כמה קווים בצינור)</button>
     <button onclick="mountManager()">🪝 אביזרי תלייה לפי הרמקולים — טבעות / מתקן ח / מתקן מתכוונן</button>`;
