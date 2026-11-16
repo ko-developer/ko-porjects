@@ -498,11 +498,13 @@ const handleReq = async (req, res) => {
           delete posted._delKits;
           /* מוזמן: רק הפרויקטים שלו בהרשאת עריכה נכתבים; השאר של הבעלים לא נגעו */
           const merged = me.role !== 'owner' ? mergeStore(fullSt, posted, me) : posted;
+          const rejected = merged._rejected || [];
+          if (rejected.length) console.warn('[store] ' + (me.email || me.id) + ': ' + rejected.length + ' פרויקטים נשלחו בלי הרשאת עריכה — לא נכתבו: ' + rejected.join(', '));
           const n = await writeStore(db, merged);
           if (storageWarn) fallbackWrites++;
           window_store.v = merged; window_store.t = Date.now();
           res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(JSON.stringify({ ok: true, projects: n }));
+          res.end(JSON.stringify({ ok: true, projects: n, rejected: rejected.length ? rejected : undefined }));
         } catch (e) { res.writeHead(400); res.end(String(e.message)); }
       });
       return;

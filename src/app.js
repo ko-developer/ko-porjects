@@ -308,7 +308,7 @@ function pushSrvNow() {
   const body = JSON.stringify(store);
   srvDirty = true;
   const p = srvInFlight = fetch('/api/store', { method: 'POST', headers: { 'content-type': 'application/json', 'x-ko-store': SRV_STORE }, body, keepalive: body.length < 60000 })
-    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; delete store._delKits; } if (r.ok) { if (document.getElementById('srvBanner') && !srvOfflineT) srvBanner(''); } else if (r.status === 409) srvStale(); else { console.warn('שמירה לשרת נכשלה', r.status); srvSaveFail(r.status); } })
+    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; delete store._delKits; } if (r.ok) { if (document.getElementById('srvBanner') && !srvOfflineT) srvBanner(''); r.clone().json().then(j => srvRejected(j && j.rejected)).catch(() => {}); } else if (r.status === 409) srvStale(); else { console.warn('שמירה לשרת נכשלה', r.status); srvSaveFail(r.status); } })
     .catch(() => { srvSaveFail(0); });
   return p;
 }
@@ -318,6 +318,14 @@ function srvStale() {
   if (srvStaleOnce) return; srvStaleOnce = true; srvDirty = false;
   alert('השרת התחבר מחדש לנתונים בענן, והלשונית הזו מציגה נתונים ישנים — לכן השמירה נחסמה.\nהדף ייטען מחדש עם הנתונים העדכניים.');
   location.reload();
+}
+/* השרת לא כתב פרויקטים שנשלחו בלי הרשאת עריכה (מוזמן שההרשאה שלו בוטלה / אבדה) — מודיעים במקום לבלוע בשקט */
+let srvRejSeen = '';
+function srvRejected(ids) {
+  if (!Array.isArray(ids) || !ids.length) return;
+  const key = ids.slice().sort().join(','); if (key === srvRejSeen) return; srvRejSeen = key;
+  const names = ids.map(id => { const p = store.projects.find(x => x.id === id); return p ? p.name : id; }).join(', ');
+  uiToast('⚠ אין לך הרשאת עריכה ל: ' + names + ' — השינויים בפרויקט הזה לא נשמרו בשרת. בקש הרשאה מבעל המערכת.', 12000);
 }
 function pushSrv() {
   if (!SRV) return;

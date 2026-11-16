@@ -7033,5 +7033,8 @@
  "אפשר ליצור את הפריסטים ל-DSP": "you can create the DSP presets",
  "פעולות ← 🎛 פריסטים ל-DSP": "Actions ← 🎛 DSP presets",
  "אדנית": "Planter",
- "לא כוילה": "not calibrated"
+ "לא כוילה": "not calibrated",
+ "⚠ אין לך הרשאת עריכה ל": "⚠ You have no edit permission for",
+ "השינויים בפרויקט הזה לא נשמרו בשרת": "the changes in this project were not saved to the server",
+ "בקש הרשאה מבעל המערכת": "Ask the system owner for permission"
 }

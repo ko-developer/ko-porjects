@@ -29,6 +29,7 @@ function normalize(j) {
   db.users = db.users || []; db.invites = db.invites || []; db.sessions = db.sessions || {};
   db.config = db.config || {};
   db.deleted = db.deleted || { users: [], invites: [], sessions: [] };   /* מה שנמחק כאן — לא חוזר מהעותק של הצד השני */
+  db.deleted.grants = db.deleted.grants || [];   /* "uid:pid" — הרשאה שבוטלה כאן לא חוזרת מהעותק של הצד השני */
   return db;
 }
 /* חובה לפני כל שימוש: טוען users.json מהאחסון (ויוצר מפתח בעלים בפעם הראשונה) */
@@ -68,6 +69,9 @@ function persist() {
         if (!m) { if (!mails.has(u.email) || (u.erpId && !mem.users.some(x => x.erpId === u.erpId))) { mem.users.push(u); ids.add(u.id); mails.add(u.email); } continue; }
         if (u.lastLogin && (!m.lastLogin || u.lastLogin > m.lastLogin)) m.lastLogin = u.lastLogin;
         if (u.cur && !m.cur) m.cur = u.cur;
+        /* הרשאות: איחוד — הרשאה שניתנה בצד השני (או בבקשה מקבילה כאן) לא נמחקת בדריסה; רק ביטול מפורש (deleted.grants) גובר */
+        const revoked = new Set(mem.deleted.grants || []);
+        for (const [pid, perm] of Object.entries(u.grants || {})) if (!(m.grants && m.grants[pid]) && !revoked.has(m.id + ':' + pid)) (m.grants = m.grants || {})[pid] = perm;
       }
       const toks = new Set(mem.invites.map(i => i.token));
       for (const i of fresh.invites) { if (delI.has(i.token)) continue; const m = mem.invites.find(x => x.token === i.token); if (!m) mem.invites.push(i); else if ((i.uses || []).length > (m.uses || []).length) { m.uses = i.uses; m.usedBy = m.usedBy || i.usedBy; m.usedAt = m.usedAt || i.usedAt; } }
@@ -178,6 +182,11 @@ export const ROLES = ['admin', 'pm', 'user'];
 export const ROLE_HE = { owner: 'בעלים', admin: 'אדמין — צופה ועורך הכול', pm: 'מנהל פרויקטים KO — רואה הכול, עורך את שלו', user: 'משתמש חיצוני — רק מה ששותף איתו' };
 export const isAdmin = u => !!u && (u.role === 'owner' || u.role === 'admin');
 export const isStaff = u => !!u && (u.role === 'owner' || u.role === 'admin' || u.role === 'pm');
+/* אובייקט המשתמש של הבקשה עלול להשתייך לעותק DB שרענון רקע כבר החליף (authRefresh כל 10 שניות רץ במקביל לקריאת ה-store) —
+   שינוי הרשאות חייב להיעשות על האובייקט החי, אחרת persist() כותב את ה-DB החדש בלי ההרשאה (כך אבדה הרשאה על פרויקט חדש ב-16.11) */
+function liveUser(user) { if (!user || user.id === 'owner') return user; try { return load().users.find(x => x.id === user.id) || user; } catch { return user; } }
+/* מי שיצר את הפרויקט (p.by) תמיד עורך אותו — גם אם ההרשאה המפורשת אבדה */
+const isCreator = (p, user) => !!(p && user && p.by && p.by === user.id);
 export function filterStore(store, user) {
   if (!user || user.role === 'owner') return store;
   if (user.role === 'admin' || user.role === 'pm') {   /* רואה הכול — אבל הפרויקט הפתוח הוא שלו, לא של הבעלים; למנהל פרויקטים: עריכה רק בשלו ובמה שהוענק */
@@ -187,7 +196,7 @@ export function filterStore(store, user) {
     return { ...store, projects, cur: want && projects.some(p => p.id === want) ? want : (projects.find(p => p.by === user.id) || projects[0] || {}).id || store.cur, _admin: user.role === 'admin', _staff: true };
   }
   const g = user.grants || {};
-  const projects = (store.projects || []).filter(p => g[p.id]).map(p => ({ ...p, _perm: g[p.id] }));
+  const projects = (store.projects || []).filter(p => g[p.id] || isCreator(p, user)).map(p => ({ ...p, _perm: isCreator(p, user) ? 'edit' : g[p.id] }));
   /* הפרויקט הפתוח נשמר לכל מוזמן בנפרד — אחרת ריענון מחזיר אותו לפרויקט הראשון (או לזה שהבעלים פתח) */
   const want = user.cur || store.cur;
   const cur = projects.some(p => p.id === want) ? want : (projects[0] && projects[0].id) || '';
@@ -196,13 +205,16 @@ export function filterStore(store, user) {
 /* שמירה ממשתמש מוזמן: רק פרויקטים בהרשאת עריכה מוחלפים ב-store המלא; השאר לא נגעו */
 export function mergeStore(full, posted, user) {
   if (!user || user.role === 'owner') return posted;
+  user = liveUser(user);
+  const rejected = [];   /* פרויקטים שנשלחו בלי הרשאת עריכה — לא נכתבים, והלקוח מקבל הודעה (עד עכשיו נבלעו בשקט) */
   if (user.role === 'pm') {   /* מנהל פרויקטים: נכתבים רק הפרויקטים שלו ומה שהוענק לו בעריכה; פרויקט חדש נרשם על שמו */
     const g = user.grants || {}, byId = new Map((full.projects || []).map(p => [p.id, p]));
     for (const p of (posted.projects || [])) { const { _perm, ...clean } = p; const o = byId.get(p.id);
       if (o && (o.by === user.id || g[p.id] === 'edit')) { clean.by = clean.by || o.by; byId.set(p.id, clean); }
-      else if (!o && !p._lite && p.id) { clean.by = clean.by || user.id; byId.set(p.id, clean); } }
+      else if (!o && !p._lite && p.id) { clean.by = clean.by || user.id; byId.set(p.id, clean); }
+      else if (o && !p._lite && (+p.upd || 0) > (+o.upd || 0)) rejected.push(p.id); }
     if (posted.cur && user.cur !== posted.cur) { user.cur = posted.cur; persist(); }
-    return { ...full, projects: [...byId.values()] };
+    return Object.defineProperty({ ...full, projects: [...byId.values()] }, '_rejected', { value: rejected, enumerable: false });
   }
   if (user.role === 'admin') {   /* כמו הבעלים — אבל "הפרויקט הפתוח" של הבעלים לא משתנה, ופרויקט חדש נרשם על שמו */
     const had = new Set((full.projects || []).map(p => p.id));
@@ -216,12 +228,15 @@ export function mergeStore(full, posted, user) {
   for (const p of (posted.projects || [])) {
     const { _perm, ...clean } = p;
     if (g[p.id] === 'edit' && byId.has(p.id)) byId.set(p.id, clean);
+    /* היוצר של הפרויקט עורך אותו גם בלי הרשאה רשומה (ההרשאה אבדה בדריסה) — ונרשמת לו מחדש */
+    else if (byId.has(p.id) && isCreator(byId.get(p.id), user)) { clean.by = user.id; byId.set(p.id, clean); if (!g[p.id]) { user.grants = user.grants || {}; user.grants[p.id] = 'edit'; dirty = true; } }
     /* פרויקט חדש שהמוזמן יצר: נשמר ונרשם לו בהרשאת עריכה — בלי זה הוא נעלם בריענון */
     else if (!byId.has(p.id) && !p._lite && p.id) { clean.by = clean.by || user.id; byId.set(p.id, clean); user.grants = user.grants || {}; user.grants[p.id] = 'edit'; dirty = true; }
+    else if (byId.has(p.id) && !p._lite && (+p.upd || 0) > (+(byId.get(p.id).upd) || 0)) rejected.push(p.id);
   }
   if (posted.cur && user.grants && user.grants[posted.cur] && user.cur !== posted.cur) { user.cur = posted.cur; dirty = true; }
   if (dirty && user.id !== 'owner') persist();
-  return { ...full, projects: [...byId.values()] };
+  return Object.defineProperty({ ...full, projects: [...byId.values()] }, '_rejected', { value: rejected, enumerable: false });
 }
 
 /* --- כניסה עם KO ERP --- */
@@ -460,7 +475,7 @@ export async function handleAuth(req, res, path, store) {
       else if (b.action === 'role') { u.role = ROLES.includes(b.role) ? b.role : 'user'; dropSessions(); }
       else if (b.action === 'approve') { u.pending = false; u.role = ROLES.includes(b.role) ? b.role : 'user'; }   /* בקשת גישה מ-KO ERP: נכנס בפעם הבאה */
       else if (b.action === 'reject') { db.users = db.users.filter(x => x.id !== u.id); db.deleted.users.push(u.id); dropSessions(); }   /* admin רואה את כל הפרויקטים; הסשן מתחדש כדי שהתפקיד ייכנס לתוקף */
-      else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') { delete u.grants[b.project]; if (u.cur === b.project) delete u.cur; } else { u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; u.cur = b.project; /* ייפתח אצלו בכניסה הבאה */ } }
+      else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') { delete u.grants[b.project]; if (u.cur === b.project) delete u.cur; db.deleted.grants = [...new Set([...(db.deleted.grants || []), u.id + ':' + b.project])].slice(-500); } else { u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; u.cur = b.project; /* ייפתח אצלו בכניסה הבאה */ } }
       else if (b.action === 'password') {
         /* הסיסמה שמורה כ-scrypt ואי אפשר להציג אותה — הבעלים קובע חדשה (או מקבל אקראית) והיא מוצגת פעם אחת בתשובה בלבד */
         if (u.erpId && !u.hash) return json(res, 400, { error: 'המשתמש נכנס עם KO ERP בלבד — אין לו סיסמה כאן' }), true;
