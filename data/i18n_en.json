@@ -7036,5 +7036,12 @@
  "לא כוילה": "not calibrated",
  "⚠ אין לך הרשאת עריכה ל": "⚠ You have no edit permission for",
  "השינויים בפרויקט הזה לא נשמרו בשרת": "the changes in this project were not saved to the server",
- "בקש הרשאה מבעל המערכת": "Ask the system owner for permission"
+ "בקש הרשאה מבעל המערכת": "Ask the system owner for permission",
+ "הפרויקטים ששולחים לשרת גדולים מדי": "the projects sent to the server are too large",
+ "MB, המגבלה #MB": "MB, the limit is #MB",
+ "השינוי האחרון לא נשמר": "the last change was not saved",
+ "הסר תכניות רקע": "Remove background plans",
+ "PDF מקורי שלא צריך": "original PDF that is not needed",
+ "או פצל לפרויקט נפרד": "or split into a separate project",
+ "ושמור שוב; אל תסגור את הלשונית": "and save again; do not close the tab"
 }

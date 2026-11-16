@@ -121,9 +121,17 @@ function liteStore(st, curId) {
     if (vers && vers.length) rest.versN = vers.length;
     rest._lite = true; return rest; }) };
 }
+const HV_KEEP = '~';   /* הדפדפן שולח "~" במקום חלק כבד שכבר בשרת (תמונה/PDF/גרסאות) — גוף בקשה של 40MB חרג ממגבלת 32MB של Cloud Run (413) */
 function hydrateStore(full, posted) {
   const byId = new Map((full.projects || []).map(p => [p.id, p]));
   return { ...posted, projects: (posted.projects || []).map(p => {
+    /* "~" = ללא שינוי: הערך מהעותק השמור. פרויקט שאין לו עותק שמור — הסימון נמחק (אין מה להשלים) */
+    { const old = byId.get(p.id) || null;
+      for (const k of ['bg', 'bgPdf', 'thumb', 'sndImg']) if (p[k] === HV_KEEP) { if (old && old[k] != null) p[k] = old[k]; else delete p[k]; }
+      for (const k of ['bgs', 'bgPdfs']) if (p[k] && typeof p[k] === 'object') for (const [sid, v] of Object.entries(p[k])) if (v === HV_KEEP) { if (old && old[k] && old[k][sid] != null) p[k][sid] = old[k][sid]; else delete p[k][sid]; }
+      if (p.vers === HV_KEEP) p.vers = old && old.vers ? old.vers : [];
+      /* גרסאות: הדפדפן שולח רק את החדשות שלו — מאחדים עם השמורות (בלי כפילויות, עד 30) */
+      if (old && old.vers && old.vers.length && !p._lite) { const seen = new Set((Array.isArray(p.vers) ? p.vers : []).map(v => v.t)); p.vers = [...old.vers.filter(v => !seen.has(v.t)), ...(Array.isArray(p.vers) ? p.vers : [])].sort((a, b) => a.t - b.t).slice(-30); slimVers(p); } }
     if (!p._lite) return p;
     if (!byId.has(p.id)) return null;   /* פרויקט קל שכבר לא קיים בשרת (נמחק מצד אחר) — לא מוחזר לחיים מעותק חלקי */
     const { _lite, hasBg, hasPdf, hasBgs, hasPdfs, hasThumb, hasSnd, versN, ...q } = p, old = byId.get(p.id) || {};

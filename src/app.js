@@ -248,6 +248,7 @@ function srvSaveFail(code) {
     if (r.headers.get('x-ko-stale')) srvStaleCopy(r.headers.get('x-ko-stale'));   /* עותק זמני — לא שומרים ממנו */
     if (s && Array.isArray(s.projects) && s.projects.length) {
       store = s; liteWire(store); sheetsBindAll(store); __kitSig = null; try { kitStamp(); } catch (e) {}   /* בסיס להשוואת הקיטים — מה שנטען מהשרת */
+      hvRecordAll(store);   /* מה שהגיע מהשרת לא נשלח אליו שוב (ראה hvReplacer) */
       P = store.projects.find(p => p.id === store.cur) || store.projects[0];
       sel = null; selCable = null; selMulti.clear(); normalizeAll();
       if (typeof impItems !== 'undefined') impItems = impLoad();
@@ -278,7 +279,7 @@ function liteWire(st) {
       const settle = (v, fromFetch) => { const d = Object.getOwnPropertyDescriptor(p, f); if (fromFetch && d && 'value' in d) { if (d.value && typeof d.value === 'object' && v && typeof v === 'object') Object.assign(v, d.value); else return; } Object.defineProperty(p, f, { value: v, writable: true, configurable: true, enumerable: true }); };
       Object.defineProperty(p, f, { configurable: true, enumerable: false,
         get() {
-          if (!pending) pending = fetch('/api/project/' + encodeURIComponent(p.id) + '?f=' + f).then(r => r.json()).then(o => { settle(o[f], true); if (o[f] == null && !bgMapVal(p, f)) delete p[flag]; if (P === p) { render(); if (f === 'bg' && typeof viewToContent === 'function') viewToContent(); } }).catch(() => { pending = null; });
+          if (!pending) pending = fetch('/api/project/' + encodeURIComponent(p.id) + '?f=' + f).then(r => r.json()).then(o => { settle(o[f], true); hvRecordProj(p); if (o[f] == null && !bgMapVal(p, f)) delete p[flag]; if (P === p) { render(); if (f === 'bg' && typeof viewToContent === 'function') viewToContent(); } }).catch(() => { pending = null; });
           return undefined;
         },
         set(v) { settle(v); } });
@@ -301,14 +302,46 @@ function srvStaleCopy(kind) {
   };
   setTimeout(tick, 8000);
 }
+/* ===== חלקים כבדים שכבר בשרת — לא נשלחים שוב =====
+   תמונות הרקע, ה-PDF המקורי, הצילום המוקטן, תמונת דוח הסאונד והגרסאות של כל הפרויקטים שנטענו נשלחו בכל שמירה (כל 400ms) —
+   גוף של 40MB חרג ממגבלת 32MB של Cloud Run (קוד 413) והשמירה נכשלה לתמיד. כאן נרשם מה שהשרת כבר מכיר (נטען ממנו, או אושר
+   בשמירה קודמת) ובמקומו נשלח "~"; השרת (hydrateStore) משלים מהעותק השמור. מה שחדש או השתנה נשלח במלואו פעם אחת. */
+const HV_KEYS = ['bg', 'bgPdf', 'thumb', 'sndImg'], HV_MAPS = ['bgs', 'bgPdfs'], HV_KEEP = '~';
+const SRV_HV = new Map();          /* "pid|key|sub" → חתימת הערך (אורך + התחלה + סוף) */
+const SRV_VERS = new Map();        /* pid → Set של חותמות גרסאות שכבר בשרת */
+const hvSig = v => typeof v === 'string' ? v.length + ':' + v.slice(0, 160) + ':' + v.slice(-160) : '';
+function hvRecordProj(p) {
+  if (!p || !p.id) return;
+  for (const k of HV_KEYS) { const d = Object.getOwnPropertyDescriptor(p, k); if (d && 'value' in d && typeof d.value === 'string') SRV_HV.set(p.id + '|' + k + '|', hvSig(d.value)); }
+  for (const k of HV_MAPS) { const d = Object.getOwnPropertyDescriptor(p, k); const m = d && 'value' in d ? d.value : null; if (m && typeof m === 'object') for (const [sid, v] of Object.entries(m)) if (typeof v === 'string') SRV_HV.set(p.id + '|' + k + '|' + sid, hvSig(v)); }
+  if (Array.isArray(p.vers)) { const st = SRV_VERS.get(p.id) || new Set(); p.vers.forEach(v => v && st.add(v.t)); SRV_VERS.set(p.id, st); }
+}
+function hvRecordAll(st) { for (const p of (st && st.projects) || []) hvRecordProj(p); }
+/* replacer ל-JSON.stringify: מחליף ב-"~" חלק כבד שזהה למה שבשרת; sent = מה שנשלח במלואו (יירשם אחרי אישור השרת) */
+function hvReplacer(sent) {
+  const projs = new Set(store.projects || []);
+  return function (k, v) {
+    if (!projs.has(this)) return v;
+    const pid = this.id;
+    if (HV_KEYS.includes(k) && typeof v === 'string') { const key = pid + '|' + k + '|', sig = hvSig(v); if (SRV_HV.get(key) === sig) return HV_KEEP; sent.push([key, sig]); return v; }
+    if (HV_MAPS.includes(k) && v && typeof v === 'object') { const out = {}; for (const [sid, x] of Object.entries(v)) { if (typeof x !== 'string' || x[0] === '@') { out[sid] = x; continue; } const key = pid + '|' + k + '|' + sid, sig = hvSig(x); if (SRV_HV.get(key) === sig) out[sid] = HV_KEEP; else { out[sid] = x; sent.push([key, sig]); } } return out; }
+    if (k === 'vers' && Array.isArray(v)) { const st = SRV_VERS.get(pid); const nw = st ? v.filter(x => x && !st.has(x.t)) : v; nw.forEach(x => sent.push(['vers|' + pid, x.t])); return st && !nw.length && v.length ? HV_KEEP : nw; }
+    return v;
+  };
+}
+function hvCommit(sent) { for (const [key, sig] of sent) { if (key.startsWith('vers|')) { const pid = key.slice(5); const st = SRV_VERS.get(pid) || new Set(); st.add(sig); SRV_VERS.set(pid, st); } else SRV_HV.set(key, sig); } }
+/* 413 = גוף הבקשה גדול מדי (מגבלת Cloud Run 32MB) — לא "אין תשובה"; מסבירים מה להסיר */
+function srvTooBig(mb) {
+  srvBanner('⚠ השמירה נכשלה (קוד 413): הפרויקטים ששולחים לשרת גדולים מדי (' + mb + 'MB, המגבלה 32MB) — <u>השינוי האחרון לא נשמר</u>. הסר תכניות רקע / PDF מקורי שלא צריך (או פצל לפרויקט נפרד) ושמור שוב; אל תסגור את הלשונית.');
+}
 function pushSrvNow() {
   if (!SRV) return Promise.resolve();
   if (SRV_STALE) { srvDirty = true; return Promise.resolve(); }   /* עותק זמני — לא דורסים את הענן */
   clearTimeout(srvT); srvT = null;
-  const body = JSON.stringify(store);
+  const sent = [], body = JSON.stringify(store, hvReplacer(sent));
   srvDirty = true;
   const p = srvInFlight = fetch('/api/store', { method: 'POST', headers: { 'content-type': 'application/json', 'x-ko-store': SRV_STORE }, body, keepalive: body.length < 60000 })
-    .then(r => { if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; delete store._delKits; } if (r.ok) { if (document.getElementById('srvBanner') && !srvOfflineT) srvBanner(''); r.clone().json().then(j => srvRejected(j && j.rejected)).catch(() => {}); } else if (r.status === 409) srvStale(); else { console.warn('שמירה לשרת נכשלה', r.status); srvSaveFail(r.status); } })
+    .then(r => { if (r.ok) hvCommit(sent); if (r.ok && srvInFlight === p) { srvDirty = false; delete store._del; delete store._delKits; } if (r.ok) { if (document.getElementById('srvBanner') && !srvOfflineT) srvBanner(''); r.clone().json().then(j => srvRejected(j && j.rejected)).catch(() => {}); } else if (r.status === 409) srvStale(); else if (r.status === 413) { console.warn('שמירה לשרת נכשלה 413', body.length); srvTooBig((body.length / 1048576).toFixed(1)); } else { console.warn('שמירה לשרת נכשלה', r.status); srvSaveFail(r.status); } })
     .catch(() => { srvSaveFail(0); });
   return p;
 }
@@ -450,7 +483,7 @@ function verTime(t) {
 async function verManager() {
   /* store קל: היסטוריית הגרסאות נשארת בשרת ונטענת רק כשפותחים את החלון (משולבת עם גרסאות שנוצרו מאז הטעינה) */
   if (P._lite && P.versN && !P._versLoaded) {
-    try { const o = await (await fetch('/api/project/' + encodeURIComponent(P.id) + '?f=vers')).json(); const seen = new Set((P.vers || []).map(v => v.t)); P.vers = [...(o.vers || []).filter(v => !seen.has(v.t)), ...(P.vers || [])].sort((a, b) => a.t - b.t); P._versLoaded = true; } catch (e) {}
+    try { const o = await (await fetch('/api/project/' + encodeURIComponent(P.id) + '?f=vers')).json(); const seen = new Set((P.vers || []).map(v => v.t)); P.vers = [...(o.vers || []).filter(v => !seen.has(v.t)), ...(P.vers || [])].sort((a, b) => a.t - b.t); P._versLoaded = true; { const st = SRV_VERS.get(P.id) || new Set(); (o.vers || []).forEach(v => v && st.add(v.t)); SRV_VERS.set(P.id, st); } } catch (e) {}
   }
   verSnapshot(true);
   const vs = (P.vers || []).slice().reverse();
@@ -2770,6 +2803,7 @@ function sheetFetchBg(pr, sh, wantPdf) {
     const bgs = put('bgs', o.bgs), pdfs = put('bgPdfs', o.bgPdfs);
     if (o.bg && !bgs[sh.id]) bgs[sh.id] = o.bg;              /* שרת ישן — תמונה אחת לפרויקט */
     if (o.bgPdf && !pdfs[sh.id]) pdfs[sh.id] = o.bgPdf;
+    hvRecordProj(pr);
     if (P === pr) { render(); if (typeof viewToContent === 'function') viewToContent(); }
   }).catch(() => {}).finally(() => { sh._bgFetchP = null; });
   return sh._bgFetchP;
