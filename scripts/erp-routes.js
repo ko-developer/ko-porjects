@@ -47,6 +47,7 @@ const redirect = (res, location) => { res.writeHead(302, { location, 'cache-cont
 export const SENDER_REASON = {
   not_signed_in: 'כדי לשלוח הצעה ל-ERP היכנס עם KO ERP — ההצעה תיווצר בשמך',
   signin_again: 'הכניסה ל-ERP פגה — היכנס שוב עם KO ERP',
+  owner_email_missing: 'כדי לשלוח הצעות כבעל המערכת: הגדר קודם בדף הניהול את המייל שלך ב-ERP כ"בעל המערכת", ואז היכנס עם KO ERP',
   google_workspace_required: 'שליחת הצעות דורשת כניסה ל-ERP עם חשבון Google של KO (kot.co.il)',
   sales_app_required: 'לחשבון ה-ERP שלך אין הרשאת מכירות — פנה למנהל ה-ERP',
   account_not_allowed: 'חשבון ה-ERP שלך לא יכול ליצור הצעות — פנה למנהל ה-ERP',

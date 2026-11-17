@@ -15656,7 +15656,7 @@ function sendOffer() {
       if (snd.personal) note.textContent = '👤 ההצעה תיווצר ב-ERP בשם: ' + snd.name;
       else {
         if (btn) { btn.disabled = true; btn.title = snd.reason_text; btn.style.opacity = '.55'; }
-        note.innerHTML = esc(snd.reason_text) + (snd.reason === 'not_signed_in' || snd.reason === 'signin_again' ? ' <a href="/api/auth/erp/start" style="font-weight:700">כניסה עם KO ERP</a>' : '');
+        note.innerHTML = esc(snd.reason_text) + (snd.reason === 'owner_email_missing' ? ' <a href="/admin" target="_blank" style="font-weight:700">פתח את דף הניהול</a> · <a href="/api/auth/erp/start" style="font-weight:700">כניסה עם KO ERP</a>' : snd.reason === 'not_signed_in' || snd.reason === 'signin_again' ? ' <a href="/api/auth/erp/start" style="font-weight:700">כניסה עם KO ERP</a>' : '');
       }
       w.appendChild(note);
     }

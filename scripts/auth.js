@@ -114,6 +114,8 @@ function ownerEmails() {
   const env = String(process.env.OWNER_EMAIL || '').split(',');
   return [...env, ...(load().config.ownerEmails || [])].map(normEmail).filter(Boolean);
 }
+/* האם הוגדר מייל ERP של בעל המערכת (משתנה סביבה או /admin) — בלי זה כניסה עם KO ERP של הבעלים יוצרת בקשת גישה ממתינה במקום לקשר אותו */
+export function ownerEmailsSet() { try { return ownerEmails().length > 0; } catch { return false; } }
 export function owner() { return OWNER; }
 
 /* --- עוגיות וסשנים --- */

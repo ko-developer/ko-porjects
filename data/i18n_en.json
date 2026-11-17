@@ -7043,5 +7043,9 @@
  "הסר תכניות רקע": "Remove background plans",
  "PDF מקורי שלא צריך": "original PDF that is not needed",
  "או פצל לפרויקט נפרד": "or split into a separate project",
- "ושמור שוב; אל תסגור את הלשונית": "and save again; do not close the tab"
+ "ושמור שוב; אל תסגור את הלשונית": "and save again; do not close the tab",
+ "פתח את דף הניהול": "Open the admin page",
+ "כדי לשלוח הצעות כבעל המערכת": "To send offers as the system owner",
+ "הגדר קודם בדף הניהול את המייל שלך ב-ERP כ\"בעל המערכת": "first set your ERP email as \"system owner\" on the admin page",
+ "ואז היכנס עם KO ERP": "then sign in with KO ERP"
 }

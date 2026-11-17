@@ -8,7 +8,7 @@ import { execFile } from 'node:child_process';
 import { stat, readdir, readFile, writeFile } from 'node:fs/promises';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
-import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks, inviteForSignup, signupEmailCheck, erpTokenKey } from './auth.js';
+import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks, inviteForSignup, signupEmailCheck, erpTokenKey, ownerEmailsSet } from './auth.js';
 import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers, accessTokenFor, requestSignupLink } from './erp-login.js';
 import { erpQuotes, erpQuoteItems, erpOrdersIndex } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
@@ -174,7 +174,8 @@ setAuthHooks({
 async function erpCaller(me) {
   const uidT = erpTokenKey(me);
   const name = me.name || me.email || '';
-  if (!uidT) return { personal: false, name, reason: 'not_signed_in' };
+  /* בעל המערכת בלי מייל ERP מוגדר: "כניסה עם KO ERP" לא תקשר אותו (תיווצר בקשת גישה ממתינה) — מפנים ל-/admin במקום ללולאה */
+  if (!uidT) return { personal: false, name, reason: me.role === 'owner' && !ownerEmailsSet() ? 'owner_email_missing' : 'not_signed_in' };
   if (me.erpCanOffer === false) return { personal: false, name, reason: me.erpOffersRefusal || 'account_not_allowed' };
   const t = await accessTokenFor(process.env, storage, uidT);
   if (!t.ok) return { personal: false, name, reason: t.reason === 'signin' ? 'signin_again' : 'erp_unreachable' };
