@@ -939,9 +939,9 @@ function asRatioFieldHTML() {
   const srcTxt = r.ratio ? (r.ratioSrc === 'ocr' ? 'נקרא מהתכנית (OCR)' : r.ratioSrc === 'manual' ? 'לפי הכיול הידני' : 'הוקלד') : (P.scale ? 'לפי הכיול הידני' : '');
   return `<button style="width:100%;margin:0 0 6px" ${busy ? 'disabled' : ''} onclick="planTextScan()" title="קורא את כל הכיתובים שעל השרטוט (OCR מקומי, בלי AI): קנה המידה (1:N) נכנס לשדה למטה ומוחל כשאין כיול ידני; שאר הכיתובים מסווגים — אזורי קהל, תפעול, שירותים, ריהוט, מפלסים">${busy ? '⏳ קורא את התכנית…' : (pt.at ? '🔤 קרא שוב קנה מידה וכיתובים (OCR)' : '🔤 קרא קנה מידה וכיתובים מהתכנית (OCR)')}</button>
     ${pt.at ? `<div style="font-size:11px;margin:0 0 4px;color:${found ? '#0f6e56' : '#8a5a00'}">${found ? '✓ נמצא בתכנית: <b style="direction:ltr;unicode-bidi:embed">1:' + found.n + '</b>' + (found.t && found.t !== '1:' + found.n ? ' <span class="muted">(' + esc(String(found.t).slice(0, 28)) + ')</span>' : '') + (r.ratio === found.n && r.ratioSrc === 'ocr' ? ' · הוחל' : ' <button style="padding:1px 8px;font-size:11px" onclick="asApplyRatioN(' + found.n + ',null,\'ocr\')">החל</button>') : '⚠ לא נמצא כיתוב קנה מידה בתכנית — הקלד למטה או כייל לפי מידה ידועה'}</div>` : ''}
-    <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:6px 0;font-size:12px"><span>קנה מידה בשרטוט:</span><span style="direction:ltr;display:inline-flex;align-items:center;gap:3px;font-weight:700">1 : <input id="asRatioIn" type="number" min="1" max="5000" value="${shown || ''}" placeholder="50" style="width:64px;padding:3px 5px;margin:0;font-size:12px" onkeydown="if(event.key==='Enter')asApplyRatioField()"></span>
+    <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:6px 0;font-size:12px"><span>קנה מידה בשרטוט:</span><span style="direction:ltr;display:inline-flex;align-items:center;gap:3px;font-weight:700">1 : <input id="asRatioIn" type="number" min="1" max="5000" value="${shown || ''}" placeholder="50" style="width:64px;padding:3px 5px;margin:0;font-size:12px" onkeydown="if(event.key==='Enter')asApplyRatioField(this)"></span>
     ${pdfMm ? `<span class="muted">גיליון ${pdfMm} מ״מ (מה-PDF)</span>` : `<span>גיליון:</span><select id="asSheetSel" style="width:auto;padding:3px;font-size:12px" onchange="document.getElementById('asSheetMm').style.display=this.value==='0'?'':'none'">${asSheets().map(([n, mm]) => `<option value="${mm}" ${sheet === mm ? 'selected' : ''}>${n} (${mm} מ״מ)</option>`).join('')}<option value="0" ${custom ? 'selected' : ''}>אחר…</option></select><input id="asSheetMm" type="number" placeholder="רוחב מ״מ" value="${custom ? sheet : ''}" style="width:72px;padding:3px 5px;margin:0;font-size:12px;${custom ? '' : 'display:none'}">`}
-    <button onclick="asApplyRatioField()" style="padding:4px 10px">החל</button>${srcTxt ? '<span class="muted" style="font-size:10.5px">' + srcTxt + '</span>' : ''}</div>`;
+    <button onclick="asApplyRatioField(this)" style="padding:4px 10px">החל</button>${srcTxt ? '<span class="muted" style="font-size:10.5px">' + srcTxt + '</span>' : ''}</div>`;
 }
 function asApplyRatioN(n, mm, src) {
   if (!(n > 0)) return;
@@ -951,10 +951,14 @@ function asApplyRatioN(n, mm, src) {
   P.calSrc = ''; asApply(r2, pxPerM, 'ratio', true);
   uiToast((src === 'ocr' ? '📐 קנה מידה 1:' + n + ' נקרא מהתכנית והוחל' : '✓ הוחל 1:' + n) + ' — 1 מ׳ = ' + pxPerM.toFixed(1) + 'px · אמת לפי מידה בשרטוט אם אפשר', 6000);
 }
-function asApplyRatioField() {
-  const n = +((document.getElementById('asRatioIn') || {}).value); if (!(n > 0)) { uiToast('הקלד קנה מידה, למשל 50'); return; }
+/* el = הכפתור/השדה שלחצו עליו: אותו בלוק מוצג גם בסרגל הצד וגם באשף (אותם id) — getElementById החזיר תמיד את הראשון במסמך
+   (הסרגל, ריק), ולכן הקלדה באשף ענתה "הקלד קנה מידה". מחפשים בתוך הבלוק שממנו לחצו. */
+function asApplyRatioField(el) {
+  const box = el && el.closest ? el.closest('div') : null;
+  const byId = id => (box && box.querySelector('#' + id)) || document.getElementById(id);
+  const n = +((byId('asRatioIn') || {}).value); if (!(n > 0)) { uiToast('הקלד קנה מידה, למשל 50'); return; }
   const r = P.autoScale || {}; let mm = r.pageMm ? r.pageMm[0] : null;
-  if (!mm) { const sel = document.getElementById('asSheetSel'), inp = document.getElementById('asSheetMm'); mm = sel && +sel.value > 0 ? +sel.value : +((inp || {}).value); }
+  if (!mm) { const sel = byId('asSheetSel'), inp = byId('asSheetMm'); mm = sel && +sel.value > 0 ? +sel.value : +((inp || {}).value); }
   if (!(mm > 0)) { uiToast('בחר גיליון או הקלד את רוחב הדף במ״מ'); return; }
   asApplyRatioN(n, mm, 'user');
 }

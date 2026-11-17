@@ -15400,7 +15400,10 @@ function srchCat(name) {
   if (typeof isSpeakerItem === 'function' && isSpeakerItem(n)) return 'spk';
   return 'gear';
 }
-let dockCat = '';
+let dockCat = '', dockBrand = '';
+/* מותג לפי שם הפריט — שכבת סינון שנייה בחיפוש ההצעה (מתחת לקטגוריות) */
+const SRCH_BRANDS = [['Funktion-One', /FUNKTION|\bF\s?(5|55|61|81|88|101|1201)\b|\bEVO\s?\d|\bRES\s?[12]\b|\bPSM\s?15|\bBR\s?1\d\d/i], ['K&F', /K&F|KLING|GRAVIS|\bSONA\b|PASSIO|NOMOS|\bPIA\b|\bVIDA\b|SCENA|SPECTRA|SEQUENZA|\bCA\s?106/i], ['Unicorn / KT', /UNICORN|יוניקורן|\bKT\b|EUPHORIA|PAGAZ|\bTILL\b|INTERPID|\bALPHA\b|DYNAMIQ|\bMX3\b|WR\s?600|\bBOLD\b/i], ['DigiSynthetic', /DIGISYNTHET|DIGISYN|DMX\s?\d{3,4}|\bDS\s?\d{3}[A-Z]?\b|\bDSK\s?\d|\bDLA\s?-?\s?0?4/i], ['XTA', /\bXTA\b|\bDPA\s?\d|\bDNA\s?\d|\bAPA\s?\d|MX36|\bSIX\b/i], ['Celto', /CELTO/i], ['Yamaha', /YAMAHA|ימהה/i], ['Lambda Labs', /LAMBDA/i], ['SAE', /\bSAE\b/i], ['Powersoft', /POWERSOFT/i], ['Lab.gruppen', /LAB\.?\s?GRUPPEN|\bPLM\b|\bIPD\b/i], ['Shure', /SHURE/i], ['Sennheiser', /SENNHEISER/i], ['Pioneer', /PIONEER/i], ['Allen & Heath', /ALLEN\s?&\s?HEATH|\bA&H\b/i], ['NST Audio', /\bNST\b/i]];
+function srchBrand(name) { const n = String(name || ''); const b = SRCH_BRANDS.find(([, re]) => re.test(n)); return b ? b[0] : ''; }
 function dockSearchResults(q) {
   /* חיפוש לא תלוי-רישיות ומפוצל למילים — "funktion f81" מוצא "רמקול FUNKTION ONE F81".
      בלי זה, שם מוצר באנגלית גדולה לא נמצא בהקלדה קטנה, וזה נראה כאילו הפריט לא קיים. */
@@ -15416,7 +15419,7 @@ function dockSearchResults(q) {
   [...K, ...userK].forEach((k, i) => {
     if (res.length >= CAP || !hit(k.name + ' ' + kitStdName(k))) return;
     if (!liveKits.has(k) || kitHidden(k.name)) return;   /* קיט מוסתר, או קיט ERP שגרסה שלי מחליפה — לא מוצג פעמיים */
-    res.push({ type: 'kit', i, name: k.name, n: (k.items || []).length });
+    res.push({ type: 'kit', i, name: k.name, n: (k.items || []).length, brand: srchBrand(k.name) || srchBrand((k.items || []).map(x => x.name).join(' ')) });
   });
   const addItem = (name, key) => {
     if (res.length >= CAP || seen.has(name) || !hit(name)) return;
@@ -15430,7 +15433,7 @@ function dockSearchResults(q) {
   /* קיטים נשארים בראש; המוצרים ממוינים לפי מלאי ואז לפי מכירה אחרונה */
   const kits2 = res.filter(r => r.type === 'kit');
   const RK = Object.fromEntries(SRCH_CATS.map(([c], i) => [c, i]));
-  const items2 = res.filter(r => r.type !== 'kit').map(r => (r.cat = srchCat(r.name), r))
+  const items2 = res.filter(r => r.type !== 'kit').map(r => (r.cat = srchCat(r.name), r.brand = srchBrand(r.name), r))
     .sort((a, b) => (RK[a.cat] - RK[b.cat]) || ((/השכר/.test(a.name) ? 1 : 0) - (/השכר/.test(b.name) ? 1 : 0)) || byStockThenSold(a.key, b.key));
   return [...kits2.slice(0, 10), ...items2.slice(0, 80)];
 }
@@ -16114,7 +16117,12 @@ function renderImp() {
   const catN = {}; allRes.forEach(r => { if (r.cat) catN[r.cat] = (catN[r.cat] || 0) + 1; });
   const kitN = allRes.filter(r => r.type === 'kit').length;
   if (dockCat === 'kit' && !kitN) dockCat = '';
-  const results = dockCat === 'kit' ? allRes.filter(r => r.type === 'kit') : dockCat ? allRes.filter(r => r.cat === dockCat) : allRes;
+  const resCat = dockCat === 'kit' ? allRes.filter(r => r.type === 'kit') : dockCat ? allRes.filter(r => r.cat === dockCat) : allRes;
+  /* שכבת סינון שנייה: מותג (נספר בתוך הקטגוריה שנבחרה) */
+  const brandN = {}; resCat.forEach(r => { if (r.brand) brandN[r.brand] = (brandN[r.brand] || 0) + 1; });
+  if (dockBrand && !brandN[dockBrand]) dockBrand = '';
+  const results = dockBrand ? resCat.filter(r => r.brand === dockBrand) : resCat;
+  const brandBar = q && Object.keys(brandN).length > 1 ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin:-2px 0 6px;align-items:center"><span class="muted" style="font-size:10.5px">מותג:</span><button onclick="dockBrand='';renderImp()" style="padding:1px 7px;font-size:10.5px;${dockBrand ? '' : 'background:#4b3fb8;color:#fff'}">הכל</button>${SRCH_BRANDS.filter(([b]) => brandN[b]).map(([b]) => `<button onclick="dockBrand='${b.replace(/'/g, '')}';renderImp()" style="padding:1px 7px;font-size:10.5px;${dockBrand === b ? 'background:#4b3fb8;color:#fff' : ''}">${esc(b)} ${brandN[b]}</button>`).join('')}</div>` : '';
   let lastCat = null;
   const catBar = q && allRes.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin:-2px 0 6px"><button onclick="dockCat='';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat ? '' : 'background:#1a1e28;color:#fff'}">הכל ${allRes.length}</button>${kitN ? `<button onclick="dockCat='kit';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat === 'kit' ? 'background:#1a1e28;color:#fff' : ''}">🧰 קיטים ${kitN}</button>` : ''}${SRCH_CATS.filter(([c]) => catN[c]).map(([c, l]) => `<button onclick="dockCat='${c}';renderImp()" style="padding:2px 8px;font-size:11px;${dockCat === c ? 'background:#1a1e28;color:#fff' : ''}">${l} ${catN[c]}</button>`).join('')}</div>` : '';
   const catHdr = r => { if (dockCat || !r.cat || r.cat === lastCat) return ''; lastCat = r.cat; return `<div style="font-size:11px;font-weight:800;color:#666;margin:6px 2px 2px">${(SRCH_CATS.find(x => x[0] === r.cat) || [])[1] || ''}</div>`; };
@@ -16129,7 +16137,7 @@ function renderImp() {
       <button onclick="dockWide=!dockWide;renderImp()" title="${dockWide ? 'חזרה לגובה הרגיל' : 'הגבה על רוב המסך'}" style="${dockWide ? 'background:#ff8a50' : ''}">${dockWide ? '⤡' : '⤢'}</button>
       <button onclick="dockMin=true;renderImp()" title="כווץ לשורה אחת">▾</button>
     </div>${impModeHTML()}
-    <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` + catBar +
+    <div class="fld"><input id="dockQin" placeholder="🔍 חפש מוצר או קיט… לחיצה = הוספה ונעיצה" value="${esc(dockQ)}" oninput="dockQupd(this.value)" style="width:100%"></div>` + catBar + brandBar +
     (results.length ? results.map(r => r.type === 'kit'
       ? `<div class="crow" onclick="pickKitInline(${r.i})"><span class="badge" style="background:#534ab7">${r.n}</span><span class="txt"><b>🧰 ${esc(r.name)}</b> · קיט מלא</span></div>`
       : catHdr(r) + `<div class="crow" onclick="pickSearchItem('${jsq(r.name)}','${r.key || ''}')"><span class="badge" style="background:#0f6e56">📌</span>${imgCell(r.key, 28)}<span class="txt">${esc(r.name)}</span>${stockBadge(r.key)}</div>`
@@ -16364,9 +16372,11 @@ function renderZones() {
   if (typeof fxDetSVG === 'function') svgp += fxDetSVG();   /* סימוני זיהוי תאורה */
   /* מיקום התוויות: מעל הנקודה העליונה — ואם זה נופל על שטח של אזור אחר, מקום אחר (מרכז האזור, ליד קודקוד אחר) + חץ אל האזור */
   const lblPos = {};
+  /* אזור שקיבל שם — התווית מציגה רק אותו; התכלית מופיעה רק כשהשם הוא ברירת המחדל ("אזור" / "אזור 3") */
+  const zLblUsage = z => (!z.name || /^אזור(\s*\d+)?$/.test(String(z.name).trim())) ? (z.usage || '') : '';
   zs.forEach(z => {
     if (!z.poly) return;
-    const name = `🗺 ${z.name}`, sub = [z.usage || '', P.scale ? (zoneArea(z) * P.scale * P.scale).toFixed(0) + ' מ"ר' : ''].filter(Boolean).join(' · ');
+    const name = `🗺 ${z.name}`, sub = [zLblUsage(z), P.scale ? (zoneArea(z) * P.scale * P.scale).toFixed(0) + ' מ"ר' : ''].filter(Boolean).join(' · ');
     const W1 = zlblMeasure(name + (sub ? ' · ' + sub : ''), '700 10.5px'), W2 = Math.max(zlblMeasure(name, '700 10.5px'), zlblMeasure(sub, '600 9px'));   /* רוחב אמיתי של הטקסט: שורה אחת / שתי שורות */
     const others = zs.filter(o => o !== z && !o.prop), placed = Object.values(lblPos);
     const bad = (x, y, LW, LH) => others.some(o => [[x + 2, y + 2], [x + LW - 2, y + 2], [x + 2, y + LH - 2], [x + LW - 2, y + LH - 2], [x + LW / 2, y + LH / 2]].some(([px, py]) => inZone(o, { x: px, y: py })))
@@ -16417,7 +16427,7 @@ function renderZones() {
       lbl.style.cssText = `position:absolute;left:${lp.x}px;top:${lp.y}px;background:${c};z-index:1${lp.two ? ';text-align:center;line-height:1.2;padding:2px 7px' : ''}`;
       const pin = `<span data-zlblpin="${z.id}" title="${lp.free ? 'כותרת צפה — גרור אותה לאן שתרצה · לחץ להחזרה למיקום אוטומטי' : 'הפוך לכותרת צפה — אפשר לגרור אותה לכל מקום בלי להזיז את האזור'}" style="display:inline-block;margin-inline-start:6px;padding:0 4px;border-radius:4px;background:rgba(255,255,255,${lp.free ? '.9' : '.25'});color:${lp.free ? c : '#fff'};font-size:9px;cursor:pointer;vertical-align:middle;line-height:14px">${lp.free ? '📌' : '✥'}</span>`;
       if (lp.two) lbl.innerHTML = `<div>${esc(lp.name)}${pin}</div><div style="font-size:9px;font-weight:600;opacity:.95">${esc(lp.sub)}</div>`;
-      else lbl.innerHTML = `🗺 ${esc(z.name)}${z.usage ? ' · ' + esc(z.usage) : ''}${esc(dims)}${pin}`;
+      else lbl.innerHTML = `🗺 ${esc(z.name)}${zLblUsage(z) ? ' · ' + esc(zLblUsage(z)) : ''}${esc(dims)}${pin}`;
       lbl.title = lp.free ? 'גרירה — הזזת הכותרת בלבד · לחיצה — חזרה לתכנון האזור' : 'לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור';
       lbl.style.cursor = lp.free ? 'move' : 'pointer';
       lbl.addEventListener('pointerdown', e => { if (zoneMode) return; });
@@ -16427,7 +16437,7 @@ function renderZones() {
     const d = document.createElement('div');
     d.className = 'zone';
     d.style.cssText = `right:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;border-color:${c};background:${c}1f;${selZone === z.id ? 'box-shadow:0 0 0 3px ' + c + '66;' : ''}`;
-    d.innerHTML = `<span class="zlbl" data-zdrag="${z.id}" title="לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור" style="background:${c};cursor:pointer">🗺 ${esc(z.name)}${z.usage ? ' · ' + esc(z.usage) : ''}${dims}</span>
+    d.innerHTML = `<span class="zlbl" data-zdrag="${z.id}" title="לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור" style="background:${c};cursor:pointer">🗺 ${esc(z.name)}${zLblUsage(z) ? ' · ' + esc(zLblUsage(z)) : ''}${dims}</span>
       <span data-zdrag="${z.id}" title="גרור להזזת האזור" style="position:absolute;left:-9px;top:-9px;width:20px;height:20px;border-radius:50%;background:${c};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:grab;box-shadow:0 1px 3px rgba(0,0,0,.35);z-index:2">✥</span>
       <span class="zsz" data-zsize="${z.id}" style="background:${c}"></span>`;
     d.addEventListener('pointerdown', e => {
