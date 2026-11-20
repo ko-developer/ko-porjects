@@ -165,7 +165,9 @@ async function ptScaleScan(onStep) {
   };
   try {
     await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '6' });
-    for (const [where, sx, sy, sw, sh] of strips) {
+    /* סבב מהיר: מעבר אחד על כל ארבע הרצועות — טבלת כותרת בצד שמאל/למעלה נמצאת בלי לסרוק קודם לעומק את ימין ותחתית */
+    for (const [where, sx, sy, sw, sh] of strips) { if (onStep) onStep(where); await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (good()) break; }
+    if (!good()) for (const [where, sx, sy, sw, sh] of strips) {
       if (onStep) onStep(where);
       for (const k of scales) { for (const thr of [200, 150]) { await pass(where, sx, sy, sw, sh, k, thr, 0); if (good()) break; } if (good()) break; }
       if (!good() && (where === 'right' || where === 'left')) for (const rot of [Math.PI / 2, -Math.PI / 2]) { await pass(where, sx, sy, sw, sh, scales[0], 200, rot); if (good()) break; }

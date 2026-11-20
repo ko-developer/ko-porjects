@@ -6379,7 +6379,7 @@
  "לכבל רב-גידי": "for multi-core cable",
  "המחבר לפי אתר היצרן": "Connector per manufacturer's website",
  "המחבר לא מפורסם": "Connector not published",
- "הנחה": "Assumption",
+ "הנחה": "assumption",
  "אומת": "Verified",
  "כל שדה שפורסם הושווה אוטומטית מול אתר היצרן": "Every published field was automatically checked against the manufacturer's website",
  "לחץ לשינוי": "Click to change",
@@ -7073,5 +7073,11 @@
  "עד כדקה, אפשר להמשיך לעבוד בינתיים": "up to about a minute, you can keep working meanwhile",
  "התכנית כוילה אוטומטית": "the plan was calibrated automatically",
  "הקריאה לא ודאית": "The reading is uncertain",
- "גודל הגיליון לא ידוע": "The sheet size is unknown"
+ "גודל הגיליון לא ידוע": "The sheet size is unknown",
+ "יש כבר כיול ידני, ולכן לא הוחלף; לחץ ״החל״ כדי להחליף": "There is already a manual calibration, so it was not replaced; press “Apply” to replace it",
+ "לפי גיליון": "based on sheet",
+ "גודל הגיליון לא נמצא בתכנית": "the sheet size was not found on the plan",
+ "אם הוא אחר, בחר אותו בשדה הכיול ולחץ ״החל״": "if it is different, choose it in the calibration field and press “Apply”",
+ "שנה אם שונה": "change it if different",
+ "אמת": "verify"
 }

@@ -991,22 +991,27 @@ async function asAutoFind(pg, opts) {
   if (!res && typeof ptScaleScan === 'function' && isCur()) {
     window.__asFind = sh.id; asFindRefresh();
     uiToast('🔎 סורק את התכנית לקבלת קנה מידה (טבלת הכותרת) — עד כדקה, אפשר להמשיך לעבוד בינתיים…', 20000);
-    try { const o = await ptScaleScan(); if (o && o.n >= 10 && o.n <= 2000) { res = { n: o.n, t: o.t || ('1:' + o.n), weak: !!o.weak, thumb: o.thumb || null, sheetMm: asSheetMmFromFormat(o.sheet, o.imgW, o.imgH), sheet: o.sheet || null }; src = 'ocr'; } } catch (e) { console.warn('asAutoFind ocr', e); }
+    try { const o = await ptScaleScan(); if (o && o.n >= 10 && o.n <= 2000) { res = { n: o.n, t: o.t || ('1:' + o.n), weak: !!o.weak, thumb: o.thumb || null, sheet: o.sheet || null, imgW: o.imgW || 0, imgH: o.imgH || 0 }; src = 'ocr'; } } catch (e) { console.warn('asAutoFind ocr', e); }
     finally { if (window.__asFind === sh.id) window.__asFind = null; }
   }
   const r0 = sh.autoScale || {}, name = sh.name || '', where = isCur() ? '' : ' (' + name + ')';
   if (res && res.n) {
-    sh.autoScale = { ...r0, ratio: res.n, ratioSrc: src, find: { state: 'found', n: res.n, t: res.t, src, weak: !!res.weak, thumb: res.thumb || undefined, at: Date.now() } };
-    /* מוחל אוטומטית רק כשהכיתוב נקרא כטקסט מה-PDF (מדויק) וגודל הדף ידוע. קריאת OCR נכנסת לשדה בלבד — המשתמש מאמת מול
-       התמונה המוקטנת של הכיתוב ולוחץ "החל" (OCR של שורה מעורבת עברית+ספרות טועה לפעמים, וקנה מידה שגוי הורס את כל המרחקים) */
-    const mm = r0.pageMm ? r0.pageMm[0] : null;
-    /* אורי (20.11.2026): לכייל לבד. קריאה ודאית + גודל גיליון ידוע (דף ה-PDF, או פורמט A0–A4 שנקרא מטבלת הכותרת בתמונה של גיליון שלם) = מוחל.
-       נשאר לאישור ידני רק מה שאי אפשר לחשב: קריאה לא ודאית (מספר ליד התווית בלי "1:"), או תמונה בלי גודל גיליון */
-    const mmOcr = mm || res.sheetMm || null, shTxt = r0.pageMm ? 'דף ' + r0.pageMm[0] + '×' + r0.pageMm[1] + ' מ״מ' : res.sheet ? 'גיליון ' + res.sheet : '';
-    if (src === 'ocr' && mmOcr && !res.weak && isCur() && P.calSrc !== 'manual') { asApplyRatioN(res.n, mmOcr, src, true); uiToast('📐 נמצא קנה מידה 1:' + res.n + (shTxt ? ' (' + shTxt + ')' : '') + ' — התכנית כוילה אוטומטית: 1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px. כדאי לאמת מול מידה בשרטוט', 10000); }
-    else if (src === 'ocr') uiToast('📐 נמצא קנה מידה 1:' + res.n + where + ' — הוכנס לשדה הכיול. ' + (res.weak ? 'הקריאה לא ודאית — אמת מול הכיתוב בתכנית' : mmOcr ? 'אמת מול הכיתוב בתכנית' : 'גודל הגיליון לא ידוע — בחר גודל גיליון') + ' ולחץ ״החל״', 10000);
-    else if (mm && isCur() && P.calSrc !== 'manual') { asApplyRatioN(res.n, mm, src, true); uiToast('📐 נמצא קנה מידה 1:' + res.n + ' — הוכנס לשדה הכיול והוחל (1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px). כדאי לאמת מול מידה בשרטוט', 8000); }
-    else uiToast('📐 נמצא קנה מידה 1:' + res.n + where + ' — הוכנס לשדה הכיול. בחר גודל גיליון ולחץ ״החל״', 9000);
+    /* אורי (21.11.2026): מה שנמצא — מוחל מיד, בלי לחיצה על "החל". גודל הגיליון: דף ה-PDF; אחרת הפורמט (A0–A4) שנקרא מטבלת הכותרת;
+       אחרת ברירת המחדל של השדה — A3 לפי כיוון התמונה, בדיוק מה שלחיצה על "החל" הייתה עושה. הנחה כזו נכתבת בהודעה ובשורת המצב,
+       והמשתמש מתקן בבחירת גיליון אחר + "החל". לא נדרס רק כיול ידני קיים. */
+    const imgW = res.imgW || 0, imgH = res.imgH || 0;
+    let mm = r0.pageMm ? r0.pageMm[0] : null, shTxt = r0.pageMm ? 'דף ' + r0.pageMm[0] + '×' + r0.pageMm[1] + ' מ״מ' : '', assumed = '';
+    if (!mm && res.sheet) { mm = asSheetMmFromFormat(res.sheet, imgW, imgH, true); if (mm) shTxt = 'גיליון ' + res.sheet; }
+    if (!mm && r0.sheetMm) { mm = r0.sheetMm; shTxt = 'גיליון ' + mm + ' מ״מ'; }
+    if (!mm) { mm = imgH > imgW ? 297 : 420; assumed = 'A3'; }
+    sh.autoScale = { ...r0, ratio: res.n, ratioSrc: src, find: { state: 'found', n: res.n, t: res.t, src, weak: !!res.weak, thumb: res.thumb || undefined, assumed: assumed || undefined, at: Date.now() } };
+    const pxPerM = (sh.bgW || 1400) / (mm / 1000 * res.n);
+    if (P.calSrc === 'manual' && isCur()) uiToast('📐 נמצא קנה מידה 1:' + res.n + ' — הוכנס לשדה הכיול. יש כבר כיול ידני, ולכן לא הוחלף; לחץ ״החל״ כדי להחליף', 9000);
+    else {
+      if (isCur()) asApplyRatioN(res.n, mm, src, true);
+      else { sh.scale = 1 / pxPerM; sh.autoScale = { ...sh.autoScale, sheetMm: r0.pageMm ? undefined : mm, method: 'ratio', conf: 'medium', pxPerM, src: 'ratio', at: Date.now() }; }   /* המשתמש עבר לתכנית אחרת בזמן הסריקה */
+      uiToast('📐 נמצא קנה מידה 1:' + res.n + where + ' — התכנית כוילה אוטומטית' + (assumed ? ' לפי גיליון ' + assumed + ' (גודל הגיליון לא נמצא בתכנית — אם הוא אחר, בחר אותו בשדה הכיול ולחץ ״החל״)' : shTxt ? ' (' + shTxt + ')' : '') + ': 1 מ׳ = ' + pxPerM.toFixed(1) + 'px. ' + (res.weak ? 'הקריאה לא ודאית — אמת מול הכיתוב בתכנית' : 'כדאי לאמת מול מידה בשרטוט'), 11000);
+    }
   } else if (res && res.multi) {
     sh.autoScale = { ...r0, find: { state: 'multi', list: res.multi, src, at: Date.now() } };
     uiToast('📐 נמצאו כמה קני מידה בתכנית' + where + ' (' + res.multi.map(n => '1:' + n).join(', ') + ') — בחר את הנכון בשדה הכיול', 9000);
@@ -1019,17 +1024,17 @@ async function asAutoFind(pg, opts) {
   return res;
 }
 /* פורמט שנקרא מטבלת הכותרת → רוחב הגיליון במ״מ לפי כיוון התמונה; רק כשהתמונה היא גיליון שלם (יחס צלעות √2) — בחיתוך/צילום מסך הרוחב לא מייצג את הדף */
-function asSheetMmFromFormat(fmt, w, h) {
+function asSheetMmFromFormat(fmt, w, h, loose) {
   const LONG = { A0: 1189, A1: 841, A2: 594, A3: 420, A4: 297 }, SHORT = { A0: 841, A1: 594, A2: 420, A3: 297, A4: 210 };
   if (!fmt || !LONG[fmt] || !(w > 0) || !(h > 0)) return null;
-  const asp = Math.max(w, h) / Math.min(w, h); if (Math.abs(asp - Math.SQRT2) > 0.06) return null;
+  const asp = Math.max(w, h) / Math.min(w, h); if (!loose && Math.abs(asp - Math.SQRT2) > 0.06) return null;
   return w >= h ? LONG[fmt] : SHORT[fmt];
 }
 /* בחירה מתוך כמה קני מידה שנמצאו: נכנס לשדה; מוחל כשגודל הדף ידוע */
 function asFindPick(n) {
   const r = P.autoScale || {}; if (!(n > 0)) return;
   P.autoScale = { ...r, ratio: n, ratioSrc: (r.find && r.find.src) || 'ocr', find: { ...(r.find || {}), state: 'found', n, t: '1:' + n } };
-  if (r.pageMm) asApplyRatioN(n, r.pageMm[0], (r.find && r.find.src) || 'ocr'); else { save(); asFindRefresh(); uiToast('1:' + n + ' הוכנס לשדה הכיול — בחר גודל גיליון ולחץ ״החל״', 6000); }
+  asApplyRatioN(n, r.pageMm ? r.pageMm[0] : asSheetMm(), (r.find && r.find.src) || 'ocr');   /* בחירה = החלה (גיליון: דף ה-PDF או מה שנבחר בשדה) */
 }
 /* שורת המצב שמעל שדה קנה המידה */
 function asFindLineHTML() {
@@ -1037,7 +1042,7 @@ function asFindLineHTML() {
   if (window.__asFind && window.__asFind === P.curSheet) return '<div style="' + box + ';color:#4b3fb8">🔎 מחפש קנה מידה בתכנית…</div>';
   if (!fd) return '';
   if (fd.state === 'found') { const applied = P.scale && r.method === 'ratio' && r.ratio === fd.n;
-    return '<div style="' + box + ';color:#0f6e56">✓ נמצא קנה מידה: <b style="direction:ltr;unicode-bidi:embed">1:' + fd.n + '</b>' + (fd.t && fd.t !== '1:' + fd.n ? ' <span class="muted" style="font-weight:400">(' + esc(String(fd.t).slice(0, 28)) + ')</span>' : '') + (applied ? ' · הוחל' : fd.src === 'ocr' ? ' <span style="color:#8a5a00;font-weight:600">· ' + (fd.weak ? 'קריאה לא ודאית — ' : '') + 'אמת ולחץ ״החל״</span>' : '') + '</div>'
+    return '<div style="' + box + ';color:#0f6e56">✓ נמצא קנה מידה: <b style="direction:ltr;unicode-bidi:embed">1:' + fd.n + '</b>' + (fd.t && fd.t !== '1:' + fd.n ? ' <span class="muted" style="font-weight:400">(' + esc(String(fd.t).slice(0, 28)) + ')</span>' : '') + (applied ? ' · הוחל' + (fd.assumed ? ' <span style="color:#8a5a00;font-weight:600">· לפי גיליון ' + esc(fd.assumed) + ' (הנחה — שנה אם שונה)</span>' : '') + (fd.weak ? ' <span style="color:#8a5a00;font-weight:600">· קריאה לא ודאית — אמת</span>' : '') : fd.src === 'ocr' ? ' <span style="color:#8a5a00;font-weight:600">· ' + (fd.weak ? 'קריאה לא ודאית — ' : '') + 'אמת ולחץ ״החל״</span>' : '') + '</div>'
       + (fd.thumb ? '<div style="margin:0 0 5px"><img src="' + fd.thumb + '" alt="" title="כך הכיתוב נראה בתכנית — ודא שהמספר בשדה זהה" style="max-width:100%;max-height:70px;border:1px solid #c9c4b8;border-radius:5px;display:block"></div>' : ''); }
   if (fd.state === 'multi') return '<div style="' + box + ';color:#8a5a00">נמצאו כמה קני מידה — בחר: ' + (fd.list || []).map(n => '<button style="padding:1px 8px;font-size:11px;direction:ltr" onclick="asFindPick(' + (+n) + ')">1:' + (+n) + '</button>').join(' ') + '</div>';
   if (fd.state === 'none') return '<div style="font-size:11px;margin:0 0 4px;color:#8a5a00">לא נמצא קנה מידה כתוב בתכנית — הקלד אותו או כייל ידנית</div>';
