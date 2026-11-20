@@ -936,23 +936,102 @@ function asRatioFieldHTML() {
   const r = P.autoScale || {}, pdfMm = r.pageMm ? r.pageMm[0] : null, sheet = r.sheetMm || (pdfMm ? null : 420), custom = !!(sheet && !asSheets().some(([, mm]) => mm === sheet));
   const pt = P.planText || {}, found = pt.scale, busy = !!window.__ptBusy;
   const shown = r.ratio || (P.scale ? asDerivedRatio() : '');
-  const srcTxt = r.ratio ? (r.ratioSrc === 'ocr' ? 'נקרא מהתכנית (OCR)' : r.ratioSrc === 'manual' ? 'לפי הכיול הידני' : 'הוקלד') : (P.scale ? 'לפי הכיול הידני' : '');
+  const srcTxt = r.ratio ? (r.ratioSrc === 'pdf' ? 'נקרא מה-PDF' : r.ratioSrc === 'ocr' ? 'נקרא מהתכנית (OCR)' : r.ratioSrc === 'manual' ? 'לפי הכיול הידני' : 'הוקלד') : (P.scale ? 'לפי הכיול הידני' : '');
   return `<button style="width:100%;margin:0 0 6px" ${busy ? 'disabled' : ''} onclick="planTextScan()" title="קורא את כל הכיתובים שעל השרטוט (OCR מקומי, בלי AI): קנה המידה (1:N) נכנס לשדה למטה ומוחל כשאין כיול ידני; שאר הכיתובים מסווגים — אזורי קהל, תפעול, שירותים, ריהוט, מפלסים">${busy ? '⏳ קורא את התכנית…' : (pt.at ? '🔤 קרא שוב קנה מידה וכיתובים (OCR)' : '🔤 קרא קנה מידה וכיתובים מהתכנית (OCR)')}</button>
     ${pt.at ? `<div style="font-size:11px;margin:0 0 4px;color:${found ? '#0f6e56' : '#8a5a00'}">${found ? '✓ נמצא בתכנית: <b style="direction:ltr;unicode-bidi:embed">1:' + found.n + '</b>' + (found.t && found.t !== '1:' + found.n ? ' <span class="muted">(' + esc(String(found.t).slice(0, 28)) + ')</span>' : '') + (r.ratio === found.n && r.ratioSrc === 'ocr' ? ' · הוחל' : ' <button style="padding:1px 8px;font-size:11px" onclick="asApplyRatioN(' + found.n + ',null,\'ocr\')">החל</button>') : '⚠ לא נמצא כיתוב קנה מידה בתכנית — הקלד למטה או כייל לפי מידה ידועה'}</div>` : ''}
-    <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:6px 0;font-size:12px"><span>קנה מידה בשרטוט:</span><span style="direction:ltr;display:inline-flex;align-items:center;gap:3px;font-weight:700">1 : <input id="asRatioIn" type="number" min="1" max="5000" value="${shown || ''}" placeholder="50" style="width:64px;padding:3px 5px;margin:0;font-size:12px" onkeydown="if(event.key==='Enter')asApplyRatioField(this)"></span>
+    ${asFindLineHTML()}<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:6px 0;font-size:12px"><span>קנה מידה בשרטוט:</span><span style="direction:ltr;display:inline-flex;align-items:center;gap:3px;font-weight:700">1 : <input id="asRatioIn" type="number" min="1" max="5000" value="${shown || ''}" placeholder="50" style="width:64px;padding:3px 5px;margin:0;font-size:12px" onkeydown="if(event.key==='Enter')asApplyRatioField(this)"></span>
     ${pdfMm ? `<span class="muted">גיליון ${pdfMm} מ״מ (מה-PDF)</span>` : `<span>גיליון:</span><select id="asSheetSel" style="width:auto;padding:3px;font-size:12px" onchange="document.getElementById('asSheetMm').style.display=this.value==='0'?'':'none'">${asSheets().map(([n, mm]) => `<option value="${mm}" ${sheet === mm ? 'selected' : ''}>${n} (${mm} מ״מ)</option>`).join('')}<option value="0" ${custom ? 'selected' : ''}>אחר…</option></select><input id="asSheetMm" type="number" placeholder="רוחב מ״מ" value="${custom ? sheet : ''}" style="width:72px;padding:3px 5px;margin:0;font-size:12px;${custom ? '' : 'display:none'}">`}
     <button onclick="asApplyRatioField(this)" style="padding:4px 10px">החל</button>${srcTxt ? '<span class="muted" style="font-size:10.5px">' + srcTxt + '</span>' : ''}</div>`;
 }
-function asApplyRatioN(n, mm, src) {
+function asApplyRatioN(n, mm, src, quiet) {
   if (!(n > 0)) return;
   const r = P.autoScale || {}; if (!(mm > 0)) mm = asSheetMm();
   const pxPerM = (P.bgW || 1400) / (mm / 1000 * n);
   const r2 = { ...r, ratio: n, ratioSrc: src || 'user', sheetMm: r.pageMm ? undefined : mm, unitPerM: null, chain: null, conf: 'medium', method: 'ratio', dev: null, marks: [], note: 'לפי 1:' + n + (src === 'ocr' ? ' שנקרא מהתכנית' : '') + ' ורוחב גיליון ' + mm + ' מ״מ' + (r.pageMm ? ' (מה-PDF)' : ' — בהנחה שהתמונה היא הגיליון המלא; אם ההדפסה הותאמה לדף, אמת לפי מידה מסומנת') };
   P.calSrc = ''; asApply(r2, pxPerM, 'ratio', true);
-  uiToast((src === 'ocr' ? '📐 קנה מידה 1:' + n + ' נקרא מהתכנית והוחל' : '✓ הוחל 1:' + n) + ' — 1 מ׳ = ' + pxPerM.toFixed(1) + 'px · אמת לפי מידה בשרטוט אם אפשר', 6000);
+  if (!quiet) uiToast((src === 'ocr' ? '📐 קנה מידה 1:' + n + ' נקרא מהתכנית והוחל' : '✓ הוחל 1:' + n) + ' — 1 מ׳ = ' + pxPerM.toFixed(1) + 'px · אמת לפי מידה בשרטוט אם אפשר', 6000);
 }
 /* el = הכפתור/השדה שלחצו עליו: אותו בלוק מוצג גם בסרגל הצד וגם באשף (אותם id) — getElementById החזיר תמיד את הראשון במסמך
    (הסרגל, ריק), ולכן הקלדה באשף ענתה "הקלד קנה מידה". מחפשים בתוך הבלוק שממנו לחצו. */
+/* ===== 🔎 חיפוש קנה המידה מיד אחרי העלאת תכנית (אורי, 20.11.2026) =====
+   מה שנמצא נכנס לשדה "קנה מידה בשרטוט" עם "נמצא קנה מידה". PDF: משכבת הטקסט של הדף (מיידי), וגודל הדף ידוע — ולכן גם מוחל;
+   תמונה / PDF סרוק: OCR ממוקד בטבלת הכותרת שבשולי הגיליון (ptScaleScan, ברקע) — נכנס לשדה, וההחלה אחרי בחירת גודל הגיליון.
+   בלי ניחושים: כיתוב עם התווית (קנ"מ / SCALE) גובר; בלי תווית — רק "1:N" שעומד לבדו; כמה ערכים שונים = המשתמש בוחר. */
+const AS_FIND_LABEL = /קנ\s?["״׳']?\s?מ|קנה\s?מידה|scale|מ\s?["״׳']?\s?נק|הדימ\s?הנק/i;
+function asFindInTexts(lines, tokens) {
+  const clean = t => String(t || '').replace(/[\u200f\u200e]/g, '').replace(/[∶：]/g, ':');
+  const rx = /(?:^|[^\d.,])1\s*[:\/]\s*(\d{2,4})(?![\d.,])/, ok = n => n >= 10 && n <= 2000;
+  for (const t of lines || []) { const c = clean(t); if (!AS_FIND_LABEL.test(c)) continue; const m = rx.exec(c); if (m && ok(+m[1])) return { n: +m[1], t: c.trim().slice(0, 40) }; }
+  const cnt = new Map();
+  for (const t of tokens || []) { const m = /^\s*1\s*[:\/]\s*(\d{2,4})\s*$/.exec(clean(t)); if (m && ok(+m[1])) cnt.set(+m[1], (cnt.get(+m[1]) || 0) + 1); }
+  if (cnt.size === 1) { const n = [...cnt.keys()][0]; return { n, t: '1:' + n }; }
+  if (cnt.size > 1) return { multi: [...cnt.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]).slice(0, 5) };
+  return null;
+}
+/* הכיתובים של דף PDF: כל פריט לבדו + שורות (פריטים אופקיים באותו גובה, נחתכות ברווח גדול — תאים רחוקים בטבלה לא מתחברים) */
+async function asPdfPageTexts(pg) {
+  const tc = await pg.getTextContent();
+  const items = (tc.items || []).map(it => { const tr = it.transform || [1, 0, 0, 1, 0, 0], h = Math.hypot(tr[2], tr[3]) || 8, t = (it.str || '').trim(); return { t, x: tr[4], y: tr[5], h, w: it.width || h * 0.6 * t.length, rot: Math.atan2(tr[1], tr[0]) }; }).filter(i => i.t);
+  const hz = items.filter(i => Math.abs(i.rot) < 0.3 || Math.abs(Math.abs(i.rot) - Math.PI) < 0.3).sort((a, b) => b.y - a.y || a.x - b.x);
+  const rows = []; let cur = null;
+  for (const it of hz) { if (cur && Math.abs(cur.y - it.y) <= Math.max(2, it.h * 0.5)) cur.items.push(it); else { cur = { y: it.y, items: [it] }; rows.push(cur); } }
+  const lines = [];
+  for (const r of rows) { r.items.sort((a, b) => a.x - b.x); let seg = [r.items[0]]; for (let i = 1; i < r.items.length; i++) { const p = r.items[i - 1], q = r.items[i]; if (q.x - (p.x + p.w) > Math.max(p.h, q.h) * 8) { lines.push(seg.map(z => z.t).join(' ')); seg = [q]; } else seg.push(q); } lines.push(seg.map(z => z.t).join(' ')); }
+  return { tokens: items.map(i => i.t), lines };
+}
+function asFindRefresh() { try { render(); if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender(); } catch (e) {} }
+/* pg = דף ה-PDF שהועלה (אם יש); opts.noOcr = רק שכבת הטקסט (בתוך לולאת הדפים — ה-OCR רץ אחר כך ברקע) */
+async function asAutoFind(pg, opts) {
+  opts = opts || {};
+  const pid = P.id, sh = typeof curSheet === 'function' ? curSheet(P) : null; if (!sh || !P.bg) return null;
+  const isCur = () => !!P && P.id === pid && curSheet(P) === sh;
+  let res = null, src = '';
+  if (pg) { try { const vp = pg.getViewport({ scale: 1 }); sh.autoScale = { ...(sh.autoScale || {}), pageMm: [Math.round(vp.width / AS_PT_PER_MM), Math.round(vp.height / AS_PT_PER_MM)] }; const tx = await asPdfPageTexts(pg); res = asFindInTexts(tx.lines, tx.tokens); if (res) src = 'pdf'; } catch (e) { console.warn('asAutoFind pdf', e); } }
+  if (!res && opts.noOcr) return null;
+  if (!res && typeof ptScaleScan === 'function' && isCur()) {
+    window.__asFind = sh.id; asFindRefresh();
+    try { const o = await ptScaleScan(); if (o && o.n >= 10 && o.n <= 2000) { res = { n: o.n, t: o.t || ('1:' + o.n), weak: !!o.weak, thumb: o.thumb || null }; src = 'ocr'; } } catch (e) { console.warn('asAutoFind ocr', e); }
+    finally { if (window.__asFind === sh.id) window.__asFind = null; }
+  }
+  const r0 = sh.autoScale || {}, name = sh.name || '', where = isCur() ? '' : ' (' + name + ')';
+  if (res && res.n) {
+    sh.autoScale = { ...r0, ratio: res.n, ratioSrc: src, find: { state: 'found', n: res.n, t: res.t, src, weak: !!res.weak, thumb: res.thumb || undefined, at: Date.now() } };
+    /* מוחל אוטומטית רק כשהכיתוב נקרא כטקסט מה-PDF (מדויק) וגודל הדף ידוע. קריאת OCR נכנסת לשדה בלבד — המשתמש מאמת מול
+       התמונה המוקטנת של הכיתוב ולוחץ "החל" (OCR של שורה מעורבת עברית+ספרות טועה לפעמים, וקנה מידה שגוי הורס את כל המרחקים) */
+    const mm = r0.pageMm ? r0.pageMm[0] : null;
+    if (src === 'ocr') uiToast('📐 נמצא קנה מידה 1:' + res.n + where + ' — הוכנס לשדה הכיול. אמת מול הכיתוב בתכנית' + (mm ? '' : ', בחר גודל גיליון') + ' ולחץ ״החל״', 10000);
+    else if (mm && isCur() && P.calSrc !== 'manual') { asApplyRatioN(res.n, mm, src, true); uiToast('📐 נמצא קנה מידה 1:' + res.n + ' — הוכנס לשדה הכיול והוחל (1 מ׳ = ' + (1 / P.scale).toFixed(1) + 'px). כדאי לאמת מול מידה בשרטוט', 8000); }
+    else uiToast('📐 נמצא קנה מידה 1:' + res.n + where + ' — הוכנס לשדה הכיול. בחר גודל גיליון ולחץ ״החל״', 9000);
+  } else if (res && res.multi) {
+    sh.autoScale = { ...r0, find: { state: 'multi', list: res.multi, src, at: Date.now() } };
+    uiToast('📐 נמצאו כמה קני מידה בתכנית' + where + ' (' + res.multi.map(n => '1:' + n).join(', ') + ') — בחר את הנכון בשדה הכיול', 9000);
+  } else {
+    sh.autoScale = { ...r0, find: { state: 'none', at: Date.now() } };
+    uiToast('לא נמצא קנה מידה כתוב בתכנית' + where + ' — הקלד אותו בשדה הכיול או כייל ידנית', 6000);
+  }
+  try { save(); } catch (e) {}
+  asFindRefresh();
+  return res;
+}
+/* בחירה מתוך כמה קני מידה שנמצאו: נכנס לשדה; מוחל כשגודל הדף ידוע */
+function asFindPick(n) {
+  const r = P.autoScale || {}; if (!(n > 0)) return;
+  P.autoScale = { ...r, ratio: n, ratioSrc: (r.find && r.find.src) || 'ocr', find: { ...(r.find || {}), state: 'found', n, t: '1:' + n } };
+  if (r.pageMm) asApplyRatioN(n, r.pageMm[0], (r.find && r.find.src) || 'ocr'); else { save(); asFindRefresh(); uiToast('1:' + n + ' הוכנס לשדה הכיול — בחר גודל גיליון ולחץ ״החל״', 6000); }
+}
+/* שורת המצב שמעל שדה קנה המידה */
+function asFindLineHTML() {
+  const r = P.autoScale || {}, fd = r.find, box = 'font-size:11.5px;margin:0 0 4px;font-weight:700';
+  if (window.__asFind && window.__asFind === P.curSheet) return '<div style="' + box + ';color:#4b3fb8">🔎 מחפש קנה מידה בתכנית…</div>';
+  if (!fd) return '';
+  if (fd.state === 'found') { const applied = P.scale && r.method === 'ratio' && r.ratio === fd.n;
+    return '<div style="' + box + ';color:#0f6e56">✓ נמצא קנה מידה: <b style="direction:ltr;unicode-bidi:embed">1:' + fd.n + '</b>' + (fd.t && fd.t !== '1:' + fd.n ? ' <span class="muted" style="font-weight:400">(' + esc(String(fd.t).slice(0, 28)) + ')</span>' : '') + (applied ? ' · הוחל' : fd.src === 'ocr' ? ' <span style="color:#8a5a00;font-weight:600">· ' + (fd.weak ? 'קריאה לא ודאית — ' : '') + 'אמת ולחץ ״החל״</span>' : '') + '</div>'
+      + (fd.thumb && !applied ? '<div style="margin:0 0 5px"><img src="' + fd.thumb + '" alt="" title="כך הכיתוב נראה בתכנית — ודא שהמספר בשדה זהה" style="max-width:100%;max-height:70px;border:1px solid #c9c4b8;border-radius:5px;display:block"></div>' : ''); }
+  if (fd.state === 'multi') return '<div style="' + box + ';color:#8a5a00">נמצאו כמה קני מידה — בחר: ' + (fd.list || []).map(n => '<button style="padding:1px 8px;font-size:11px;direction:ltr" onclick="asFindPick(' + (+n) + ')">1:' + (+n) + '</button>').join(' ') + '</div>';
+  if (fd.state === 'none') return '<div style="font-size:11px;margin:0 0 4px;color:#8a5a00">לא נמצא קנה מידה כתוב בתכנית — הקלד אותו או כייל ידנית</div>';
+  return '';
+}
+window.asAutoFind = asAutoFind; window.asFindPick = asFindPick; window.asFindInTexts = asFindInTexts;
 function asApplyRatioField(el) {
   const box = el && el.closest ? el.closest('div') : null;
   const byId = id => (box && box.querySelector('#' + id)) || document.getElementById(id);

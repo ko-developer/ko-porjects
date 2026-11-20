@@ -2709,9 +2709,12 @@ function uploadBg(inp, onDone) {
         render();
         setTimeout(resetView100, 100); /* פתיחה ב-100% זום */
         /* קנה מידה מהטקסט של ה-PDF — בלי AI; רץ לפני ההמשך כדי שהאשף יראה את התוצאה */
-        /* זיהוי קנה מידה אוטומטי בוטל (אורי, 10/2026) — כיול דרך שדה 1:N או ידנית */
+        /* 🔎 קנה המידה מהכיתוב שבדף (אורי, 20.11.2026): נכנס לשדה הכיול עם "נמצא קנה מידה" — כאן רק שכבת הטקסט (מיידי) */
+        if (!keepLayout && typeof asAutoFind === 'function') { try { await asAutoFind(pg, { noOcr: true }); } catch (e) { console.warn('asAutoFind', e); } }
         }
         if (pages.length > 1) { sheetGo(firstSheet); uiToast('📑 נטענו ' + pages.length + ' דפים — כל דף כתכנית משלו (לשוניות מעל התכנית)', 7000); }
+        /* PDF בלי כיתוב קנה מידה בשכבת הטקסט (סרוק) — OCR של טבלת הכותרת ברקע, לתכנית שעל המסך */
+        if (!keepLayout && typeof asAutoFind === 'function' && !((P.autoScale || {}).find)) asAutoFind(null).catch(e => console.warn('asAutoFind', e));
         if (onDone) onDone();
         if (!keepLayout && typeof fxAfterUpload === 'function') fxAfterUpload();
       } catch (err) { alert('קריאת ה-PDF נכשלה (נדרש אינטרנט לטעינת הספרייה): ' + err.message); }
@@ -2736,7 +2739,8 @@ function uploadBg(inp, onDone) {
     if (onDone) onDone();
     if (!keepLayout && typeof fxAfterUpload === 'function') fxAfterUpload();   /* תאורה: תכנית תקרה או חזית? */
     /* OCR מקומי ברקע — התוצאה נכנסת כשמוכנה */
-    /* OCR אוטומטי לקנה מידה בוטל (אורי, 10/2026) */
+    /* 🔎 חיפוש קנה המידה בטבלת הכותרת (OCR מקומי ברקע) — נכנס לשדה הכיול עם "נמצא קנה מידה" (אורי, 20.11.2026) */
+    if (!keepLayout && typeof asAutoFind === 'function') asAutoFind(null).catch(e => console.warn('asAutoFind', e));
   };
   img.src = URL.createObjectURL(file);
 }

@@ -118,19 +118,44 @@ async function ptScaleScan(onStep) {
     const rc = document.createElement('canvas'); rc.width = ch; rc.height = cw; const g = rc.getContext('2d'); g.translate(rc.width / 2, rc.height / 2); g.rotate(rot); g.drawImage(c0, -cw / 2, -ch / 2); return rc;
   };
   /* "1:20" בדיוק — תבנית ספציפית מספיק כדי לקבל גם ביטחון נמוך (פונט מתאר דק נקרא ב-30%); כיתוב ארוך יותר דורש ביטחון סביר */
-  const consider = (t, c, where) => { const s2 = norm(t).trim(); const exact = /^1\s*[:\/]\s*\d{1,4}$/.test(s2); if (c < (exact ? 15 : 35)) return; const m = rx.exec(s2); if (!m) return; const n = +m[1]; if (!(n >= 5 && n <= 2000)) return; const score = (nice.includes(n) ? 100 : 0) + (exact ? 40 : 0) + c; if (!best || score > best.score) best = { n, t: s2, c: Math.round(c), where, score }; };
-  const good = () => best && best.score >= 140;
+  /* "1:20" בדיוק — תבנית ספציפית מספיק כדי לקבל גם ביטחון נמוך (פונט מתאר דק נקרא ב-30%); כיתוב ארוך יותר דורש ביטחון סביר.
+     box = מיקום הכיתוב בתמונת המקור (לתמונה המוקטנת שמוצגת לאימות); weak = מספר ליד התווית שלא נקרא איתו "1:" */
+  const consider = (t, c, where, box, weak) => { const s2 = norm(t).trim(); const exact = /^1\s*[:\/]\s*\d{1,4}$/.test(s2); if (c < (exact ? 15 : 35)) return; const m = rx.exec(s2); if (!m) return; const n = +m[1]; if (!(n >= 5 && n <= 2000)) return; const score = (nice.includes(n) ? 100 : 0) + (exact ? 40 : 0) + c - (weak ? 60 : 0); if (!best || score > best.score) best = { n, t: s2, c: Math.round(c), where, score, box: box || null, weak: !!weak }; };
+  const good = () => best && !best.weak && best.score >= 140;
+  let psm = '6';
+  /* קריאה חוזרת של תא התווית בספרות בלבד: בשורה מעורבת עברית+ספרות ("קנ"מ: 1:180") טסרקט מפיל את "1:1" ומחזיר "80" בביטחון גבוה —
+     כאן המילים שאינן מספר נמחקות מהתמונה והאזור נקרא שוב עם רשימת תווים 0-9 : / בלבד */
+  const reread = async (cvs, x0, y0, x1, y1, words) => {
+    x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(cvs.width, Math.ceil(x1)); y1 = Math.min(cvs.height, Math.ceil(y1));
+    const w = x1 - x0, h = y1 - y0; if (w < 8 || h < 8) return '';
+    const z = Math.max(1, Math.min(3, 60 / Math.max(8, h)));   /* שורה בגובה ~60px */
+    const c1 = document.createElement('canvas'); c1.width = Math.round(w * z) + 20; c1.height = Math.round(h * z) + 20; const g1 = c1.getContext('2d');
+    g1.fillStyle = '#fff'; g1.fillRect(0, 0, c1.width, c1.height); g1.imageSmoothingQuality = 'high'; g1.drawImage(cvs, x0, y0, w, h, 10, 10, w * z, h * z);
+    for (const wd of words) { if (/\d/.test(wd.text || '')) continue; const b2 = wd.bbox; if (b2.x1 < x0 || b2.x0 > x1 || b2.y1 < y0 || b2.y0 > y1) continue; g1.fillRect(10 + (b2.x0 - x0) * z - 1, 10 + (b2.y0 - y0) * z - 1, (b2.x1 - b2.x0) * z + 2, (b2.y1 - b2.y0) * z + 2); }
+    try { await worker.setParameters({ tessedit_char_whitelist: '0123456789:/', tessedit_pageseg_mode: '7' }); const r2 = await worker.recognize(c1); return norm(r2.data.text || '').replace(/\s+/g, ''); }
+    catch (e) { return ''; }
+    finally { await worker.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: psm }); }
+  };
   const pass = async (where, sx, sy, sw, sh, k, thr, rot) => {
-    const res = await worker.recognize(crop(sx, sy, sw, sh, k, thr, rot)), words = res.data.words || [];
-    words.forEach(w => consider(w.text, w.confidence, where));
-    for (let i = 0; i + 1 < words.length; i++) { const a = words[i], b = words[i + 1]; if (Math.abs(a.bbox.y0 - b.bbox.y0) < (a.bbox.y1 - a.bbox.y0) && b.bbox.x0 - a.bbox.x1 < (a.bbox.y1 - a.bbox.y0) * 2) consider(a.text + b.text, Math.min(a.confidence, b.confidence), where); }
-    /* תווית "קנ"מ" / SCALE: מספר מתחתיה או לידה (אותו תא בטבלת הכותרת) הוא ה-N גם בלי "1:" */
-    words.filter(w => LABEL.test(w.text || '')).forEach(lb => {
+    const cvs = crop(sx, sy, sw, sh, k, thr, rot);
+    const res = await worker.recognize(cvs), words = res.data.words || [];
+    /* מיקום בתמונת המקור — רק ברצועה לא מסובבת */
+    const boxOf = (...ws) => rot ? null : { x: sx + Math.min(...ws.map(w => w.bbox.x0)) / k, y: sy + Math.min(...ws.map(w => w.bbox.y0)) / k, x2: sx + Math.max(...ws.map(w => w.bbox.x1)) / k, y2: sy + Math.max(...ws.map(w => w.bbox.y1)) / k };
+    words.forEach(w => consider(w.text, w.confidence, where, boxOf(w)));
+    for (let i = 0; i + 1 < words.length; i++) { const a = words[i], b = words[i + 1]; if (Math.abs(a.bbox.y0 - b.bbox.y0) < (a.bbox.y1 - a.bbox.y0) && b.bbox.x0 - a.bbox.x1 < (a.bbox.y1 - a.bbox.y0) * 2) consider(a.text + b.text, Math.min(a.confidence, b.confidence), where, boxOf(a, b)); }
+    /* תווית "קנ"מ" / SCALE: מספר מתחתיה או לידה (אותו תא בטבלת הכותרת) הוא ה-N גם בלי "1:" — אחרי אימות בקריאת ספרות בלבד */
+    for (const lb of words.filter(w => LABEL.test(w.text || ''))) {
       const h = Math.max(8, lb.bbox.y1 - lb.bbox.y0), cx = (lb.bbox.x0 + lb.bbox.x1) / 2, cy = (lb.bbox.y0 + lb.bbox.y1) / 2;
-      words.forEach(w => { if (w === lb) return; const m = /^(?:1\s*[:\/]\s*)?(\d{2,4})$/.exec(norm(w.text).trim()); if (!m) return;
+      for (const w of words) { if (w === lb) continue; const m = /^(?:1\s*[:\/]\s*)?(\d{2,4})$/.exec(norm(w.text).trim()); if (!m) continue;
         const wx = (w.bbox.x0 + w.bbox.x1) / 2, wy = (w.bbox.y0 + w.bbox.y1) / 2;
-        if (Math.abs(wx - cx) < h * 6 && wy - cy > -h && wy - cy < h * 3.5) consider('1:' + m[1], Math.max(w.confidence, 20) + 15, where); });
-    });
+        if (!(Math.abs(wx - cx) < h * 6 && wy - cy > -h && wy - cy < h * 3.5)) continue;
+        const explicit = /^1\s*[:\/]/.test(norm(w.text).trim());
+        /* אותה שורה כמו המספר, מורחבת לצדדים — שם נמצא ה-"1:" שנשמט */
+        const dg = await reread(cvs, Math.min(w.bbox.x0, lb.bbox.x0) - h * 5, w.bbox.y0 - h * 0.35, Math.max(w.bbox.x1, lb.bbox.x1) + h * 5, w.bbox.y1 + h * 0.35, words);
+        const m2 = /(?:^|[^\d])1[:\/](\d{2,4})(?!\d)/.exec(dg);
+        if (m2 && +m2[1] >= 10 && +m2[1] <= 2000) consider('1:' + m2[1], Math.max(w.confidence, 20) + 15, where, boxOf(lb, w));
+        else consider('1:' + m[1], Math.max(w.confidence, 20) + 15, where, boxOf(lb, w), !explicit); }
+    }
   };
   try {
     await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '6' });
@@ -140,9 +165,12 @@ async function ptScaleScan(onStep) {
       if (!good() && (where === 'right' || where === 'left')) for (const rot of [Math.PI / 2, -Math.PI / 2]) { await pass(where, sx, sy, sw, sh, scales[0], 200, rot); if (good()) break; }
       if (good()) break;
     }
-    if (!best) { await worker.setParameters({ tessedit_pageseg_mode: '11' }); for (const [where, sx, sy, sw, sh] of strips) { await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (best) break; } }
+    if (!best) { psm = '11'; await worker.setParameters({ tessedit_pageseg_mode: '11' }); for (const [where, sx, sy, sw, sh] of strips) { await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (best) break; } }
   } finally { await worker.terminate(); }
-  return best ? { n: best.n, t: best.t, where: best.where, c: best.c } : null;
+  /* תמונה מוקטנת של המקום שבו נקרא הכיתוב — המשתמש רואה את הכיתוב המקורי ליד הערך שנכנס לשדה */
+  let thumb = null;
+  if (best && best.box) { try { const bx = best.box, ph = Math.max(10, (bx.y2 - bx.y) * 1.2), pw = Math.max(40, (bx.x2 - bx.x) * 0.6); const x0 = Math.max(0, bx.x - pw), y0 = Math.max(0, bx.y - ph), x1 = Math.min(W, bx.x2 + pw), y1 = Math.min(H, bx.y2 + ph); const z = Math.min(3, 300 / Math.max(1, x1 - x0)); const tc = document.createElement('canvas'); tc.width = Math.round((x1 - x0) * z); tc.height = Math.round((y1 - y0) * z); const tg = tc.getContext('2d'); tg.imageSmoothingQuality = 'high'; tg.drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, tc.width, tc.height); thumb = tc.toDataURL('image/jpeg', 0.7); } catch (e) {} }
+  return best ? { n: best.n, t: best.t, where: best.where, c: best.c, weak: !!best.weak, thumb } : null;
 }
 window.ptScaleScan = ptScaleScan;
 /* תמונת הרקע מוגדלת (עד ~3600px) ומחודדת לשחור-לבן — כמו בזיהוי קנה המידה */
