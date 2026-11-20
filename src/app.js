@@ -10662,7 +10662,7 @@ function renderPanel() {
       <div class="fld"><label>שם האזור הבא</label><input value="${esc(zoneNameNext)}" placeholder="למשל: חדר פרטי / רחבה / חוץ" oninput="zoneNameNext=this.value"></div>
       <button style="width:100%;margin-bottom:6px;${zoneMode ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="zoneMode={poly:[]};render()">${zoneMode ? 'נקר נקודות סביב האזור · לחיצה על הנקודה הראשונה סוגרת (Esc לביטול)' : '➕ סמן אזור — ניקור נקודות'}</button>
       <button style="width:100%;margin-bottom:3px" ${window.__azBusy ? 'disabled' : ''} onclick="autoZones()" title="מקומי, בלי AI ובלי טוקנים: קורא את הכיתובים, מוצא חדרים בין הקירות, משמיט מטבח/מחסן/שירותים">${window.__azBusy ? '⏳ מזהה אזורים…' : '🧩 סמן לי אזורים אוטומטית'}</button>
-      <button style="width:100%;margin-bottom:6px;font-size:11px;padding:3px;background:none;border:none;color:#777;text-decoration:underline;cursor:pointer" ${window.__azBusy ? 'disabled' : ''} onclick="autoZonesAI()" title="שולח את התכנית ל-Claude${(store.zoneExamples || []).length ? ' יחד עם ' + store.zoneExamples.length + ' דוגמאות הלימוד שלך' : ''} — צורך טוקנים, עד דקה-שתיים">או: זיהוי בעזרת AI בתשלום (צורך טוקנים)</button>
+      <button style="width:100%;margin-bottom:6px;font-size:11px;padding:3px;background:none;border:none;color:#777;text-decoration:underline;cursor:pointer" ${window.__azBusy ? 'disabled' : ''} onclick="autoZonesAI()" title="שולח את התכנית ל-Claude${(store.zoneExamples || []).length ? ' יחד עם ' + store.zoneExamples.length + ' דוגמאות הלימוד שלך' : ''} — צורך טוקנים, עד דקה-שתיים">או: זיהוי בעזרת AI בתשלום (צורך טוקנים)</button>${zwSkippedHTML()}<span></span>
       ${(P.zones || []).length ? `<button style="width:100%;margin-bottom:6px;background:#f1efff" onclick="zoneExampleSave()" title="החלוקה שסימנת בתכנית הזאת תישלח כדוגמה בכל זיהוי אוטומטי — ככה מלמדים את התכנה">📚 שמור את החלוקה שלי כדוגמת לימוד${(store.zoneExamples || []).some(e => e.pid === P.id) ? ' ✓' : ''}</button>` : ''}` +
       `<div style="display:flex;gap:6px;margin-bottom:6px">${(P.zones || []).length ? `<button style="flex:1;background:#fff4e0;border-color:#d49a2a" onclick="ztSave()" title="החלוקה שעל המסך נשמרת כאמת: הזיהוי האוטומטי נמדד מולה במסך האימון">🎓 שמור כחלוקה נכונה לאימון${(store.zoneTrain || []).some(e => e.pid === P.id && e.sid === P.curSheet) ? ' ✓' : ''}</button>` : ''}<button style="flex:1" onclick="zoneTrainOpen()">🎓 מסך אימון (${(store.zoneTrain || []).length})</button></div>` +
       `<button style="width:100%;margin-bottom:6px;${window.__roomFill ? 'background:#ff8a00;color:#fff;font-weight:700' : 'background:#efecfd'}" onclick="roomFillMode()">${window.__roomFill ? '🪄 לחץ בתוך חדר… (כאן = סיום · Shift+גרירה = קיר וירטואלי)' : '🪄 אזור בלחיצה בתוך החדר — מתמלא עד הקירות'}</button>` +
@@ -16786,11 +16786,18 @@ async function autoZones() {
     if (!(P.planText && P.planText.at) && typeof planTextScan === 'function') { try { await planTextScan({ noScale: true }); } catch (e) { console.warn('autoZones scan', e); } }
     let fresh = [], info = null;
     if (typeof zonesByWalls === 'function') { info = await zonesByWalls(); if (info && info.zones.length) { P.zones = [...(P.zones || []), ...info.zones]; fresh = info.zones; } }
-    if (!fresh.length && typeof ptPartition === 'function') { await ptPartition(); fresh = (P.zones || []).filter(z => !before.has(z.id)); }
-    if (!fresh.length && typeof ptMakeZones === 'function' && ((P.planText || {}).items || []).some(i => i.cat === 'audience')) { await ptMakeZones(); fresh = (P.zones || []).filter(z => !before.has(z.id)); }
+    const skippedList = info && info.skippedList ? info.skippedList.slice() : [];
+    let fellBack = false;
+    if (!fresh.length && typeof ptPartition === 'function') { await ptPartition(); fresh = (P.zones || []).filter(z => !before.has(z.id)); fellBack = true; }
+    if (!fresh.length && typeof ptMakeZones === 'function' && ((P.planText || {}).items || []).some(i => i.cat === 'audience')) { await ptMakeZones(); fresh = (P.zones || []).filter(z => !before.has(z.id)); fellBack = true; }
+    /* גם תוצאות המנוע הישן עוברות את בדיקת הרלוונטיות (נייר ריק מחוץ למבנה, טבלת כותרת, מטבח…) */
+    if (fellBack && fresh.length && typeof zoneRelevance === 'function') { const kept = [];
+      for (const z of fresh) { const m2 = Math.round(zoneArea(z) * P.scale * P.scale); let r = { ok: true }; try { r = await zoneRelevance(z, m2); } catch (e) {} if (r.ok) kept.push(z); else { const b0 = zoneBounds(z); skippedList.push({ name: r.name || z.name || '', why: r.why, m2, pt: { x: b0.L + b0.W / 2, y: b0.T + b0.H / 2 }, labels: r.labels }); } }
+      P.zones = (P.zones || []).filter(z => !fresh.includes(z) || kept.includes(z)); fresh = kept; }
+    window.__zwSkipped = { pid: P.id, sheet: P.curSheet, list: skippedList.slice(0, 12) };
     if (fresh.length && typeof zoneLearnApply === 'function') { try { fresh = await zoneLearnApply(fresh); } catch (e) {} }
-    if (fresh.length) { selZone = fresh[0].id; uiToast('🧩 נמצאו ' + fresh.length + ' אזורים: ' + fresh.slice(0, 5).map(z => z.name + (z._m2 ? ' (' + z._m2 + ' מ״ר)' : '')).join(' · ') + (info && info.skipped.ops ? ' · ' + info.skipped.ops + ' חללי שירות/תפעול הושמטו' : '') + ' — לחץ על אזור לעריכה או מחיקה', 11000); }
-    else uiToast('לא נמצאו אזורים אוטומטית — סמן בלחיצה בתוך חדר או בניקור נקודות', 8000);
+    if (fresh.length) { selZone = fresh[0].id; uiToast('🧩 נמצאו ' + fresh.length + ' אזורים: ' + fresh.slice(0, 5).map(z => z.name + (z._m2 ? ' (' + z._m2 + ' מ״ר)' : '')).join(' · ') + (skippedList.length ? ' · ' + skippedList.length + ' חללים לא סומנו כי אינם רלוונטיים לסאונד (הרשימה והסיבות מתחת לכפתור)' : '') + ' — לחץ על אזור לעריכה או מחיקה', 11000); }
+    else uiToast('לא נמצאו אזורים אוטומטית' + (skippedList.length ? ' (' + skippedList.length + ' חללים נפסלו כלא רלוונטיים — הרשימה מתחת לכפתור)' : '') + ' — סמן בלחיצה בתוך חדר או בניקור נקודות', 8000);
     fresh.forEach(z => { delete z._m2; });
     save();
   } catch (err) { console.warn('autoZones', err); uiToast('זיהוי האזורים נכשל: ' + err.message, 8000); }
@@ -18366,7 +18373,22 @@ function setWall(zid, side, key, val) {
   render(); save();
 }
 function wallHard(mat) { return /בטון|בלוק|זכוכית/.test(mat || ''); }
+/* מה שלא סומן אוטומטית ולמה — עם "הוסף בכל זאת" (שגם מלמד: הכיתוב הזה כן אזור השמעה) */
+function zwSkippedHTML() {
+  const S = window.__zwSkipped; if (!S || S.pid !== P.id || S.sheet !== P.curSheet || !S.list.length) return '';
+  return '<div style="font-size:11px;line-height:1.55;color:#6b655b;background:#f7f5f0;border-radius:8px;padding:6px 8px;margin:0 0 6px"><b>🚫 לא סומנו כי אינם רלוונטיים לסאונד:</b>' + S.list.map((x, i) => '<div>' + (x.name ? '<b>' + esc(x.name) + '</b> · ' : '') + esc(x.why) + (x.m2 ? ' · ' + x.m2 + ' מ״ר' : '') + ' <a href="#" onclick="zwAddSkipped(' + i + ');return false" style="color:#4b3fb8;font-weight:700">הוסף בכל זאת</a></div>').join('') + '<a href="#" onclick="window.__zwSkipped=null;render();return false" style="color:#999">הסתר</a></div>';
+}
+async function zwAddSkipped(i) {
+  const S = window.__zwSkipped, x = S && S.list[i]; if (!x) return;
+  if (typeof zoneRelMark === 'function' && x.labels && x.labels.length) zoneRelMark(x.labels, 2);
+  S.list.splice(i, 1);
+  if (typeof zoneFillAt === 'function') await zoneFillAt(x.pt); else render();
+  uiToast('נוסף כאזור' + (x.labels && x.labels.length ? ' — בפעם הבאה חלל עם הכיתוב הזה יסומן' : ''), 5000);
+}
+window.zwAddSkipped = zwAddSkipped;
 function delZone(id) {
+  /* מחיקת אזור שסומן אוטומטית ושמו כיתוב מהתכנית = "הכיתוב הזה אינו אזור השמעה" (אחרי 3 פעמים הוא לא יסומן יותר; "הוסף בכל זאת" מבטל) */
+  { const z0 = (P.zones || []).find(z => z.id === id); if (z0 && (z0.auto || z0.fromText) && z0.name && !/^(אזור|חלל)\s*\d*$/.test(String(z0.name).trim()) && typeof zoneRelMark === 'function') zoneRelMark([z0.name], -1); }
   P.zones = (P.zones || []).filter(z => z.id !== id);
   if (selZone === id) selZone = null;
   render(); ztEdited();

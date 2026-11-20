@@ -18,10 +18,10 @@ var PT_CATS = {
 /* מילון סיווג — מילה/ביטוי (אנגלית + עברית) → קטגוריה; הראשון שמתאים מנצח, הספציפי לפני הכללי */
 var PT_DICT = [
   ['level', /^[+\-±]\s?\d+[.,]\d{2,3}\b|\bFFL\b|\bSFL\b|\bLEVEL\b|\bLVL\b|\bFLOOR\s?\d|\bEL\.?\s?[+\-]?\d|\bRL\b|\bTOS\b|\bTOC\b|מפלס|קומה|גובה|ריצוף/i],
-  ['service', /\bW\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|\bMEN\b|\bWOMEN\b|\bLADIES\b|\bGENTS\b|ACCESSIBLE|\bELEC\b|ELECTRIC|\bMEP\b|\bHVAC\b|\bAHU\b|\bSERVER\b|\bCOMMS\b|\bIT\s?ROOM\b|\bRACK\b|\bPLANT\b|MECHANICAL|UTILITY|\bFIRE\b|\bRISER\b|\bSHAFT\b|ELEVATOR|\bLIFT\b|\bSTAIR|JANITOR|\bCLEAN|\bDUCT\b|\bPUMP\b|\bGAS\b|\bWATER\b|שירותים|חשמל|טכני|מעלית|מדרגות|תקשורת|ניקיון|מיזוג|כיבוי|מים|גז/i],
+  ['service', /\bW\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|\bMEN\b|\bWOMEN\b|\bLADIES\b|\bGENTS\b|ACCESSIBLE|\bELEC\b|ELECTRIC|\bMEP\b|\bHVAC\b|\bAHU\b|\bSERVER\b|\bCOMMS\b|\bIT\s?ROOM\b|\bRACK\b|\bPLANT\b|MECHANICAL|UTILITY|\bFIRE\b|\bRISER\b|\bSHAFT\b|ELEVATOR|\bLIFT\b|\bSTAIR|JANITOR|\bCLEAN|\bDUCT\b|\bPUMP\b|\bGAS\b|\bWATER\b|שירותים|חשמל|טכני|מעלית|מדרגות|תקשורת|ניקיון|מיזוג|כיבוי|מים|גז|ממ"?ד|מקלט|מכונות|גנרטור|משאבות|חני+ה|נכים|מקלחות/i],
   ['passage', /ENTRANCE|\bENTRY\b|VESTIBULE|\bEXIT\b|CORRIDOR|HALLWAY|PASSAGE|\bכניסה\b|מבואה|יציאה|מסדרון/i],   /* כניסה / מסדרון — מעבר, לא אזור השמעה; לא מרעיל שכנים כמו מטבח */
-  ['ops', /KITCHEN|\bPREP\b|BACK\s?OF\s?HOUSE|\bBOH\b|\bSTAFF\b|OFFICE|STORAGE|\bSTORE\b|\bDISH|\bWASH\b|LOADING|RECEIVING|DELIVER|WORKSHOP|\bCASH\b|MANAGER|\bKIOSK\b|CONCESSION|CONSESSION|PANTRY|\bCOLD\b|FREEZER|LOCKER|SECURITY|\bBACK\b|מטבח|מחסן|משרד|צוות|אחסון|הכנה|פריקה|קבלת|קופה|מנהל|קיוסק|דוכן|מלתחה|אבטחה/i],
-  ['audience', /DANCE|\bSTAGE\b|\bBAR\b|LOUNGE|DINING|REST\s?AURANT|GENERAL\s?AREA|\bVIP\b|TERRACE|PATIO|GARDEN|OUTDOOR|\bLOBBY\b|RECEPTION|SEATING|\bHALL\b|\bCLUB\b|\bCAFE\b|\bGYM\b|STUDIO|\bPOOL\b|\bROOF|BALCONY|FOOD\s?COURT|\bAREA\b|\bZONE\b|\bROOM\b|WAITING|FOYER|\bDECK\b|\bSPA\b|\bSHOP\b|RETAIL|רחבה|במה|\bבר\b|מסעדה|אולם|לובי|מרפסת|חוץ|ישיבה|חדר כושר|סטודיו|בריכה|גן|טרקלין|אזור|חלל|קבלה|חנות/i],
+  ['ops', /KITCHEN|\bPREP\b|BACK\s?OF\s?HOUSE|\bBOH\b|\bSTAFF\b|OFFICE|STORAGE|\bSTORE\b|\bDISH|\bWASH\b|LOADING|RECEIVING|DELIVER|WORKSHOP|\bCASH\b|MANAGER|\bKIOSK\b|CONCESSION|CONSESSION|PANTRY|\bCOLD\b|FREEZER|LOCKER|SECURITY|\bBACK\b|מטבח|מחסן|משרד|צוות|אחסון|הכנה|פריקה|קבלת|קופה|מנהל|קיוסק|דוכן|מלתחה|אבטחה|שטיפה|קירור|מקפיא|קצביה|יבשים|הנהלה|עובדים|אשפה/i],
+  ['audience', /DANCE|\bSTAGE\b|\bBAR\b|LOUNGE|DINING|REST\s?AURANT|GENERAL\s?AREA|\bVIP\b|TERRACE|PATIO|GARDEN|OUTDOOR|\bLOBBY\b|RECEPTION|SEATING|\bHALL\b|\bCLUB\b|\bCAFE\b|\bGYM\b|STUDIO|\bPOOL\b|\bROOF|BALCONY|FOOD\s?COURT|\bAREA\b|\bZONE\b|\bROOM\b|WAITING|FOYER|\bDECK\b|\bSPA\b|\bSHOP\b|RETAIL|רחבה|במה|\bבר\b|מסעדה|אולם|לובי|מרפסת|חוץ|ישיבה|חדר כושר|סטודיו|בריכה|גן|טרקלין|אזור|חלל|קבלה|חנות|מועדון|אירועים|קהל|חצר|גינה|ספא|כיתה|חדר ישיבות|תצוגה|המתנה|חדר אוכל|סלון|פאטיו|אטריום|לאונג|טרסה/i],
   ['furniture', /\bTABLE|\bCHAIR|\bSOFA|\bBOOTH|COUNTER|\bSTOOL|\bBENCH|\bDESK\b|\bSHELF|\bSHELV|\bBED\b|\bISLAND\b|CABINET|\bTV\b|SCREEN|PLANTER|\bSEAT\b|שולחן|כיסא|ספה|דלפק|מדף|ארון|מיטה|מסך/i],
 ];
 function ptClassify(t) {
@@ -1346,6 +1346,14 @@ async function zoneFillCore(pt) {
   const { reg, n, edge, gap } = best;
   /* חזרה עד הקירות: הרחבה ברדיוס הפתח, רק על פיקסלים שאינם קיר */
   const grown = rfBox(reg, w, h, gap, true); for (let i = 0; i < w * h; i++) if (walls[i]) grown[i] = 0;
+  /* ניקוי זליגות צרות דרך פתחים ("שן" לתוך תא שירותים / חדר שכן): פתיחה מורפולוגית ברדיוס ~0.45 מ׳, ונשאר הרכיב שמחובר לנקודת הלחיצה.
+     חל רק כשרוב החדר שורד (≥ 60%) — חדר שהוא באמת צר נשאר כמו שהוא */
+  { const ro = Math.max(2, Math.round(0.45 * R.pxPerM)), op = rfBox(rfBox(grown, w, h, ro, false), w, h, ro, true);
+    let s0 = -1; for (let r = 0; r <= ro * 3 && s0 < 0; r++) for (let dy = -r; dy <= r && s0 < 0; dy++) for (let dx = -r; dx <= r; dx++) { const x = sx + dx, y = sy + dy; if (x >= 0 && y >= 0 && x < w && y < h && op[y * w + x] && grown[y * w + x]) { s0 = y * w + x; break; } }
+    if (s0 >= 0) { const keep = new Uint8Array(w * h), q2 = new Int32Array(w * h); let a = 0, b = 0, nk = 0, ng = 0; keep[s0] = 1; q2[b++] = s0;
+      while (a < b) { const i = q2[a++], x = i % w, y = (i - x) / w; nk++; for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && !keep[j] && op[j] && grown[j]) { keep[j] = 1; q2[b++] = j; } }
+      for (let i = 0; i < w * h; i++) if (grown[i]) ng++;
+      if (nk >= 0.6 * ng) for (let i = 0; i < w * h; i++) grown[i] = keep[i]; } }
   /* הרכיב המחובר לנקודה בלבד (ההרחבה יכולה לדלוף דרך פתח לחדר השכן) — מוגבל לתחום המקורי + gap */
   let x0 = w, y0 = h, x1 = 0, y1 = 0, cnt = 0;
   for (let i = 0; i < w * h; i++) if (grown[i]) { const x = i % w, y = (i - x) / w; cnt++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
@@ -1367,17 +1375,133 @@ async function zoneFillCore(pt) {
 var ZW_OPS = /טבח|הכנות|קירור|מקפיא|שטיפ|קצבי|מחסן|יבשים|אחסון|משרד|צוות|kitchen|storage|store\b|office|freezer|prep\b/i;
 var ZW_JUNK = /^[\d\s.,=+\-:×xXH"'°]+$|^H\s?=|קורת|קורה|בטון|ידית|בהלה|אקוסטי|תאריך|מקרא|הערות|תכנו[ןו]|גיליון|גליון|פורמט|קנ.?מ|עיון|ביצוע|ספסל|^מר$|^מ"ר$|sqm|air\/c/i;
 /* i18n-ignore-end */
+/* "חוץ": מה שמגיע לשולי התמונה כשפתחים עד ~1.5 מ׳ סגורים (קירות מעובים ב-0.75 מ׳). נשמר על ROOMFILL */
+async function zwOutMask() {
+  const R = await rfWalls(), { w, h } = R;
+  if (!R.out) { const bar = rfBarrier(R, 0.75).barrier, out = new Uint8Array(w * h), q = new Int32Array(w * h); let qh = 0, qt = 0;
+    const push = i => { if (!out[i] && !bar[i]) { out[i] = 1; q[qt++] = i; } };
+    for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); } for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+    while (qh < qt) { const i = q[qh++], x = i % w, y = (i - x) / w; if (x > 0) push(i - 1); if (x < w - 1) push(i + 1); if (y > 0) push(i - w); if (y < h - 1) push(i + w); }
+    R.out = out; }
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
+  const isOut = pt => { const x = Math.round((pt.x - L) / W * w), y = Math.round((pt.y - T) / H * h); return x < 1 || y < 1 || x >= w - 1 || y >= h - 1 || !!R.out[y * w + x]; };
+  return { R, isOut };
+}
+/* ===== 🚻 תאי שירותים לפי הצורה (בלי כיתוב) =====
+   שורת תאים = לפחות 4 מחיצות דקות מקבילות, כל אחת 1–2.2 מ׳, במרווח אחיד של 0.7–1.2 מ׳ וזו מול זו. מדרגות (מרווח ~0.3 מ׳), מדפים,
+   שולחנות וספסלים לא עונים על זה. נבדק על "נחלת בנימין": נמצאו שתי שורות התאים ושום דבר אחר. מחזיר גושים (מלבנים בפיקסלי ROOMFILL),
+   מורחבים עד קו הקיר הקרוב בכל צד (עד 3 מ׳) — כך הגוש כולל גם את אזור הכיורים שלפני התאים. תכנית מסובבת (לא מיושרת לצירים) → לא נמצא כלום. */
+async function zwWcBlocks() {
+  const R = await rfWalls(); if (R.wc) return R.wc;
+  const { w, h, pxPerM } = R; R.wc = [];
+  if (pxPerM < 20) return R.wc;   /* תכנית רחבה מ-~80 מ׳: מחיצת תא היא כמה פיקסלים בודדים — לא מספיק כדי לזהות בביטחון */
+  try {
+    const im = await new Promise((res, rej) => { const i2 = new Image(); i2.onload = () => res(i2); i2.onerror = rej; i2.src = P.bg; });
+    const c2 = document.createElement('canvas'); c2.width = w; c2.height = h; const g2 = c2.getContext('2d'); g2.fillStyle = '#fff'; g2.fillRect(0, 0, w, h); g2.drawImage(im, 0, 0, w, h);
+    const px = g2.getImageData(0, 0, w, h).data, dark = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) dark[i] = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2] < 200 ? 1 : 0;
+    const minL = Math.round(1.0 * pxPerM), maxL = Math.round(2.2 * pxPerM), maxT = Math.max(3, Math.round(0.16 * pxPerM));
+    const segs = horiz => { const A = horiz ? w : h, B = horiz ? h : w, at = (a, b) => horiz ? dark[b * w + a] : dark[a * w + b], raw = [];
+      for (let b = 0; b < B; b++) { let run = 0, gap = 0, start = 0; for (let a = 0; a <= A; a++) { const v = a < A ? at(a, b) : 0; if (v) { if (!run) start = a; run += 1 + gap; gap = 0; } else if (run && gap < 2 && a < A) gap++; else { if (run >= minL && run <= maxL) raw.push({ b, a0: start, a1: start + run }); run = 0; gap = 0; } } }
+      if (raw.length > 40000) return [];   /* תכנית מלאה בקווקווים — לא מנסים */
+      /* איחוד לעובי הקו: לכל קטע מחפשים המשך רק בשורה הבאה (אינדקס לפי שורה — ליניארי) */
+      const byRow = new Map(); for (const r of raw) { let l = byRow.get(r.b); if (!l) byRow.set(r.b, l = []); l.push(r); }
+      const out = [];
+      for (const r0 of raw) { if (r0.used) continue; const sg = { b: r0.b, b1: r0.b, a0: r0.a0, a1: r0.a1 }; r0.used = true;
+        for (;;) { const nx = (byRow.get(sg.b1 + 1) || []).find(r => !r.used && Math.min(r.a1, sg.a1) - Math.max(r.a0, sg.a0) > 0.8 * Math.min(r.a1 - r.a0, sg.a1 - sg.a0)); if (!nx) break; nx.used = true; sg.b1 = nx.b; sg.a0 = Math.min(sg.a0, nx.a0); sg.a1 = Math.max(sg.a1, nx.a1); if (sg.b1 - sg.b > maxT) break; }
+        if (sg.b1 - sg.b + 1 <= maxT) out.push({ pos: (sg.b + sg.b1) / 2, a0: sg.a0, a1: sg.a1 }); }
+      return out; };
+    /* הרשימה ממוינת לפי מיקום — המחיצה הבאה נמצאת רק בחלון של 0.7–1.2 מ׳ קדימה (ליניארי; תכנית צפופה עם אלפי קטעים לא נתקעת) */
+    const chains = list => { const res = [], usedC = new Set(); list.sort((p, q) => p.pos - q.pos); if (list.length > 8000) return res;
+      const dMin = 0.7 * pxPerM, dMax = 1.2 * pxPerM;
+      for (let i = 0; i < list.length; i++) { if (usedC.has(i)) continue; const ch = [i]; let last = list[i], li = i;
+        for (;;) { let best = -1; for (let j = li + 1; j < list.length && list[j].pos - last.pos <= dMax; j++) { if (usedC.has(j)) continue; const sg = list[j]; if (sg.pos - last.pos < dMin) continue; const ov = Math.min(sg.a1, last.a1) - Math.max(sg.a0, last.a0); if (ov < 0.7 * Math.min(sg.a1 - sg.a0, last.a1 - last.a0)) continue; best = j; break; } if (best < 0) break; ch.push(best); last = list[best]; li = best; }
+        if (ch.length < 4) continue; const ss = ch.map(k => list[k]), sp = ss.slice(1).map((sg, k) => sg.pos - ss[k].pos); if (Math.max(...sp) / Math.min(...sp) > 1.35) continue;
+        ch.forEach(k => usedC.add(k)); res.push({ p0: ss[0].pos, p1: ss[ss.length - 1].pos, a0: Math.min(...ss.map(x => x.a0)), a1: Math.max(...ss.map(x => x.a1)), n: ch.length }); }
+      return res; };
+    const rows = [...chains(segs(true)).map(c => ({ x0: c.a0, x1: c.a1, y0: c.p0, y1: c.p1, n: c.n })), ...chains(segs(false)).map(c => ({ x0: c.p0, x1: c.p1, y0: c.a0, y1: c.a1, n: c.n }))];
+    /* שורות סמוכות (עד 1.5 מ׳) = גוש אחד */
+    const near = 1.5 * pxPerM, blocks = [];
+    for (const r of rows) { const b = blocks.find(q => r.x0 <= q.x1 + near && r.x1 >= q.x0 - near && r.y0 <= q.y1 + near && r.y1 >= q.y0 - near); if (b) { b.x0 = Math.min(b.x0, r.x0); b.x1 = Math.max(b.x1, r.x1); b.y0 = Math.min(b.y0, r.y0); b.y1 = Math.max(b.y1, r.y1); b.cells += r.n - 1; } else blocks.push({ x0: r.x0, x1: r.x1, y0: r.y0, y1: r.y1, cells: r.n - 1 }); }
+    /* הרחבה עד קו קיר: עמודה/שורה שרובה (≥ 60%) כהה לאורך כל הגוש, עד 3 מ׳ */
+    const maxE = Math.round(3 * pxPerM), frac = (horizLine, pos, a0, a1) => { if (pos < 0 || pos >= (horizLine ? h : w)) return 1; let n = 0, d = 0; for (let a = Math.max(0, Math.round(a0)); a <= Math.min((horizLine ? w : h) - 1, Math.round(a1)); a++) { n++; if (horizLine ? dark[pos * w + a] : dark[a * w + pos]) d++; } return n ? d / n : 0; };
+    for (const b of blocks) { const o = { ...b };
+      for (let e = 0; e <= maxE; e++) { const x = Math.round(o.x0) - e; if (frac(false, x, o.y0, o.y1) >= 0.6) { b.x0 = x; break; } }
+      for (let e = 0; e <= maxE; e++) { const x = Math.round(o.x1) + e; if (frac(false, x, o.y0, o.y1) >= 0.6) { b.x1 = x; break; } }
+      for (let e = 0; e <= maxE; e++) { const y = Math.round(o.y0) - e; if (frac(true, y, o.x0, o.x1) >= 0.6) { b.y0 = y; break; } }
+      for (let e = 0; e <= maxE; e++) { const y = Math.round(o.y1) + e; if (frac(true, y, o.x0, o.x1) >= 0.6) { b.y1 = y; break; } }
+      b.m2 = Math.round((b.x1 - b.x0) * (b.y1 - b.y0) / (pxPerM * pxPerM)); }
+    /* ביטחון: גוש של 5 תאים ומעלה (שורה ארוכה או שתי שורות); 3–4 תאים רק כשיש לידם כיתוב שירותים — שלוש מחיצות במרווח מטר קורות גם בריהוט */
+    const wcLbl = ((P.planText || {}).items || []).filter(it => /שירותים|נכים|\bW\.?C\b|TOILET|RESTROOM|WASHROOM/i.test(String(it.t || ''))).map(it => ({ x: it.u * w, y: it.v * h })), m1 = pxPerM;
+    R.wc = blocks.filter(b => b.m2 <= 80 && (b.cells >= 5 || (b.cells >= 3 && wcLbl.some(q => q.x >= b.x0 - m1 && q.x <= b.x1 + m1 && q.y >= b.y0 - m1 && q.y <= b.y1 + m1))));
+  } catch (e) { console.warn('zwWcBlocks', e); }
+  return R.wc;
+}
+/* גוש שירותים שנמצא בתוך אזור — נחתך ממנו (האזור נשאר בלי תאי השירותים והכיורים). מחזיר את מה שנחתך [{m2, pt}] */
+async function zwCarveWc(z) {
+  const blocks = await zwWcBlocks(); if (!blocks.length) return [];
+  const R = await rfWalls(), { w, h, pxPerM } = R, L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
+  const toC = (x, y) => ({ x: Math.round(L + x / w * W), y: Math.round(T + y / h * H) });
+  const hit = blocks.filter(b => inZone(z, toC((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2))); if (!hit.length) return [];
+  const pts = z.poly || zoneRectPts(z), cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d');
+  g.beginPath(); pts.forEach((q, i) => { const x = (q.x - L) / W * w, y = (q.y - T) / H * h; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill();
+  const md = g.getImageData(0, 0, w, h).data, mask = new Uint8Array(w * h); let n0 = 0; for (let i = 0; i < w * h; i++) if (md[i * 4 + 3] > 128) { mask[i] = 1; n0++; }
+  const pad = Math.round(0.1 * pxPerM); let cut = 0;
+  for (const b of hit) for (let y = Math.max(0, Math.round(b.y0) - pad); y <= Math.min(h - 1, Math.round(b.y1) + pad); y++) for (let x = Math.max(0, Math.round(b.x0) - pad); x <= Math.min(w - 1, Math.round(b.x1) + pad); x++) if (mask[y * w + x]) { mask[y * w + x] = 0; cut++; }
+  if (!cut || cut > 0.5 * n0) return [];   /* רוב האזור הוא שירותים — לא חותכים; בדיקת הרלוונטיות תפסול אותו */
+  /* ניקוי שאריות דקות ונשאר הרכיב הגדול */
+  const ro = Math.max(2, Math.round(0.3 * pxPerM)), op = rfBox(rfBox(mask, w, h, ro, false), w, h, ro, true), lab = new Int32Array(w * h), q = new Int32Array(w * h); let bestId = 0, bestN = 0, id = 0;
+  for (let s0 = 0; s0 < w * h; s0++) { if (!op[s0] || !mask[s0] || lab[s0]) continue; id++; let a = 0, b2 = 0, n = 0; lab[s0] = id; q[b2++] = s0;
+    while (a < b2) { const i = q[a++], x = i % w, y = (i - x) / w; n++; for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && op[j] && mask[j] && !lab[j]) { lab[j] = id; q[b2++] = j; } }
+    if (n > bestN) { bestN = n; bestId = id; } }
+  if (!bestId || bestN < 0.4 * n0) return [];
+  const keep = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) keep[i] = lab[i] === bestId ? 1 : 0;
+  const tr = ptTrace(keep, w, h), sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, pxPerM * 0.2)) : []; if (sp.length < 3) return [];
+  z.poly = sp.map(([x, y]) => toC(x, y));
+  const xs = z.poly.map(p => p.x), ys = z.poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys);
+  z.x = Math.max(0, 2200 - left - (Math.max(...xs) - left)); z.y = top; z.w = Math.max(...xs) - left; z.h = Math.max(...ys) - top;
+  return hit.map(b => ({ m2: Math.round(cut / hit.length / (pxPerM * pxPerM)), pt: toC((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2), cells: b.cells }));
+}
+/* ===== האם אזור רלוונטי לסאונד (אורי, 21.11.2026: "תשפר את היכולת להבחין איזה אזורים רלוונטיים לסאונד ואיזה לא") =====
+   חל על כל אזור שנוצר אוטומטית (zonesByWalls, וגם תוצאות המנוע הישן). מחזיר { ok, why, name, usage }. סדר הבדיקות:
+   1. מה שלמדתי מהמשתמש (store.zoneRel — כיתוב שאזור אוטומטי בשמו נמחק 3 פעמים = לא אזור; כיתוב שהוסיף "בכל זאת" = אזור, וגובר)
+   2. מחוץ למבנה (רוב השטח ב"חוץ") · טבלת כותרת / מקרא
+   3. הכיתוב הדומיננטי בחדר (האות הגדולה = כותרת החדר): תפעול / שירות-טכני / מעבר בלי כיתוב קהל גדול = לא אזור
+   4. גאומטריה: קטן מ-6 מ״ר, מעבר צר (רוחב משוער < 1.4 מ׳), חלל בלי שום כיתוב מתחת ל-12 מ״ר */
+/* i18n-ignore */
+var ZW_TITLE = /תאריך|קנ.?מ|גי?ליון|פורמט|מקרא|הערות|חתימ|עיון|ביצוע|מתכנן|אדריכל|שרטט|scale|\bdate\b|drawn|sheet|\brev\b|legend/i;
+/* i18n-ignore-end */
+function zwNorm(t) { return String(t || '').replace(/["'״׳.,:;()\d]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase(); }
+function zoneRelMark(labels, d) { store.zoneRel = store.zoneRel || {}; for (const t of [].concat(labels || [])) { const k = zwNorm(t); if (k.length < 2 || /^(אזור|חלל)$/.test(k)) continue; const v = (store.zoneRel[k] || 0) + d; store.zoneRel[k] = Math.max(-5, Math.min(5, d > 0 ? Math.max(1, v) : v)); } }   /* הוספה מפורשת (d>0) תמיד מנצחת מחיקות קודמות */
+async function zoneRelevance(z, m2) {
+  const items = ((P.planText || {}).items || []).map(it => { const p = ptPos(it); return { it, pt: { x: p.x, y: p.y }, t: String(it.t || '').trim(), hh: +it.h || 0 }; }).filter(o => o.t && inZone(z, o.pt));
+  const cat = o => ZW_OPS.test(o.t) ? 'ops' : (o.it.cat || 'other');
+  const aud = items.filter(o => cat(o) === 'audience'), ops = items.filter(o => cat(o) === 'ops'), svc = items.filter(o => cat(o) === 'service'), pas = items.filter(o => cat(o) === 'passage');
+  const names = items.filter(o => !ZW_JUNK.test(o.t) && !ZW_TITLE.test(o.t) && !['ops', 'service', 'furniture', 'level', 'passage'].includes(cat(o)) && /[A-Za-zא-ת]{2}/.test(o.t)).sort((a, b) => b.hh - a.hh);
+  const rel = store.zoneRel || {}, learnedNo = items.find(o => (rel[zwNorm(o.t)] || 0) <= -3), learnedYes = items.find(o => (rel[zwNorm(o.t)] || 0) >= 1);
+  const top = names[0], b = zoneBounds(z);
+  const done = (ok, why) => { const u1 = top && typeof ptUsageOf === 'function' ? ptUsageOf(top.t) : '', u2 = aud.length && typeof ptUsageOf === 'function' ? ptUsageOf(aud.map(o => o.t).join(' ')) : ''; return { ok, why: why || '', name: top ? top.t.slice(0, 40) : '', usage: u1 && u1 !== 'מוזיקת רקע' ? u1 : (u2 || u1 || 'מוזיקת רקע'), labels: items.map(o => o.t) }; };
+  if (learnedYes) return done(true);
+  if (learnedNo) return done(false, 'למדתי ממך ש"' + learnedNo.t + '" אינו אזור השמעה');
+  /* מחוץ למבנה: דגימת רשת בתוך האזור */
+  try { const om = await zwOutMask(); let n = 0, o = 0; const st = Math.max(6, Math.min(b.W, b.H) / 12); for (let y = b.T + st / 2; y < b.T + b.H; y += st) for (let x = b.L + st / 2; x < b.L + b.W; x += st) { const pt = { x, y }; if (!inZone(z, pt)) continue; n++; if (om.isOut(pt)) o++; } if (n >= 6 && o / n > 0.5) return done(false, 'מחוץ למבנה'); } catch (e) {}
+  if (items.filter(o => ZW_TITLE.test(o.t)).length >= 2 && !aud.length) return done(false, 'טבלת כותרת / מקרא');
+  /* חדר נפרד שכולו תאי שירותים (זוהו לפי הצורה), בלי כיתוב קהל */
+  if (!aud.length && m2 > 0 && m2 < 45) { try { const blocks = await zwWcBlocks(), R2 = await rfWalls(), L2 = bgLeft(), T2 = bgTop(), W2 = P.bgW || 1400, H2 = bgHeightPx(); if (blocks.some(bk => inZone(z, { x: L2 + (bk.x0 + bk.x1) / 2 / R2.w * W2, y: T2 + (bk.y0 + bk.y1) / 2 / R2.h * H2 }))) return done(false, 'שירותים (זוהו תאים)'); } catch (e) {} }
+  if (m2 > 0 && m2 < 6) return done(false, 'קטן מדי (' + m2 + ' מ״ר)');
+  /* הכיתוב הגדול ביותר שאינו קהל — אם הוא תפעול/שירות/מעבר ואין כיתוב קהל גדול כמעט כמוהו, הוא כותרת החדר */
+  const audMax = Math.max(0, ...aud.map(o => o.hh), ...(top ? [top.hh] : []));
+  const bad = [...ops.map(o => ({ o, k: 'תפעול' })), ...svc.map(o => ({ o, k: 'שירות / טכני' })), ...pas.map(o => ({ o, k: 'מעבר' }))].sort((x, y) => y.o.hh - x.o.hh)[0];
+  if (bad && (!audMax || (bad.k !== 'שירות / טכני' && bad.o.hh > audMax * 1.25) || (!aud.length && bad.k === 'תפעול'))) return done(false, bad.k + ': ' + bad.o.t.slice(0, 24));
+  if (bad && bad.k === 'שירות / טכני' && !aud.length && !names.length) return done(false, bad.k + ': ' + bad.o.t.slice(0, 24));
+  if (!aud.length && !names.length && P.scale) { const wM = b.W * P.scale, hM = b.H * P.scale, est = m2 / Math.max(wM, hM); if (est < 1.4 && m2 < 25) return done(false, 'מעבר צר (' + est.toFixed(1) + ' מ׳)'); }
+  if (!items.length && m2 > 0 && m2 < 12) return done(false, 'בלי כיתוב וקטן (' + m2 + ' מ״ר)');
+  return done(true);
+}
 async function zonesByWalls() {
   if (!P.bg || !P.scale || typeof rfWalls !== 'function') return null;
-  const R = await rfWalls(), { w, h } = R;
+  const om = await zwOutMask(), R = om.R, isOut = om.isOut, { w, h } = R;
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(), sc2 = P.scale * P.scale;
-  /* "חוץ": מילוי משולי התמונה דרך מה שאינו מחסום (קירות מעובים ב-0.75 מ׳ — סוגר פתחים עד ~1.5 מ׳) */
-  const bar = rfBarrier(R, 0.75).barrier, out = new Uint8Array(w * h), q = new Int32Array(w * h); let qh = 0, qt = 0;
-  const push = i => { if (!out[i] && !bar[i]) { out[i] = 1; q[qt++] = i; } };
-  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); } for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
-  while (qh < qt) { const i = q[qh++], x = i % w, y = (i - x) / w; if (x > 0) push(i - 1); if (x < w - 1) push(i + 1); if (y > 0) push(i - w); if (y < h - 1) push(i + w); }
-  const pxOf = pt => [Math.round((pt.x - L) / W * w), Math.round((pt.y - T) / H * h)];
-  const isOut = pt => { const [x, y] = pxOf(pt); return x < 1 || y < 1 || x >= w - 1 || y >= h - 1 || !!out[y * w + x]; };
   const items = ((P.planText || {}).items || []).map(it => { const p = ptPos(it); return { it, pt: { x: p.x, y: p.y }, t: String(it.t || '').trim(), hh: +it.h || 0 }; });
   const seeds = items.filter(o => o.t && !ZW_JUNK.test(o.t)).map(o => o.pt);
   const stepPx = 2.5 / P.scale; for (let y = T + stepPx / 2; y < T + H; y += stepPx) for (let x = L + stepPx / 2; x < L + W; x += stepPx) seeds.push({ x, y });
@@ -1392,25 +1516,18 @@ async function zonesByWalls() {
     const cen = { x: G.left + G.zw / 2, y: G.top + G.zh / 2 };
     if (found.some(g => inZone(g.z, cen) && Math.abs(g.m2 - G.m2) < 0.2 * Math.max(g.m2, G.m2))) continue;   /* אותו חדר דרך זרע אחר */
     const leaked = G.zw > 0.85 * W && G.zh > 0.85 * H;   /* ברח לכל התכנית — לא חדר */
-    found.push({ z, m2: G.m2, leaked });
+    found.push({ z, m2: G.m2, leaked, seed: { x: pt.x, y: pt.y } });
   }
-  const zones = [], skipped = { ops: 0, small: 0 }; let nAuto = (P.zones || []).length;
+  const zones = [], skipped = { ops: 0, small: 0 }, skippedList = []; let nAuto = (P.zones || []).length;
   for (const g of found) {
     if (g.leaked) continue;
-    const inside = items.filter(o => inZone(g.z, o.pt));
-    const cat = o => ZW_OPS.test(o.t) ? 'ops' : (o.it.cat || 'other');
-    const aud = inside.filter(o => cat(o) === 'audience'), ops = inside.filter(o => cat(o) === 'ops'), svc = inside.filter(o => cat(o) === 'service');
-    const names = inside.filter(o => !ZW_JUNK.test(o.t) && !['ops', 'service', 'furniture', 'level', 'passage'].includes(cat(o)) && /[A-Za-zא-ת]{2}/.test(o.t)).sort((a, b) => b.hh - a.hh);
-    if (g.m2 < 6) { skipped.small++; continue; }
-    if (!aud.length && (ops.length || (svc.length && !names.length))) { skipped.ops++; continue; }   /* מטבח / מחסן / שירותים — לא אזור השמעה */
-    if (!inside.length && g.m2 < 12) { skipped.small++; continue; }
-    const top = names[0];
-    g.z.name = top ? top.t.slice(0, 40) : ('אזור ' + (++nAuto));
-    const u1 = top && typeof ptUsageOf === 'function' ? ptUsageOf(top.t) : '', u2 = aud.length && typeof ptUsageOf === 'function' ? ptUsageOf(aud.map(o => o.t).join(' ')) : '';
-    g.z.usage = u1 && u1 !== 'מוזיקת רקע' ? u1 : (u2 || u1 || 'מוזיקת רקע');
-    g.z._m2 = g.m2; zones.push(g.z);
+    const r = await zoneRelevance(g.z, g.m2), b0 = zoneBounds(g.z);
+    if (!r.ok) { if (/קטן|כיתוב/.test(r.why)) skipped.small++; else skipped.ops++; if (g.m2 >= 3) skippedList.push({ name: r.name || '', why: r.why, m2: g.m2, pt: g.seed || { x: b0.L + b0.W / 2, y: b0.T + b0.H / 2 }, labels: r.labels }); continue; }
+    g.z.name = r.name || ('אזור ' + (++nAuto)); g.z.usage = r.usage; g.z._m2 = g.m2;
+    try { const cutL = await zwCarveWc(g.z); for (const c of cutL) { skippedList.push({ name: 'שירותים', why: 'תאי שירותים בתוך "' + g.z.name + '" — הוצאו מהאזור', m2: c.m2, pt: c.pt, labels: [] }); } if (cutL.length && typeof zoneArea === 'function') g.z._m2 = Math.round(zoneArea(g.z) * sc2); } catch (e) { console.warn('zwCarveWc', e); }
+    zones.push(g.z);
   }
-  return { zones, skipped, rooms: found.length };
+  return { zones, skipped, skippedList, rooms: found.length };
 }
 async function zoneFillAt(pt) {
   const G = await zoneFillCore(pt); if (!G) return; if (G.err) { uiToast(G.err, 6000); return; }
