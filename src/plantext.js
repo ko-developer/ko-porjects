@@ -311,7 +311,7 @@ function ptKeep(p) {
   return words.some(w => /^[A-Z][A-Z0-9'&\-]{3,}$/.test(w) || /^[A-Z][a-z]{3,}$/.test(w) || /^[֐-׿]{4,}$/.test(w));   /* כיתוב אמיתי: מילה באותיות גדולות / מילה עברית */
 }
 /* סריקה מלאה של תמונת הרקע → P.planText */
-async function planTextScan() {
+async function planTextScan(opts) {
   if (!P.bg) { uiToast('אין תכנית רקע'); return; }
   if (window.__ptBusy) { uiToast('הסריקה כבר רצה…'); return; }
   window.__ptBusy = true; render();
@@ -319,7 +319,7 @@ async function planTextScan() {
     uiToast(P.bgPdf ? '🔤 קורא את הכיתובים משכבת הטקסט של ה-PDF…' : '🔤 קורא את הכיתובים בתכנית (OCR מקומי, בלי AI) — יכול לקחת כדקה, ממשיכים בינתיים…', 6000);
     /* צעד ראשון: קנה המידה מטבלת הכותרת שבשולי הגיליון (רצועות הצד מוגדלות, OCR ממוקד) — לפני הסריקה הכללית */
     let ptScale0 = null;
-    if (!P.bgPdf) { try { uiToast('📐 מחפש את קנה המידה בטבלת הכותרת (שולי הגיליון)…', 4000); ptScale0 = await ptScaleScan(); if (ptScale0) uiToast('📐 נמצא קנה מידה 1:' + ptScale0.n + ' בשוליים (' + ptScale0.where + ') — ממשיך לקרוא את הכיתובים…', 5000); } catch (e) { console.warn('pt scale scan', e); } }
+    if (!P.bgPdf && !(opts && opts.noScale)) { try { uiToast('📐 מחפש את קנה המידה בטבלת הכותרת (שולי הגיליון)…', 4000); ptScale0 = await ptScaleScan(); if (ptScale0) uiToast('📐 נמצא קנה מידה 1:' + ptScale0.n + ' בשוליים (' + ptScale0.where + ') — ממשיך לקרוא את הכיתובים…', 5000); } catch (e) { console.warn('pt scale scan', e); } }
     let tokens, SW, SH, src = 'ocr', layers = [];
     if (P.bgPdf) { const r = await ptFromPdf(); tokens = r.tokens; SW = r.W; SH = r.H; src = 'pdf'; layers = r.layers || []; }
     else { const cv = await ptCanvas(); tokens = await ptOcr(cv); SW = cv.width; SH = cv.height; }
@@ -1281,7 +1281,14 @@ async function rfWalls() {
   const k = Math.min(1, 1600 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
   const px = g.getImageData(0, 0, w, h).data, dark = new Uint8Array(w * h);
-  for (let i = 0; i < w * h; i++) { const r0 = px[i * 4], g0 = px[i * 4 + 1], b0 = px[i * 4 + 2], l = 0.299 * r0 + 0.587 * g0 + 0.114 * b0; dark[i] = l < 185 && (!sc || Math.max(r0, g0, b0) - Math.min(r0, g0, b0) < 50) ? 1 : 0; }
+  /* קירות במילוי אפור בהיר (למשל 192) בהירים מהסף הקבוע 185 ולא נחשבו קיר — "לחץ בתוך חדר" מילא את כל התכנית.
+     מחפשים שיא של אפור ניטרלי (150–235) שתופס ≥0.6% מהתמונה; אם יש, הסף לפיקסלים ניטרליים עולה מעט מעליו. צבעוני נשאר ב-185 */
+  let thrN = 185;
+  { const hist = new Uint32Array(22);
+    for (let i = 0; i < w * h; i++) { const r0 = px[i * 4], g0 = px[i * 4 + 1], b0 = px[i * 4 + 2]; if (Math.max(r0, g0, b0) - Math.min(r0, g0, b0) >= 22) continue; const l = 0.299 * r0 + 0.587 * g0 + 0.114 * b0; if (l >= 150 && l < 236) hist[Math.min(21, (l - 150) >> 2)]++; }
+    let bi = -1, bs = 0; for (let i = 1; i < 21; i++) { const sum = hist[i - 1] + hist[i] + hist[i + 1]; if (sum > bs) { bs = sum; bi = i; } }
+    if (bi >= 0 && bs >= 0.006 * w * h) thrN = Math.max(185, Math.min(236, 150 + (bi + 0.5) * 4 + 14)); }
+  for (let i = 0; i < w * h; i++) { const r0 = px[i * 4], g0 = px[i * 4 + 1], b0 = px[i * 4 + 2], l = 0.299 * r0 + 0.587 * g0 + 0.114 * b0, sat = Math.max(r0, g0, b0) - Math.min(r0, g0, b0); dark[i] = l < (sat < 22 ? thrN : 185) && (!sc || sat < 50) ? 1 : 0; }
   const W = P.bgW || 1400, pxPerM = (w / W) / (P.scale || 0.01);
   const rThin = Math.max(1, Math.round(0.06 * pxPerM));   /* חצי עובי קיר מינימלי */
   const walls = rfBox(rfBox(dark, w, h, rThin, false), w, h, rThin, true);
@@ -1348,6 +1355,61 @@ async function zoneFillCore(pt) {
   else { const tr = ptTrace(grown, w, h); const sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, R.pxPerM * 0.2)) : []; if (sp.length < 3) { return { err: 'לא הצלחתי לקבוע גבול — צייר ידנית' }; } poly = sp.map(([x, y]) => toC(x, y)); }
   const xs = poly.map(p => p.x), ys = poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys), zw = Math.max(...xs) - left, zh = Math.max(...ys) - top;
   return { poly, rect: fill >= 0.78, left, top, zw, zh, m2: Math.round(cnt / (R.pxPerM * R.pxPerM)), edge };
+}
+/* ===== 🧩 אזורים אוטומטיים בלי AI (אורי, 21.11.2026) — חדרים בין קירות עבים + כיתובי התכנית =====
+   אותו מנוע של "לחץ בתוך חדר" (zoneFillCore: קירות = גושים כהים בעובי קיר, פתחי דלתות נסגרים בהסתגלות), מופעל מעצמו:
+   1. "חוץ" = כל מה שמגיע לשולי התמונה כשפתחים עד ~1.5 מ׳ סגורים (נייר ריק, טבלת כותרת — קווי המסגרת דקים ואינם קיר).
+   2. זרעים: מיקומי הכיתובים ואז רשת כל 2.5 מ׳; כל זרע שאינו בחוץ ואינו בחדר שכבר נמצא → מילוי עד הקירות.
+   3. מיון לפי הכיתובים שבתוך החדר: מטבח/מחסן/שירותים בלי כיתוב קהל = לא אזור השמעה; שם האזור = הכיתוב הגדול ביותר בחדר
+      (כותרת החדר נכתבת באות הגדולה); בלי כיתוב — "אזור N" אם ≥ 12 מ״ר. בלי ניחוש ובלי טוקנים. */
+/* i18n-ignore */
+var ZW_OPS = /טבח|הכנות|קירור|מקפיא|שטיפ|קצבי|מחסן|יבשים|אחסון|משרד|צוות|kitchen|storage|store\b|office|freezer|prep\b/i;
+var ZW_JUNK = /^[\d\s.,=+\-:×xXH"'°]+$|^H\s?=|קורת|קורה|בטון|ידית|בהלה|אקוסטי|תאריך|מקרא|הערות|תכנו[ןו]|גיליון|גליון|פורמט|קנ.?מ|עיון|ביצוע|ספסל|^מר$|^מ"ר$|sqm|air\/c/i;
+/* i18n-ignore-end */
+async function zonesByWalls() {
+  if (!P.bg || !P.scale || typeof rfWalls !== 'function') return null;
+  const R = await rfWalls(), { w, h } = R;
+  const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx(), sc2 = P.scale * P.scale;
+  /* "חוץ": מילוי משולי התמונה דרך מה שאינו מחסום (קירות מעובים ב-0.75 מ׳ — סוגר פתחים עד ~1.5 מ׳) */
+  const bar = rfBarrier(R, 0.75).barrier, out = new Uint8Array(w * h), q = new Int32Array(w * h); let qh = 0, qt = 0;
+  const push = i => { if (!out[i] && !bar[i]) { out[i] = 1; q[qt++] = i; } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); } for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (qh < qt) { const i = q[qh++], x = i % w, y = (i - x) / w; if (x > 0) push(i - 1); if (x < w - 1) push(i + 1); if (y > 0) push(i - w); if (y < h - 1) push(i + w); }
+  const pxOf = pt => [Math.round((pt.x - L) / W * w), Math.round((pt.y - T) / H * h)];
+  const isOut = pt => { const [x, y] = pxOf(pt); return x < 1 || y < 1 || x >= w - 1 || y >= h - 1 || !!out[y * w + x]; };
+  const items = ((P.planText || {}).items || []).map(it => { const p = ptPos(it); return { it, pt: { x: p.x, y: p.y }, t: String(it.t || '').trim(), hh: +it.h || 0 }; });
+  const seeds = items.filter(o => o.t && !ZW_JUNK.test(o.t)).map(o => o.pt);
+  const stepPx = 2.5 / P.scale; for (let y = T + stepPx / 2; y < T + H; y += stepPx) for (let x = L + stepPx / 2; x < L + W; x += stepPx) seeds.push({ x, y });
+  const userZones = (P.zones || []).filter(z => !z.prop);
+  const found = [];   /* כל חדר שנמצא (גם כזה שלא יהפוך לאזור) — כדי לא למלא אותו שוב מזרע אחר */
+  for (const pt of seeds) {
+    if (isOut(pt) || found.some(g => inZone(g.z, pt)) || userZones.some(z => inZone(z, pt))) continue;
+    let G = null; try { G = await zoneFillCore(pt); } catch (e) { G = null; }
+    if (!G || G.err || !G.poly) continue;
+    const z = { id: uid('z'), name: '', x: Math.max(0, 2200 - G.left - G.zw), y: G.top, w: G.zw, h: G.zh, fill: true, auto: 'walls' };
+    if (!G.rect) z.poly = G.poly;
+    const cen = { x: G.left + G.zw / 2, y: G.top + G.zh / 2 };
+    if (found.some(g => inZone(g.z, cen) && Math.abs(g.m2 - G.m2) < 0.2 * Math.max(g.m2, G.m2))) continue;   /* אותו חדר דרך זרע אחר */
+    const leaked = G.zw > 0.85 * W && G.zh > 0.85 * H;   /* ברח לכל התכנית — לא חדר */
+    found.push({ z, m2: G.m2, leaked });
+  }
+  const zones = [], skipped = { ops: 0, small: 0 }; let nAuto = (P.zones || []).length;
+  for (const g of found) {
+    if (g.leaked) continue;
+    const inside = items.filter(o => inZone(g.z, o.pt));
+    const cat = o => ZW_OPS.test(o.t) ? 'ops' : (o.it.cat || 'other');
+    const aud = inside.filter(o => cat(o) === 'audience'), ops = inside.filter(o => cat(o) === 'ops'), svc = inside.filter(o => cat(o) === 'service');
+    const names = inside.filter(o => !ZW_JUNK.test(o.t) && !['ops', 'service', 'furniture', 'level', 'passage'].includes(cat(o)) && /[A-Za-zא-ת]{2}/.test(o.t)).sort((a, b) => b.hh - a.hh);
+    if (g.m2 < 6) { skipped.small++; continue; }
+    if (!aud.length && (ops.length || (svc.length && !names.length))) { skipped.ops++; continue; }   /* מטבח / מחסן / שירותים — לא אזור השמעה */
+    if (!inside.length && g.m2 < 12) { skipped.small++; continue; }
+    const top = names[0];
+    g.z.name = top ? top.t.slice(0, 40) : ('אזור ' + (++nAuto));
+    const u1 = top && typeof ptUsageOf === 'function' ? ptUsageOf(top.t) : '', u2 = aud.length && typeof ptUsageOf === 'function' ? ptUsageOf(aud.map(o => o.t).join(' ')) : '';
+    g.z.usage = u1 && u1 !== 'מוזיקת רקע' ? u1 : (u2 || u1 || 'מוזיקת רקע');
+    g.z._m2 = g.m2; zones.push(g.z);
+  }
+  return { zones, skipped, rooms: found.length };
 }
 async function zoneFillAt(pt) {
   const G = await zoneFillCore(pt); if (!G) return; if (G.err) { uiToast(G.err, 6000); return; }

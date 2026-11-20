@@ -10661,7 +10661,8 @@ function renderPanel() {
     let bgc = (typeof fxPanelHTML === 'function' ? fxPanelHTML() : '') + `<h3 class="sec">🗺 אזורי ${P.layer === 'light' ? 'תאורה' : P.layer === 'video' ? 'וידאו' : 'סאונד'} — תכלית שונה לכל אזור</h3>
       <div class="fld"><label>שם האזור הבא</label><input value="${esc(zoneNameNext)}" placeholder="למשל: חדר פרטי / רחבה / חוץ" oninput="zoneNameNext=this.value"></div>
       <button style="width:100%;margin-bottom:6px;${zoneMode ? 'background:#ff8a50;color:#1a1e28;font-weight:700' : ''}" onclick="zoneMode={poly:[]};render()">${zoneMode ? 'נקר נקודות סביב האזור · לחיצה על הנקודה הראשונה סוגרת (Esc לביטול)' : '➕ סמן אזור — ניקור נקודות'}</button>
-      <button style="width:100%;margin-bottom:6px" onclick="autoZones()">🤖 סמן לי אזורים אוטומטית${(store.zoneExamples || []).length ? ' (לומד מ-' + store.zoneExamples.length + ' דוגמאות שלך)' : ''}</button>
+      <button style="width:100%;margin-bottom:3px" ${window.__azBusy ? 'disabled' : ''} onclick="autoZones()" title="מקומי, בלי AI ובלי טוקנים: קורא את הכיתובים, מוצא חדרים בין הקירות, משמיט מטבח/מחסן/שירותים">${window.__azBusy ? '⏳ מזהה אזורים…' : '🧩 סמן לי אזורים אוטומטית'}</button>
+      <button style="width:100%;margin-bottom:6px;font-size:11px;padding:3px;background:none;border:none;color:#777;text-decoration:underline;cursor:pointer" ${window.__azBusy ? 'disabled' : ''} onclick="autoZonesAI()" title="שולח את התכנית ל-Claude${(store.zoneExamples || []).length ? ' יחד עם ' + store.zoneExamples.length + ' דוגמאות הלימוד שלך' : ''} — צורך טוקנים, עד דקה-שתיים">או: זיהוי בעזרת AI (צורך טוקנים)</button>
       ${(P.zones || []).length ? `<button style="width:100%;margin-bottom:6px;background:#f1efff" onclick="zoneExampleSave()" title="החלוקה שסימנת בתכנית הזאת תישלח כדוגמה בכל זיהוי אוטומטי — ככה מלמדים את התכנה">📚 שמור את החלוקה שלי כדוגמת לימוד${(store.zoneExamples || []).some(e => e.pid === P.id) ? ' ✓' : ''}</button>` : ''}` +
       `<div style="display:flex;gap:6px;margin-bottom:6px">${(P.zones || []).length ? `<button style="flex:1;background:#fff4e0;border-color:#d49a2a" onclick="ztSave()" title="החלוקה שעל המסך נשמרת כאמת: הזיהוי האוטומטי נמדד מולה במסך האימון">🎓 שמור כחלוקה נכונה לאימון${(store.zoneTrain || []).some(e => e.pid === P.id && e.sid === P.curSheet) ? ' ✓' : ''}</button>` : ''}<button style="flex:1" onclick="zoneTrainOpen()">🎓 מסך אימון (${(store.zoneTrain || []).length})</button></div>` +
       `<button style="width:100%;margin-bottom:6px;${window.__roomFill ? 'background:#ff8a00;color:#fff;font-weight:700' : 'background:#efecfd'}" onclick="roomFillMode()">${window.__roomFill ? '🪄 לחץ בתוך חדר… (כאן = סיום · Shift+גרירה = קיר וירטואלי)' : '🪄 אזור בלחיצה בתוך החדר — מתמלא עד הקירות'}</button>` +
@@ -11318,6 +11319,18 @@ function waShare(text) {
   t.onclick = () => { window.open('https://wa.me/?text=' + enc, '_blank', 'noopener'); t.remove(); };
   host.appendChild(t); setTimeout(() => { if (t.isConnected) t.remove(); }, 12000);
 }
+/* חיווי "עובד על זה" שנשאר על המסך עם שניות שחלפו — לפעולות ארוכות (זיהוי אזורים ב-AI, סריקת קנה מידה) שבלעדיו נראות כאילו הכפתור לא עשה כלום.
+   uiBusy(id, text) מציג / מעדכן; uiBusyDone(id) מסיר */
+const UI_BUSY = new Map();
+function uiBusy(id, text) {
+  uiBusyDone(id);
+  let host = document.getElementById('busyHost');
+  if (!host) { host = document.createElement('div'); host.id = 'busyHost'; host.style.cssText = 'position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:141;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;direction:rtl'; document.body.appendChild(host); }
+  const el = document.createElement('div'); el.style.cssText = 'background:#1a1e28;color:#fff;border:2px solid #ff8a50;border-radius:999px;padding:7px 16px;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.35);white-space:nowrap';
+  const t0 = Date.now(), paint = () => { el.textContent = '⏳ ' + text + ' · ' + Math.round((Date.now() - t0) / 1000) + ' שנ׳'; };
+  paint(); host.appendChild(el); UI_BUSY.set(id, { el, iv: setInterval(paint, 1000) });
+}
+function uiBusyDone(id) { const b = UI_BUSY.get(id); if (!b) return; clearInterval(b.iv); b.el.remove(); UI_BUSY.delete(id); }
 function uiToast(msg) {
   let host = document.getElementById('toastHost');
   if (!host) {
@@ -16622,7 +16635,7 @@ async function claudeMsg(messages, maxTokens, model) {
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true'
     },
-    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: maxTokens, messages })
+    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: (+maxTokens || 2000) + 12000, messages })   /* מרווח לחשיבה — ראה scripts/dev-server.js /api/ai */
   });
   const j = await res.json();
   if (j.error) {
@@ -16634,9 +16647,12 @@ async function claudeMsg(messages, maxTokens, model) {
 }
 /* מחלץ את ה-JSON מתשובת Claude — מסיר גדרות ```json ורעש שלפני הסוגר הפותח */
 function claudeJson(j) {
-  let txt = (j.content && j.content[0] && j.content[0].text || '').replace(/```json|```/g, '').trim();
-  txt = txt.slice(txt.indexOf('{'));
-  return JSON.parse(txt);
+  /* התשובה היא רשימת בלוקים: כשהמודל חושב, הבלוק הראשון הוא thinking והטקסט בא אחריו — content[0].text היה ריק
+     ("Unexpected end of JSON input" בכל תכונות ה-AI). לוקחים את כל בלוקי הטקסט */
+  let txt = (j.content || []).filter(b => b && b.type === 'text').map(b => b.text || '').join('\n').replace(/```json|```/g, '').trim();
+  const i0 = txt.indexOf('{'); if (i0 < 0) throw new Error(j.stop_reason === 'max_tokens' ? 'תשובת ה-AI נקטעה באמצע — נסה שוב' : 'ה-AI לא החזיר תשובה בפורמט הצפוי — נסה שוב');
+  txt = txt.slice(i0);
+  try { return JSON.parse(txt); } catch (e) { const i1 = txt.lastIndexOf('}'); if (i1 > 0) return JSON.parse(txt.slice(0, i1 + 1)); throw e; }
 }
 /* זיהוי אזורים אוטומטי — Claude מנתח את תמונת התכנית */
 /* הכללים לחלוקת חלל לאזורי סאונד — כפי שאורי הגדיר על דוגמאות מסומנות (אולם אירועים, בית קפה):
@@ -16711,9 +16727,37 @@ function autoZonesSketch() {
   return n;
 }
 window.autoZonesSketch = autoZonesSketch;
+/* 🧩 "סמן לי אזורים אוטומטית" — מקומי, בלי AI ובלי טוקנים (אורי, 21.11.2026): קריאת הכיתובים (OCR / שכבת הטקסט של ה-PDF, פעם אחת)
+   ואז zonesByWalls (חדרים בין קירות עבים, ממוינים ומכונים לפי הכיתובים). לא נמצא כלום → המנוע הישן (ptPartition) → סביב כיתובי קהל.
+   גרסת ה-AI נשארת ככפתור נפרד ומסומן (autoZonesAI) */
 async function autoZones() {
   if (typeof sheetIsElevation === 'function' && sheetIsElevation()) { uiToast('🎭 זו חזית — אזורים מסמנים על תכנית תקרה/העמדה (מבט מלמעלה)', 6000); return; }
   if (!P.bg) { if ((P.sketch && P.sketch.walls || []).length) { autoZonesSketch(); return; } alert('העלה קודם תכנית רקע, או שרטט חדר בעורך השרטוט'); return; }
+  if (window.__azBusy) { uiToast('הזיהוי כבר רץ — המתן לתוצאה'); return; }
+  if (!P.scale) { uiToast('📏 כייל קודם את התכנית — לפי קנה המידה מזהים מה עובי קיר ומה רוחב דלת', 8000); return; }
+  window.__azBusy = true; uiBusy('az', 'מזהה אזורים בתכנית — קורא כיתובים ומוצא חדרים בין הקירות (בלי AI)');
+  render();
+  try {
+    const before = new Set((P.zones || []).map(z => z.id));
+    if (!(P.planText && P.planText.at) && typeof planTextScan === 'function') { try { await planTextScan({ noScale: true }); } catch (e) { console.warn('autoZones scan', e); } }
+    let fresh = [], info = null;
+    if (typeof zonesByWalls === 'function') { info = await zonesByWalls(); if (info && info.zones.length) { P.zones = [...(P.zones || []), ...info.zones]; fresh = info.zones; } }
+    if (!fresh.length && typeof ptPartition === 'function') { await ptPartition(); fresh = (P.zones || []).filter(z => !before.has(z.id)); }
+    if (!fresh.length && typeof ptMakeZones === 'function' && ((P.planText || {}).items || []).some(i => i.cat === 'audience')) { await ptMakeZones(); fresh = (P.zones || []).filter(z => !before.has(z.id)); }
+    if (fresh.length && typeof zoneLearnApply === 'function') { try { fresh = await zoneLearnApply(fresh); } catch (e) {} }
+    if (fresh.length) { selZone = fresh[0].id; uiToast('🧩 נמצאו ' + fresh.length + ' אזורים: ' + fresh.slice(0, 5).map(z => z.name + (z._m2 ? ' (' + z._m2 + ' מ״ר)' : '')).join(' · ') + (info && info.skipped.ops ? ' · ' + info.skipped.ops + ' חללי שירות/תפעול הושמטו' : '') + ' — לחץ על אזור לעריכה או מחיקה', 11000); }
+    else uiToast('לא נמצאו אזורים אוטומטית — סמן בלחיצה בתוך חדר או בניקור נקודות', 8000);
+    fresh.forEach(z => { delete z._m2; });
+    save();
+  } catch (err) { console.warn('autoZones', err); uiToast('זיהוי האזורים נכשל: ' + err.message, 8000); }
+  finally { window.__azBusy = false; uiBusyDone('az'); render(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender(); }
+}
+/* זיהוי אזורים דרך Claude (צורך טוקנים) — רק בלחיצה מפורשת על הכפתור המסומן */
+async function autoZonesAI() {
+  if (typeof sheetIsElevation === 'function' && sheetIsElevation()) { uiToast('🎭 זו חזית — אזורים מסמנים על תכנית תקרה/העמדה (מבט מלמעלה)', 6000); return; }
+  if (!P.bg) { if ((P.sketch && P.sketch.walls || []).length) { autoZonesSketch(); return; } alert('העלה קודם תכנית רקע, או שרטט חדר בעורך השרטוט'); return; }
+  if (window.__azBusy) { uiToast('הזיהוי כבר רץ — המתן לתוצאה'); return; }
+  window.__azBusy = true; uiBusy('az', 'מזהה אזורים בתכנית (Claude קורא את השרטוט) — עד דקה-שתיים');
   render();
   try {
     const j = await claudeMsg([{ role: 'user', content: [
@@ -16723,12 +16767,12 @@ async function autoZones() {
           { type: 'text', text: 'החזר את החלוקה של התכנית האחרונה בלבד.' + (typeof ptHintText === 'function' ? ptHintText() : '') }
     ] }], 4000);
     const n = applyZonesJson(claudeJson(j).zones);
-    alert('✓ זוהו ' + n + ' אזורים — ערוך שמות ותכליות בטבלה למטה או בלחיצה על אזור');
+    uiToast('✓ זוהו ' + n + ' אזורים — ערוך שמות ותכליות בטבלה או בלחיצה על אזור', 9000);
   } catch (err) {
     if (err.message === 'NOKEY') { autoZonesHint(); return; }
     alert('הזיהוי האוטומטי נכשל: ' + err.message + '\nעובר למסלול הידני דרך הצ׳אט.');
     autoZonesHint();
-  }
+  } finally { window.__azBusy = false; uiBusyDone('az'); render(); }
 }
 function autoZonesHint() {
   /* בלי מפתח API: הבקשה לקלוד (אותם כללים, אותו פורמט פוליגונים) מועתקת ללוח. הכי פשוט — לכתוב ל-Claude Code

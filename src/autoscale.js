@@ -991,8 +991,9 @@ async function asAutoFind(pg, opts) {
   if (!res && typeof ptScaleScan === 'function' && isCur()) {
     window.__asFind = sh.id; asFindRefresh();
     uiToast('🔎 סורק את התכנית לקבלת קנה מידה (טבלת הכותרת) — עד כדקה, אפשר להמשיך לעבוד בינתיים…', 20000);
+    if (typeof uiBusy === 'function') uiBusy('asFind', 'סורק את התכנית לקבלת קנה מידה');
     try { const o = await ptScaleScan(); if (o && o.n >= 10 && o.n <= 2000) { res = { n: o.n, t: o.t || ('1:' + o.n), weak: !!o.weak, thumb: o.thumb || null, sheet: o.sheet || null, imgW: o.imgW || 0, imgH: o.imgH || 0 }; src = 'ocr'; } } catch (e) { console.warn('asAutoFind ocr', e); }
-    finally { if (window.__asFind === sh.id) window.__asFind = null; }
+    finally { if (window.__asFind === sh.id) window.__asFind = null; if (typeof uiBusyDone === 'function') uiBusyDone('asFind'); }
   }
   const r0 = sh.autoScale || {}, name = sh.name || '', where = isCur() ? '' : ' (' + name + ')';
   if (res && res.n) {

@@ -259,7 +259,8 @@ const readState = async k => { const b = await readCurated(`page_state/${k}.json
 /* שומר-סף: בקשה שלא נענתה תוך 40 שניות מקבלת 503 (הדף לא נתקע), ובקשה איטית מ-3 שניות נרשמת בלוג עם הנתיב — כדי שנראה מה תוקע */
 const guard = handle => (req, res) => {
   const t0 = Date.now(), path0 = (req.url || '').split('?')[0];
-  const wdMs = req.method === 'POST' && (path0 === '/api/store' || path0.startsWith('/api/project/')) ? 180e3 : 40e3;   /* העלאת store עם תמונות — עד 3 דקות */
+  /* העלאת store עם תמונות — עד 3 דקות; קריאת AI (תכנית + דוגמאות לימוד, "סמן לי אזורים אוטומטית") נמשכת 40–90 שניות ונחתכה ב-503 */
+  const wdMs = req.method === 'POST' && path0 === '/api/ai' ? 240e3 : req.method === 'POST' && (path0 === '/api/store' || path0.startsWith('/api/project/')) ? 180e3 : 40e3;
   const wd = setTimeout(() => { if (!res.headersSent) { console.warn('[watchdog] ' + path0 + ' — אין תשובה אחרי ' + wdMs / 1e3 + 's, מחזיר 503'); try { res.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end('{"error":"השרת עסוק — נסה שוב בעוד רגע"}'); } catch {} } }, wdMs);
   res.on('finish', () => { clearTimeout(wd); const ms = Date.now() - t0; if (ms > 3000) console.warn('[slow] ' + path0 + ' ' + (ms / 1000).toFixed(1) + 's'); });
   res.on('close', () => clearTimeout(wd));
@@ -629,9 +630,14 @@ const handleReq = async (req, res) => {
       if (!Array.isArray(p.messages) || !p.messages.length) return out(400, { error: 'חסרות הודעות' });
       try {
         const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', ...(WS ? { 'anthropic-workspace-id': WS } : {}) },
-          body: JSON.stringify({ model: p.model || MODEL, max_tokens: Math.min(Math.max(+p.max_tokens || 2000, 256), 8000), messages: p.messages }) });
+          /* המודלים הנוכחיים חושבים כברירת מחדל (adaptive thinking), והחשיבה נספרת בתוך max_tokens: בקשה של 4,000 נגמרה כולה על חשיבה
+             וחזרה בלי תשובה (stop_reason max_tokens, רק בלוק thinking). max_tokens שנשלח = מה שהקורא ביקש לתשובה + מרווח לחשיבה.
+             effort (אופציונלי) עובר ב-output_config */
+          body: JSON.stringify({ model: p.model || MODEL, max_tokens: Math.min(Math.max(+p.max_tokens || 2000, 256), 16000) + 12000, messages: p.messages, ...(['low', 'medium', 'high', 'xhigh', 'max'].includes(p.effort) ? { output_config: { effort: p.effort } } : {}) }) });
         const j = await r.json();
         if (!r.ok || j.error) return out(r.ok ? 502 : r.status, { error: (j.error && j.error.message) || ('שגיאת API ' + r.status) });
+        if (j.stop_reason === 'refusal') return out(502, { error: 'ה-AI סירב לבקשה' });
+        if (j.stop_reason === 'max_tokens' && !(j.content || []).some(b => b && b.type === 'text' && b.text)) return out(502, { error: 'תשובת ה-AI נקטעה לפני שהתחילה (נגמר מכסת הטוקנים על חשיבה) — נסה שוב' });
         out(200, j);
       } catch (e) { out(502, { error: 'הקריאה ל-Anthropic נכשלה: ' + String(e.message) }); }
     });
