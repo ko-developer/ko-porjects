@@ -120,9 +120,13 @@ async function ptScaleScan(onStep) {
   /* "1:20" בדיוק — תבנית ספציפית מספיק כדי לקבל גם ביטחון נמוך (פונט מתאר דק נקרא ב-30%); כיתוב ארוך יותר דורש ביטחון סביר */
   /* "1:20" בדיוק — תבנית ספציפית מספיק כדי לקבל גם ביטחון נמוך (פונט מתאר דק נקרא ב-30%); כיתוב ארוך יותר דורש ביטחון סביר.
      box = מיקום הכיתוב בתמונת המקור (לתמונה המוקטנת שמוצגת לאימות); weak = מספר ליד התווית שלא נקרא איתו "1:" */
-  const consider = (t, c, where, box, weak) => { const s2 = norm(t).trim(); const exact = /^1\s*[:\/]\s*\d{1,4}$/.test(s2); if (c < (exact ? 15 : 35)) return; const m = rx.exec(s2); if (!m) return; const n = +m[1]; if (!(n >= 5 && n <= 2000)) return; const score = (nice.includes(n) ? 100 : 0) + (exact ? 40 : 0) + c - (weak ? 60 : 0); if (!best || score > best.score) best = { n, t: s2, c: Math.round(c), where, score, box: box || null, weak: !!weak }; };
-  const good = () => best && !best.weak && best.score >= 140;
+  const consider = (t, c, where, box, weak, lbl) => { const s2 = norm(t).trim(); const exact = /^1\s*[:\/]\s*\d{1,4}$/.test(s2); if (c < (exact ? 15 : 35)) return; const m = rx.exec(s2); if (!m) return; const n = +m[1]; if (!(n >= 5 && n <= 2000)) return; const score = (nice.includes(n) ? 100 : 0) + (exact ? 40 : 0) + c - (weak ? 60 : 0); if (!best || score > best.score) best = { n, t: s2, c: Math.round(c), where, score, box: box || null, weak: !!weak, lbl: !!lbl && !weak }; };
+  /* כיתוב "1:N" מפורש שנמצא ליד התווית קנ"מ / SCALE הוא הראיה החזקה ביותר — עוצרים שם (בלי זה ערך לא "עגול" כמו 1:80 סרק את כל ארבע הרצועות, ~40 שניות) */
+  const good = () => best && !best.weak && (best.score >= 140 || best.lbl);
   let psm = '6';
+  /* פורמט הגיליון מטבלת הכותרת ("גיליון A3") — בתמונה אין גודל דף, ובלעדיו אי אפשר להפוך 1:N לכיול */
+  let fmt = null, fmtLbl = null;
+  const FMT_LBL = /גיליון|גליון|פורמט|גודל|sheet|format|size/i;
   /* קריאה חוזרת של תא התווית בספרות בלבד: בשורה מעורבת עברית+ספרות ("קנ"מ: 1:180") טסרקט מפיל את "1:1" ומחזיר "80" בביטחון גבוה —
      כאן המילים שאינן מספר נמחקות מהתמונה והאזור נקרא שוב עם רשימת תווים 0-9 : / בלבד */
   const reread = async (cvs, x0, y0, x1, y1, words) => {
@@ -142,6 +146,8 @@ async function ptScaleScan(onStep) {
     /* מיקום בתמונת המקור — רק ברצועה לא מסובבת */
     const boxOf = (...ws) => rot ? null : { x: sx + Math.min(...ws.map(w => w.bbox.x0)) / k, y: sy + Math.min(...ws.map(w => w.bbox.y0)) / k, x2: sx + Math.max(...ws.map(w => w.bbox.x1)) / k, y2: sy + Math.max(...ws.map(w => w.bbox.y1)) / k };
     words.forEach(w => consider(w.text, w.confidence, where, boxOf(w)));
+    for (const w of words) { const m = /^A\s?([0-4])$/i.exec(String(w.text || '').replace(/[\u200e\u200f\s:.,]/g, '')); if (!m || w.confidence < 55) continue; const v = 'A' + m[1], hh = Math.max(8, w.bbox.y1 - w.bbox.y0), cy0 = (w.bbox.y0 + w.bbox.y1) / 2;
+      if (!fmt) fmt = v; if (!fmtLbl && words.some(o => o !== w && FMT_LBL.test(o.text || '') && Math.abs((o.bbox.y0 + o.bbox.y1) / 2 - cy0) < hh * 1.2)) fmtLbl = v; }
     for (let i = 0; i + 1 < words.length; i++) { const a = words[i], b = words[i + 1]; if (Math.abs(a.bbox.y0 - b.bbox.y0) < (a.bbox.y1 - a.bbox.y0) && b.bbox.x0 - a.bbox.x1 < (a.bbox.y1 - a.bbox.y0) * 2) consider(a.text + b.text, Math.min(a.confidence, b.confidence), where, boxOf(a, b)); }
     /* תווית "קנ"מ" / SCALE: מספר מתחתיה או לידה (אותו תא בטבלת הכותרת) הוא ה-N גם בלי "1:" — אחרי אימות בקריאת ספרות בלבד */
     for (const lb of words.filter(w => LABEL.test(w.text || ''))) {
@@ -153,8 +159,8 @@ async function ptScaleScan(onStep) {
         /* אותה שורה כמו המספר, מורחבת לצדדים — שם נמצא ה-"1:" שנשמט */
         const dg = await reread(cvs, Math.min(w.bbox.x0, lb.bbox.x0) - h * 5, w.bbox.y0 - h * 0.35, Math.max(w.bbox.x1, lb.bbox.x1) + h * 5, w.bbox.y1 + h * 0.35, words);
         const m2 = /(?:^|[^\d])1[:\/](\d{2,4})(?!\d)/.exec(dg);
-        if (m2 && +m2[1] >= 10 && +m2[1] <= 2000) consider('1:' + m2[1], Math.max(w.confidence, 20) + 15, where, boxOf(lb, w));
-        else consider('1:' + m[1], Math.max(w.confidence, 20) + 15, where, boxOf(lb, w), !explicit); }
+        if (m2 && +m2[1] >= 10 && +m2[1] <= 2000) consider('1:' + m2[1], Math.max(w.confidence, 20) + 15, where, boxOf(lb, w), false, true);
+        else consider('1:' + m[1], Math.max(w.confidence, 20) + 15, where, boxOf(lb, w), !explicit, explicit); }
     }
   };
   try {
@@ -170,7 +176,7 @@ async function ptScaleScan(onStep) {
   /* תמונה מוקטנת של המקום שבו נקרא הכיתוב — המשתמש רואה את הכיתוב המקורי ליד הערך שנכנס לשדה */
   let thumb = null;
   if (best && best.box) { try { const bx = best.box, ph = Math.max(10, (bx.y2 - bx.y) * 1.2), pw = Math.max(40, (bx.x2 - bx.x) * 0.6); const x0 = Math.max(0, bx.x - pw), y0 = Math.max(0, bx.y - ph), x1 = Math.min(W, bx.x2 + pw), y1 = Math.min(H, bx.y2 + ph); const z = Math.min(3, 300 / Math.max(1, x1 - x0)); const tc = document.createElement('canvas'); tc.width = Math.round((x1 - x0) * z); tc.height = Math.round((y1 - y0) * z); const tg = tc.getContext('2d'); tg.imageSmoothingQuality = 'high'; tg.drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, tc.width, tc.height); thumb = tc.toDataURL('image/jpeg', 0.7); } catch (e) {} }
-  return best ? { n: best.n, t: best.t, where: best.where, c: best.c, weak: !!best.weak, thumb } : null;
+  return best ? { n: best.n, t: best.t, where: best.where, c: best.c, weak: !!best.weak, thumb, sheet: fmtLbl || fmt || null, imgW: W, imgH: H } : null;
 }
 window.ptScaleScan = ptScaleScan;
 /* תמונת הרקע מוגדלת (עד ~3600px) ומחודדת לשחור-לבן — כמו בזיהוי קנה המידה */

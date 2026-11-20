@@ -7067,5 +7067,11 @@
  "בחר גודל גיליון": "choose the sheet size",
  "ולחץ ״החל״": "and press “Apply”",
  "קריאה לא ודאית": "uncertain reading",
- "אמת ולחץ ״החל״": "verify and press “Apply”"
+ "אמת ולחץ ״החל״": "verify and press “Apply”",
+ "🔎 סורק את התכנית לקבלת קנה מידה": "🔎 Scanning the plan for its scale",
+ "טבלת הכותרת": "title block",
+ "עד כדקה, אפשר להמשיך לעבוד בינתיים": "up to about a minute, you can keep working meanwhile",
+ "התכנית כוילה אוטומטית": "the plan was calibrated automatically",
+ "הקריאה לא ודאית": "The reading is uncertain",
+ "גודל הגיליון לא ידוע": "The sheet size is unknown"
 }
