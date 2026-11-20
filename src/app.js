@@ -11972,6 +11972,9 @@ document.addEventListener('pointerdown', e => {
     if (z) {
       if (!z.poly) z.poly = zoneRectPts(z);          /* מלבן → פוליגון של 4 נקודות ברגע שנוגעים בנקודה */
       let i = +iS;
+      /* Shift+לחיצה על קודקוד = סימון / ביטול סימון למחיקה מרובה — בלי להזיז אותו */
+      if (e.shiftKey && zv.dataset.zvtx != null) { zoneVtxSelToggle(z.id, i); e.preventDefault(); e.stopImmediatePropagation(); return; }
+      zoneVtxSelClear(true);
       if (zv.dataset.zmid != null) { const p = z.poly[i], q = z.poly[(i + 1) % z.poly.length]; z.poly.splice(i + 1, 0, { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }); i = i + 1; }
       window.__vtxZ = { z, i, orig: { ...z.poly[i] }, inserted: zv.dataset.zmid != null, sx: e.clientX, sy: e.clientY, moved: false };
       e.preventDefault(); e.stopImmediatePropagation(); return;   /* לא להתחיל בחירת מסגרת/גרירת קנבס מהידית */
@@ -12502,7 +12505,14 @@ document.addEventListener('pointerup', e => {
       const S = new Set(e.shiftKey ? (P.fxDet.selSet || []) : []); P.fxDet.items.forEach(it => { if (it.x >= x0 && it.x <= x1 && it.y >= y0 && it.y <= y1) S.add(it.id); });
       if (S.size) { P.fxDet.selSet = [...S]; P.fxDet.winTab = 'sel'; fxN = S.size; }
     }
+    /* ריבוע בחירה על נקודות האזור הנבחר (בלי מוקדים בתוכו) = סימון הנקודות למחיקה מרובה */
+    let vN = 0;
+    if (marq.moved && !had && selZone) { const zz = (P.zones || []).find(x => x.id === selZone);
+      if (zz) { const x0 = Math.min(marq.x0, marq.x1), x1 = Math.max(marq.x0, marq.x1), y0 = Math.min(marq.y0, marq.y1), y1 = Math.max(marq.y0, marq.y1), pts = zz.poly || zoneRectPts(zz);
+        const S = new Set(e.shiftKey && window.__vtxSel && window.__vtxSel.zid === zz.id ? window.__vtxSel.idx : []); pts.forEach((p, i) => { if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) S.add(i); });
+        if (S.size) { if (!zz.poly) zz.poly = pts; window.__vtxSel = { zid: zz.id, idx: S }; vN = S.size; } } }
     marq = null;
+    if (vN) { render(); zoneVtxSelBar(); return; }
     if (had) { sel = null; selCable = null; render(); showMultiBar(); multiWinOpen(); }   /* בחירת ריבוע פותחת את טבלת המסומנים */
     else if (fxN) { render(); fxDetWinOpen(); uiToast('⬚ ' + fxN + ' סימונים נבחרו — הרשימה לעריכה נפתחה (סוג, דגם, מוצר, מחיקה לכולם)'); }
     return;
@@ -16427,9 +16437,9 @@ function renderZones() {
     const dims = P.scale ? ` · ${(zoneArea(z) * P.scale * P.scale).toFixed(0)} מ"ר` : '';
     /* עריכה לפי נקודות: האזור הנבחר מקבל ידיות בכל קודקוד (גרירה = הזזה, לחיצה ימנית = מחיקה) ובאמצע כל צלע (גרירה = נקודה חדשה) */
     if (selZone === z.id && !zoneMode) {
-      const pts = z.poly || zoneRectPts(z);
+      const pts = z.poly || zoneRectPts(z), vs = window.__vtxSel && window.__vtxSel.zid === z.id ? window.__vtxSel.idx : null;
       pts.forEach((p, i) => {
-        const v = document.createElement('span'); v.className = 'zvtx'; v.dataset.zvtx = z.id + '|' + i; v.title = 'גרור — הזזת הנקודה · לחיצה ימנית — מחיקה';
+        const v = document.createElement('span'); v.className = 'zvtx' + (vs && vs.has(i) ? ' sel' : ''); v.dataset.zvtx = z.id + '|' + i; v.title = 'גרור — הזזת הנקודה · לחיצה ימנית — מחיקה · Shift+לחיצה או ריבוע בחירה — סימון כמה נקודות למחיקה';
         v.style.cssText = `left:${p.x}px;top:${p.y}px;background:${c}`; host.appendChild(v);
         const q = pts[(i + 1) % pts.length];
         const m = document.createElement('span'); m.className = 'zvtx mid'; m.dataset.zmid = z.id + '|' + i; m.title = 'גרור — נקודה חדשה על הצלע';
@@ -16545,10 +16555,44 @@ function zoneAbsorb(a) {
   if (eaten.length) uiToast('🔗 "' + eaten.join('", "') + '" נבלע לתוך "' + a.name + '" — אזור אחד', 5000);
   return eaten.length;
 }
+/* ===== סימון כמה נקודות של אזור ומחיקתן יחד (אורי, 21.11.2026) =====
+   Shift+לחיצה על קודקוד, או ריבוע בחירה על נקודות האזור הנבחר → window.__vtxSel = { zid, idx:Set }. סרגל צף "מחק N נקודות" / Delete מוחק
+   את כולן והאזור נסגר בלעדיהן (נשארות לפחות 3). הסימון הוא לפי אינדקס — כל שינוי אחר בפוליגון מנקה אותו. */
+function zoneVtxSelClear(quiet) { const had = !!window.__vtxSel; window.__vtxSel = null; const b = document.getElementById('vtxSelBar'); if (b) b.remove(); if (had && !quiet) render(); }
+function zoneVtxSelToggle(zid, i) {
+  let vs = window.__vtxSel; if (!vs || vs.zid !== zid) vs = window.__vtxSel = { zid, idx: new Set() };
+  if (vs.idx.has(i)) vs.idx.delete(i); else vs.idx.add(i);
+  if (!vs.idx.size) { zoneVtxSelClear(); return; }
+  render(); zoneVtxSelBar();
+}
+function zoneVtxSelBar() {
+  const vs = window.__vtxSel; let b = document.getElementById('vtxSelBar');
+  if (!vs || !vs.idx.size) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'vtxSelBar'; b.style.cssText = 'position:fixed;top:104px;left:50%;transform:translateX(-50%);z-index:141;background:#1a1e28;color:#fff;border:2px solid #ffd400;border-radius:999px;padding:5px 8px 5px 14px;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.35);display:flex;gap:8px;align-items:center;direction:rtl;white-space:nowrap'; document.body.appendChild(b); }
+  b.innerHTML = '<span>' + vs.idx.size + ' נקודות מסומנות</span><button onclick="zoneVtxSelDelete()" style="padding:4px 12px;border-radius:999px;border:none;cursor:pointer;background:#c1121f;color:#fff;font-weight:800">🗑 מחק אותן</button><button onclick="zoneVtxSelClear()" style="padding:4px 10px;border-radius:999px;border:none;cursor:pointer">בטל סימון</button>';
+}
+function zoneVtxSelDelete() {
+  const vs = window.__vtxSel; if (!vs) return;
+  const z = (P.zones || []).find(x => x.id === vs.zid); if (!z) { zoneVtxSelClear(); return; }
+  if (!z.poly) z.poly = zoneRectPts(z);
+  const keep = z.poly.filter((p, i) => !vs.idx.has(i));
+  if (keep.length < 3) { uiToast('לאזור חייבות להישאר 3 נקודות — סומנו ' + vs.idx.size + ' מתוך ' + z.poly.length, 6000); return; }
+  const n = z.poly.length - keep.length;
+  z.poly = keep; zoneVtxSelClear(true); zoneSyncBox(z); save(); render(); ztEdited();
+  uiToast('🗑 נמחקו ' + n + ' נקודות — האזור נסגר בלעדיהן (↩ לביטול)', 5000);
+}
+document.addEventListener('keydown', e => {
+  const vs = window.__vtxSel; if (!vs || window.__vtxZ) return;
+  if (e.target && e.target.matches && e.target.matches('input,textarea,select,[contenteditable]')) return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); zoneVtxSelDelete(); }
+  else if (e.key === 'Escape') { e.preventDefault(); zoneVtxSelClear(); }
+}, true);
+window.zoneVtxSelDelete = zoneVtxSelDelete; window.zoneVtxSelClear = zoneVtxSelClear;
 function zoneVtxDelete(zid, i) {
   const z = (P.zones || []).find(x => x.id === zid); if (!z) return;
   if (!z.poly) z.poly = zoneRectPts(z);
   if (z.poly.length <= 3) { uiToast('לאזור חייבות להישאר 3 נקודות'); return; }
+  zoneVtxSelClear(true);
   z.poly.splice(i, 1); zoneSyncBox(z); save(); render(); ztEdited();
 }
 /* נקודה "דבוקה" לעכבר: הלחיצה הבאה מניחה אותה (נתפס לפני כל שאר המאזינים) */

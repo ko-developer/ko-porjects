@@ -720,7 +720,7 @@
  "מהמלאי": "From stock",
  "שים לב": "Note",
  "נוצלו": "Used",
- "מתוך": "Out of",
+ "מתוך": "out of",
  "של": "of",
  "נחתך מגליל": "Cut from reel",
  "חריגה במלאי המחברים": "Connector stock exceeded",
@@ -2277,7 +2277,7 @@
  "ועל דעיכה": "and decay",
  "פתוח=בריחת סאונד": "Open = sound leakage",
  "✂ פשט קווים": "✂ Simplify Lines",
- "נקודות": "Points",
+ "נקודות": "points",
  ">🔧 בנה מערכת אוטומטית לאזור": ">🔧 Auto-build system for zone",
  "גרירת התווית מזיזה את האזור": "Dragging the label moves the zone",
  "הריבוע בפינה משנה גודל": "The square in the corner resizes",
@@ -7111,5 +7111,13 @@
  "🤖 זיהוי בעזרת AI": "🤖 Detect with AI",
  "🧩 סמן לי אזורים אוטומטית": "🧩 Mark zones for me automatically",
  "זיהוי בעזרת AI בתשלום": "detect with paid AI",
- "🤖 זיהוי בעזרת AI בתשלום": "🤖 Detect with paid AI"
+ "🤖 זיהוי בעזרת AI בתשלום": "🤖 Detect with paid AI",
+ "Shift+לחיצה או ריבוע בחירה": "Shift+click or a selection box",
+ "סימון כמה נקודות למחיקה": "mark several points for deletion",
+ "נקודות מסומנות": "points marked",
+ "🗑 מחק אותן": "🗑 Delete them",
+ "בטל סימון": "Clear marking",
+ "האזור נסגר בלעדיהן": "the zone closes without them",
+ "↩ לביטול": "↩ to undo",
+ "🗑 נמחקו": "🗑 Deleted"
 }

@@ -376,7 +376,8 @@ function ptMarksSVG() {
   pt.items.forEach((it, i) => {
     if (!pt.cats[it.cat]) return;
     const { x, y, w } = ptPos(it), col = PT_CATS[it.cat].c, foc = window.__ptFocus === i;
-    if (it.bw) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), zq = it.zw ? [it.zu, it.zv, it.zw, it.zh] : [it.bu, it.bv, it.bw, it.bh]; out += `<rect x="${bgLeft() + zq[0] * Wb}" y="${bgTop() + zq[1] * Hb}" width="${zq[2] * Wb}" height="${zq[3] * Hb}" rx="6" fill="${col}" fill-opacity="${foc ? 0.22 : 0.1}" stroke="${col}" stroke-width="${(foc ? 3 : 1.6) / getZ()}" stroke-dasharray="${7 / getZ()} ${4 / getZ()}" style="pointer-events:none"/>`; }
+    /* המלבן המקווקו סביב הכיתוב (גבולות חדר משוערים) בלבל — נראה כמו אזור. מוצג רק אם הודלק במפורש (pt.boxes); התווית עצמה נשארת (אורי, 21.11.2026) */
+    if (it.bw && pt.boxes) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), zq = it.zw ? [it.zu, it.zv, it.zw, it.zh] : [it.bu, it.bv, it.bw, it.bh]; out += `<rect x="${bgLeft() + zq[0] * Wb}" y="${bgTop() + zq[1] * Hb}" width="${zq[2] * Wb}" height="${zq[3] * Hb}" rx="6" fill="${col}" fill-opacity="${foc ? 0.22 : 0.1}" stroke="${col}" stroke-width="${(foc ? 3 : 1.6) / getZ()}" stroke-dasharray="${7 / getZ()} ${4 / getZ()}" style="pointer-events:none"/>`; }
     const bw = Math.max(w, it.t.length * fz * 0.6 + 10);
     out += `<g style="cursor:pointer" onclick="window.__ptFocus=${i};ui.tab='node';render()"><rect x="${x - bw / 2}" y="${y - fz * 0.75}" width="${bw}" height="${fz * 1.5}" rx="3" fill="${col}" opacity="${foc ? 1 : 0.78}" stroke="${foc ? '#111' : 'none'}" stroke-width="${foc ? 2 : 0}"/><text x="${x}" y="${y + fz * 0.35}" text-anchor="middle" font-size="${fz}" font-weight="700" fill="#fff" direction="ltr" unicode-bidi="embed">${esc(it.t)}</text></g>`;
   });
