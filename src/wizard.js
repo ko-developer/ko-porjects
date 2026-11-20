@@ -245,7 +245,7 @@ function wizStepHTML(s) {
       <b>המילוי ברח למקום פתוח?</b> צייר <b>קיר וירטואלי</b> איפה שהאזור צריך להיגמר — <b>Shift + גרירה</b> על התכנית, או <a href="#" onclick="window.__vwMode=!window.__vwMode;wizRender();return false" style="${window.__vwMode ? 'font-weight:800;color:#7b2cbf' : ''}">${window.__vwMode ? '✏ מצב קיר פעיל (לחץ לביטול)' : '✏ מצב קיר'}</a> — ואז לחץ שוב בתוך החדר.
       ${(P.virtWalls || []).length ? `<a href="#" onclick="vwUndo();return false">↶ בטל קיר אחרון</a> (${P.virtWalls.length})` : ''}</div>` : ''}
     <button class="sec" onclick="autoZones()">🧩 זיהוי אזורים אוטומטי (בלי AI)</button>
-    <button class="sec" onclick="autoZonesAI()" style="font-size:11px">🤖 זיהוי בעזרת AI (צורך טוקנים)</button>
+    <button class="sec" onclick="autoZonesAI()" style="font-size:11px">🤖 זיהוי בעזרת AI בתשלום (צורך טוקנים)</button>
     <button class="sec" onclick="wizOcrZones()" title="קורא את המילים שעל השרטוט (OCR מקומי, בלי AI), מסמן אזורים מוצעים לפי הקירות והכיתובים — ואתה מאשר כל אחד">🔤 קרא את הכיתובים ומצא אזורים (OCR)</button>
     ${wizPropHTML()}
     <button class="sec" onclick="ptPartition()" title="חלוקה אוטומטית של החלל לאזורים לפי הקירות והכיתובים (אחרי קריאת הכיתובים)">🧩 חלק את כל החלל לאזורים</button>`;
