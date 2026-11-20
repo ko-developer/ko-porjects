@@ -122,8 +122,13 @@ async function ptScaleScan(onStep) {
      box = מיקום הכיתוב בתמונת המקור (לתמונה המוקטנת שמוצגת לאימות); weak = מספר ליד התווית שלא נקרא איתו "1:" */
   const consider = (t, c, where, box, weak, lbl) => { const s2 = norm(t).trim(); const exact = /^1\s*[:\/]\s*\d{1,4}$/.test(s2); if (c < (exact ? 15 : 35)) return; const m = rx.exec(s2); if (!m) return; const n = +m[1]; if (!(n >= 5 && n <= 2000)) return; const score = (nice.includes(n) ? 100 : 0) + (exact ? 40 : 0) + c - (weak ? 60 : 0); if (!best || score > best.score) best = { n, t: s2, c: Math.round(c), where, score, box: box || null, weak: !!weak, lbl: !!lbl && !weak }; };
   /* כיתוב "1:N" מפורש שנמצא ליד התווית קנ"מ / SCALE הוא הראיה החזקה ביותר — עוצרים שם (בלי זה ערך לא "עגול" כמו 1:80 סרק את כל ארבע הרצועות, ~40 שניות) */
-  const good = () => best && !best.weak && (best.score >= 140 || best.lbl);
+  /* …או אותו "1:N" שנקרא בביטחון בשתי סריקות שונות, בלי ערך מתחרה שנקרא פעמיים */
+  const seenPass = new Map();
+  const good = () => best && !best.weak && (best.score >= 140 || best.lbl || ((seenPass.get(best.n) || 0) >= 2 && ![...seenPass].some(([k, v]) => k !== best.n && v >= 2)));
   let psm = '6';
+  let wDig = null; const lblStrips = new Set();
+  /* תקרת זמן: אחרי 75 שניות מחזירים את הטוב ביותר שנמצא — הסריקה לא רצה דקות */
+  const T0 = Date.now(), over = () => Date.now() - T0 > 75000;
   /* פורמט הגיליון מטבלת הכותרת ("גיליון A3") — בתמונה אין גודל דף, ובלעדיו אי אפשר להפוך 1:N לכיול */
   let fmt = null, fmtLbl = null;
   const FMT_LBL = /גיליון|גליון|פורמט|גודל|sheet|format|size/i;
@@ -136,9 +141,10 @@ async function ptScaleScan(onStep) {
     const c1 = document.createElement('canvas'); c1.width = Math.round(w * z) + 20; c1.height = Math.round(h * z) + 20; const g1 = c1.getContext('2d');
     g1.fillStyle = '#fff'; g1.fillRect(0, 0, c1.width, c1.height); g1.imageSmoothingQuality = 'high'; g1.drawImage(cvs, x0, y0, w, h, 10, 10, w * z, h * z);
     for (const wd of words) { if (/\d/.test(wd.text || '')) continue; const b2 = wd.bbox; if (b2.x1 < x0 || b2.x0 > x1 || b2.y1 < y0 || b2.y0 > y1) continue; g1.fillRect(10 + (b2.x0 - x0) * z - 1, 10 + (b2.y0 - y0) * z - 1, (b2.x1 - b2.x0) * z + 2, (b2.y1 - b2.y0) * z + 2); }
-    try { await worker.setParameters({ tessedit_char_whitelist: '0123456789:/', tessedit_pageseg_mode: '7' }); const r2 = await worker.recognize(c1); return norm(r2.data.text || '').replace(/\s+/g, ''); }
+    /* מנוע נפרד לספרות בלבד — הפרמטרים של המנוע הראשי לא משתנים. איפוס רשימת התווים למחרוזת ריקה לא ניקה אותה: מאותו רגע כל סריקה קראה ספרות בלבד, התווית לא נמצאה והסריקה נמשכה דקות */
+    try { if (!wDig) { wDig = await Tesseract.createWorker('eng'); await wDig.setParameters({ tessedit_char_whitelist: '0123456789:/', tessedit_pageseg_mode: '7' }); } const r2 = await wDig.recognize(c1); return norm(r2.data.text || '').replace(/\s+/g, ''); }
     catch (e) { return ''; }
-    finally { await worker.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: psm }); }
+
   };
   const pass = async (where, sx, sy, sw, sh, k, thr, rot) => {
     const cvs = crop(sx, sy, sw, sh, k, thr, rot);
@@ -146,16 +152,21 @@ async function ptScaleScan(onStep) {
     /* מיקום בתמונת המקור — רק ברצועה לא מסובבת */
     const boxOf = (...ws) => rot ? null : { x: sx + Math.min(...ws.map(w => w.bbox.x0)) / k, y: sy + Math.min(...ws.map(w => w.bbox.y0)) / k, x2: sx + Math.max(...ws.map(w => w.bbox.x1)) / k, y2: sy + Math.max(...ws.map(w => w.bbox.y1)) / k };
     words.forEach(w => consider(w.text, w.confidence, where, boxOf(w)));
+    { const inPass = new Set(); for (const w of words) { const mm = /^1\s*[:\/]\s*(\d{2,4})$/.exec(norm(w.text).trim()); if (mm && w.confidence >= 75 && +mm[1] >= 10 && +mm[1] <= 2000) inPass.add(+mm[1]); } inPass.forEach(n => seenPass.set(n, (seenPass.get(n) || 0) + 1)); }
     for (const w of words) { const m = /^A\s?([0-4])$/i.exec(String(w.text || '').replace(/[\u200e\u200f\s:.,]/g, '')); if (!m || w.confidence < 55) continue; const v = 'A' + m[1], hh = Math.max(8, w.bbox.y1 - w.bbox.y0), cy0 = (w.bbox.y0 + w.bbox.y1) / 2;
       if (!fmt) fmt = v; if (!fmtLbl && words.some(o => o !== w && FMT_LBL.test(o.text || '') && Math.abs((o.bbox.y0 + o.bbox.y1) / 2 - cy0) < hh * 1.2)) fmtLbl = v; }
     for (let i = 0; i + 1 < words.length; i++) { const a = words[i], b = words[i + 1]; if (Math.abs(a.bbox.y0 - b.bbox.y0) < (a.bbox.y1 - a.bbox.y0) && b.bbox.x0 - a.bbox.x1 < (a.bbox.y1 - a.bbox.y0) * 2) consider(a.text + b.text, Math.min(a.confidence, b.confidence), where, boxOf(a, b)); }
     /* תווית "קנ"מ" / SCALE: מספר מתחתיה או לידה (אותו תא בטבלת הכותרת) הוא ה-N גם בלי "1:" — אחרי אימות בקריאת ספרות בלבד */
+    if (words.some(w => LABEL.test(w.text || ''))) lblStrips.add(where);
     for (const lb of words.filter(w => LABEL.test(w.text || ''))) {
       const h = Math.max(8, lb.bbox.y1 - lb.bbox.y0), cx = (lb.bbox.x0 + lb.bbox.x1) / 2, cy = (lb.bbox.y0 + lb.bbox.y1) / 2;
       for (const w of words) { if (w === lb) continue; const m = /^(?:1\s*[:\/]\s*)?(\d{2,4})$/.exec(norm(w.text).trim()); if (!m) continue;
         const wx = (w.bbox.x0 + w.bbox.x1) / 2, wy = (w.bbox.y0 + w.bbox.y1) / 2;
-        if (!(Math.abs(wx - cx) < h * 6 && wy - cy > -h && wy - cy < h * 3.5)) continue;
+        /* אותה שורה עד 16 גבהי אות (ערך ותווית בתאים סמוכים בטבלת הכותרת: "1:80 | קנ"מ"), או מתחת/צמוד כמו קודם */
+        if (!((Math.abs(wy - cy) < h * 0.9 && Math.abs(wx - cx) < h * 16) || (Math.abs(wx - cx) < h * 6 && wy - cy > -h && wy - cy < h * 3.5))) continue;
         const explicit = /^1\s*[:\/]/.test(norm(w.text).trim());
+        /* "1:N" מפורש שנקרא בביטחון ליד התווית — ראיה מספיקה, בלי קריאה חוזרת */
+        if (explicit && w.confidence >= 75) { consider('1:' + m[1], w.confidence + 15, where, boxOf(lb, w), false, true); continue; }
         /* אותה שורה כמו המספר, מורחבת לצדדים — שם נמצא ה-"1:" שנשמט */
         const dg = await reread(cvs, Math.min(w.bbox.x0, lb.bbox.x0) - h * 5, w.bbox.y0 - h * 0.35, Math.max(w.bbox.x1, lb.bbox.x1) + h * 5, w.bbox.y1 + h * 0.35, words);
         const m2 = /(?:^|[^\d])1[:\/](\d{2,4})(?!\d)/.exec(dg);
@@ -166,15 +177,17 @@ async function ptScaleScan(onStep) {
   try {
     await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '6' });
     /* סבב מהיר: מעבר אחד על כל ארבע הרצועות — טבלת כותרת בצד שמאל/למעלה נמצאת בלי לסרוק קודם לעומק את ימין ותחתית */
-    for (const [where, sx, sy, sw, sh] of strips) { if (onStep) onStep(where); await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (good()) break; }
-    if (!good()) for (const [where, sx, sy, sw, sh] of strips) {
+    for (const [where, sx, sy, sw, sh] of strips) { if (onStep) onStep(where); await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (good() || over()) break; }
+    /* סריקת העומק מתחילה ברצועה שבה נמצאה התווית קנ"מ / SCALE בסבב המהיר */
+    const deep = [...strips.filter(st => lblStrips.has(st[0])), ...strips.filter(st => !lblStrips.has(st[0]))];
+    if (!good() && !over()) for (const [where, sx, sy, sw, sh] of deep) {
       if (onStep) onStep(where);
-      for (const k of scales) { for (const thr of [200, 150]) { await pass(where, sx, sy, sw, sh, k, thr, 0); if (good()) break; } if (good()) break; }
-      if (!good() && (where === 'right' || where === 'left')) for (const rot of [Math.PI / 2, -Math.PI / 2]) { await pass(where, sx, sy, sw, sh, scales[0], 200, rot); if (good()) break; }
-      if (good()) break;
+      for (const k of scales) { for (const thr of [200, 150]) { await pass(where, sx, sy, sw, sh, k, thr, 0); if (good() || over()) break; } if (good() || over()) break; }
+      if (!good() && !over() && (where === 'right' || where === 'left')) for (const rot of [Math.PI / 2, -Math.PI / 2]) { await pass(where, sx, sy, sw, sh, scales[0], 200, rot); if (good() || over()) break; }
+      if (good() || over()) break;
     }
-    if (!best) { psm = '11'; await worker.setParameters({ tessedit_pageseg_mode: '11' }); for (const [where, sx, sy, sw, sh] of strips) { await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (best) break; } }
-  } finally { await worker.terminate(); }
+    if (!best && !over()) { psm = '11'; await worker.setParameters({ tessedit_pageseg_mode: '11' }); for (const [where, sx, sy, sw, sh] of strips) { await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (best) break; } }
+  } finally { await worker.terminate(); if (wDig) { try { await wDig.terminate(); } catch (e) {} } }
   /* תמונה מוקטנת של המקום שבו נקרא הכיתוב — המשתמש רואה את הכיתוב המקורי ליד הערך שנכנס לשדה */
   let thumb = null;
   if (best && best.box) { try { const bx = best.box, ph = Math.max(10, (bx.y2 - bx.y) * 1.2), pw = Math.max(40, (bx.x2 - bx.x) * 0.6); const x0 = Math.max(0, bx.x - pw), y0 = Math.max(0, bx.y - ph), x1 = Math.min(W, bx.x2 + pw), y1 = Math.min(H, bx.y2 + ph); const z = Math.min(3, 300 / Math.max(1, x1 - x0)); const tc = document.createElement('canvas'); tc.width = Math.round((x1 - x0) * z); tc.height = Math.round((y1 - y0) * z); const tg = tc.getContext('2d'); tg.imageSmoothingQuality = 'high'; tg.drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, tc.width, tc.height); thumb = tc.toDataURL('image/jpeg', 0.7); } catch (e) {} }
@@ -311,6 +324,12 @@ function ptKeep(p) {
   return words.some(w => /^[A-Z][A-Z0-9'&\-]{3,}$/.test(w) || /^[A-Z][a-z]{3,}$/.test(w) || /^[֐-׿]{4,}$/.test(w));   /* כיתוב אמיתי: מילה באותיות גדולות / מילה עברית */
 }
 /* סריקה מלאה של תמונת הרקע → P.planText */
+/* עברית משובשת: אות סופית באמצע מילה, או מ/נ/צ/פ/כ רגילה בסוף מילה (3+ אותיות). כמה מילים כאלה + חלק ניכר מהמילים = שכבת הטקסט לא אמינה */
+function ptGarbled(tokens) {
+  let n = 0, bad = 0;
+  for (const tk of tokens || []) for (const wd of String((tk && tk.t) || tk || '').split(/[^א-ת]+/)) { if (wd.length < 3) continue; n++; if (/[ךםןףץ](?=[א-ת])/.test(wd) || /[כמנפצ]$/.test(wd)) bad++; }
+  return bad >= 4 && bad / Math.max(1, n) >= 0.15;
+}
 async function planTextScan(opts) {
   if (!P.bg) { uiToast('אין תכנית רקע'); return; }
   if (window.__ptBusy) { uiToast('הסריקה כבר רצה…'); return; }
@@ -322,7 +341,9 @@ async function planTextScan(opts) {
     if (!P.bgPdf && !(opts && opts.noScale)) { try { uiToast('📐 מחפש את קנה המידה בטבלת הכותרת (שולי הגיליון)…', 4000); ptScale0 = await ptScaleScan(); if (ptScale0) uiToast('📐 נמצא קנה מידה 1:' + ptScale0.n + ' בשוליים (' + ptScale0.where + ') — ממשיך לקרוא את הכיתובים…', 5000); } catch (e) { console.warn('pt scale scan', e); } }
     let tokens, SW, SH, src = 'ocr', layers = [];
     if (P.bgPdf) { const r = await ptFromPdf(); tokens = r.tokens; SW = r.W; SH = r.H; src = 'pdf'; layers = r.layers || []; }
-    else { const cv = await ptCanvas(); tokens = await ptOcr(cv); SW = cv.width; SH = cv.height; }
+    /* שכבת טקסט משובשת (מיפוי גופן שבור ב-PDF: "מטבח הכנות" מגיע כ"עונות מטבן") — קוראים ב-OCR מהתמונה; בלי תוויות השכבות */
+    if (src === 'pdf' && ptGarbled(tokens)) { uiToast('🔤 שכבת הטקסט של ה-PDF משובשת — קורא את הכיתובים ב-OCR מהתמונה…', 6000); const cvG = await ptCanvas(); tokens = await ptOcr(cvG); SW = cvG.width; SH = cvG.height; src = 'ocr'; layers = []; }   /* תוויות השכבות ביחידות דף ה-PDF — לא מתאימות לקואורדינטות התמונה */
+    else if (!P.bgPdf) { const cv = await ptCanvas(); tokens = await ptOcr(cv); SW = cv.width; SH = cv.height; }
     window.__ptTokens = tokens;   /* לניפוי: מה נקרא */
     /* קנה מידה מהכיתובים ("1:50", "קנ"מ 1:100") — נבדק על הטוקנים הגולמיים, לפני סינון המילים */
     let ptScale = null; try { ptScale = typeof asScaleFromText === 'function' ? asScaleFromText([...ptGroup(tokens, 'h').map(p => p.t), ...tokens.map(p => p.t)]) : null; } catch (e) { console.warn('pt scale', e); }
@@ -1275,8 +1296,9 @@ function rfBox(src, w, h, r, isMax) {   /* מינימום/מקסימום בחל�
   return out;
 }
 async function rfWalls() {
-  const sc = await ptStructCanvas();   /* PDF עם שכבות: רק קירות ומפרידים */
-  const key = (P.bg || '').length + '|' + P.scale + '|' + (P.bgW || 0) + '|' + JSON.stringify(P.virtWalls || []) + (sc ? '|S' : '');
+  /* window.__rfPlain (זיהוי אזורים אוטומטי): קירות מהתמונה המרונדרת ולא משכבת הקירות — בשכבות בלי דלתות הפתחים פתוחים, וחדרים מתאחדים דרכם (מועדון + מטבח = 283 מ״ר) */
+  const sc = window.__rfPlain ? null : await ptStructCanvas();   /* PDF עם שכבות: רק קירות ומפרידים */
+  const key = (P.bg || '').length + '|' + P.scale + '|' + (P.bgW || 0) + '|' + JSON.stringify(P.virtWalls || []) + (sc ? '|S' : '') + (window.__rfPlain ? '|P' : '');
   if (ROOMFILL && ROOMFILL.key === key) return ROOMFILL;
   const img = sc || await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
   const k = Math.min(1, 1600 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
@@ -1375,14 +1397,20 @@ async function zoneFillCore(pt) {
 var ZW_OPS = /טבח|הכנות|קירור|מקפיא|שטיפ|קצבי|מחסן|יבשים|אחסון|משרד|צוות|kitchen|storage|store\b|office|freezer|prep\b/i;
 var ZW_JUNK = /^[\d\s.,=+\-:×xXH"'°]+$|^H\s?=|קורת|קורה|בטון|ידית|בהלה|אקוסטי|תאריך|מקרא|הערות|תכנו[ןו]|גיליון|גליון|פורמט|קנ.?מ|עיון|ביצוע|ספסל|^מר$|^מ"ר$|sqm|air\/c/i;
 /* i18n-ignore-end */
-/* "חוץ": מה שמגיע לשולי התמונה כשפתחים עד ~1.5 מ׳ סגורים (קירות מעובים ב-0.75 מ׳). נשמר על ROOMFILL */
+/* "חוץ": מה שמגיע לשולי התמונה כשפתחי הדלתות סגורים. רדיוס הסגירה מסתגל: ב-PDF עם שכבות הקירות נלקחים משכבת הקירות בלבד
+   (בלי דלתות), ופתח כניסה של 1.8–2.4 מ׳ נשאר פתוח — ה"חוץ" זלג לכל פנים המבנה והכול נפסל כ"מחוץ למבנה". מנסים 0.75 → 1.25 → 1.75 → 2.5 מ׳
+   ובוחרים את הרדיוס הקטן ביותר שממנו הגדלה נוספת כבר לא מחזירה שטח פנים משמעותי (< 4% מהתמונה). נשמר על ROOMFILL */
 async function zwOutMask() {
   const R = await rfWalls(), { w, h } = R;
-  if (!R.out) { const bar = rfBarrier(R, 0.75).barrier, out = new Uint8Array(w * h), q = new Int32Array(w * h); let qh = 0, qt = 0;
-    const push = i => { if (!out[i] && !bar[i]) { out[i] = 1; q[qt++] = i; } };
-    for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); } for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
-    while (qh < qt) { const i = q[qh++], x = i % w, y = (i - x) / w; if (x > 0) push(i - 1); if (x < w - 1) push(i + 1); if (y > 0) push(i - w); if (y < h - 1) push(i + w); }
-    R.out = out; }
+  if (!R.out) {
+    const flood = rM => { const bar = rfBarrier(R, rM).barrier, out = new Uint8Array(w * h), q = new Int32Array(w * h); let qh = 0, qt = 0, n = 0;
+      const push = i => { if (!out[i] && !bar[i]) { out[i] = 1; q[qt++] = i; } };
+      for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); } for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+      while (qh < qt) { const i = q[qh++], x = i % w, y = (i - x) / w; n++; if (x > 0) push(i - 1); if (x < w - 1) push(i + 1); if (y > 0) push(i - w); if (y < h - 1) push(i + w); }
+      return { out, n }; };
+    const radii = [0.75, 1.25, 1.75, 2.5], res = radii.map(flood); let pick = res.length - 1;
+    for (let i = 0; i < res.length - 1; i++) if (res[i].n - res[i + 1].n < 0.04 * w * h) { pick = i; break; }
+    R.out = res[pick].out; R.outR = radii[pick]; }
   const L = bgLeft(), T = bgTop(), W = P.bgW || 1400, H = bgHeightPx();
   const isOut = pt => { const x = Math.round((pt.x - L) / W * w), y = Math.round((pt.y - T) / H * h); return x < 1 || y < 1 || x >= w - 1 || y >= h - 1 || !!R.out[y * w + x]; };
   return { R, isOut };

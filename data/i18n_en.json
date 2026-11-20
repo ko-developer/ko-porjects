@@ -7138,5 +7138,7 @@
  "שירות / טכני": "service / technical",
  "זוהו תאים": "cubicles detected",
  "תאי שירותים בתוך": "Toilet cubicles inside",
- "הוצאו מהאזור": "removed from the zone"
+ "הוצאו מהאזור": "removed from the zone",
+ "🔤 שכבת הטקסט של ה-PDF משובשת": "🔤 The PDF text layer is garbled",
+ "קורא את הכיתובים ב-OCR מהתמונה": "reading the labels with OCR from the image"
 }

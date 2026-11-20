@@ -16780,6 +16780,7 @@ async function autoZones() {
   if (window.__azBusy) { uiToast('הזיהוי כבר רץ — המתן לתוצאה'); return; }
   if (!P.scale) { uiToast('📏 כייל קודם את התכנית — לפי קנה המידה מזהים מה עובי קיר ומה רוחב דלת', 8000); return; }
   window.__azBusy = true; uiBusy('az', 'מזהה אזורים בתכנית — קורא כיתובים ומוצא חדרים בין הקירות (בלי AI)');
+  window.__rfPlain = true;   /* קירות מהתמונה המרונדרת — ראה rfWalls */
   render();
   try {
     const before = new Set((P.zones || []).map(z => z.id));
@@ -16801,7 +16802,7 @@ async function autoZones() {
     fresh.forEach(z => { delete z._m2; });
     save();
   } catch (err) { console.warn('autoZones', err); uiToast('זיהוי האזורים נכשל: ' + err.message, 8000); }
-  finally { window.__azBusy = false; uiBusyDone('az'); render(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender(); }
+  finally { window.__rfPlain = false; window.__azBusy = false; uiBusyDone('az'); render(); if (typeof wizRender === 'function' && document.getElementById('wiz')) wizRender(); }
 }
 /* זיהוי אזורים דרך Claude (צורך טוקנים) — רק בלחיצה מפורשת על הכפתור המסומן */
 async function autoZonesAI() {
