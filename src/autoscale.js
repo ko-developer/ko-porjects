@@ -965,7 +965,7 @@ function asFindInTexts(lines, tokens, pageMm, segs) {
   const PLAN = typeof PT_SC_PLAN !== 'undefined' ? PT_SC_PLAN : /תכנית|PLAN/i, SECT = typeof PT_SC_SECT !== 'undefined' ? PT_SC_SECT : /חתך|SECTION/i;
   const vals = [], pairs = [];
   for (const t of lines || []) {
-    const c = clean(t), ns = [], rx = /(?:^|[^\d.,:])1\s*[:\/]\s*(\d{2,4})(?![\d.,:])/g; let m;
+    const c = clean(t), ns = [], rx = /(?:^|[^\d.,:\/])1\s*:\s*(\d{2,4})(?![\d.,:\/])/g; let m;   /* רק נקודתיים: "26/1/20" הוא תאריך, לא 1:20 */
     while ((m = rx.exec(c))) if (ok(+m[1])) ns.push(+m[1]);
     if (!ns.length) continue;
     const pr = /1\s*:\s*(\d{1,4})\s*[(\[]?\s*(?:@|\bat\b)\s*A\s?([0-4])/gi; while ((m = pr.exec(c))) if (!pairs.some(p => p.n === +m[1] && p.fmt === 'A' + m[2])) pairs.push({ n: +m[1], fmt: 'A' + m[2] });
@@ -974,7 +974,7 @@ function asFindInTexts(lines, tokens, pageMm, segs) {
   }
   /* טבלת יחסים (תקן חניה) לפי מיקום הפריטים בדף — אותו כלל כמו באיתור המהיר */
   if (segs && segs.length && typeof ptTblFlag === 'function') { const pos = [];
-    for (const sg of segs) for (const it of sg.items) { const m = /(?:^|[^\d.,:])1\s*[:\/]\s*(\d{2,4})(?![\d.,:])/.exec(clean(it.t)); if (m && ok(+m[1])) pos.push({ n: +m[1], cx: it.x, cy: sg.y, H: sg.h, line: clean(sg.t) }); }
+    for (const sg of segs) for (const it of sg.items) { const m = /(?:^|[^\d.,:\/])1\s*:\s*(\d{2,4})(?![\d.,:\/])/.exec(clean(it.t)); if (m && ok(+m[1])) pos.push({ n: +m[1], cx: it.x, cy: sg.y, H: sg.h, line: clean(sg.t) }); }
     ptTblFlag(pos); const bad = new Set(pos.filter(p => p.tbl).map(p => p.line + '|' + p.n)); vals.forEach(v => { if (bad.has(v.line + '|' + v.n)) v.tbl = true; }); }
   /* כיתוב מסובב (לא בשורות האופקיות): פריט שהוא בדיוק "1:N" */
   if (!vals.length) for (const t of tokens || []) { const m = /^\s*1\s*[:\/]\s*(\d{2,4})\s*$/.exec(clean(t)); if (m && ok(+m[1])) vals.push({ n: +m[1], t: '1:' + m[1] }); }
@@ -987,7 +987,10 @@ function asFindInTexts(lines, tokens, pageMm, segs) {
 /* הכיתובים של דף PDF: כל פריט לבדו + שורות (פריטים אופקיים באותו גובה, נחתכות ברווח גדול — תאים רחוקים בטבלה לא מתחברים) */
 async function asPdfPageTexts(pg) {
   const tc = await pg.getTextContent();
-  const items = (tc.items || []).map(it => { const tr = it.transform || [1, 0, 0, 1, 0, 0], h = Math.hypot(tr[2], tr[3]) || 8, t = (it.str || '').trim(); return { t, x: tr[4], y: tr[5], h, w: it.width || h * 0.6 * t.length, rot: Math.atan2(tr[1], tr[0]) }; }).filter(i => i.t);
+  /* במרחב התצוגה (אחרי סיבוב הדף): דף מסובב ב-90° מחזיר את כל הטקסט "אנכי" במרחב ה-PDF, ואז אין שורות ואין מיקום */
+  let vt = null; try { vt = pg.getViewport({ scale: 1 }).transform; } catch (e) {}
+  const mul = (m, n) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+  const items = (tc.items || []).map(it => { const t0 = it.transform || [1, 0, 0, 1, 0, 0], tr = vt ? mul(vt, t0) : t0, h = Math.hypot(tr[2], tr[3]) || 8, t = (it.str || '').trim(); return { t, x: tr[4], y: tr[5], h, w: it.width || h * 0.6 * t.length, rot: Math.atan2(tr[1], tr[0]) }; }).filter(i => i.t);
   const hz = items.filter(i => Math.abs(i.rot) < 0.3 || Math.abs(Math.abs(i.rot) - Math.PI) < 0.3).sort((a, b) => b.y - a.y || a.x - b.x);
   const rows = []; let cur = null;
   for (const it of hz) { if (cur && Math.abs(cur.y - it.y) <= Math.max(2, it.h * 0.5)) cur.items.push(it); else { cur = { y: it.y, items: [it] }; rows.push(cur); } }

@@ -16788,7 +16788,12 @@ async function autoZones() {
     const before = new Set((P.zones || []).map(z => z.id));
     if (!(P.planText && P.planText.at) && typeof planTextScan === 'function') { try { await planTextScan({ noScale: true }); } catch (e) { console.warn('autoZones scan', e); } }
     let fresh = [], info = null;
-    if (typeof zonesByWalls === 'function') { info = await zonesByWalls(); if (info && info.zones.length) { P.zones = [...(P.zones || []), ...info.zones]; fresh = info.zones; } }
+    /* שני מנועים (אימון על תכניות מהרשת, 21.11.2026): קירות עבים (zonesByWalls) וקווים דקים (zonesByLines). נבחר זה שסימן יותר שטח
+       של אזורים עם שם מהתכנית — קיר זכוכית / דלתות מתקפלות מצוירים בקו דק, ואז המנוע של הקירות העבים רואה את האולם כ"חוץ" */
+    if (typeof zonesByWalls === 'function') info = await zonesByWalls();
+    if (typeof zonesByLines === 'function') { try { const li = await zonesByLines(); const named = r => (r && r.zones || []).filter(z => !/^אזור \d+$/.test(z.name || '')).reduce((s2, z) => s2 + (z._m2 || 0), 0);
+      if (li && li.zones.length && (!info || !info.zones.length || named(li) > 1.3 * named(info))) info = li; } catch (e) { console.warn('zonesByLines', e); } }
+    if (info && info.zones.length) { P.zones = [...(P.zones || []), ...info.zones]; fresh = info.zones; }
     const skippedList = info && info.skippedList ? info.skippedList.slice() : [];
     let fellBack = false;
     if (!fresh.length && typeof ptPartition === 'function') { await ptPartition(); fresh = (P.zones || []).filter(z => !before.has(z.id)); fellBack = true; }

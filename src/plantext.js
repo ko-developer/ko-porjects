@@ -13,18 +13,20 @@ var PT_CATS = {
   service: { n: 'שירותים / טכני', c: '#4a5a8a', ic: '🚻' },
   furniture: { n: 'ריהוט', c: '#7f77dd', ic: '🪑' },
   level: { n: 'מפלסים / גבהים', c: '#e24b4a', ic: '📐' },
+  passage: { n: 'מעברים / כניסות', c: '#6b7b8c', ic: '🚪' },   /* הקטגוריה קיימת במילון (ENTRANCE / מסדרון) אבל לא הייתה כאן — PT_CATS[cat].c נפל, ופאנל האזור קרס */
   other: { n: 'כיתובים אחרים', c: '#8a8377', ic: '🔤' },
 };
 /* מילון סיווג — מילה/ביטוי (אנגלית + עברית) → קטגוריה; הראשון שמתאים מנצח, הספציפי לפני הכללי */
 var PT_DICT = [
   ['level', /^[+\-±]\s?\d+[.,]\d{2,3}\b|\bFFL\b|\bSFL\b|\bLEVEL\b|\bLVL\b|\bFLOOR\s?\d|\bEL\.?\s?[+\-]?\d|\bRL\b|\bTOS\b|\bTOC\b|מפלס|קומה|גובה|ריצוף/i],
   ['service', /\bW\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|\bMEN\b|\bWOMEN\b|\bLADIES\b|\bGENTS\b|ACCESSIBLE|\bELEC\b|ELECTRIC|\bMEP\b|\bHVAC\b|\bAHU\b|\bSERVER\b|\bCOMMS\b|\bIT\s?ROOM\b|\bRACK\b|\bPLANT\b|MECHANICAL|UTILITY|\bFIRE\b|\bRISER\b|\bSHAFT\b|ELEVATOR|\bLIFT\b|\bSTAIR|JANITOR|\bCLEAN|\bDUCT\b|\bPUMP\b|\bGAS\b|\bWATER\b|שירותים|חשמל|טכני|מעלית|מדרגות|תקשורת|ניקיון|מיזוג|כיבוי|מים|גז|ממ"?ד|מקלט|מכונות|גנרטור|משאבות|חני+ה|נכים|מקלחות/i],
-  ['passage', /ENTRANCE|\bENTRY\b|VESTIBULE|\bEXIT\b|CORRIDOR|HALLWAY|PASSAGE|\bכניסה\b|מבואה|יציאה|מסדרון/i],   /* כניסה / מסדרון — מעבר, לא אזור השמעה; לא מרעיל שכנים כמו מטבח */
-  ['ops', /KITCHEN|\bPREP\b|BACK\s?OF\s?HOUSE|\bBOH\b|\bSTAFF\b|OFFICE|STORAGE|\bSTORE\b|\bDISH|\bWASH\b|LOADING|RECEIVING|DELIVER|WORKSHOP|\bCASH\b|MANAGER|\bKIOSK\b|CONCESSION|CONSESSION|PANTRY|\bCOLD\b|FREEZER|LOCKER|SECURITY|\bBACK\b|מטבח|מחסן|משרד|צוות|אחסון|הכנה|פריקה|קבלת|קופה|מנהל|קיוסק|דוכן|מלתחה|אבטחה|שטיפה|קירור|מקפיא|קצביה|יבשים|הנהלה|עובדים|אשפה/i],
-  ['audience', /DANCE|\bSTAGE\b|\bBAR\b|LOUNGE|DINING|REST\s?AURANT|GENERAL\s?AREA|\bVIP\b|TERRACE|PATIO|GARDEN|OUTDOOR|\bLOBBY\b|RECEPTION|SEATING|\bHALL\b|\bCLUB\b|\bCAFE\b|\bGYM\b|STUDIO|\bPOOL\b|\bROOF|BALCONY|FOOD\s?COURT|\bAREA\b|\bZONE\b|\bROOM\b|WAITING|FOYER|\bDECK\b|\bSPA\b|\bSHOP\b|RETAIL|רחבה|במה|\bבר\b|מסעדה|אולם|לובי|מרפסת|חוץ|ישיבה|חדר כושר|סטודיו|בריכה|גן|טרקלין|אזור|חלל|קבלה|חנות|מועדון|אירועים|קהל|חצר|גינה|ספא|כיתה|חדר ישיבות|תצוגה|המתנה|חדר אוכל|סלון|פאטיו|אטריום|לאונג|טרסה/i],
+  ['passage', /ENTRANCE|\bENTRY\b|VESTIBULE|\bEXIT\b|CORRIDOR|HALLWAY|PASSAGE|\bVOID\b|\bכניסה\b|מבואה|יציאה|מסדרון/i],   /* כניסה / מסדרון — מעבר, לא אזור השמעה; לא מרעיל שכנים כמו מטבח */
+  ['ops', /KITCHEN|\bPREP\b|\bKEG\b|CELLAR|REFUSE|\bBINS?\b|\bHOIST\b|\bCPD\b|BACK\s?OF\s?HOUSE|\bBOH\b|\bSTAFF\b|OFFICE|STORAGE|\bSTORE\b|\bDISH|\bWASH\b|LOADING|RECEIVING|DELIVER|WORKSHOP|\bCASH\b|MANAGER|\bKIOSK\b|CONCESSION|CONSESSION|PANTRY|\bCOLD\b|FREEZER|LOCKER|SECURITY|\bBACK\b|מטבח|מחסן|משרד|צוות|אחסון|הכנה|פריקה|קבלת|קופה|מנהל|קיוסק|דוכן|מלתחה|אבטחה|שטיפה|קירור|מקפיא|קצביה|יבשים|הנהלה|עובדים|אשפה/i],
+  ['audience', /DANCE|\bSTAGE\b|\bBAR\b|\bPUB\b|\bSEATED\b|\bSTANDING\b|\bPERSONS\b|\bCOVERS\b|AUDITORIUM|LOUNGE|DINING|REST\s?AURANT|GENERAL\s?AREA|\bVIP\b|TERRACE|PATIO|GARDEN|OUTDOOR|\bLOBBY\b|RECEPTION|SEATING|\bHALL\b|\bCLUB\b|\bCAFE\b|\bGYM\b|STUDIO|\bPOOL\b|\bROOF|BALCONY|FOOD\s?COURT|\bAREA\b|\bZONE\b|\bROOM\b|WAITING|FOYER|\bDECK\b|\bSPA\b|\bSHOP\b|RETAIL|רחבה|במה|\bבר\b|מסעדה|אולם|לובי|מרפסת|חוץ|ישיבה|חדר כושר|סטודיו|בריכה|גן|טרקלין|אזור|חלל|קבלה|חנות|מועדון|אירועים|קהל|חצר|גינה|ספא|כיתה|חדר ישיבות|תצוגה|המתנה|חדר אוכל|סלון|פאטיו|אטריום|לאונג|טרסה/i],
   ['furniture', /\bTABLE|\bCHAIR|\bSOFA|\bBOOTH|COUNTER|\bSTOOL|\bBENCH|\bDESK\b|\bSHELF|\bSHELV|\bBED\b|\bISLAND\b|CABINET|\bTV\b|SCREEN|PLANTER|\bSEAT\b|שולחן|כיסא|ספה|דלפק|מדף|ארון|מיטה|מסך/i],
 ];
 function ptClassify(t) {
+  t = String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');   /* "Café" = CAFE */
   for (const [cat, re] of PT_DICT) if (re.test(t)) return cat;
   return 'other';
 }
@@ -59,9 +61,8 @@ function ptGroup(tokens, frame) {
 }
 async function ptOcr(cv, lang, frames) {
   if (!window.Tesseract) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
-  const worker = await Tesseract.createWorker(lang || 'eng+heb');
-  await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
-  const pass = async (canvas, frame, map) => {
+  const mk = async () => { const wk = await Tesseract.createWorker(lang || 'eng+heb'); await wk.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' }); return wk; };
+  const pass = async (worker, canvas, frame, map) => {
     const res = await worker.recognize(canvas);
     const out = [];
     for (const w of (res.data.words || [])) {
@@ -73,13 +74,12 @@ async function ptOcr(cv, lang, frames) {
     }
     return out;
   };
-  const tokens = await pass(cv, 'h', (x, y) => ({ x, y }));
-  if (frames === 'h') { await worker.terminate(); return tokens; }
+  if (frames === 'h') { const w0 = await mk(); try { return await pass(w0, cv, 'h', (x, y) => ({ x, y })); } finally { await w0.terminate(); } }
   const rot = ang => { const rc = document.createElement('canvas'); rc.width = cv.height; rc.height = cv.width; const g = rc.getContext('2d'); g.translate(rc.width / 2, rc.height / 2); g.rotate(ang); g.drawImage(cv, -cv.width / 2, -cv.height / 2); return rc; };
-  tokens.push(...await pass(rot(Math.PI / 2), 'v', (x, y) => ({ x: y, y: cv.height - x })));
-  tokens.push(...await pass(rot(-Math.PI / 2), 'w', (x, y) => ({ x: cv.width - y, y: x })));
-  await worker.terminate();
-  return tokens;
+  /* שלושת הכיוונים (אופקי + שני סיבובים) במקביל, כל אחד במנוע משלו — במקום ~25 שניות ברצף */
+  const ws = await Promise.all([mk(), mk(), mk()]);
+  try { const parts = await Promise.all([pass(ws[0], cv, 'h', (x, y) => ({ x, y })), pass(ws[1], rot(Math.PI / 2), 'v', (x, y) => ({ x: y, y: cv.height - x })), pass(ws[2], rot(-Math.PI / 2), 'w', (x, y) => ({ x: cv.width - y, y: x }))]); return parts.flat(); }
+  finally { await Promise.all(ws.map(wk => wk.terminate().catch(() => {}))); }
 }
 /* ===== הצעד הראשון: קנה המידה מטבלת הכותרת שבשולי הגיליון — רצועות הצד/התחתית מוגדלות פי כמה, OCR ממוקד ל-"1:N"
    (הכיתוב בטבלת הכותרת קטן ולעיתים בפונט מתאר דק — הסריקה הכללית מפספסת אותו). הרצועות: ימין, שמאל, תחתית, עליון; רצועות הצד גם מסובבות ===== */
@@ -192,10 +192,11 @@ function ptScalePick(vals) {
   const nice = typeof asNiceRatios === 'function' ? asNiceRatios() : [10, 20, 25, 50, 100, 200, 250, 500];
   const cnt = arr => { const m = new Map(); arr.forEach(v => m.set(v.n, (m.get(v.n) || 0) + 1)); return [...m.entries()].sort((p, q) => q[1] - p[1]); };
   const all = cnt(vals), rest = n => all.map(x => x[0]).filter(m => m !== n);
-  if (all.length === 1) { const n = all[0][0]; return { n, weak: !(nice.includes(n) || vals.some(v => v.lbl)), lbl: vals.some(v => v.lbl) }; }
+  if (all.length === 1 && !vals.every(v => v.tbl)) { const n = all[0][0]; return { n, weak: !(nice.includes(n) || vals.some(v => v.lbl)), lbl: vals.some(v => v.lbl) }; }
   /* כמה ערכים שונים בגיליון (תכניות, חתכים, פרטים, טבלאות של יחסים): רק כיתובים עם התווית קנ"מ / SCALE נחשבים, אם יש כאלה;
      מתוכם כותרת של תכנית/קומה גוברת על חתך/פרט; אחרת ערך שחוזר הרבה יותר מהאחרים; אחרת המשתמש בוחר */
-  const real = vals.filter(v => !v.tbl), use = real.length ? real : vals;   /* tbl = תא בטבלה של יחסים (תקן חניה "1:50") — לא קנה מידה */
+  const real = vals.filter(v => !v.tbl); if (!real.length) return null;   /* tbl = תא בטבלה של יחסים (תקן חניה "1:50") — לא קנה מידה; רק טבלה = לא נמצא (במסלול שכבת הטקסט זה מעביר ל-OCR) */
+  const use = real;
   const one = (arr, note) => { const d = [...new Set(arr.map(v => v.n))]; return d.length === 1 ? { n: d[0], lbl: arr.some(v => v.lbl), weak: !arr.some(v => v.lbl) && !nice.includes(d[0]), note, others: rest(d[0]) } : null; };
   /* titled = כיתוב עם תווית קנ"מ או כותרת תכנית, שאינו חתך/פרט. כשיש כמה כאלה עם ערכים שונים (טבלת הכותרת אומרת 1:500, התכניות 1:250) — לא מנחשים */
   const titled = use.filter(v => (v.lbl || v.plan) && !v.sect), noSect = use.filter(v => !v.sect);
@@ -260,6 +261,9 @@ async function ptScaleFast(src, opts) {
   };
   const norm = t => String(t || '').replace(/[‏‎]/g, '').replace(/[∶：;]/g, ':');
   const nice = typeof asNiceRatios === 'function' ? asNiceRatios() : [];
+  /* ל-Tesseract נשלח data-URL ולא canvas: עם canvas הספרייה קוראת ל-toBlob, ובחלון שאינו בפוקוס הדפדפן מעכב את ה-callback בשנייה שלמה —
+     כל קריאה של מלבן זעיר לקחה ~1,030ms במקום ~20ms (נמדד), וכל הסריקה 8 שניות במקום שנייה */
+  const png = cv2 => cv2.toDataURL('image/png');
   let wDig = null, wTxt = null; const vals = [], pairs = [];
   try {
     [wDig, wTxt] = await Promise.all([Tesseract.createWorker('eng'), Tesseract.createWorker('eng+heb')]);
@@ -269,7 +273,7 @@ async function ptScaleFast(src, opts) {
        OCR של ספרות בגופן שרטוט (SHX) טועה לפעמים ("1:250" → "1:230"), ושתי קריאות שונות לא טועות אותו דבר */
     /* מצב הקריאה חשוב: "שורה" (7) קורא "1:250" בגופן שרטוט דק כ-"1:230"; "מילה אחת" (8) ו"שורה גולמית" (13) עם עיבוי קו קוראים נכון — נבדק על 4 כיתובים כאלה, 14 צירופים */
     let psmNow = '7';
-    const dg = async (x0, x1, cd, target, dil, psm) => { const c = cut(x0 - 1, cd.y0 - 2, x1 + 1, cd.y1 + 2, cd.H, target, dil); if (psm !== psmNow) { await wDig.setParameters({ tessedit_pageseg_mode: psm }); psmNow = psm; } const r = await wDig.recognize(c); let cf = r.data.confidence || 0; if (!cf) { const ws = (r.data.words || []).filter(w => /\d/.test(w.text || '')); if (ws.length) cf = ws.reduce((s2, w) => s2 + w.confidence, 0) / ws.length; }   /* "1 : 100" עם רווחים מחזיר ביטחון כולל 0 — ממוצע המילים */
+    const dg = async (x0, x1, cd, target, dil, psm) => { const c = cut(x0 - 1, cd.y0 - 2, x1 + 1, cd.y1 + 2, cd.H, target, dil); if (psm !== psmNow) { await wDig.setParameters({ tessedit_pageseg_mode: psm }); psmNow = psm; } const r = await wDig.recognize(png(c)); let cf = r.data.confidence || 0; if (!cf) { const ws = (r.data.words || []).filter(w => /\d/.test(w.text || '')); if (ws.length) cf = ws.reduce((s2, w) => s2 + w.confidence, 0) / ws.length; }   /* "1 : 100" עם רווחים מחזיר ביטחון כולל 0 — ממוצע המילים */
       return { t: norm(r.data.text).replace(/\s+/g, ''), c: Math.round(cf), img: window.__ptFastKeep ? c.toDataURL('image/png') : undefined }; };
     for (const cd of cands) {
       if (left() < 2500) break;
@@ -292,6 +296,11 @@ async function ptScaleFast(src, opts) {
         if (+fx !== best.n && nice.includes(+fx)) { cd.txt += ' => ' + fx; best.n = +fx; best.k = Math.max(best.k, 2); break; } }
       if (best.n >= 5 && best.n <= 1000 && (best.k >= 2 || best.c >= 60 || (best.colon && nice.includes(best.n)))) { cd.n = best.n; cd.conf = best.c; cd.agree = best.k; }
     }
+    /* "1:75@A1" / "1:150(@A3)": הסיומת שאחרי הספרות נקראת לבדה (רק התווים @ A 0–4) — קריאת השורה כולה מפספסת אותה לפעמים, ואז שני הערכים נראים כסתירה */
+    dbg.t.reads = Math.round(performance.now() - T0);
+    { const ok = cands.filter(c => c.n != null).slice(0, 12); if (ok.length) { await wDig.setParameters({ tessedit_char_whitelist: '@A01234(', tessedit_pageseg_mode: '7' }); psmNow = '7';
+        for (const cd of ok) { if (left() < 1500) break; const c = cut(cd.x1 + cd.H * 0.08, cd.y0 - cd.H * 0.25, cd.x1 + cd.H * 4.6, cd.y1 + cd.H * 0.25, cd.H, 40, 0); const r = await wDig.recognize(png(c)), m = /^[\s(]*@\s*\(?\s*A\s?([0-4])/.exec(norm(r.data.text)); if (m) { cd.at = 'A' + m[1]; if (!pairs.some(p => p.n === cd.n && p.fmt === cd.at)) pairs.push({ n: cd.n, fmt: cd.at }); } }
+        await wDig.setParameters({ tessedit_char_whitelist: '0123456789:' }); } }
     dbg.t.digits = Math.round(performance.now() - T0);
     /* הסביבה: שורת הכיתוב ושתי שורות מעליה — עד שתי קריאות לכל ערך (הכיתובים הגדולים קודם) */
     ptTblFlag(cands.filter(c => c.n != null).map(c => { c.cy = (c.y0 + c.y1) / 2; return c; }));
@@ -300,7 +309,7 @@ async function ptScaleFast(src, opts) {
       if (cd.n == null) continue; vals.push(cd);
       const sn = seenN.get(cd.n) || 0; if (cd.tbl || sn >= 2 || nCtx >= 10 || left() < 600) continue; seenN.set(cd.n, sn + 1); nCtx++;
       const c = cut(cd.x0 - cd.H * 14, cd.y0 - cd.H * 2.6, cd.x1 + cd.H * 26, cd.y1 + cd.H * 0.9, cd.H, 30, false, true);   /* בעברית התווית מימין לערך ("תכנית מרתף עליון   1:250") */
-      const r = await wTxt.recognize(c), txt = norm(r.data.text); if (window.__ptFastKeep) cd.cimg = c.toDataURL('image/png');
+      const r = await wTxt.recognize(png(c)), txt = norm(r.data.text); if (window.__ptFastKeep) cd.cimg = c.toDataURL('image/png');
       cd.ctx = txt.replace(/\s+/g, ' ').trim().slice(0, 160); cd.lbl = PT_SC_LABEL.test(txt); cd.plan = PT_SC_PLAN.test(txt); cd.sect = PT_SC_SECT.test(txt);
       const re = /1\s*:\s*(\d{1,4})\s*[(\[]?\s*(?:[@©®]|\bat\b)\s*A\s?([0-4])/gi; let m; while ((m = re.exec(txt))) if (!pairs.some(p => p.n === +m[1] && p.fmt === 'A' + m[2])) pairs.push({ n: +m[1], fmt: 'A' + m[2] });
       const fm = /(?:גיליון|גליון|פורמט|sheet|size|format)\D{0,12}A\s?([0-4])\b/i.exec(txt); if (fm && !sheet) sheet = 'A' + fm[1];
@@ -463,12 +472,14 @@ async function ptFromPdf() {
     const [a, b, c, d, e, f] = it.transform;
     const rot = Math.atan2(b, a);
     const h = Math.hypot(c, d) || 8, w = it.width || h * 0.6 * t.length;
-    const vert = Math.abs(Math.abs(rot) - Math.PI / 2) < 0.3, horiz = Math.abs(rot) < 0.3 || Math.abs(Math.abs(rot) - Math.PI) < 0.3;
-    if (!vert && !horiz) continue;
     const cx = e + Math.cos(rot) * w / 2 - Math.sin(rot) * h / 2, cy = f + Math.sin(rot) * w / 2 + Math.cos(rot) * h / 2;
+    /* אל מרחב התצוגה: בדף עם /Rotate המיקומים במרחב ה-PDF מסובבים ביחס לתמונה — הכיתובים של קומה אחת נפלו על הקומה השנייה, ואזורים קיבלו שמות של חדרים אחרים */
+    const pc = vp.convertToViewportPoint(cx, cy), p0 = vp.convertToViewportPoint(e, f), p1 = vp.convertToViewportPoint(e + Math.cos(rot), f + Math.sin(rot)), rotV = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]);
+    const vert = Math.abs(Math.abs(rotV) - Math.PI / 2) < 0.3, horiz = Math.abs(rotV) < 0.3 || Math.abs(Math.abs(rotV) - Math.PI) < 0.3;
+    if (!vert && !horiz) continue;
     /* עברית בשכבת הטקסט של PDF יוצאת לרוב בסדר ויזואלי (הפוך) — הופכים כל מילה עברית */
     const t2 = t.split(/\s+/).map(w => /[֐-׿]/.test(w) ? [...w].reverse().join('') : w).join(' ');
-    tokens.push({ t: t2, x: cx, y: vp.height - cy, w, h, frame: vert ? 'v' : 'h', c: 99 });
+    tokens.push({ t: t2, x: pc[0], y: pc[1], w, h, frame: vert ? 'v' : 'h', c: 99 });
   }
   let layers = [];
   try { layers = await ptPdfLayers(pg, vp); } catch (e) { console.warn('ptPdfLayers', e); }
@@ -479,7 +490,7 @@ async function ptFromPdf() {
    כלים סניטריים → שירותים, מטבח → מטבח, במה → במה. זה מדויק יותר מכיתוב — זה הציור עצמו. */
 var PT_LAYERS = [
   { k: 'seat', re: /ריהוט|FURN|SEAT|CHAIR|TABLE|ישיבה|כסא|כיסא|שולחנ/i, t: 'אזור ישיבה', cat: 'audience', gap: 2.0, minN: 12, minM2: 4 },   /* פחות מ-4 מ״ר = סמלי ריהוט במקרא/בחותמת, לא אזור */
-  { k: 'bar', re: /(^|[^א-ת])בר(ים)?($|[^א-ת])|\bBAR/i, t: 'בר', cat: 'audience', gap: 2.0, minN: 6, minM2: 1 },
+  { k: 'bar', re: /(^|[^א-ת])בר(ים)?($|[^א-ת])|(^|[^A-Za-z])BARS?($|[^A-Za-z])/i, t: 'בר', cat: 'audience', gap: 2.0, minN: 6, minM2: 1 },
   { k: 'stage', re: /STAGE|במה/i, t: 'במה', cat: 'audience', gap: 2.0, minN: 3, minM2: 2 },
   { k: 'wc', re: /SANR|SANIT|PLUMB|סניטר|שירותים/i, t: 'שירותים', cat: 'service', gap: 2.5, minN: 6, minM2: 1 },
   { k: 'kitchen', re: /KITCH|מטבח/i, t: 'מטבח', cat: 'ops', gap: 2.5, minN: 6, minM2: 2 },
@@ -523,7 +534,11 @@ async function ptPdfLayers(pg, vp) {
   const walls = wallsOf(wallIds), mainWalls = mainIds.length ? wallsOf(mainIds) : walls;
   /* האם הקטע בין שתי נקודות חוצה מלבן (Liang–Barsky) */
   const segHits = (ax, ay, bx, by, r) => { let t0 = 0, t1 = 1; const dx = bx - ax, dy = by - ay; for (const [p, q] of [[-dx, ax - r.x0], [dx, r.x1 - ax], [-dy, ay - r.y0], [dy, r.y1 - ay]]) { if (p === 0) { if (q < 0) return false; } else { const t = q / p; if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } } } return true; };
-  const crossesWall = (p, q) => { const ax = (p.x0 + p.x1) / 2, ay = (p.y0 + p.y1) / 2, bx = (q.x0 + q.x1) / 2, by = (q.y0 + q.y1) / 2; return walls.some(w => segHits(ax, ay, bx, by, w)); };
+  /* אינדקס רשת לקירות: בדיקת "חוצה קיר" רק מול הקירות שבתאים שהקטע עובר בהם (בלי זה: כל זוג פריטים × כל הקירות — תכנית עם אלפי פריטים נתקעה לדקות) */
+  const WC = Math.max(8, 2 * ptPerM0()), wGrid = new Map();
+  walls.forEach(w => { for (let gy = Math.floor(w.y0 / WC); gy <= Math.floor(w.y1 / WC); gy++) for (let gx = Math.floor(w.x0 / WC); gx <= Math.floor(w.x1 / WC); gx++) { const k = gy * 100003 + gx; let l = wGrid.get(k); if (!l) wGrid.set(k, l = []); l.push(w); } });
+  const crossesWall = (p, q) => { const ax = (p.x0 + p.x1) / 2, ay = (p.y0 + p.y1) / 2, bx = (q.x0 + q.x1) / 2, by = (q.y0 + q.y1) / 2;
+    for (let gy = Math.floor(Math.min(ay, by) / WC); gy <= Math.floor(Math.max(ay, by) / WC); gy++) for (let gx = Math.floor(Math.min(ax, bx) / WC); gx <= Math.floor(Math.max(ax, bx) / WC); gx++) { const l = wGrid.get(gy * 100003 + gx); if (l && l.some(w => segHits(ax, ay, bx, by, w))) return true; } return false; };
   /* הרחבת מלבן עד הקיר הקרוב בכל צד (עד maxD), ובלי קיר — שוליים של defPad; לעולם לא מעבר לקיר */
   const toWalls = (c, ws, maxD, defPad) => { const b = { ...c }, ov = (a0, a1, b0, b1) => Math.min(a1, b1) - Math.max(a0, b0) > 0.2 * ptPerM0();
     const V = ws.filter(w => (w.y1 - w.y0) >= (w.x1 - w.x0) && ov(w.y0, w.y1, c.y0, c.y1)), Hz = ws.filter(w => (w.x1 - w.x0) > (w.y1 - w.y0) && ov(w.x0, w.x1, c.x0, c.x1));
@@ -536,12 +551,18 @@ async function ptPdfLayers(pg, vp) {
   const out = []; window.__ptLayerInfo = Object.entries(names).map(([id, n]) => ({ id, name: n, paths: (per[id] || []).length }));
   for (const [id, name] of Object.entries(names)) {
     const def = PT_LAYERS.find(d => d.re.test(name)), bs = per[id]; if (!def || !bs || !bs.length) continue;
-    const els = def.k === 'seat' ? bs.filter(b => Math.max(b.x1 - b.x0, b.y1 - b.y0) < 6 * ptPerM) : bs, gap = def.gap * ptPerM;
+    let els = def.k === 'seat' ? bs.filter(b => Math.max(b.x1 - b.x0, b.y1 - b.y0) < 6 * ptPerM) : bs; const gap = def.gap * ptPerM;
+    if (els.length > 12000) { const st = Math.ceil(els.length / 12000); els = els.filter((_, i) => i % st === 0); }   /* שכבה עם עשרות אלפי קטעים — דגימה מספיקה לקיבוץ */
     /* קיבוץ לפי קרבה (union-find): שני קטעים במרחק קטן מהסף שייכים לאותו אזור */
     const par = els.map((_, i) => i), find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
-    for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) { const p = els[i], q = els[j];
-      const dx = Math.max(0, Math.max(p.x0, q.x0) - Math.min(p.x1, q.x1)), dy = Math.max(0, Math.max(p.y0, q.y0) - Math.min(p.y1, q.y1));
-      if (dx <= gap && dy <= gap && dx * dx + dy * dy <= gap * gap && (def.k === 'wc' || !crossesWall(p, q))) { const a2 = find(i), b2 = find(j); if (a2 !== b2) par[a2] = b2; } }
+    /* שכנים דרך רשת בגודל הסף: כל פריט נרשם בתאים שהוא נוגע בהם, ונבדק רק מול פריטים בתאים שסביבו */
+    const CG = Math.max(4, gap), eGrid = new Map(), stamp = new Int32Array(els.length).fill(-1);
+    els.forEach((b, i) => { for (let gy = Math.floor(b.y0 / CG); gy <= Math.floor(b.y1 / CG); gy++) for (let gx = Math.floor(b.x0 / CG); gx <= Math.floor(b.x1 / CG); gx++) { const k = gy * 100003 + gx; let l = eGrid.get(k); if (!l) eGrid.set(k, l = []); l.push(i); } });
+    for (let i = 0; i < els.length; i++) { const p = els[i];
+      for (let gy = Math.floor((p.y0 - gap) / CG); gy <= Math.floor((p.y1 + gap) / CG); gy++) for (let gx = Math.floor((p.x0 - gap) / CG); gx <= Math.floor((p.x1 + gap) / CG); gx++) { const l = eGrid.get(gy * 100003 + gx); if (!l) continue;
+        for (const j of l) { if (j <= i || stamp[j] === i) continue; stamp[j] = i; const q = els[j]; if (find(i) === find(j)) continue;
+          const dx = Math.max(0, Math.max(p.x0, q.x0) - Math.min(p.x1, q.x1)), dy = Math.max(0, Math.max(p.y0, q.y0) - Math.min(p.y1, q.y1));
+          if (dx <= gap && dy <= gap && dx * dx + dy * dy <= gap * gap && (def.k === 'wc' || !crossesWall(p, q))) { const a2 = find(i), b2 = find(j); if (a2 !== b2) par[a2] = b2; } } } }
     const cl = {}; els.forEach((b, i) => { const r = find(i), c = cl[r] = cl[r] || { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, n: 0 }; c.x0 = Math.min(c.x0, b.x0); c.y0 = Math.min(c.y0, b.y0); c.x1 = Math.max(c.x1, b.x1); c.y1 = Math.max(c.y1, b.y1); c.n++; });
     const keep = Object.values(cl).filter(c => c.n >= def.minN && ((c.x1 - c.x0) * (c.y1 - c.y0)) / (ptPerM * ptPerM) >= def.minM2).sort((a2, b2) => (a2.y0 - b2.y0) || (a2.x0 - b2.x0));
     keep.forEach((c, i) => { const z = def.k === 'wc' ? toWalls(c, mainWalls, 3.5 * ptPerM, 1 * ptPerM) : toWalls(c, walls, 0.5 * ptPerM, 0.5 * ptPerM);   /* שירותים: התאים + החלל המרכזי — עד הקירות הראשיים; אחרים: שוליים של חצי מטר שנעצרים בקיר */
@@ -556,7 +577,7 @@ function ptKeep(p) {
   const t = p.t.replace(/[.,;:!]+$/, '').trim(); p.t = t;
   if (!t) return false;
   if (/^[+\-±]?\d+[.,]\d{2,3}$/.test(t)) return true;                       /* מפלס */
-  const letters = (t.match(/[A-Za-z֐-׿]/g) || []).length;
+  const letters = (t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[A-Za-z֐-׿]/g) || []).length;
   if (letters < 3 || letters / t.replace(/\s/g, '').length < 0.6) return false;
   const cat = ptClassify(t);
   if (cat !== 'other') return true;                                          /* מילה מהמילון — מספיק */
@@ -587,7 +608,7 @@ async function planTextScan(opts) {
     else if (!P.bgPdf) { const cv = await ptCanvas(); tokens = await ptOcr(cv); SW = cv.width; SH = cv.height; }
     window.__ptTokens = tokens;   /* לניפוי: מה נקרא */
     /* קנה מידה מהכיתובים ("1:50", "קנ"מ 1:100") — נבדק על הטוקנים הגולמיים, לפני סינון המילים */
-    let ptScale = null; try { ptScale = typeof asScaleFromText === 'function' ? asScaleFromText([...ptGroup(tokens, 'h').map(p => p.t), ...tokens.map(p => p.t)]) : null; } catch (e) { console.warn('pt scale', e); }
+    let ptScale = null; if (!(opts && opts.noScale)) try { ptScale = typeof asScaleFromText === 'function' ? asScaleFromText([...ptGroup(tokens, 'h').map(p => p.t), ...tokens.map(p => p.t)]) : null; } catch (e) { console.warn('pt scale', e); }
     if (ptScale0 && (!ptScale || typeof asNiceRatios !== 'function' || !asNiceRatios().includes(ptScale.n) || asNiceRatios().includes(ptScale0.n))) ptScale = ptScale0;   /* טבלת הכותרת גוברת */
     let phrases = [...ptGroup(tokens, 'h'), ...ptGroup(tokens, 'v'), ...ptGroup(tokens, 'w')].filter(ptKeep);
     /* תכנית באנגלית: "מילים" עבריות שלא במילון הן סמלי ריהוט שנקראו כאותיות — מסירים כשהעברית שולית */
@@ -637,7 +658,7 @@ function ptMarksSVG() {
   let out = '';
   pt.items.forEach((it, i) => {
     if (!pt.cats[it.cat]) return;
-    const { x, y, w } = ptPos(it), col = PT_CATS[it.cat].c, foc = window.__ptFocus === i;
+    const { x, y, w } = ptPos(it), col = (PT_CATS[it.cat] || PT_CATS.other).c, foc = window.__ptFocus === i;
     /* המלבן המקווקו סביב הכיתוב (גבולות חדר משוערים) בלבל — נראה כמו אזור. מוצג רק אם הודלק במפורש (pt.boxes); התווית עצמה נשארת (אורי, 21.11.2026) */
     if (it.bw && pt.boxes) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), zq = it.zw ? [it.zu, it.zv, it.zw, it.zh] : [it.bu, it.bv, it.bw, it.bh]; out += `<rect x="${bgLeft() + zq[0] * Wb}" y="${bgTop() + zq[1] * Hb}" width="${zq[2] * Wb}" height="${zq[3] * Hb}" rx="6" fill="${col}" fill-opacity="${foc ? 0.22 : 0.1}" stroke="${col}" stroke-width="${(foc ? 3 : 1.6) / getZ()}" stroke-dasharray="${7 / getZ()} ${4 / getZ()}" style="pointer-events:none"/>`; }
     const bw = Math.max(w, it.t.length * fz * 0.6 + 10);
@@ -1520,7 +1541,7 @@ function ptZoneLineHTML(z) {
   const others = (P.zones || []).filter(x => x.id !== z.id);
   const merge = others.length ? `<div style="display:flex;gap:4px;align-items:center;margin-top:6px;font-size:11px"><span>🔗 מזג לתוך "${esc(z.name)}":</span><select style="flex:1;font-size:11px;margin:0" onchange="if(this.value){ptMergeZones('${z.id}',this.value)}"><option value="">— בחר אזור למיזוג —</option>${others.map(o => `<option value="${o.id}">${esc(o.name)}${o.usage ? ' · ' + esc(o.usage) : ''}</option>`).join('')}</select></div>` : '';
   const its = ptInZone(z); if (!its.length) return merge;
-  return merge + `<div style="background:#f1efff;border-radius:8px;padding:5px 8px;margin-top:6px;font-size:11px"><b>🔤 כיתובים באזור:</b> ${its.map(i => `<span style="display:inline-block;margin:1px 2px;padding:0 5px;border-radius:8px;background:${PT_CATS[i.cat].c};color:#fff;font-size:10px;direction:ltr">${esc(i.t)}</span>`).join('')}${its.some(i => i.cat === 'ops' || i.cat === 'service') ? '<div class="muted" style="font-size:10px">⚠ יש כאן כיתובים תפעוליים/שירותים — לוודא שהאזור לא כולל אותם</div>' : ''}</div>`;
+  return merge + `<div style="background:#f1efff;border-radius:8px;padding:5px 8px;margin-top:6px;font-size:11px"><b>🔤 כיתובים באזור:</b> ${its.map(i => `<span style="display:inline-block;margin:1px 2px;padding:0 5px;border-radius:8px;background:${(PT_CATS[i.cat] || PT_CATS.other).c};color:#fff;font-size:10px;direction:ltr">${esc(i.t)}</span>`).join('')}${its.some(i => i.cat === 'ops' || i.cat === 'service') ? '<div class="muted" style="font-size:10px">⚠ יש כאן כיתובים תפעוליים/שירותים — לוודא שהאזור לא כולל אותם</div>' : ''}</div>`;
 }
 
 /* הרינדור הראשון של app.js קדם להגדרות כאן — מרנדרים שוב כדי שהכיתובים השמורים יופיעו */
@@ -1587,7 +1608,7 @@ function rfSketchRoom(pt) {
   return { poly, rect, left, top, zw, zh, m2: Math.round(A * (P.scale || 0) * (P.scale || 0)), edge: false, sketch: true };
 }
 /* הגאומטריה בלבד — בלי לשנות את הפרויקט: {poly, rect, left, top, zw, zh, m2, edge} או {err} */
-async function zoneFillCore(pt) {
+async function zoneFillCore(pt, opts) {
   const sk = rfSketchRoom(pt); if (sk) return sk;   /* חדר משורטט — הקירות ידועים במדויק */
   if (!P.bg) { return { err: ((P.sketch && P.sketch.walls) || []).length ? 'לחץ בתוך חדר סגור בשרטוט (או סגור את הקירות)' : 'אין תכנית רקע ואין שרטוט — שרטט חדר או העלה תכנית' }; }
   if (!P.scale) { return { err: '📏 כייל קודם את התכנית — לפי הכיול יודעים מה עובי קיר' }; }
@@ -1597,7 +1618,7 @@ async function zoneFillCore(pt) {
   if (sx < 0 || sy < 0 || sx >= w || sy >= h) { return { err: 'לחץ בתוך התכנית' }; }
   /* סגירת פתחים מסתגלת: מתחילים מפתח צר ומרחיבים; כל עוד הרחבה נוספת מקטינה את השטח בחדות — המילוי ברח דרך פתח, ונסגר.
      עוצרים כשהשטח יציב. P.fillGap (אם נקבע ידנית) = נקודת ההתחלה */
-  const GAPS = [0.4, 0.55, 0.75, 1.0, 1.3].filter(g => g >= (P.fillGap ? P.fillGap - 0.01 : 0));
+  const GAPS = opts && opts.gap ? [opts.gap] : [0.4, 0.55, 0.75, 1.0, 1.3].filter(g => g >= (P.fillGap ? P.fillGap - 0.01 : 0));   /* opts.gap = סגירת פתחים קבועה (zonesByWalls: הפרדת חדר קהל מחדר שירות שדלף אליו) */
   let best = null;
   for (let gi = 0; gi < GAPS.length; gi++) {
     const b = rfBarrier(R, GAPS[gi]), f = rfFlood(R, b.barrier, sx, sy, b.gap);
@@ -1738,7 +1759,7 @@ async function zwCarveWc(z) {
    3. הכיתוב הדומיננטי בחדר (האות הגדולה = כותרת החדר): תפעול / שירות-טכני / מעבר בלי כיתוב קהל גדול = לא אזור
    4. גאומטריה: קטן מ-6 מ״ר, מעבר צר (רוחב משוער < 1.4 מ׳), חלל בלי שום כיתוב מתחת ל-12 מ״ר */
 /* i18n-ignore */
-var ZW_TITLE = /תאריך|קנ.?מ|גי?ליון|פורמט|מקרא|הערות|חתימ|עיון|ביצוע|מתכנן|אדריכל|שרטט|scale|\bdate\b|drawn|sheet|\brev\b|legend/i;
+var ZW_TITLE = /תאריך|קנ.?מ|גי?ליון|פורמט|מקרא|הערות|חתימ|עיון|ביצוע|מתכנן|אדריכל|שרטט|מהדורה|scale|\bdate\b|drawn|sheet|\brev\b|revision|amendment|legend|\bkey\b|drawing|\bjob\b|\bstatus\b|\bclient\b|\bproject\b|architect|copyright|specification|\bnotes?\b/i;
 /* i18n-ignore-end */
 function zwNorm(t) { return String(t || '').replace(/["'״׳.,:;()\d]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase(); }
 function zoneRelMark(labels, d) { store.zoneRel = store.zoneRel || {}; for (const t of [].concat(labels || [])) { const k = zwNorm(t); if (k.length < 2 || /^(אזור|חלל)$/.test(k)) continue; const v = (store.zoneRel[k] || 0) + d; store.zoneRel[k] = Math.max(-5, Math.min(5, d > 0 ? Math.max(1, v) : v)); } }   /* הוספה מפורשת (d>0) תמיד מנצחת מחיקות קודמות */
@@ -1746,22 +1767,28 @@ async function zoneRelevance(z, m2) {
   const items = ((P.planText || {}).items || []).map(it => { const p = ptPos(it); return { it, pt: { x: p.x, y: p.y }, t: String(it.t || '').trim(), hh: +it.h || 0 }; }).filter(o => o.t && inZone(z, o.pt));
   const cat = o => ZW_OPS.test(o.t) ? 'ops' : (o.it.cat || 'other');
   const aud = items.filter(o => cat(o) === 'audience'), ops = items.filter(o => cat(o) === 'ops'), svc = items.filter(o => cat(o) === 'service'), pas = items.filter(o => cat(o) === 'passage');
-  const names = items.filter(o => !ZW_JUNK.test(o.t) && !ZW_TITLE.test(o.t) && !['ops', 'service', 'furniture', 'level', 'passage'].includes(cat(o)) && /[A-Za-zא-ת]{2}/.test(o.t)).sort((a, b) => b.hh - a.hh);
+  /* סימוני תפוסה ("34 SEATED", "STANDING 15m2 x 2 = 30 persons") מעידים שיש קהל אבל אינם שם החדר; שם שהוא מילה מהמילון ("Bar", "Hall") קודם לכיתוב סתמי */
+  const NOTE = /\bSEATED\b|\bSTANDING\b|\bPERSONS?\b|\bCOVERS\b|\d\s?m2\b|^\d+\b|\bOPENING\b|\bCLEAR\b|\d\s?MM\b/i, isAud = o => cat(o) === 'audience' && !NOTE.test(o.t);
+  const names = items.filter(o => !ZW_JUNK.test(o.t) && !ZW_TITLE.test(o.t) && !NOTE.test(o.t) && !['ops', 'service', 'furniture', 'level', 'passage'].includes(cat(o)) && /[A-Za-zא-ת]{2}/.test(o.t)).sort((a, b) => (isAud(b) ? 1 : 0) - (isAud(a) ? 1 : 0) || b.hh - a.hh);
   const rel = store.zoneRel || {}, learnedNo = items.find(o => (rel[zwNorm(o.t)] || 0) <= -3), learnedYes = items.find(o => (rel[zwNorm(o.t)] || 0) >= 1);
-  const top = names[0], b = zoneBounds(z);
+  let top = names[0]; const b = zoneBounds(z);
+  /* שם סתמי ("area" / "room") הוא חצי שם: "DJ" מעל "area" בשתי שורות → "DJ area"; בלי שורה מעליו — אין שם */
+  if (top && /^(room|area|zone|space)$/i.test(top.t.trim())) { const up = items.find(o => o !== top && !['ops', 'service'].includes(cat(o)) && Math.abs(o.pt.x - top.pt.x) < 30 && top.pt.y - o.pt.y > 2 && top.pt.y - o.pt.y < 28 && /[A-Za-zא-ת]{2}/.test(o.t)); top = up ? { ...top, t: up.t + ' ' + top.t } : names.find(o => !/^(room|area|zone|space)$/i.test(o.t.trim())); }
   const done = (ok, why) => { const u1 = top && typeof ptUsageOf === 'function' ? ptUsageOf(top.t) : '', u2 = aud.length && typeof ptUsageOf === 'function' ? ptUsageOf(aud.map(o => o.t).join(' ')) : ''; return { ok, why: why || '', name: top ? top.t.slice(0, 40) : '', usage: u1 && u1 !== 'מוזיקת רקע' ? u1 : (u2 || u1 || 'מוזיקת רקע'), labels: items.map(o => o.t) }; };
   if (learnedYes) return done(true);
   if (learnedNo) return done(false, 'למדתי ממך ש"' + learnedNo.t + '" אינו אזור השמעה');
   /* מחוץ למבנה: דגימת רשת בתוך האזור */
-  try { const om = await zwOutMask(); let n = 0, o = 0; const st = Math.max(6, Math.min(b.W, b.H) / 12); for (let y = b.T + st / 2; y < b.T + b.H; y += st) for (let x = b.L + st / 2; x < b.L + b.W; x += st) { const pt = { x, y }; if (!inZone(z, pt)) continue; n++; if (om.isOut(pt)) o++; } if (n >= 6 && o / n > 0.5) return done(false, 'מחוץ למבנה'); } catch (e) {}
-  if (items.filter(o => ZW_TITLE.test(o.t)).length >= 2 && !aud.length) return done(false, 'טבלת כותרת / מקרא');
+  if (z.auto !== 'lines') try { const om = await zwOutMask(); let n = 0, o = 0; const st = Math.max(6, Math.min(b.W, b.H) / 12); for (let y = b.T + st / 2; y < b.T + b.H; y += st) for (let x = b.L + st / 2; x < b.L + b.W; x += st) { const pt = { x, y }; if (!inZone(z, pt)) continue; n++; if (om.isOut(pt)) o++; } if (n >= 6 && o / n > 0.5) return done(false, 'מחוץ למבנה'); } catch (e) {}
+  { const tn = items.filter(o => ZW_TITLE.test(o.t)).length; if (tn >= 2 && tn >= aud.filter(o => !ZW_TITLE.test(o.t)).length) return done(false, 'טבלת כותרת / מקרא'); }
   /* חדר נפרד שכולו תאי שירותים (זוהו לפי הצורה), בלי כיתוב קהל */
   if (!aud.length && m2 > 0 && m2 < 45) { try { const blocks = await zwWcBlocks(), R2 = await rfWalls(), L2 = bgLeft(), T2 = bgTop(), W2 = P.bgW || 1400, H2 = bgHeightPx(); if (blocks.some(bk => inZone(z, { x: L2 + (bk.x0 + bk.x1) / 2 / R2.w * W2, y: T2 + (bk.y0 + bk.y1) / 2 / R2.h * H2 }))) return done(false, 'שירותים (זוהו תאים)'); } catch (e) {} }
   if (m2 > 0 && m2 < 6) return done(false, 'קטן מדי (' + m2 + ' מ״ר)');
   /* הכיתוב הגדול ביותר שאינו קהל — אם הוא תפעול/שירות/מעבר ואין כיתוב קהל גדול כמעט כמוהו, הוא כותרת החדר */
-  const audMax = Math.max(0, ...aud.map(o => o.hh), ...(top ? [top.hh] : []));
-  const bad = [...ops.map(o => ({ o, k: 'תפעול' })), ...svc.map(o => ({ o, k: 'שירות / טכני' })), ...pas.map(o => ({ o, k: 'מעבר' }))].sort((x, y) => y.o.hh - x.o.hh)[0];
-  if (bad && (!audMax || (bad.k !== 'שירות / טכני' && bad.o.hh > audMax * 1.25) || (!aud.length && bad.k === 'תפעול'))) return done(false, bad.k + ': ' + bad.o.t.slice(0, 24));
+  /* "ROOM" / "AREA" / "אזור" לבדו אינו עדות לקהל כשיש לידו כיתוב תפעול ("KEG" + "ROOM" בשתי שורות) */
+  const audS = aud.filter(o => !/^(room|area|zone|space|אזור|חלל|חדר)$/i.test(o.t.trim()));
+  const audMax = Math.max(0, ...audS.map(o => o.hh), ...(top && audS.length ? [top.hh] : []));
+  const bad = [...ops.map(o => ({ o, k: 'תפעול' })), ...svc.map(o => ({ o, k: 'שירות / טכני' })), ...(audS.length ? [] : pas.map(o => ({ o, k: 'מעבר' })))].sort((x, y) => y.o.hh - x.o.hh)[0];   /* כיתוב מעבר (EXIT / ENTRANCE) פוסל רק חדר שאין בו שום כיתוב קהל */
+  if (bad && (!audMax || (bad.k !== 'שירות / טכני' && bad.o.hh > audMax * 1.25) || (!audS.length && bad.k === 'תפעול'))) return done(false, bad.k + ': ' + bad.o.t.slice(0, 24));
   if (bad && bad.k === 'שירות / טכני' && !aud.length && !names.length) return done(false, bad.k + ': ' + bad.o.t.slice(0, 24));
   if (!aud.length && !names.length && P.scale) { const wM = b.W * P.scale, hM = b.H * P.scale, est = m2 / Math.max(wM, hM); if (est < 1.4 && m2 < 25) return done(false, 'מעבר צר (' + est.toFixed(1) + ' מ׳)'); }
   if (!items.length && m2 > 0 && m2 < 12) return done(false, 'בלי כיתוב וקטן (' + m2 + ' מ״ר)');
@@ -1776,10 +1803,19 @@ async function zonesByWalls() {
   const stepPx = 2.5 / P.scale; for (let y = T + stepPx / 2; y < T + H; y += stepPx) for (let x = L + stepPx / 2; x < L + W; x += stepPx) seeds.push({ x, y });
   const userZones = (P.zones || []).filter(z => !z.prop);
   const found = [];   /* כל חדר שנמצא (גם כזה שלא יהפוך לאזור) — כדי לא למלא אותו שוב מזרע אחר */
+  const seen = [], tSeed = performance.now();   /* כל מצולע שמולא (גם כפול / שנדחה); ותקרת זמן — תכנית עם מאות זרעים לא נמשכת חצי דקה */
   for (const pt of seeds) {
-    if (isOut(pt) || found.some(g => inZone(g.z, pt)) || userZones.some(z => inZone(z, pt))) continue;
+    if (performance.now() - tSeed > 9000) break;
+    if (isOut(pt) || found.some(g => inZone(g.z, pt)) || seen.some(pl => inZone({ poly: pl }, pt)) || userZones.some(z => inZone(z, pt))) continue;
     let G = null; try { G = await zoneFillCore(pt); } catch (e) { G = null; }
     if (!G || G.err || !G.poly) continue;
+    seen.push(G.poly);
+    /* החדר מכיל גם כיתוב קהל ("Hall") וגם כיתובי תפעול / שירות ("Store", "Toilet")? המילוי דלף דרך דלת רחבה (דלת כפולה 1.6 מ׳ לא נסגרת
+       בסגירה המסתגלת כשהחדר השכן קטן). ממלאים שוב מכיתוב הקהל הגדול עם סגירה רחבה יותר, כל עוד זה מוציא כיתובים זרים ולא מאבד יותר מחצי מהשטח */
+    { const inG = (o, GG) => inZone({ poly: GG.poly }, o.pt), catOf = o => ZW_OPS.test(o.t) ? 'ops' : (o.it.cat || 'other');
+      const lbl = items.filter(o => o.t && !ZW_JUNK.test(o.t)), frn = GG => lbl.filter(o => ['ops', 'service'].includes(catOf(o)) && inG(o, GG)).length;
+      const aud = lbl.filter(o => catOf(o) === 'audience' && inG(o, G)).sort((a, b) => b.hh - a.hh)[0];
+      if (aud && frn(G)) for (const gap of [0.75, 1.0, 1.3, 1.6]) { let G2 = null; try { G2 = await zoneFillCore(aud.pt, { gap }); } catch (e) {} if (!G2 || G2.err || !G2.poly || G2.m2 < 0.5 * G.m2) continue; if (inG(aud, G2) && frn(G2) < frn(G)) { G = G2; if (!frn(G)) break; } } }
     const z = { id: uid('z'), name: '', x: Math.max(0, 2200 - G.left - G.zw), y: G.top, w: G.zw, h: G.zh, fill: true, auto: 'walls' };
     if (!G.rect) z.poly = G.poly;
     const cen = { x: G.left + G.zw / 2, y: G.top + G.zh / 2 };
@@ -1797,6 +1833,105 @@ async function zonesByWalls() {
     zones.push(g.z);
   }
   return { zones, skipped, skippedList, rooms: found.length };
+}
+/* ===== 🧩 אזורים בתכנית שקירותיה קווים דקים (אורי, 21.11.2026 — אימון על תכניות מהרשת) =====
+   בתכניות פנים רבות הקיר מצויר כשני קווים דקים בלי מילוי; zonesByWalls מחפש גושים כהים בעובי קיר, לא מוצא חדרים, והמנוע הישן
+   סימן מלבנים על כותרת הגיליון. כאן כל קו כהה הוא מחסום: כנף דלת וקשת הפתיחה שלה סוגרות את הפתח בעצמן, ריהוט נשאר "אי" בתוך החדר.
+   1. מחסום = פיקסלים כהים וניטרליים (סימוני תפוסה אדומים / כחולים לא נחשבים), מעובה ב-6 / 18 / 35 ס״מ — נבחרת הרמה הקטנה שבה
+      ה"חוץ" (מה שמחובר לשולי התמונה) מפסיק לזלוג לתוך המבנה.
+   2. כל רכיב מחובר של שטח פנוי שאינו "חוץ" ושטחו ≥ 3 מ״ר = חדר; הגבול החיצוני שלו (חורים של ריהוט מתמלאים) = המצולע.
+   3. רכיב קטן שיושב בתוך חדר אחר (דלפק, אי, שולחן גדול) אינו חדר. ריצוף אריחים מפרק חדר שירותים לתאים זעירים — ולכן הוא לא נמצא בכלל.
+   4. אותה בדיקת רלוונטיות ואותם שמות כמו ב-zonesByWalls (בלי בדיקת "מחוץ למבנה" של מסכת הקירות העבים, שכאן ריקה). */
+async function zonesByLines() {
+  /* סף הכהות של "קו" תלוי בשרטוט: ב-200 קו דלת דק ומוחלק נספר (החדר נסגר), אבל גם דוגמת ריצוף בהירה מפרקת חדר; ב-150 להפך.
+     מריצים בשניהם ולוקחים את התוצאה עם יותר שטח של אזורים ששמם בא מכיתוב בתכנית (בשוויון — יותר אזורים כאלה).
+     לפי שטח ולא לפי מספר: שלושה תאי טבלת-כותרת עם שם ניצחו אולם אחד גדול */
+  let best = null;
+  for (const thr of [200, 150]) { let r = null; try { r = await zonesByLinesAt(thr); } catch (e) { console.warn('zonesByLines', thr, e); } if (!r) continue;
+    const nm = r.zones.filter(z => !/^אזור \d+$/.test(z.name || '')); r.nNamed = nm.length; r.aNamed = nm.reduce((s2, z) => s2 + (z._m2 || 0), 0); r.thr = thr;
+    if (!best || r.aNamed > best.aNamed * 1.1 || (r.aNamed >= best.aNamed * 0.9 && r.nNamed > best.nNamed)) best = r; }
+  return best;
+}
+async function zonesByLinesAt(thr) {
+  if (!P.bg || !P.scale) return null;
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
+  const k = Math.min(1, 2000 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h).data, line = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) { const r0 = px[i * 4], g0 = px[i * 4 + 1], b0 = px[i * 4 + 2], l = 0.299 * r0 + 0.587 * g0 + 0.114 * b0; line[i] = l < thr && Math.max(r0, g0, b0) - Math.min(r0, g0, b0) < 70 ? 1 : 0; }
+  const W = P.bgW || 1400, pxPerM = (w / W) / P.scale; if (pxPerM < 8) return null;   /* גיליון רחב מ-~250 מ׳: חדר הוא כמה פיקסלים */
+  const L = bgLeft(), T = bgTop(), H = bgHeightPx(), toC = (x, y) => ({ x: Math.round(L + x / w * W), y: Math.round(T + y / h * H) });
+  const label = bar => { const lab = new Int32Array(w * h), q = new Int32Array(w * h), comps = [null]; let id = 0;
+    for (let s = 0; s < w * h; s++) { if (bar[s] || lab[s]) continue; id++; let a = 0, b = 0, n = 0, edge = false, x0 = w, y0 = h, x1 = 0, y1 = 0; lab[s] = id; q[b++] = s;
+      while (a < b) { const i = q[a++], x = i % w, y = (i - x) / w; n++; if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x > 0 && !bar[i - 1] && !lab[i - 1]) { lab[i - 1] = id; q[b++] = i - 1; } if (x < w - 1 && !bar[i + 1] && !lab[i + 1]) { lab[i + 1] = id; q[b++] = i + 1; } if (y > 0 && !bar[i - w] && !lab[i - w]) { lab[i - w] = id; q[b++] = i - w; } if (y < h - 1 && !bar[i + w] && !lab[i + w]) { lab[i + w] = id; q[b++] = i + w; } }
+      comps.push({ id, n, edge, x0, y0, x1, y1, s }); }
+    return { lab, comps }; };
+  const levels = [0.06, 0.18, 0.35].map(gm => { const r = Math.max(1, Math.round(gm * pxPerM)), bar = rfBox(line, w, h, r, true), lb = label(bar); return { r, bar, lb, out: lb.comps.reduce((s2, c) => s2 + (c && c.edge ? c.n : 0), 0) }; });
+  let pick = levels.length - 1; for (let i = 0; i < levels.length - 1; i++) if (levels[i].out - levels[i + 1].out < 0.03 * w * h) { pick = i; break; }
+  const lv = levels[pick], { lab, comps } = lv.lb, minPx = 3 * pxPerM * pxPerM;
+  const cand = comps.filter(c => c && !c.edge && c.n >= minPx * 0.6).sort((a, b) => b.n - a.n).slice(0, 80), rooms = [];
+  for (const c of cand) {
+    /* תת-מסכה סביב הרכיב: הרחבה חזרה עד הקווים (ברדיוס העיבוי) ועקיבה אחרי הגבול החיצוני */
+    const pad = lv.r + 3, bx0 = Math.max(0, c.x0 - pad), by0 = Math.max(0, c.y0 - pad), bw = Math.min(w, c.x1 + pad + 1) - bx0, bh = Math.min(h, c.y1 + pad + 1) - by0, m = new Uint8Array(bw * bh);
+    for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) if (lab[y * w + x] === c.id) m[(y - by0) * bw + (x - bx0)] = 1;
+    const grown = rfBox(m, bw, bh, lv.r, true), tr = ptTrace(grown, bw, bh), sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, pxPerM * 0.15)) : []; if (sp.length < 3) continue;
+    const poly = sp.map(([x, y]) => toC(x + bx0, y + by0));
+    const A = Math.abs(poly.reduce((s2, p, i) => { const q2 = poly[(i + 1) % poly.length]; return s2 + p.x * q2.y - q2.x * p.y; }, 0)) / 2, m2 = Math.round(A * P.scale * P.scale); if (m2 < 3) continue;
+    const sx = c.s % w, sy = (c.s - sx) / w;
+    rooms.push({ poly, m2, seed: toC(sx, sy), fill: c.n / Math.max(1, A * (w / W) * (h / H)) });
+  }
+  /* רכיב שיושב בתוך חדר גדול ממנו = אי / דלפק / ריהוט (עד 15 מ״ר), לא חדר */
+  const inPoly = (p, poly) => { let cIn = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) cIn = !cIn; } return cIn; };
+  rooms.sort((a, b) => b.m2 - a.m2);
+  /* חדר עם ריצוף / מילוי מקווקו מתפרק לתאים זעירים. קבוצת תאים צפופה (מכסה ≥ 60% מהמצולע שלה — לא אותיות של טקסט) בשטח ≥ 6 מ״ר ורוחב ≥ 1.8 מ׳ = חדר אחד */
+  { const cellMax = 1.6 * pxPerM * pxPerM, cm = new Uint8Array(w * h); let any = false;   /* גם רצועות של ריצוף פרקט (0.25 × 5 מ׳) */
+    for (let i = 0; i < w * h; i++) { const c = lab[i] ? comps[lab[i]] : null; if (c && !c.edge && c.n < cellMax) { cm[i] = 1; any = true; } }
+    if (any) { const rr = lv.r + 2, cd = rfBox(cm, w, h, rr, true), inv = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) inv[i] = cd[i] ? 0 : 1;
+      const gl = label(inv);
+      for (const c of gl.comps) { if (!c || c.n < 6 * pxPerM * pxPerM || Math.min(c.x1 - c.x0, c.y1 - c.y0) < 1.8 * pxPerM) continue;
+        const bw = c.x1 - c.x0 + 3, bh = c.y1 - c.y0 + 3, m = new Uint8Array(bw * bh); let cells = 0;
+        for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) if (gl.lab[y * w + x] === c.id) { m[(y - c.y0 + 1) * bw + (x - c.x0 + 1)] = 1; if (cm[y * w + x]) cells++; }
+        const tr = ptTrace(m, bw, bh), sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, pxPerM * 0.15)) : []; if (sp.length < 3) continue;
+        const poly = sp.map(([x, y]) => toC(x + c.x0 - 1, y + c.y0 - 1)), A = Math.abs(poly.reduce((s2, p, i) => { const q2 = poly[(i + 1) % poly.length]; return s2 + p.x * q2.y - q2.x * p.y; }, 0)) / 2, apx = A * (w / W) * (h / H);
+        if (cells < 0.6 * apx) continue;
+        const sx = c.s % w, sy = (c.s - sx) / w; rooms.push({ poly, m2: Math.round(A * P.scale * P.scale), seed: toC(sx, sy), hatch: true }); } } }
+  rooms.sort((a, b) => b.m2 - a.m2);
+  /* רקע: רכיב שהמצולע שלו מכיל שני חדרים אחרים ומעלה (≥ 6 מ״ר כל אחד, יחד ≥ רבע משטחו) = הנייר שבין מסגרת הגיליון למבנה / המגרש — לא חדר */
+  const bg = new Set(rooms.filter(r => { const ins = rooms.filter(o => o !== r && o.m2 >= 6 && o.m2 < r.m2 && inPoly(o.seed, r.poly)); return ins.length >= 2 && ins.reduce((s2, o) => s2 + o.m2, 0) >= 0.25 * r.m2; }));
+  let keep = rooms.filter((r, i) => !bg.has(r) && !(r.m2 <= 15 && rooms.slice(0, i).some(big => !bg.has(big) && big.m2 > r.m2 * 1.5 && inPoly(r.seed, big.poly))));
+  /* תא שנוגע במסגרת הגיליון (עד 3.5% משולי התמונה) = עמודת הכותרת / ההערות / המקרא; המבנה עצמו לא מגיע עד המסגרת */
+  { const mg = 0.035 * W, bbOf = r => { const xs = r.poly.map(p => p.x), ys = r.poly.map(p => p.y); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; };
+    /* מסגרת הגיליון עצמה מצוירת פנימה מהשוליים: המלבן של רכיב ה"רקע" הגדול הוא המסגרת, ותא שנוגע בו מבפנים (עד 1.2%) הוא תא כותרת */
+    const fr = [...bg].map(bbOf).filter(b => b[2] - b[0] >= 0.7 * W && b[3] - b[1] >= 0.7 * H).sort((p, q) => (q[2] - q[0]) - (p[2] - p[0]))[0] || [L, T, L + W, T + H], m2g = 0.012 * W;   /* רק רכיב רקע שמשתרע על רוב הגיליון הוא המסגרת — לא קו המתאר של המבנה */
+    const k2 = keep.filter(r => { const b = bbOf(r); return !(b[0] < L + mg || b[2] > L + W - mg || b[1] < T + mg || b[3] > T + H - mg || b[0] < fr[0] + m2g || b[2] > fr[2] - m2g || b[1] < fr[1] + m2g || b[3] > fr[3] - m2g); }); if (k2.length) keep = k2; }
+  /* המבנה = קבוצת חדרים צמודים שיש בה "מילות חדר" (קהל / תפעול / שירות / מעבר). תאי טבלת הכותרת והמקרא הם גם מלבנים סגורים וצמודים,
+     אבל הכיתובים בהם אינם שמות חדרים — קבוצה כזו נזרקת. שתי קומות על אותו גיליון = שתי קבוצות, שתיהן נשארות */
+  { const bb = keep.map(r => { const xs = r.poly.map(p => p.x), ys = r.poly.map(p => p.y); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; }), gapC = 0.6 / P.scale;
+    const par = keep.map((_, i) => i), find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+    for (let i = 0; i < keep.length; i++) for (let j = i + 1; j < keep.length; j++) if (bb[i][0] <= bb[j][2] + gapC && bb[j][0] <= bb[i][2] + gapC && bb[i][1] <= bb[j][3] + gapC && bb[j][1] <= bb[i][3] + gapC) { const a = find(i), b = find(j); if (a !== b) par[a] = b; }
+    const pos = it => { const p = ptPos(it); return { x: p.x, y: p.y }; }, all = (P.planText || {}).items || [];
+    const words = all.filter(it => ['audience', 'ops', 'service', 'passage'].includes(it.cat) && !ZW_JUNK.test(String(it.t || '')) && !ZW_TITLE.test(String(it.t || ''))).map(pos), titles = all.filter(it => ZW_TITLE.test(String(it.t || ''))).map(pos);
+    let cid = keep.map((_, i) => find(i)); const score = new Map(), th = new Map(), tot = new Map();
+    keep.forEach((r, i) => { const c = cid[i]; score.set(c, (score.get(c) || 0) + words.filter(q => inPoly(q, r.poly)).length); th.set(c, (th.get(c) || 0) + titles.filter(q => inPoly(q, r.poly)).length); tot.set(c, (tot.get(c) || 0) + r.m2); });
+    const only = ok => { const k2 = [], c2 = []; keep.forEach((r, i) => { if (ok(cid[i])) { k2.push(r); c2.push(cid[i]); } }); if (k2.length) { keep = k2; cid = c2; } };
+    /* קבוצה שבתאים שלה יש שתי מילות טבלת-כותרת ומעלה (date / revision / scale / תאריך…) = עמודת הכותרת וההערות, גם אם כתוב בה "Roof" או שם האולם */
+    only(c => !((th.get(c) || 0) >= 2 && (th.get(c) || 0) >= 0.5 * (score.get(c) || 0)));
+    const best = Math.max(0, ...cid.map(c => score.get(c) || 0));
+    if (best >= 2) only(c => (score.get(c) || 0) >= Math.max(2, 0.25 * best));
+    else { /* אין שמות חדרים בתכנית: נשארת קבוצת החדרים הגדולה (המבנה) */ const mx = Math.max(0, ...cid.map(c => tot.get(c) || 0)); only(c => (tot.get(c) || 0) >= 0.5 * mx); } }
+  const userZones = (P.zones || []).filter(z => !z.prop), zones = [], skipped = { ops: 0, small: 0 }, skippedList = []; let nAuto = (P.zones || []).length;
+  for (const r of keep) {
+    if (r.m2 * (w / W) * (h / H) / (P.scale * P.scale) > 0.6 * w * h) continue;   /* יותר מ-60% מהגיליון — לא חדר */
+    const xs = r.poly.map(p => p.x), ys = r.poly.map(p => p.y), left = Math.min(...xs), top = Math.min(...ys), zw = Math.max(...xs) - left, zh = Math.max(...ys) - top;
+    if (zw > 0.9 * W && zh > 0.9 * H) continue;   /* מסגרת הגיליון */
+    const z = { id: uid('z'), name: '', x: Math.max(0, 2200 - left - zw), y: top, w: zw, h: zh, fill: true, auto: 'lines', poly: r.poly };
+    if (userZones.some(u => inZone(u, { x: left + zw / 2, y: top + zh / 2 }))) continue;
+    const rel = await zoneRelevance(z, r.m2);
+    if (!rel.ok) { if (/קטן|כיתוב/.test(rel.why)) skipped.small++; else skipped.ops++; if (r.m2 >= 3) skippedList.push({ name: rel.name || '', why: rel.why, m2: r.m2, pt: r.seed, labels: rel.labels }); continue; }
+    z.name = rel.name || ('אזור ' + (++nAuto)); z.usage = rel.usage; z._m2 = r.m2; zones.push(z);
+  }
+  return { zones, skipped, skippedList, rooms: keep.length, level: pick };
 }
 async function zoneFillAt(pt) {
   const G = await zoneFillCore(pt); if (!G) return; if (G.err) { uiToast(G.err, 6000); return; }
