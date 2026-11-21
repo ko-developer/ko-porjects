@@ -1871,10 +1871,27 @@ async function zonesByLinesAt(thr) {
   let pick = levels.length - 1; for (let i = 0; i < levels.length - 1; i++) if (levels[i].out - levels[i + 1].out < 0.03 * w * h) { pick = i; break; }
   const lv = levels[pick], { lab, comps } = lv.lb, minPx = 3 * pxPerM * pxPerM;
   const cand = comps.filter(c => c && !c.edge && c.n >= minPx * 0.6).sort((a, b) => b.n - a.n).slice(0, 80), rooms = [];
+  /* אזור נקבע לפי קירות, לא לפי ריהוט (אורי, 21.11.2026: "אתה מונה אזור מסביב לריהוט הישיבה במקום לכלול אותו — אתה אמור להיות ממוקד בקירות").
+     קיר = קו שהוא חלק מרכיב קווים גדול (מלבן חוסם ≥ 2.2 מ׳ — רשת הקירות מחוברת); כיסא / שולחן / כורסה חופשיים הם רכיבים קטנים.
+     מהשטח הפנוי של החדר ממשיכים דרך כל מה שאינו קיר (קווי ריהוט, הכיסים שבין הריהוט לקיר) עד הקירות — אבל לא לתוך חדר אחר,
+     לא החוצה, ולא יותר מ-2.5 מ׳ מהשטח הפנוי המקורי (דלת שקשת הפתיחה שלה מנותקת מהקיר לא תזליג את האזור לחדר השכן) */
+  const wallHalo = (() => { const l1 = rfBox(line, w, h, 1, true), inv = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) inv[i] = l1[i] ? 0 : 1;
+    const ll = label(inv), big = new Uint8Array(ll.comps.length), minS = 2.2 * pxPerM; ll.comps.forEach(c => { if (c && Math.max(c.x1 - c.x0, c.y1 - c.y0) >= minS) big[c.id] = 1; });
+    const wm = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) if (ll.lab[i] && big[ll.lab[i]]) wm[i] = 1;
+    /* פתח דלת = רווח בקו הקיר. סוגרים רווחים עד ~1.3 מ׳ (סגירה מורפולוגית של מסכת הקירות), אחרת ההתפשטות עוברת דרך הדלת למחסן / לשירותים השכנים:
+       קשת הפתיחה של הדלת היא רכיב קטן ומנותק, כמו כיסא, ולא נחשבת קיר. לאורך קיר ישר הסגירה לא מוסיפה כלום — רצועת ריהוט שצמודה לקיר נשארת פתוחה */
+    const rc = Math.max(2, Math.round(0.65 * pxPerM)), wc = rfBox(rfBox(wm, w, h, rc, true), w, h, rc, false);
+    return lv.r > 1 ? rfBox(wc, w, h, lv.r - 1, true) : wc; })();
+  const kind = new Uint8Array(comps.length); comps.forEach(c => { if (c && c.edge) kind[c.id] = 1; }); cand.forEach(c => { kind[c.id] = 1; });   /* 1 = חוץ או חדר — אליהם לא מתפשטים */
+  const reach = Math.round(2.5 * pxPerM);
   for (const c of cand) {
-    /* תת-מסכה סביב הרכיב: הרחבה חזרה עד הקווים (ברדיוס העיבוי) ועקיבה אחרי הגבול החיצוני */
-    const pad = lv.r + 3, bx0 = Math.max(0, c.x0 - pad), by0 = Math.max(0, c.y0 - pad), bw = Math.min(w, c.x1 + pad + 1) - bx0, bh = Math.min(h, c.y1 + pad + 1) - by0, m = new Uint8Array(bw * bh);
-    for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) if (lab[y * w + x] === c.id) m[(y - by0) * bw + (x - bx0)] = 1;
+    /* תת-מסכה סביב הרכיב: התפשטות עד הקירות, הרחבה חזרה (ברדיוס העיבוי) ועקיבה אחרי הגבול החיצוני */
+    const pad = lv.r + 3 + reach, bx0 = Math.max(0, c.x0 - pad), by0 = Math.max(0, c.y0 - pad), bw = Math.min(w, c.x1 + pad + 1) - bx0, bh = Math.min(h, c.y1 + pad + 1) - by0, m = new Uint8Array(bw * bh);
+    { const q = new Int32Array(bw * bh); let qa = 0, qb = 0;
+      for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) if (lab[y * w + x] === c.id) { const j = (y - by0) * bw + (x - bx0); m[j] = 1; q[qb++] = j; }
+      const ok = j => { if (m[j]) return false; const x = j % bw, y = (j - x) / bw, gi = (y + by0) * w + x + bx0; if (wallHalo[gi]) return false; const id = lab[gi]; return !id || !kind[id]; };
+      while (qa < qb) { const j = q[qa++], x = j % bw, y = (j - x) / bw;
+        if (x > 0 && ok(j - 1)) { m[j - 1] = 1; q[qb++] = j - 1; } if (x < bw - 1 && ok(j + 1)) { m[j + 1] = 1; q[qb++] = j + 1; } if (y > 0 && ok(j - bw)) { m[j - bw] = 1; q[qb++] = j - bw; } if (y < bh - 1 && ok(j + bw)) { m[j + bw] = 1; q[qb++] = j + bw; } } }
     const grown = rfBox(m, bw, bh, lv.r, true), tr = ptTrace(grown, bw, bh), sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, pxPerM * 0.15)) : []; if (sp.length < 3) continue;
     const poly = sp.map(([x, y]) => toC(x + bx0, y + by0));
     const A = Math.abs(poly.reduce((s2, p, i) => { const q2 = poly[(i + 1) % poly.length]; return s2 + p.x * q2.y - q2.x * p.y; }, 0)) / 2, m2 = Math.round(A * P.scale * P.scale); if (m2 < 3) continue;
