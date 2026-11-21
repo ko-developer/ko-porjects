@@ -958,15 +958,31 @@ function asApplyRatioN(n, mm, src, quiet) {
    תמונה / PDF סרוק: OCR ממוקד בטבלת הכותרת שבשולי הגיליון (ptScaleScan, ברקע) — נכנס לשדה, וההחלה אחרי בחירת גודל הגיליון.
    בלי ניחושים: כיתוב עם התווית (קנ"מ / SCALE) גובר; בלי תווית — רק "1:N" שעומד לבדו; כמה ערכים שונים = המשתמש בוחר. */
 const AS_FIND_LABEL = /קנ\s?["״׳']?\s?מ|קנה\s?מידה|scale|מ\s?["״׳']?\s?נק|הדימ\s?הנק/i;
-function asFindInTexts(lines, tokens) {
-  const clean = t => String(t || '').replace(/[\u200f\u200e]/g, '').replace(/[∶：]/g, ':');
-  const rx = /(?:^|[^\d.,])1\s*[:\/]\s*(\d{2,4})(?![\d.,])/, ok = n => n >= 10 && n <= 2000;
-  for (const t of lines || []) { const c = clean(t); if (!AS_FIND_LABEL.test(c)) continue; const m = rx.exec(c); if (m && ok(+m[1])) return { n: +m[1], t: c.trim().slice(0, 40) }; }
-  const cnt = new Map();
-  for (const t of tokens || []) { const m = /^\s*1\s*[:\/]\s*(\d{2,4})\s*$/.exec(clean(t)); if (m && ok(+m[1])) cnt.set(+m[1], (cnt.get(+m[1]) || 0) + 1); }
-  if (cnt.size === 1) { const n = [...cnt.keys()][0]; return { n, t: '1:' + n }; }
-  if (cnt.size > 1) return { multi: [...cnt.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]).slice(0, 5) };
-  return null;
+function asFindInTexts(lines, tokens, pageMm, segs) {
+  /* אותה בחירה כמו באיתור המהיר (ptScalePick): תווית קנ"מ גוברת, כותרת תכנית גוברת על חתך/פרט, טבלת יחסים לא נחשבת, "1:50 @ A1 / 1:100 @ A3" לפי גודל הדף */
+  const clean = t => String(t || '').replace(/[\u200f\u200e]/g, '').replace(/[∶：]/g, ':'), rev = t => [...t].reverse().join('');
+  const ok = n => n >= 10 && n <= 2000, has = (re, c) => re.test(c) || re.test(rev(c));
+  const PLAN = typeof PT_SC_PLAN !== 'undefined' ? PT_SC_PLAN : /תכנית|PLAN/i, SECT = typeof PT_SC_SECT !== 'undefined' ? PT_SC_SECT : /חתך|SECTION/i;
+  const vals = [], pairs = [];
+  for (const t of lines || []) {
+    const c = clean(t), ns = [], rx = /(?:^|[^\d.,:])1\s*[:\/]\s*(\d{2,4})(?![\d.,:])/g; let m;
+    while ((m = rx.exec(c))) if (ok(+m[1])) ns.push(+m[1]);
+    if (!ns.length) continue;
+    const pr = /1\s*:\s*(\d{1,4})\s*[(\[]?\s*(?:@|\bat\b)\s*A\s?([0-4])/gi; while ((m = pr.exec(c))) if (!pairs.some(p => p.n === +m[1] && p.fmt === 'A' + m[2])) pairs.push({ n: +m[1], fmt: 'A' + m[2] });
+    const lbl = AS_FIND_LABEL.test(c), plan = has(PLAN, c), sect = has(SECT, c), tbl = new Set(ns).size >= 3;
+    ns.forEach(n => vals.push({ n, lbl, plan, sect, tbl, t: c.trim().slice(0, 40), line: c }));
+  }
+  /* טבלת יחסים (תקן חניה) לפי מיקום הפריטים בדף — אותו כלל כמו באיתור המהיר */
+  if (segs && segs.length && typeof ptTblFlag === 'function') { const pos = [];
+    for (const sg of segs) for (const it of sg.items) { const m = /(?:^|[^\d.,:])1\s*[:\/]\s*(\d{2,4})(?![\d.,:])/.exec(clean(it.t)); if (m && ok(+m[1])) pos.push({ n: +m[1], cx: it.x, cy: sg.y, H: sg.h, line: clean(sg.t) }); }
+    ptTblFlag(pos); const bad = new Set(pos.filter(p => p.tbl).map(p => p.line + '|' + p.n)); vals.forEach(v => { if (bad.has(v.line + '|' + v.n)) v.tbl = true; }); }
+  /* כיתוב מסובב (לא בשורות האופקיות): פריט שהוא בדיוק "1:N" */
+  if (!vals.length) for (const t of tokens || []) { const m = /^\s*1\s*[:\/]\s*(\d{2,4})\s*$/.exec(clean(t)); if (m && ok(+m[1])) vals.push({ n: +m[1], t: '1:' + m[1] }); }
+  const pick = (typeof ptScaleAtSheet === 'function' && ptScaleAtSheet(pairs, pageMm)) || (typeof ptScalePick === 'function' ? ptScalePick(vals) : null);
+  if (!pick) return null;
+  if (pick.multi) return { multi: pick.multi };
+  const v = vals.find(x => x.n === pick.n && x.lbl) || vals.find(x => x.n === pick.n);
+  return { n: pick.n, t: (v && v.t) || '1:' + pick.n, weak: !!pick.weak, others: (pick.others || []).filter(n => n !== pick.n) };
 }
 /* הכיתובים של דף PDF: כל פריט לבדו + שורות (פריטים אופקיים באותו גובה, נחתכות ברווח גדול — תאים רחוקים בטבלה לא מתחברים) */
 async function asPdfPageTexts(pg) {
@@ -975,9 +991,9 @@ async function asPdfPageTexts(pg) {
   const hz = items.filter(i => Math.abs(i.rot) < 0.3 || Math.abs(Math.abs(i.rot) - Math.PI) < 0.3).sort((a, b) => b.y - a.y || a.x - b.x);
   const rows = []; let cur = null;
   for (const it of hz) { if (cur && Math.abs(cur.y - it.y) <= Math.max(2, it.h * 0.5)) cur.items.push(it); else { cur = { y: it.y, items: [it] }; rows.push(cur); } }
-  const lines = [];
-  for (const r of rows) { r.items.sort((a, b) => a.x - b.x); let seg = [r.items[0]]; for (let i = 1; i < r.items.length; i++) { const p = r.items[i - 1], q = r.items[i]; if (q.x - (p.x + p.w) > Math.max(p.h, q.h) * 8) { lines.push(seg.map(z => z.t).join(' ')); seg = [q]; } else seg.push(q); } lines.push(seg.map(z => z.t).join(' ')); }
-  return { tokens: items.map(i => i.t), lines };
+  const lines = [], segs = [], flush = seg => { const tx = seg.map(z => z.t).join(' '); lines.push(tx); segs.push({ t: tx, x0: seg[0].x, y: seg[0].y, h: Math.max(...seg.map(z => z.h)), items: seg.map(z => ({ t: z.t, x: z.x + z.w / 2 })) }); };
+  for (const r of rows) { r.items.sort((a, b) => a.x - b.x); let seg = [r.items[0]]; for (let i = 1; i < r.items.length; i++) { const p = r.items[i - 1], q = r.items[i]; if (q.x - (p.x + p.w) > Math.max(p.h, q.h) * 8) { flush(seg); seg = [q]; } else seg.push(q); } flush(seg); }
+  return { tokens: items.map(i => i.t), lines, segs };
 }
 function asFindRefresh() { try { render(); if (typeof WIZ !== 'undefined' && WIZ && typeof wizRender === 'function') wizRender(); } catch (e) {} }
 /* pg = דף ה-PDF שהועלה (אם יש); opts.noOcr = רק שכבת הטקסט (בתוך לולאת הדפים — ה-OCR רץ אחר כך ברקע) */
@@ -986,13 +1002,14 @@ async function asAutoFind(pg, opts) {
   const pid = P.id, sh = typeof curSheet === 'function' ? curSheet(P) : null; if (!sh || !P.bg) return null;
   const isCur = () => !!P && P.id === pid && curSheet(P) === sh;
   let res = null, src = '';
-  if (pg) { try { const vp = pg.getViewport({ scale: 1 }); sh.autoScale = { ...(sh.autoScale || {}), pageMm: [Math.round(vp.width / AS_PT_PER_MM), Math.round(vp.height / AS_PT_PER_MM)] }; const tx = await asPdfPageTexts(pg); res = asFindInTexts(tx.lines, tx.tokens); if (res) src = 'pdf'; } catch (e) { console.warn('asAutoFind pdf', e); } }
+  if (pg) { try { const vp = pg.getViewport({ scale: 1 }); sh.autoScale = { ...(sh.autoScale || {}), pageMm: [Math.round(vp.width / AS_PT_PER_MM), Math.round(vp.height / AS_PT_PER_MM)] }; const tx = await asPdfPageTexts(pg); res = asFindInTexts(tx.lines, tx.tokens, sh.autoScale.pageMm, tx.segs); if (res) src = 'pdf'; } catch (e) { console.warn('asAutoFind pdf', e); } }
   if (!res && opts.noOcr) return null;
   if (!res && typeof ptScaleScan === 'function' && isCur()) {
+    const hi = (window.__asHi && window.__asHi.cv) || null, hiPg = (window.__asHi && window.__asHi.pg) || null;   /* נלקח כאן, לפני ה-await הראשון */
     window.__asFind = sh.id; asFindRefresh();
-    uiToast('🔎 סורק את התכנית לקבלת קנה מידה (טבלת הכותרת) — עד כדקה, אפשר להמשיך לעבוד בינתיים…', 20000);
+    uiToast('🔎 סורק את התכנית לקבלת קנה מידה — כמה שניות…', 9000);
     if (typeof uiBusy === 'function') uiBusy('asFind', 'סורק את התכנית לקבלת קנה מידה');
-    try { const o = await ptScaleScan(); if (o && o.n >= 10 && o.n <= 2000) { res = { n: o.n, t: o.t || ('1:' + o.n), weak: !!o.weak, thumb: o.thumb || null, sheet: o.sheet || null, imgW: o.imgW || 0, imgH: o.imgH || 0 }; src = 'ocr'; } } catch (e) { console.warn('asAutoFind ocr', e); }
+    try { const o = await ptScaleScan(null, { hi, pg: hiPg, pageMm: (sh.autoScale || {}).pageMm }); if (o && o.multi) { res = { multi: o.multi }; src = 'ocr'; } else if (o && o.n >= 10 && o.n <= 2000) { res = { others: o.others || null, n: o.n, t: o.t || ('1:' + o.n), weak: !!o.weak, thumb: o.thumb || null, sheet: o.sheet || null, imgW: o.imgW || 0, imgH: o.imgH || 0 }; src = 'ocr'; } } catch (e) { console.warn('asAutoFind ocr', e); }
     finally { if (window.__asFind === sh.id) window.__asFind = null; if (typeof uiBusyDone === 'function') uiBusyDone('asFind'); }
   }
   const r0 = sh.autoScale || {}, name = sh.name || '', where = isCur() ? '' : ' (' + name + ')';
@@ -1011,7 +1028,7 @@ async function asAutoFind(pg, opts) {
     else {
       if (isCur()) asApplyRatioN(res.n, mm, src, true);
       else { sh.scale = 1 / pxPerM; sh.autoScale = { ...sh.autoScale, sheetMm: r0.pageMm ? undefined : mm, method: 'ratio', conf: 'medium', pxPerM, src: 'ratio', at: Date.now() }; }   /* המשתמש עבר לתכנית אחרת בזמן הסריקה */
-      uiToast('📐 נמצא קנה מידה 1:' + res.n + where + ' — התכנית כוילה אוטומטית' + (assumed ? ' לפי גיליון ' + assumed + ' (גודל הגיליון לא נמצא בתכנית — אם הוא אחר, בחר אותו בשדה הכיול ולחץ ״החל״)' : shTxt ? ' (' + shTxt + ')' : '') + ': 1 מ׳ = ' + pxPerM.toFixed(1) + 'px. ' + (res.weak ? 'הקריאה לא ודאית — אמת מול הכיתוב בתכנית' : 'כדאי לאמת מול מידה בשרטוט'), 11000);
+      uiToast('📐 נמצא קנה מידה 1:' + res.n + where + ' — התכנית כוילה אוטומטית' + (assumed ? ' לפי גיליון ' + assumed + ' (גודל הגיליון לא נמצא בתכנית — אם הוא אחר, בחר אותו בשדה הכיול ולחץ ״החל״)' : shTxt ? ' (' + shTxt + ')' : '') + ': 1 מ׳ = ' + pxPerM.toFixed(1) + 'px. ' + (res.weak ? 'הקריאה לא ודאית — אמת מול הכיתוב בתכנית' : 'כדאי לאמת מול מידה בשרטוט') + (res.others && res.others.length ? '. בגיליון יש גם ' + res.others.slice(0, 4).map(n => '1:' + n).join(', ') + ' (שרטוטים אחרים) — אם התכנית שלך באחד מהם, הקלד אותו בשדה הכיול' : ''), 11000);
     }
   } else if (res && res.multi) {
     sh.autoScale = { ...r0, find: { state: 'multi', list: res.multi, src, at: Date.now() } };

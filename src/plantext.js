@@ -92,9 +92,240 @@ function ocrStripLines(id, cw, ch) {
   for (let x = 0; x < cw; x++) { let run = 0; for (let y = 0; y <= ch; y++) { const v = y < ch ? (bin[y * cw + x] ? 1 : 0) : 0; if (v) run++; else { if (run >= minLen) for (let y2 = y - run; y2 < y; y2++) bin[y2 * cw + x] = 2; run = 0; } } }
   for (let j = 0, i = 0; j < bin.length; j++, i += 4) if (bin[j] === 2) px[i] = px[i + 1] = px[i + 2] = 255;
 }
-async function ptScaleScan(onStep) {
+/* ===== ⚡ קנה מידה בשניות (אורי, 21.11.2026): מאתרים את הכיתוב "1:N" לפי הצורה שלו, וקוראים רק אותו =====
+   OCR על רצועות שוליים שלמות לוקח עשרות שניות ונכשל כשהכיתוב קטן או לא בשוליים. כאן:
+   1. התמונה ברזולוציה מלאה (ה-PDF כפי שרונדר בהעלאה, לפני ההקטנה) הופכת לשחור-לבן ומפורקת לרכיבים מחוברים (אות = רכיב).
+   2. נקודתיים = שתי נקודות קטנות ודומות אחת מעל השנייה, בלי נקודות נוספות סביבן (לא רסטר / קו מקווקו);
+      משמאל להן אות צרה אחת ("1") ומימין שרשרת של 2–4 אותיות באותו גובה (ספרות).
+   3. רק המלבנים הקטנים האלה נקראים ב-OCR (ספרות בלבד, כמה קריאות והצבעה), ועוד קריאה של השורה שסביבם בשביל התווית
+      קנ"מ / SCALE, כותרת השרטוט (תכנית / חתך / פרט) ו-"@ A1".
+   כל התהליך שניות בודדות, בכל מקום בגיליון — לא רק בשוליים. נבדק על 21 תכניות מהרשת (CLAUDE.md). */
+function ptCCL(bin, W, H, maxSide) {
+  let cap = 1 << 18, par = new Int32Array(cap), bx0 = new Int32Array(cap), bx1 = new Int32Array(cap), by0 = new Int32Array(cap), by1 = new Int32Array(cap), ar = new Int32Array(cap), n = 0;
+  const grow = () => { const c2 = cap * 2, g = a => { const b = new Int32Array(c2); b.set(a); return b; }; par = g(par); bx0 = g(bx0); bx1 = g(bx1); by0 = g(by0); by1 = g(by1); ar = g(ar); cap = c2; };
+  const find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+  const half = (W >> 1) + 2; let pS = new Int32Array(half), pE = new Int32Array(half), pL = new Int32Array(half), pn = 0, cS = new Int32Array(half), cE = new Int32Array(half), cL = new Int32Array(half), cn = 0;
+  for (let y = 0; y < H; y++) {
+    cn = 0; let x = 0, j = 0; const row = y * W;
+    while (x < W) {
+      if (!bin[row + x]) { x++; continue; }
+      const s = x; while (x < W && bin[row + x]) x++; const e = x - 1;
+      while (j < pn && pE[j] < s - 1) j++;
+      let l = -1;
+      for (let jj = j; jj < pn && pS[jj] <= e + 1; jj++) { const r = find(pL[jj]); if (l < 0) l = r; else if (r !== l) par[r] = l; }
+      if (l < 0) { if (n >= cap) grow(); l = n++; par[l] = l; bx0[l] = s; bx1[l] = e; by0[l] = y; by1[l] = y; ar[l] = 0; }
+      if (s < bx0[l]) bx0[l] = s; if (e > bx1[l]) bx1[l] = e; by1[l] = y; ar[l] += e - s + 1;
+      cS[cn] = s; cE[cn] = e; cL[cn] = l; cn++;
+    }
+    let t = pS; pS = cS; cS = t; t = pE; pE = cE; cE = t; t = pL; pL = cL; cL = t; pn = cn;
+  }
+  for (let i = 0; i < n; i++) { const r = find(i); if (r === i) continue; if (bx0[i] < bx0[r]) bx0[r] = bx0[i]; if (bx1[i] > bx1[r]) bx1[r] = bx1[i]; if (by0[i] < by0[r]) by0[r] = by0[i]; if (by1[i] > by1[r]) by1[r] = by1[i]; ar[r] += ar[i]; }
+  const out = [];
+  for (let i = 0; i < n; i++) { if (par[i] !== i) continue; const w = bx1[i] - bx0[i] + 1, h = by1[i] - by0[i] + 1; if (w > maxSide || h > maxSide) continue; out.push({ x0: bx0[i], x1: bx1[i], y0: by0[i], y1: by1[i], w, h, a: ar[i] }); }
+  return out;
+}
+/* מועמדים ל-"1:N" לפי הצורה. מחזיר מלבנים בקואורדינטות של תמונת העבודה (W×H). probe = {x,y,r} (פיקסלים) לדיבוג: למה נפסל מה שסביב הנקודה */
+function ptColonCands(bin, W, H, probe) {
+  const comps = ptCCL(bin, W, H, 130);
+  const dots = [], gly = [], rej = {}, plog = [];
+  for (const c of comps) {
+    if (c.w <= 14 && c.h <= 14 && Math.max(c.w, c.h) >= 2 && Math.max(c.w, c.h) <= 3 * Math.min(c.w, c.h) + 1 && c.a >= 0.45 * c.w * c.h) dots.push(c);   /* כולל נקודה של גופן שרטוט דק (SHX): קו ברוחב פיקסל אחד */
+    if (c.h >= 7 && c.h <= 120 && c.w <= 1.25 * c.h + 2) gly.push(c);
+  }
+  const DC = 16, GC = 32, DW = Math.ceil(W / DC) + 1, GW = Math.ceil(W / GC) + 1, dB = new Map(), gB = new Map();
+  const put = (m, k, v) => { const a = m.get(k); if (a) a.push(v); else m.set(k, [v]); };
+  for (const d of dots) { d.cx = (d.x0 + d.x1) / 2; d.cy = (d.y0 + d.y1) / 2; d.s = Math.max(d.w, d.h); put(dB, (d.cy / DC | 0) * DW + (d.cx / DC | 0), d); }
+  for (const c of gly) put(gB, (((c.y0 + c.y1) / 2) / GC | 0) * GW + (((c.x0 + c.x1) / 2) / GC | 0), c);
+  const dotsIn = (x0, y0, x1, y1, f) => { for (let r = Math.max(0, y0 / DC | 0); r <= (y1 / DC | 0); r++) for (let q = Math.max(0, x0 / DC | 0); q <= (x1 / DC | 0); q++) { const a = dB.get(r * DW + q); if (a) for (const d of a) if (d.cx >= x0 && d.cx <= x1 && d.cy >= y0 && d.cy <= y1) if (f(d)) return true; } return false; };
+  const glyIn = (x0, y0, x1, y1) => { const o = []; for (let r = Math.max(0, y0 / GC | 0); r <= (y1 / GC | 0); r++) for (let q = Math.max(0, x0 / GC | 0); q <= (x1 / GC | 0); q++) { const a = gB.get(r * GW + q); if (a) for (const c of a) o.push(c); } return o; };
+  const out = [];
+  for (const a of dots) {
+    let hit = null;
+    dotsIn(a.cx - 4, a.y1 + 1, a.cx + 4, a.y1 + Math.min(48, 8 * a.s) + 8, b => {
+      if (b === a || b.y0 <= a.y1) return false; const d = b.cy - a.cy;
+      if (d > 8 * a.s || d > 48 || b.y0 - a.y1 - 1 < Math.max(1, 0.4 * a.s)) return false;
+      if (Math.abs(b.cx - a.cx) > Math.max(1.5, 0.4 * a.s) || Math.abs(b.s - a.s) > Math.max(1.5, 0.5 * a.s)) return false;
+      hit = b; return true; });
+    const b = hit; if (!b) continue;
+    const inP = probe && Math.abs(a.cx - probe.x) < probe.r && Math.abs(a.cy - probe.y) < probe.r;
+    const no = why => { rej[why] = (rej[why] || 0) + 1; if (inP) plog.push(why + ' @' + Math.round(a.cx) + ',' + Math.round(a.cy) + ' s' + a.s + ' d' + (b.cy - a.cy)); };
+    const d = b.cy - a.cy, cx0 = Math.min(a.x0, b.x0), cx1 = Math.max(a.x1, b.x1), cxm = (cx0 + cx1) / 2;
+    /* אות שהנקודתיים "יושבות" בגובה שלה: ראשה מעל הנקודה העליונה, בסיסה ליד הנקודה התחתונה */
+    const fits = c => c !== a && c !== b && c.h >= 1.4 * d && c.h <= 5.2 * d && c.y0 <= a.y0 + 0.12 * c.h && Math.abs(c.y1 - b.y1) <= 0.25 * c.h + 1;
+    const around = glyIn(cx0 - 7 * d - 80, a.y0 - 5.5 * d, cx1 + 30 * d + 160, b.y1 + 2 * d), near = around.filter(fits);
+    let L = null, R = null;
+    for (const c of near) { const gl = cx0 - c.x1, gr = c.x0 - cx1; if (gl >= -1 && gl <= 1.4 * c.h && (!L || gl < cx0 - L.x1)) L = c; if (gr >= -1 && gr <= 1.4 * c.h && (!R || gr < R.x0 - cx1)) R = c; }
+    if (!L) { no('noL'); continue; } if (!R) { no('noR'); continue; }
+    if (L.w > 0.72 * L.h) { no('wideL'); continue; } if (Math.abs(R.h - L.h) > 0.3 * L.h) { no('hDiff'); continue; }
+    if (R.w > 0.9 * R.h) { no('wideR'); continue; }   /* ספרה צרה מגובהה; "@" ו-"A" לא */
+    const Hh = Math.max(L.h, R.h), chain = [R]; let last = R;
+    /* שרשרת הספרות נעצרת ברווח, באות רחבה ("@") או בגובה אחר */
+    /* האות הצמודה הבאה נבחרת מכל הרכיבים (גם "@" שגבוה מהספרות) — אם היא לא ספרה, השרשרת נגמרת שם ולא מדלגת מעליה ("1:75@A1" אינו "1:751") */
+    for (;;) { let nx = null; for (const c of around) { const gp = c.x0 - last.x1; if (c === last || c === a || c === b || gp < -1 || gp > 0.7 * Hh || c.h < 0.5 * Hh) continue; if (Math.min(c.y1, last.y1) - Math.max(c.y0, last.y0) < 0.5 * Math.min(c.h, last.h)) continue; if (!nx || gp < nx.x0 - last.x1) nx = c; }
+      if (!nx || !fits(nx) || Math.abs(nx.h - Hh) > 0.3 * Hh || nx.w > 0.9 * nx.h || chain.length >= 5) break; chain.push(nx); last = nx; }
+    if (chain.length < 2) { no('chain'); continue; }
+    /* עוד אות צמודה משמאל ל-"1" = מספר ארוך / מילה ("11:30"), לא קנה מידה */
+    if (near.some(c => c !== L && L.x0 - c.x1 >= -1 && L.x0 - c.x1 <= 0.3 * Hh && Math.abs(c.h - Hh) <= 0.3 * Hh)) { no('leftAdj'); continue; }
+    /* בידוד: נקודות נוספות סביב הנקודתיים = רסטר נקודות / קו מקווקו */
+    if (dotsIn(cxm - 1.2 * d, a.cy - 1.3 * d, cxm + 1.2 * d, b.cy + 1.3 * d, o => o !== a && o !== b)) { no('iso'); continue; }
+    const top = Math.min(L.y0, ...chain.map(c => c.y0)), bot = Math.max(L.y1, ...chain.map(c => c.y1));
+    out.push({ x0: L.x0, x1: last.x1, dx0: chain[0].x0, y0: top, y1: bot, H: Hh, digits: chain.length, cx: cxm, gb: chain.map(c => [c.x0, c.y0, c.x1, c.y1]), fill: chain.reduce((s2, c) => s2 + c.a, 0) / chain.reduce((s2, c) => s2 + c.w * c.h, 0) });
+    if (inP) plog.push('OK @' + Math.round(a.cx) + ',' + Math.round(a.cy) + ' dg' + chain.length);
+  }
+  /* אותו כיתוב פעמיים (נקודה שנשברה לשני רכיבים) */
+  const uniq = [];
+  for (const c of out.sort((p, q) => q.H - p.H)) if (!uniq.some(u => Math.abs(u.cx - c.cx) < c.H && Math.abs((u.y0 + u.y1) / 2 - (c.y0 + c.y1) / 2) < c.H)) uniq.push(c);
+  return { cands: uniq, nComps: comps.length, nDots: dots.length, nGly: gly.length, rej, plog };
+}
+/* טבלה של יחסים (תקן חניה: "1:50", "1:200", "1:300" בתאים סמוכים) אינה קנה מידה. list = [{n, cx, cy, H}] — מסמן tbl:
+   תא שסביבו (עד 3.5 גבהי אות למעלה/למטה, 32 לצדדים, אותו גובה אות) שני ערכים שונים ממנו ויותר, ולפחות אחד מהם בעמודה אחרת
+   (עמודה אחת של ערכים = רשימת השרטוטים בטבלת הכותרת, לא טבלת יחסים); ואז גם תא שצמוד לתא מסומן (שורת הקצה של הטבלה) */
+function ptTblFlag(list) {
+  const near = (c, o) => o !== c && Math.abs(o.H - c.H) <= 0.15 * c.H && Math.abs(o.cy - c.cy) <= 3.5 * c.H && Math.abs(o.cx - c.cx) <= 32 * c.H;
+  for (const c of list) { const nb = list.filter(o => near(c, o) && o.n !== c.n); c.tbl = nb.length >= 2 && nb.some(o => Math.abs(o.cx - c.cx) > 3 * c.H); }
+  for (let again = true; again;) { again = false; for (const c of list) if (!c.tbl && list.some(o => o.tbl && near(c, o))) { c.tbl = true; again = true; } }
+  return list;
+}
+/* בחירת קנה המידה מתוך כל הכיתובים שנקראו: [{n, lbl (תווית קנ"מ לידו), plan (כותרת תכנית/קומה), sect (חתך/חזית/פרט)}] */
+function ptScalePick(vals) {
+  if (!vals || !vals.length) return null;
+  const nice = typeof asNiceRatios === 'function' ? asNiceRatios() : [10, 20, 25, 50, 100, 200, 250, 500];
+  const cnt = arr => { const m = new Map(); arr.forEach(v => m.set(v.n, (m.get(v.n) || 0) + 1)); return [...m.entries()].sort((p, q) => q[1] - p[1]); };
+  const all = cnt(vals), rest = n => all.map(x => x[0]).filter(m => m !== n);
+  if (all.length === 1) { const n = all[0][0]; return { n, weak: !(nice.includes(n) || vals.some(v => v.lbl)), lbl: vals.some(v => v.lbl) }; }
+  /* כמה ערכים שונים בגיליון (תכניות, חתכים, פרטים, טבלאות של יחסים): רק כיתובים עם התווית קנ"מ / SCALE נחשבים, אם יש כאלה;
+     מתוכם כותרת של תכנית/קומה גוברת על חתך/פרט; אחרת ערך שחוזר הרבה יותר מהאחרים; אחרת המשתמש בוחר */
+  const real = vals.filter(v => !v.tbl), use = real.length ? real : vals;   /* tbl = תא בטבלה של יחסים (תקן חניה "1:50") — לא קנה מידה */
+  const one = (arr, note) => { const d = [...new Set(arr.map(v => v.n))]; return d.length === 1 ? { n: d[0], lbl: arr.some(v => v.lbl), weak: !arr.some(v => v.lbl) && !nice.includes(d[0]), note, others: rest(d[0]) } : null; };
+  /* titled = כיתוב עם תווית קנ"מ או כותרת תכנית, שאינו חתך/פרט. כשיש כמה כאלה עם ערכים שונים (טבלת הכותרת אומרת 1:500, התכניות 1:250) — לא מנחשים */
+  const titled = use.filter(v => (v.lbl || v.plan) && !v.sect), noSect = use.filter(v => !v.sect);
+  const r1 = one(use, 'label') || (titled.length ? one(titled, 'label') : (noSect.length && one(noSect, 'plan')));
+  if (r1) return r1;
+  /* ערך שחוזר הרבה יותר מהאחרים — הספירה על כל המופעים של הערכים שבמאגר */
+  const pool = titled.length ? titled : noSect.length ? noSect : use, ns = new Set(pool.map(v => v.n)), c = cnt(use.filter(v => ns.has(v.n)));
+  if (c.length > 1 && c[0][1] >= 3 && c[0][1] >= 3 * c[1][1]) return { n: c[0][0], lbl: true, note: 'most', others: rest(c[0][0]) };
+  return { multi: c.map(x => x[0]).slice(0, 5) };
+}
+/* "1:50 @ A1 / 1:100 @ A3": קנה המידה תלוי בגודל הדף שעליו הודפס. pairs = [{n, fmt:'A1'}], pageMm = [w,h] של הדף בפועל (אם ידוע) */
+var PT_A_MM = { A0: 1189, A1: 841, A2: 594, A3: 420, A4: 297 };
+function ptScaleAtSheet(pairs, pageMm) {
+  if (!pairs || !pairs.length) return null;
+  const nice = typeof asNiceRatios === 'function' ? asNiceRatios() : [];
+  if (pageMm && pageMm[0] && pageMm[1]) {
+    const long = Math.max(pageMm[0], pageMm[1]);
+    const exact = pairs.find(p => Math.abs(PT_A_MM[p.fmt] - long) <= PT_A_MM[p.fmt] * 0.04); if (exact) return { n: exact.n, sheet: exact.fmt, note: 'fmt' };
+    /* הדף בפועל בגודל אחר מאלה שכתובים: יחס ישר (1:50 על A1 = 1:100 על A3) */
+    const p = pairs[0], n0 = p.n * PT_A_MM[p.fmt] / long, n = nice.find(v => Math.abs(v - n0) <= v * 0.03) || Math.round(n0);
+    return { n, note: 'fmt', weak: !nice.includes(n) };
+  }
+  const big = pairs.slice().sort((p, q) => PT_A_MM[q.fmt] - PT_A_MM[p.fmt])[0];   /* בלי גודל דף: הגיליון המקורי (הגדול) */
+  return { n: big.n, sheet: big.fmt, note: 'fmt', weak: true };
+}
+var PT_SC_LABEL = /קנ\s?["״׳']?\s?מ|קנמ|ק\s?[."״׳']\s?מ|SCALE|קנה\s?מ[יד]+ה|ECHELLE|MASSSTAB|MAßSTAB/i, PT_SC_PLAN = /תכנית|תוכנית|קומ[הת]|קרקע|מפלס|PLAN|FLOOR|LEVEL|LAYOUT/i, PT_SC_SECT = /חת[ךרכד]|חזית|פרט|פריסה|רמפה|מדרגות|SECTION|ELEVATION|DETAIL|RAMP|STAIR/i;   /* חת[ךרכד]: ה-OCR קורא "חתר" */
+async function ptScaleFast(src, opts) {
+  opts = opts || {};
+  const T0 = performance.now(), dbg = window.__ptFastDbg = { t: {} }, budget = opts.budget || 8000, left = () => budget - (performance.now() - T0);
+  const SW = src.width, SH = src.height; if (!SW || !SH) return null;
+  const tessP = window.Tesseract ? Promise.resolve() : loadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
+  /* תמונת העבודה: המקור עצמו עד 64MP; גיליון ענק מוקטן, תמונה קטנה מוגדלת (נקודות של 1px לא מזוהות) */
+  const area = SW * SH, MAXPX = 64e6, k = area > MAXPX ? Math.sqrt(MAXPX / area) : (area < 5e6 ? Math.min(2, Math.sqrt(12e6 / area)) : 1);
+  const W = Math.round(SW * k), H = Math.round(SH * k);
+  let g;
+  if (k === 1 && src.getContext) g = src.getContext('2d');
+  else { const wc = document.createElement('canvas'); wc.width = W; wc.height = H; g = wc.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.imageSmoothingQuality = 'high'; g.drawImage(src, 0, 0, W, H); }
+  const thr = opts.thr || 190, bin = new Uint8Array(W * H), BAND = 512;
+  for (let y = 0; y < H; y += BAND) { const hh = Math.min(BAND, H - y), d = g.getImageData(0, y, W, hh).data; let o = y * W; for (let i = 0; i < d.length; i += 4, o++) if (d[i + 3] > 40 && d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114 < thr) bin[o] = 1; }
+  dbg.t.bin = Math.round(performance.now() - T0); dbg.k = +k.toFixed(3); dbg.W = W; dbg.H = H;
+  const pr = window.__ptFastProbe, found = ptColonCands(bin, W, H, pr ? { x: pr.x * W, y: pr.y * H, r: (pr.r || 0.03) * W } : null);
+  dbg.t.cc = Math.round(performance.now() - T0); dbg.nComps = found.nComps; dbg.nDots = found.nDots; dbg.nCands = found.cands.length; dbg.rej = found.rej; dbg.plog = found.plog;
+  if (pr && window.__ptFastKeep) { try { const r = Math.round((pr.r || 0.03) * W), x0 = Math.max(0, Math.round(pr.x * W - r)), y0 = Math.max(0, Math.round(pr.y * H - r * 0.6)), cw = Math.min(W - x0, r * 2), ch = Math.min(H - y0, Math.round(r * 1.2)), pc = document.createElement('canvas'); pc.width = cw; pc.height = ch; const pg = pc.getContext('2d'), id = pg.createImageData(cw, ch); for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { const v = bin[(y0 + y) * W + x0 + x] ? 0 : 255, o = (y * cw + x) * 4; id.data[o] = id.data[o + 1] = id.data[o + 2] = v; id.data[o + 3] = 255; } pg.putImageData(id, 0, 0); dbg.probeImg = pc.toDataURL('image/png'); } catch (e) {} }
+  const cands = found.cands.slice(0, 40);
+  if (!cands.length) return null;
+  await tessP;
+  /* חיתוך מהמקור (רזולוציה מלאה), מוגדל כך שגובה האות ~target px, שחור-לבן; dil = עיבוי קו דק; strip = מחיקת קווי טבלה ארוכים */
+  const cut = (x0, y0, x1, y1, Hh, target, dil, strip) => {
+    x0 = Math.max(0, x0 / k); y0 = Math.max(0, y0 / k); x1 = Math.min(SW, x1 / k); y1 = Math.min(SH, y1 / k);
+    const z = Math.max(0.4, Math.min(6, target / Math.max(4, Hh / k))), pad = 16, cw = Math.round((x1 - x0) * z) + pad * 2, ch = Math.round((y1 - y0) * z) + pad * 2;
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch; const cg = c.getContext('2d', { willReadFrequently: true }); cg.fillStyle = '#fff'; cg.fillRect(0, 0, cw, ch); cg.imageSmoothingQuality = 'high';
+    cg.drawImage(src, x0, y0, x1 - x0, y1 - y0, pad, pad, cw - pad * 2, ch - pad * 2);
+    const id = cg.getImageData(0, 0, cw, ch), px = id.data, b = new Uint8Array(cw * ch);
+    for (let i = 0, j = 0; i < px.length; i += 4, j++) b[j] = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 < thr ? 1 : 0;
+    if (strip) { const minLen = Math.round(target * 6);
+      for (let y = 0; y < ch; y++) { let run = 0; for (let x = 0; x <= cw; x++) { const v = x < cw ? b[y * cw + x] : 0; if (v) run++; else { if (run >= minLen) for (let x2 = x - run; x2 < x; x2++) b[y * cw + x2] = 2; run = 0; } } }
+      for (let x = 0; x < cw; x++) { let run = 0; for (let y = 0; y <= ch; y++) { const v = y < ch ? (b[y * cw + x] ? 1 : 0) : 0; if (v) run++; else { if (run >= Math.round(target * 2.2)) for (let y2 = y - run; y2 < y; y2++) b[y2 * cw + x] = 2; run = 0; } } }
+      for (let j = 0; j < b.length; j++) if (b[j] === 2) b[j] = 0; }
+    for (let q = 0; q < (+dil || 0); q++) { const b2 = b.slice(); for (let y = 1; y < ch - 1; y++) for (let x = 1; x < cw - 1; x++) { const j = y * cw + x; if (!b2[j] && (b2[j - 1] || b2[j + 1] || b2[j - cw] || b2[j + cw])) b[j] = 1; } }
+    for (let i = 0, j = 0; i < px.length; i += 4, j++) px[i] = px[i + 1] = px[i + 2] = b[j] ? 0 : 255;
+    cg.putImageData(id, 0, 0); return c;
+  };
+  const norm = t => String(t || '').replace(/[‏‎]/g, '').replace(/[∶：;]/g, ':');
+  const nice = typeof asNiceRatios === 'function' ? asNiceRatios() : [];
+  let wDig = null, wTxt = null; const vals = [], pairs = [];
+  try {
+    [wDig, wTxt] = await Promise.all([Tesseract.createWorker('eng'), Tesseract.createWorker('eng+heb')]);
+    await Promise.all([wDig.setParameters({ tessedit_char_whitelist: '0123456789:', tessedit_pageseg_mode: '7' }), wTxt.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '6' })]);
+    dbg.t.workers = Math.round(performance.now() - T0);
+    /* הערך. המבנה כבר ידוע ("1", נקודתיים, N ספרות), ולכן קוראים גם את הכיתוב כולו וגם את הספרות לבדן, ומצביעים:
+       OCR של ספרות בגופן שרטוט (SHX) טועה לפעמים ("1:250" → "1:230"), ושתי קריאות שונות לא טועות אותו דבר */
+    /* מצב הקריאה חשוב: "שורה" (7) קורא "1:250" בגופן שרטוט דק כ-"1:230"; "מילה אחת" (8) ו"שורה גולמית" (13) עם עיבוי קו קוראים נכון — נבדק על 4 כיתובים כאלה, 14 צירופים */
+    let psmNow = '7';
+    const dg = async (x0, x1, cd, target, dil, psm) => { const c = cut(x0 - 1, cd.y0 - 2, x1 + 1, cd.y1 + 2, cd.H, target, dil); if (psm !== psmNow) { await wDig.setParameters({ tessedit_pageseg_mode: psm }); psmNow = psm; } const r = await wDig.recognize(c); let cf = r.data.confidence || 0; if (!cf) { const ws = (r.data.words || []).filter(w => /\d/.test(w.text || '')); if (ws.length) cf = ws.reduce((s2, w) => s2 + w.confidence, 0) / ws.length; }   /* "1 : 100" עם רווחים מחזיר ביטחון כולל 0 — ממוצע המילים */
+      return { t: norm(r.data.text).replace(/\s+/g, ''), c: Math.round(cf), img: window.__ptFastKeep ? c.toDataURL('image/png') : undefined }; };
+    for (const cd of cands) {
+      if (left() < 2500) break;
+      const reads = [], add = (r, full) => { const mc = full && /^1:(\d{2,4})$/.exec(r.t), m = mc || (full ? /^1(\d+)$/.exec(r.t) : /^(\d+)$/.exec(r.t)); if (m && m[1].length === cd.digits) reads.push({ n: +m[1], c: r.c, colon: !!mc }); cd.txt = (cd.txt ? cd.txt + ' | ' : '') + r.t + '/' + r.c; };
+      const thin = cd.fill < 0.3;   /* קו דק (גופן שרטוט) מעובה לפני הקריאה; גופן מלא לא — העיבוי מדביק בו ספרות */
+      const r1 = await dg(cd.x0, cd.x1, cd, 44, thin ? 2 : 0, '13'); add(r1, true); cd.img = r1.img;
+      add(await dg(cd.dx0, cd.x1, cd, 44, thin ? 1 : 0, '8'), false);
+      if (!(reads.length === 2 && reads[0].n === reads[1].n)) { add(await dg(cd.dx0, cd.x1, cd, 44, thin ? 2 : 1, '13'), false); if (reads.length < 2 || new Set(reads.map(r => r.n)).size > 1) { add(await dg(cd.x0, cd.x1, cd, 44, 0, '7'), true); add(await dg(cd.dx0, cd.x1, cd, 28, thin ? 1 : 0, '8'), false); } }
+      if (!reads.length) continue;
+      const by = new Map(); reads.forEach(r => { const e = by.get(r.n) || { n: r.n, k: 0, c: 0, colon: false }; e.k++; e.c = Math.max(e.c, r.c); e.colon = e.colon || r.colon; by.set(r.n, e); });
+      const best = [...by.values()].sort((p, q) => q.k - p.k || (nice.includes(q.n) ? 1 : 0) - (nice.includes(p.n) ? 1 : 0) || q.c - p.c)[0];
+      /* גופן שרטוט (SHX): ה-OCR קורא "5" כ-"3" או "9" בעקביות ("1:250" → "1:230"). ערך לא עגול נבדק מול מבנה הספרה עצמה
+         (ברצועה שמתחת לראש הספרה: ב-5 יש דיו רק משמאל, ב-3 וב-2 רק מימין, ב-9 משני הצדדים), והתיקון מתקבל רק אם יוצא ערך עגול */
+      if (!nice.includes(best.n) && String(best.n).length === cd.gb.length) for (const [u0, u1] of [[0.25, 0.38], [0.2, 0.32], [0.15, 0.27]]) { let fx = '';   /* גובה הרצועה תלוי בגופן — מנסים שלוש */
+        for (let i = 0; i < cd.gb.length; i++) { let ch = String(best.n)[i]; const [gx0, gy0, gx1, gy1] = cd.gb[i], gw = gx1 - gx0 + 1, gh = gy1 - gy0 + 1;
+          if ('2359'.includes(ch) && gh >= 9 && gw >= 4) { const band = (f0, f1) => { let l = 0, r = 0; const t = Math.max(1, Math.floor(gw * 0.3)); for (let y = Math.round(gy0 + gh * f0); y <= Math.round(gy0 + gh * f1); y++) { for (let x = gx0; x < gx0 + t; x++) if (bin[y * W + x]) l++; for (let x = gx1 - t + 1; x <= gx1; x++) if (bin[y * W + x]) r++; } return [l > 0, r > 0]; };
+            const [uL, uR] = band(u0, u1), [lL, lR] = band(0.62, 0.74); if (uL && !uR) ch = '5'; else if (!uL && uR) ch = lL && !lR ? '2' : '3'; else if (uL && uR) ch = '9'; }
+          fx += ch; }
+        if (window.__ptFastKeep) cd.txt += ' ~' + fx;
+        if (+fx !== best.n && nice.includes(+fx)) { cd.txt += ' => ' + fx; best.n = +fx; best.k = Math.max(best.k, 2); break; } }
+      if (best.n >= 5 && best.n <= 1000 && (best.k >= 2 || best.c >= 60 || (best.colon && nice.includes(best.n)))) { cd.n = best.n; cd.conf = best.c; cd.agree = best.k; }
+    }
+    dbg.t.digits = Math.round(performance.now() - T0);
+    /* הסביבה: שורת הכיתוב ושתי שורות מעליה — עד שתי קריאות לכל ערך (הכיתובים הגדולים קודם) */
+    ptTblFlag(cands.filter(c => c.n != null).map(c => { c.cy = (c.y0 + c.y1) / 2; return c; }));
+    let sheet = null; const seenN = new Map(); let nCtx = 0;
+    for (const cd of cands) {
+      if (cd.n == null) continue; vals.push(cd);
+      const sn = seenN.get(cd.n) || 0; if (cd.tbl || sn >= 2 || nCtx >= 10 || left() < 600) continue; seenN.set(cd.n, sn + 1); nCtx++;
+      const c = cut(cd.x0 - cd.H * 14, cd.y0 - cd.H * 2.6, cd.x1 + cd.H * 26, cd.y1 + cd.H * 0.9, cd.H, 30, false, true);   /* בעברית התווית מימין לערך ("תכנית מרתף עליון   1:250") */
+      const r = await wTxt.recognize(c), txt = norm(r.data.text); if (window.__ptFastKeep) cd.cimg = c.toDataURL('image/png');
+      cd.ctx = txt.replace(/\s+/g, ' ').trim().slice(0, 160); cd.lbl = PT_SC_LABEL.test(txt); cd.plan = PT_SC_PLAN.test(txt); cd.sect = PT_SC_SECT.test(txt);
+      const re = /1\s*:\s*(\d{1,4})\s*[(\[]?\s*(?:[@©®]|\bat\b)\s*A\s?([0-4])/gi; let m; while ((m = re.exec(txt))) if (!pairs.some(p => p.n === +m[1] && p.fmt === 'A' + m[2])) pairs.push({ n: +m[1], fmt: 'A' + m[2] });
+      const fm = /(?:גיליון|גליון|פורמט|sheet|size|format)\D{0,12}A\s?([0-4])\b/i.exec(txt); if (fm && !sheet) sheet = 'A' + fm[1];
+    }
+    dbg.t.ctx = Math.round(performance.now() - T0); dbg.pairs = pairs;
+    dbg.cands = cands.map(c => ({ x: Math.round((c.x0 + c.x1) / 2 / W * 100), y: Math.round((c.y0 + c.y1) / 2 / H * 100), H: c.H, dg: c.digits, txt: c.txt, conf: c.conf, n: c.n, tbl: c.tbl, lbl: c.lbl, plan: c.plan, sect: c.sect, ctx: c.ctx, img: c.img, cimg: c.cimg }));
+    const at = ptScaleAtSheet(pairs, opts.pageMm), pick = at || ptScalePick(vals);
+    if (!pick) return null;
+    if (pick.multi) return { multi: pick.multi, ms: Math.round(performance.now() - T0) };
+    const bestC = vals.filter(v => v.n === pick.n).sort((p, q) => (q.lbl ? 1 : 0) - (p.lbl ? 1 : 0) || q.H - p.H)[0] || vals[0];
+    let thumb = null;
+    try { const px0 = Math.max(0, (bestC.x0 - bestC.H * 6) / k), py0 = Math.max(0, (bestC.y0 - bestC.H * 1.6) / k), px1 = Math.min(SW, (bestC.x1 + bestC.H * 6) / k), py1 = Math.min(SH, (bestC.y1 + bestC.H * 1.2) / k), z = Math.min(3, 300 / Math.max(1, px1 - px0)); const tc = document.createElement('canvas'); tc.width = Math.round((px1 - px0) * z); tc.height = Math.round((py1 - py0) * z); const tg = tc.getContext('2d'); tg.fillStyle = '#fff'; tg.fillRect(0, 0, tc.width, tc.height); tg.imageSmoothingQuality = 'high'; tg.drawImage(src, px0, py0, px1 - px0, py1 - py0, 0, 0, tc.width, tc.height); thumb = tc.toDataURL('image/jpeg', 0.75); } catch (e) {}
+    return { n: pick.n, t: '1:' + pick.n, where: 'fast', c: bestC.conf || 0, weak: !!pick.weak, thumb, sheet: pick.sheet || sheet, note: pick.note, others: (pick.others || []).filter(n => n !== pick.n), ms: Math.round(performance.now() - T0) };
+  } finally { try { if (wDig) await wDig.terminate(); } catch (e) {} try { if (wTxt) await wTxt.terminate(); } catch (e) {} dbg.t.end = Math.round(performance.now() - T0); }
+}
+window.ptScaleFast = ptScaleFast;
+async function ptScaleScan(onStep, opts) {
   if (!P.bg) return null;
+  opts = opts || {};
   const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
+  /* ⚡ קודם האיתור המהיר לפי צורת הכיתוב (על הרינדור המלא אם יש); הסריקה ברצועות היא רק גיבוי קצר */
+  if (!opts.noFast) { try {
+    /* דף PDF קטן (A2–A4): ב-144dpi כיתוב של 1.5 מ״מ הוא 8px והנקודתיים פיקסל בודד — מרנדרים שוב כך שהצלע הארוכה ~6200px */
+    if (opts.pg) { try { const v1 = opts.pg.getViewport({ scale: 1 }), s = Math.min(6, 6200 / Math.max(v1.width, v1.height)); if (s >= 3) { const vp = opts.pg.getViewport({ scale: s }), c2 = document.createElement('canvas'); c2.width = Math.round(vp.width); c2.height = Math.round(vp.height); await opts.pg.render({ canvasContext: c2.getContext('2d', { willReadFrequently: true }), viewport: vp }).promise; opts.hi = c2; } } catch (e) { console.warn('ptScaleScan hi render', e); } }
+    const f = await ptScaleFast(opts.hi || img, { thr: opts.hi ? 190 : 175, pageMm: opts.pageMm }); if (f && (f.n || f.multi)) return { ...f, imgW: img.width, imgH: img.height }; } catch (e) { console.warn("ptScaleFast", e); } }
   if (!window.Tesseract) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js');
   const W = img.width, H = img.height;
   /* רצועות השוליים: ימין ותחתית קודם (שם טבלת הכותרת בדרך כלל), אחר כך שמאל ועליון */
@@ -129,8 +360,8 @@ async function ptScaleScan(onStep) {
   const good = () => best && !best.weak && (best.score >= 140 || best.lbl || ((seenPass.get(best.n) || 0) >= 2 && ![...seenPass].some(([k, v]) => k !== best.n && v >= 2)));
   let psm = '6';
   let wDig = null; const lblStrips = new Set();
-  /* תקרת זמן: אחרי 75 שניות מחזירים את הטוב ביותר שנמצא — הסריקה לא רצה דקות */
-  const T0 = Date.now(), over = () => Date.now() - T0 > 75000;
+  /* תקרת זמן לגיבוי: 6 שניות — האיתור המהיר (ptScaleFast) כבר רץ לפניו; מחזירים את הטוב ביותר שנמצא */
+  const T0 = Date.now(), over = () => Date.now() - T0 > (opts.capMs || 6000);
   /* פורמט הגיליון מטבלת הכותרת ("גיליון A3") — בתמונה אין גודל דף, ובלעדיו אי אפשר להפוך 1:N לכיול */
   let fmt = null, fmtLbl = null;
   const FMT_LBL = /גיליון|גליון|פורמט|גודל|sheet|format|size/i;

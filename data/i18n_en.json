@@ -7140,5 +7140,9 @@
  "תאי שירותים בתוך": "Toilet cubicles inside",
  "הוצאו מהאזור": "removed from the zone",
  "🔤 שכבת הטקסט של ה-PDF משובשת": "🔤 The PDF text layer is garbled",
- "קורא את הכיתובים ב-OCR מהתמונה": "reading the labels with OCR from the image"
+ "קורא את הכיתובים ב-OCR מהתמונה": "reading the labels with OCR from the image",
+ "בגיליון יש גם": "The sheet also has",
+ "שרטוטים אחרים": "other drawings",
+ "אם התכנית שלך באחד מהם, הקלד אותו בשדה הכיול": "if your plan is at one of them, type it in the calibration field",
+ "סורק את התכנית לקבלת קנה מידה — כמה שניות…": "Scanning the plan for its scale — a few seconds…"
 }
