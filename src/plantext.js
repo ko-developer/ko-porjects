@@ -1860,10 +1860,13 @@ async function zonesByLines() {
      מריצים בשניהם ולוקחים את התוצאה עם יותר שטח של אזורים ששמם בא מכיתוב בתכנית (בשוויון — יותר אזורים כאלה).
      לפי שטח ולא לפי מספר: שלושה תאי טבלת-כותרת עם שם ניצחו אולם אחד גדול */
   let best = null;
-  for (const mode of ['basin', 'free']) { if (best && best.zones.length) break;
+  /* שתי השיטות רצות תמיד, והתוצאה נבחרת: קודם מספר חדרי הקהל שזוהו בשמם, ובשוויון — כמה שטח סומן באזורים של 12 מ״ר ומעלה.
+     נמדד מול 33 אזורים שאורי סימן ידנית ב-10 תכניות שלו (21.11.2026): השיטה החדשה לבדה 0.28 IoU ממוצע, הישנה לבדה 0.37, הבחירה הזו 0.38 —
+     בתכנית בלי שמות חדרים (אולם שפיים, ADM) השיטה החדשה פירקה את האולם לחתיכות והישנה מצאה אותו */
+  for (const mode of ['basin', 'free']) {
   for (const thr of (mode === 'basin' ? [215, 185, 150] : [200, 150])) { let r = null; try { r = await zonesByLinesAt(thr, mode); } catch (e) { console.warn('zonesByLines', thr, mode, e); } if (!r) continue;
-    const sc = zoneNamedScore(r); r.nNamed = sc.n; r.aNamed = sc.a; r.thr = thr;
-    if (!best || zoneScoreBetter({ n: r.nNamed, a: r.aNamed }, { n: best.nNamed, a: best.aNamed })) best = r; } }
+    const sc = zoneNamedScore(r); r.nNamed = sc.n; r.aNamed = sc.a; r.thr = thr; r.aBig = r.zones.reduce((s2, z) => s2 + ((z._m2 || 0) >= 12 ? Math.min(z._m2, 400) : 0), 0);
+    if (!best || r.nNamed > best.nNamed || (r.nNamed === best.nNamed && r.aBig > best.aBig * 1.1)) best = r; } }
   return best;
 }
 async function zonesByLinesAt(thr, mode) {
