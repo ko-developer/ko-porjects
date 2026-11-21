@@ -20,9 +20,9 @@ var PT_CATS = {
 var PT_DICT = [
   ['level', /^[+\-±]\s?\d+[.,]\d{2,3}\b|\bFFL\b|\bSFL\b|\bLEVEL\b|\bLVL\b|\bFLOOR\s?\d|\bEL\.?\s?[+\-]?\d|\bRL\b|\bTOS\b|\bTOC\b|מפלס|קומה|גובה|ריצוף/i],
   ['service', /\bW\.?C\b|TOILET|RESTROOM|WASHROOM|LAVATOR|\bMEN\b|\bWOMEN\b|\bLADIES\b|\bGENTS\b|ACCESSIBLE|\bELEC\b|ELECTRIC|\bMEP\b|\bHVAC\b|\bAHU\b|\bSERVER\b|\bCOMMS\b|\bIT\s?ROOM\b|\bRACK\b|\bPLANT\b|MECHANICAL|UTILITY|\bFIRE\b|\bRISER\b|\bSHAFT\b|ELEVATOR|\bLIFT\b|\bSTAIR|JANITOR|\bCLEAN|\bDUCT\b|\bPUMP\b|\bGAS\b|\bWATER\b|שירותים|חשמל|טכני|מעלית|מדרגות|תקשורת|ניקיון|מיזוג|כיבוי|מים|גז|ממ"?ד|מקלט|מכונות|גנרטור|משאבות|חני+ה|נכים|מקלחות/i],
-  ['passage', /ENTRANCE|\bENTRY\b|VESTIBULE|\bEXIT\b|CORRIDOR|HALLWAY|PASSAGE|\bVOID\b|\bכניסה\b|מבואה|יציאה|מסדרון/i],   /* כניסה / מסדרון — מעבר, לא אזור השמעה; לא מרעיל שכנים כמו מטבח */
-  ['ops', /KITCHEN|\bPREP\b|\bKEG\b|CELLAR|REFUSE|\bBINS?\b|\bHOIST\b|\bCPD\b|BACK\s?OF\s?HOUSE|\bBOH\b|\bSTAFF\b|OFFICE|STORAGE|\bSTORE\b|\bDISH|\bWASH\b|LOADING|RECEIVING|DELIVER|WORKSHOP|\bCASH\b|MANAGER|\bKIOSK\b|CONCESSION|CONSESSION|PANTRY|\bCOLD\b|FREEZER|LOCKER|SECURITY|\bBACK\b|מטבח|מחסן|משרד|צוות|אחסון|הכנה|פריקה|קבלת|קופה|מנהל|קיוסק|דוכן|מלתחה|אבטחה|שטיפה|קירור|מקפיא|קצביה|יבשים|הנהלה|עובדים|אשפה/i],
-  ['audience', /DANCE|\bSTAGE\b|\bBAR\b|\bPUB\b|\bSEATED\b|\bSTANDING\b|\bPERSONS\b|\bCOVERS\b|AUDITORIUM|LOUNGE|DINING|REST\s?AURANT|GENERAL\s?AREA|\bVIP\b|TERRACE|PATIO|GARDEN|OUTDOOR|\bLOBBY\b|RECEPTION|SEATING|\bHALL\b|\bCLUB\b|\bCAFE\b|\bGYM\b|STUDIO|\bPOOL\b|\bROOF|BALCONY|FOOD\s?COURT|\bAREA\b|\bZONE\b|\bROOM\b|WAITING|FOYER|\bDECK\b|\bSPA\b|\bSHOP\b|RETAIL|רחבה|במה|\bבר\b|מסעדה|אולם|לובי|מרפסת|חוץ|ישיבה|חדר כושר|סטודיו|בריכה|גן|טרקלין|אזור|חלל|קבלה|חנות|מועדון|אירועים|קהל|חצר|גינה|ספא|כיתה|חדר ישיבות|תצוגה|המתנה|חדר אוכל|סלון|פאטיו|אטריום|לאונג|טרסה/i],
+  ['passage', /ENTRANCE|\bENTRY\b|VESTIBULE|\bEXIT\b|CORRIDOR|HALLWAY|PASSAGE|\bVOID\b|\bכניסה\b|יציאה|מסדרון/i],   /* כניסה / מסדרון — מעבר, לא אזור השמעה; לא מרעיל שכנים כמו מטבח */
+  ['ops', /KITCHEN|\bPREP\b|\bKEG\b|CELLAR|REFUSE|\bBINS?\b|\bHOIST\b|\bCPD\b|BACK\s?OF\s?HOUSE|\bBOH\b|\bSTAFF\b|OFFICE|STORAGE|\bSTORE\b|\bDISH|\bWASH\b|LOADING|RECEIVING|DELIVER|WORKSHOP|\bCASH\b|MANAGER|\bKIOSK\b|CONCESSION|CONSESSION|PANTRY|\bCOLD\b|FREEZER|LOCKER|SECURITY|\bBACK\b|מטבח|מחסן|משרד|צוות|אחסון|הכנה|פריקה|קבלת|קופה|מנהל|קיוסק|דוכן|מלתחה|אבטחה|שטיפה|קירור|מקפיא|קצביה|יבשים|הנהלה|עובדים|אשפה|מזכירות/i],
+  ['audience', /DANCE|\bSTAGE\b|\bBAR\b|\bPUB\b|\bSEATED\b|\bSTANDING\b|\bPERSONS\b|\bCOVERS\b|AUDITORIUM|LOUNGE|DINING|REST\s?AURANT|GENERAL\s?AREA|\bVIP\b|TERRACE|PATIO|GARDEN|OUTDOOR|\bLOBBY\b|RECEPTION|SEATING|\bHALL\b|\bCLUB\b|\bCAFE\b|\bGYM\b|STUDIO|\bPOOL\b|\bROOF|BALCONY|FOOD\s?COURT|\bAREA\b|\bZONE\b|\bROOM\b|WAITING|FOYER|LIBRARY|\bDECK\b|\bSPA\b|\bSHOP\b|RETAIL|רחבה|במה|(^|[^א-ת])בר($|[^א-ת])|מסעדה|אולם|לובי|מבוא[הת]|פעילות|קפיטריה|ספרי+ה|חוגים|מרפסת|חוץ|ישיבה|חדר כושר|סטודיו|בריכה|גן|טרקלין|אזור|חלל|קבלה|חנות|מועדון|אירועים|קהל|חצר|גינה|ספא|כיתה|חדר ישיבות|תצוגה|המתנה|חדר אוכל|סלון|פאטיו|אטריום|לאונג|טרסה/i],
   ['furniture', /\bTABLE|\bCHAIR|\bSOFA|\bBOOTH|COUNTER|\bSTOOL|\bBENCH|\bDESK\b|\bSHELF|\bSHELV|\bBED\b|\bISLAND\b|CABINET|\bTV\b|SCREEN|PLANTER|\bSEAT\b|שולחן|כיסא|ספה|דלפק|מדף|ארון|מיטה|מסך/i],
 ];
 function ptClassify(t) {
@@ -53,6 +53,8 @@ function ptGroup(tokens, frame) {
   }
   return lines.map(l => {
     l.items.sort((a, b) => a[along] - b[along]);
+    /* שורה בעברית נקראת מימין לשמאל: "חדר" + "פעילות" → "חדר פעילות" (ולא "פעילות חדר", שגם לא נמצא במילון) */
+    if (!vert && l.items.length > 1 && l.items.filter(i => /[א-ת]/.test(i.t)).length * 2 >= l.items.length) l.items.reverse();
     const xs = l.items.map(i => i.x), ys = l.items.map(i => i.y);
     const x0 = Math.min(...l.items.map(i => i.x - i.w / 2)), x1 = Math.max(...l.items.map(i => i.x + i.w / 2));
     const y0 = Math.min(...l.items.map(i => i.y - i.h / 2)), y1 = Math.max(...l.items.map(i => i.y + i.h / 2));
@@ -467,6 +469,10 @@ async function ptFromPdf() {
   const pg = await doc.getPage(P.bgPdfPage || 1);
   const vp = pg.getViewport({ scale: 1 }), tc = await pg.getTextContent();
   const tokens = [];
+  /* כיוון העברית: PDF ישן שומר סדר ויזואלי (הפוך), PDF חדש — סדר קריאה. אות סופית (ך ם ן ף ץ) בסוף מילה = סדר קריאה, בתחילתה = הפוך.
+     בלי הבדיקה הזו "חדר אוכל" התהפך ל"רדח לכוא", השכבה נחשבה משובשת, וה-OCR לא קרא את שמות החדרים הקטנים (היכל תרבות להבים) */
+  let fEnd = 0, fStart = 0; for (const it of tc.items) for (const wd of String(it.str || '').split(/[^א-ת]+/)) { if (wd.length < 2) continue; if (/[ךםןףץ]$/.test(wd)) fEnd++; if (/^[ךםןףץ]/.test(wd)) fStart++; }
+  const hebFlip = !(fEnd > fStart);
   for (const it of tc.items) {
     const t = (it.str || '').trim(); if (!t) continue;
     const [a, b, c, d, e, f] = it.transform;
@@ -478,7 +484,7 @@ async function ptFromPdf() {
     const vert = Math.abs(Math.abs(rotV) - Math.PI / 2) < 0.3, horiz = Math.abs(rotV) < 0.3 || Math.abs(Math.abs(rotV) - Math.PI) < 0.3;
     if (!vert && !horiz) continue;
     /* עברית בשכבת הטקסט של PDF יוצאת לרוב בסדר ויזואלי (הפוך) — הופכים כל מילה עברית */
-    const t2 = t.split(/\s+/).map(w => /[֐-׿]/.test(w) ? [...w].reverse().join('') : w).join(' ');
+    const t2 = hebFlip ? t.split(/\s+/).map(w => /[֐-׿]/.test(w) ? [...w].reverse().join('') : w).join(' ') : t;
     tokens.push({ t: t2, x: pc[0], y: pc[1], w, h, frame: vert ? 'v' : 'h', c: 99 });
   }
   let layers = [];
@@ -638,7 +644,7 @@ async function planTextScan(opts) {
       } catch (e) { console.warn('pt ocr fallback', e); } }
     items.sort((a, b) => a.v - b.v || a.u - b.u);
     const prev = P.planText || {};
-    P.planText = { layerInfo: window.__ptLayerInfo && src === 'pdf' ? window.__ptLayerInfo.filter(l => l.paths).map(l => l.name) : undefined, ocrAdded, items, at: new Date().toISOString(), src, show: prev.show !== false, cats: prev.cats || { audience: 1, ops: 1, service: 1, furniture: 0, level: 1, other: 0 }, tokens: tokens.length };
+    P.planText = { layerInfo: window.__ptLayerInfo && src === 'pdf' ? window.__ptLayerInfo.filter(l => l.paths).map(l => l.name) : undefined, ocrAdded, items, at: new Date().toISOString(), v: 2, src, show: prev.show !== false, cats: prev.cats || { audience: 1, ops: 1, service: 1, furniture: 0, level: 1, other: 0 }, tokens: tokens.length };
     if (ptScale) { P.planText.scale = ptScale; if (P.calSrc !== 'manual' && typeof asApplyRatioN === 'function') asApplyRatioN(ptScale.n, null, 'ocr'); }   /* נכנס לשדה קנה המידה; מוחל כשאין כיול ידני */
     save(); render();
     const cnt = ptCounts();
@@ -1657,7 +1663,7 @@ async function zoneFillCore(pt, opts) {
       (כותרת החדר נכתבת באות הגדולה); בלי כיתוב — "אזור N" אם ≥ 12 מ״ר. בלי ניחוש ובלי טוקנים. */
 /* i18n-ignore */
 var ZW_OPS = /טבח|הכנות|קירור|מקפיא|שטיפ|קצבי|מחסן|יבשים|אחסון|משרד|צוות|kitchen|storage|store\b|office|freezer|prep\b/i;
-var ZW_JUNK = /^[\d\s.,=+\-:×xXH"'°]+$|^H\s?=|קורת|קורה|בטון|ידית|בהלה|אקוסטי|תאריך|מקרא|הערות|תכנו[ןו]|גיליון|גליון|פורמט|קנ.?מ|עיון|ביצוע|ספסל|^מר$|^מ"ר$|sqm|air\/c/i;
+var ZW_JUNK = /^[\d\s.,=+\-:×xXH"'°]+$|^H\s?=|קורת|קורה|בטון|ידית|בהלה|אקוסטי|תאריך|מקרא|הערות|תכנו[ןו]|גיליון|גליון|פורמט|קנ.?מ|עיון|ביצוע|ספסל|^מר$|^מ"ר$|sqm|air\/c|תריס|תקר[הת]|גבס|פרופיל|מגשי|PKFY|\bVRF\b|\bBtu/i;
 /* i18n-ignore-end */
 /* "חוץ": מה שמגיע לשולי התמונה כשפתחי הדלתות סגורים. רדיוס הסגירה מסתגל: ב-PDF עם שכבות הקירות נלקחים משכבת הקירות בלבד
    (בלי דלתות), ופתח כניסה של 1.8–2.4 מ׳ נשאר פתוח — ה"חוץ" זלג לכל פנים המבנה והכול נפסל כ"מחוץ למבנה". מנסים 0.75 → 1.25 → 1.75 → 2.5 מ׳
@@ -1761,10 +1767,11 @@ async function zwCarveWc(z) {
 /* i18n-ignore */
 var ZW_TITLE = /תאריך|קנ.?מ|גי?ליון|פורמט|מקרא|הערות|חתימ|עיון|ביצוע|מתכנן|אדריכל|שרטט|מהדורה|scale|\bdate\b|drawn|sheet|\brev\b|revision|amendment|legend|\bkey\b|drawing|\bjob\b|\bstatus\b|\bclient\b|\bproject\b|architect|copyright|specification|\bnotes?\b/i;
 /* i18n-ignore-end */
+function zwName(t) { t = String(t || '').trim(); return /^\d{1,3}\s+[A-Za-zא-ת]{3}/.test(t) && !/SEATED|STANDING|PERSONS?|COVERS/i.test(t) ? t.replace(/^\d{1,3}\s+/, '') : t; }
 function zwNorm(t) { return String(t || '').replace(/["'״׳.,:;()\d]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase(); }
 function zoneRelMark(labels, d) { store.zoneRel = store.zoneRel || {}; for (const t of [].concat(labels || [])) { const k = zwNorm(t); if (k.length < 2 || /^(אזור|חלל)$/.test(k)) continue; const v = (store.zoneRel[k] || 0) + d; store.zoneRel[k] = Math.max(-5, Math.min(5, d > 0 ? Math.max(1, v) : v)); } }   /* הוספה מפורשת (d>0) תמיד מנצחת מחיקות קודמות */
 async function zoneRelevance(z, m2) {
-  const items = ((P.planText || {}).items || []).map(it => { const p = ptPos(it); return { it, pt: { x: p.x, y: p.y }, t: String(it.t || '').trim(), hh: +it.h || 0 }; }).filter(o => o.t && inZone(z, o.pt));
+  const items = ((P.planText || {}).items || []).map(it => { const p = ptPos(it); return { it, pt: { x: p.x, y: p.y }, t: zwName(it.t), hh: +it.h || 0 }; }).filter(o => o.t && inZone(z, o.pt));
   const cat = o => ZW_OPS.test(o.t) ? 'ops' : (o.it.cat || 'other');
   const aud = items.filter(o => cat(o) === 'audience'), ops = items.filter(o => cat(o) === 'ops'), svc = items.filter(o => cat(o) === 'service'), pas = items.filter(o => cat(o) === 'passage');
   /* סימוני תפוסה ("34 SEATED", "STANDING 15m2 x 2 = 30 persons") מעידים שיש קהל אבל אינם שם החדר; שם שהוא מילה מהמילון ("Bar", "Hall") קודם לכיתוב סתמי */
@@ -1790,7 +1797,7 @@ async function zoneRelevance(z, m2) {
   const bad = [...ops.map(o => ({ o, k: 'תפעול' })), ...svc.map(o => ({ o, k: 'שירות / טכני' })), ...(audS.length ? [] : pas.map(o => ({ o, k: 'מעבר' })))].sort((x, y) => y.o.hh - x.o.hh)[0];   /* כיתוב מעבר (EXIT / ENTRANCE) פוסל רק חדר שאין בו שום כיתוב קהל */
   if (bad && (!audMax || (bad.k !== 'שירות / טכני' && bad.o.hh > audMax * 1.25) || (!audS.length && bad.k === 'תפעול'))) return done(false, bad.k + ': ' + bad.o.t.slice(0, 24));
   if (bad && bad.k === 'שירות / טכני' && !aud.length && !names.length) return done(false, bad.k + ': ' + bad.o.t.slice(0, 24));
-  if (!aud.length && !names.length && P.scale) { const wM = b.W * P.scale, hM = b.H * P.scale, est = m2 / Math.max(wM, hM); if (est < 1.4 && m2 < 25) return done(false, 'מעבר צר (' + est.toFixed(1) + ' מ׳)'); }
+  if (!aud.length && !names.length && P.scale) { const wM = b.W * P.scale, hM = b.H * P.scale, est = m2 / Math.max(wM, hM); if ((est < 1.4 && m2 < 25) || (z.auto === 'lines' && est < 2.1 && m2 < 30)) return done(false, 'מעבר צר (' + est.toFixed(1) + ' מ׳)'); }
   if (!items.length && m2 > 0 && m2 < 12) return done(false, 'בלי כיתוב וקטן (' + m2 + ' מ״ר)');
   return done(true);
 }
@@ -1842,24 +1849,41 @@ async function zonesByWalls() {
    2. כל רכיב מחובר של שטח פנוי שאינו "חוץ" ושטחו ≥ 3 מ״ר = חדר; הגבול החיצוני שלו (חורים של ריהוט מתמלאים) = המצולע.
    3. רכיב קטן שיושב בתוך חדר אחר (דלפק, אי, שולחן גדול) אינו חדר. ריצוף אריחים מפרק חדר שירותים לתאים זעירים — ולכן הוא לא נמצא בכלל.
    4. אותה בדיקת רלוונטיות ואותם שמות כמו ב-zonesByWalls (בלי בדיקת "מחוץ למבנה" של מסכת הקירות העבים, שכאן ריקה). */
+/* כמה שטח סומן באזורים ששמם בא מכיתוב של אזור קהל ("Hall", "חדר אוכל") — לפי זה בוחרים בין הרצות ובין מנועים.
+   שם שאינו מהמילון (הערת מיזוג אוויר, מק״ט) נספר ברבע: בתכנית תקרה הרצה עם "אזורים" על שם תריסי אוויר ניצחה את זו שמצאה את חדר האוכל */
+function zoneNamedScore(r) { const zs = (r && r.zones || []).filter(z => !/^אזור \d+$/.test(z.name || '')), wt = z => ptClassify(z.name) === 'audience' ? 1 : 0.25;
+  return { a: zs.reduce((s2, z) => s2 + wt(z) * Math.min(z._m2 || 0, 400), 0), n: new Set(zs.filter(z => wt(z) === 1).map(z => zwNorm(z.name))).size }; }
+/* קודם כמה חדרי קהל שונים זוהו בשמם (הרצה שמפרידה את חדר האוכל מחדר הפעילות עדיפה על גוש אחד גדול), ובשוויון — שטח */
+function zoneScoreBetter(x, y, k) { return !y || x.n > y.n || (x.n === y.n && x.a > y.a * (k || 1.1)); }
 async function zonesByLines() {
   /* סף הכהות של "קו" תלוי בשרטוט: ב-200 קו דלת דק ומוחלק נספר (החדר נסגר), אבל גם דוגמת ריצוף בהירה מפרקת חדר; ב-150 להפך.
      מריצים בשניהם ולוקחים את התוצאה עם יותר שטח של אזורים ששמם בא מכיתוב בתכנית (בשוויון — יותר אזורים כאלה).
      לפי שטח ולא לפי מספר: שלושה תאי טבלת-כותרת עם שם ניצחו אולם אחד גדול */
   let best = null;
-  for (const thr of [200, 150]) { let r = null; try { r = await zonesByLinesAt(thr); } catch (e) { console.warn('zonesByLines', thr, e); } if (!r) continue;
-    const nm = r.zones.filter(z => !/^אזור \d+$/.test(z.name || '')); r.nNamed = nm.length; r.aNamed = nm.reduce((s2, z) => s2 + (z._m2 || 0), 0); r.thr = thr;
-    if (!best || r.aNamed > best.aNamed * 1.1 || (r.aNamed >= best.aNamed * 0.9 && r.nNamed > best.nNamed)) best = r; }
+  for (const mode of ['basin', 'free']) { if (best && best.zones.length) break;
+  for (const thr of (mode === 'basin' ? [215, 185, 150] : [200, 150])) { let r = null; try { r = await zonesByLinesAt(thr, mode); } catch (e) { console.warn('zonesByLines', thr, mode, e); } if (!r) continue;
+    const sc = zoneNamedScore(r); r.nNamed = sc.n; r.aNamed = sc.a; r.thr = thr;
+    if (!best || zoneScoreBetter({ n: r.nNamed, a: r.aNamed }, { n: best.nNamed, a: best.aNamed })) best = r; } }
   return best;
 }
-async function zonesByLinesAt(thr) {
+async function zonesByLinesAt(thr, mode) {
   if (!P.bg || !P.scale) return null;
   const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = P.bg; });
   const k = Math.min(1, 2000 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
   const px = g.getImageData(0, 0, w, h).data, line = new Uint8Array(w * h);
-  for (let i = 0; i < w * h; i++) { const r0 = px[i * 4], g0 = px[i * 4 + 1], b0 = px[i * 4 + 2], l = 0.299 * r0 + 0.587 * g0 + 0.114 * b0; line[i] = l < thr && Math.max(r0, g0, b0) - Math.min(r0, g0, b0) < 70 ? 1 : 0; }
   const W = P.bgW || 1400, pxPerM = (w / W) / P.scale; if (pxPerM < 8) return null;   /* גיליון רחב מ-~250 מ׳: חדר הוא כמה פיקסלים */
+  /* ריצוף / קווקוו בהיר (פרקט אפור בהיר באולם) אינו קו: בהקטנה הוא יוצר "קווים מדומים" מקוטעים שמפרקים חלל אחד להרבה אזורים.
+     מרקם = חלון של ~מטר שבו ≥ 22% מהפיקסלים אפורים-בהירים וכמעט אין כהים; בתוכו קו הוא רק מה שכהה באמת (< 150) — קיר, מחיצה, כיתוב */
+  { const lum = new Uint8Array(w * h), neu = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) { const r0 = px[i * 4], g0 = px[i * 4 + 1], b0 = px[i * 4 + 2]; lum[i] = 0.299 * r0 + 0.587 * g0 + 0.114 * b0; neu[i] = Math.max(r0, g0, b0) - Math.min(r0, g0, b0) < 70 ? 1 : 0; }
+    let tex = null;
+    if (thr > 150) { const W1 = w + 1, im = new Int32Array(W1 * (h + 1)), id = new Int32Array(W1 * (h + 1));
+      for (let y = 0; y < h; y++) { let rm = 0, rd = 0; for (let x = 0; x < w; x++) { const l = lum[y * w + x]; if (l < 150) rd++; else if (l < 228) rm++; im[(y + 1) * W1 + x + 1] = im[y * W1 + x + 1] + rm; id[(y + 1) * W1 + x + 1] = id[y * W1 + x + 1] + rd; } }
+      const R = Math.max(6, Math.round(0.5 * pxPerM)); tex = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) { const y0 = Math.max(0, y - R), y1 = Math.min(h, y + R + 1); for (let x = 0; x < w; x++) { const x0 = Math.max(0, x - R), x1 = Math.min(w, x + R + 1), ar = (x1 - x0) * (y1 - y0);
+        const m = im[y1 * W1 + x1] - im[y0 * W1 + x1] - im[y1 * W1 + x0] + im[y0 * W1 + x0], d = id[y1 * W1 + x1] - id[y0 * W1 + x1] - id[y1 * W1 + x0] + id[y0 * W1 + x0]; if (d <= 0.5 * ar && m >= 0.22 * (ar - d)) tex[y * w + x] = 1; } }
+      tex = rfBox(tex, w, h, Math.max(3, Math.round(R / 2)), false); }   /* רק עומק המרקם: קו חזית דק שגובל בריצוף נשאר קו */
+    for (let i = 0; i < w * h; i++) line[i] = neu[i] && lum[i] < (tex && tex[i] ? 150 : thr) ? 1 : 0; }   /* גיליון רחב מ-~250 מ׳: חדר הוא כמה פיקסלים */
   const L = bgLeft(), T = bgTop(), H = bgHeightPx(), toC = (x, y) => ({ x: Math.round(L + x / w * W), y: Math.round(T + y / h * H) });
   const label = bar => { const lab = new Int32Array(w * h), q = new Int32Array(w * h), comps = [null]; let id = 0;
     for (let s = 0; s < w * h; s++) { if (bar[s] || lab[s]) continue; id++; let a = 0, b = 0, n = 0, edge = false, x0 = w, y0 = h, x1 = 0, y1 = 0; lab[s] = id; q[b++] = s;
@@ -1867,10 +1891,130 @@ async function zonesByLinesAt(thr) {
         if (x > 0 && !bar[i - 1] && !lab[i - 1]) { lab[i - 1] = id; q[b++] = i - 1; } if (x < w - 1 && !bar[i + 1] && !lab[i + 1]) { lab[i + 1] = id; q[b++] = i + 1; } if (y > 0 && !bar[i - w] && !lab[i - w]) { lab[i - w] = id; q[b++] = i - w; } if (y < h - 1 && !bar[i + w] && !lab[i + w]) { lab[i + w] = id; q[b++] = i + w; } }
       comps.push({ id, n, edge, x0, y0, x1, y1, s }); }
     return { lab, comps }; };
+  /* ריצוף אריחים / תקרה מודולרית / פרקט: קבוצה צפופה של תאים קטנים היא הרצפה של חדר אחד, והקווים שבתוכה אינם קירות — נמחקים לפני חיפוש החדרים.
+     תא דק וארוך (מילוי של קיר כפול, לוח פרקט) נספר בנפרד, ורק כשהוא חלק מערימה רחבה מ-0.5 מ׳ (פרקט): כך רצועת הקיר שבין שני שדות ריצוף
+     לא מחברת אותם לחדר אחד (היכל תרבות להבים — חדר האוכל וחדר הפעילות יצאו אזור אחד) */
+  { const b0 = rfBox(line, w, h, 1, true), l0 = label(b0), cellMax = 3.2 * pxPerM * pxPerM, cmA = new Uint8Array(w * h), cmB = new Uint8Array(w * h); let any = 0;
+    const thin = c => { const lg = Math.max(c.x1 - c.x0, c.y1 - c.y0) + 1, th = c.n / lg; return th < 0.45 * pxPerM && lg >= 5 * th; };
+    const kindC = new Uint8Array(l0.comps.length); l0.comps.forEach(c => { if (c && !c.edge && c.n < cellMax) kindC[c.id] = thin(c) ? 2 : 1; });
+    for (let i = 0; i < w * h; i++) { const k0 = l0.lab[i] ? kindC[l0.lab[i]] : 0; if (k0 === 1) { cmA[i] = 1; any++; } else if (k0 === 2) { cmB[i] = 1; any++; } }
+    if (any > 6 * pxPerM * pxPerM) { const ro = Math.max(2, Math.round(0.25 * pxPerM)), gm = new Uint8Array(w * h);
+      for (const cm of [cmA, cmB]) { const cl = rfBox(rfBox(cm, w, h, 3, true), w, h, 3, false), op = rfBox(rfBox(cl, w, h, ro, false), w, h, ro, true), inv = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) inv[i] = op[i] ? 0 : 1;
+        const gl = label(inv), cnt = new Int32Array(gl.comps.length), nc = new Int32Array(gl.comps.length), okG = new Uint8Array(gl.comps.length);
+        for (let i = 0; i < w * h; i++) if (gl.lab[i] && cm[i]) cnt[gl.lab[i]]++;
+        l0.comps.forEach(c => { if (c && kindC[c.id] && cm[c.s] && gl.lab[c.s]) nc[gl.lab[c.s]]++; });
+        gl.comps.forEach(c => { if (c && c.n >= 6 * pxPerM * pxPerM && Math.min(c.x1 - c.x0, c.y1 - c.y0) >= 1.8 * pxPerM && cnt[c.id] >= 0.5 * c.n && nc[c.id] >= 6) okG[c.id] = 1; });
+        for (let i = 0; i < w * h; i++) if (gl.lab[i] && okG[gl.lab[i]]) gm[i] = 1; }
+      const er = rfBox(gm, w, h, 2, false); let nE = 0; for (let i = 0; i < w * h; i++) if (er[i] && line[i]) { line[i] = 0; nE++; }
+      if (window.__zlDbg) window.__zlHatch = { gm, nE }; } }
+  /* "פעילות" מפרידה כמו קיר (אורי, 21.11.2026: "אתה חייב להתייחס לקירות ולפעילות כהפרדה"): שמות החדרים שבתכנית הם זרעים.
+     חדר שנמצאו בו שני שמות שונים (האולם והמסדרון התחברו דרך דלת פתוחה) מתחלק ביניהם — ראה splitByLabels */
+  const NOTE_L = /\bSEATED\b|\bSTANDING\b|\bPERSONS?\b|\bCOVERS\b|\d\s?m2\b|^\d+\b|\bOPENING\b|\bCLEAR\b|\d\s?MM\b/i, GEN_L = /^(room|area|zone|space|חדר|אזור|חלל)$/i;
+  const seedsAll = ((P.planText || {}).items || []).filter(it => ['audience', 'ops', 'service', 'passage'].includes(it.cat) && !it.ly && !ZW_JUNK.test(String(it.t || '')) && !ZW_TITLE.test(String(it.t || '')) && !NOTE_L.test(zwName(it.t))
+    && !/\bEXIT\b|ENTRANCE|\bENTRY\b/i.test(String(it.t || '')) && !(it.cat === 'passage' && /כניסה|יציאה/.test(String(it.t || ''))))   /* שלט יציאה / כניסה מסמן דלת, לא חדר */
+    .map(it => { const p = ptPos(it), ws = zwNorm(zwName(it.t)).split(' ').filter(x => x.length >= 2 && !GEN_L.test(x)); return { x: Math.round((p.x - L) / W * w), y: Math.round((p.y - T) / H * h), ws, key: ws.join(' ') }; }).filter(q => q.ws.length);
+  /* מרחק מכל נקודה של המסכה לשפה שלה (chamfer 3-4, עד 1.5 מ׳) */
+  const maskD = (m, bw, bh) => { const n = bw * bh, D = new Int32Array(n), capP = Math.max(4, Math.round(1.5 * pxPerM)), cap3 = capP * 3;
+    for (let j = 0; j < n; j++) D[j] = m[j] ? cap3 : 0;
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) { const j = y * bw + x; if (!D[j]) continue; D[j] = (x === 0 || y === 0 || x === bw - 1 || y === bh - 1) ? Math.min(D[j], 3) : Math.min(D[j], D[j - 1] + 3, D[j - bw] + 3, D[j - bw - 1] + 4, D[j - bw + 1] + 4); }
+    for (let y = bh - 1; y >= 0; y--) for (let x = bw - 1; x >= 0; x--) { const j = y * bw + x; if (!D[j] || x === 0 || y === 0 || x === bw - 1 || y === bh - 1) continue; D[j] = Math.min(D[j], D[j + 1] + 3, D[j + bw] + 3, D[j + bw + 1] + 4, D[j + bw - 1] + 4); }
+    return { D, capP }; };
+  /* הצפה מכמה זרעים בתוך מסכה: קודם המקומות הרחבים, בסוף המעברים הצרים — הזרעים נפגשים בפתח הצר שביניהם (דלת), ובחלל פתוח באמצע הדרך.
+     מחזיר את החלקים המחוברים (≥ 1 מ״ר); זרע = רשימת פיקסלים */
+  const floodParts = (m, bw, bh, D, capP, markers) => { const n = bw * bh, own = new Int16Array(n), B = Array.from({ length: capP + 1 }, () => []), alt = j => capP - Math.min(capP, Math.round(D[j] / 3));
+    markers.forEach((mk, gi) => { for (const j of mk) if (m[j] && !own[j]) { own[j] = gi + 1; B[alt(j)].push(j); } });
+    for (let cur = 0; cur <= capP; cur++) { const q = B[cur]; for (let i = 0; i < q.length; i++) { const j = q[i], x = j % bw, g0 = own[j];
+      const go = k => { if (m[k] && !own[k]) { own[k] = g0; const a = alt(k); B[a > cur ? a : cur].push(k); } };
+      if (x > 0) go(j - 1); if (x < bw - 1) go(j + 1); if (j >= bw) go(j - bw); if (j < n - bw) go(j + bw); } }
+    const seen = new Uint8Array(n), parts = [], st = new Int32Array(n);
+    for (let s0 = 0; s0 < n; s0++) { if (!own[s0] || seen[s0]) continue; const g0 = own[s0], pm = new Uint8Array(n); let a = 0, b = 0, cnt = 0; st[b++] = s0; seen[s0] = 1;
+      while (a < b) { const j = st[a++], x = j % bw; pm[j] = 1; cnt++; const go = k => { if (own[k] === g0 && !seen[k]) { seen[k] = 1; st[b++] = k; } }; if (x > 0) go(j - 1); if (x < bw - 1) go(j + 1); if (j >= bw) go(j - bw); if (j < n - bw) go(j + bw); }
+      if (cnt < pxPerM * pxPerM) continue; const s1 = markers[g0 - 1].find(j => pm[j]); parts.push({ pm, cnt, sj: s1 != null ? s1 : s0 }); }
+    return parts; };
+  /* שני חדרים שהתחברו דרך פתח רחב (דלת כפולה עד ~1.9 מ׳): אם בכל אחד נכנס ריבוע של 1.9 מ׳ — הם חדרים נפרדים */
+  const splitByCores = (m, bw, bh) => { const { D, capP } = maskD(m, bw, bh), c2 = Math.max(4, Math.round(0.95 * pxPerM)) * 3, n = bw * bh, lab2 = new Int32Array(n), st = new Int32Array(n), mk = [];
+    for (let s0 = 0; s0 < n; s0++) { if (D[s0] < c2 || lab2[s0]) continue; const px = []; let a = 0, b = 0; st[b++] = s0; lab2[s0] = 1;
+      while (a < b) { const j = st[a++], x = j % bw; px.push(j); const go = k => { if (D[k] >= c2 && !lab2[k]) { lab2[k] = 1; st[b++] = k; } }; if (x > 0) go(j - 1); if (x < bw - 1) go(j + 1); if (j >= bw) go(j - bw); if (j < n - bw) go(j + bw); }
+      if (px.length >= 0.5 * pxPerM * pxPerM) mk.push(px); }
+    if (mk.length < 2) return null; const parts = floodParts(m, bw, bh, D, capP, mk); return parts.length >= 2 ? parts : null; };
+  const splitByLabels = (m, bw, bh, bx0, by0) => {
+    const rs = Math.max(3, Math.round(0.5 * pxPerM)), sd = [];
+    for (const q of seedsAll) { const x = q.x - bx0, y = q.y - by0; if (x < 0 || y < 0 || x >= bw || y >= bh) continue; let j = -1;
+      if (m[y * bw + x]) j = y * bw + x; else { let bd = 1e9; for (let dy = -rs; dy <= rs; dy++) for (let dx = -rs; dx <= rs; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= bw || yy >= bh || !m[yy * bw + xx]) continue; const d = dx * dx + dy * dy; if (d < bd) { bd = d; j = yy * bw + xx; } } }
+      if (j >= 0) sd.push({ q, j, x: j % bw, y: (j - j % bw) / bw, g: 0 }); }
+    /* אותו שם = אותה פעילות; חלק-משם שנקרא שוב באותו מקום ("חדר פעילות" + "פעילות") = אותו כיתוב */
+    let ng = 0; for (const a of sd) { const same = sd.find(b => b.g && (b.q.key === a.q.key || (Math.hypot(a.x - b.x, a.y - b.y) < 1.5 * pxPerM && (a.q.ws.every(x => b.q.ws.includes(x)) || b.q.ws.every(x => a.q.ws.includes(x)))))); a.g = same ? same.g : ++ng; }
+    if (ng < 2) return null;
+    /* הזרע של כל שם = המסלול מהכיתוב "במעלה" המרחק מהקירות עד מרכז החדר שלו. בלי זה כיתוב שיושב בפינת חדר קטן מפסיד:
+       החדר הגדול השכן מציף דרך הדלת לפני שהכיתוב מתחיל להתפשט */
+    const { D, capP } = maskD(m, bw, bh), mk = Array.from({ length: ng }, () => []);
+    for (const a of sd) { let j = a.j; for (let it = 0; it < 4000; it++) { mk[a.g - 1].push(j); let bj = -1, bd = D[j]; const x = j % bw, y = (j - x) / bw;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= bw || yy >= bh) continue; const k = yy * bw + xx; if (D[k] > bd) { bd = D[k]; bj = k; } }
+        if (bj < 0) break; j = bj; } }
+    const parts = floodParts(m, bw, bh, D, capP, mk); return parts.length >= 2 ? { parts } : null; };
+  const inPoly = (p, poly) => { let cIn = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) cIn = !cIn; } return cIn; };
+  const rooms = [], minPx = 3 * pxPerM * pxPerM; let pick = -1, dbg = null;
+  if (mode === 'basin') {
+    /* ===== חדרים לפי קירות ומעברים צרים ("אגני ניקוז") — אורי, 21.11.2026: "אתה אמור להיות ממוקד בקירות", "קירות ופעילות כהפרדה" =====
+       קיר = קו ששייך לרכיב קווים גדול (≥ 2.2 מ׳) או גוש עבה; ריהוט, קשתות דלת מנותקות, קווקוו מקוטע וכיתובים אינם קירות.
+       לכל נקודה מחשבים את המרחק לקיר הקרוב. "ליבה" = מקום שנכנס בו ריבוע של 1.5 מ׳; כל ליבה מתפשטת — קודם במקומות הרחבים
+       ורק בסוף דרך המעברים הצרים — ולכן שני חדרים נפגשים בפתח הדלת שביניהם גם כשהדלת מצוירת פתוחה או בקו בהיר, ופרצה קטנה בקו קיר
+       לא "מדליפה" חדר החוצה (במילוי רגיל פיקסל חסר אחד מספיק). חדר קטן בלי ליבה מצטרף לשכן דרך הדלת שלו; אם יש לו שם — splitByLabels מפריד אותו */
+    const ln = line.slice();
+    for (const it of ((P.planText || {}).items || [])) { if (it.ly) continue; const p = ptPos(it), tw = (it.vert ? p.h : p.w) / W * w, th = (it.vert ? p.w : p.h) / H * h; if (!(tw > 0 && th > 0) || tw > 0.3 * w || th > 0.3 * h || Math.min(tw, th) > 0.9 * pxPerM) continue;
+      const cx = (p.x - L) / W * w, cy = (p.y - T) / H * h, x0 = Math.max(0, Math.floor(cx - tw / 2 - 2)), x1 = Math.min(w - 1, Math.ceil(cx + tw / 2 + 2)), y0 = Math.max(0, Math.floor(cy - th / 2 - 2)), y1 = Math.min(h - 1, Math.ceil(cy + th / 2 + 2));
+      for (let y = y0; y <= y1; y++) ln.fill(0, y * w + x0, y * w + x1 + 1); }   /* הכיתוב עצמו אינו קיר */
+    const l1 = rfBox(ln, w, h, 1, true), inv = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) inv[i] = l1[i] ? 0 : 1;
+    const ll = label(inv), thick = rfBox(ln, w, h, Math.max(2, Math.round(0.07 * pxPerM)), false), hasThick = new Uint8Array(ll.comps.length); for (let i = 0; i < w * h; i++) if (thick[i] && ll.lab[i]) hasThick[ll.lab[i]] = 1;
+    const isWall = new Uint8Array(ll.comps.length), minS = 2.2 * pxPerM, minT = 0.4 * pxPerM; ll.comps.forEach(c => { if (!c) return; const sz = Math.max(c.x1 - c.x0, c.y1 - c.y0); if (sz >= minS || (hasThick[c.id] && sz >= minT)) isWall[c.id] = 1; });
+    /* רכיב בינוני (2.2–8 מ׳) שעומד לבדו ומקיף שטח סגור ברוחב ≥ 0.25 מ׳ = ריהוט (שולחן ישיבות, דלפק, אי) ולא קיר: שולחן ארוך עם כיסאות
+       חתך חדר ישיבות לשניים. קטע קיר כפול מקיף רק את החלל הצר שבין שני הקווים שלו */
+    { const re = Math.max(2, Math.round(0.12 * pxPerM)), big8 = 8 * pxPerM, minB = 0.55 * pxPerM;
+      for (const c of ll.comps) { if (!c || !isWall[c.id] || hasThick[c.id]) continue; const cw = c.x1 - c.x0 + 1, ch = c.y1 - c.y0 + 1; if (Math.max(cw, ch) >= big8 || Math.min(cw, ch) < minB) continue;
+        const bw = cw + 2, bh = ch + 2, n2 = bw * bh, st = new Int32Array(n2), mk = new Uint8Array(n2); let a = 0, b = 0;   /* mk: 1 = הרכיב, 2 = מחובר לשפת החלון */
+        for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (ll.lab[(y + c.y0) * w + x + c.x0] === c.id) mk[(y + 1) * bw + x + 1] = 1;
+        st[b++] = 0; mk[0] = 2; while (a < b) { const j = st[a++], x = j % bw; const go = k => { if (!mk[k]) { mk[k] = 2; st[b++] = k; } }; if (x > 0) go(j - 1); if (x < bw - 1) go(j + 1); if (j >= bw) go(j - bw); if (j < n2 - bw) go(j + bw); }
+        const hole = new Uint8Array(n2); let nh = 0; for (let j = 0; j < n2; j++) if (!mk[j]) { hole[j] = 1; nh++; }
+        if (nh < 0.3 * pxPerM * pxPerM) continue; const er = rfBox(hole, bw, bh, re, false); let sv = 0; for (let j = 0; j < n2; j++) if (er[j]) sv++;
+        if (sv) isWall[c.id] = 0; } }
+    const wall = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) if (ll.lab[i] && isWall[ll.lab[i]]) wall[i] = 1;
+    const n = w * h, capP = Math.max(4, Math.round(1.5 * pxPerM)), cap3 = capP * 3, D = new Int32Array(n);
+    for (let i = 0; i < n; i++) D[i] = wall[i] ? 0 : cap3;
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const j = y * w + x; if (D[j]) D[j] = Math.min(D[j], D[j - 1] + 3, D[j - w] + 3, D[j - w - 1] + 4, D[j - w + 1] + 4); }
+    for (let y = h - 2; y >= 1; y--) for (let x = w - 2; x >= 1; x--) { const j = y * w + x; if (D[j]) D[j] = Math.min(D[j], D[j + 1] + 3, D[j + w] + 3, D[j + w + 1] + 4, D[j + w - 1] + 4); }
+    const c1 = Math.max(3, Math.round(0.75 * pxPerM)) * 3, nc = new Uint8Array(n); for (let i = 0; i < n; i++) nc[i] = D[i] >= c1 ? 0 : 1;
+    const cl = label(nc), own = new Int32Array(n), B = Array.from({ length: capP + 1 }, () => []), alt = j => capP - Math.min(capP, Math.round(D[j] / 3)), OUT = -1;
+    for (let i = 0; i < n; i++) { const id = cl.lab[i]; if (id) { own[i] = cl.comps[id].edge ? OUT : id; B[alt(i)].push(i); } }
+    for (let x = 0; x < w; x++) for (const j of [x, (h - 1) * w + x]) if (!wall[j] && !own[j]) { own[j] = OUT; B[alt(j)].push(j); }
+    for (let y = 0; y < h; y++) for (const j of [y * w, y * w + w - 1]) if (!wall[j] && !own[j]) { own[j] = OUT; B[alt(j)].push(j); }
+    for (let cur = 0; cur <= capP; cur++) { const q = B[cur]; for (let i = 0; i < q.length; i++) { const j = q[i], x = j % w, g0 = own[j];
+      const go = k => { if (!wall[k] && !own[k]) { own[k] = g0; const a = alt(k); B[a > cur ? a : cur].push(k); } };
+      if (x > 0) go(j - 1); if (x < w - 1) go(j + 1); if (j >= w) go(j - w); if (j < n - w) go(j + w); } }
+    const bs = new Map(); for (let i = 0; i < n; i++) { const g0 = own[i]; if (g0 <= 0) continue; let b = bs.get(g0); const x = i % w, y = (i - x) / w; if (!b) { b = { id: g0, n: 0, x0: x, y0: y, x1: x, y1: y, s: cl.comps[g0].s }; bs.set(g0, b); } b.n++; if (x < b.x0) b.x0 = x; if (x > b.x1) b.x1 = x; if (y > b.y1) b.y1 = y; }
+    const cand = [...bs.values()].filter(b => b.n >= minPx * 0.6 && b.n < 0.25 * n).sort((a, b) => b.n - a.n).slice(0, 140);   /* אגן שתופס רבע מהגיליון = הנייר שסביב המבנה */
+    /* הגבול הולך על הקיר ולא סביב מה שצמוד אליו: שקעים צרים מ-1.8 מ׳ (כיסא / שולחן / ספסל שנוגע בקיר, קשת דלת, שארית קווקוו) נסגרים,
+       בלי להיכנס לחדר שכן או החוצה */
+    const rcl = Math.max(3, Math.round(0.9 * pxPerM));
+    for (const c of cand) { const pad = rcl + 3, bx0 = Math.max(0, c.x0 - pad), by0 = Math.max(0, c.y0 - pad), bw = Math.min(w, c.x1 + pad + 1) - bx0, bh = Math.min(h, c.y1 + pad + 1) - by0, m = new Uint8Array(bw * bh);
+      for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) if (own[y * w + x] === c.id) m[(y - by0) * bw + (x - bx0)] = 1;
+      let list = [{ pm: m, sj: -1 }], wasSplit = false;
+      try { const pc = splitByCores(m, bw, bh); if (pc) { list = pc; wasSplit = true; } } catch (e) { console.warn('splitByCores', e); }
+      { const l2 = []; for (const p0 of list) { let sp = null; try { sp = splitByLabels(p0.pm, bw, bh, bx0, by0); } catch (e) { console.warn('splitByLabels', e); } if (sp) { l2.push(...sp.parts); wasSplit = true; } else l2.push(p0); } list = l2; }
+      const sp2 = wasSplit;
+      for (const pt of list) {
+        const grown = rfBox(rfBox(pt.pm, bw, bh, rcl, true), bw, bh, rcl, false);
+        for (let j = 0; j < bw * bh; j++) { if (!grown[j] || pt.pm[j]) continue; const x = j % bw, o2 = own[((j - x) / bw + by0) * w + x + bx0]; if (o2 === OUT || (o2 > 0 && o2 !== c.id) || m[j]) grown[j] = 0; }
+        const tr = ptTrace(rfBox(grown, bw, bh, 1, true), bw, bh), sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, pxPerM * 0.15)) : []; if (sp.length < 3) continue;
+        const poly = sp.map(([x, y]) => toC(x + bx0, y + by0));
+        const A = Math.abs(poly.reduce((s2, p, i) => { const q2 = poly[(i + 1) % poly.length]; return s2 + p.x * q2.y - q2.x * p.y; }, 0)) / 2, m2 = Math.round(A * P.scale * P.scale); if (m2 < 3) continue;
+        const sx = pt.sj >= 0 ? pt.sj % bw + bx0 : c.s % w, sy = pt.sj >= 0 ? (pt.sj - pt.sj % bw) / bw + by0 : (c.s - c.s % w) / w;
+        rooms.push({ poly, m2, seed: toC(sx, sy), part: !!sp2 }); } }
+    if (window.__zlDbg) dbg = { thr, w, h, pxPerM, line, wall, D, own, capP };
+  } else {
   const levels = [0.06, 0.18, 0.35].map(gm => { const r = Math.max(1, Math.round(gm * pxPerM)), bar = rfBox(line, w, h, r, true), lb = label(bar); return { r, bar, lb, out: lb.comps.reduce((s2, c) => s2 + (c && c.edge ? c.n : 0), 0) }; });
-  let pick = levels.length - 1; for (let i = 0; i < levels.length - 1; i++) if (levels[i].out - levels[i + 1].out < 0.03 * w * h) { pick = i; break; }
-  const lv = levels[pick], { lab, comps } = lv.lb, minPx = 3 * pxPerM * pxPerM;
-  const cand = comps.filter(c => c && !c.edge && c.n >= minPx * 0.6).sort((a, b) => b.n - a.n).slice(0, 80), rooms = [];
+  pick = levels.length - 1; for (let i = 0; i < levels.length - 1; i++) if (levels[i].out - levels[i + 1].out < 0.03 * w * h) { pick = i; break; }
+  const lv = levels[pick], { lab, comps } = lv.lb;
+  const cand = comps.filter(c => c && !c.edge && c.n >= minPx * 0.6).sort((a, b) => b.n - a.n).slice(0, 80);
   /* אזור נקבע לפי קירות, לא לפי ריהוט (אורי, 21.11.2026: "אתה מונה אזור מסביב לריהוט הישיבה במקום לכלול אותו — אתה אמור להיות ממוקד בקירות").
      קיר = קו שהוא חלק מרכיב קווים גדול (מלבן חוסם ≥ 2.2 מ׳ — רשת הקירות מחוברת); כיסא / שולחן / כורסה חופשיים הם רכיבים קטנים.
      מהשטח הפנוי של החדר ממשיכים דרך כל מה שאינו קיר (קווי ריהוט, הכיסים שבין הריהוט לקיר) עד הקירות — אבל לא לתוך חדר אחר,
@@ -1892,14 +2036,17 @@ async function zonesByLinesAt(thr) {
       const ok = j => { if (m[j]) return false; const x = j % bw, y = (j - x) / bw, gi = (y + by0) * w + x + bx0; if (wallHalo[gi]) return false; const id = lab[gi]; return !id || !kind[id]; };
       while (qa < qb) { const j = q[qa++], x = j % bw, y = (j - x) / bw;
         if (x > 0 && ok(j - 1)) { m[j - 1] = 1; q[qb++] = j - 1; } if (x < bw - 1 && ok(j + 1)) { m[j + 1] = 1; q[qb++] = j + 1; } if (y > 0 && ok(j - bw)) { m[j - bw] = 1; q[qb++] = j - bw; } if (y < bh - 1 && ok(j + bw)) { m[j + bw] = 1; q[qb++] = j + bw; } } }
-    const grown = rfBox(m, bw, bh, lv.r, true), tr = ptTrace(grown, bw, bh), sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, pxPerM * 0.15)) : []; if (sp.length < 3) continue;
-    const poly = sp.map(([x, y]) => toC(x + bx0, y + by0));
-    const A = Math.abs(poly.reduce((s2, p, i) => { const q2 = poly[(i + 1) % poly.length]; return s2 + p.x * q2.y - q2.x * p.y; }, 0)) / 2, m2 = Math.round(A * P.scale * P.scale); if (m2 < 3) continue;
-    const sx = c.s % w, sy = (c.s - sx) / w;
-    rooms.push({ poly, m2, seed: toC(sx, sy), fill: c.n / Math.max(1, A * (w / W) * (h / H)) });
+    let sp2 = null; try { sp2 = splitByLabels(m, bw, bh, bx0, by0); } catch (e) { console.warn('splitByLabels', e); }
+    for (const pt of (sp2 ? sp2.parts : [{ pm: m, sj: -1 }])) {
+      const grown = rfBox(pt.pm, bw, bh, lv.r, true); if (sp2) for (let j = 0; j < bw * bh; j++) if (grown[j] && m[j] && !pt.pm[j]) grown[j] = 0;   /* לא לגדול לתוך החלק השכן */
+      const tr = ptTrace(grown, bw, bh), sp = tr.length >= 4 ? ptRdp(tr, Math.max(1.5, pxPerM * 0.15)) : []; if (sp.length < 3) continue;
+      const poly = sp.map(([x, y]) => toC(x + bx0, y + by0));
+      const A = Math.abs(poly.reduce((s2, p, i) => { const q2 = poly[(i + 1) % poly.length]; return s2 + p.x * q2.y - q2.x * p.y; }, 0)) / 2, m2 = Math.round(A * P.scale * P.scale); if (m2 < 3) continue;
+      const sx = pt.sj >= 0 ? pt.sj % bw + bx0 : c.s % w, sy = pt.sj >= 0 ? (pt.sj - pt.sj % bw) / bw + by0 : (c.s - c.s % w) / w;
+      rooms.push({ poly, m2, seed: toC(sx, sy), fill: c.n / Math.max(1, A * (w / W) * (h / H)), part: !!sp2 });
+    }
   }
   /* רכיב שיושב בתוך חדר גדול ממנו = אי / דלפק / ריהוט (עד 15 מ״ר), לא חדר */
-  const inPoly = (p, poly) => { let cIn = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) cIn = !cIn; } return cIn; };
   rooms.sort((a, b) => b.m2 - a.m2);
   /* חדר עם ריצוף / מילוי מקווקו מתפרק לתאים זעירים. קבוצת תאים צפופה (מכסה ≥ 60% מהמצולע שלה — לא אותיות של טקסט) בשטח ≥ 6 מ״ר ורוחב ≥ 1.8 מ׳ = חדר אחד */
   { const cellMax = 1.6 * pxPerM * pxPerM, cm = new Uint8Array(w * h); let any = false;   /* גם רצועות של ריצוף פרקט (0.25 × 5 מ׳) */
@@ -1913,6 +2060,8 @@ async function zonesByLinesAt(thr) {
         const poly = sp.map(([x, y]) => toC(x + c.x0 - 1, y + c.y0 - 1)), A = Math.abs(poly.reduce((s2, p, i) => { const q2 = poly[(i + 1) % poly.length]; return s2 + p.x * q2.y - q2.x * p.y; }, 0)) / 2, apx = A * (w / W) * (h / H);
         if (cells < 0.6 * apx) continue;
         const sx = c.s % w, sy = (c.s - sx) / w; rooms.push({ poly, m2: Math.round(A * P.scale * P.scale), seed: toC(sx, sy), hatch: true }); } } }
+  if (window.__zlDbg) dbg = { thr, w, h, pxPerM, line, bar: lv.bar, lab, comps, wallHalo, r: lv.r };
+  }
   rooms.sort((a, b) => b.m2 - a.m2);
   /* רקע: רכיב שהמצולע שלו מכיל שני חדרים אחרים ומעלה (≥ 6 מ״ר כל אחד, יחד ≥ רבע משטחו) = הנייר שבין מסגרת הגיליון למבנה / המגרש — לא חדר */
   const bg = new Set(rooms.filter(r => { const ins = rooms.filter(o => o !== r && o.m2 >= 6 && o.m2 < r.m2 && inPoly(o.seed, r.poly)); return ins.length >= 2 && ins.reduce((s2, o) => s2 + o.m2, 0) >= 0.25 * r.m2; }));
@@ -1937,6 +2086,7 @@ async function zonesByLinesAt(thr) {
     const best = Math.max(0, ...cid.map(c => score.get(c) || 0));
     if (best >= 2) only(c => (score.get(c) || 0) >= Math.max(2, 0.25 * best));
     else { /* אין שמות חדרים בתכנית: נשארת קבוצת החדרים הגדולה (המבנה) */ const mx = Math.max(0, ...cid.map(c => tot.get(c) || 0)); only(c => (tot.get(c) || 0) >= 0.5 * mx); } }
+  if (window.__zlDbg && dbg) { dbg.rooms = keep; window.__zlDbg = dbg; }   /* ניפוי */
   const userZones = (P.zones || []).filter(z => !z.prop), zones = [], skipped = { ops: 0, small: 0 }, skippedList = []; let nAuto = (P.zones || []).length;
   for (const r of keep) {
     if (r.m2 * (w / W) * (h / H) / (P.scale * P.scale) > 0.6 * w * h) continue;   /* יותר מ-60% מהגיליון — לא חדר */
@@ -1948,7 +2098,7 @@ async function zonesByLinesAt(thr) {
     if (!rel.ok) { if (/קטן|כיתוב/.test(rel.why)) skipped.small++; else skipped.ops++; if (r.m2 >= 3) skippedList.push({ name: rel.name || '', why: rel.why, m2: r.m2, pt: r.seed, labels: rel.labels }); continue; }
     z.name = rel.name || ('אזור ' + (++nAuto)); z.usage = rel.usage; z._m2 = r.m2; zones.push(z);
   }
-  return { zones, skipped, skippedList, rooms: keep.length, level: pick };
+  return { zones, skipped, skippedList, rooms: keep.length, level: pick, mode: mode || 'free' };
 }
 async function zoneFillAt(pt) {
   const G = await zoneFillCore(pt); if (!G) return; if (G.err) { uiToast(G.err, 6000); return; }
@@ -2050,10 +2200,12 @@ async function zoneLearnApply(fresh) {
   if (!R.n || !fresh.length) return fresh;
   let list = fresh;
   if (R.minM2) { const drop = list.filter(z => /^חלל \d+$/.test(z.name) && zoneM2(z) <= R.minM2); if (drop.length) { P.zones = P.zones.filter(z => !drop.includes(z)); list = list.filter(z => !drop.includes(z)); notes.push(drop.length + ' קטנים סוננו'); } }
-  if (R.refill && P.scale) { let n = 0; for (const z of list) { const b = zoneBounds(z), G = await zoneFillCore({ x: b.L + b.W / 2, y: b.T + b.H / 2 }); if (!G || G.err) continue; const r = G.m2 / Math.max(1, zoneM2(z)); if (r < 0.5 || r > 1.6) continue;
+  /* אזורים מהמנוע של קירות-ומעברים כבר יושבים על הקיר ומופרדים לפי שמות החדרים: מילוי מחדש ומיזוג אוטומטי (שנלמדו מתיקונים למנוע הישן) היו מחזירים
+     את הדליפה דרך דלתות ומאחדים שוב "מבואה" עם "אזור ישיבה" */
+  if (R.refill && P.scale) { let n = 0; for (const z of list) { if (z.auto === 'lines') continue; const b = zoneBounds(z), G = await zoneFillCore({ x: b.L + b.W / 2, y: b.T + b.H / 2 }); if (!G || G.err) continue; const r = G.m2 / Math.max(1, zoneM2(z)); if (r < 0.5 || r > 1.6) continue;
     z.x = Math.max(0, 2200 - G.left - G.zw); z.y = G.top; z.w = G.zw; z.h = G.zh; if (G.rect) delete z.poly; else z.poly = G.poly; z.fill = true; n++; } if (n) notes.push(n + ' חושבו במילוי'); }
   if (R.autoMerge) { let merged = 0, again = true; while (again) { again = false;
-    for (let i = 0; i < list.length && !again; i++) for (let j = i + 1; j < list.length && !again; j++) { const f = await zoneWallBetween(list[i], list[j]); if (f != null && f < 0.5) { const k = zonesMergeIds([list[i].id, list[j].id]); zoneLearn().ev.pop(); /* מיזוג אוטומטי — לא נספר כתיקון של המשתמש */ list = list.filter(z => P.zones.includes(z)); if (k && !list.includes(k)) list.push(k); merged++; again = true; } } }
+    for (let i = 0; i < list.length && !again; i++) for (let j = i + 1; j < list.length && !again; j++) { if (list[i].auto === 'lines' || list[j].auto === 'lines') continue; const f = await zoneWallBetween(list[i], list[j]); if (f != null && f < 0.5) { const k = zonesMergeIds([list[i].id, list[j].id]); zoneLearn().ev.pop(); /* מיזוג אוטומטי — לא נספר כתיקון של המשתמש */ list = list.filter(z => P.zones.includes(z)); if (k && !list.includes(k)) list.push(k); merged++; again = true; } } }
     if (merged) notes.push(merged + ' מוזגו'); }
   if (notes.length) uiToast('📚 לפי מה שלמדתי מהתיקונים שלך: ' + notes.join(' · '), 7000);
   return list;

@@ -16781,18 +16781,24 @@ async function autoZones() {
   if (!P.bg) { if ((P.sketch && P.sketch.walls || []).length) { autoZonesSketch(); return; } alert('העלה קודם תכנית רקע, או שרטט חדר בעורך השרטוט'); return; }
   if (window.__azBusy) { uiToast('הזיהוי כבר רץ — המתן לתוצאה'); return; }
   if (!P.scale) { uiToast('📏 כייל קודם את התכנית — לפי קנה המידה מזהים מה עובי קיר ומה רוחב דלת', 8000); return; }
+  /* זיהוי חוזר (אחרי שיפור במנוע, או כשהתוצאה הקודמת לא טובה): אזורים מזיהוי אוטומטי קודם שאין בתוכם ציוד מוחלפים באישור המשתמש.
+     ההחלפה אינה "מחיקה" לעניין הלמידה — אחרת מחיקת שלושה אזורים שגויים בשם "Large Hall" הייתה מלמדת שאולם אינו אזור */
+  { const oldAuto = (P.zones || []).filter(z => z.auto && !(P.items || []).some(it => inZone(z, { x: 2200 - it.x - 20, y: it.y + 20 })));
+    if (oldAuto.length && !window.__autoFlow && typeof uiConfirm === 'function') { const yes = await uiConfirm('יש בתכנית ' + oldAuto.length + ' אזורים מזיהוי אוטומטי קודם. להחליף אותם בזיהוי חדש?\nגם אזור אוטומטי שתיקנת בגרירה יוחלף; אזורים שציירת בעצמך ואזורים שיש בהם ציוד נשארים.', { okText: 'החלף בזיהוי חדש', cancelText: 'השאר והוסף' });
+      if (yes) { if (typeof pushHistory === 'function') pushHistory(); P.zones = P.zones.filter(z => !oldAuto.includes(z)); } } }
   window.__azBusy = true; uiBusy('az', 'מזהה אזורים בתכנית — קורא כיתובים ומוצא חדרים בין הקירות (בלי AI)');
   window.__rfPlain = true;   /* קירות מהתמונה המרונדרת — ראה rfWalls */
   render();
   try {
     const before = new Set((P.zones || []).map(z => z.id));
-    if (!(P.planText && P.planText.at) && typeof planTextScan === 'function') { try { await planTextScan({ noScale: true }); } catch (e) { console.warn('autoZones scan', e); } }
+    /* כיתובים שנקראו לפני v2 (עברית הפוכה / סדר מילים הפוך) נקראים מחדש פעם אחת */
+    if (!(P.planText && P.planText.at && (P.planText.v || 0) >= 2) && typeof planTextScan === 'function') { try { await planTextScan({ noScale: true }); } catch (e) { console.warn('autoZones scan', e); } }
     let fresh = [], info = null;
     /* שני מנועים (אימון על תכניות מהרשת, 21.11.2026): קירות עבים (zonesByWalls) וקווים דקים (zonesByLines). נבחר זה שסימן יותר שטח
        של אזורים עם שם מהתכנית — קיר זכוכית / דלתות מתקפלות מצוירים בקו דק, ואז המנוע של הקירות העבים רואה את האולם כ"חוץ" */
     if (typeof zonesByWalls === 'function') info = await zonesByWalls();
-    if (typeof zonesByLines === 'function') { try { const li = await zonesByLines(); const named = r => (r && r.zones || []).filter(z => !/^אזור \d+$/.test(z.name || '')).reduce((s2, z) => s2 + (z._m2 || 0), 0);
-      if (li && li.zones.length && (!info || !info.zones.length || named(li) > 1.3 * named(info))) info = li; } catch (e) { console.warn('zonesByLines', e); } }
+    if (typeof zonesByLines === 'function') { try { const li = await zonesByLines(); const named = r => typeof zoneNamedScore === 'function' ? zoneNamedScore(r).a : (r && r.zones || []).filter(z => !/^אזור \d+$/.test(z.name || '')).reduce((s2, z) => s2 + (z._m2 || 0), 0);
+      if (li && li.zones.length && (!info || !info.zones.length || (typeof zoneScoreBetter === 'function' ? zoneScoreBetter(zoneNamedScore(li), zoneNamedScore(info), 1.3) : named(li) > 1.3 * named(info)))) info = li; } catch (e) { console.warn('zonesByLines', e); } }
     if (info && info.zones.length) { P.zones = [...(P.zones || []), ...info.zones]; fresh = info.zones; }
     const skippedList = info && info.skippedList ? info.skippedList.slice() : [];
     let fellBack = false;

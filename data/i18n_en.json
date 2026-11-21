@@ -7146,5 +7146,10 @@
  "אם התכנית שלך באחד מהם, הקלד אותו בשדה הכיול": "if your plan is at one of them, type it in the calibration field",
  "סורק את התכנית לקבלת קנה מידה — כמה שניות…": "Scanning the plan for its scale — a few seconds…",
  "מעברים": "Passages",
- "מעברים / כניסות": "Passages / entrances"
+ "מעברים / כניסות": "Passages / entrances",
+ "אזורים מזיהוי אוטומטי קודם": "zones from a previous automatic detection",
+ "להחליף אותם בזיהוי חדש": "Replace them with a new detection",
+ "גם אזור אוטומטי שתיקנת בגרירה יוחלף; אזורים שציירת בעצמך ואזורים שיש בהם ציוד נשארים": "An automatic zone you adjusted by dragging is replaced too; zones you drew yourself and zones with equipment in them stay",
+ "החלף בזיהוי חדש": "Replace with new detection",
+ "השאר והוסף": "Keep and add"
 }
