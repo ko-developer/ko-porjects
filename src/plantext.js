@@ -99,6 +99,8 @@ async function ptScaleScan(onStep) {
   const W = img.width, H = img.height;
   /* רצועות השוליים: ימין ותחתית קודם (שם טבלת הכותרת בדרך כלל), אחר כך שמאל ועליון */
   const strips = [['right', W * 0.68, 0, W * 0.32, H], ['bottom', 0, H * 0.72, W, H * 0.28], ['left', 0, 0, W * 0.32, H], ['top', 0, 0, W, H * 0.22]];
+  /* הפינות נסרקות לפני הרצועות: טבלת הכותרת יושבת כמעט תמיד בפינה (ימין-תחתון קודם), ותמונת פינה קטנה פי ~3 מרצועה — מעבר OCR קצר בהרבה */
+  const corners = [['bottom-right', W * 0.64, H * 0.68, W * 0.36, H * 0.32, ['bottom', 'right']], ['bottom-left', 0, H * 0.68, W * 0.36, H * 0.32, ['bottom', 'left']], ['top-right', W * 0.64, 0, W * 0.36, H * 0.32, ['right', 'top']], ['top-left', 0, 0, W * 0.36, H * 0.32, ['left', 'top']]];
   /* פונט מתאר דק נקרא רק בהגדלה מסוימת — סורקים כמה הגדלות סביב ~3× (יחסית לרוחב 1400px) */
   const base = 1400 / Math.max(W, H * 1.4), scales = [3, 2.75, 3.25, 2.5, 3.5, 4].map(k => +(k * base).toFixed(2));
   const worker = await Tesseract.createWorker('eng+heb');   /* עברית בשביל התווית "קנ"מ" שליד הערך */
@@ -176,8 +178,16 @@ async function ptScaleScan(onStep) {
   };
   try {
     await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '6' });
-    /* סבב מהיר: מעבר אחד על כל ארבע הרצועות — טבלת כותרת בצד שמאל/למעלה נמצאת בלי לסרוק קודם לעומק את ימין ותחתית */
-    for (const [where, sx, sy, sw, sh] of strips) { if (onStep) onStep(where); await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (good() || over()) break; }
+    /* שלב הפינות: מעבר אחד על כל פינה; פינה שבה נראתה התווית קנ"מ / SCALE נסרקת מיד לעומק (כמה הגדלות) לפני שממשיכים */
+    for (const [where, sx, sy, sw, sh, sides] of corners) {
+      if (onStep) onStep(where); await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (good() || over()) break;
+      if (!lblStrips.has(where)) continue;
+      sides.forEach(sd => lblStrips.add(sd));
+      for (const k of scales) { for (const thr of [200, 150]) { if (k === scales[0] && thr === 200) continue; await pass(where, sx, sy, sw, sh, k, thr, 0); if (good() || over()) break; } if (good() || over()) break; }
+      if (good() || over()) break;
+    }
+    /* סבב מהיר: מעבר אחד על כל ארבע הרצועות — טבלת כותרת באמצע צד נמצאת בלי לסרוק קודם לעומק את ימין ותחתית */
+    if (!good() && !over()) for (const [where, sx, sy, sw, sh] of strips) { if (onStep) onStep(where); await pass(where, sx, sy, sw, sh, scales[0], 200, 0); if (good() || over()) break; }
     /* סריקת העומק מתחילה ברצועה שבה נמצאה התווית קנ"מ / SCALE בסבב המהיר */
     const deep = [...strips.filter(st => lblStrips.has(st[0])), ...strips.filter(st => !lblStrips.has(st[0]))];
     if (!good() && !over()) for (const [where, sx, sy, sw, sh] of deep) {
