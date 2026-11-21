@@ -16776,7 +16776,8 @@ window.autoZonesSketch = autoZonesSketch;
 /* 🧩 "סמן לי אזורים אוטומטית" — מקומי, בלי AI ובלי טוקנים (אורי, 21.11.2026): קריאת הכיתובים (OCR / שכבת הטקסט של ה-PDF, פעם אחת)
    ואז zonesByWalls (חדרים בין קירות עבים, ממוינים ומכונים לפי הכיתובים). לא נמצא כלום → המנוע הישן (ptPartition) → סביב כיתובי קהל.
    גרסת ה-AI נשארת ככפתור נפרד ומסומן (autoZonesAI) */
-async function autoZones() {
+async function autoZones(opts) {
+  opts = opts && opts.prop ? opts : {};   /* prop: האזורים נכנסים כהצעה (האשף שואל אם להתחיל מהם) */
   if (typeof sheetIsElevation === 'function' && sheetIsElevation()) { uiToast('🎭 זו חזית — אזורים מסמנים על תכנית תקרה/העמדה (מבט מלמעלה)', 6000); return; }
   if (!P.bg) { if ((P.sketch && P.sketch.walls || []).length) { autoZonesSketch(); return; } alert('העלה קודם תכנית רקע, או שרטט חדר בעורך השרטוט'); return; }
   if (window.__azBusy) { uiToast('הזיהוי כבר רץ — המתן לתוצאה'); return; }
@@ -16810,7 +16811,9 @@ async function autoZones() {
       P.zones = (P.zones || []).filter(z => !fresh.includes(z) || kept.includes(z)); fresh = kept; }
     window.__zwSkipped = { pid: P.id, sheet: P.curSheet, list: skippedList.slice(0, 12) };
     if (fresh.length && typeof zoneLearnApply === 'function') { try { fresh = await zoneLearnApply(fresh); } catch (e) {} }
-    if (fresh.length) { selZone = fresh[0].id; uiToast('🧩 נמצאו ' + fresh.length + ' אזורים: ' + fresh.slice(0, 5).map(z => z.name + (z._m2 ? ' (' + z._m2 + ' מ״ר)' : '')).join(' · ') + (skippedList.length ? ' · ' + skippedList.length + ' חללים לא סומנו כי אינם רלוונטיים לסאונד (הרשימה והסיבות מתחת לכפתור)' : '') + ' — לחץ על אזור לעריכה או מחיקה', 11000); }
+    if (opts.prop) fresh.forEach(z => { z.prop = true; });
+    if (fresh.length && opts.prop) { selZone = fresh[0].id; uiToast('💡 סימנתי ' + fresh.length + ' אזורים על התכנית — בדוק איך זה נראה והחלט אם להתחיל מזה', 7000); }
+    else if (fresh.length) { selZone = fresh[0].id; uiToast('🧩 נמצאו ' + fresh.length + ' אזורים: ' + fresh.slice(0, 5).map(z => z.name + (z._m2 ? ' (' + z._m2 + ' מ״ר)' : '')).join(' · ') + (skippedList.length ? ' · ' + skippedList.length + ' חללים לא סומנו כי אינם רלוונטיים לסאונד (הרשימה והסיבות מתחת לכפתור)' : '') + ' — לחץ על אזור לעריכה או מחיקה', 11000); }
     else uiToast('לא נמצאו אזורים אוטומטית' + (skippedList.length ? ' (' + skippedList.length + ' חללים נפסלו כלא רלוונטיים — הרשימה מתחת לכפתור)' : '') + ' — סמן בלחיצה בתוך חדר או בניקור נקודות', 8000);
     fresh.forEach(z => { delete z._m2; });
     save();

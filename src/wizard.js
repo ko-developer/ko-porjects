@@ -63,7 +63,7 @@ function wizardStart() {
   }
   wizRender();
   clearInterval(window.__wizT);
-  window.__wizT = setInterval(() => { if (WIZ && document.getElementById('wiz')) wizRefreshBadges(); }, 1200);
+  window.__wizT = setInterval(() => { if (WIZ && document.getElementById('wiz')) { wizRefreshBadges(); wizMaybePropose(); } }, 1200);
 }
 function wizClose() { WIZ = null; clearInterval(window.__wizT); const w = document.getElementById('wiz'); if (w) w.remove(); document.body.classList.remove('wzdock'); }
 
@@ -134,6 +134,7 @@ function wizRender() {
       <button class="nx" onclick="wizNext()" ${WIZ.step === WIZ_STEPS.length - 1 ? 'disabled' : ''} ${WIZ.step === WS('zone') && (!(P.zones || []).some(z => !z.prop) || (P.zones || []).some(z => z.prop)) ? 'style="opacity:.45" title="קודם סמן אזור (או אשר אזור מוצע)"' : ''}>הבא ◀</button>
     </div>`;
   document.body.appendChild(w);
+  wizMaybePropose();
   /* חלון צף — נגרר מהכותרת והמיקום נשמר */
   const pos = store.wizPos;
   if (pos) {
@@ -197,6 +198,7 @@ function wizStepHTML(s) {
     const odd = curW && (curW < 4 || curW > 200);
     return `
     <h4>כיול קנה מידה</h4>
+    ${WIZ.scaleWait ? '<p class="hint" style="color:#8a5a00;font-weight:700">🔎 מחפש את קנה המידה שכתוב בתכנית — כמה שניות. אם יימצא, הוא יוזן לבד ונמשיך ישר לאזורים.</p>' : ''}
     <button class="sec" onclick="cropStart()">✂️ חתוך את התכנית — סמן את החלק הרלוונטי</button>
     ${typeof asSummaryHTML === 'function' ? asSummaryHTML() : ''}
     ${!P.autoScale && typeof asStepButtonsHTML === 'function' ? asStepButtonsHTML() : ''}
@@ -211,6 +213,8 @@ function wizStepHTML(s) {
   if (k === 'zone') {
     const usages2 = typeof USAGES !== 'undefined' ? USAGES : [];
     const freeRooms = wizSketchRoomsFree();
+    /* יש הצעה שמחכה לתשובה (או שהיא מחושבת עכשיו): קודם השאלה "להתחיל מזה?", בלי שאר הטופס מסביב */
+    if (WIZ.ocrBusy || (P.zones || []).some(zz => zz.prop)) return `<h4>סימון אזור סאונד</h4>${wizPropHTML()}`;
     return `
     <h4>סימון אזור סאונד</h4>
     ${freeRooms.length ? `<button class="big" style="background:#0f6e56" onclick="wizZonesFromSketch()" title="כל חדר סגור בשרטוט שעדיין אין עליו אזור הופך לאזור בגבולות הקירות">⬜ ${freeRooms.length === 1 ? 'החדר המשורטט → אזור בלחיצה אחת' : freeRooms.length + ' חדרים משורטטים → אזורים בלחיצה אחת'}</button>` : ''}
@@ -244,7 +248,7 @@ function wizStepHTML(s) {
     ${window.__roomFill ? `<div class="hint" style="margin:-2px 0 6px;line-height:1.6">${wizSketchOnly() ? 'בשרטוט: החדר הסגור שלחצת בתוכו הופך לאזור בגבולות הקירות.' : 'מבוסס על הקירות העבים בלבד (קווי מידה, ריהוט וטקסט לא עוצרים).'} לחיצה בתוך אזור קיים מחליפה אותו.<br>
       <b>המילוי ברח למקום פתוח?</b> צייר <b>קיר וירטואלי</b> איפה שהאזור צריך להיגמר — <b>Shift + גרירה</b> על התכנית, או <a href="#" onclick="window.__vwMode=!window.__vwMode;wizRender();return false" style="${window.__vwMode ? 'font-weight:800;color:#7b2cbf' : ''}">${window.__vwMode ? '✏ מצב קיר פעיל (לחץ לביטול)' : '✏ מצב קיר'}</a> — ואז לחץ שוב בתוך החדר.
       ${(P.virtWalls || []).length ? `<a href="#" onclick="vwUndo();return false">↶ בטל קיר אחרון</a> (${P.virtWalls.length})` : ''}</div>` : ''}
-    <button class="sec" onclick="autoZones()">🧩 זיהוי אזורים אוטומטי (בלי AI)</button>
+    <button class="sec" onclick="wizAutoPropose(true)">🧩 סמן לי אזורים אוטומטית והצג לאישור (בלי AI)</button>
     <button class="sec" onclick="autoZonesAI()" style="font-size:11px">🤖 זיהוי בעזרת AI בתשלום (צורך טוקנים)</button>
     <button class="sec" onclick="wizOcrZones()" title="קורא את המילים שעל השרטוט (OCR מקומי, בלי AI), מסמן אזורים מוצעים לפי הקירות והכיתובים — ואתה מאשר כל אחד">🔤 קרא את הכיתובים ומצא אזורים (OCR)</button>
     ${wizPropHTML()}
@@ -552,16 +556,18 @@ async function wizOcrZones() {
 }
 function wizPropHTML() {
   const pr = (P.zones || []).filter(z => z.prop);
-  if (WIZ.ocrBusy) return '<p class="hint" style="color:#8a5a00">🔎 קורא את הכיתובים ומחפש אזורים… (עד דקה)</p>';
+  if (WIZ.ocrBusy) return '<p class="hint" style="color:#8a5a00;font-weight:700">🧩 מסמן אזורים על התכנית — כמה שניות…</p>';
   if (!pr.length) return '';
   const m2 = z => { const b = zoneBounds(z); return P.scale ? Math.round(b.W * b.H * P.scale * P.scale) + ' מ״ר' : ''; };
   return `<div style="background:#fff4e5;border:2px solid #ff8a00;border-radius:10px;padding:8px;margin:6px 0">
-    <b style="font-size:12.5px">💡 ${pr.length} אזורים מוצעים — מסומנים בכתום על התכנית</b>
+    <b style="font-size:13px">💡 סימנתי ${pr.length} אזורים — כך זה נראה על התכנית (בכתום)</b>
+    <p style="margin:5px 0 7px;font-size:12.5px;font-weight:700">להתחיל מהסימון הזה?</p>
+    <div style="display:flex;gap:6px;margin-bottom:8px"><button class="sec" style="margin:0;background:#0f6e56;color:#fff;font-weight:700" onclick="wizPropAll(true)">✓ כן, להתחיל מזה</button><button class="sec" style="margin:0" onclick="wizPropAll(false)">✕ לא, אסמן בעצמי</button></div>
+    <p class="hint" style="margin:0 0 2px">או אזור-אזור:</p>
     ${pr.map(z => `<div style="display:flex;gap:6px;align-items:center;margin-top:5px;font-size:12px"><input type="checkbox" title="סמן למיזוג" style="width:auto;margin:0" ${(WIZ.msel || []).includes(z.id) ? 'checked' : ''} onchange="wizMergeSel('${z.id}',this.checked)"><span style="flex:1;cursor:pointer;${selZone === z.id ? 'font-weight:800' : ''}" onclick="selZone='${z.id}';WIZ.zid='${z.id}';render();wizRender()" title="הצג על התכנית">📍 ${esc(z.name)} <span style="color:#777">${m2(z)}</span></span>
       <button class="sec" style="width:auto;margin:0;padding:3px 9px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="wizPropOk('${z.id}',true)">✓ אשר</button>
       <button class="sec" style="width:auto;margin:0;padding:3px 9px;background:#fdeee8;border-color:#f3c9bd;color:#8c2f16" onclick="wizPropOk('${z.id}',false)">✕</button></div>`).join('')}
     ${(() => { const n = (WIZ.msel || []).filter(id => pr.some(z => z.id === id)).length; return `<button class="sec" style="margin:7px 0 0;${n >= 2 ? 'background:#534ab7;color:#fff;font-weight:700' : 'opacity:.55'}" ${n >= 2 ? '' : 'disabled'} onclick="wizMerge()" title="סמן ☐ שניים או יותר — הם יתאחדו לאזור אחד">🔗 מזג את המסומנים לאזור אחד${n ? ' (' + n + ')' : ' — סמן ☐ שניים או יותר'}</button>`; })()}
-    <div style="display:flex;gap:6px;margin-top:7px"><button class="sec" style="margin:0;background:#0f6e56;color:#fff;font-weight:700" onclick="wizPropAll(true)">✓ אשר את כולם</button><button class="sec" style="margin:0" onclick="wizPropAll(false)">✕ דחה את כולם</button></div>
     <p class="hint" style="margin:5px 0 0">אפשר לגרור פינות של אזור מוצע לפני האישור.</p>${typeof zoneLearnLine === 'function' ? zoneLearnLine() : ''}</div>`;
 }
 function wizMergeSel(id, on) { WIZ.msel = (WIZ.msel || []).filter(x => x !== id); if (on) WIZ.msel.push(id); wizRender(); }
@@ -624,10 +630,63 @@ function wizNext() {
 function wizUploadBg(inp) {
   if (!(inp.files && inp.files[0])) return;
   /* אותו נתיב של האפליקציה: PDF→תמונה, הקטנה, ורוחב רקע לפי יחס הצדדים */
+  const tUp = Date.now();
   uploadBg(inp, () => {
-    save(); WIZ.step = WS('cal'); wizRender();
-    uiToast('✓ התכנית נטענה — עכשיו כיול');
+    save(); WIZ.step = WS('cal'); WIZ.scaleWait = true; wizRender();
+    wizAwaitScale(tUp);
   });
+}
+/* קנה המידה נכנס לבד (אורי, 22.11.2026: "באשף תכניס את הקנה מידה אוטומטית"): מחכים לחיפוש שההעלאה מפעילה (asAutoFind).
+   קריאה ודאית עם גודל גיליון ידוע (דף ה-PDF / פורמט שנקרא מטבלת הכותרת) → הכיול מאושר לבד והאשף עובר ישר לאזורים.
+   קריאה חלשה, גודל גיליון מונח (תמונה — במדידה על התכניות של אורי ההנחה יצאה שגויה), כמה ערכים או "לא נמצא" → נשארים בשלב הכיול */
+function wizAwaitScale(tUp) {
+  const pid = P.id, sh = P.curSheet; clearInterval(window.__wizScT);
+  window.__wizScT = setInterval(() => {
+    const stop = () => { clearInterval(window.__wizScT); if (WIZ) WIZ.scaleWait = false; };
+    if (!WIZ || P.id !== pid || P.curSheet !== sh) { stop(); return; }
+    const f = (P.autoScale || {}).find, fresh = f && (!f.at || f.at >= tUp - 500);
+    if (!fresh) { if (Date.now() - tUp > 30000) { stop(); wizRender(); } return; }
+    stop();
+    if (f.state === 'found' && P.scale && !f.weak && !f.assumed) {
+      P.calOk = 1; save();
+      if (WIZ.step === WS('cal')) WIZ.step = wizAlignDone() ? WS('zone') : WS('align');
+      uiToast('📏 קנה המידה 1:' + f.n + ' נמצא בתכנית והוזן לבד — ממשיכים לסימון האזורים', 6000);
+    }
+    wizRender();
+  }, 250);
+}
+/* הצעת אזורים מיד כשמגיעים לשלב האזורים (אורי: "את הסימון אזורים תציע ישר, תראה איך זה נראה ותשאל אם להתחיל מזה או לא"):
+   פעם אחת לכל תכנית שעוד אין בה אזורים — הזיהוי האוטומטי רץ, התוצאה מוצגת על התכנית כהצעה (כתום), והאשף שואל */
+async function wizAutoPropose(manual) {
+  if (!WIZ || WIZ.ocrBusy || !P.bg || !P.scale || typeof autoZones !== 'function') return;
+  const before = new Set((P.zones || []).map(z => z.id));
+  WIZ.ocrBusy = true; wizRender();
+  try {
+    await autoZones({ prop: true });
+    const fresh = (P.zones || []).filter(z => !before.has(z.id) && z.prop);
+    if (fresh.length && WIZ) { WIZ.zid = fresh[0].id; selZone = fresh[0].id; setTimeout(() => wizShowProposal(fresh), 120); }   /* האשף יכול להיסגר באמצע — ההצעה נשארת ותוצג כשייפתח שוב */
+  } catch (e) { console.warn('wizAutoPropose', e); }
+  finally { if (WIZ) { WIZ.ocrBusy = false; render(); wizRender(); } }
+}
+/* "תראה איך זה נראה": התצוגה מתמקדת בכל האזורים המוצעים, בחלק של המסך שחלון האשף לא מכסה */
+function wizShowProposal(zs) {
+  try {
+    const wrap = document.getElementById('canvasWrap'), wz = document.getElementById('wiz'); if (!wrap || !zs.length) return;
+    let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+    zs.forEach(z => { const b = zoneBounds(z); L = Math.min(L, b.L); T = Math.min(T, b.T); R = Math.max(R, b.L + b.W); B = Math.max(B, b.T + b.H); });
+    const pad = 60, wr = wrap.getBoundingClientRect(), r = wz ? wz.getBoundingClientRect() : null;
+    const onLeft = r && r.left + r.width / 2 < wr.left + wr.width / 2;
+    const covL = r && onLeft ? Math.max(0, Math.min(wr.width * 0.6, r.right - wr.left)) : 0, covR = r && !onLeft ? Math.max(0, Math.min(wr.width * 0.6, wr.right - r.left)) : 0;
+    const Z = Math.min(3, Math.max(0.15, Math.min(Math.max(200, wr.width - covL - covR) / (R - L + pad * 2), wr.height / (B - T + pad * 2))));
+    P.zoom = Z; applyZoom(); if (typeof saveView === 'function') saveView();
+    scrollToBox({ L: L - pad - covL / Z, R: R + pad + covR / Z, T: T - pad, B: B + pad }, 0);
+  } catch (e) { console.warn('wizShowProposal', e); }
+}
+window.wizAutoPropose = wizAutoPropose;
+function wizMaybePropose() {
+  if (!WIZ || WIZ.step !== WS('zone') || WIZ.ocrBusy || window.__azBusy || (P.zones || []).length || !P.scale || !P.bg) return;
+  const key = P.id + ':' + P.curSheet; WIZ.azTried = WIZ.azTried || {}; if (WIZ.azTried[key]) return;
+  WIZ.azTried[key] = 1; setTimeout(() => wizAutoPropose(false), 60);
 }
 /* 📍 נקירה ידנית מהאשף: הרמקול/הסאב שנבחר לאזור — כל לחיצה על התכנית מציבה אחד ומוסיפה 1 לשורת ההצעה (zoneSpkItem) */
 function wizPinSpk(zid, isSub) {

@@ -56,6 +56,10 @@ export function assembleLiteJs() {
     if (!js.includes(marker)) throw new Error(`lite marker missing: ${name}`);
     js = js.replace(marker, `const ${name} = ${json};`);
   }
+  /* מנוע הסריקה של KO Projects (קנה מידה מהיר + זיהוי אזורים) בתוך פונקציה סגורה — ראה src/lite-scan.js */
+  const scan = readFileSync('src/lite-scan.js', 'utf8'), mk = '/*__PLANTEXT__*/';
+  if (!scan.includes(mk)) throw new Error('lite-scan marker missing');
+  js += '\n' + scan.replace(mk, () => readFileSync('src/plantext.js', 'utf8'));
   return js;
 }
 

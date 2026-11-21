@@ -7151,5 +7151,20 @@
  "להחליף אותם בזיהוי חדש": "Replace them with a new detection",
  "גם אזור אוטומטי שתיקנת בגרירה יוחלף; אזורים שציירת בעצמך ואזורים שיש בהם ציוד נשארים": "An automatic zone you adjusted by dragging is replaced too; zones you drew yourself and zones with equipment in them stay",
  "החלף בזיהוי חדש": "Replace with new detection",
- "השאר והוסף": "Keep and add"
+ "השאר והוסף": "Keep and add",
+ "💡 סימנתי": "💡 I marked",
+ "אזורים על התכנית": "zones on the plan",
+ "בדוק איך זה נראה והחלט אם להתחיל מזה": "see how it looks and decide whether to start from it",
+ "🔎 מחפש את קנה המידה שכתוב בתכנית": "🔎 Looking for the scale written on the plan",
+ "אם יימצא, הוא יוזן לבד ונמשיך ישר לאזורים": "If found, it is entered automatically and we continue straight to the zones",
+ "🧩 סמן לי אזורים אוטומטית והצג לאישור": "🧩 Mark zones for me automatically and show them for approval",
+ "🧩 מסמן אזורים על התכנית": "🧩 Marking zones on the plan",
+ "כך זה נראה על התכנית": "this is how it looks on the plan",
+ "בכתום": "in orange",
+ "להתחיל מהסימון הזה": "Start from this marking",
+ "✓ כן, להתחיל מזה": "✓ Yes, start from this",
+ "✕ לא, אסמן בעצמי": "✕ No, I will mark it myself",
+ "או אזור-אזור": "or zone by zone",
+ "נמצא בתכנית והוזן לבד": "was found on the plan and entered automatically",
+ "ממשיכים לסימון האזורים": "continuing to zone marking"
 }

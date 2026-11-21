@@ -588,6 +588,7 @@ function render() {
   if (after) after();
   $('#nav').innerHTML = navHTML();
   applyPlanZoom();
+  setTimeout(maybePropose, 0);
 }
 function navHTML() {
   const back = S.step > 0 ? `<button class="ghost" onclick="go(${S.step - 1})">▶ חזרה</button>` : '<span></span>';
@@ -724,7 +725,7 @@ function stepPlan() {
   return `
     <h2>מצוין, החלל מכויל ✓</h2>
     <p class="sub">מכאן נדע בדיוק כמה רמקולים צריך ואיפה. אפשר להמשיך — או לתקן אם המידה לא נראית לך נכונה.</p>
-    ` + wb((S.planAuto && S.planAuto.from === 'ocr' ? sheetRatioCard() : '') + `
+    ` + wb(propCard() + (S.planAuto && S.planAuto.from === 'ocr' ? sheetRatioCard() : '') + `
     <div class="okcard">
       <div><b>${wM} מ׳</b><small>רוחב התכנית</small></div>
       <div><b>${(1 / S.scale).toFixed(0)}px</b><small>= מטר אחד</small></div>
@@ -971,30 +972,34 @@ function calMode(m) { CAL.mode = m; CAL.pts = []; render(); }
    משכבת הטקסט "1:N" וגודל הדף), DXF (משורטט מהישויות; קנה המידה מיחידות הקובץ — מדויק). DWG הוא פורמט סגור — מבקשים DXF/PDF ---------- */
 function liteLoadScript(src) { return new Promise((res, rej) => { if ([...document.scripts].some(s => s.src === src)) return res(); const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('טעינת ספרייה נכשלה')); document.head.appendChild(el); }); }
 function planSet(url, auto) {
-  S.plan = url; S.zones = []; S.suggest = null; S.cropDone = false; S.planAuto = auto || null; S.cropK = 1;
+  S.plan = url; S.zones = []; S.suggest = null; S.prop = null; S.propFor = null; S.cropDone = false; S.planAuto = auto || null; S.cropK = 1;
   /* קנה מידה אוטומטי: התכנית מנורמלת לרוחב 1400px (afterPlan) — מטר לפיקסל = רוחב אמיתי ÷ 1400 */
   S.scale = auto && auto.widthM > 0 ? auto.widthM / 1400 : null;
   CAL.mode = 'two'; CAL.pts = [];
   save(); render();
   if (S.scale) { toast('✓ התכנית נטענה וקנה המידה זוהה לבד — ' + auto.note + ' · אפשר לאמת לפי מידה בתכנית'); return; }
-  /* בלי קנה מידה מהקובץ — מחפשים "1:N" בטבלת הכותרת שבשולי הגיליון (OCR מקומי, כמה שניות), ומחילים לפי גיליון A3 כברירת מחדל */
-  toast('📐 מחפש את קנה המידה בטבלת הכותרת של התכנית…');
+  /* בלי קנה מידה מהקובץ — מחפשים את הכיתוב "1:N" בתכנית במנוע המהיר של KO Projects (KOSCAN, src/lite-scan.js): שנייה-שתיים במקום
+     סריקת רצועות של עד דקה. PDF: גודל הדף ידוע ולכן הכיול מדויק; תמונה: מוחל לפי גיליון A3 כברירת מחדל (אפשר לשנות למטה) */
+  toast('📐 מחפש את קנה המידה שכתוב בתכנית…');
   SCAN.busy = true; SCAN.url = url; render();
-  liteScaleScan(url).then(r => {
+  const pc = PDFCTX && PDFCTX.url === url ? PDFCTX : null;
+  KOSCAN.scale(pc || {}).then(r => {
     if (SCAN.url !== url) return;   /* הוחלפה תכנית בינתיים */
     SCAN.busy = false;
-    if (r) { S.planAuto = { ratio: r.n, sheetMm: 420, t: r.t, from: 'ocr' }; if (!S.scale) { applySheetRatio(true); return; } }
-    else toast('לא נמצא כיתוב קנה מידה בשוליים — סמן מידה מוכרת על התכנית');
+    if (r && r.n) { S.planAuto = pc ? { ratio: r.n, sheetMm: pc.pageMm[0], t: r.t, from: 'pdf' } : { ratio: r.n, sheetMm: 420, t: r.t, from: 'ocr' }; if (!S.scale) { applySheetRatio(true); return; } }
+    else if (r && r.multi) toast('בתכנית כתובים כמה קני מידה (' + r.multi.map(n => '1:' + n).join(' / ') + ') — הקלד את הנכון, או סמן מידה מוכרת על התכנית');
+    else toast('לא נמצא כיתוב קנה מידה בתכנית — סמן מידה מוכרת על התכנית');
     save(); render();
   }).catch(e => { console.warn('scale scan', e); SCAN.busy = false; render(); });
 }
 const SCAN = { busy: false, url: null };
+let PDFCTX = null;   /* דף ה-PDF של התכנית הנוכחית (בזיכרון בלבד) — לרינדור חד של הכיתוב ולגודל הדף */
 /* קנה מידה לפי "1:N" ורוחב הגיליון: רוחב אמיתי = גיליון × N; מחולק בגורם החיתוך כשהשוליים כבר הוסרו */
 function applySheetRatio(quiet) {
   const a = S.planAuto; if (!a || !(a.ratio > 0)) return;
   S.scale = (a.sheetMm / 1000 * a.ratio / 1400) / (S.cropK || 1);
   CAL.pts = []; save(); render();
-  toast((quiet ? '📐 נמצא בטבלת הכותרת 1:' + a.ratio + ' — הוחל לפי גיליון ' + sheetName(a.sheetMm) : '✓ קנה מידה 1:' + a.ratio + ' על גיליון ' + sheetName(a.sheetMm)) + ' · אם הגיליון אחר, שנה אותו למטה');
+  toast(a.from === 'pdf' ? '📐 קנה המידה 1:' + a.ratio + ' נמצא בתכנית והוזן לבד (דף PDF ברוחב ' + a.sheetMm + ' מ״מ)' : (quiet ? '📐 נמצא בתכנית 1:' + a.ratio + ' — הוחל לפי גיליון ' + sheetName(a.sheetMm) : '✓ קנה מידה 1:' + a.ratio + ' על גיליון ' + sheetName(a.sheetMm)) + ' · אם הגיליון אחר, שנה אותו למטה');
 }
 function sheetName(mm) { return ({ 297: 'A4', 420: 'A3', 594: 'A2', 841: 'A1', 1189: 'A0' })[mm] || (mm + ' מ״מ'); }
 function setSheet(mm) { if (!S.planAuto) return; S.planAuto.sheetMm = +mm; applySheetRatio(false); }
@@ -1091,7 +1096,8 @@ async function uploadPlan(inp) {
 /* PDF: הדף הראשון → תמונה; קנה מידה = "1:N" משכבת הטקסט × רוחב הדף במ״מ */
 async function planFromPdf(f) {
   if (!window.pdfjsLib) { await liteLoadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
-  const doc = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+  const bytes = new Uint8Array(await f.arrayBuffer());
+  const doc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
   const pg = await doc.getPage(1), vp1 = pg.getViewport({ scale: 1 });
   const k = Math.min(3, 2400 / vp1.width), vp = pg.getViewport({ scale: k });
   const cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
@@ -1101,10 +1107,13 @@ async function planFromPdf(f) {
   let auto = null;
   try {
     const tc = await pg.getTextContent(); const txt = tc.items.map(i => i.str).join(' ').replace(/[∶：]/g, ':');
-    const m = /(?:^|[^\d.,])1\s*[:\/]\s*(\d{2,4})(?![\d.,])/.exec(txt);
-    if (m && +m[1] >= 10 && +m[1] <= 2000) auto = { widthM: pageWmm / 1000 * +m[1], note: 'PDF · 1:' + m[1] + ' על דף ' + Math.round(pageWmm) + ' מ״מ' + (doc.numPages > 1 ? ' · דף 1 מתוך ' + doc.numPages : '') };
+    /* רק כשכתוב בשכבת הטקסט ערך אחד ויחיד: כמה ערכים (תכנית 1:100 + פרט 1:20, טבלת יחסי חניה) הולכים למנוע המהיר, שיודע להבחין ביניהם */
+    const vals = new Set(); const rx = /(?:^|[^\d.,])1\s*:\s*(\d{2,4})(?![\d.,])/g; let m; while ((m = rx.exec(txt))) { if (+m[1] >= 10 && +m[1] <= 2000) vals.add(+m[1]); }
+    if (vals.size === 1) { const n = [...vals][0]; auto = { widthM: pageWmm / 1000 * n, note: 'PDF · 1:' + n + ' על דף ' + Math.round(pageWmm) + ' מ״מ' + (doc.numPages > 1 ? ' · דף 1 מתוך ' + doc.numPages : '') }; }
   } catch (e) { console.warn('pdf text', e); }
-  planSet(cv.toDataURL('image/jpeg', 0.85), auto);
+  const url = cv.toDataURL('image/jpeg', 0.85);
+  PDFCTX = { url, pg, pageMm: [Math.round(pageWmm), Math.round(vp1.height * 25.4 / 72)] }; KOSCAN.setPdf(bytes, url);
+  planSet(url, auto);
 }
 /* DXF: LINE / LWPOLYLINE / POLYLINE+VERTEX / CIRCLE / ARC משורטטים בשחור על לבן; יחידות מ-$INSUNITS (4=מ״מ, 5=ס״מ, 6=מ׳, 1=אינץ׳, 2=רגל) */
 function dxfParse(text) {
@@ -1415,6 +1424,7 @@ function applyCropBox(box, silent, msg) {
     map(z); z.w *= k; z.h *= k;
   });
   (S.suggest || []).forEach(r => { map(r); r.w *= k; r.h *= k; });
+  S.prop = null;
   if (S.scale) S.scale = S.scale / k;
   S.cropK = (S.cropK || 1) * k;   /* כמה הגיליון המקורי גדול מהתכנית החתוכה — לקנה מידה לפי "1:N" וגודל גיליון */
   S.layout = null; S.wireEdits = null;
@@ -1434,6 +1444,39 @@ function sizeRulers() {
     el.style.width = Math.min(w, (m / S.scale) / S.planW * w) + 'px';
   });
 }
+/* ---------- הצעת אזורים אוטומטית (אורי, 22.11.2026: "את הסימון אזורים תציע ישר, תראה איך זה נראה ותשאל אם להתחיל מזה או לא") ----------
+   ברגע שיש תכנית מכוילת ועוד אין אזורים, מנוע האזורים של KO Projects רץ פעם אחת לכל תכנית; התוצאה מצוירת על התכנית בכתום
+   כהצעה בלבד, והמשתמש עונה: להתחיל מזה, או לסמן בעצמו */
+const PROP = { busy: false };
+function planKey() { return S.plan ? S.plan.length + ':' + S.plan.slice(-40) : ''; }
+function maybePropose() {
+  if (PROP.busy || SCAN.busy || CROP.on || !S.plan || !S.scale || S.zones.length || S.prop || (S.step !== 2 && S.step !== 3)) return;
+  const key = planKey(); if (!key || S.propFor === key) return;
+  S.propFor = key; PROP.busy = true; render();
+  KOSCAN.zones().then(zs => {
+    if (planKey() !== key || S.zones.length) return;
+    S.prop = (zs || []).filter(z => z.poly && z.poly.length >= 3).slice(0, 14).map((z, i) => { const xs = z.poly.map(q => q.x), ys = z.poly.map(q => q.y);
+      return { name: z.name && !/^אזור \d+$/.test(z.name) ? z.name : 'אזור ' + (i + 1), m2: z.m2, poly: z.poly, x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }; });
+    if (!S.prop.length) S.prop = null;
+  }).catch(e => console.warn('propose zones', e)).finally(() => { PROP.busy = false; save(); render(); });
+}
+function propCard() {
+  if (PROP.busy) return '<div class="aicard" style="background:#fff4e5;border-color:#ff8a00"><b>🧩 מסמן אזורים על התכנית…</b><small>מזהה את החדרים לפי הקירות והכיתובים — כמה שניות. מיד תראה את ההצעה.</small></div>';
+  const pr = S.prop || []; if (!pr.length) return '';
+  return '<div class="aicard" style="background:#fff4e5;border-color:#ff8a00"><b>💡 סימנתי ' + pr.length + (pr.length === 1 ? ' אזור' : ' אזורים') + ' — כך זה נראה על התכנית (בכתום)</b>' +
+    '<small>' + pr.map(z => esc(z.name) + (z.m2 ? ' · ' + Math.round(z.m2) + ' מ"ר' : '')).join(' | ') + '</small>' +
+    '<div style="font-weight:800;margin:10px 0 8px">להתחיל מהסימון הזה?</div>' +
+    '<div class="row"><button class="go" style="flex:1" onclick="propAccept()">✓ כן, להתחיל מזה</button><button class="ghost" style="flex:1" onclick="propReject()">✕ לא, אסמן בעצמי</button></div>' +
+    '<small style="display:block;margin-top:8px">אם תתחיל מזה — אפשר אחר כך לתקן כל צורה, למחוק אזור או להוסיף.</small></div>';
+}
+function propAccept() {
+  const pr = S.prop || []; if (!pr.length) return;
+  S.zones = pr.map(z => ({ id: uid(), name: z.name, purpose: null, spl: usePeak(), poly: z.poly.map(q => ({ x: q.x, y: q.y })), x: z.x, y: z.y, w: z.w, h: z.h }));
+  S.prop = null; S.layout = null; S.active = 0; save();
+  toast('✓ מתחילים מהסימון הזה — עכשיו בחר מה קורה בכל אזור');
+  if (S.step === 3) render(); else go(3);
+}
+function propReject() { S.prop = null; save(); render(); toast('בסדר — סמן את האזורים בעצמך'); }
 function autoDetect(img) {
   try {
     const res = analysePlan(img);
@@ -1480,6 +1523,11 @@ function drawPlan() {
       <line x1="${bx}" y1="${y + 38}" x2="${bx + bar}" y2="${y + 38}" stroke="#ff6a3d" stroke-width="5"/>
       <text x="${w / 2}" y="${y + 70}" text-anchor="middle" font-size="22" font-weight="800" fill="#ff6a3d">5 מ׳</text>`;
   }
+  /* אזורים מוצעים (עוד לא אושרו): כתום מקווקו, עם שם ושטח */
+  (S.prop || []).forEach(z => {
+    out += `<path d="M${z.poly.map(q => q.x.toFixed(1) + ' ' + q.y.toFixed(1)).join('L')}Z" fill="#ff8a0030" stroke="#ff8a00" stroke-width="5" stroke-dasharray="16 10" stroke-linejoin="round" pointer-events="none"/>
+      <text x="${z.x + z.w / 2}" y="${z.y + z.h / 2 + 9}" text-anchor="middle" font-size="26" font-weight="800" fill="#b35a00" stroke="#fff" stroke-width="6" paint-order="stroke" pointer-events="none">${esc(z.name)}${S.scale ? ' · ' + Math.round(z.m2 || 0) + ' מ"ר' : ''}</text>`;
+  });
   S.zones.forEach((z, i) => {
     const p = purposeOf(z), b = zoneBox(z);
     out += `<g data-zone="${i}" style="cursor:move">
@@ -1638,7 +1686,7 @@ function stepZones() {
     <h2>איפה צריך מוזיקה?</h2>
     <p class="sub">נסמן את השטח שבו אנשים ישמעו מוזיקה. אם יש כמה חלקים עם אופי שונה — נסמן כל אחד בנפרד,
     וכל אחד יקבל עוצמה משלו (ישיבה שקטה, רחבה חזקה).</p>
-    ` + wb(`
+    ` + wb(propCard() + `
     <div class="emptyzone">
       <div class="ic">📍</div>
       <b>נתחיל מהאזור הראשון</b>
