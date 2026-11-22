@@ -644,7 +644,7 @@ async function planTextScan(opts) {
       } catch (e) { console.warn('pt ocr fallback', e); } }
     items.sort((a, b) => a.v - b.v || a.u - b.u);
     const prev = P.planText || {};
-    P.planText = { layerInfo: window.__ptLayerInfo && src === 'pdf' ? window.__ptLayerInfo.filter(l => l.paths).map(l => l.name) : undefined, ocrAdded, items, at: new Date().toISOString(), v: 2, src, show: prev.show !== false, cats: prev.cats || { audience: 1, ops: 1, service: 1, furniture: 0, level: 1, other: 0 }, tokens: tokens.length };
+    P.planText = { layerInfo: window.__ptLayerInfo && src === 'pdf' ? window.__ptLayerInfo.filter(l => l.paths).map(l => l.name) : undefined, ocrAdded, items, at: new Date().toISOString(), v: 2, src, show: prev.show !== false, marks: prev.marks === true, cats: prev.cats || { audience: 1, ops: 1, service: 1, furniture: 0, level: 1, other: 0 }, tokens: tokens.length };
     if (ptScale) { P.planText.scale = ptScale; if (P.calSrc !== 'manual' && typeof asApplyRatioN === 'function') asApplyRatioN(ptScale.n, null, 'ocr'); }   /* נכנס לשדה קנה המידה; מוחל כשאין כיול ידני */
     save(); render();
     const cnt = ptCounts();
@@ -656,14 +656,18 @@ function ptCounts() { const c = {}; ((P.planText || {}).items || []).forEach(i =
 /* מיקום כיתוב בקואורדינטות הקנבס */
 function ptPos(it) { const W = P.bgW || 1400, H = bgHeightPx(); return { x: bgLeft() + it.u * W, y: bgTop() + it.v * H, w: it.w * W, h: it.h * H }; }
 function ptInZone(z) { return ((P.planText || {}).items || []).filter(it => inZone(z, ptPos(it))); }
-/* הכיתובים על התכנית — תווית צבעונית לפי קטגוריה, רק לקטגוריות המסומנות */
+/* הכיתובים על התכנית — תווית צבעונית לפי קטגוריה, רק לקטגוריות המסומנות.
+   כבויות כברירת מחדל (אורי, 22.11.2026: "אני לא רוצה לראות את הסימונים האלה, זה מפריע לי לראות את התכנית"): התוויות מכסות את הכיתוב המקורי
+   של השרטוט. מוצגות רק כשהודלקו במפורש בפאנל הכיתובים (pt.marks); בלי זה — רק הכיתוב שנבחר ברשימה, כדי למצוא אותו על התכנית.
+   הדגל הישן pt.show נכתב true בכל סריקה ולכן אינו מעיד על בחירה של המשתמש */
 function ptMarksSVG() {
   if (!PT_CATS) return '';
-  const pt = P.planText; if (!pt || !pt.items || !pt.items.length || pt.show === false || !P.bg || calMode) return '';
+  const pt = P.planText; if (!pt || !pt.items || !pt.items.length || !P.bg || calMode) return '';
+  const all = pt.marks === true; if (!all && window.__ptFocus == null) return '';
   const fz = Math.max(9, 11 / getZ());
   let out = '';
   pt.items.forEach((it, i) => {
-    if (!pt.cats[it.cat]) return;
+    if (all ? !pt.cats[it.cat] : window.__ptFocus !== i) return;
     const { x, y, w } = ptPos(it), col = (PT_CATS[it.cat] || PT_CATS.other).c, foc = window.__ptFocus === i;
     /* המלבן המקווקו סביב הכיתוב (גבולות חדר משוערים) בלבל — נראה כמו אזור. מוצג רק אם הודלק במפורש (pt.boxes); התווית עצמה נשארת (אורי, 21.11.2026) */
     if (it.bw && pt.boxes) { const Wb = P.bgW || 1400, Hb = bgHeightPx(), zq = it.zw ? [it.zu, it.zv, it.zw, it.zh] : [it.bu, it.bv, it.bw, it.bh]; out += `<rect x="${bgLeft() + zq[0] * Wb}" y="${bgTop() + zq[1] * Hb}" width="${zq[2] * Wb}" height="${zq[3] * Hb}" rx="6" fill="${col}" fill-opacity="${foc ? 0.22 : 0.1}" stroke="${col}" stroke-width="${(foc ? 3 : 1.6) / getZ()}" stroke-dasharray="${7 / getZ()} ${4 / getZ()}" style="pointer-events:none"/>`; }
@@ -1531,7 +1535,7 @@ function ptPanelHTML() {
     <button style="width:100%" ${busy ? 'disabled' : ''} onclick="planTextScan()">${busy ? '⏳ קורא כיתובים…' : pt ? '🔤 סרוק שוב את הכיתובים' : '🔤 קרא את הכיתובים בתכנית'}</button>`;
   if (pt && pt.items) {
     h += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${Object.entries(PT_CATS).map(([c, m]) => `<label style="display:flex;align-items:center;gap:3px;font-size:10.5px;cursor:pointer;padding:1px 6px;border-radius:10px;background:${m.c}22;border:1px solid ${m.c}"><input type="checkbox" style="width:auto;margin:0" ${pt.cats[c] ? 'checked' : ''} onchange="P.planText.cats['${c}']=this.checked?1:0;save();render()">${m.ic} ${m.n} <b>${cnt[c] || 0}</b></label>`).join('')}</div>
-    <div style="display:flex;gap:4px;margin-top:6px"><button style="flex:1" onclick="P.planText.show=!(P.planText.show!==false);save();render()">${pt.show === false ? '👁 הצג על התכנית' : '🙈 הסתר מהתכנית'}</button><button style="flex:1" onclick="ptMakeZones()" title="אזור סאונד לכל כיתוב קהל — לפי גבולות החדר שסביבו (קירות בשרטוט)">🗺 אזורים סביב כיתובי הקהל</button><button style="flex:1;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="ptPartition()" title="כל חלל בין קירות = אזור (חוץ משירותים/מטבח/מחסן) — מוזיקה בכל מקום שיש בו לקוחות">🧩 חלק את כל החלל לאזורים</button>${(P.zones || []).some(z => z.fromText) ? `<button onclick="uiConfirm('לבנות מחדש את האזורים שנוצרו מהכיתובים? (אזורים שציירת ידנית נשארים)').then(ok=>{if(ok)ptMakeZones(true)})" title="מוחק את האזורים שנוצרו מכיתובים ובונה אותם שוב">🔄</button>` : ''}</div>
+    <div style="display:flex;gap:4px;margin-top:6px"><button style="flex:1" onclick="P.planText.marks=!(P.planText.marks===true);save();render()">${pt.marks === true ? '🙈 הסתר מהתכנית' : '👁 הצג על התכנית'}</button><button style="flex:1" onclick="ptMakeZones()" title="אזור סאונד לכל כיתוב קהל — לפי גבולות החדר שסביבו (קירות בשרטוט)">🗺 אזורים סביב כיתובי הקהל</button><button style="flex:1;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="ptPartition()" title="כל חלל בין קירות = אזור (חוץ משירותים/מטבח/מחסן) — מוזיקה בכל מקום שיש בו לקוחות">🧩 חלק את כל החלל לאזורים</button>${(P.zones || []).some(z => z.fromText) ? `<button onclick="uiConfirm('לבנות מחדש את האזורים שנוצרו מהכיתובים? (אזורים שציירת ידנית נשארים)').then(ok=>{if(ok)ptMakeZones(true)})" title="מוחק את האזורים שנוצרו מכיתובים ובונה אותם שוב">🔄</button>` : ''}</div>
     <details style="margin-top:4px"><summary class="muted" style="cursor:pointer">כל הכיתובים (${pt.items.length}) — לחיצה מסמנת על התכנית</summary><div style="max-height:180px;overflow:auto;font-size:10.5px">`;
     for (const [c, m] of Object.entries(PT_CATS)) {
       const its = pt.items.map((it, i) => ({ it, i })).filter(x => x.it.cat === c); if (!its.length) continue;
