@@ -10641,6 +10641,8 @@ function renderPanel() {
         <button style="width:100%;margin:-2px 0 8px;${window.__bgFit ? 'background:#0f6e56;color:#fff;font-weight:700' : 'background:#eef7f1;border-color:#0f6e56;color:#0f6e56'}" onclick="bgFitMode()" title="הרקע הופך לשכבה נגררת עם ידית גודל — המוקדים והקווים נשארים במקומם, והכיול מתעדכן לפי שינוי הגודל">🧭 ${window.__bgFit ? 'במצב התאמה — Enter לאישור' : 'התאם את הרקע לפריסה — גרור ושנה גודל'}</button>
         <div class="fld"><label>שקיפות</label>
           <input type="range" min="0.1" max="1" step="0.05" value="${P.bgOp ?? 0.5}" oninput="P.bgOp=+this.value;renderBg()" onchange="save()"></div>
+        <div class="fld"><label>מילוי האזורים — ${Math.round((+(P.zoneOp ?? 0) || 0) * 100)}%</label>
+          <input type="range" min="0" max="1" step="0.05" value="${+(P.zoneOp ?? 0) || 0}" title="כמה צבע ממלא את האזורים על התכנית. 0 = רק קו המתאר, והשרטוט שמתחת נראה" oninput="P.zoneOp=+this.value;this.previousElementSibling.textContent='מילוי האזורים — '+Math.round(this.value*100)+'%';renderZones()" onchange="save()"></div>
         <button style="width:100%;margin-bottom:8px" onclick="rotateBg()">↻ סובב תכנית 90° · כרגע: ${P.bgRot || 0}°</button>
         <div style="border:2px solid ${P.scale ? '#0f6e56' : '#c9502e'};border-radius:10px;padding:10px;margin:0 0 8px;background:${P.scale ? '#eef7f1' : '#fdeee8'}">
           <div style="font-weight:800;color:${P.scale ? '#0f6e56' : '#c9502e'};margin-bottom:4px">${P.scale ? '✓ קנה מידה מכויל' : '⚠ התכנית עדיין לא מכוילת'}</div>
@@ -16401,6 +16403,9 @@ function zoneArea(z) {
 /* רוחב תווית אזור לפי מדידת הטקסט בגופן של הדף (+ ריפוד) — בלי לנחש לפי מספר תווים */
 let _zlblCtx = null;
 function zlblMeasure(t, font) { if (!_zlblCtx) _zlblCtx = document.createElement('canvas').getContext('2d'); _zlblCtx.font = font + ' ' + (getComputedStyle(document.body).fontFamily || 'sans-serif'); return Math.ceil(_zlblCtx.measureText(t || '').width) + 18; }
+/* שקיפות המילוי של האזורים (אורי, 22.11.2026: "תוסיף לי פיידר להוריד ולהרים את השקיפות של האזור, ותתחיל שהאזור הוא ב-0"):
+   P.zoneOp בין 0 ל-1, ברירת המחדל 0 — רק קו המתאר, כדי שהתכנית שמתחת תיראה. 1 = מילוי של 50% (יותר מזה מסתיר את השרטוט) */
+function zoneFillHex() { const v = Math.max(0, Math.min(1, +(P.zoneOp ?? 0) || 0)); return Math.round(v * 0.5 * 255).toString(16).padStart(2, '0'); }
 function renderZones() {
   const host = $('#zonesc');
   host.innerHTML = '';
@@ -16410,7 +16415,7 @@ function renderZones() {
   zs.forEach(z => {
     if (!z.poly) return;
     const c = zColor(z);
-    svgp += `<polygon points="${z.poly.map(p => p.x + ',' + p.y).join(' ')}" fill="${c}22" stroke="${c}" stroke-width="2.5" stroke-dasharray="8 5" ${selZone === z.id ? `style="filter:drop-shadow(0 0 4px ${c})"` : ''}/>`;
+    svgp += `<polygon points="${z.poly.map(p => p.x + ',' + p.y).join(' ')}" fill="${c}${zoneFillHex()}" stroke="${c}" stroke-width="2.5" stroke-dasharray="8 5" ${selZone === z.id ? `style="filter:drop-shadow(0 0 4px ${c})"` : ''}/>`;
   });
   /* קירות: סגור-קשה=קו עבה כהה, סגור-רך=חום בינוני, פתוח=מקווקו אפור. ממוספרים לפוליגון. */
   const wallLine = (x1, y1, x2, y2, w, num) => {
@@ -16506,7 +16511,7 @@ function renderZones() {
     }
     const d = document.createElement('div');
     d.className = 'zone';
-    d.style.cssText = `right:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;border-color:${c};background:${c}1f;${selZone === z.id ? 'box-shadow:0 0 0 3px ' + c + '66;' : ''}`;
+    d.style.cssText = `right:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;border-color:${c};background:${c}${zoneFillHex()};${selZone === z.id ? 'box-shadow:0 0 0 3px ' + c + '66;' : ''}`;
     d.innerHTML = `<span class="zlbl" data-zdrag="${z.id}" title="לחיצה — חזרה לתכנון האזור · גרירה — הזזת האזור" style="background:${c};cursor:pointer">🗺 ${esc(z.name)}${zLblUsage(z) ? ' · ' + esc(zLblUsage(z)) : ''}${dims}</span>
       <span data-zdrag="${z.id}" title="גרור להזזת האזור" style="position:absolute;left:-9px;top:-9px;width:20px;height:20px;border-radius:50%;background:${c};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:grab;box-shadow:0 1px 3px rgba(0,0,0,.35);z-index:2">✥</span>
       <span class="zsz" data-zsize="${z.id}" style="background:${c}"></span>`;
@@ -17529,6 +17534,13 @@ function installKitRows(ctx) {
 /* ימי טכנאי: מחושב מהדקות (עיגול מעלה ליום שלם), ואורי יכול לקבוע מספר ימים לפרויקט (P._instDays) */
 function installDaysAuto(tMin) { return tMin > 0 ? Math.max(1, Math.ceil(tMin / 60 / 8)) : 0; }
 function installDays(tMin) { return P._instDays > 0 ? +P._instDays : installDaysAuto(tMin); }
+/* מחיר התקנה שנקבע ידנית (אורי, 22.11.2026: "אני צריך שתוסיף שדה פתוח לקביעת המחיר גלובלית"): מחיר כולל אחד שגובר על החישוב
+   (פירוט הסעיפים / ימי טכנאי). נשמר לפרויקט, בנפרד לשורת ההתקנה של ההצעה ("p") ולכל קיט שהטבלה נפתחה ממנו ("k:<שם הקיט>") —
+   כדי שמחיר שנקבע לקיט אחד לא יחול בשקט על קיט אחר */
+function installFixKey() { return window.__instKit ? 'k:' + String(window.__instKit.name || '').slice(0, 60) : 'p'; }
+function installFixed() { const v = +((P._instFix || {})[installFixKey()]); return v > 0 ? v : 0; }
+function installSetFixed(v) { v = Math.round(+v || 0); P._instFix = P._instFix || {}; if (v > 0) P._instFix[installFixKey()] = v; else delete P._instFix[installFixKey()]; save(); installTbl(); }
+window.installSetFixed = installSetFixed;
 /* הוספת סעיף לחישוב: סעיף חופשי, או סעיף שירות/עבודה מהקטלוג (ERP) עם המחיר שלו */
 function installSvcCands(q) {
   const toks = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
@@ -17598,7 +17610,7 @@ function installTbl() {
   const dayRate = +(store.installDayRate ?? 1500);
   const daysAuto = installDaysAuto(tMin), days = installDays(tMin), daysManual = P._instDays > 0;
   const dayMode = store.installDayMode === true;
-  const dayTotal = days * dayRate;
+  const dayTotal = days * dayRate, fix = installFixed(), calcTotal = dayMode ? dayTotal : Math.round(tPrice);
   el.innerHTML = `<table class="cablelist" style="font-size:11.5px"><tr><th></th><th>סעיף</th><th>יח׳</th><th>כמות</th><th>דק׳/יח׳</th><th>₪/יח׳</th><th>סה"כ</th><th></th></tr>${rows}</table>
     <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;margin-top:8px;background:#faf8f4;border-radius:8px;padding:6px 8px">
       <input type="checkbox" style="width:auto" ${dayMode ? 'checked' : ''} onchange="store.installDayMode=this.checked;save();installTbl()">
@@ -17608,11 +17620,17 @@ function installTbl() {
       שעת צוות <input type="number" value="${crewRate}" style="width:64px;font-size:11.5px" onchange="store.installCrewRate=+this.value||650;save();installTbl()"> ₪ · <button style="font-size:11px;padding:2px 8px" onclick="installRates().forEach(r=>{if(!r.priceM)r.price=Math.round((+r.min||0)/60*(+(store.installCrewRate??650)))});save();installTbl()" title="מחשב מחדש את ₪/יח׳ בכל השורות שאינן ידניות לפי הדקות והתעריף">↻ חשב מחירים מהדקות</button>
     </label>
     <div style="display:flex;gap:6px;margin-top:6px">
-      <div onclick="store.installDayMode=true;save();installTbl()" title="לחץ לבחירת תמחור לפי ימי טכנאי" style="cursor:pointer;flex:1;background:${dayMode ? '#eef7f1' : '#f7f5f0'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'outline:2px solid #0f6e56' : 'opacity:.75'}"><b style="font-size:17px">${dayMode ? '✓ ' : ''}₪${dayTotal.toLocaleString()}</b><br><small class="muted">${days} ימי טכנאי × ₪${dayRate.toLocaleString()}${daysManual ? ' · נקבע ידנית' : ''}</small></div>
+      <div onclick="store.installDayMode=true;installSetFixed(0)" title="לחץ לבחירת תמחור לפי ימי טכנאי" style="cursor:pointer;flex:1;background:${dayMode && !fix ? '#eef7f1' : '#f7f5f0'};border-radius:9px;padding:8px;text-align:center;${dayMode && !fix ? 'outline:2px solid #0f6e56' : 'opacity:.75'}"><b style="font-size:17px">${dayMode && !fix ? '✓ ' : ''}₪${dayTotal.toLocaleString()}</b><br><small class="muted">${days} ימי טכנאי × ₪${dayRate.toLocaleString()}${daysManual ? ' · נקבע ידנית' : ''}</small></div>
       <div style="flex:1;background:#f7f5f0;border-radius:9px;padding:8px;text-align:center"><b style="font-size:17px">${hours.toFixed(1)} שע׳</b><br><small class="muted">זמן מחושב → ${daysAuto} ימים (שלמים)</small></div>
-      <div onclick="store.installDayMode=false;save();installTbl()" title="לחץ לבחירת תמחור לפי פירוט הסעיפים" style="cursor:pointer;flex:1;background:${dayMode ? '#f7f5f0' : '#eef7f1'};border-radius:9px;padding:8px;text-align:center;${dayMode ? 'opacity:.75' : 'outline:2px solid #0f6e56'}"><b style="font-size:17px">${dayMode ? '' : '✓ '}₪${Math.round(tPrice).toLocaleString()}</b><br><small class="muted">לפי פירוט סעיפים</small></div>
+      <div onclick="store.installDayMode=false;installSetFixed(0)" title="לחץ לבחירת תמחור לפי פירוט הסעיפים" style="cursor:pointer;flex:1;background:${dayMode || fix ? '#f7f5f0' : '#eef7f1'};border-radius:9px;padding:8px;text-align:center;${dayMode || fix ? 'opacity:.75' : 'outline:2px solid #0f6e56'}"><b style="font-size:17px">${dayMode || fix ? '' : '✓ '}₪${Math.round(tPrice).toLocaleString()}</b><br><small class="muted">לפי פירוט סעיפים</small></div>
     </div>
-    <p class="muted" style="font-size:10.5px;margin:4px 0 0">לחיצה על כרטיס בוחרת את בסיס המחיר — הוא שייכנס לשורת ההתקנה בהצעה.</p>`;
+    <div style="display:flex;gap:8px;align-items:center;margin-top:6px;border-radius:9px;padding:8px 10px;background:${fix ? '#eef7f1' : '#faf8f4'};${fix ? 'outline:2px solid #0f6e56' : 'border:1px dashed #cfc8b8'}">
+      <b style="font-size:12.5px;white-space:nowrap">${fix ? '✓ ' : ''}💰 מחיר התקנה שאני קובע</b>
+      <span style="white-space:nowrap;font-weight:700">₪ <input id="instFixIn" type="number" min="0" step="50" value="${fix || ''}" placeholder="${calcTotal}" style="width:104px;font-size:14px;font-weight:700" title="מחיר כולל להתקנה — גובר על החישוב שלמעלה. ריק = לפי החישוב" onchange="installSetFixed(this.value)" onkeydown="if(event.key==='Enter')this.blur()"></span>
+      <small class="muted" style="flex:1">${fix ? 'זה המחיר שייכנס ' + (window.__instKit ? 'לסעיף ההתקנה בקיט' : 'לשורת ההתקנה בהצעה') + ' (החישוב: ₪' + calcTotal.toLocaleString() + ')' : 'הקלד מחיר כולל כדי לקבוע אותו בעצמך — במקום החישוב'}</small>
+      ${fix ? '<button style="font-size:11px;padding:2px 8px;white-space:nowrap" onclick="installSetFixed(0)" title="חזרה למחיר המחושב">↺ לפי החישוב</button>' : ''}
+    </div>
+    <p class="muted" style="font-size:10.5px;margin:4px 0 0">לחיצה על כרטיס בוחרת את בסיס המחיר — הוא שייכנס לשורת ההתקנה בהצעה. מחיר שקבעת בעצמך גובר על שניהם.</p>`;
 }
 function installAddToOffer() {
   const rates = installRates(), cnt = installCounts();
@@ -17625,9 +17643,11 @@ function installAddToOffer() {
     tMin += qty * (+r.min || 0);
     det.push(qty + '× ' + r.label.slice(0, 30));
   });
-  if (!total && !tMin) { uiToast('אין סעיפי התקנה פעילים'); return; }
+  const fixP = installFixed();
+  if (!total && !tMin && !fixP) { uiToast('אין סעיפי התקנה פעילים'); return; }
   /* המודל המסחרי: ימי טכנאי שלמים × התעריף היומי (ברירת מחדל) */
-  if (store.installDayMode === true) {
+  if (fixP) total = fixP;   /* מחיר שנקבע ידנית — גובר; הפירוט (כמויות הסעיפים) נשאר בהערה */
+  else if (store.installDayMode === true) {
     const dayRate = +(store.installDayRate ?? 1500);
     const days = Math.max(1, installDays(tMin));
     total = days * dayRate;
@@ -19512,14 +19532,51 @@ holder.classList.add('rp-zoomable');
     /* ליד כל מוקד: גובה ההתקנה וסוג הכבל בקיצור (2×2.5 · Cat6 · XLR) — תווית קטנה מתחת לאייקון, רק בצילום הזה */
     try { const crA = $('#canvas').getBoundingClientRect(), ZA = getZ(), hostA = $('#nodes');
       const cabShort = c => { const t = String((c.spec || '') + ' ' + (cableKindLabel(c) || '')); const m = /(\d)\s?[xX×]\s?(\d+(?:\.\d+)?)/.exec(t); if (m) return m[1] + '×' + m[2]; if (/cat\s?6a/i.test(t)) return 'Cat6a'; if (/cat\s?6/i.test(t)) return 'Cat6'; if (/cat\s?5/i.test(t)) return 'Cat5e'; if (/xlr/i.test(t)) return 'XLR'; if (/hdmi/i.test(t)) return 'HDMI'; if (/dmx/i.test(t)) return 'DMX'; if (/אופטי|fiber/i.test(t)) return 'אופטי'; if (/חשמל|power|מתח/i.test(t)) return 'חשמל'; return (cableKindLabel(c) || '').split(' ')[0]; };
-      P.nodes.filter(n => n.kind === 'point' && !n.hidden).forEach(n => { const el = document.getElementById('ndo_' + n.id) || document.getElementById('nd_' + n.id); if (!el) return; const rr = el.getBoundingClientRect(); if (!rr.width) return;
+      /* תוויות קטנות, לצד המוקד, ובלי לעלות על שום דבר (אורי, 22.11.2026: "הדוח לחשמלאים לא מספיק ברור — תקטין את מידת הכבל ואת גובה המוצר,
+         שיהיה קטן ולצד הרמקול; לא ייתכן שאף כיתוב יעלה על אף כיתוב או על כבל אחר או על אייקון"):
+         (1) הגודל נקבע לפי ההגדלה של הצילום (האזור נחתך ומוגדל עד פי 3) — כך שבדוח הכיתוב יוצא ~7.5px ולא 25px;
+         (2) לכל מוקד נבחר המקום הפנוי הראשון סביבו — ימין, שמאל, מתחת, מעל, אלכסונים, ואז טבעת רחוקה יותר עם קו מוביל דק;
+             "פנוי" = לא נוגע באייקון אחר, בתווית אחרת, בתג מספר של כבל ולא בקו כבל (הקווים נדגמים לאורכם) */
+      let kEst = 1; { let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity; const ad = rb => { if (!rb.width && !rb.height) return; L = Math.min(L, (rb.left - crA.left) / ZA); T = Math.min(T, (rb.top - crA.top) / ZA); R = Math.max(R, (rb.right - crA.left) / ZA); B = Math.max(B, (rb.bottom - crA.top) / ZA); };
+        document.querySelectorAll('#nodes > .node').forEach(el => ad(el.getBoundingClientRect()));
+        document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') !== 'transparent') ad(pth.getBoundingClientRect()); });
+        (P.zones || []).forEach(z => { try { const zb = zoneBounds(z); if (zb && zb.W > 0) { L = Math.min(L, zb.L); T = Math.min(T, zb.T); R = Math.max(R, zb.L + zb.W); B = Math.max(B, zb.T + zb.H); } } catch {} });
+        if (L < Infinity && R - L > 50 && B - T > 30) kEst = Math.min(3, 950 / (R - L + 48), 1300 / (B - T + 48)); }
+      const sc = Math.min(1, 0.9 / Math.max(0.3, kEst)), toC = rb => ({ L: (rb.left - crA.left) / ZA, T: (rb.top - crA.top) / ZA, R: (rb.right - crA.left) / ZA, B: (rb.bottom - crA.top) / ZA });
+      const pts = P.nodes.filter(n => n.kind === 'point' && !n.hidden).map(n => { const el = document.getElementById('ndo_' + n.id) || document.getElementById('nd_' + n.id); if (!el) return null; const ic = el.querySelector('.mic') || el, rr = ic.getBoundingClientRect(); if (!rr.width) return null; return { n, I: toC(rr) }; }).filter(Boolean);
+      /* מכשולים: כל האייקונים, תגי המספרים של הכבלים, ונקודות לאורך קווי הכבלים */
+      const boxes = [...document.querySelectorAll('#nodes > .node')].map(el => { const ic = el.querySelector('.mic') || el, rb = ic.getBoundingClientRect(); return rb.width ? { ...toC(rb), id: el.id.replace(/^ndo?_/, '') } : null; }).filter(Boolean);
+      document.querySelectorAll('#wires rect, #wires circle, #wires text').forEach(el => { const rb = el.getBoundingClientRect(); if (rb.width && rb.width < 400 * ZA) boxes.push(toC(rb)); });
+      const wpt = []; document.querySelectorAll('#wires path[stroke]').forEach(pth => { if (pth.getAttribute('stroke') === 'transparent' || pth.getAttribute('fill') && pth.getAttribute('fill') !== 'none') return; let len = 0; try { len = pth.getTotalLength(); } catch { return; } const st = Math.max(2, 3.5 * sc), m = pth.getScreenCTM(); if (!m) return;
+        for (let d = 0; d <= len; d += st) { const p = pth.getPointAtLength(d); wpt.push((m.a * p.x + m.c * p.y + m.e - crA.left) / ZA, (m.b * p.x + m.d * p.y + m.f - crA.top) / ZA); } });
+      const hits = (r, own) => { const g = 0.8 * sc, L = r.L - g, T = r.T - g, R = r.R + g, B = r.B + g; let c = 0;
+        for (const b of boxes) if (b.id !== own && b.L < R && b.R > L && b.T < B && b.B > T) c += 6;
+        for (let i = 0; i < wpt.length; i += 2) if (wpt[i] > L && wpt[i] < R && wpt[i + 1] > T && wpt[i + 1] < B) c++;
+        return c; };
+      let lead = '', nFree = 0, nForced = 0; const lb4 = [Infinity, Infinity, -Infinity, -Infinity];
+      pts.forEach(({ n, I }) => {
         const sub = /סאב|\bsub\b|וופר/i.test(n.name || ''), isSpk = isSpkPtype(n) && isSpeakerItem(n.name || '');
         const hg = n.hgt != null && n.hgt !== '' ? +n.hgt : (isSpk ? (sub ? 0 : 2.6) : null);
         const cabs = [...new Set((P.cables || []).filter(c => c.from === n.id || c.to === n.id).map(cabShort).filter(Boolean))];
         const parts = []; if (hg != null) parts.push('↕' + hg + ' מ׳'); if (cabs.length) parts.push(cabs.join(' · ')); if (!parts.length) return;
         const lb = document.createElement('div'); lb.className = 'rpTmpLbl'; lb.dataset.hl = '1'; lb.textContent = parts.join(' · ');
-        lb.style.cssText = 'position:absolute;z-index:9;white-space:nowrap;font-size:8.5px;font-weight:700;color:#1a1e28;background:rgba(255,255,255,.92);border:1px solid #8d8370;border-radius:4px;padding:0 4px;line-height:12px;pointer-events:none;direction:rtl;left:' + ((rr.left + rr.right) / 2 - crA.left) / ZA + 'px;top:' + ((rr.bottom - crA.top) / ZA + 2) + 'px;transform:translateX(-50%)';
-        hostA.appendChild(lb); }); } catch (e) { console.warn('plan labels', e); }
+        lb.style.cssText = 'position:absolute;z-index:9;white-space:nowrap;font-size:8.5px;font-weight:700;color:#1a1e28;background:rgba(255,255,255,.94);border:1px solid #8d8370;border-radius:3px;padding:0 3px;line-height:11px;pointer-events:none;direction:rtl;left:0;top:0;transform-origin:0 0;transform:scale(' + sc.toFixed(3) + ')';
+        hostA.appendChild(lb);
+        const w = lb.offsetWidth * sc, h = lb.offsetHeight * sc, cx = (I.L + I.R) / 2, cy = (I.T + I.B) / 2, g0 = 1.5 * sc;
+        let best = null;
+        for (let j = 0; j < 4 && !(best && !best.c); j++) { const d = g0 + j * (h + g0);
+          const cands = [[I.R + d, cy - h / 2], [I.L - d - w, cy - h / 2], [cx - w / 2, I.B + d], [cx - w / 2, I.T - d - h], [I.R + d * 0.6, I.B + d * 0.6], [I.L - d * 0.6 - w, I.B + d * 0.6], [I.R + d * 0.6, I.T - d * 0.6 - h], [I.L - d * 0.6 - w, I.T - d * 0.6 - h]];
+          for (const [x, y] of cands) { if (x < 0 || y < 0 || x + w > 2200 || y + h > 1400) continue; const c = hits({ L: x, T: y, R: x + w, B: y + h }, n.id) + j * 0.01; if (!best || c < best.c) best = { x, y, c, j }; if (c < 1) break; } }
+        if (!best) { lb.remove(); return; }
+        if (best.c < 1) nFree++; else nForced++;
+        lb.style.left = best.x + 'px'; lb.style.top = best.y + 'px';
+        boxes.push({ L: best.x, T: best.y, R: best.x + w, B: best.y + h });
+        if (best.j > 0) { const tx = Math.max(best.x, Math.min(cx, best.x + w)), ty = Math.max(best.y, Math.min(cy, best.y + h)), sx = Math.max(I.L, Math.min(tx, I.R)), sy = Math.max(I.T, Math.min(ty, I.B));
+          lead += '<line x1="' + sx + '" y1="' + sy + '" x2="' + tx + '" y2="' + ty + '" stroke="#8d8370" stroke-width="' + (0.7 * sc).toFixed(2) + '"/>';
+          lb4[0] = Math.min(lb4[0], sx, tx); lb4[1] = Math.min(lb4[1], sy, ty); lb4[2] = Math.max(lb4[2], sx, tx); lb4[3] = Math.max(lb4[3], sy, ty); } });
+      if (lead) { const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', 'rpTmpLbl'); sv.setAttribute('data-hl', '1'); const x0 = lb4[0] - 1, y0 = lb4[1] - 1, ww = lb4[2] - lb4[0] + 2, hh = lb4[3] - lb4[1] + 2; sv.setAttribute('viewBox', x0 + ' ' + y0 + ' ' + ww + ' ' + hh); sv.style.cssText = 'position:absolute;left:' + x0 + 'px;top:' + y0 + 'px;width:' + ww + 'px;height:' + hh + 'px;overflow:visible;pointer-events:none;z-index:8'; sv.innerHTML = lead; hostA.appendChild(sv); }
+      window.__rpLblDbg = { n: pts.length, free: nFree, forced: nForced, scale: +sc.toFixed(3), kEst: +kEst.toFixed(2) };
+    } catch (e) { console.warn('plan labels', e); }
     /* חיתוך לגבולות הרלוונטיים: המוקדים, הקווים, האזורים והתוויות — בלי שולי הרקע הריקים */
     let regAll = reg0;
     { const crB = $('#canvas').getBoundingClientRect(), ZB = getZ(); let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;

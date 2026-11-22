@@ -7166,5 +7166,21 @@
  "✕ לא, אסמן בעצמי": "✕ No, I will mark it myself",
  "או אזור-אזור": "or zone by zone",
  "נמצא בתכנית והוזן לבד": "was found on the plan and entered automatically",
- "ממשיכים לסימון האזורים": "continuing to zone marking"
+ "ממשיכים לסימון האזורים": "continuing to zone marking",
+ "מחיר כולל להתקנה": "Total installation price",
+ "גובר על החישוב שלמעלה": "overrides the calculation above",
+ "ריק = לפי החישוב": "empty = by the calculation",
+ "חזרה למחיר המחושב": "Back to the calculated price",
+ "💰 מחיר התקנה שאני קובע": "💰 Installation price I set",
+ "זה המחיר שייכנס": "This is the price that goes",
+ "לסעיף ההתקנה בקיט": "into the kit installation line",
+ "לשורת ההתקנה בהצעה": "into the installation line of the offer",
+ "החישוב": "calculated",
+ "הקלד מחיר כולל כדי לקבוע אותו בעצמך": "Type a total price to set it yourself",
+ "במקום החישוב": "instead of the calculation",
+ "↺ לפי החישוב": "↺ By the calculation",
+ "מחיר שקבעת בעצמך גובר על שניהם": "A price you set yourself overrides both",
+ "מילוי האזורים": "Zone fill",
+ "כמה צבע ממלא את האזורים על התכנית": "How much colour fills the zones on the plan",
+ "רק קו המתאר, והשרטוט שמתחת נראה": "outline only, the drawing underneath stays visible"
 }
