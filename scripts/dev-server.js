@@ -8,7 +8,7 @@ import { execFile } from 'node:child_process';
 import { stat, readdir, readFile, writeFile } from 'node:fs/promises';
 import { makeStorage } from './storage.js';
 import { openStore, readStore, writeStore } from './db.js';
-import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks, inviteForSignup, signupEmailCheck, erpTokenKey, ownerEmailsSet } from './auth.js';
+import { isLocal, requestUser, sessionUser, handleAuth, handleOwnerLink, filterStore, mergeStore, publicUser, initAuth, authRefresh, isAdmin, canErpPull, erpSignIn, erpLinkedUsers, endErpSessions, setAuthHooks, inviteForSignup, signupEmailCheck, erpTokenKey, ownerEmailsSet } from './auth.js';
 import { erpLoginAvailable, loginStart, loginCallback, BIND_COOKIE, saveUserTokens, forgetUserTokens, startErpSync, searchErpUsers, accessTokenFor, requestSignupLink } from './erp-login.js';
 import { erpQuotes, erpQuoteItems, erpOrdersIndex } from './erp-client.js';
 import { handleErp } from './erp-routes.js';
@@ -171,12 +171,12 @@ setAuthHooks({
   searchErpUsers: q => searchErpUsers(process.env, storage, q)
 });
 /* בשם מי פונים ל-ERP: הטוקן של האדם שנכנס עם KO ERP (גם הבעלים, אם נכנס כך — לכל מייל בעלים טוקן משלו, 'owner:'+erp). בלעדיו — { personal:false, reason } */
-async function erpCaller(me) {
+async function erpCaller(me, opts) {
   const uidT = erpTokenKey(me);
   const name = me.name || me.email || '';
   /* בעל המערכת בלי מייל ERP מוגדר: "כניסה עם KO ERP" לא תקשר אותו (תיווצר בקשת גישה ממתינה) — מפנים ל-/admin במקום ללולאה */
   if (!uidT) return { personal: false, name, reason: me.role === 'owner' && !ownerEmailsSet() ? 'owner_email_missing' : 'not_signed_in' };
-  if (me.erpCanOffer === false) return { personal: false, name, reason: me.erpOffersRefusal || 'account_not_allowed' };
+  if (me.erpCanOffer === false && !(opts && opts.read)) return { personal: false, name, reason: me.erpOffersRefusal || 'account_not_allowed' };   /* קריאת הצעות לא תלויה בהרשאת יצירת הצעות של חשבון ה-ERP */
   const t = await accessTokenFor(process.env, storage, uidT);
   if (!t.ok) return { personal: false, name, reason: t.reason === 'signin' ? 'signin_again' : 'erp_unreachable' };
   return { personal: true, name, auth: { url: t.base + '/api/mcp', token: t.token } };
@@ -419,12 +419,14 @@ const handleReq = async (req, res) => {
     } catch (e) { res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: String(e.message || e) })); }
     return;
   }
-  /* --- הצעות מחיר מה-ERP (חי, דרך MCP) — בעלים בלבד --- */
+  /* --- הצעות מחיר מה-ERP (חי, דרך MCP) — הבעלים, ומשתמש שהותר לו במפורש ב-/admin ("משיכת הצעות מה-ERP") ---
+     משתמש שאינו הבעלים קורא רק בטוקן של עצמו (כניסה עם KO ERP) — רואה מה שחשבון ה-ERP שלו רואה; הטוקן המשותף משמש רק את הבעלים */
   if (path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items') {
-    if (!isOwner) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{"error":"owner only"}'); return; }
+    if (!isOwner && !canErpPull(me)) { res.writeHead(403, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: 'המשתמש שלך לא הורשה למשוך הצעות מה-ERP — פנה לבעל המערכת' })); return; }
+    if (!isOwner) { const c0 = await erpCaller(me, { read: true }); if (!c0.personal) { res.writeHead(401, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: 'כדי למשוך הצעות מה-ERP היכנס עם KO ERP', need_signin: true })); return; } }
     const sp = new URL(req.url, 'http://x').searchParams;
     try {
-      const c = await caller(), auth = c.personal ? c.auth : undefined;   /* בעלים בלבד: של האדם אם נכנס עם KO ERP, אחרת המשותף */
+      const c = isOwner ? await caller() : await erpCaller(me, { read: true }), auth = c.personal ? c.auth : undefined;   /* של האדם אם נכנס עם KO ERP; לבעלים בלי כניסה — המשותף */
       const out = path0 === '/api/erp/quotes'
         ? { quotes: await erpQuotes({ q: sp.get('q') || '', all: sp.get('all') === '1' }, auth) }
         : { items: await erpQuoteItems(sp.get('order_id') || '', auth) };

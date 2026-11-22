@@ -36,7 +36,8 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
   var fmt = function (t) { if (!t) return '—'; var d = new Date(t); return isNaN(d) ? '—' : d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }); };
   /* מי רשאי ליצור הצעות ב-ERP — לכל משתמש: לפי התפקיד (ברירת מחדל) / מותר / חסום */
-  function erpOffersSel(u) { var by = (u.role === 'admin' || u.role === 'pm') ? 'מותר' : 'חסום', v = u.erpOffers === true ? '1' : u.erpOffers === false ? '0' : ''; return '<br><select data-erpoffers="' + esc(u.id) + '" style="margin-top:4px' + (u.canErpOffers ? '' : ';color:#8c2f16') + '" title="מי רשאי ליצור הצעות מחיר ב-ERP מתוך KO Projects. בלי קביעה — לפי התפקיד: אדמין ומנהל פרויקטים כן, משתמש חיצוני לא. גם מי שהורשה צריך להיכנס עם KO ERP, וה-ERP עצמו צריך לאפשר לו הצעות">' + [['', 'הצעות ב-ERP: לפי התפקיד (' + by + ')'], ['1', 'הצעות ב-ERP: מותר'], ['0', 'הצעות ב-ERP: חסום']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === v ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'; }
+  function erpOffersSel(u) { var by = (u.role === 'admin' || u.role === 'pm') ? 'מותר' : 'חסום', v = u.erpOffers === true ? '1' : u.erpOffers === false ? '0' : ''; return '<br><select data-erpoffers="' + esc(u.id) + '" style="margin-top:4px' + (u.canErpOffers ? '' : ';color:#8c2f16') + '" title="מי רשאי ליצור הצעות מחיר ב-ERP מתוך KO Projects. בלי קביעה — לפי התפקיד: אדמין ומנהל פרויקטים כן, משתמש חיצוני לא. גם מי שהורשה צריך להיכנס עם KO ERP, וה-ERP עצמו צריך לאפשר לו הצעות">' + [['', 'כתיבת הצעות ל-ERP: לפי התפקיד (' + by + ')'], ['1', 'כתיבת הצעות ל-ERP: מותר'], ['0', 'כתיבת הצעות ל-ERP: חסום']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === v ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'
+      + '<br><select data-erppull="' + esc(u.id) + '" style="margin-top:4px' + (u.erpPull ? '' : ';color:#8c2f16') + '" title="מי רשאי לראות ולמשוך הצעות קיימות מה-ERP לתוך פרויקט. עד עכשיו רק בעל המערכת. מי שהותר לו רואה את ההצעות שחשבון ה-ERP שלו רואה, וצריך להיכנס עם KO ERP">' + [['', 'משיכת הצעות מה-ERP: חסום'], ['1', 'משיכת הצעות מה-ERP: מותר']].map(function (o) { return '<option value="' + o[0] + '"' + ((o[0] === '1') === !!u.erpPull ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'; }
   function post(url, b) { return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then(function (r) { return r.json(); }); }
   var PUB = '';   /* כתובת השרת בענן — לקישור הכניסה שנשלח עם סיסמה חדשה */
   function loadCfg() {
@@ -162,6 +163,7 @@ button.warn{background:#fdeee8;color:#8c2f16;border-color:#f3c9bd}button.ok{back
       if (document.querySelector('button[data-approve="' + t.dataset.role + '"]')) return;   /* בקשה ממתינה: התפקיד נשלח עם "אשר" */
       post('/api/admin/user', { id: t.dataset.role, action: 'role', role: t.value }).then(load); return;
     }
+    if (t.dataset.erppull) { post('/api/admin/user', { id: t.dataset.erppull, action: 'erpPull', value: t.value === '1' ? true : null }).then(load); return; }
     if (t.dataset.erpoffers) { post('/api/admin/user', { id: t.dataset.erpoffers, action: 'erpOffers', value: t.value === '1' ? true : t.value === '0' ? false : null }).then(load); return; }
     if (t.dataset.erprole) return;
     if (!t.dataset.grant) return;

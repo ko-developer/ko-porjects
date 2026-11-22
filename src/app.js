@@ -14979,6 +14979,8 @@ const ERP_ST = { pending_customer_confirmation: ['ממתינה לאישור לק
 /* שם ההצעה כפי שנרשם ב-ERP — כשלא ניתן שם, השדה מכיל את שם המסלול (אספקת סחורה / פרויקט ללקוח…) ואז הכותרת היא הלקוח */
 function erpQTitle(q) { return q.track && !/מסלול/.test(q.track) ? q.track : ''; }
 function erpStatus(q) { const s = ERP_ST[q.status] || [q.confirmed ? 'מאושרת' : (q.status || '—'), q.confirmed ? '#0f6e56' : '#888']; return s; }
+/* מי רואה את כפתור משיכת ההצעות מה-ERP: הבעלים, ומי שהותר לו ב-/admin (canErpPull מגיע עם פרטי המשתמש; השרת בודק שוב) */
+function erpPullAllowed() { const u = window.__AUTH && window.__AUTH.user; return !u || u.role === 'owner' || !!u.canErpPull; }
 function erpQuotesDialog() {
   const ov = uiModal(`<div id="erpQBox"><b style="font-size:15px">🧾 הצעת מחיר מה-ERP → לתכנית</b>
     <p class="muted" style="font-size:12px;margin:6px 0 8px;line-height:1.5">בחר הצעת מחיר קיימת — הפריטים שלה נכנסים להצעה בפרויקט הזה, ומשם מציבים אותם על התכנית (גרירה או 📍).</p>
@@ -17132,7 +17134,7 @@ function zoneSystemBuilder(z) {
         <option value="">— או בחר קיט מהרשימה (${kits.length}) —</option>
         ${kits.map(x => `<option value="${x.i}">${x.rec ? '⭐ ' : ''}${esc((x.k.name + (kitStdDiff(x.k) ? ' — ' + kitStdName(x.k) : '')).slice(0, 70))}</option>`).join('')}
       </select></div>` : ''}
-      ${typeof erpQuotesDialog === 'function' && !(window.__AUTH && window.__AUTH.user && window.__AUTH.user.role !== 'owner') ? `<button style="width:100%;margin:2px 0 6px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="selZone='${zid}';erpQuotesDialog()" title="הפריטים של הצעת מחיר קיימת ב-ERP נכנסים להצעה ומוצבים באזור הזה — כמו בחירת קיט">🧾 או מהצעת מחיר קיימת ב-ERP → הצב באזור</button>` : ''}`;
+      ${typeof erpQuotesDialog === 'function' && erpPullAllowed() ? `<button style="width:100%;margin:2px 0 6px;background:#eef7f1;border-color:#0f6e56;color:#0f6e56;font-weight:700" onclick="selZone='${zid}';erpQuotesDialog()" title="הפריטים של הצעת מחיר קיימת ב-ERP נכנסים להצעה ומוצבים באזור הזה — כמו בחירת קיט">🧾 או מהצעת מחיר קיימת ב-ERP → הצב באזור</button>` : ''}`;
     })()}
     ${res.length ? `<div style="max-height:120px;overflow-y:auto;margin-bottom:6px">${res.map(r => { const isSub = /סאב|sub|NOMOS|TILL\s?18|SB-?18|וופר/i.test(r.name); return `<button style="display:flex;gap:6px;align-items:center;width:100%;text-align:right;margin-bottom:3px;font-size:11px" onclick="pickZoneSpk('${zid}','${jsq(r.name)}','${r.key || ''}',${isSub})"><span style="flex:1;text-align:right">${isSub ? '🔈 סאב' : '🔊 רמקול'}: ${esc(r.name.slice(0, 36))}</span>${stockTag(r.key)}</button>`; }).join('')}</div>` : ''}
     <div class="fld"><label>רמקול נבחר</label><div style="font-size:12px">${z._spk ? zoneSpkPinBtn(z, false) + '🔊 ' + esc(z._spk) : '— (בחר מהחיפוש) —'}</div></div>

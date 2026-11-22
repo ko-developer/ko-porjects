@@ -7193,5 +7193,7 @@
  "כל כבל מצויר כקשת מקצה לקצה": "each cable is drawn as an arc from end to end",
  "כבוי = מסלול בזוויות ישרות לאורך הקירות": "Off = right-angle routes along the walls",
  "◠ כבלים בקשתות": "◠ Cables as arcs",
- "במקום זוויות ישרות": "instead of right angles"
+ "במקום זוויות ישרות": "instead of right angles",
+ "המשתמש שלך לא הורשה למשוך הצעות מה-ERP": "Your user is not permitted to pull offers from the ERP",
+ "כדי למשוך הצעות מה-ERP היכנס עם KO ERP": "To pull offers from the ERP, sign in with KO ERP"
 }
