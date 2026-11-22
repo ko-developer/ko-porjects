@@ -3277,6 +3277,8 @@ function viewMenuHTML() {
       <input type="checkbox" style="width:auto" ${P.snapOff ? '' : 'checked'} onchange="P.snapOff=!this.checked;save()"><span style="flex:1">🧲 הצמדה ויישור בגרירה (Alt = מיקום חופשי)</span></label>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="צבע משלו לכל קו, כבלים שרצים יחד מצוירים זה לצד זה ולא זה על זה, תג מספר אחד לכל כבל ונקודה בכל חיבור. כבוי = התצוגה הרגילה (צבע לפי סוג הכבל)">
       <input type="checkbox" style="width:auto" ${wireClearOn() ? 'checked' : ''} onchange="store.wireClear=this.checked;save();renderWires()"><span style="flex:1">🧵 כבלים ברורים — צבע לכל קו ומסלולים מקבילים</span></label>
+    <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="קשתות: כל כבל מצויר כקשת מקצה לקצה. כבוי = מסלול בזוויות ישרות לאורך הקירות">
+      <input type="checkbox" style="width:auto" ${P.route === 'ortho' ? '' : 'checked'} onchange="P.route=this.checked?'curve':'ortho';save();render()"><span style="flex:1">◠ כבלים בקשתות (במקום זוויות ישרות)</span></label>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;cursor:pointer;border-radius:5px;background:rgba(255,255,255,.06)" title="הילות ותגי הצינורות/התעלות על הקווים">
       <input type="checkbox" style="width:auto" ${P.hideConduits ? '' : 'checked'} onchange="P.hideConduits=!this.checked;renderWires();save()"><span style="flex:1">🛤 צנרת — צינורות ותעלות על הקווים</span></label>
     <label style="display:flex;gap:6px;align-items:center;color:#fff;font-size:12px;padding:4px 6px;margin-bottom:4px;border-radius:5px;background:rgba(255,255,255,.06)" title="מוקדים/פאנלים שהונחו על אותה נקודה — איך לסדר אותם">
@@ -5921,6 +5923,8 @@ function renderWires() {
   /* צרור: כבלים שעוברים באותו צינור בין אותן שתי קופסאות מצוירים כמו מולטי — מסלול אחד, תווית אחת (3–6), בלי פסים נפרדים */
   const grpFirst = {};
   items.forEach(it => { const c = it.c; if (!c.conduit) return; const k = c.conduit + '|' + c.from + '|' + c.to; if (!grpFirst[k]) { grpFirst[k] = it; it.gmem = [c]; } else { grpFirst[k].gmem.push(c); it.gof = grpFirst[k]; } });
+  /* מרכז התכנית (ממוצע קצות הכבלים) — הקשתות בולטות לכיוונו */
+  const arcCtr = items.length ? { x: items.reduce((t, it) => t + it.pa.x + it.pb.x, 0) / (2 * items.length), y: items.reduce((t, it) => t + it.pa.y + it.pb.y, 0) / (2 * items.length) } : { x: 1100, y: 700 };
   /* הקצאת נתיבים אנכיים ואופקיים ללא חפיפה (מצב מעגל חשמלי) */
   const lanes = [], hlanes = [];
   for (const it of items) {
@@ -5977,8 +5981,14 @@ function renderWires() {
       it.bx = mx;
       it.by = Math.abs(pa.y - pb.y) < 10 ? pa.y - 16 : (pa.y + pb.y) / 2 + (c.bend?.dy || 0);
     } else {
-      it.mx = (pa.x + pb.x) / 2 + off + (c.bend?.dx || 0);
-      it.by = (pa.y + pb.y) / 2 + off + (c.bend?.dy || 0);
+      /* קשתות (אורי, 22.11.2026: "תן לי את היכולת להפוך את הסימונים של הכבלים לקשתות"): כל כבל קשת מקצה לקצה, שבולטת לכיוון מרכז התכנית
+         (ולא החוצה, מעבר לקיר), ביחס לאורך הכבל. כבלים בין אותם שני מוקדים מקבלים בליטה הולכת וגדלה. גרירת הקו (bend) גוברת */
+      let ax = 0, ay = 0;
+      if (clear && !c.bend) { const L0 = Math.hypot(pb.x - pa.x, pb.y - pa.y) || 1, nx = -(pb.y - pa.y) / L0, ny = (pb.x - pa.x) / L0, mx0 = (pa.x + pb.x) / 2, my0 = (pa.y + pb.y) / 2;
+        const sg = ((arcCtr.x - mx0) * nx + (arcCtr.y - my0) * ny) >= 0 ? 1 : -1, bul = Math.max(10, Math.min(70, L0 * 0.17)) + Math.abs(off) * 4;
+        ax = nx * sg * bul; ay = ny * sg * bul; }
+      it.mx = (pa.x + pb.x) / 2 + (ax ? 0 : off) + (c.bend?.dx || 0) + ax;
+      it.by = (pa.y + pb.y) / 2 + (ax ? 0 : off) + (c.bend?.dy || 0) + ay;
       it.bx = it.mx;
     }
   }
@@ -6043,6 +6053,7 @@ function renderWires() {
   { const skSvg = document.getElementById('sketchsvg'); if (skSvg) { if (sketchMode) skSvg.innerHTML = ''; else { skSvg.innerHTML = out.slice(skStart); out = out.slice(0, skStart); } } }
   /* בזום גבוה העיגולים מתכווצים ביחס הפוך — שלא יסתירו את המוצרים */
   const ZW = getZ() || 1, shrink = Math.min(1, 1.6 / ZW);
+  if (clear) out += `<defs><marker id="ahc" viewBox="0 0 10 10" refX="9.2" refY="5" markerUnits="userSpaceOnUse" markerWidth="${(8.5 * shrink).toFixed(1)}" markerHeight="${(8.5 * shrink).toFixed(1)}" orient="auto-start-reverse"><path d="M0.5 1.2L9.5 5L0.5 8.8z" fill="context-stroke" stroke="#fff" stroke-width="0.8"/></marker></defs>`;
   /* קופסאות פתוחות (פאנלים/ארונות) שאינן קצה של הכבל הן מכשול: קטע אנכי שחוצה אחת מהן עוקף אותה מהצד הקרוב */
   const obst = P.nodes.filter(n => false && n.kind === 'rack').map(n => { const b = nodeBox(n); return { id: n.id, L: 2200 - b.x - b.w, R: 2200 - b.x, T: b.y, B: b.y + (b.h || 0) }; });
   const detCnt = {};
@@ -6127,8 +6138,8 @@ function renderWires() {
     /* קצה שמחובר למכשיר בארון או למחבר ספציפי בפאנל — הקו נכנס ישר, בלי חץ ובלי עיגול
        (המספר מוצג על נקודת החיבור עצמה בתוך הפאנל/הגב) */
     const aUnit = !!unitOf(c.from, c.fromUnit) || !!c.fromHole, bUnit = !!unitOf(c.to, c.toUnit) || !!c.toHole;
-    const mEnd = bUnit ? '' : ' marker-end="url(#ah)"';
-    const mStart = (c.dir === 'both' && !aUnit) ? ' marker-start="url(#ah)"' : '';
+    const mEnd = bUnit ? '' : ` marker-end="url(#${clear ? 'ahc' : 'ah'})"`;
+    const mStart = (c.dir === 'both' && !aUnit) ? ` marker-start="url(#${clear ? 'ahc' : 'ah'})"` : '';
     if (clear && !it.cdRouted) out += `<path d="${dpath}" fill="none" stroke="#fff" stroke-width="${selw + 2.6}" stroke-linecap="round" stroke-linejoin="round" opacity="0.9" style="pointer-events:none"/>`;   /* שוליים לבנים */
     out += `<path d="${dpath}" fill="none"stroke="transparent" stroke-width="14" style="pointer-events:stroke;cursor:pointer" onclick="pickCable('${c.id}')"/>`;
     out += `<path d="${dpath}" fill="none" stroke="${col}" stroke-width="${it.cdRouted ? Math.min(selw, (c.id === selCable ? 1.6 : 0.55) * cdK()) : selw}"${instDash ? ` stroke-dasharray="${instDash}"` : ''}${mStart}${mEnd} opacity="0.9" style="pointer-events:none"/>`;
@@ -6159,7 +6170,7 @@ function renderWires() {
         <circle cx="${bx3.toFixed(1)}" cy="${by3.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="${col}" stroke-width="${(c.id === selCable ? 3 : 2) * shrink}"/>
         <text x="${bx3.toFixed(1)}" y="${(by3 + fs * 0.36).toFixed(1)}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="800" fill="${col}" style="user-select:none">${lbl}</text></g>`;
     };
-    const clrLbl = clear && ortho && !it.cdRouted;   /* התוויות והידיות מצוירות אחרי ההזזה, על המסלול הסופי */
+    const clrLbl = clear && !it.cdRouted;   /* התוויות והידיות מצוירות אחרי ההזזה, על המסלול הסופי (בקשתות — רק נקודות הקצה; התג שבאמצע הקשת נשאר) */
     if (!clrLbl) out += handle(pa.x, pa.y, 'from') + handle(pb.x, pb.y, 'to');
     /* מלבן פינה עם מספר הכבל בתוכו — במקום עיגול נפרד על הקו; לחיצה בוחרת את הכבל, גרירה מזיזה את הפינה */
     const grpLbl = mem => { const ns = mem.map(x => LBL[x.id]).filter(v => v != null); const nums = ns.map(Number); if (nums.every(v => !isNaN(v))) { nums.sort((a2, b2) => a2 - b2); const consec = nums.every((v, j) => j === 0 || v === nums[j - 1] + 1); return consec && nums.length > 2 ? nums[0] + '–' + nums[nums.length - 1] : nums.join(','); } return ns.join(','); };
@@ -6187,12 +6198,17 @@ function renderWires() {
     const D = {}; G.forEach(g => { const d = g.pts ? 'M' + g.pts.map(q => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L ') : g.it.dp; D[g.it.c.id] = d; WIREGEO[g.it.c.id] = d; });
     out = out.replace(/\u0001([^\u0001]*)\u0001/g, (m, id) => D[id] || '');
     const placed = [];
-    for (const g of G) { const it = g.it, c = it.c, pts = g.pts; if (!pts || it.lblS == null) continue; const col = it.col, n = pts.length;
-      /* קצוות: נקודה מלאה (צומת ברור) + אזור אחיזה לגרירה */
-      [['from', pts[0]], ['to', pts[n - 1]]].forEach(([end, q]) => { const toUnit = !!unitOf(c[end], c[end + 'Unit']) || !!(end === 'from' ? c.fromHole : c.toHole);
-        if (!toUnit && !it.gof) out += `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="${Math.max(2.2, 3.4 * shrink).toFixed(1)}" fill="${col}" stroke="#fff" stroke-width="${(1.3 * shrink).toFixed(1)}" style="pointer-events:none"/>`;
+    /* סאב וטופ שמעליו יושבים באותה נקודה בתכנית, ושלושה כבלים נכנסים לשם — ליד כל קצה כתוב למי הוא שייך ("סאב" / "טופ") */
+    const cplRole = nid => { const nd = byId(nid); if (!nd || nd.kind !== 'point') return ''; if (nd.att && nd.att.cpl && byId(nd.att.id)) return 'טופ'; return P.nodes.some(o => !o.hidden && o.att && o.att.cpl && o.att.id === nid) ? 'סאב' : ''; };
+    for (const g of G) { const it = g.it, c = it.c, pts = g.pts; if (it.lblS == null) continue; const col = it.col, n = pts ? pts.length : 0;
+      /* קצוות: נקודה מלאה בתחילת הכבל, חץ בסופו (צומת ברור) + אזור אחיזה לגרירה */
+      [['from', pts ? pts[0] : [it.pa.x, it.pa.y], pts ? pts[1] : [it.bx, it.by]], ['to', pts ? pts[n - 1] : [it.pb.x, it.pb.y], pts ? pts[n - 2] : [it.bx, it.by]]].forEach(([end, q, prev]) => { const toUnit = !!unitOf(c[end], c[end + 'Unit']) || !!(end === 'from' ? c.fromHole : c.toHole);
+        const role = it.gof ? '' : cplRole(c[end]);
+        if (role) { const dx = prev[0] - q[0], dy = prev[1] - q[1], L1 = Math.hypot(dx, dy) || 1, fz = Math.max(3.4, 5.6 * shrink), tx = q[0] + dx / L1 * fz * 2.4 - dy / L1 * fz * 1.5, ty = q[1] + dy / L1 * fz * 2.4 + dx / L1 * fz * 1.5;
+          out += `<text x="${tx.toFixed(1)}" y="${(ty + fz * 0.35).toFixed(1)}" text-anchor="middle" font-size="${fz.toFixed(1)}" font-weight="800" fill="${col}" stroke="#fff" stroke-width="${(fz * 0.45).toFixed(1)}" paint-order="stroke" style="pointer-events:none;user-select:none">${role}</text>`; }
+        if (!toUnit && !it.gof && end === 'from') out += `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="${Math.max(2.2, 3.4 * shrink).toFixed(1)}" fill="${col}" stroke="#fff" stroke-width="${(1.3 * shrink).toFixed(1)}" style="pointer-events:none"/>`;
         out += `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="${Math.max(7, 10 * shrink)}" fill="transparent" style="pointer-events:all;cursor:grab" data-cend="${c.id}|${end}"><title>גרור למכשיר אחר</title></circle>`; });
-      if (it.gof) continue;   /* חבר בצרור — התווית והידיות פעם אחת, על הראשון */
+      if (it.gof || !pts) continue;   /* חבר בצרור — התווית והידיות פעם אחת, על הראשון; בקשת אין פינות */
       /* ידיות הפינות — במקום שבו היו תגי הפינה, על המסלול המוזז */
       const hs = Math.max(4, 6 * shrink), hnd = (i, attrs, cur, tip) => { const q = pts[i]; if (!q) return ''; placed.push([q[0] - hs, q[1] - hs, q[0] + hs, q[1] + hs]); return `<rect x="${(q[0] - hs / 2).toFixed(1)}" y="${(q[1] - hs / 2).toFixed(1)}" width="${hs}" height="${hs}" rx="1.5" fill="#fff" stroke="${col}" stroke-width="1.2" ${attrs} style="pointer-events:all;cursor:${cur}"><title>${tip}</title></rect>`; };
       const near = (x, y) => { let bi = -1, bd = 1e9; g.orig.forEach((q, i) => { if (i === 0 || i === n - 1) return; const d = Math.hypot(q[0] - x, q[1] - y); if (d < bd) { bd = d; bi = i; } }); return bd < 3 ? bi : -1; };

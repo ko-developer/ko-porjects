@@ -5591,7 +5591,7 @@
  "כמה פנסים על": "how many fixtures on",
  "על": "on",
  "לא מכויל": "not calibrated",
- "קשתות": "arcs",
+ "קשתות": "Arcs",
  "המדידה במטרים": "measurement in meters",
  "📐 לחץ על נקודת ההתחלה, ואז נקודה לכל קטע": "📐 Click the start point, then a point per segment",
  "קשת": "arc",
@@ -7189,5 +7189,9 @@
  "🧵 כבלים ברורים": "🧵 Clear cables",
  "צבע לכל קו ומסלולים מקבילים": "a colour per line and parallel tracks",
  "המשתמש שלך לא הורשה ליצור הצעות ב-ERP מכאן": "Your user is not permitted to create ERP offers from here",
- "פנה לבעל המערכת": "contact the system owner"
+ "פנה לבעל המערכת": "contact the system owner",
+ "כל כבל מצויר כקשת מקצה לקצה": "each cable is drawn as an arc from end to end",
+ "כבוי = מסלול בזוויות ישרות לאורך הקירות": "Off = right-angle routes along the walls",
+ "◠ כבלים בקשתות": "◠ Cables as arcs",
+ "במקום זוויות ישרות": "instead of right angles"
 }
