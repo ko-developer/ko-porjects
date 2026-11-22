@@ -7182,5 +7182,10 @@
  "מחיר שקבעת בעצמך גובר על שניהם": "A price you set yourself overrides both",
  "מילוי האזורים": "Zone fill",
  "כמה צבע ממלא את האזורים על התכנית": "How much colour fills the zones on the plan",
- "רק קו המתאר, והשרטוט שמתחת נראה": "outline only, the drawing underneath stays visible"
+ "רק קו המתאר, והשרטוט שמתחת נראה": "outline only, the drawing underneath stays visible",
+ "צבע משלו לכל קו, כבלים שרצים יחד מצוירים זה לצד זה ולא זה על זה, תג מספר אחד לכל כבל ונקודה בכל חיבור": "Each line gets its own colour, cables that run together are drawn side by side instead of on top of each other, one number tag per cable and a dot at every connection",
+ "כבוי = התצוגה הרגילה": "Off = the regular view",
+ "צבע לפי סוג הכבל": "colour by cable type",
+ "🧵 כבלים ברורים": "🧵 Clear cables",
+ "צבע לכל קו ומסלולים מקבילים": "a colour per line and parallel tracks"
 }
