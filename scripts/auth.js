@@ -175,7 +175,7 @@ async function clearSession(req, res) {
 
 /* --- מה משתמש רואה --- */
 export function publicUser(u) {
-  return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local, erp: !!u.erpId, pending: !!u.pending, emailUnverified: !!u.emailUnverified, hasPw: !!u.hash } : null;
+  return u ? { id: u.id, email: u.email, name: u.name, role: u.role, grants: u.grants || {}, blocked: !!u.blocked, local: !!u.local, erp: !!u.erpId, pending: !!u.pending, emailUnverified: !!u.emailUnverified, hasPw: !!u.hash, erpOffers: u.erpOffers === true ? true : u.erpOffers === false ? false : null, canErpOffers: canErpOffers(u) } : null;
 }
 /* store מסונן למשתמש מוזמן: רק הפרויקטים שהוענקו לו (עם דגל הרשאה בכל פרויקט) */
 /* תפקידים: owner = הגישה המקומית (הכול) · admin = צופה ועורך הכול · pm = מנהל פרויקטים KO: רואה הכול, עורך את שלו ומה שהוענק לו
@@ -184,6 +184,9 @@ export const ROLES = ['admin', 'pm', 'user'];
 export const ROLE_HE = { owner: 'בעלים', admin: 'אדמין — צופה ועורך הכול', pm: 'מנהל פרויקטים KO — רואה הכול, עורך את שלו', user: 'משתמש חיצוני — רק מה ששותף איתו' };
 export const isAdmin = u => !!u && (u.role === 'owner' || u.role === 'admin');
 export const isStaff = u => !!u && (u.role === 'owner' || u.role === 'admin' || u.role === 'pm');
+/* מי רשאי ליצור הצעות ב-ERP מכאן (אורי, 22.11.2026: "אני צריך לאפשר ליוזרים לייצר הצעות ב-ERP וכאלה שלא"): הבעלים תמיד;
+   לכל משתמש אפשר לקבוע במפורש ב-/admin (u.erpOffers = true / false); בלי קביעה — לפי התפקיד, כמו עד עכשיו (אדמין ומנהל פרויקטים כן, משתמש חיצוני לא) */
+export const canErpOffers = u => !!u && (u.role === 'owner' || u.erpOffers === true || (u.erpOffers !== false && (u.role === 'admin' || u.role === 'pm')));
 /* אובייקט המשתמש של הבקשה עלול להשתייך לעותק DB שרענון רקע כבר החליף (authRefresh כל 10 שניות רץ במקביל לקריאת ה-store) —
    שינוי הרשאות חייב להיעשות על האובייקט החי, אחרת persist() כותב את ה-DB החדש בלי ההרשאה (כך אבדה הרשאה על פרויקט חדש ב-16.11) */
 function liveUser(user) { if (!user || user.id === 'owner') return user; try { return load().users.find(x => x.id === user.id) || user; } catch { return user; } }
@@ -475,6 +478,7 @@ export async function handleAuth(req, res, path, store) {
       else if (b.action === 'unblock') u.blocked = false;
       else if (b.action === 'delete') { db.users = db.users.filter(x => x.id !== u.id); db.deleted.users.push(u.id); dropSessions(); }
       else if (b.action === 'role') { u.role = ROLES.includes(b.role) ? b.role : 'user'; dropSessions(); }
+      else if (b.action === 'erpOffers') { if (b.value === true) u.erpOffers = true; else if (b.value === false) u.erpOffers = false; else delete u.erpOffers; }   /* null = לפי התפקיד */
       else if (b.action === 'approve') { u.pending = false; u.role = ROLES.includes(b.role) ? b.role : 'user'; }   /* בקשת גישה מ-KO ERP: נכנס בפעם הבאה */
       else if (b.action === 'reject') { db.users = db.users.filter(x => x.id !== u.id); db.deleted.users.push(u.id); dropSessions(); }   /* admin רואה את כל הפרויקטים; הסשן מתחדש כדי שהתפקיד ייכנס לתוקף */
       else if (b.action === 'grant') { u.grants = u.grants || {}; if (b.perm === 'none') { delete u.grants[b.project]; if (u.cur === b.project) delete u.cur; db.deleted.grants = [...new Set([...(db.deleted.grants || []), u.id + ':' + b.project])].slice(-500); } else { u.grants[b.project] = b.perm === 'view' ? 'view' : 'edit'; u.cur = b.project; /* ייפתח אצלו בכניסה הבאה */ } }

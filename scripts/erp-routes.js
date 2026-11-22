@@ -51,7 +51,8 @@ export const SENDER_REASON = {
   google_workspace_required: 'שליחת הצעות דורשת כניסה ל-ERP עם חשבון Google של KO (kot.co.il)',
   sales_app_required: 'לחשבון ה-ERP שלך אין הרשאת מכירות — פנה למנהל ה-ERP',
   account_not_allowed: 'חשבון ה-ERP שלך לא יכול ליצור הצעות — פנה למנהל ה-ERP',
-  erp_unreachable: 'ה-ERP לא השיב — נסה שוב בעוד רגע'
+  erp_unreachable: 'ה-ERP לא השיב — נסה שוב בעוד רגע',
+  not_permitted: 'המשתמש שלך לא הורשה ליצור הצעות ב-ERP מכאן — פנה לבעל המערכת'
 };
 const OWNER_ONLY = p => p.startsWith('/api/erp/kits-sync') || p.startsWith('/api/erp/kit-ids') || p.startsWith('/api/erp/connect/') || p === '/api/erp/report';
 
@@ -59,7 +60,10 @@ const OWNER_ONLY = p => p.startsWith('/api/erp/kits-sync') || p.startsWith('/api
    erpLoginLive() → האם הכניסה עם KO ERP פעילה } */
 export async function handleErp(req, res, path0, isOwner, ctx = {}) {
   if (!path0.startsWith('/api/erp/') || path0 === '/api/erp/quotes' || path0 === '/api/erp/quote-items' || path0 === '/api/erp/orders-index') return false;
-  const u = ctx.user || {}, staffErp = !!(u.erpId && (u.role === 'admin' || u.role === 'pm'));
+  /* הרשאת יצירת הצעות לכל משתמש (נקבעת ב-/admin; ראה canErpOffers ב-auth.js): משתמש שהורשה במפורש מגיע לראוטי ה-ERP גם אם אינו אדמין /
+     מנהל פרויקטים; מי שנחסם במפורש עדיין מחפש לקוחות ופרויקטים כמו קודם, אבל לא יוצר הצעה */
+  const u = ctx.user || {}, canOffer = isOwner || u.erpOffers === true || (u.erpOffers !== false && (u.role === 'admin' || u.role === 'pm'));
+  const staffErp = !!((u.erpId && (u.role === 'admin' || u.role === 'pm')) || u.erpOffers === true);
   if (!isOwner && (!staffErp || OWNER_ONLY(path0))) { send(res, 403, { ok: false, errors: ['owner only'] }); return true; }
   /* הטוקן לחיפושים: של האדם; לבעלים בלי כניסה ל-ERP — המשותף (auth undefined); לאחר — אין. who = מפתח המטמון */
   const personalWho = 'erp:' + (u.erpId || u.id || '');
@@ -82,7 +86,8 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
       /* sender: בשם מי תישלח הצעה מכאן — לדיאלוג ("שולח בשם…" או הכפתור מושבת עם הסיבה). לא נשמר במטמון — לכל אדם שלו */
       const live = ctx.erpLoginLive ? await ctx.erpLoginLive() : false;
       const c = ctx.caller ? await ctx.caller() : { personal: false, reason: 'not_signed_in' };
-      const sender = { live, personal: !!c.personal, name: c.name || '', reason: c.personal ? null : (c.reason || 'not_signed_in'), reason_text: c.personal ? '' : (SENDER_REASON[c.reason] || SENDER_REASON.not_signed_in) };
+      const sender = canOffer ? { live, personal: !!c.personal, name: c.name || '', reason: c.personal ? null : (c.reason || 'not_signed_in'), reason_text: c.personal ? '' : (SENDER_REASON[c.reason] || SENDER_REASON.not_signed_in) }
+        : { live: true, personal: false, name: c.name || '', reason: 'not_permitted', reason_text: SENDER_REASON.not_permitted };   /* live: הכפתור מושבת עם הסיבה גם כשהכניסה עם KO ERP עוד לא פעילה */
       /* טוען .env דרך erp-client בקריאה הראשונה — לכן בודקים configured אחרי ניסיון */
       const who = c.personal ? personalWho : 'shared', sc = statusCache.get(who);
       if (sc && Date.now() - sc.at < 60_000) { send(res, 200, { ...sc.body, sender }); return true; }
@@ -140,6 +145,7 @@ export async function handleErp(req, res, path0, isOwner, ctx = {}) {
       const items = (p.items || []).filter(it => it.item_key && (+it.quantity || 0) >= 1);
       if (!items.length) errors.push('אין פריטים עם מק"ט ליצירת הצעה');
       if (errors.length) { send(res, 400, { ok: false, errors }); return true; }
+      if (!canOffer) { send(res, 403, { ok: false, errors: [SENDER_REASON.not_permitted] }); return true; }
       /* בשם מי: מרגע שהכניסה עם KO ERP פעילה — רק הטוקן של האדם (בלי נפילה לטוקן המשותף ולתחילית MCP-) */
       let auth;
       if (ctx.erpLoginLive && await ctx.erpLoginLive()) {
