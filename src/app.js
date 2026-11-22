@@ -6176,6 +6176,17 @@ function renderWires() {
     if (g.v && g.v.length) out += ln(g.cx, Math.min(g.cy, ...g.v) - ext, g.cx, Math.max(g.cy, ...g.v) + ext);       /* מיושר אנכית עם אייקון אחר */
     if (g.h && g.h.length) out += ln(Math.min(g.cx, ...g.h) - ext, g.cy, Math.max(g.cx, ...g.h) + ext, g.cy);       /* מיושר אופקית */
   }
+  /* מרחקי הרמקול הנגרר מהשכנים ומהקירות — כחול; ירוק עם "=" כשהמרחק משני הצדדים שווה */
+  if (window.__distG) {
+    const g = window.__distG, zg = getZ() || 1, fz = 12 / zg;
+    for (const m of g.ls) {
+      if (Math.hypot(m.x - g.cx, m.y - g.cy) * zg < 34) continue;   /* קצר מדי על המסך — אין מקום למספר */
+      const col = m.eq ? '#16a34a' : '#2563eb', mx = (g.cx + m.x) / 2, my = (g.cy + m.y) / 2, t = m.d.toFixed(2) + ' מ׳' + (m.eq ? ' =' : ''), tw = (t.length * 0.6 + 1.2) * fz;
+      out += `<line x1="${g.cx}" y1="${g.cy}" x2="${m.x}" y2="${m.y}" stroke="${col}" stroke-width="${(m.eq ? 2.4 : 1.6) / zg}" stroke-dasharray="${5 / zg} ${4 / zg}" pointer-events="none"/>`
+        + (m.wall ? `<circle cx="${m.x}" cy="${m.y}" r="${3.5 / zg}" fill="${col}" pointer-events="none"/>` : '')
+        + `<rect x="${mx - tw / 2}" y="${my - fz * 0.85}" width="${tw}" height="${fz * 1.7}" rx="${4 / zg}" fill="#fff" stroke="${col}" stroke-width="${1.2 / zg}" pointer-events="none"/><text x="${mx}" y="${my + fz * 0.36}" text-anchor="middle" font-size="${fz}" font-weight="700" fill="${col}" pointer-events="none">${t}</text>`;
+    }
+  }
   /* פוליגון אזור בזמן ציור */
   if (zoneMode && zoneMode.poly && zoneMode.poly.length) {
     const pp = zoneMode.poly;
@@ -12484,6 +12495,36 @@ document.addEventListener('pointermove', e => {
       for (const o of drag.oth || []) { if (Math.abs(o.x - cx) < 0.8) v.push(o.y); if (Math.abs(o.y - cy) < 0.8) hz.push(o.x); }
       window.__alignG = v.length || hz.length ? { cx, cy, v, h: hz } : null; }
   }
+  /* 📏 מרחקים בזמן גרירת רמקול (אורי, 22.11.2026: "בזמן שאני גורר רמקול אני רוצה לראות את המרחקים שלו מהרמקולים השכנים או מהקיר,
+     כדי להצליח למקם אותם במרחק שווה"). לכל אחד מארבעת הכיוונים מוצג הדבר הקרוב: רמקול שכן (מרכז-למרכז, בתוך 45° מהציר) או קיר
+     (מרחק ניצב; קיר = קו שרטוט, קיר וירטואלי או גבול אזור — planWallSegs). כשהמרחק משני הצדדים שווה שני הקווים נצבעים ירוק עם "=",
+     והרמקול נצמד לנקודת האמצע כשהוא קרוב אליה (כמו שאר ההצמדות: Alt או "הצמדה כבויה" מבטלים) */
+  window.__distG = null;
+  if (drag.n.kind === 'point' && isSpkPtype(drag.n) && P.scale) {
+    if (!drag.dc) { const g0 = nodeIconGeo(drag.n), own2 = new Set(cplDesc(drag.n).map(q => q.id));
+      drag.dc = { dx: g0.x - (2200 - drag.ox), dy: g0.y - drag.oy };   /* מרכז האייקון ביחס לפינת המוקד — נמדד פעם אחת, לפני שהאלמנט זז */
+      drag.spk = P.nodes.filter(nn => nn !== drag.n && nn.kind === 'point' && isSpkPtype(nn) && !nn.hidden && !own2.has(nn.id)).map(nn => nodeIconGeo(nn));
+      drag.wsg = planWallSegs(); }
+    const meas = () => { const cx = 2200 - drag.n.x + drag.dc.dx, cy = drag.n.y + drag.dc.dy, m = {};
+      for (const [k, ax, sg] of [['R', 'x', 1], ['L', 'x', -1], ['D', 'y', 1], ['U', 'y', -1]]) { let best = null; const isX = ax === 'x';
+        for (const [a, b] of drag.wsg) { const a1 = isX ? a.y : a.x, b1 = isX ? b.y : b.x, c1 = isX ? cy : cx; if ((a1 - c1) * (b1 - c1) > 0 || Math.abs(a1 - b1) < 1e-6) continue;
+          const t = (c1 - a1) / (b1 - a1), hit = isX ? a.x + t * (b.x - a.x) : a.y + t * (b.y - a.y), d = (hit - (isX ? cx : cy)) * sg;
+          if (d > 0.5 && (!best || d < best.d)) best = { d, x: isX ? hit : cx, y: isX ? cy : hit, wall: true, p: hit, pr: 0 }; }
+        for (const o of drag.spk) { const dx = o.x - cx, dy = o.y - cy, al = (isX ? dx : dy) * sg, pr = Math.abs(isX ? dy : dx); if (al <= 1 || pr > al) continue;
+          const d = Math.hypot(dx, dy); if (!best || d < best.d) best = { d, x: o.x, y: o.y, wall: false, p: isX ? o.x : o.y, pr }; }
+        if (best) m[k] = best; }
+      return { cx, cy, m }; };
+    let M = meas();
+    if (!P.snapOff && !e.altKey && !drag.att) {   /* הצמדה לאמצע — רק כשהשכנים מיושרים עם הרמקול הנגרר (אז מרחק הציר הוא המרחק האמיתי), ולאורך הקיר שאליו הוא צמוד */
+      const TH2 = 7 / Z, AL = 8 / Z, wg = window.__wallG && window.__wallG.length === 1 ? window.__wallG[0] : null, wdx = wg ? Math.abs(wg[1].x - wg[0].x) : 0, wdy = wg ? Math.abs(wg[1].y - wg[0].y) : 0;
+      const okX = !window.__wallG || (wg && wdy < 0.03 * wdx), okY = !window.__wallG || (wg && wdx < 0.03 * wdy); let sh = false;
+      if (okX && M.m.L && M.m.R && M.m.L.pr < AL && M.m.R.pr < AL) { const t = (M.m.L.p + M.m.R.p) / 2 - M.cx; if (Math.abs(t) < TH2 && Math.abs(t) > 0.01) { drag.n.x -= t; sh = true; } }
+      if (okY && M.m.U && M.m.D && M.m.U.pr < AL && M.m.D.pr < AL) { const t = (M.m.U.p + M.m.D.p) / 2 - M.cy; if (Math.abs(t) < TH2 && Math.abs(t) > 0.01) { drag.n.y += t; sh = true; } }
+      if (sh) { M = meas(); window.__alignG = null; } }
+    const tol = Math.max(0.6, 0.012 / P.scale);   /* "שווה" = עד 1.2 ס״מ (או חצי פיקסל) */
+    const eqX = !!(M.m.L && M.m.R && Math.abs(M.m.L.d - M.m.R.d) <= tol), eqY = !!(M.m.U && M.m.D && Math.abs(M.m.U.d - M.m.D.d) <= tol);
+    window.__distG = { cx: M.cx, cy: M.cy, ls: Object.entries(M.m).map(([k, b]) => ({ x: b.x, y: b.y, d: b.d * P.scale, wall: b.wall, eq: k === 'L' || k === 'R' ? eqX : eqY })) };
+  }
   const el = document.getElementById('nd_' + drag.n.id);
   /* טופים שיושבים על הסאב הנגרר זזים איתו — במיקום השמור וגם על המסך */
   if (!drag.fol) drag.fol = cplDesc(drag.n).map(q => { const fe = document.getElementById('nd_' + q.id); return fe ? { q, fe, x0: q.x - drag.ox, y0: q.y - drag.oy, dr: parseFloat(fe.style.right) - parseFloat(el.style.right), dt: parseFloat(fe.style.top) - parseFloat(el.style.top) } : null; }).filter(Boolean);
@@ -12562,7 +12603,7 @@ document.addEventListener('pointerup', e => {
     dragH = null; render();
     return;
   }
-  if (window.__alignG || window.__wallG) { window.__alignG = null; window.__wallG = null; renderWires(); }
+  if (window.__alignG || window.__wallG || window.__distG) { window.__alignG = null; window.__wallG = null; window.__distG = null; renderWires(); }
   if (dragK) { dragK = null; render(); return; }
   if (dragE) {
     const de = dragE; dragE = null;
