@@ -7195,5 +7195,15 @@
  "◠ כבלים בקשתות": "◠ Cables as arcs",
  "במקום זוויות ישרות": "instead of right angles",
  "המשתמש שלך לא הורשה למשוך הצעות מה-ERP": "Your user is not permitted to pull offers from the ERP",
- "כדי למשוך הצעות מה-ERP היכנס עם KO ERP": "To pull offers from the ERP, sign in with KO ERP"
+ "כדי למשוך הצעות מה-ERP היכנס עם KO ERP": "To pull offers from the ERP, sign in with KO ERP",
+ "מספיק ארון": "a cabinet of",
+ "🔁 החלף לארון": "🔁 Replace with a cabinet of",
+ "בלי ארון בתכנית": "with no rack on the plan",
+ "ארונות בתכנית וכבר יש לכל אחד ארון בהצעה": "racks on the plan and each already has a cabinet in the offer",
+ "ארון כפול": "Duplicate cabinet",
+ "🗑 הסר את ה": "🗑 Remove the",
+ "U מההצעה": "U from the offer",
+ "הוחלף בארון": "was replaced by a cabinet of",
+ "U ירד מההצעה": "U removed from the offer",
+ "יש ארון אחד בתכנית והארון שלו כבר בהצעה": "there is one rack on the plan and its cabinet is already in the offer"
 }

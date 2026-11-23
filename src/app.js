@@ -8996,12 +8996,20 @@ function projGapCheck() {
   { const dap = rows.filter(it => offerBanned(it.name)).map(it => shortModel(it.name)); racks.forEach(rk => (rk.units || []).forEach(u => { if (offerBanned(u.name)) dap.push(shortModel(u.name) + ' (ב"' + rk.name.slice(0, 14) + '")'); }));
     if (dap.length) finds.push({ i: '⛔', k: 'dap', t: 'מגבר UNICORN DAP בהצעה/בארון (' + [...new Set(dap)].join(', ') + ') — לפי כלל הבית לא משתמשים ב-DAP בהצעות מחיר; להחליף ל-DYNAMIQ' + (qsum(it => /סאב|\bsub/i.test(it.name || '')) ? ' 4600 (יש סאבים)' : ' 750/450'), b: '🔍 DYNAMIQ', fn: "gapSearch('DYNAMIQ')" }); }
   /* 5א. ארון תקשורת בהצעה קטן מהציוד שבארון (או חסר): לכל ארון בתכנית — ארון בהצעה עם מספיק U לכל היחידות */
-  { const cabs = []; rows.forEach(it => { const u = rackCabU(it.name); if (u) for (let q = 0; q < Math.max(1, Math.round(+it.qty || 1)); q++) cabs.push({ u, name: it.name }); }); cabs.sort((a, b) => a.u - b.u);
+  { const cabs = []; rows.forEach(it => { const u = rackCabU(it.name); if (u) for (let q = 0; q < Math.max(1, Math.round(+it.qty || 1)); q++) cabs.push({ u, name: it.name, iid: it.iid }); }); cabs.sort((a, b) => a.u - b.u);
     const need = racks.map(rk => ({ rk, used: (rk.units || []).reduce((s2, u) => s2 + (+u.u || 1), 0) })).sort((a, b) => b.used - a.used);
-    need.forEach(({ rk, used }) => { const i = cabs.findIndex(c => c.u >= used); if (i >= 0) { cabs.splice(i, 1); return; }
-      const best = cabs.length ? Math.max(...cabs.map(c => c.u)) : 0;
+    need.forEach(({ rk, used }) => { const i = cabs.findIndex(c => c.u >= used);
       const wantU = used + 2, cab = rackCabCands(wantU)[0];
-      finds.push({ i: '🗄', k: 'rackcab|' + rk.id, t: 'ב"' + rk.name.slice(0, 18) + '" ' + used + 'U בשימוש' + (rk.ru ? ' (תוכנן ' + rk.ru + 'U)' : '') + (best ? ' · בהצעה ארון ' + best + 'U בלבד — קטן מדי' : ' · אין ארון תקשורת/קייס בהצעה') + ' · מומלץ ארון ' + wantU + 'U (+2U רזרבה)' + (cab ? ': ' + cab.r[1].slice(0, 40) + (cab.r[3] > 0 ? ' · במלאי ' + cab.r[3] : ' · אין מלאי') : ''), b: cab ? '➕ הוסף ארון ' + cab.u + 'U' : '🔍 ארון ' + wantU + 'U', fn: cab ? "gapAddRack('" + rk.id + "'," + wantU + ')' : "gapSearch('ארון תקשורת " + wantU + "U')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('ארון תקשורת')" } }); }); }
+      if (i >= 0) { const have = cabs.splice(i, 1)[0];
+        /* ארון בהצעה גדול מהנדרש: אפשר להחליף לקטן ביותר שעומד בכלל ה-+2U — החלפה, לא ארון נוסף */
+        if (cab && cab.u < have.u) finds.push({ i: '🗄', k: 'rackbig|' + rk.id + '|' + have.u, t: 'ב"' + esc(rk.name.slice(0, 18)) + '" ' + used + 'U בשימוש · בהצעה ארון ' + have.u + 'U — מספיק ארון ' + cab.u + 'U (' + used + 'U + 2U רזרבה): ' + esc(cab.r[1].slice(0, 40)) + (cab.r[3] > 0 ? ' · במלאי ' + cab.r[3] : ' · אין מלאי'), b: '🔁 החלף לארון ' + cab.u + 'U', fn: "gapAddRack('" + rk.id + "'," + wantU + ')' });
+        return; }
+      const best = cabs.length ? Math.max(...cabs.map(c => c.u)) : 0;
+      finds.push({ i: '🗄', k: 'rackcab|' + rk.id, t: 'ב"' + rk.name.slice(0, 18) + '" ' + used + 'U בשימוש' + (rk.ru ? ' (תוכנן ' + rk.ru + 'U)' : '') + (best ? ' · בהצעה ארון ' + best + 'U בלבד — קטן מדי' : ' · אין ארון תקשורת/קייס בהצעה') + ' · מומלץ ארון ' + wantU + 'U (+2U רזרבה)' + (cab ? ': ' + cab.r[1].slice(0, 40) + (cab.r[3] > 0 ? ' · במלאי ' + cab.r[3] : ' · אין מלאי') : ''), b: cab ? '➕ הוסף ארון ' + cab.u + 'U' : '🔍 ארון ' + wantU + 'U', fn: cab ? "gapAddRack('" + rk.id + "'," + wantU + ')' : "gapSearch('ארון תקשורת " + wantU + "U')", alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('ארון תקשורת')" } }); });
+    /* יותר ארונות בהצעה מאשר ארונות בתכנית (בכל הגיליונות) — הגדולים שנשארו בלי ארון מיותרים */
+    { const nRk = (P.sheets && P.sheets.length ? P.sheets.flatMap(sh => sh.id === P.curSheet ? P.nodes : (sh.nodes || [])) : P.nodes).filter(n => n.kind === 'rack' && !n.hidden && !n.proxy).length;
+      const extra = nRk ? cabs.length - Math.max(0, nRk - need.length) : 0;
+      if (need.length && extra > 0) cabs.slice(-extra).forEach(c => finds.push({ i: '🗄', k: 'rackextra|' + c.iid, t: 'בהצעה ארון ' + c.u + 'U (' + esc(c.name.slice(0, 44)) + ') בלי ארון בתכנית — ' + (nRk === 1 ? 'יש ארון אחד בתכנית והארון שלו כבר בהצעה' : nRk + ' ארונות בתכנית וכבר יש לכל אחד ארון בהצעה') + '. ארון כפול?', b: '🗑 הסר את ה-' + c.u + 'U מההצעה', fn: "gapDropRackCab('" + c.iid + "')" })); } }
   if (racks.length && !qsum(it => PDU_RX.test(it.name))) finds.push({ i: '⚡', k: 'pdu', t: racks.length + ' ארונות מאובזרים — אין פס שקעים בהצעה', b: '➕ הוסף ' + racks.length + ' פס שקעים', fn: 'gapAddPdu(' + racks.length + ')', alt: { b: '🔍 בחר מקטלוג', fn: "gapSearch('פס שקעים')" } });
   /* 5ב. יחידה בארון שאף כבל לא נוגע בה — כנראה מיותרת; מציעים להסיר מהארון ומההצעה */
   P.nodes.filter(n => n.kind === 'rack').forEach(rk => {
@@ -9171,12 +9179,48 @@ const PDU_RX = /פס שקעים|פס חשמל|שקעים לארון|PDU|רב ש�
 const RACK_CAB_RX = /ארון (?:תקשורת|שרת|מסד|19)|קייס (?:ארון|צף|קצר)|FLOATING RACK|\brack\b|ראק/i, RACK_CAB_NO = /פנל|פאנל|מדף|מתקן|מאוורר|דלת|מסילה|ת\.ח|פס שקעים|כיסוי|גלגל|ידית|בורג|אום|מגירה|מיקסר|SAMPLE|RAILS/i;
 /* כלל הבית (אורי): מציעים תמיד ארון גדול ב-2U מהנדרש — הארון הקטן ביותר בקטלוג שעומד בזה (במלאי קודם, אחר כך מחיר) */
 function rackCabCands(minU) { return (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).map(r => ({ r, u: rackCabU(r[1]) })).filter(x => x.u >= minU && !/השכר|שירות|פגום|דוגמא/.test(x.r[1])).sort((a, b) => a.u - b.u || ((b.r[3] > 0) - (a.r[3] > 0)) || (+a.r[2] || 1e9) - (+b.r[2] || 1e9)); }
+/* הארון של rk בהצעה: השורה שממנה נוצר, ארון ששויך אליו, ובתכנית עם ארון אחד — כל ארון שבהצעה */
+function rackCabRowsOf(rk) {
+  const cabs = impItems.filter(it => it.on !== false && (+it.qty || 0) > 0 && rackCabU(it.name));
+  const one = P.nodes.filter(n => n.kind === 'rack' && !n.hidden && !n.proxy).length === 1;
+  return cabs.filter(it => (rk.srcIid && it.iid === rk.srcIid) || it.rack === rk.id || one);
+}
+/* גובה הארון בתכנית הולך אחרי הארון שנבחר בהצעה — גם כשהוא קטן יותר. הציוד נדחס למעלה אם הוא יושב נמוך מדי; ארון לא יורד מתחת לציוד שבו */
+function rackSetRu(rk, u) {
+  if (!rk || !(u > 0)) return;
+  const used = (rk.units || []).reduce((s2, x) => s2 + (+x.u || 1), 0), top = (rk.units || []).reduce((s2, x) => Math.max(s2, (+x.pos || 0) + (+x.u || 1)), 0);
+  if (top > u && used <= u) rackArrange(rk);
+  rk.ru = Math.max(u, used <= u ? 0 : top);
+}
+/* אורי, 23.11.2026: "כשבחרתי בבדיקת שלמות ארון 6U היה צריך להתבטל הארון 12U מההצעה" — ארון שנבחר מחליף את הארון הקיים של אותו ארון בתכנית */
 function gapAddRack(rkId, minU) {
   const c = rackCabCands(minU)[0]; if (!c) { uiToast('⚠ אין בקטלוג ארון של ' + minU + 'U ומעלה — בחר ידנית'); gapSearch('ארון תקשורת'); return; }
-  const it = { on: true, qty: 1, name: c.r[1], key: c.r[0], src: 'בדיקת שלמות', dest: 'acc', cat: 'other', u: 1, iid: uid('i') }; autoPrice(it); impItems.push(it);
-  const rk = byId(rkId); if (rk && (+rk.ru || 0) < c.u) rk.ru = c.u;   /* הארון בתכנית מתעדכן לגודל שנבחר */
-  render(); save(); uiToast('➕ נוסף ארון ' + c.u + 'U: ' + c.r[1].slice(0, 50) + (c.r[3] > 0 ? ' (במלאי ' + c.r[3] + ')' : ' (אין מלאי)'), 6000); gapBack();
+  const rk = byId(rkId), old = rk ? rackCabRowsOf(rk) : [];
+  pushHistory();
+  let it = null; const gone = [];
+  old.forEach(o => { gone.push(rackCabU(o.name) + 'U');
+    if (!it && Math.round(+o.qty || 1) <= 1) { it = o; o.name = c.r[1]; o.key = c.r[0]; o.price = undefined; o.ru = c.u; autoPrice(o); }   /* אותה שורה, מוצר אחר — השיוך לארון ולקיט נשמר */
+    else if (Math.round(+o.qty || 1) > 1) o.qty = Math.round(+o.qty) - 1;
+    else impItems.splice(impItems.indexOf(o), 1); });
+  if (!it) { it = { on: true, qty: 1, name: c.r[1], key: c.r[0], src: 'בדיקת שלמות', dest: 'rack', ru: c.u, cat: 'other', u: 1, iid: uid('i'), added: true, placed: 1 };   /* added — הארון כבר בתכנית, לא ליצור עוד אחד */ if (rk) it.rack = rk.id; autoPrice(it); impItems.push(it); }
+  if (rk) { rackSetRu(rk, c.u); if (!rk.srcIid || !impItems.some(x => x.iid === rk.srcIid)) rk.srcIid = it.iid; }
+  render(); save();
+  uiToast((gone.length ? '🔁 ארון ' + gone.join(' + ') + ' הוחלף בארון ' : '➕ נוסף ארון ') + c.u + 'U: ' + c.r[1].slice(0, 50) + (c.r[3] > 0 ? ' (במלאי ' + c.r[3] + ')' : ' (אין מלאי)'), 6000); gapBack();
 }
+/* ארון מיותר בהצעה (יותר ארונות מאשר בתכנית): יורד מההצעה, והארון שבתכנית מקבל את הגובה של הארון שנשאר */
+function gapDropRackCab(iid) {
+  const o = impItems.find(x => x.iid === iid); if (!o) { gapBack(); return; }
+  pushHistory();
+  const u = rackCabU(o.name);
+  if (Math.round(+o.qty || 1) > 1) o.qty = Math.round(+o.qty) - 1; else impItems.splice(impItems.indexOf(o), 1);
+  P.nodes.filter(n => n.kind === 'rack' && !n.hidden && !n.proxy).forEach(rk => {
+    if (rk.srcIid === iid && !impItems.some(x => x.iid === iid)) rk.srcIid = undefined;
+    const left = rackCabRowsOf(rk).map(x => rackCabU(x.name)).sort((a, b) => a - b), used = (rk.units || []).reduce((s2, x) => s2 + (+x.u || 1), 0);
+    const fit = left.find(v => v >= used); if (fit && (+rk.ru || 0) === u) rackSetRu(rk, fit);
+  });
+  render(); save(); uiToast('🗑 ארון ' + u + 'U ירד מההצעה', 5000); gapBack();
+}
+window.gapDropRackCab = gapDropRackCab;
 /* מתג (מפצל) רשת: הקטן ביותר עם מספיק פורטים — נכנס לארון ולהצעה; PoE כשיש מכשירי PoE */
 function netSwitchPortsOf(nm) { const n = String(nm || ''); let m = /(\d+)\s*\+\s*(\d+)\s*PORT/i.exec(n); if (m) return +m[1] + +m[2]; m = /(\d+)\s*(?:PORT|פורט|יציאות)/i.exec(n); return m ? +m[1] : 0; }
 function netSwitchCands(minPorts, poe) { return (typeof ERP_ITEMS !== 'undefined' ? ERP_ITEMS : []).filter(([, n]) => n && /מפצל רשת|מתג רשת|רכזת/i.test(n) && !/USB|HDMI|KVM|VGA|בורר|DMX|SWITCHCRAFT/i.test(n) && (!poe || /PoE/i.test(n))).map(r => { let lay = 0; try { lay = rearPortsAuto(rearLayout(r[1])).filter(i => i.t === 'rj45').length; } catch (e) { lay = 0; } return { r, p: Math.max(netSwitchPortsOf(r[1]), lay), lay }; }).filter(x => x.p >= minPorts).sort((a, b) => ((b.lay > 0) - (a.lay > 0)) || ((b.r[3] > 0) - (a.r[3] > 0)) || a.p - b.p || (+a.r[2] || 1e9) - (+b.r[2] || 1e9)); }   /* קודם מתג שיש לו פריסת גב (הפורטים ידועים לחיווט), במלאי, ואז הקטן שמספיק */
@@ -9191,7 +9235,14 @@ function gapAddSwitch(rkId, minPorts, poe) {
   render(); save(); uiToast('➕ נוסף לארון ולהצעה: ' + c.r[1].slice(0, 50) + ' (' + c.p + ' פורטים' + (c.r[3] > 0 ? ', במלאי ' + c.r[3] : ', אין מלאי') + ')' + (rl ? ' · ' + rl + ' מוצרי DigiSynthetic שובצו לפורטי PoE' : ''), 6000); gapBack();
 }
 window.gapAddRack = gapAddRack; window.gapAddSwitch = gapAddSwitch;
-function rackCabU(nm) { const n = String(nm || ''); if (!RACK_CAB_RX.test(n) || RACK_CAB_NO.test(n)) return 0; const m = /(\d{1,2})\s?U\b/i.exec(n); return m ? +m[1] : 0; }
+/* שם שנפתח ב"ארון" / "קייס ארון" הוא הארון עצמו גם כשכתוב בו "+גלגלים מורכבים", "דלת זכוכית" או "מדפים + מאווררים" —
+   אורי, 23.11.2026: ארון 12U עם גלגלים לא זוהה כארון, הבדיקה אמרה "אין ארון בהצעה" והוסיפה ארון שני. רשימת הפסילה נשארת לאביזרים. */
+function rackCabU(nm) {
+  const n = String(nm || '').trim(); if (!RACK_CAB_RX.test(n)) return 0;
+  const m = /(\d{1,2})\s?U\b/i.exec(n); if (!m) return 0;
+  if (/^(?:ארון|קייס ארון)\s/.test(n) && !/SAMPLE|חצי\s*(?:RACK|ראק)/i.test(n)) return +m[1];
+  return RACK_CAB_NO.test(n) ? 0 : +m[1];
+}
 function gapAddPdu(n) { gapAddFromCatalog(PDU_RX, n, 'unit', 'פס שקעים'); }
 window.gapAddMounts = gapAddMounts; window.gapAddPdu = gapAddPdu;
 function gapAddShortXlr(n) { gapAddFromCatalog(/XLR.{0,30}(1|0\.5|1\.5|2)\s*מטר|XLR.{0,20}קצר|patch.{0,10}XLR/i, n, 'conn', 'כבל XLR קצר'); }
